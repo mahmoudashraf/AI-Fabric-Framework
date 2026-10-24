@@ -201,12 +201,13 @@ class ProductionAdmissionResourceReadbackSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"target", "release"})
+    @ValueSource(strings = {"target", "release", "dynamic-target"})
     void verificationReapplyRejectsAssignedConsumer(String assignment) {
         var fixture = verificationReapplyFixture();
         var assigned = "target".equals(assignment)
-            ? consumer("deployment", AdmissionFixture.TARGET, null)
-            : consumer("other-deployment", "other-target", "release");
+            ? consumer("deployment", AdmissionFixture.TARGET, "other-release")
+            : "dynamic-target".equals(assignment) ? consumer("deployment", null, null)
+                : consumer("other-deployment", "other-target", "release");
         when(fixture.consumers.findAll()).thenReturn(List.of(assigned));
 
         assertThatThrownBy(() -> fixture.source.readForVerificationReapply(
@@ -214,6 +215,24 @@ class ProductionAdmissionResourceReadbackSourceTest {
             .isInstanceOf(AdmissionFailure.class)
             .hasMessageContaining("VERIFICATION_REAPPLY_UNASSIGNED_RELEASE_REQUIRED");
         verifyNoInteractions(fixture.client);
+    }
+
+    @Test
+    void verificationReapplyAllowsExplicitConfigurationOnlyAssignmentWithoutChangingRetirementReferences() {
+        var fixture = verificationReapplyFixture();
+        when(fixture.consumers.findAll()).thenReturn(List.of(consumer("deployment", AdmissionFixture.TARGET, null)));
+
+        var readback = fixture.source.readForVerificationReapply(
+            new ReadbackContext(fixture.reservation, policy(), null));
+
+        assertThat(readback.assignmentCount()).isZero();
+        assertThat(readback.inventoryComplete()).isTrue();
+        verify(fixture.consumers, times(2)).findAll();
+        fixture.release.setStatus("APPLIED_VERIFIED");
+        fixture.release.setVerificationStatus("PASSED");
+        assertThat(fixture.source.read(new ReadbackContext(fixture.reservation, policy(), null)).assignmentCount())
+            .isEqualTo(1);
+        verifyNoInteractions(fixture.operations, fixture.retirements, fixture.retirementInventory);
     }
 
     @Test

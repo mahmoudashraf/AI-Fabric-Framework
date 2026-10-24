@@ -43,6 +43,21 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
 
+03:16UTC checkpoint: initial post-apply run `vrf-e305447c` honestly FAILED
+26passed/1failed/6skipped. The sole failure was S3 `InvalidAccessKeyId` from the
+stale staging pair in the ignored handoff, not a runtime/framework defect. The
+earlier approved staging identity retained in the secret store successfully listed
+the three policies. Actual customer UI corrected the same S3 binding; production's
+separate reader also listed its three policies successfully. No S3 writes.
+Explicit UI reapply then stopped before any provider call with
+`VERIFICATION_REAPPLY_UNASSIGNED_RELEASE_REQUIRED`: a targeted configuration-only
+consumer with no release was counted as live traffic. A bounded readback fix
+excludes that non-serving assignment only from verification-reapply checks;
+normal active/retirement counting remains unchanged. Bound releases and ambiguous
+untargeted assignments remain protected.39 focused readback checks passed;
+PostgreSQL admission-regression checks are running. New hosted reapply, indexing,
+workspace journey and promotion remain pending; no green result is inferred.
+
 02:49UTC checkpoint: both consoles LIVE VERIFIED at
 `0ec25392f36a8e53ed3dc0b229c6b0021e74c575`, image
 `sha256:a33c7efe437e9ebf4d96be4dcce19ef9308f05e88643b68da17b45df75be2716`.

@@ -162,7 +162,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         DeploymentReleaseEntity exactRelease = matches.getFirst();
         if (verificationReapply && (boundReleaseId == null
             || !"FAILED".equals(exactRelease.getVerificationStatus())
-            || assignments(reservation, Set.of(exactRelease.getId())) != 0))
+            || verificationReapplyAssignments(reservation, Set.of(exactRelease.getId())) != 0))
             throw failure(PRECONDITION_FAILED, "VERIFICATION_REAPPLY_UNASSIGNED_RELEASE_REQUIRED");
 
         List<DeploymentProviderResourceHandleEntity> owned = handles
@@ -201,7 +201,8 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
             "provider", providerEvidence
         ));
         return readback(context, target, now, reference, true, true, false, false,
-            false, false, assignments(reservation, releaseIds), null, null, null, null);
+            false, false, verificationReapply ? verificationReapplyAssignments(reservation, releaseIds)
+                : assignments(reservation, releaseIds), null, null, null, null);
     }
 
     private CustomerSelfServiceProperties.TrustedServer trusted(Intent intent) {
@@ -337,6 +338,14 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
 
     private long assignments(Reservation reservation, Set<String> releaseIds) {
         return consumers.findAll().stream().filter(consumer -> references(consumer, reservation, releaseIds)).count();
+    }
+
+    private long verificationReapplyAssignments(Reservation reservation, Set<String> releaseIds) {
+        // An explicitly targeted, configuration-only assignment cannot serve a release yet.
+        return consumers.findAll().stream().filter(consumer -> references(consumer, reservation, releaseIds))
+            .filter(consumer -> consumer.getBoundReleaseId() != null
+                || !reservation.targetProfileId().equals(consumer.getBoundTargetProfileId()))
+            .count();
     }
 
     private boolean references(PlatformConsumerEntity consumer, Reservation reservation, Set<String> releaseIds) {
