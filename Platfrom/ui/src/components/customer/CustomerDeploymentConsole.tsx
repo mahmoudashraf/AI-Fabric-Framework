@@ -96,7 +96,8 @@ import {
   type PlatformAuthSessionSummary,
   type PlatformConsumerSummary,
 } from '../../api/platformApi'
-import { canApplyReviewedVersion, CustomerAdmissionCommands } from './customerAdmissionCommands'
+import { admissionNeedsProgressPolling, canApplyReviewedVersion, currentCustomerAdmission,
+  CustomerAdmissionCommands, releaseNeedsProgressPolling } from './customerAdmissionCommands'
 import { CustomerReleaseVerificationButton } from './CustomerReleaseVerificationButton'
 import { KnownNoEffectSettlementPanel } from './KnownNoEffectSettlementPanel'
 import { createDurableCommandHolds } from './durableCommandHolds'
@@ -351,7 +352,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     enabled: Boolean(selectedDeploymentId),
     refetchInterval: (query) => {
       const releases = (query.state.data as DeploymentReleaseSummary[] | undefined) ?? []
-      return releases.some((release) => ['APPLY_REQUESTED', 'APPLYING', 'VERIFYING'].includes(release.status)) ? 4000 : false
+      return releases.some((release) => releaseNeedsProgressPolling(release.status)) ? 4000 : false
     },
   })
 
@@ -359,6 +360,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     queryKey: ['customer-admission-reservations', selectedOffer?.id, selectedDeploymentId, stagingTargetProfileId],
     queryFn: () => fetchCustomerDeploymentAdmissions(selectedOffer!.id, selectedDeploymentId, stagingTargetProfileId),
     enabled: Boolean(selectedOffer && selectedDeploymentId && stagingTargetProfileId),
+    refetchInterval: (query) => ((query.state.data as CustomerAdmissionReservationSummary[] | undefined) ?? [])
+      .some(value => admissionNeedsProgressPolling(value.state)) ? 4000 : false,
   })
   const retirementsQuery = useQuery({
     queryKey: ['customer-target-retirements', selectedOffer?.id, selectedDeploymentId, stagingTargetProfileId],
@@ -443,8 +446,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   } catch (error) { configurationProtectionError = errorText(error) }
   const currentRejectionReview = reviewedRejection?.token === configurationGuard.capture() ? reviewedRejection.prepared : null
   const currentRejectionConfirmed = rejectionConfirmed?.token === configurationGuard.capture() && rejectionConfirmed.checked
-  const activeAdmission = admission?.deploymentId === selectedDeploymentId
-    && admission.targetProfileId === stagingTargetProfileId ? admission : admissionsQuery.data?.[0] ?? null
+  const activeAdmission = currentCustomerAdmission(admission, admissionsQuery.data ?? [], selectedDeploymentId, stagingTargetProfileId)
   const recoveryResult = useScopedOneTimeValue<CustomerPreparedFailureRecoverySummary>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
     selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id,
@@ -1447,11 +1449,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                         </Button>
                       </> : null}
                       {releaseReady(stagingRelease) && selectedConsumer.boundReleaseId !== stagingRelease?.id && !productionActive ? (
+                        <>
+                        {activeAdmission?.state !== 'ACTIVE' ? <Alert severity="info">Staging checks passed. Finalizing the deployment allocation.</Alert> : null}
                         <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
-                          disabled={bindConsumerToStaging.isPending}
+                          disabled={bindConsumerToStaging.isPending || activeAdmission?.state !== 'ACTIVE' || admissionRetirementStarted}
                           onClick={() => bindConsumerToStaging.mutate()}>
                           Use latest verified staging release
                         </Button>
+                        </>
                       ) : null}
                     </Stack>
                   ) : null}

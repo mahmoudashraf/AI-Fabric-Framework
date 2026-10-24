@@ -7,7 +7,26 @@ const source = await readFile(new URL('../src/components/customer/customerAdmiss
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
-const { canApplyReviewedVersion, CustomerAdmissionCommands } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
+const { canApplyReviewedVersion, CustomerAdmissionCommands, releaseNeedsProgressPolling,
+  admissionNeedsProgressPolling, currentCustomerAdmission } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
+
+test('customer progress observes actual release and allocation states until settled', () => {
+  for (const status of ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING']) assert.equal(releaseNeedsProgressPolling(status), true)
+  for (const status of ['APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED', 'FAILED']) assert.equal(releaseNeedsProgressPolling(status), false)
+  for (const state of ['RESERVED', 'PROVISIONING', 'OUTCOME_UNKNOWN']) assert.equal(admissionNeedsProgressPolling(state), true)
+  for (const state of ['ACTIVE', 'RELEASED', 'CLEANUP_FAILED']) assert.equal(admissionNeedsProgressPolling(state), false)
+})
+
+test('fresh same-scope allocation readback replaces retained command state without crossing resources', () => {
+  const retained = { id: 'allocation', deploymentId: 'deployment', targetProfileId: 'staging', revision: 1, state: 'PROVISIONING' }
+  const fresh = { ...retained, revision: 3, state: 'ACTIVE' }
+  assert.equal(currentCustomerAdmission(retained, [fresh], 'deployment', 'staging'), fresh)
+  assert.equal(currentCustomerAdmission(fresh, [retained], 'deployment', 'staging'), fresh)
+  assert.equal(currentCustomerAdmission(retained, [{ ...fresh, deploymentId: 'other' }], 'deployment', 'staging'), retained)
+  assert.equal(currentCustomerAdmission(retained, [fresh], 'other', 'staging'), null)
+  assert.equal(currentCustomerAdmission(null, [fresh], 'deployment', 'production'), null)
+  assert.equal(currentCustomerAdmission(null, [fresh, { ...fresh, id: 'ambiguous' }], 'deployment', 'staging'), null)
+})
 
 test('reviewed new versions may replace a settled release but not duplicate or interrupt an apply', () => {
   const release = { deploymentVersionId: 'version-one', status: 'APPLIED_VERIFIED',

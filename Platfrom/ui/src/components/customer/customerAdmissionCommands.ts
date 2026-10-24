@@ -4,6 +4,22 @@ import type {
   DeploymentReleaseSummary,
 } from '../../api/platformApi'
 
+export function releaseNeedsProgressPolling(status: string) {
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(status)
+}
+
+export function admissionNeedsProgressPolling(state: string) {
+  return ['RESERVED', 'PROVISIONING', 'OUTCOME_UNKNOWN'].includes(state)
+}
+
+export function currentCustomerAdmission(local: CustomerAdmissionReservationSummary | null,
+  observed: CustomerAdmissionReservationSummary[], deploymentId: string, targetProfileId: string) {
+  const scoped = observed.filter(value => value.deploymentId === deploymentId && value.targetProfileId === targetProfileId)
+  const retained = local?.deploymentId === deploymentId && local.targetProfileId === targetProfileId ? local : null
+  const fresh = retained ? scoped.find(value => value.id === retained.id && value.revision >= retained.revision) : null
+  return fresh ?? retained ?? (scoped.length === 1 ? scoped[0] : null)
+}
+
 export function canApplyReviewedVersion(versionId: string | null | undefined, release: DeploymentReleaseSummary | null) {
   if (!versionId) return false
   if (!release || ['FAILED', 'PRE_APPLY_BLOCKED'].includes(release.status)) return true
