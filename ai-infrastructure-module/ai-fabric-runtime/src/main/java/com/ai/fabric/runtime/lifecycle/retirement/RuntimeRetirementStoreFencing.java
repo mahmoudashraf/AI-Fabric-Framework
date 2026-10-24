@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.springframework.aop.support.AopUtils;
@@ -50,6 +51,11 @@ public class RuntimeRetirementStoreFencing {
         }
         public Optional<ChatSession> findById(String conversationId) { return delegate.findById(conversationId); }
         public List<ChatSession> findByOwnerId(String ownerId) { return delegate.findByOwnerId(ownerId); }
+        @Override
+        public <T> Optional<T> mutateOwnedSession(String conversationId, String ownerId, Function<ChatSession, T> mutation) {
+            return service.getObject().withConversationWrite(conversationId, ownerId,
+                () -> delegate.mutateOwnedSession(conversationId, ownerId, mutation));
+        }
         public void deleteById(String conversationId) {
             Optional<ChatSession> session = delegate.findById(conversationId);
             if (session.isEmpty()) return;
