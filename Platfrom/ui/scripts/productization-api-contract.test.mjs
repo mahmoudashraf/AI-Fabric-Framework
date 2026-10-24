@@ -244,10 +244,20 @@ test('customer productization API contracts preserve command scope and transport
 })
 
 test('customer console keeps mutation keys stable and activation evidence-bound', () => {
+  const ast = ts.createSourceFile('CustomerDeploymentConsole.tsx', customerConsoleSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const consoleBody = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'CustomerDeploymentConsole')?.getText(ast)
+  assert.ok(consoleBody)
   assert.match(customerConsoleSource, /useRef\(new Map<string, \{ identity: string; key: string \}>\(\)\)/)
   assert.match(customerConsoleSource, /existing\?\.identity === identity/)
-  assert.equal((customerConsoleSource.match(/crypto\.randomUUID\(\)/g) ?? []).length, 1)
-  assert.doesNotMatch(customerConsoleSource, /operationKey:\s*crypto\.randomUUID\(\)/)
+  assert.equal((customerConsoleSource.match(/crypto\.randomUUID\(\)/g) ?? []).length, 4)
+  assert.equal((consoleBody.match(/crypto\.randomUUID\(\)/g) ?? []).length, 1)
+  assert.doesNotMatch(consoleBody, /operationKey:\s*crypto\.randomUUID\(\)/)
+  for (const name of ['PreparedFailureReview', 'FailedApplyRetryReview', 'PostProvisionResumeReview']) {
+    const body = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name)?.getText(ast)
+    assert.ok(body)
+    assert.equal((body.match(/crypto\.randomUUID\(\)/g) ?? []).length, 1)
+    assert.match(body, /request\.current \?\?= \{ releaseId: scope\.releaseId, operationKey: crypto\.randomUUID\(\)/)
+  }
   assert.match(customerConsoleSource, /!goLiveReadiness\?\.activationReady/)
   assert.match(customerConsoleSource, /fetchCustomerDeploymentGoLiveReadiness/)
 })

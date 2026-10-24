@@ -7822,6 +7822,14 @@ export type CustomerAdmissionReservationRequest = {
   allocationId?: string
 }
 
+export type DeploymentOperationsStatus = {
+  mode: 'DISABLED' | 'OBSERVE' | 'ENFORCE'
+  manualDeploymentsAllowed: true
+  serviceConfigured: boolean
+  providerUsageMode: 'FUNDED' | 'TEAM_AUTHORIZED' | 'CUSTOMER_KEY'
+  decisionSource: 'EXTERNAL_SERVICE'
+}
+
 export type CustomerAdmissionReservationSummary = {
   id: string
   deploymentId: string
@@ -8162,6 +8170,10 @@ export function fetchCustomerDeploymentGoLiveReadiness(
   return request<CustomerGoLiveReadinessSummary>(
     `${customerOfferDeploymentPath(offerId, deploymentId)}/go-live-readiness?${params.toString()}`,
   )
+}
+
+export function fetchDeploymentOperationsStatus() {
+  return request<DeploymentOperationsStatus>('/api/deployment-operations/status')
 }
 
 export function probeCustomerOfferTargetPlacement(offerId: string, targetProfileId: string) {

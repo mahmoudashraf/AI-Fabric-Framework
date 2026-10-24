@@ -1,7 +1,7 @@
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import { Alert, Button, Stack } from '@mui/material'
 import { useMutation } from '@tanstack/react-query'
-import { probeCustomerOfferTargetPlacement, rerunDeploymentVerification,
+import { rerunDeploymentVerification,
   type CustomerOfferSummary, type DeploymentReleaseSummary, type PlatformAuthSessionSummary } from '../../api/platformApi'
 import { useScopedOneTimeValue } from '../../hooks/useScopedOneTimeValue'
 
@@ -24,10 +24,8 @@ export function CustomerReleaseVerificationButton({ session, offer, deploymentId
     retry: false,
     mutationFn: async ({ token }: { token: symbol }) => {
       if (!eligible || !release?.targetProfileId || !guard.isCurrent(token)) throw new Error('Review a provisioned release first.')
-      const snapshot = { offerId: offer.id, deploymentId, releaseId: release.id, target: release.targetProfileId,
+      const snapshot = { deploymentId, releaseId: release.id,
         versionId: release.deploymentVersionId }
-      await probeCustomerOfferTargetPlacement(snapshot.offerId, snapshot.target)
-      if (!guard.isCurrent(token)) throw new Error('The selected account or release changed. Review it before verifying.')
       const result = await rerunDeploymentVerification(snapshot.deploymentId, snapshot.releaseId)
       if (result.deploymentId !== snapshot.deploymentId || result.releaseId !== snapshot.releaseId
         || result.deploymentVersionId !== snapshot.versionId) throw new Error('Verification response did not match the selected release.')

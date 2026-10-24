@@ -1,9 +1,9 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service implementation authorized and in progress; no hosted acceptance or rollout claimed.  
-**Date:** 24 October 2026.  
-**Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.  
-**Scope:** Platform/product operations, not AI Fabric semantic orchestration.  
+**Status:** Direct-service implementation authorized and in progress; customer-journey hosted acceptance pending.
+**Date:** 24 October 2026.
+**Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
+**Scope:** Platform/product operations, not AI Fabric semantic orchestration.
 **Initial operating model:** The integration team decides whether and where a deployment can run.
 
 ## 1. Decision And Intended Outcome
@@ -322,7 +322,7 @@ Deliver the service and core boundary together, then verify two vertical milesto
 - [x] Split security/product prerequisites from capacity/expiry/recovery policy in customer authorization and source operations (local verification; hosted proof pending).
 - [x] Remove mandatory allocation binding from manual publish/apply/promotion/activation paths; keep core command/resource identity (local verification; hosted proof pending).
 - [x] Implement one non-funded provider-use profile for the manual path. Preserve all financial history; existing funded deployments retain their explicitly selected enforcement contract.
-- [ ] Make normal UI commands mode-aware; no required probe/list/reserve calls when manual mode is effective.
+- [x] Make normal UI commands mode-aware; no required probe/list/reserve calls in deployment, Engage, document or integration commands (offline browser verification; hosted journey pending).
 - [x] Add straightforward cold replacement and remove legacy automatic worker registration. Inspect actual in-progress destructive operations before hosted cutover.
 - [ ] Verify the complete customer journey with operations implementation absent. Record real provider failures without concealing them.
 
@@ -417,3 +417,9 @@ The original audit changed this document only. After explicit owner implementati
 - The stable combined backend suite passed 255 tests. Follow-up client/service/readiness tests passed 21 tests after explicitly pinning ISO timestamps and skipping optional capacity-demand lookup in disabled mode. The actual standalone service JAR and a separate PostgreSQL process passed allow, enforce-deny, observe-deny, outcome and service-shutdown/bypass checks through the Platform client. These are local results, not hosted acceptance.
 - Initial test-fixture problems were corrected: a checked-exception override, Mockito restubbing and cookie construction. Those failed attempts were not counted as successful verification. No framework source or release was changed.
 - Main dealership quality task holds control-plane rollout until its live run is complete. No current canary, production assignment or historical financial record has been changed here.
+- Core/service source is committed and pushed as `7b777686123fd1c7b05ebf71d4cf97acf34bd886`. Core image workflow `40104867575` and independent service workflow `40104867641` both passed. No framework release was required.
+- Hosted service image: `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:167ae0b1ce9b59bf238e45d50c0bf08327d4c86652903dd305f6a82e76fd5f44`. Staging service `liba1dobh9v9rhcedzlnnajz` and production service `yext75rcvxm7jfs236aprssw` are healthy and authenticated with no public port. Stable private Coolify aliases `loomai-deployment-operations-staging` and `loomai-deployment-operations-production` are verified from their respective control-plane containers. Credentials and private native evidence remain under `~/.codex/private/loomai-separation-01046/`, not this document.
+- Each environment has one service-owned `loomai_deployment_operations` database and ordinary owner role on its existing PostgreSQL host. The role cannot select Platform deployment tables. This is not a per-dealership database, not business inventory storage and not separate physical database infrastructure.
+- Hosted policy starts unconfigured, with no fleet-enforcement claim. Before enabling real enforcement, use one authoritative policy store per physical capacity pool or explicitly partition target budgets: independent developer/customer control planes and target aliases can share a physical host. An empty service database or a missing outcome after bypass is not proof of unused capacity. Fleet adoption and advanced automation remain follow-up work; integration-team manual deployment does not depend on them.
+- Point-in-time hosted service measurements: staging 173.7 MiB RAM / 0.17% CPU, production 173.8 MiB / 0.07%; each has a 384 MiB native limit and 256 MiB JVM heap. These are observations, not a capacity guarantee or a new deployment-admission measurement gate.
+- Pre-cutover audit: staging has no legacy retirement operations; production has two `PLANNED` and two `RETRYABLE_FAILURE` records, all at `DRAIN`, all with `destructive_started=false`; recorded leases are absent or expired. They are retained without replay/deletion. New source removes automatic worker registration even if obsolete worker flags remain true. Difficult historical recovery remains documented follow-up, not a prerequisite for the fresh customer journey.

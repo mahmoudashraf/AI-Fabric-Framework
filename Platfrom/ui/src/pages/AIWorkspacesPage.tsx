@@ -44,9 +44,9 @@ import {
   fetchAIWorkspaceInstallations,
   fetchCustomerDeploymentPortfolio,
   fetchCustomerSelfServiceCatalogue,
+  fetchPlatformAuthSession,
   fetchPlatformCustomers,
   getPlatformApiBaseUrl,
-  probeCustomerOfferTargetPlacement,
   type AIWorkspaceInstallationSummary,
   type PlatformCustomerSummary,
   type SaveAIWorkspaceInstallationRequest,
@@ -178,7 +178,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
       offers: offersQuery.data, deployments: portfolioQuery.data } : null
   const prepareCommand = async (consumerIds: string | string[]) => {
     if (customerScopeLocked) await prepareCustomerEngageCommand(
-      () => mounted.current ? commandContext.current : null, consumerIds, probeCustomerOfferTargetPlacement,
+      () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession,
     )
   }
   const installations = installationsQuery.data ?? []

@@ -67,7 +67,7 @@ const release = (deploymentId, targetProfileId, suffix) => ({
 })
 const releases = id => [release(id, 'staging', 's1'), release(id, 'staging', 's2'), release(id, 'production', 'p1')]
 
-async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', placementBlocker = null,
+async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', operationsMode = 'DISABLED',
   failSelectionSave = false, dependencyBlocked = false } = {}) {
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -81,7 +81,6 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
   let delayed = false
   let preferences = { deploymentWorkspace: { lastDeploymentId: preferred, lastSection: '/integrations' } }
   let catalogueReads = 0
-  let freshPlacement = !placementBlocker
   const json = (route, data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
   page.on('pageerror', error => errors.push(error.message))
   await page.route(`${base}runtime-config.js`, route => route.fulfill({ contentType: 'application/javascript',
@@ -92,6 +91,10 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
     const method = request.method()
     const body = request.postDataJSON()
     calls.push({ path, method, body })
+    if (path === '/api/deployment-operations/status') return json(route, {
+      mode: operationsMode, manualDeploymentsAllowed: true, serviceConfigured: operationsMode !== 'DISABLED',
+      providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'EXTERNAL_SERVICE',
+    })
     if (path === '/api/platform/auth/session') return json(route, {
       enabled: true, authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION',
       actorId: actor, displayName: actor, customerId: 'customer-one', customerName: 'Customer One',
@@ -116,15 +119,11 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
         entitlement: { customerId: 'customer-one', status: 'ACTIVE', revision: 1 },
         targets: ['staging', 'production'].map(target => ({
           id: target, intent: target === 'staging' ? 'CUSTOMER_STAGING' : 'CUSTOMER_PRODUCTION',
-          readiness: freshPlacement ? 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED' : 'PLACEMENT_RECHECK_REQUIRED',
-          blockers: freshPlacement ? [] : [placementBlocker], capabilities: ['INBOX_OPERATOR_ENROLL', 'INBOX_OPERATOR_ROTATE', 'INBOX_OPERATOR_DELIVER'], limits: { stagingExpiryHours: 24 },
+          readiness: 'REVIEWED_TARGET_READY',
+          blockers: [], capabilities: ['INBOX_OPERATOR_ENROLL', 'INBOX_OPERATOR_ROTATE', 'INBOX_OPERATOR_DELIVER'], limits: { stagingExpiryHours: 24 },
         })), settings: [], bindingSlots: [], blockers: [],
       }
       return json(route, path.endsWith('/support-offer') ? offer : [offer])
-    }
-    if (path.endsWith('/placement-evidence') && method === 'POST') {
-      freshPlacement = true
-      return json(route, { id: 'fresh-placement', intent: 'CUSTOMER_STAGING' })
     }
     if (path === '/api/deployments') return json(route, deployments.map(value => ({
       ...value, id: value.deploymentId, environment: value.environmentName, behaviorType: 'CONVERSATIONAL',
@@ -183,6 +182,8 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
       for (const complete of pending.splice(0)) await complete()
       await context.close()
       assert.deepEqual(errors, [])
+      assert.equal(calls.some(call => /placement-evidence|admission-reservations|\/probe(?:\/|$)/.test(call.path)), false,
+        'Customer navigation and operator commands must not depend on legacy admission or placement')
     },
   }
 }
@@ -291,20 +292,16 @@ try {
     console.log('Passed: explicit unknown deployment does not silently select or operate another resource')
   } finally { await missing.close() }
 
-  for (const blocker of ['PLACEMENT_EVIDENCE_REQUIRED', 'PLACEMENT_EVIDENCE_STALE']) {
-    const placement = await fixture({ placementBlocker: blocker })
+  for (const operationsMode of ['DISABLED', 'OBSERVE', 'ENFORCE']) {
+    const placement = await fixture({ operationsMode })
     try {
       const { page } = placement
-      await page.getByText(`PLACEMENT_RECHECK_REQUIRED · ${blocker}`, { exact: true }).waitFor()
+      await page.getByRole('region', { name: 'Operations policy', exact: true }).waitFor()
       await page.getByRole('textbox', { name: 'Deployment name' }).fill('Generic support workspace')
-      assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
-      const before = placement.catalogueReads
-      await page.getByRole('button', { name: 'Verify placement', exact: true }).click()
-      await page.waitForFunction(() => !document.body.textContent.includes('PLACEMENT_RECHECK_REQUIRED'))
-      assert.ok(placement.catalogueReads > before, 'Reverification must refetch the server catalogue')
+      assert.equal(await page.getByRole('button', { name: 'Verify placement', exact: true }).count(), 0)
       assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), false)
       passed += 1
-      console.log(`Passed: ${blocker} can be reverified and refreshed before creation is enabled`)
+      console.log(`Passed: ${operationsMode} leaves policy assessment to core without legacy placement gates`)
     } finally { await placement.close() }
   }
 

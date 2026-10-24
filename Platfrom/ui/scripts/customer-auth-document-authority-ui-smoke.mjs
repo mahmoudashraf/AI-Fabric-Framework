@@ -33,12 +33,15 @@ async function until(check, label) {
     await new Promise(resolve => setTimeout(resolve, 20))
   }
 }
-async function scenario(name, documents, action) {
+async function scenario(name, documents, action, { live = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 }, serviceWorkers: 'block' }); contexts++
   const page = await context.newPage()
   page.setDefaultTimeout(10_000)
   const state = { session: documents ? structuredClone(owner) : structuredClone(anonymous), offer: offer(), calls: [], escaped: [], errors: [],
-    holdOffer: false, offerReplies: [], holdSession: false, sessionReplies: [], bindings: [binding], rejectWrite: false, stalePlacement: false }
+    holdOffer: false, offerReplies: [], holdSession: false, sessionReplies: [], bindings: [binding], rejectWrite: false }
+  const source = { sourceId: 'policy', datasetId: 'docs', displayName: 'Operations policy.txt', mediaType: 'text/plain',
+    contentLength: 128, status: 'READY', candidateVersion: 1, activeVersion: 1,
+    providerRevisionFingerprint: 'synthetic-policy-revision', updatedAt: '2026-10-24T15:00:00Z' }
   journals.push(state)
   page.on('pageerror', error => state.errors.push(error.stack))
   page.on('dialog', dialog => dialog.accept())
@@ -47,7 +50,7 @@ async function scenario(name, documents, action) {
     if (url.origin !== new URL(base).origin) { state.escaped.push(url.href); return route.abort() }
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const path = url.pathname, method = route.request().method(), body = route.request().postDataJSON()
-    state.calls.push({ path, method, body })
+    state.calls.push({ path, method, body, key: route.request().headers()['idempotency-key'] })
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
     if (path === '/api/platform/auth/session') {
       const reply = route.request().headers()['x-platform-api-key'] ? { ...owner, actorId: 'key-owner', authenticationMode: 'API_KEY' } : structuredClone(state.session)
@@ -64,18 +67,26 @@ async function scenario(name, documents, action) {
     if (path === '/api/customer-self-service/deployments') return json(portfolio)
     if (path === '/api/deployments/dep/draft') return json({ marketplaceDatasetConfig: { datasets: [{ ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE', datasetId: 'docs' }] } })
     if (path.endsWith('/marketplace-installs')) return json([{ id: 'install', pluginId: 'mkp-data-document-knowledge-s3', config: { documentStorageBindingRef: 'slot:document-storage' } }])
-    if (path === '/api/deployments/dep/releases') return json([])
+    if (path === '/api/deployments/dep/releases') return json(live ? [{ id: 'release-one', deploymentId: 'dep',
+      deploymentVersionId: 'version-one', targetProfileId: 'stage', status: 'APPLIED_VERIFIED',
+      provisioningStatus: 'ACTIVE', verificationStatus: 'PASSED' }] : [])
     if (path === '/api/deployments/dep/document-storage-bindings') return json(state.bindings)
-    if (path === '/api/customer-self-service/catalogue/offer/targets/stage/placement-evidence') {
-      assert.equal(method, 'POST')
-      state.stalePlacement = false
-      return json({ id: 'fresh-placement', intent: 'CUSTOMER_STAGING' })
+    const targetBase = '/api/deployments/dep/targets/stage/releases/release-one'
+    if (live && path === `${targetBase}/context`) return json({ deploymentId: 'dep', targetProfileId: 'stage',
+      releaseId: 'release-one', documentDatasetIds: ['docs'] })
+    if (live && path === `${targetBase}/document-knowledge/connector`) return json({ ready: true, connectorType: 'S3_COMPATIBLE_OBJECT_STORAGE' })
+    if (live && path === `${targetBase}/document-knowledge/sources`) return json([source])
+    if (live && path === `${targetBase}/document-knowledge/retention`) return json({ evidenceRetention: 'P7D', commandRetention: 'P7D', batchSize: 50 })
+    if (live && path === `${targetBase}/document-knowledge/sources/policy`) return json({ source, manifests: [] })
+    if (live && path === `${targetBase}/document-knowledge/sources/policy/index`) {
+      assert.equal(method, 'POST'); assert.equal(typeof state.calls.at(-1).key, 'string')
+      assert.equal(state.session.role, 'CUSTOMER_ADMIN'); assert.equal(state.session.customerId, 'customer')
+      return json({ outcome: 'QUEUED', source })
     }
     if (path.endsWith('/document-storage-binding') || path.endsWith('/document-storage-binding/revoke')) {
       assert.equal(method, 'POST'); assert.equal(body.expectedEntitlementRevision, 7)
       assert.equal(body.targetProfileId, 'stage'); assert.equal(body.bindingSlotId, 'document-storage')
       assert.equal('authorizationEntitlementRevision' in body, false)
-      if (state.stalePlacement) return json({ errorCode: 'PLACEMENT_EVIDENCE_STALE', message: 'Storage placement proof expired.' }, 409)
       if (state.rejectWrite) return json({ success: false, errorCode: 'ENTITLEMENT_CHANGED', message: 'Synthetic current revision conflict' }, 409)
       if (path.endsWith('/revoke')) { state.bindings = []; return json({}) }
       return json({ binding })
@@ -88,6 +99,8 @@ async function scenario(name, documents, action) {
     await until(async () => await page.getByTestId('auth').innerText() === (documents ? 'owner:SESSION' : 'anonymous:SESSION'), 'initial actual auth observer')
     await action({ page, state, writes: () => state.calls.filter(call => call.method === 'POST' && call.path.includes('/document-storage-binding')) })
     assert.deepEqual(state.escaped, []); assert.deepEqual(state.errors, [])
+    assert.equal(state.calls.some(call => /placement-evidence|admission-reservations|\/probe(?:\/|$)/.test(call.path)), false,
+      'Customer storage and source commands must not request legacy placement or admission')
     results.push({ name, status: 'PASS', documentWrites: state.calls.filter(call => call.path.includes('/document-storage-binding') && call.method === 'POST').length })
     console.log(`PASS ${name}`)
   } catch (error) {
@@ -195,25 +208,34 @@ try {
     await page.waitForTimeout(250)
     assert.equal(writes().length, 1)
   })
-  await scenario('expired-storage-placement-explicit-refresh-no-write-replay', true, async ({ page, state, writes }) => {
-    await prepareBinding(page); state.stalePlacement = true
+  await scenario('storage-write-explicit-retry-after-server-rejection', true, async ({ page, state, writes }) => {
+    await prepareBinding(page); state.rejectWrite = true
     await saveButton(page).click()
-    await page.getByText('Storage placement proof expired.', { exact: true }).waitFor()
+    await page.getByText('Synthetic current revision conflict', { exact: true }).waitFor()
     assert.equal(writes().length, 1)
-    await page.getByRole('button', { name: 'Verify storage target placement', exact: true }).click()
-    await page.getByText('Storage target placement verified.', { exact: true }).waitFor()
-    assert.equal(writes().length, 1, 'Placement refresh must not retry the rejected credential write')
+    assert.equal(await page.getByRole('button', { name: 'Verify storage target placement', exact: true }).count(), 0)
+    state.rejectWrite = false
     await saveButton(page).click()
     await page.getByText('Storage binding saved.', { exact: true }).waitFor()
     assert.equal(writes().length, 2)
   })
-  await scenario('placement-refresh-rechecks-current-authority', true, async ({ page, state, writes }) => {
+  await scenario('storage-write-rechecks-current-authority', true, async ({ page, state, writes }) => {
     await prepareBinding(page); state.offer.entitlement.revision = 8
-    await page.getByRole('button', { name: 'Verify storage target placement', exact: true }).click()
+    await saveButton(page).click()
     await page.getByText('Document-storage authority changed. Refresh the current reviewed offer before submitting.', { exact: true }).waitFor()
     assert.equal(state.calls.filter(call => call.path.endsWith('/placement-evidence')).length, 0)
     assert.equal(writes().length, 0)
   })
+  await scenario('customer-source-index-exact-release-no-placement', true, async ({ page, state }) => {
+    await page.getByRole('combobox', { name: 'Target release', exact: true }).click()
+    await page.getByRole('option').filter({ hasText: 'release-one' }).click()
+    await page.getByRole('cell', { name: 'Operations policy.txt', exact: true }).click()
+    await page.getByRole('button', { name: 'Index', exact: true }).click()
+    await page.getByText('Operation: QUEUED', { exact: true }).waitFor()
+    const writes = state.calls.filter(call => call.method === 'POST')
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].path, '/api/deployments/dep/targets/stage/releases/release-one/document-knowledge/sources/policy/index')
+  }, { live: true })
   for (const pin of sourcePins) assert.equal(hash(await readFile(`${root}/${pin.path}`)), pin.sha256, `Source drift: ${pin.path}`)
 } catch (error) { failure = { message: error.message, stack: error.stack }; process.exitCode = 1; console.error(error.stack) }
 finally {
@@ -221,7 +243,7 @@ finally {
   if (server) { await server.close(); cleanup.serverClosed = !server.httpServer?.listening }
   cleanup.contexts = contexts
   const proof = { phase: 'ACTUAL_AUTH_AND_DOCUMENT_AUTHORITY_UI', status: failure ? 'FAIL' : 'PASS', startedAt,
-    finishedAt: new Date().toISOString(), plannedScenarios: 8, results, failure, cleanup, sourcePins,
+    finishedAt: new Date().toISOString(), plannedScenarios: 9, results, failure, cleanup, sourcePins,
     nonLoopbackAttempts: journals.flatMap(item => item.escaped), allApiRequestsIntercepted: true, noHostedActions: true,
     limits: 'Actual UI/provider/API with synthetic loopback normal owner endpoints; not hosted/backend/P5/P6 acceptance.' }
   if (!cleanup.browserClosed || !cleanup.serverClosed || contexts !== 0) { proof.status = 'FAIL'; process.exitCode = 1 }

@@ -43,28 +43,29 @@ try {
   await server.listen()
   const base = server.resolvedUrls.local[0]
   browser = await chromium.launch()
-  for (const scenario of ['passed', 'failed', 'wrong-release', 'scope-during-placement', 'not-provisioned']) {
+  for (const scenario of ['passed', 'failed', 'wrong-release', 'wrong-version', 'scope-during-verification', 'release-during-verification', 'auth-denied', 'not-provisioned']) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     const page = await context.newPage(), calls = [], errors = []
-    let pendingProbe
+    let pendingVerification
     page.on('pageerror', e => errors.push(e.message))
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url())
       assert.equal(url.origin, new URL(base).origin, 'No external services allowed in an offline UI fixture')
       if (!url.pathname.startsWith('/api/')) return route.continue()
       calls.push({ path: url.pathname, query: url.search, method: request.method() })
-      if (url.pathname === '/api/customer-self-service/catalogue/offer/targets/target/placement-evidence') {
-        if (scenario === 'scope-during-placement') return new Promise(resolve => { pendingProbe = async () => {
-          await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); resolve()
-        } })
-        return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-      }
       assert.equal(url.pathname, '/api/deployments/deployment/verification-runs/recheck')
+      assert.equal(request.method(), 'POST')
       assert.equal(url.searchParams.get('releaseId'), 'selected-release', 'Never verify the latest/other release implicitly')
-      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+      const respond = () => route.fulfill({ status: scenario === 'auth-denied' ? 403 : 201, contentType: 'application/json', body: JSON.stringify(scenario === 'auth-denied'
+        ? { message: 'Release verification is not authorized for this customer.' } : {
         id: 'verification', deploymentId: 'deployment', releaseId: scenario === 'wrong-release' ? 'other-release' : 'selected-release',
-        deploymentVersionId: 'version', status: scenario === 'failed' ? 'FAILED' : 'PASSED', summaryMessage: '1 failed check',
+        deploymentVersionId: scenario === 'wrong-version' ? 'other-version' : 'version',
+        status: scenario === 'failed' ? 'FAILED' : 'PASSED', summaryMessage: '1 failed check',
       }) })
+      if (['scope-during-verification', 'release-during-verification'].includes(scenario)) return new Promise(resolve => {
+        pendingVerification = async () => { await respond(); resolve() }
+      })
+      return respond()
     })
     try {
       await page.goto(base + 'verification-fixture')
@@ -77,19 +78,25 @@ try {
         assert.equal(calls.length, 0)
       } else {
         await button.click()
-        if (scenario === 'scope-during-placement') {
-          await until(() => pendingProbe)
-          await page.evaluate(() => window.setFixtureActor('different-owner'))
-          await page.getByText('different-owner', { exact: true }).waitFor()
-          await pendingProbe()
+        if (['scope-during-verification', 'release-during-verification'].includes(scenario)) {
+          await until(() => pendingVerification)
+          if (scenario === 'scope-during-verification') {
+            await page.evaluate(() => window.setFixtureActor('different-owner'))
+            await page.getByText('different-owner', { exact: true }).waitFor()
+          } else {
+            await page.evaluate(() => window.setFixtureRelease({ id: 'other-release', deploymentId: 'deployment', targetProfileId: 'target',
+              deploymentVersionId: 'other-version', status: 'APPLIED_VERIFICATION_FAILED', provisioningStatus: 'ACTIVE' }))
+          }
+          await pendingVerification()
           await button.waitFor(); await page.waitForFunction(() => !document.querySelector('button')?.disabled)
           assert.equal(calls.length, 1); assert.equal(await page.evaluate(() => window.verifiedCount), 0)
           assert.equal(await page.getByRole('alert').count(), 0, 'Old-scope results must not appear in the new scope')
         } else {
           const expected = scenario === 'passed' ? 'Release verification passed.' : scenario === 'failed'
-            ? 'Verification needs attention: 1 failed check' : 'Verification response did not match the selected release.'
+            ? 'Verification needs attention: 1 failed check' : scenario === 'auth-denied'
+              ? 'Release verification is not authorized for this customer.' : 'Verification response did not match the selected release.'
           await page.getByRole('alert').filter({ hasText: expected }).waitFor()
-          assert.equal(calls.length, 2); assert.equal(await page.evaluate(() => window.verifiedCount), scenario === 'wrong-release' ? 0 : 1)
+          assert.equal(calls.length, 1); assert.equal(await page.evaluate(() => window.verifiedCount), ['passed', 'failed'].includes(scenario) ? 1 : 0)
         }
       }
       assert.deepEqual(errors, [])

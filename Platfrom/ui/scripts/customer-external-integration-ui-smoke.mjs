@@ -53,9 +53,10 @@ async function fixture({ denied = false, foreign = false, empty = false } = {}) 
       return json(route, offer)
     }
     if (path === '/api/deployments/dep/versions') return json(route, [version])
-    if (path.endsWith('/placement-evidence')) return denied ? json(route, { message: 'Placement rejected', errorCode: 'PLACEMENT_REJECTED' }, 409) : json(route, { id: 'placement' })
     const scope = { versionId: 'version', targetProfileId: url.searchParams.get('targetProfileId') ?? body?.targetProfileId ?? 'stage', bindingSlotId: 'source', selectedProfileId: 'provider' }
-    if (path.endsWith('/external-integrations/approvals')) return json(route, empty ? [] : [{ ...scope, id: 'approval', reviewReference: 'review-ticket', config: { endpoint: 'https://example.invalid/api' }, accountScope: { account: 'approved-account' } }])
+    if (path.endsWith('/external-integrations/approvals')) return denied
+      ? json(route, { message: 'Connection approval denied', errorCode: 'CONNECTION_APPROVAL_DENIED' }, 403)
+      : json(route, empty ? [] : [{ ...scope, id: 'approval', reviewReference: 'review-ticket', config: { endpoint: 'https://example.invalid/api' }, accountScope: { account: 'approved-account' } }])
     if (path.endsWith('/external-integrations') && method === 'GET') return state.binding ? json(route, { ...state.binding, ...scope, deploymentId: foreign ? 'foreign' : 'dep' }) : json(route, { message: 'No binding' }, 404)
     if (path.endsWith('/external-integrations/bind')) {
       if (state.denyBind) return json(route, { message: 'Connection credentials rejected', errorCode: 'CREDENTIALS_REJECTED' }, 409)
@@ -69,7 +70,11 @@ async function fixture({ denied = false, foreign = false, empty = false } = {}) 
     state.errors.push(method+' '+path); return json(route, { message: 'Unhandled route' }, 500)
   })
   await page.goto(base+'connection-fixture', { waitUntil: 'networkidle' })
-  return { page, state, async close() { await context.close(); assert.deepEqual(state.errors, []); assert.deepEqual(state.blocked, []) } }
+  return { page, state, async close() {
+    await context.close(); assert.deepEqual(state.errors, []); assert.deepEqual(state.blocked, [])
+    assert.equal(state.calls.some(call => /\/(placement-evidence|admission-reservations)$/.test(call.path)), false,
+      'Review, binding and revocation must not depend on legacy admission or placement')
+  } }
 }
 async function review(f) { await f.page.getByRole('button', { name: 'Review approved connection', exact: true }).click() }
 async function fill(f) {
@@ -106,7 +111,7 @@ try {
     const f = await fixture(config)
     try {
       await review(f)
-      await f.page.getByText(config.denied ? 'Placement rejected' : 'No approved connection is available', { exact: false }).waitFor()
+      await f.page.getByText(config.denied ? 'Connection approval denied' : 'No approved connection is available', { exact: false }).waitFor()
       assert.equal(f.state.calls.some(call => /\/(bind|revoke)$/.test(call.path)), false); passed++
     } finally { await f.close() }
   }

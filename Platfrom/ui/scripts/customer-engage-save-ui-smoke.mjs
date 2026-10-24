@@ -25,7 +25,7 @@ const offer = { id: 'offer', fingerprint: 'reviewed', entitlement: { customerId:
   targets: [{ id: 'production', capabilities: ['APP_CONFIGURE', 'AUTH_CONFIGURE', 'DOMAIN_CONFIGURE'] }] }
 const consumer = { consumerId: 'chosen', customerId: 'customer', status: 'ACTIVE', displayName: 'Support assignment',
   boundDeploymentId: 'deployment', boundTargetProfileId: 'production', boundReleaseId: 'release', bindingRevision: 1 }
-const state = { calls: [], errors: [], probeDenied: true, saveDenied: false, apps: [] }
+const state = { calls: [], errors: [], accountDenied: true, saveDenied: false, apps: [] }
 const report = { status: 'RUNNING', checks: [] }
 const collection = '/api/platform/customers/customer/ai-workspace-installations'
 let base, browser, page
@@ -62,11 +62,9 @@ try {
     if (path === '/api/platform/customers') return json([{ id: 'customer', name: 'Customer', consumers: [consumer] }])
     if (path === '/api/customer-self-service/catalogue') return json([offer])
     if (path === '/api/customer-self-service/deployments') return json([{ deploymentId: 'deployment', offerId: 'offer', offerFingerprint: 'reviewed' }])
+    if (path === '/api/platform/auth/session') return state.accountDenied ? json({ message: 'Current customer account denied' }, 403)
+      : json({ authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' })
     if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, connectionProfiles: [], experiencePacks: [], authenticationProfiles: [] })
-    if (path.endsWith('/placement-evidence') && method === 'POST') {
-      assert.equal(path, '/api/customer-self-service/catalogue/offer/targets/production/placement-evidence')
-      return state.probeDenied ? json({ message: 'Placement check denied' }, 409) : json({ id: 'fresh' })
-    }
     if (path === collection && method === 'GET') return json(state.apps)
     if (path === collection && method === 'POST') {
       if (state.saveDenied) return json({ message: 'Save blocked by current entitlement' }, 409)
@@ -86,11 +84,11 @@ try {
   assert.equal(state.calls.filter(call => call.method === 'POST').length, 0)
   const save = () => dialog.getByRole('button', { name: 'Save draft', exact: true }).click()
   await save()
-  await dialog.getByRole('alert').filter({ hasText: 'Placement check denied' }).waitFor()
+  await dialog.getByRole('alert').filter({ hasText: 'Current customer account denied' }).waitFor()
   assert.equal(await dialog.getByLabel('Workspace name', { exact: true }).inputValue(), 'My support workspace')
   assert.equal(state.calls.filter(call => call.path === collection && call.method === 'POST').length, 0)
-  report.checks.push({ name: 'NO_AUTOMATIC_PROBE_DENIED_CHECK_NO_WRITE_VISIBLE_ERROR_DRAFT_RETAINED', status: 'PASS' })
-  state.probeDenied = false; state.saveDenied = true
+  report.checks.push({ name: 'ACCOUNT_DENIAL_NO_WRITE_VISIBLE_ERROR_DRAFT_RETAINED', status: 'PASS' })
+  state.accountDenied = false; state.saveDenied = true
   await save()
   await dialog.getByRole('alert').filter({ hasText: 'Save blocked by current entitlement' }).waitFor()
   await page.screenshot({ path: `${output}/save-error-in-dialog.png`, fullPage: true })
@@ -103,14 +101,15 @@ try {
   assert.equal(saveCalls.length, 2); assert.equal(saveCalls[1].key, firstKey)
   for (const call of saveCalls) {
     const index = state.calls.indexOf(call)
-    assert.equal(state.calls[index - 1].path.endsWith('/placement-evidence'), true)
+    assert.equal(state.calls[index - 1].path, '/api/platform/auth/session')
   }
   assert.equal(state.calls.some(call => /admission|production-apply|staging-releases/.test(call.path)), false)
+  assert.equal(state.calls.some(call => /placement-evidence|\/probe(?:\/|$)/.test(call.path)), false)
   await page.getByRole('button', { name: 'Create AI App', exact: true }).click()
   assert.equal(await dialog.getByRole('alert').filter({ hasText: 'Save blocked' }).count(), 0)
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   assert.deepEqual(state.errors, [])
-  report.checks.push({ name: 'EXPLICIT_RETRY_SAME_KEY_EXACT_TARGET_NO_ADMISSION_OR_DEPLOYMENT', status: 'PASS' })
+  report.checks.push({ name: 'FRESH_APP_CREATE_EXPLICIT_RETRY_SAME_KEY_NO_PLACEMENT_ADMISSION_OR_DEPLOYMENT', status: 'PASS' })
   report.status = 'PASS'
 } catch (error) {
   report.status = 'FAIL'; report.error = error.stack; process.exitCode = 1

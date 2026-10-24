@@ -1,7 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
-import CloudDoneRoundedIcon from '@mui/icons-material/CloudDoneRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded'
@@ -48,7 +47,6 @@ import {
   applyCustomerDeploymentStagingVersion,
   bootstrapCustomerDeployment,
   fetchCustomerDeploymentPortfolio,
-  fetchCustomerDeploymentAdmissions,
   fetchCustomerDeploymentGoLiveReadiness,
   fetchCustomerSelfServiceCatalogue,
   fetchCustomerSelfServiceOffer,
@@ -57,12 +55,11 @@ import {
   fetchDeploymentReleases,
   fetchDeploymentVersions,
   fetchDeploymentDraft,
+  fetchDeploymentOperationsStatus,
   fetchPlatformConsumers,
   fetchAIWorkspaceInstallations,
   fetchPlatformUserPreferences,
-  fetchCustomerTargetRetirements,
   planDeploymentPracticalPromotion,
-  probeCustomerOfferTargetPlacement,
   publishCustomerDeploymentVersion,
   planCustomerPreparedFailureRecovery,
   recoverCustomerPreparedFailure,
@@ -71,15 +68,12 @@ import {
   planCustomerPostProvisionResume,
   resumeCustomerPostProvisioning,
   requestDeploymentPracticalProductionApply,
-  reserveCustomerDeploymentAdmission,
   rollbackDeploymentPracticalProductionConsumer,
-  extendCustomerDeploymentStaging,
   updatePlatformUserPreferences,
   type CustomerAdmissionReservationSummary,
   type CustomerDeploymentSummary,
   type CustomerGoLiveReadinessItem,
   type CustomerOfferSummary,
-  type CustomerTargetRetirementSummary,
   type CustomerStagingConsumerConfigurationRequest,
   type CustomerPreparedFailureRecoveryPlanRequest,
   type CustomerPreparedFailureRecoveryPlan,
@@ -91,15 +85,14 @@ import {
   type CustomerPostProvisionResumePlan,
   type CustomerPostProvisionResumeSummary,
   type DeploymentPracticalPromotionSummary,
+  type DeploymentOperationsStatus,
   type DeploymentReleaseSummary,
   type DeploymentVersionSummary,
   type PlatformAuthSessionSummary,
   type PlatformConsumerSummary,
 } from '../../api/platformApi'
-import { admissionNeedsProgressPolling, canApplyReviewedVersion, currentCustomerAdmission,
-  CustomerAdmissionCommands, releaseNeedsProgressPolling } from './customerAdmissionCommands'
+import { canApplyReviewedVersion, CustomerAdmissionCommands, releaseNeedsProgressPolling } from './customerAdmissionCommands'
 import { CustomerReleaseVerificationButton } from './CustomerReleaseVerificationButton'
-import { KnownNoEffectSettlementPanel } from './KnownNoEffectSettlementPanel'
 import { createDurableCommandHolds } from './durableCommandHolds'
 import { createPostProvisionResumeHolds } from './postProvisionResumeHolds'
 import { selectableCustomerAssignments, canReviewCustomerAssignment, canConfigureExistingCustomerAssignment, customerAssignmentDraftExpectations,
@@ -137,7 +130,33 @@ function releaseReady(release: DeploymentReleaseSummary | null | undefined): boo
 }
 
 function targetSelectable(readiness: string): boolean {
-  return ['READY', 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED', 'PLACEMENT_RECHECK_REQUIRED'].includes(readiness)
+  return ['READY', 'REVIEWED_TARGET_READY', 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED', 'PLACEMENT_RECHECK_REQUIRED'].includes(readiness)
+}
+
+function operationsPolicyStatus(value: DeploymentOperationsStatus | undefined): DeploymentOperationsStatus | null {
+  return value && ['DISABLED', 'OBSERVE', 'ENFORCE'].includes(value.mode)
+    && value.decisionSource === 'EXTERNAL_SERVICE' && value.manualDeploymentsAllowed === true
+    && typeof value.serviceConfigured === 'boolean'
+    && ['FUNDED', 'TEAM_AUTHORIZED', 'CUSTOMER_KEY'].includes(value.providerUsageMode) ? value : null
+}
+
+function ReleaseOperationsAssessment({ release }: { release: DeploymentReleaseSummary | null }) {
+  const details = release?.provisioningDetails
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return null
+  const decision = (details as Record<string, unknown>).deploymentOperations
+  if (!decision || typeof decision !== 'object' || Array.isArray(decision)) return null
+  const value = decision as Record<string, unknown>
+  if (typeof value.mode !== 'string' || !['DISABLED', 'OBSERVE', 'ENFORCE'].includes(value.mode)
+    || typeof value.status !== 'string' || !['BYPASSED', 'OBSERVED', 'ALLOWED'].includes(value.status)
+    || typeof value.reason !== 'string' || !value.reason) return null
+  const unavailable = value.status === 'BYPASSED' && value.mode !== 'DISABLED'
+  return <Alert severity={unavailable ? 'warning' : 'info'} sx={{ overflowWrap: 'anywhere' }}>
+    <Typography variant="body2">Operations assessment: {value.status} · {value.reason}</Typography>
+    {unavailable ? <Typography variant="body2">Optional policy assessment was bypassed for this release. Core authorization and release verification still apply.</Typography> : null}
+    {typeof value.observedAt === 'string' ? <Typography variant="caption">Recorded {timestamp(value.observedAt)}</Typography> : null}
+    {typeof value.assessmentId === 'string' ? <Typography variant="caption" display="block">Assessment {value.assessmentId}</Typography> : null}
+    {typeof value.policyRevision === 'string' ? <Typography variant="caption" display="block">Policy revision {value.policyRevision}</Typography> : null}
+  </Alert>
 }
 
 function lifecycleStep(
@@ -182,11 +201,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const showStep = (id: string) => !guided || step === id
   const { requestedDeploymentId, setSelectedDeploymentId } = useDeploymentWorkspace()
   const operationKeys = useRef(new Map<string, { identity: string; key: string }>())
-  const admissionCommands = useRef(new CustomerAdmissionCommands({
-    probe: probeCustomerOfferTargetPlacement,
-    list: fetchCustomerDeploymentAdmissions,
-    reserve: reserveCustomerDeploymentAdmission,
-  }))
+  const admissionCommands = useRef(new CustomerAdmissionCommands())
   const operationKey = (scope: string, payload: unknown) => {
     const identity = JSON.stringify(payload)
     const existing = operationKeys.current.get(scope)
@@ -211,14 +226,20 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const [selectedConsumerId, setSelectedConsumerId] = useState('')
   const [creatingNewAssignment, setCreatingNewAssignment] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
-  const [placementEvidence, setPlacementEvidence] = useState<string | null>(null)
-  const [admission, setAdmission] = useState<CustomerAdmissionReservationSummary | null>(null)
   const [promotion, setPromotion] = useState<DeploymentPracticalPromotionSummary | null>(null)
   const [reviewedCandidateScope, setReviewedCandidateScope] = useState('')
   const configurationIntents = useRef(createAssignmentConfigurationIntents())
   const configurationBusy = useRef(false)
   const [reviewedRejection, setReviewedRejection] = useState<{ token: symbol; prepared: KnownAssignmentReconciliation } | null>(null)
   const [rejectionConfirmed, setRejectionConfirmed] = useState<{ token: symbol; checked: boolean } | null>(null)
+
+  const operationsStatusQuery = useQuery({
+    queryKey: ['deployment-operations-status', session.actorId, session.authenticationMode, customerId],
+    queryFn: fetchDeploymentOperationsStatus,
+    enabled: Boolean(customerId), retry: false,
+  })
+  const operationsStatus = operationsPolicyStatus(operationsStatusQuery.data)
+  const operationsReady = Boolean(operationsStatus && !operationsStatusQuery.error)
 
   const catalogueQuery = useQuery({
     queryKey: ['customer-self-service-catalogue', customerId],
@@ -263,8 +284,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     : null
   const creationStagingTargets = creationOffer?.targets.filter((target) => target.intent === 'CUSTOMER_STAGING') ?? []
   const creationTarget = creationStagingTargets.find((target) => target.id === selectedTargetProfileId)
-  const placementScope = useRef('')
-  placementScope.current = JSON.stringify([selectedOfferId, selectedTargetProfileId])
   const productionTargets = selectedOffer?.targets.filter((target) => target.intent === 'CUSTOMER_PRODUCTION') ?? []
   const stagingTargetProfileId = selectedDeployment?.bootstrapTargetProfileId ?? selectedTargetProfileId
   const storageChoiceScope = JSON.stringify([session.actorId, session.authenticationMode, customerId, creationOffer?.id, creationOffer?.fingerprint,
@@ -336,8 +355,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   }, [selectedOffer, selectedProductionTargetProfileId])
 
   useEffect(() => {
-    setPlacementEvidence(null)
-    setAdmission(null)
     setPromotion(null)
   }, [selectedDeploymentId])
 
@@ -353,23 +370,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     refetchInterval: (query) => {
       const releases = (query.state.data as DeploymentReleaseSummary[] | undefined) ?? []
       return releases.some((release) => releaseNeedsProgressPolling(release.status)) ? 4000 : false
-    },
-  })
-
-  const admissionsQuery = useQuery({
-    queryKey: ['customer-admission-reservations', selectedOffer?.id, selectedDeploymentId, stagingTargetProfileId],
-    queryFn: () => fetchCustomerDeploymentAdmissions(selectedOffer!.id, selectedDeploymentId, stagingTargetProfileId),
-    enabled: Boolean(selectedOffer && selectedDeploymentId && stagingTargetProfileId),
-    refetchInterval: (query) => ((query.state.data as CustomerAdmissionReservationSummary[] | undefined) ?? [])
-      .some(value => admissionNeedsProgressPolling(value.state)) ? 4000 : false,
-  })
-  const retirementsQuery = useQuery({
-    queryKey: ['customer-target-retirements', selectedOffer?.id, selectedDeploymentId, stagingTargetProfileId],
-    queryFn: () => fetchCustomerTargetRetirements(selectedOffer!.id, selectedDeploymentId, stagingTargetProfileId),
-    enabled: Boolean(selectedOffer && selectedDeploymentId && stagingTargetProfileId),
-    refetchInterval: (query) => {
-      const values = (query.state.data as CustomerTargetRetirementSummary[] | undefined) ?? []
-      return values.some((value) => ['QUEUED', 'RUNNING', 'WAITING', 'CANCEL_REQUESTED'].includes(value.state)) ? 4000 : false
     },
   })
 
@@ -446,31 +446,13 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   } catch (error) { configurationProtectionError = errorText(error) }
   const currentRejectionReview = reviewedRejection?.token === configurationGuard.capture() ? reviewedRejection.prepared : null
   const currentRejectionConfirmed = rejectionConfirmed?.token === configurationGuard.capture() && rejectionConfirmed.checked
-  const activeAdmission = currentCustomerAdmission(admission, admissionsQuery.data ?? [], selectedDeploymentId, stagingTargetProfileId)
-  const recoveryResult = useScopedOneTimeValue<CustomerPreparedFailureRecoverySummary>(JSON.stringify([
-    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
-    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id,
-  ]))
-  const failedRetryResult = useScopedOneTimeValue<CustomerFailedApplyRetrySummary>(JSON.stringify([
-    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
-    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id, stagingRelease?.id,
-  ]))
-  const setupResumeResult = useScopedOneTimeValue<CustomerPostProvisionResumeSummary>(JSON.stringify([
-    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
-    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id, stagingRelease?.id,
-  ]))
   const candidateScope = JSON.stringify({ deploymentId: selectedDeploymentId,
     targetProfileId: selectedProductionTargetProfileId, stagingReleaseId: stagingRelease?.id,
     consumerId: selectedConsumer?.consumerId, bindingRevision: selectedConsumer?.bindingRevision })
   const reviewedPromotion = reviewedCandidateScope === candidateScope ? promotion : null
-  const retirement = retirementsQuery.data?.find((value) => value.state !== 'CANCELLED') ?? null
   const productionActive = Boolean(releaseReady(productionRelease)
     && selectedConsumer?.boundReleaseId === productionRelease?.id
     && selectedConsumer?.boundTargetProfileId === productionRelease?.targetProfileId)
-  const admissionRetirementStarted = Boolean(activeAdmission
-    && ['CLAIMED', 'HANDED_OFF', 'RELEASED'].includes(activeAdmission.expiryState))
-  const retirementStarted = admissionRetirementStarted
-    || Boolean(retirement && !['PLANNED', 'CANCELLED'].includes(retirement.state))
   const activeStep = selectedDeployment
     ? lifecycleStep(selectedDeployment, versions, releases, consumers, selectedDeployment.bootstrapTargetProfileId,
         new Set(productionTargets.map((target) => target.id)))
@@ -501,8 +483,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['platform-consumers', customerId] }),
-      queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations'] }),
-      queryClient.invalidateQueries({ queryKey: ['customer-target-retirements'] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-operations-status'] }),
       queryClient.invalidateQueries({ queryKey: ['customer-go-live-readiness'] }),
     ])
   }
@@ -520,22 +501,11 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     },
   })
 
-  const placementProbe = useMutation({
-    mutationFn: ({ offerId, targetProfileId }: { offerId: string; targetProfileId: string }) =>
-      probeCustomerOfferTargetPlacement(offerId, targetProfileId),
-    onSuccess: async (evidence, input) => {
-      if (placementScope.current === JSON.stringify([input.offerId, input.targetProfileId])) {
-        setPlacementEvidence(evidence.id)
-        setNotice({ severity: 'success', message: `Placement verified for ${evidence.intent.toLowerCase().replace(/_/g, ' ')}.` })
-      }
-      await queryClient.invalidateQueries({ queryKey: ['customer-self-service-catalogue', customerId] })
-    },
-  })
-
   const bootstrap = useMutation({
-    mutationFn: ({ offer, targetProfileId, name, mode }: {
+    mutationFn: ({ offer, targetProfileId, name, mode, token }: {
       offer: CustomerOfferSummary; targetProfileId: string; name: string; mode: string; token: symbol
     }) => {
+      if (!operationsReady || !creationGuard.isCurrent(token)) throw new Error('Review the current deployment setup and operations policy before creating it.')
       const identity = { offerId: offer.id, fingerprint: offer.fingerprint, targetProfileId,
         name: name.trim(), revision: offer.entitlement.revision, aiStateStorageMode: mode }
       return bootstrapCustomerDeployment(offer.id, customerStorageBootstrapRequest(offer, customerId,
@@ -549,15 +519,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       }
       setSelectedDeploymentId(result.deploymentId)
       setDeploymentName('')
-      setPlacementEvidence(null)
-      setNotice({ severity: 'success', message: 'Customer staging configuration created from the reviewed dealership offer.' })
+      setNotice({ severity: 'success', message: 'Customer staging configuration created from the reviewed product offer.' })
       await invalidateCustomerState()
     },
   })
 
   const publish = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
-      if (!selectedOffer || !selectedDeployment?.bootstrapTargetProfileId || !publishGuard.publish(token, true)) {
+      if (!operationsReady || !selectedOffer || !selectedDeployment?.bootstrapTargetProfileId || !publishGuard.publish(token, true)) {
         throw new Error('Select the current reviewed deployment before publishing.')
       }
       const identity = { deploymentId: selectedDeployment!.deploymentId,
@@ -565,8 +534,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         revision: selectedOffer!.entitlement.revision, draftId: storageDraft.data?.id,
         draftRevision: storageDraft.data?.revisionNumber, storageMode: savedStorageMode }
       const key = operationKey('publish-version', identity)
-      await probeCustomerOfferTargetPlacement(selectedOffer.id, selectedDeployment.bootstrapTargetProfileId)
-      if (!publishGuard.publish(token, true)) throw new Error('Configuration changed. Refresh before publishing.')
       const result = requiresStorageChoice
         ? await publishStoredAiStateStorage({ draft: fetchDeploymentDraft, publish: publishCustomerDeploymentVersion },
           selectedOffer!, customerId, selectedDeployment!, storageDraft.data!, key, () => publishGuard.publish(token, true))
@@ -586,7 +553,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const stagingApply = useMutation({
     mutationFn: async () => {
-      if (!selectedDeployment || !selectedOffer || !latestVersion || !selectedDeployment.bootstrapTargetProfileId) {
+      if (!operationsReady || !selectedDeployment || !selectedOffer || !latestVersion || !selectedDeployment.bootstrapTargetProfileId) {
         throw new Error('A published version and entitled customer-staging target are required.')
       }
       const targetProfileId = selectedDeployment.bootstrapTargetProfileId
@@ -594,13 +561,12 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         deploymentId: selectedDeployment.deploymentId, targetProfileId, versionId: latestVersion.id,
         revision: selectedOffer.entitlement.revision,
       })
-      const reserved = await admissionCommands.current.authorize(selectedOffer.id, selectedDeployment.deploymentId, {
+      await admissionCommands.current.authorize(selectedOffer.id, selectedDeployment.deploymentId, {
         targetProfileId,
         versionId: latestVersion.id,
         operation: 'APPLY',
         operationKey: key,
       })
-      setAdmission(reserved)
       return applyCustomerDeploymentStagingVersion(selectedOffer.id, selectedDeployment.deploymentId, {
         versionId: latestVersion.id,
         expectedEntitlementRevision: selectedOffer.entitlement.revision,
@@ -616,7 +582,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const createConsumer = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
-      if (!selectedOffer || !selectedDeployment || !assignmentCreationGuard.isCurrent(token)) {
+      if (!operationsReady || !selectedOffer || !selectedDeployment || !assignmentCreationGuard.isCurrent(token)) {
         throw new Error('A reviewed offer and customer-staging deployment are required.')
       }
       const offer = selectedOffer
@@ -631,8 +597,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
           versionId: release.deploymentVersionId, releaseId: release.id,
           operation: 'ACTIVATE', operationKey: key,
         })
-      } else {
-        await probeCustomerOfferTargetPlacement(offer.id, selectedDeployment.bootstrapTargetProfileId)
       }
       if (!assignmentCreationGuard.isCurrent(token)) throw new Error('Assignment setup changed. Review the current deployment before creating it.')
       return createCustomerDeploymentStagingConsumer(offer.id, selectedDeploymentId, {
@@ -811,20 +775,23 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         || !selectedConsumer || !releaseReady(productionRelease)) {
         throw new Error('Select the current verified production release and customer app before refreshing readiness.')
       }
-      const key = operationKey('refresh-production-readiness', {
-        deploymentId: selectedDeploymentId, releaseId: productionRelease.id,
-        consumerId: selectedConsumer.consumerId, bindingRevision: selectedConsumer.bindingRevision,
-      })
-      return admissionCommands.current.authorize(selectedOffer.id, selectedDeploymentId, {
-        targetProfileId: productionRelease.targetProfileId!,
-        versionId: productionRelease.deploymentVersionId, releaseId: productionRelease.id,
-        operation: 'ACTIVATE', operationKey: key,
-      })
+      const scope = { offerId: selectedOffer.id, deploymentId: selectedDeploymentId,
+        releaseId: productionRelease.id, versionId: productionRelease.deploymentVersionId,
+        targetProfileId: productionRelease.targetProfileId, consumerId: selectedConsumer.consumerId,
+        bindingRevision: selectedConsumer.bindingRevision }
+      const result = await fetchCustomerDeploymentGoLiveReadiness(scope.offerId, scope.deploymentId, scope.releaseId, scope.consumerId)
+      if (result.offerId !== scope.offerId || result.deploymentId !== scope.deploymentId
+        || result.releaseId !== scope.releaseId || result.versionId !== scope.versionId
+        || result.targetProfileId !== scope.targetProfileId || result.consumerId !== scope.consumerId
+        || result.expectedBindingRevision !== scope.bindingRevision) {
+        throw new Error('Production readiness did not match the selected release and app assignment.')
+      }
+      return { result, scope }
     },
-    onSuccess: async (_, input) => {
-      completeOperation('refresh-production-readiness')
+    onSuccess: async ({ result, scope }, input) => {
       if (readinessGuard.publish(input.token, true)) {
-        setNotice({ severity: 'success', message: 'Production connection evidence refreshed. No app assignment was changed.' })
+        queryClient.setQueryData(['customer-go-live-readiness', scope.offerId, scope.deploymentId, scope.releaseId, scope.consumerId], result)
+        setNotice({ severity: 'info', message: 'Production readiness refreshed. No app assignment was changed.' })
       }
       await invalidateCustomerState()
     },
@@ -885,36 +852,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     },
   })
 
-  const extendStaging = useMutation({
-    mutationFn: () => {
-      if (!selectedOffer || !selectedDeployment || !activeAdmission) {
-        throw new Error('An active customer-staging reservation is required.')
-      }
-      return extendCustomerDeploymentStaging(selectedOffer.id, selectedDeployment.deploymentId, {
-        targetProfileId: selectedDeployment.bootstrapTargetProfileId,
-        allocationId: activeAdmission.id,
-        expectedRevision: activeAdmission.revision,
-        operationKey: operationKey('extend-staging', {
-          deploymentId: selectedDeployment.deploymentId, allocationId: activeAdmission.id,
-          revision: activeAdmission.revision, productionActive,
-        }),
-        reason: productionActive
-          ? 'Customer retained verified staging for a bounded rollback window.'
-          : 'Customer extended the active staging evaluation window.',
-        keepAfterPromotion: productionActive,
-      })
-    },
-    onSuccess: async (result) => {
-      completeOperation('extend-staging')
-      setAdmission(result)
-      setNotice({ severity: 'success', message: `Staging availability is retained until ${timestamp(result.expiresAt)}.` })
-      await invalidateCustomerState()
-    },
-  })
-
   const readinessItems: CustomerGoLiveReadinessItem[] = goLiveReadiness?.items ?? []
 
-  const activeError = acceptInvitation.error || placementProbe.error
+  const activeError = acceptInvitation.error
     || (readRejectedAssignment.variables?.token === configurationGuard.capture() ? readRejectedAssignment.error : null)
     || (reconcileRejectedAssignment.variables?.token === configurationGuard.capture() ? reconcileRejectedAssignment.error : null)
     || (bootstrap.variables?.token === creationGuard.capture() ? bootstrap.error : null)
@@ -922,7 +862,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     || (configureAssignment.variables?.token === configurationGuard.capture() ? configureAssignment.error : null)
     || stagingApply.error || createConsumer.error || bindConsumerToStaging.error || planPromotion.error || applyProduction.error
     || (refreshProductionReadiness.variables?.token === readinessGuard.capture() ? refreshProductionReadiness.error : null)
-    || activateProduction.error || rollbackProduction.error || extendStaging.error
+    || activateProduction.error || rollbackProduction.error
 
   if (catalogueQuery.isLoading || portfolioQuery.isLoading || invitationsQuery.isLoading) {
     return <Box sx={{ minHeight: 360, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
@@ -936,6 +876,34 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 900 }}>
           Create an isolated customer-staging deployment from a reviewed product offer, verify it, and promote the same immutable version to production.
         </Typography>
+      </Box>
+
+      <Box component="section" aria-label="Operations policy" sx={{ py: 1.5, borderTop: 1, borderBottom: 1, borderColor: 'divider' }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Typography variant="subtitle2">Operations policy</Typography>
+          {operationsStatus ? <>
+            <Chip size="small" variant="outlined" label={operationsStatus.mode === 'DISABLED' ? 'DISABLED · Manual team'
+              : operationsStatus.mode === 'OBSERVE' ? 'OBSERVE · Nonblocking' : 'ENFORCE · Server assessed'} />
+            <Typography variant="caption" color="text.secondary">Default provider policy: {operationsStatus.providerUsageMode.replace(/_/g, ' ').toLowerCase()}</Typography>
+            <Typography variant="caption" color="text.secondary">Existing funded allocations retain their limits.</Typography>
+          </> : <Typography variant="body2">{operationsStatusQuery.isPending ? 'Loading policy status...' : 'Policy status unavailable'}</Typography>}
+          <Tooltip title="Refresh operations policy">
+            <span><IconButton size="small" aria-label="Refresh operations policy" disabled={!customerId || operationsStatusQuery.isFetching}
+              onClick={() => void operationsStatusQuery.refetch()}><SyncRoundedIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+        </Stack>
+        {operationsStatus ? <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          {operationsStatus.mode === 'DISABLED'
+            ? 'Deployments are operator-managed. Automatic capacity enforcement, staging expiry and recovery are not configured.'
+            : operationsStatus.mode === 'OBSERVE'
+              ? 'Policy assessment is nonblocking. The server records observations while core authorization and release checks remain required.'
+              : 'The server assesses policy at apply. Healthy policy denials block deployment; a policy service outage is recorded as a bypass. Core authorization and release checks remain required.'}
+        </Typography> : null}
+        {operationsStatus && operationsStatus.mode !== 'DISABLED' && !operationsStatus.serviceConfigured ? <Alert severity="warning" sx={{ mt: 1 }}>
+          The external policy service is not configured. Apply will record a policy bypass; ownership, credentials and release verification remain required.
+        </Alert> : null}
+        {operationsStatusQuery.error ? <Alert severity="error" sx={{ mt: 1 }}>{errorText(operationsStatusQuery.error)}</Alert>
+          : operationsStatusQuery.isSuccess && !operationsStatus ? <Alert severity="error" sx={{ mt: 1 }}>Deployment operations policy status is invalid. Refresh before continuing.</Alert> : null}
       </Box>
 
       {guided ? <>
@@ -990,14 +958,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 750 }}>Create from a reviewed offer</Typography>
             <Typography variant="body2" color="text.secondary">
-              Only entitled templates, settings, targets, and resource limits are available here.
+              Only entitled templates, settings and reviewed deployment targets are available here.
             </Typography>
           </Box>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <TextField
                 select fullWidth label="Product offer" value={selectedOfferId}
-                onChange={(event) => { setSelectedOfferId(event.target.value); setStorageChoice(null); setPlacementEvidence(null) }}
+                onChange={(event) => { setSelectedOfferId(event.target.value); setStorageChoice(null) }}
               >
                 {offers.map((offer) => <MenuItem key={offer.id} value={offer.id}>{offer.name}</MenuItem>)}
               </TextField>
@@ -1005,7 +973,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
             <Grid item xs={12} md={4}>
               <TextField
                 select fullWidth label="Customer staging target" value={selectedTargetProfileId}
-                onChange={(event) => { setSelectedTargetProfileId(event.target.value); setStorageChoice(null); setPlacementEvidence(null) }}
+                onChange={(event) => { setSelectedTargetProfileId(event.target.value); setStorageChoice(null) }}
               >
                 {creationStagingTargets.map((target) => (
                   <MenuItem key={target.id} value={target.id} disabled={!targetSelectable(target.readiness)}>
@@ -1037,23 +1005,16 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               <Chip label={`Template ${creationOffer.templateId}`} variant="outlined" />
               <Chip label={`${creationOffer.targets.length} reviewed targets`} variant="outlined" />
               <Chip label={`${creationOffer.bindingSlots.length} binding slots`} variant="outlined" />
-              <Chip label={`Staging expiry ${creationStagingTargets[0]?.limits.stagingExpiryHours ?? 0}h`} variant="outlined" />
+              <Chip label="Staging lifecycle: operator managed" variant="outlined" />
             </Stack>
           </CustomerAdvancedSection> : null}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
             <Button
-              variant="outlined" startIcon={<CloudDoneRoundedIcon />}
-              disabled={!creationOffer || !selectedTargetProfileId || placementProbe.isPending}
-              onClick={() => placementProbe.mutate({ offerId: creationOffer!.id, targetProfileId: selectedTargetProfileId })}
-            >
-              Verify placement
-            </Button>
-            <Button
               variant="contained" startIcon={<AddRoundedIcon />}
-              disabled={!creationOffer || !selectedTargetProfileId || deploymentName.trim().length < 3
-                || !placementEvidence || catalogueQuery.isFetching || bootstrap.isPending
+              disabled={!operationsReady || !creationOffer || !selectedTargetProfileId || deploymentName.trim().length < 3
+                || catalogueQuery.isFetching || bootstrap.isPending
                 || Boolean(storageChoiceError) || Boolean(creationStorageModes && !creationStorageModes.includes(selectedStorageMode as 'MANAGED_POSTGRES' | 'CUSTOMER_POSTGRES'))
-                || !creationTarget || !['READY', 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED'].includes(creationTarget.readiness)}
+                || !creationTarget || !targetSelectable(creationTarget.readiness)}
               onClick={() => bootstrap.mutate({ offer: creationOffer!, targetProfileId: selectedTargetProfileId,
                 name: deploymentName, mode: selectedStorageMode, token: creationGuard.capture() })}
             >
@@ -1217,31 +1178,22 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                       color={latestVersion ? 'success' : 'warning'} variant="outlined" />
                     <Chip label={stagingRelease?.status ?? 'Not deployed'}
                       color={releaseReady(stagingRelease) ? 'success' : 'default'} variant="outlined" />
-                    {activeAdmission ? <Chip label={`Admission ${activeAdmission.state}`} color="info" variant="outlined" /> : null}
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
-                    Publishing freezes configuration. Deploying reserves measured customer-staging capacity before provider effects begin.
+                    Publishing freezes configuration. The server assesses the effective operations policy when applying the release; source, credentials and runtime verification remain required.
                   </Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button variant="outlined" startIcon={<PublishedWithChangesRoundedIcon />}
-                      disabled={publish.isPending || !selectedDeployment.bootstrapTargetProfileId || (requiresStorageChoice
+                      disabled={!operationsReady || publish.isPending || !selectedDeployment.bootstrapTargetProfileId || (requiresStorageChoice
                         && (storageDraft.isFetching || !storageDraft.data || Boolean(storageDraft.error || storedStorageError) || !savedStorageMode))}
                       onClick={() => publish.mutate({ token: publishGuard.capture() })}>
                       Publish current configuration
                     </Button>
                     <Button variant="contained" startIcon={<RocketLaunchRoundedIcon />}
-                      disabled={!canApplyReviewedVersion(latestVersion?.id, stagingRelease) || stagingApply.isPending
-                        || retirementStarted || retirement?.state === 'COMPLETE'}
+                      disabled={!operationsReady || !canApplyReviewedVersion(latestVersion?.id, stagingRelease) || stagingApply.isPending}
                       onClick={() => stagingApply.mutate()}>
                       Deploy to customer staging
                     </Button>
-                    {activeAdmission ? (
-                      <Button variant="text" startIcon={<ScheduleRoundedIcon />}
-                        disabled={extendStaging.isPending || retirementStarted || retirement?.state === 'COMPLETE'}
-                        onClick={() => extendStaging.mutate()}>
-                        {productionActive ? 'Keep staging available' : 'Extend staging window'}
-                      </Button>
-                    ) : null}
                   </Stack>
                   {savedStorageMode === 'CUSTOMER_POSTGRES' && latestVersion ? <CustomerAiStateStorageBinding
                     key={JSON.stringify([session.actorId, customerId, selectedOffer.id, selectedOffer.fingerprint,
@@ -1254,75 +1206,11 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                       {stagingRelease.errorMessage ? ` ${stagingRelease.errorMessage}` : ''}
                     </Alert>
                   ) : null}
+                  <ReleaseOperationsAssessment release={stagingRelease} />
                   <CustomerReleaseVerificationButton session={session} offer={selectedOffer}
                     deploymentId={selectedDeploymentId} release={stagingRelease}
                     label="Verify staging release" onVerified={invalidateCustomerState} />
-                  <PreparedFailureRecoveryPanel
-                    session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
-                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
-                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
-                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
-                    onRecovered={async (receipt, scope) => {
-                      recoveryResult.publish(recoveryResult.capture(), receipt)
-                      setAdmission(current => current?.id === scope.reservationId ? null : current)
-                      await Promise.all([
-                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
-                          scope.deploymentId, scope.targetProfileId], exact: true }),
-                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
-                      ])
-                    }}
-                  />
-                  {recoveryResult.value ? <Alert severity="success" sx={{ overflowWrap: 'anywhere' }}>
-                    Prepared failure reconciled. Receipt {recoveryResult.value.receiptId}. Prepared resources and allowance are retained; the original release remains FAILED. No provider retry or financial mutation was performed.
-                  </Alert> : null}
-                  <FailedApplyRetryPanel session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
-                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
-                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
-                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
-                    onAuthorized={async (receipt, scope) => {
-                      failedRetryResult.publish(failedRetryResult.capture(), receipt)
-                      setAdmission(current => current?.id === scope.reservationId ? null : current)
-                      await Promise.all([
-                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
-                          scope.deploymentId, scope.targetProfileId], exact: true }),
-                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
-                      ])
-                    }} />
-                  {failedRetryResult.value ? <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
-                    Owned-service redeploy authorized. Receipt {failedRetryResult.value.receiptId}. Runtime and connector redeploy on the same release and reservation, retaining resources and allowance. Deployment completion is not yet verified.
-                  </Alert> : null}
-                  <PostProvisionResumePanel session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
-                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
-                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
-                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
-                    onAuthorized={async (receipt, scope) => {
-                      setupResumeResult.publish(setupResumeResult.capture(), receipt)
-                      setAdmission(current => current?.id === scope.reservationId ? null : current)
-                      await Promise.all([
-                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
-                          scope.deploymentId, scope.targetProfileId], exact: true }),
-                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
-                      ])
-                    }} />
-                  {setupResumeResult.value ? <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
-                    Setup continuation authorized. Receipt {setupResumeResult.value.receiptId}. Remaining dependency provisioning, source sync and post-apply verification continue on the same release and reservation. No runtime redeploy is required; resources and allowance are retained. Setup completion is not yet verified.
-                  </Alert> : null}
-                  <KnownNoEffectSettlementPanel
-                    key={JSON.stringify([session.actorId, session.authenticationMode, customerId])}
-                    authority={{ actorId: session.actorId ?? '', customerId, authenticationMode: session.authenticationMode }}
-                    targetProfileId={stagingTargetProfileId}
-                    offerId={selectedOffer.id} deploymentId={selectedDeploymentId} reservation={activeAdmission}
-                    candidateFailed={stagingRelease?.status === 'FAILED'}
-                    onSettled={async (_, scope) => {
-                      setAdmission((current) => current?.id === scope.reservationId ? null : current)
-                      await Promise.all([
-                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
-                          scope.deploymentId, scope.targetProfileId], exact: true }),
-                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
-                        queryClient.invalidateQueries({ queryKey: ['platform-consumers', scope.authority.customerId], exact: true }),
-                      ])
-                    }}
-                  />
+                  <Typography variant="caption" color="text.secondary">Automatic recovery is not configured. Contact your operator if a release needs recovery.</Typography>
                 </Stack>
               </Grid>
 
@@ -1357,7 +1245,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                           onChange={(event) => setConsumerName(event.target.value)} />
                       </Stack>
                       <Button variant="outlined" startIcon={<AddRoundedIcon />}
-                        disabled={consumerId.length < 3 || consumerName.trim().length < 2 || createConsumer.isPending}
+                        disabled={!operationsReady || consumerId.length < 3 || consumerName.trim().length < 2 || createConsumer.isPending}
                         onClick={() => createConsumer.mutate({ token: assignmentCreationGuard.capture() })}>
                         Create staging assignment
                       </Button>
@@ -1450,9 +1338,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                       </> : null}
                       {releaseReady(stagingRelease) && selectedConsumer.boundReleaseId !== stagingRelease?.id && !productionActive ? (
                         <>
-                        {activeAdmission?.state !== 'ACTIVE' ? <Alert severity="info">Staging checks passed. Finalizing the deployment allocation.</Alert> : null}
                         <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
-                          disabled={bindConsumerToStaging.isPending || activeAdmission?.state !== 'ACTIVE' || admissionRetirementStarted}
+                          disabled={!operationsReady || bindConsumerToStaging.isPending}
                           onClick={() => bindConsumerToStaging.mutate()}>
                           Use latest verified staging release
                         </Button>
@@ -1492,81 +1379,43 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                 <Button variant="outlined" startIcon={<CheckCircleRoundedIcon />}
-                  disabled={!releaseReady(stagingRelease) || !selectedConsumer || !selectedProductionTargetProfileId || planPromotion.isPending}
+                  disabled={!operationsReady || !releaseReady(stagingRelease) || !selectedConsumer || !selectedProductionTargetProfileId || planPromotion.isPending}
                   onClick={() => planPromotion.mutate()}>
                   Review production candidate
                 </Button>
                 <Button variant="contained" startIcon={<RocketLaunchRoundedIcon />}
-                  disabled={!reviewedPromotion?.candidateFingerprint || applyProduction.isPending
+                  disabled={!operationsReady || !reviewedPromotion?.candidateFingerprint || applyProduction.isPending
                     || !canApplyReviewedVersion(stagingRelease?.deploymentVersionId, productionRelease)}
                   onClick={() => applyProduction.mutate()}>
                   Deploy production candidate
                 </Button>
                 <Button color="success" variant="contained" startIcon={<PublishedWithChangesRoundedIcon />}
-                  disabled={!releaseReady(productionRelease) || !selectedConsumer || activateProduction.isPending
+                  disabled={!operationsReady || !releaseReady(productionRelease) || !selectedConsumer || activateProduction.isPending
                     || !goLiveReadiness?.activationReady || selectedConsumer.boundReleaseId === productionRelease?.id}
                   onClick={() => activateProduction.mutate()}>
                   Activate production
                 </Button>
-                {!retirementStarted && retirement?.state !== 'COMPLETE' ? (
                   <Button color="warning" variant="outlined" startIcon={<SyncRoundedIcon />}
-                    disabled={!selectedConsumer || !stagingRelease || selectedConsumer.boundReleaseId !== productionRelease?.id
-                      || rollbackProduction.isPending || retirement?.state === 'PLANNED'}
+                    disabled={!operationsReady || !selectedConsumer || !releaseReady(stagingRelease) || selectedConsumer.boundReleaseId !== productionRelease?.id
+                      || rollbackProduction.isPending}
                     onClick={() => rollbackProduction.mutate()}>
                     Roll back assignment
                   </Button>
-                ) : null}
               </Stack>
               {selectedOffer && selectedDeploymentId ? <CustomerReleaseVerificationButton session={session} offer={selectedOffer}
                 deploymentId={selectedDeploymentId} release={productionRelease}
                 label="Verify production release" onVerified={invalidateCustomerState} /> : null}
               {reviewedPromotion ? <Alert severity={reviewedPromotion.status.includes('FAILED') ? 'error' : 'info'}>{reviewedPromotion.message}</Alert> : null}
+              <ReleaseOperationsAssessment release={productionRelease} />
             </Stack>
 
             {!guided ? <Divider /> : null}
             <Stack spacing={2} sx={{ display: showStep('retention') ? undefined : 'none' }}>
               <Typography variant="h6">Customer-staging closure</Typography>
               <Typography variant="body2" color="text.secondary">
-                Production activation schedules the admitted staging environment for bounded, auditable retirement. Retain it for an entitled recovery window when rollback access is still required; the admission lifecycle owns drain and resource reconciliation.
+                Staging closure and retention are operator-managed. Automatic expiry and recovery are not configured in this console.
               </Typography>
-              {activeAdmission ? (
-                <>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip label={`Admission ${activeAdmission.state}`} color="info" variant="outlined" />
-                    <Chip label={`Lifecycle ${activeAdmission.expiryState}`} variant="outlined" />
-                    <Chip label={`Scheduled ${timestamp(activeAdmission.expiresAt)}`} variant="outlined" />
-                    {activeAdmission.keepUntil ? (
-                      <Chip label={`Retained until ${timestamp(activeAdmission.keepUntil)}`} color="success" variant="outlined" />
-                    ) : null}
-                  </Stack>
-                  {productionActive && !admissionRetirementStarted ? (
-                    <Button variant="outlined" startIcon={<ScheduleRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
-                      disabled={extendStaging.isPending || retirement?.state === 'COMPLETE'}
-                      onClick={() => extendStaging.mutate()}>
-                      Retain staging for recovery
-                    </Button>
-                  ) : null}
-                </>
-              ) : null}
-              {retirement ? (
-                <>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip label={retirement.state} color={retirement.state === 'COMPLETE' ? 'success' : 'info'} />
-                    <Chip label={retirement.step ?? 'No active step'} variant="outlined" />
-                    <Chip label={`Drain deadline ${timestamp(retirement.drainDeadline)}`} variant="outlined" />
-                  </Stack>
-                  {retirement.blockers.length > 0 ? (
-                    <Alert severity="warning">
-                      Automated staging retirement is blocked: {retirement.blockers.join(' · ')}. LoomAI operations must resolve the recorded lifecycle evidence; no second customer retirement is started.
-                    </Alert>
-                  ) : null}
-                </>
-              ) : null}
-              {!productionActive ? (
-                <Alert severity="info">Activate the verified production assignment before selecting an optional staging recovery window.</Alert>
-              ) : !activeAdmission && !retirement ? (
-                <Alert severity="error">No admission or retirement lifecycle evidence is available for this staging target. Promotion is not considered closed.</Alert>
-              ) : null}
+              <Alert severity="info">Contact your operator to close staging or arrange a recovery window. This page does not claim an automatic cleanup schedule.</Alert>
             </Stack>
 
             {!guided ? <Divider /> : null}
@@ -1578,12 +1427,12 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                 <Box>
                   <Typography sx={{ fontWeight: 700 }}>Go-live state</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Production activation and admission-owned customer-staging retirement remain separate auditable steps.
+                    Production activation remains verified independently of operator-managed staging closure.
                   </Typography>
                 </Box>
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                Release and lifecycle evidence remains attached to this deployment and is visible in the status sections above.
+                Release verification and recorded operations assessments are shown above.
               </Typography>
             </Stack>
           </Stack>

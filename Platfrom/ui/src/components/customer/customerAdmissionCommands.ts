@@ -1,6 +1,8 @@
+import { fetchDeploymentOperationsStatus } from '../../api/platformApi'
 import type {
   CustomerAdmissionReservationRequest,
   CustomerAdmissionReservationSummary,
+  DeploymentOperationsStatus,
   DeploymentReleaseSummary,
 } from '../../api/platformApi'
 
@@ -29,41 +31,31 @@ export function canApplyReviewedVersion(versionId: string | null | undefined, re
 }
 
 type AdmissionApi = {
-  probe: (offerId: string, targetProfileId: string) => Promise<unknown>
-  list: (offerId: string, deploymentId: string, targetProfileId: string) => Promise<CustomerAdmissionReservationSummary[]>
-  reserve: (offerId: string, deploymentId: string, request: CustomerAdmissionReservationRequest) => Promise<CustomerAdmissionReservationSummary>
+  status?: () => Promise<DeploymentOperationsStatus>
+  probe?: (offerId: string, targetProfileId: string) => Promise<unknown>
+  list?: (offerId: string, deploymentId: string, targetProfileId: string) => Promise<CustomerAdmissionReservationSummary[]>
+  reserve?: (offerId: string, deploymentId: string, request: CustomerAdmissionReservationRequest) => Promise<CustomerAdmissionReservationSummary>
 }
 
-/** Keep the original allocation choice when a response is lost after the server accepted a command. */
+/** Policy assessment belongs to core apply, not a browser-created capacity reservation. */
 export class CustomerAdmissionCommands {
-  private readonly requests = new Map<string, {
-    identity: string
-    request: Promise<CustomerAdmissionReservationRequest>
-  }>()
+  private readonly requests = new Map<string, string>()
 
-  constructor(private readonly api: AdmissionApi) {}
+  constructor(private readonly api: AdmissionApi = {}) {}
 
-  async authorize(offerId: string, deploymentId: string, request: CustomerAdmissionReservationRequest) {
+  async authorize(offerId: string, deploymentId: string, request: CustomerAdmissionReservationRequest): Promise<CustomerAdmissionReservationSummary | null> {
     const identity = JSON.stringify({ offerId, deploymentId, request })
-    let prepared = this.requests.get(request.operationKey)
-    if (prepared && prepared.identity !== identity) throw new Error('The admission command changed. Review it again.')
-    const reusedChoice = Boolean(prepared)
-    if (!prepared) {
-      const choice = this.api.probe(offerId, request.targetProfileId)
-        .then(() => this.api.list(offerId, deploymentId, request.targetProfileId)).then((allocations) => {
-        if (allocations.length > 1) throw new Error('Capacity allocations require reconciliation before this operation.')
-        if (request.releaseId && allocations.length !== 1) throw new Error('The release has no current capacity allocation.')
-        return { ...request, allocationId: allocations[0]?.id }
-      }).catch((error: unknown) => {
-        this.requests.delete(request.operationKey)
-        throw error
-      })
-      prepared = { identity, request: choice }
-      this.requests.set(request.operationKey, prepared)
+    const prepared = this.requests.get(request.operationKey)
+    if (prepared && prepared !== identity) throw new Error('The admission command changed. Review it again.')
+    this.requests.set(request.operationKey, identity)
+    const status = await (this.api.status ?? fetchDeploymentOperationsStatus)()
+    if (!status || !['DISABLED', 'OBSERVE', 'ENFORCE'].includes(status.mode)
+      || status.manualDeploymentsAllowed !== true || typeof status.serviceConfigured !== 'boolean'
+      || !['FUNDED', 'TEAM_AUTHORIZED', 'CUSTOMER_KEY'].includes(status.providerUsageMode)
+      || status.decisionSource !== 'EXTERNAL_SERVICE') {
+      throw new Error('Deployment operations policy status is invalid. Refresh before continuing.')
     }
-    const command = await prepared.request
-    if (reusedChoice) await this.api.probe(offerId, request.targetProfileId)
-    return this.api.reserve(offerId, deploymentId, command)
+    return null
   }
 
   complete(operationKey: string) {

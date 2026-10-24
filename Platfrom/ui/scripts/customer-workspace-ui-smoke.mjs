@@ -41,8 +41,7 @@ try {
   let placementProbeRequests = 0
   let lifecycle = false
   let productionReady = false
-  const allocations = new Map()
-  const authorizations = new Map()
+  const commandKeys = new Map()
   const lifecycleCalls = []
   const releases = []
   const consumers = []
@@ -58,13 +57,12 @@ try {
     stagingTargetProfileId: 'staging-target', productionTargetProfileId: 'production-target',
     stagingReleaseId: 'staging-release', candidateFingerprint: 'candidate-fingerprint', resources: [], consumer: consumers[0],
   })
-  const requireAuthorization = (request, operation, targetProfileId, releaseId) => {
+  const requireCommand = (request, operation) => {
     const body = request.postDataJSON()
-    const receipt = authorizations.get(body.operationKey)
-    assert.ok(receipt, `Missing exact admission authorization for ${operation}`)
-    assert.equal(receipt.operation, operation)
-    assert.equal(receipt.targetProfileId, targetProfileId)
-    assert.equal(receipt.releaseId, releaseId)
+    assert.equal(typeof body.operationKey, 'string')
+    assert.ok(body.operationKey.length > 0)
+    if (commandKeys.has(operation)) assert.equal(body.operationKey, commandKeys.get(operation))
+    commandKeys.set(operation, body.operationKey)
     lifecycleCalls.push(operation)
     return body
   }
@@ -72,40 +70,28 @@ try {
   await page.route(`${apiBaseUrl}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname
     const request = route.request()
-    if (lifecycle && path === `${deploymentPath}/admission-reservations`) {
-      if (request.method() === 'GET') {
-        const target = new URL(request.url()).searchParams.get('targetProfileId')
-        await json(route, allocations.has(target) ? [allocations.get(target)] : [])
-      } else {
-        const body = request.postDataJSON()
-        const existing = allocations.get(body.targetProfileId)
-        assert.equal(body.allocationId, existing?.id)
-        const value = { id: existing?.id ?? `allocation-${body.targetProfileId}`, deploymentId: 'deployment-one',
-          targetProfileId: body.targetProfileId, operation: body.operation, revision: (existing?.revision ?? 0) + 1,
-          state: 'ACTIVE', expiryState: 'CURRENT', expiresAt: '2099-01-01T00:00:00Z' }
-        allocations.set(body.targetProfileId, value)
-        authorizations.set(body.operationKey, body)
-        if (body.operation === 'ACTIVATE' && body.targetProfileId === 'production-target') productionReady = true
-        await json(route, value)
-      }
+    if (path === '/api/deployment-operations/status') {
+      await json(route, { mode: 'DISABLED', manualDeploymentsAllowed: true, serviceConfigured: false,
+        providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'EXTERNAL_SERVICE' })
       return
     }
-    if (lifecycle && /\/targets\/[^/]+\/placement-evidence$/.test(path)) {
-      await json(route, { id: 'fresh-placement' })
+    if (/\/(placement-evidence|admission-reservations|retirements)$/.test(path)) {
+      placementProbeRequests += 1
+      unhandledPaths.add(`${request.method()} ${path}`)
+      await json(route, { message: 'Legacy placement/admission must not be called' }, 500)
       return
     }
     if (lifecycle && path === `${deploymentPath}/staging-releases`) {
-      requireAuthorization(request, 'APPLY', 'staging-target')
+      requireCommand(request, 'APPLY')
       releases.push(release('staging-release', 'staging-target'))
       await json(route, releases[0])
       return
     }
     if (lifecycle && path === `${deploymentPath}/staging-consumer-assignments`) {
       const body = request.postDataJSON()
-      if (body.releaseId) requireAuthorization(request, 'ACTIVATE', 'staging-target', 'staging-release')
+      if (body.releaseId) requireCommand(request, 'ASSIGN_VERIFIED')
       else {
-        assert.equal(authorizations.has(body.operationKey), false,
-          'A configuration-only assignment must not manufacture runtime activation authority')
+        assert.equal('allocationId' in body, false, 'A configuration-only assignment must not manufacture allocation authority')
         lifecycleCalls.push('APP_CONFIGURE')
       }
       consumers.push({ consumerId: body.consumerId, displayName: body.displayName, bindingRevision: 1,
@@ -115,25 +101,27 @@ try {
       return
     }
     if (lifecycle && path === `${deploymentPath}/staging-consumer-activations`) {
-      const body = requireAuthorization(request, 'ACTIVATE', 'staging-target', 'staging-release')
+      const body = requireCommand(request, 'ACTIVATE_STAGING')
       assert.equal(body.expectedBindingRevision, consumers[0].bindingRevision)
       Object.assign(consumers[0], { boundReleaseId: body.releaseId, bindingRevision: consumers[0].bindingRevision + 1 })
       await json(route, consumers[0])
       return
     }
     if (lifecycle && path === '/api/deployments/deployment-one/practical-promotion/plan') {
-      requireAuthorization(request, 'PROMOTION_PLAN', 'production-target')
+      requireCommand(request, 'PROMOTION_PLAN')
       await json(route, promotion())
       return
     }
     if (lifecycle && path === '/api/deployments/deployment-one/practical-promotion/production-apply') {
-      requireAuthorization(request, 'PROMOTION_APPLY', 'production-target')
+      requireCommand(request, 'PROMOTION_APPLY')
       releases.unshift(release('production-release', 'production-target'))
       await json(route, { ...promotion(), productionReleaseId: 'production-release', message: 'Production apply queued.' })
       return
     }
     if (lifecycle && path === `${deploymentPath}/go-live-readiness`) {
-      await json(route, { activationReady: productionReady, postActivationComplete: false, items: [],
+      await json(route, { deploymentId: 'deployment-one', offerId: 'dealership-offer', versionId: version.id,
+        releaseId: 'production-release', targetProfileId: 'production-target', consumerId: consumers[0]?.consumerId,
+        expectedBindingRevision: consumers[0]?.bindingRevision, activationReady: productionReady, postActivationComplete: false, items: [],
         blockers: productionReady ? [] : ['Production connection proof expired.'] })
       return
     }
@@ -142,7 +130,7 @@ try {
       return
     }
     if (lifecycle && path === '/api/deployments/deployment-one/practical-promotion/activate-production-consumer') {
-      const body = requireAuthorization(request, 'ACTIVATE', 'production-target', 'production-release')
+      const body = requireCommand(request, 'ACTIVATE_PRODUCTION')
       assert.equal(body.expectedBindingRevision, consumers[0].bindingRevision)
       Object.assign(consumers[0], { boundReleaseId: 'production-release', boundTargetProfileId: 'production-target',
         bindingRevision: consumers[0].bindingRevision + 1 })
@@ -177,9 +165,9 @@ try {
       return
     }
     if (path === '/api/customer-self-service/invitations'
+      || path === '/api/platform/customers/customer-one/ai-workspace-installations'
       || (path === '/api/deployments/deployment-one/versions' && !lifecycle)
-      || path === '/api/customer-self-service/catalogue/dealership-offer/deployments/deployment-one/admission-reservations'
-      || path === '/api/customer-self-service/catalogue/dealership-offer/deployments/deployment-one/retirements') {
+      ) {
       await json(route, [])
       return
     }
@@ -205,8 +193,8 @@ try {
           ownerUserId: 'customer-owner', status: 'ACTIVE', revision: 1, expiresAt: '2026-12-01T00:00:00Z',
         },
         targets: [
-          { id: 'staging-target', intent: 'CUSTOMER_STAGING', readiness: 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED', capabilities: [], limits, blockers: ['PREREQUISITE_EVIDENCE_REQUIRED'] },
-          { id: 'production-target', intent: 'CUSTOMER_PRODUCTION', readiness: 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED', capabilities: [], limits, blockers: ['PREREQUISITE_EVIDENCE_REQUIRED'] },
+          { id: 'staging-target', intent: 'CUSTOMER_STAGING', readiness: 'REVIEWED_TARGET_READY', capabilities: [], limits, blockers: [] },
+          { id: 'production-target', intent: 'CUSTOMER_PRODUCTION', readiness: 'REVIEWED_TARGET_READY', capabilities: [], limits, blockers: [] },
         ],
         permissions: [], settings: [], bindingSlots: [{
           id: 'document-storage', kind: 'CUSTOMER_S3', supportedProfileIds: ['aws-s3-read-only'],
@@ -292,21 +280,13 @@ try {
       await json(route, { code: 'FORBIDDEN' }, 403)
       return
     }
-    if (path === '/api/customer-self-service/catalogue/dealership-offer/targets/staging-target/placement-evidence') {
-      placementProbeRequests += 1
-      await json(route, {
-        id: 'placement-one', targetProfileId: 'staging-target', intent: 'CUSTOMER_STAGING',
-        profileFingerprint: 'placement-fingerprint', checkedAt: '2026-10-16T00:00:00Z',
-        expiresAt: '2026-10-16T01:00:00Z',
-      })
-      return
-    }
     unhandledPaths.add(`${route.request().method()} ${path}`)
     await json(route, [])
   })
 
   await page.goto(`${uiBaseUrl}/${customerLayout ? 'providers' : 'deployments'}`, { waitUntil: 'networkidle' })
   await page.waitForURL(url => url.pathname === '/deployments')
+  await page.goto(`${uiBaseUrl}/deployments?view=manage`, { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: 'My deployments' }).waitFor()
 
   await page.getByRole('combobox', { name: 'Customer staging target' }).click()
@@ -316,14 +296,11 @@ try {
     throw new Error('Placement-verified staging target was incorrectly disabled before admission.')
   }
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Verify placement' }).click()
-  await page.getByText('Placement verified for customer staging.').waitFor()
-  if (placementProbeRequests !== 1) {
-    throw new Error(`Expected one reviewed placement probe, received ${placementProbeRequests}.`)
-  }
+  assert.equal(await page.getByRole('button', { name: 'Verify placement' }).count(), 0)
+  await page.getByText('DISABLED · Manual team', { exact: true }).waitFor()
   await page.getByRole('textbox', { name: 'Deployment name' }).fill('Northfield second workspace')
   if (await page.getByRole('button', { name: 'Create staging deployment' }).isDisabled()) {
-    throw new Error('Reviewed placement evidence did not enable customer staging creation.')
+    throw new Error('Reviewed target and effective policy did not enable customer staging creation.')
   }
   await page.getByRole('combobox', { name: 'Product offer' }).click()
   await page.getByRole('option', { name: 'Support Experience' }).click()
@@ -335,8 +312,8 @@ try {
   await page.keyboard.press('Escape')
 
   if (customerLayout) {
-  const sidebar = page.getByRole('list').first()
-  for (const label of ['My Deployments', 'My Engage Apps', 'Knowledge', 'Inbox & Integrations', 'Action Reviews', 'Notifications', 'Account & Team']) {
+  const sidebar = page.getByRole('navigation', { name: 'Customer navigation' })
+  for (const label of ['Deployments', 'Engage apps', 'Knowledge & data', 'Connections', 'Action reviews', 'Activity & alerts', 'Account & team']) {
     await sidebar.getByText(label, { exact: true }).waitFor()
   }
   for (const forbidden of ['Providers', 'Runtime Artifacts', 'Customers', 'Marketplace']) {
@@ -352,7 +329,7 @@ try {
   }
   }
 
-  await page.goto(`${uiBaseUrl}/document-knowledge?deploymentId=deployment-one`, { waitUntil: 'networkidle' })
+  await page.goto(`${uiBaseUrl}/document-knowledge?view=manage&deploymentId=deployment-one`, { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: 'Document Knowledge' }).waitFor()
   await page.getByRole('combobox', { name: 'Target profile' }).click()
   await page.getByRole('option', { name: /Customer staging.*Reviewed offer/ }).waitFor()
@@ -366,7 +343,7 @@ try {
     }
   }
   lifecycle = true
-  await page.goto(`${uiBaseUrl}/deployments`, { waitUntil: 'networkidle' })
+  await page.goto(`${uiBaseUrl}/deployments?view=manage`, { waitUntil: 'networkidle' })
   await page.getByRole('textbox', { name: 'Assignment ID', exact: true }).fill('customer-workspace')
   await page.getByRole('textbox', { name: 'Display name', exact: true }).fill('Customer workspace')
   await page.getByRole('button', { name: 'Create staging assignment', exact: true }).click()
@@ -383,15 +360,15 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Activate production', exact: true }).isDisabled(), true)
   const bindingBeforeRefresh = structuredClone(consumers[0])
   const operationsBeforeRefresh = [...lifecycleCalls]
+  productionReady = true
   await page.getByRole('button', { name: 'Refresh production readiness', exact: true }).click()
-  await page.getByText('Production connection evidence refreshed. No app assignment was changed.', { exact: true }).waitFor()
+  await page.getByText('Production readiness refreshed. No app assignment was changed.', { exact: true }).waitFor()
   assert.deepEqual(consumers[0], bindingBeforeRefresh, 'Readiness refresh must not activate or rebind an app')
   assert.deepEqual(lifecycleCalls, operationsBeforeRefresh, 'Readiness refresh must not dispatch a deployment operation')
-  assert.equal(allocations.size, 2, 'Readiness refresh must retain the existing allocation')
   await page.getByRole('button', { name: 'Activate production', exact: true }).click()
   await page.getByText('Production consumer activated.', { exact: true }).first().waitFor()
-  assert.deepEqual(lifecycleCalls, ['APP_CONFIGURE', 'APPLY', 'ACTIVATE', 'PROMOTION_PLAN', 'PROMOTION_APPLY', 'ACTIVATE'])
-  assert.equal(allocations.size, 2, 'planning, applying, and activation must reuse each target allocation')
+  assert.deepEqual(lifecycleCalls, ['APP_CONFIGURE', 'APPLY', 'ACTIVATE_STAGING', 'PROMOTION_PLAN', 'PROMOTION_APPLY', 'ACTIVATE_PRODUCTION'])
+  assert.equal(placementProbeRequests, 0, 'No legacy probe, admission or retirement request may run')
   await page.setViewportSize({ width: 390, height: 844 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true,
     'The complete production lifecycle dashboard must fit the mobile viewport')
@@ -405,7 +382,7 @@ try {
     throw new Error(`Customer smoke received unhandled API calls: ${[...unhandledPaths].sort().join(', ')}`)
   }
 
-  console.log('Customer navigation, route boundaries, and admission-bound staging/promotion UI flow passed.')
+  console.log('Customer navigation, route boundaries, and server-assessed staging/promotion UI flow passed without legacy admission.')
 } finally {
   await browser.close()
   server.kill('SIGTERM')

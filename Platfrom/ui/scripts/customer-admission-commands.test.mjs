@@ -7,8 +7,23 @@ const source = await readFile(new URL('../src/components/customer/customerAdmiss
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
+const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
+const apiCompiled = ts.transpileModule(apiSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+}).outputText
+const apiUrl = `data:text/javascript;base64,${Buffer.from(apiCompiled).toString('base64')}`
+const originalWindow = globalThis.window
+globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'https://operations.test' } }
+let commandsModule
+try {
+  const resolved = compiled.replace('../../api/platformApi', apiUrl)
+  assert.notEqual(resolved, compiled)
+  commandsModule = await import(`data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`)
+} finally {
+  globalThis.window = originalWindow
+}
 const { canApplyReviewedVersion, CustomerAdmissionCommands, releaseNeedsProgressPolling,
-  admissionNeedsProgressPolling, currentCustomerAdmission } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
+  admissionNeedsProgressPolling, currentCustomerAdmission } = commandsModule
 
 test('customer progress observes actual release and allocation states until settled', () => {
   for (const status of ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING']) assert.equal(releaseNeedsProgressPolling(status), true)
@@ -46,112 +61,145 @@ test('reviewed new versions may replace a settled release but not duplicate or i
   assert.equal(canApplyReviewedVersion('version-one', { ...release, status: 'APPLIED_VERIFICATION_FAILED', provisioningStatus: 'RUNNING' }), false)
 })
 
-function fixture() {
-  const state = { allocations: [], reservations: [], probes: [], loseResponse: false, lists: 0 }
+const policyStatus = (mode = 'DISABLED', serviceConfigured = false, providerUsageMode = 'TEAM_AUTHORIZED') => ({
+  mode, manualDeploymentsAllowed: true, serviceConfigured, providerUsageMode, decisionSource: 'EXTERNAL_SERVICE',
+})
+const applyRequest = () => ({
+  targetProfileId: 'staging', versionId: 'version', operation: 'APPLY', operationKey: 'apply',
+})
+
+function fixture(status = policyStatus()) {
+  const state = { status, statuses: 0, failure: null, legacyCalls: [] }
+  const legacy = name => async () => {
+    state.legacyCalls.push(name)
+    throw new Error(`Legacy ${name} must not be called`)
+  }
   const commands = new CustomerAdmissionCommands({
-    probe: async (...args) => { state.probes.push(args) },
-    list: async () => { state.lists += 1; return state.allocations },
-    reserve: async (offerId, deploymentId, request) => {
-      state.reservations.push({ offerId, deploymentId, request })
-      state.allocations = [{ id: 'allocation', targetProfileId: request.targetProfileId }]
-      if (state.loseResponse) throw new Error('Connection lost after acceptance')
-      return state.allocations[0]
+    status: async () => {
+      state.statuses += 1
+      if (state.failure) throw state.failure
+      return state.status
     },
+    probe: legacy('probe'), list: legacy('list'), reserve: legacy('reserve'),
   })
   return { state, commands }
 }
 
-test('a lost response retries the exact reservation without changing its allocation choice', async () => {
-  const { state, commands } = fixture()
-  const request = { targetProfileId: 'staging', versionId: 'version', operation: 'APPLY', operationKey: 'apply' }
-  state.loseResponse = true
-  await assert.rejects(commands.authorize('offer', 'deployment', request), /Connection lost/)
-  state.loseResponse = false
-  await commands.authorize('offer', 'deployment', request)
-  assert.deepEqual(state.reservations[0], state.reservations[1])
-  assert.equal(state.reservations[1].request.operationKey, 'apply')
-  assert.equal(state.reservations[1].request.allocationId, undefined)
-})
+for (const mode of ['DISABLED', 'OBSERVE', 'ENFORCE']) {
+  for (const serviceConfigured of [false, true]) {
+    for (const providerUsageMode of ['FUNDED', 'TEAM_AUTHORIZED', 'CUSTOMER_KEY']) {
+      test(`${mode}/${serviceConfigured}/${providerUsageMode} leaves admission assessment to core apply`, async () => {
+        const { state, commands } = fixture(policyStatus(mode, serviceConfigured, providerUsageMode))
+        const request = applyRequest()
+        assert.equal(await commands.authorize('offer', 'deployment', request), null)
+        assert.deepEqual(request, applyRequest())
+        assert.equal(state.statuses, 1)
+        assert.deepEqual(state.legacyCalls, [])
+      })
+    }
+  }
+}
 
-test('promotion stages reuse one allocation with distinct operation receipts', async () => {
-  const { state, commands } = fixture()
-  for (const operation of ['PROMOTION_PLAN', 'PROMOTION_APPLY', 'ACTIVATE']) {
-    const request = { targetProfileId: 'production', versionId: 'version', operation, operationKey: operation }
-    if (operation === 'ACTIVATE') request.releaseId = 'production-release'
-    await commands.authorize('offer', 'deployment', request)
+test('promotion, activation and rollback require no invented allocation or ACTIVE evidence', async () => {
+  const { state, commands } = fixture(policyStatus('ENFORCE', true))
+  for (const operation of ['PROMOTION_PLAN', 'PROMOTION_APPLY', 'ACTIVATE', 'ROLLBACK']) {
+    const request = { ...applyRequest(), targetProfileId: 'production', operation, operationKey: operation }
+    if (['ACTIVATE', 'ROLLBACK'].includes(operation)) request.releaseId = 'verified-release'
+    assert.equal(await commands.authorize('offer', 'deployment', request), null)
+    assert.equal('allocationId' in request, false)
     commands.complete(request.operationKey)
   }
-  assert.equal(state.reservations[0].request.allocationId, undefined)
-  assert.equal(state.reservations[1].request.allocationId, 'allocation')
-  assert.equal(state.reservations[2].request.allocationId, 'allocation')
-  assert.equal(state.reservations[2].request.releaseId, 'production-release')
-  assert.equal(state.probes.length, 3)
+  assert.equal(state.statuses, 4)
+  assert.deepEqual(state.legacyCalls, [])
 })
 
-test('concurrent submissions freeze one allocation choice for their shared operation key', async () => {
+test('retries refresh server status without legacy admission or mutating a command', async () => {
   const { state, commands } = fixture()
-  const request = { targetProfileId: 'staging', versionId: 'version', operation: 'APPLY', operationKey: 'apply' }
-  await Promise.all([
-    commands.authorize('offer', 'deployment', request),
-    commands.authorize('offer', 'deployment', request),
-  ])
-  assert.equal(state.lists, 1)
-  assert.deepEqual(state.reservations[0], state.reservations[1])
+  const request = applyRequest()
+  assert.equal(await commands.authorize('offer', 'deployment', request), null)
+  state.status = policyStatus('ENFORCE', true, 'FUNDED')
+  assert.equal(await commands.authorize('offer', 'deployment', request), null)
+  assert.equal(state.statuses, 2)
+  assert.deepEqual(request, applyRequest())
+  assert.deepEqual(state.legacyCalls, [])
 })
 
-test('changed commands, ambiguous allocations, and unallocated releases fail before reserve', async () => {
+test('changed scope or command cannot reuse an operation key', async () => {
   const { state, commands } = fixture()
-  const request = { targetProfileId: 'staging', versionId: 'version', operation: 'APPLY', operationKey: 'apply' }
+  const request = applyRequest()
   await commands.authorize('offer', 'deployment', request)
   await assert.rejects(commands.authorize('foreign-offer', 'deployment', request), /command changed/)
-  await assert.rejects(commands.authorize('offer', 'deployment', { ...request, versionId: 'other-version' }), /command changed/)
-  state.allocations = [{ id: 'one' }, { id: 'two' }]
-  await assert.rejects(commands.authorize('offer', 'deployment', { ...request, operationKey: 'ambiguous' }), /reconciliation/)
-  state.allocations = []
-  await assert.rejects(commands.authorize('offer', 'deployment', {
-    ...request, operation: 'ROLLBACK', operationKey: 'rollback', releaseId: 'staging-release',
-  }), /no current capacity/)
-  assert.equal(state.reservations.length, 1)
+  await assert.rejects(commands.authorize('offer', 'foreign-deployment', request), /command changed/)
+  for (const changes of [
+    { versionId: 'other-version' }, { targetProfileId: 'production' }, { operation: 'ROLLBACK' }, { releaseId: 'other-release' },
+  ]) {
+    await assert.rejects(commands.authorize('offer', 'deployment', { ...request, ...changes }), /command changed/)
+  }
+  assert.equal(state.statuses, 1)
+  commands.complete(request.operationKey)
+  assert.equal(await commands.authorize('offer', 'other-deployment', request), null)
+  assert.equal(state.statuses, 2)
+  assert.deepEqual(state.legacyCalls, [])
 })
 
-test('placement is refreshed before the allocation list that requires current evidence', async () => {
-  const calls = []
-  let current = false
-  const commands = new CustomerAdmissionCommands({
-    probe: async () => { calls.push('probe'); current = true },
-    list: async () => { calls.push('list'); assert.equal(current, true); return [] },
-    reserve: async () => { calls.push('reserve'); return { id: 'allocation' } },
-  })
-  await commands.authorize('offer', 'deployment', {
-    targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_PLAN', operationKey: 'plan',
-  })
-  assert.deepEqual(calls, ['probe', 'list', 'reserve'])
+test('concurrent commands retain the original scope before status resolves', async () => {
+  let resolveStatus
+  const status = new Promise(resolve => { resolveStatus = resolve })
+  const commands = new CustomerAdmissionCommands({ status: () => status })
+  const request = applyRequest()
+  const first = commands.authorize('offer', 'deployment', request)
+  await assert.rejects(commands.authorize('offer', 'other-deployment', request), /command changed/)
+  resolveStatus(policyStatus())
+  assert.equal(await first, null)
 })
 
-test('a failed placement probe cannot list or reserve and the original operation can be reviewed again', async () => {
-  let fail = true
-  const calls = []
-  const commands = new CustomerAdmissionCommands({
-    probe: async () => { calls.push('probe'); if (fail) throw new Error('Placement unavailable') },
-    list: async () => { calls.push('list'); return [] },
-    reserve: async () => { calls.push('reserve'); return { id: 'allocation' } },
-  })
-  const request = { targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_PLAN', operationKey: 'plan' }
-  await assert.rejects(commands.authorize('offer', 'deployment', request), /Placement unavailable/)
-  assert.deepEqual(calls, ['probe'])
-  fail = false
-  await commands.authorize('offer', 'deployment', request)
-  assert.deepEqual(calls, ['probe', 'probe', 'list', 'reserve'])
-})
-
-test('lost response reprobes placement without relisting or changing the frozen allocation', async () => {
+test('ordinary status errors remain visible and never fall back to legacy admission', async () => {
   const { state, commands } = fixture()
-  state.loseResponse = true
-  const request = { targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_APPLY', operationKey: 'apply' }
-  await assert.rejects(commands.authorize('offer', 'deployment', request), /Connection lost/)
-  state.loseResponse = false
-  await commands.authorize('offer', 'deployment', request)
-  assert.equal(state.probes.length, 2)
-  assert.equal(state.lists, 1)
-  assert.deepEqual(state.reservations[0], state.reservations[1])
+  const request = applyRequest()
+  for (const message of ['Unauthorized', 'Forbidden', 'Status service unavailable', 'Connection lost']) {
+    state.failure = new Error(message)
+    await assert.rejects(commands.authorize('offer', 'deployment', request), error => error === state.failure)
+  }
+  state.failure = null
+  assert.equal(await commands.authorize('offer', 'deployment', request), null)
+  assert.equal(state.statuses, 5)
+  assert.deepEqual(state.legacyCalls, [])
+})
+
+test('missing or malformed policy status cannot become client-side permission', async () => {
+  const { state, commands } = fixture()
+  for (const status of [undefined, null, {},
+    { ...policyStatus(), mode: 'UNKNOWN' },
+    { ...policyStatus(), manualDeploymentsAllowed: false },
+    { ...policyStatus(), manualDeploymentsAllowed: 'true' },
+    { ...policyStatus(), serviceConfigured: 'false' },
+    { ...policyStatus(), providerUsageMode: 'UNBOUNDED' },
+    { ...policyStatus(), decisionSource: 'LEGACY_ADMISSION' },
+    { ...policyStatus(), decisionSource: undefined },
+  ]) {
+    state.status = status
+    await assert.rejects(commands.authorize('offer', 'deployment', applyRequest()), /policy status is invalid/)
+  }
+  assert.deepEqual(state.legacyCalls, [])
+})
+
+test('existing constructors use the authenticated status route without running injected legacy methods', async () => {
+  const originalFetch = globalThis.fetch
+  const calls = []
+  const legacyCalls = []
+  const legacy = name => async () => { legacyCalls.push(name); throw new Error(`Unexpected ${name}`) }
+  const commands = new CustomerAdmissionCommands({ probe: legacy('probe'), list: legacy('list'), reserve: legacy('reserve') })
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init })
+    return new Response(JSON.stringify(policyStatus('ENFORCE', true)), { headers: { 'Content-Type': 'application/json' } })
+  }
+  try {
+    assert.equal(await commands.authorize('offer', 'deployment', applyRequest()), null)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url, 'https://operations.test/api/deployment-operations/status')
+    assert.equal(calls[0].init.credentials, 'include')
+    assert.deepEqual(legacyCalls, [])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })

@@ -40,7 +40,6 @@ import {
   fetchPlatformAuthSession,
   fetchCustomerDeploymentPortfolio,
   fetchCustomerSelfServiceOffer,
-  probeCustomerOfferTargetPlacement,
   reconcileDeploymentIntegrationSource,
   replayDeploymentIntegrationWebhook,
   revokeManagedDependencyOperator,
@@ -110,7 +109,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     prepareCustomerOperatorPlacement(input, auth.session, operation, {
       session: fetchPlatformAuthSession, deployments: fetchCustomerDeploymentPortfolio,
       offer: fetchCustomerSelfServiceOffer, target: fetchDeploymentTargetContext,
-      probe: probeCustomerOfferTargetPlacement,
     }, () => credential.isCurrent(input.token))
   useEffect(() => {
     setSelectedReleaseId(initialReleaseId)

@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { bindCustomerExternalIntegration, fetchCustomerDeploymentPortfolio, fetchCustomerExternalIntegration,
   fetchCustomerExternalIntegrationApprovals, fetchCustomerSelfServiceOffer, fetchDeploymentVersions,
-  fetchPlatformAuthSession, PlatformApiError, probeCustomerOfferTargetPlacement, revokeCustomerExternalIntegration,
+  fetchPlatformAuthSession, PlatformApiError, revokeCustomerExternalIntegration,
   type CustomerDeploymentSummary, type CustomerExternalIntegrationApprovalOption, type CustomerExternalIntegrationSummary,
   type CustomerOfferSummary, type DeploymentVersionSummary, type PlatformAuthSessionSummary } from '../../api/platformApi'
 import { checkedExternalApproval, checkedExternalBinding, externalConnectionProfile, requireFreshExternalAuthority,
@@ -74,7 +74,6 @@ function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority 
   }
   const review = useMutation({ gcTime: 0, mutationFn: async () => {
     await fresh('READ')
-    await probeCustomerOfferTargetPlacement(offer.id, scope.targetProfileId)
     if (!alive.current) throw new Error('The selected connection changed.')
     return read()
   }, onSuccess: data => { if (alive.current) setResult(data) } })
@@ -86,7 +85,6 @@ function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority 
     if (Object.values(values).some(value => !value.trim())) throw new Error('All required credentials must be supplied.')
     const key = operationKey.current ??= crypto.randomUUID()
     await fresh('BINDING_REPLACE')
-    await probeCustomerOfferTargetPlacement(offer.id, scope.targetProfileId)
     if (!alive.current) throw new Error('The selected connection changed.')
     return checkedExternalBinding(deployment.deploymentId, scope, await bindCustomerExternalIntegration(offer.id, deployment.deploymentId, {
       ...scope, approvalId, credentials: values, expectedEntitlementRevision: offer.entitlement.revision, operationKey: key,
@@ -100,7 +98,6 @@ function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority 
     const binding = checkedExternalBinding(deployment.deploymentId, scope, result.binding)
     const key = operationKey.current ??= crypto.randomUUID()
     await fresh('BINDING_REVOKE')
-    await probeCustomerOfferTargetPlacement(offer.id, scope.targetProfileId)
     if (!alive.current) throw new Error('The selected connection changed.')
     return checkedExternalBinding(deployment.deploymentId, scope, await revokeCustomerExternalIntegration(offer.id, deployment.deploymentId, {
       ...scope, bindingId: binding.id, expectedBindingRevision: binding.revision,

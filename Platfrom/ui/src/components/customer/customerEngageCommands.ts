@@ -1,4 +1,4 @@
-import type { CustomerDeploymentSummary, CustomerOfferSummary, PlatformConsumerSummary } from '../../api/platformApi'
+import type { CustomerDeploymentSummary, CustomerOfferSummary, PlatformAuthSessionSummary, PlatformConsumerSummary } from '../../api/platformApi'
 
 export type CustomerEngageCommandContext = {
   actorId: string | null | undefined
@@ -25,21 +25,21 @@ function commandScope(context: CustomerEngageCommandContext, consumerId: string)
     releaseId: consumer.boundReleaseId, bindingRevision: consumer.bindingRevision }
 }
 
-/** Refresh the existing placement check only for an explicit app command, never on page load. */
+/** Recheck the authenticated account and exact assignment for an explicit app command. */
 export async function prepareCustomerEngageCommand(
   current: () => CustomerEngageCommandContext | null,
   consumerIds: string | string[],
-  probe: (offerId: string, targetProfileId: string) => Promise<unknown>,
+  session: () => Promise<PlatformAuthSessionSummary>,
 ) {
   const before = current()
   if (!before) throw new Error('The app configuration view is no longer active.')
   const ids = [...new Set(typeof consumerIds === 'string' ? [consumerIds] : consumerIds)]
   if (ids.length === 0) throw new Error('Select an app assignment before configuring an app.')
   const scopes = ids.map(id => commandScope(before, id))
-  const checked = new Set<string>()
-  for (const scope of scopes) {
-    const key = JSON.stringify([scope.offerId, scope.targetProfileId])
-    if (!checked.has(key)) { await probe(scope.offerId, scope.targetProfileId); checked.add(key) }
+  const account = await session()
+  if (!account.authenticated || account.role !== 'CUSTOMER_ADMIN' || account.authenticationMode !== 'SESSION'
+    || account.actorId !== before.actorId || account.customerId !== before.customerId) {
+    throw new Error('The app account changed. Sign in to the current customer account before continuing.')
   }
   const after = current()
   if (!after || JSON.stringify(ids.map(id => commandScope(after, id))) !== JSON.stringify(scopes)) {

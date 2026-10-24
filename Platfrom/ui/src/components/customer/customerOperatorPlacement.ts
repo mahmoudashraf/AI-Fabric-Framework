@@ -8,7 +8,6 @@ export async function prepareCustomerOperatorPlacement(target: DeploymentTargetR
     deployments: () => Promise<CustomerDeploymentSummary[]>
     offer: (id: string) => Promise<CustomerOfferSummary>
     target: (target: DeploymentTargetReference) => Promise<DeploymentTargetContextSummary>
-    probe: (offerId: string, targetId: string) => Promise<unknown>
   }, stillCurrent: () => boolean) {
   const requireSession = (current: PlatformAuthSessionSummary) => {
     if (!stillCurrent() || !session?.actorId || !session.customerId || !current.authenticated
@@ -29,6 +28,5 @@ export async function prepareCustomerOperatorPlacement(target: DeploymentTargetR
     || !offer.targets.some(item => item.id === target.targetProfileId && item.capabilities.includes(operation))) {
     throw new Error('The current offer does not authorize this support-channel operation.')
   }
-  await api.probe(offer.id, target.targetProfileId)
   requireSession(await api.session())
 }

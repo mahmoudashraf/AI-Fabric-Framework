@@ -47,7 +47,7 @@ const offer = (id, modes) => ({ id, name: id, fingerprint: 'pin-'+id, templateId
 })
 const version = id => ({ id: 'v-'+id, deploymentId: id, versionLabel: 'v1', status: 'PUBLISHED', configHash: 'hash-'+id })
 
-async function fixture({ invalidMode = false, probeDenied = false } = {}) {
+async function fixture({ invalidMode = false, publishDenied = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 1100 } }), page = await context.newPage()
   const state = { calls: [], errors: [], holdBootstrap: false, holdBinding: false, holdDraft: false, pending: [], escaped: [] }
   const offers = [offer('offer-a', ['MANAGED_POSTGRES', 'CUSTOMER_POSTGRES']), offer('offer-b', ['MANAGED_POSTGRES'])]
@@ -62,14 +62,13 @@ async function fixture({ invalidMode = false, probeDenied = false } = {}) {
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const request = route.request(), path = url.pathname, method = request.method(), body = request.postDataJSON()
     state.calls.push({ path, method, body })
+    if (path === '/api/deployment-operations/status') return json(route, { mode: 'DISABLED', manualDeploymentsAllowed: true,
+      serviceConfigured: false, providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'EXTERNAL_SERVICE' })
     if (path === '/api/customer-self-service/catalogue') return json(route, offers)
     if (path === '/api/customer-self-service/invitations') return json(route, [])
     if (path === '/api/customer-self-service/deployments') return json(route, deployments)
     if (path === '/api/platform/customers/customer/consumers') return json(route, [])
     if (path === '/api/platform/preferences') return json(route, body ?? {})
-    if (path.endsWith('/placement-evidence')) return probeDenied
-      ? json(route, { message: 'Placement verification denied' }, 409)
-      : json(route, { id: 'placement', intent: 'CUSTOMER_STAGING' })
     const draft = /^\/api\/deployments\/(dep-[ab])\/draft$/.exec(path)
     if (draft) {
       const reply = () => json(route, { id: 'draft-'+draft[1], deploymentId: draft[1], revisionNumber: 1,
@@ -94,7 +93,9 @@ async function fixture({ invalidMode = false, probeDenied = false } = {}) {
       if (state.holdBinding) { state.pending.push(reply); return }
       return reply()
     }
-    if (path.endsWith('/versions') && method === 'POST') return json(route, { deploymentId: 'dep-a', versionLabel: 'v2' })
+    if (path.endsWith('/versions') && method === 'POST') return publishDenied
+      ? json(route, { message: 'Source or credential review denied publication' }, 403)
+      : json(route, { deploymentId: 'dep-a', versionLabel: 'v2' })
     state.errors.push('Unhandled '+method+' '+path)
     return json(route, { message: 'Unhandled fixture route' }, 500)
   })
@@ -112,8 +113,7 @@ async function choose(page, label, option) {
 }
 async function readyCreation(page) {
   await page.getByRole('textbox', { name: 'Deployment name', exact: true }).fill('My AI workspace')
-  await page.getByRole('button', { name: 'Verify placement', exact: true }).click()
-  await page.getByText('Placement verified for customer staging.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Verify placement', exact: true }).count(), 0)
 }
 async function waitPending(f) { await f.page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.disabled && b.textContent.includes('Create staging deployment'))); while (!f.state.pending.length) await new Promise(resolve => setTimeout(resolve, 10)) }
 
@@ -150,9 +150,7 @@ try {
     const request = publish.state.calls.find(c => c.method === 'POST' && c.path.endsWith('/versions'))
     assert.deepEqual(Object.keys(request.body).sort(), ['expectedEntitlementRevision', 'operationKey', 'targetProfileId'])
     assert.equal(request.body.targetProfileId, 'staging')
-    const probe = publish.state.calls.find(c => c.method === 'POST' && c.path.endsWith('/placement-evidence'))
-    assert.equal(probe.path, '/api/customer-self-service/catalogue/offer-a/targets/staging/placement-evidence')
-    assert.ok(publish.state.calls.indexOf(probe) < publish.state.calls.indexOf(request))
+    assert.equal(publish.state.calls.some(c => c.path.endsWith('/placement-evidence')), false)
     await publish.page.getByText('Customer AI-state PostgreSQL', { exact: true }).waitFor()
     await publish.page.screenshot({ path: output+'/desktop.png', fullPage: true })
     await publish.page.setViewportSize({ width: 390, height: 844 })
@@ -161,14 +159,15 @@ try {
     console.log('Passed: saved BYO mode survives unrelated creation choice and exact publish body')
   } finally { await publish.close() }
 
-  const denied = await fixture({ probeDenied: true })
+  const denied = await fixture({ publishDenied: true })
   try {
     assert.equal(denied.state.calls.some(c => c.method === 'POST' && c.path.endsWith('/placement-evidence')), false)
     await denied.page.getByRole('button', { name: 'Publish current configuration', exact: true }).click()
-    await denied.page.getByRole('alert').filter({ hasText: 'Placement verification denied' }).waitFor()
-    assert.equal(denied.state.calls.some(c => c.method === 'POST' && c.path.endsWith('/versions')), false)
+    await denied.page.getByRole('alert').filter({ hasText: 'Source or credential review denied publication' }).waitFor()
+    assert.equal(denied.state.calls.filter(c => c.method === 'POST' && c.path.endsWith('/versions')).length, 1)
+    assert.equal(denied.state.calls.some(c => c.path.endsWith('/placement-evidence')), false)
     passed += 1
-    console.log('Passed: failed explicit placement check blocks publish without a background probe or retry')
+    console.log('Passed: source/credential rejection remains visible without a legacy placement gate or retry')
   } finally { await denied.close() }
 
   const bind = await fixture()
