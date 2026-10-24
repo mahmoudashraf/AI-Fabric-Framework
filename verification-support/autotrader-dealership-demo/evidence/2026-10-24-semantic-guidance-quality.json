@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "loomai-targeted-workspace-quality-review-v1",
+  "status": "REJECTED_CONFIGURATION_TRIAL",
+  "deploymentId": "dep-011d7f62",
+  "publishedConfigurationVersionId": "ver-21e8391f",
+  "runtimeCommit": "1cdb1047faf0c5072c9dd963fa4606147333ab0a",
+  "frameworkVersion": "0.8.41",
+  "hostContract": "MANUAL_HOST_PUBLISHED_ASSETS_LIVE_RUNTIME_NOT_PLATFORM_ASSIGNMENT_ACCEPTANCE",
+  "change": "Only deployment intentExtractionPrompt and answerGenerationPrompt guidance; generated Platform catalogue/compound guidance retained",
+  "scenarioCount": 11,
+  "verdictCounts": {"PASS": 5, "PARTIAL": 1, "FAIL": 4, "SOURCE_GAP": 1},
+  "cases": [
+    {"id":"all-stock","verdict":"PARTIAL","finding":"Five complete records plus an explicitly incomplete sixth row; evidence projection remains truncated."},
+    {"id":"structured-current-stock-action","verdict":"PASS","finding":"Correct three matching electric vehicles and prices."},
+    {"id":"contextual-follow-up","verdict":"FAIL","finding":"Knowledge-domain clarification despite four history messages; regression from the preceding full run."},
+    {"id":"vehicle-comparison","verdict":"PASS","finding":"Both vehicles compared from live facts with suitability limitations clearly disclosed."},
+    {"id":"semantic-rag","verdict":"SOURCE_GAP","finding":"Correctly refuses to infer towing/weather performance from item categories or marketing names; no specifications supplied."},
+    {"id":"approved-warranty-policy","verdict":"PASS","finding":"Correct indexed90-day engine/gearbox coverage and exclusions."},
+    {"id":"compound-inventory-policy-forward","verdict":"FAIL","finding":"Correct inventory but incorrectly states delivery evidence is unavailable."},
+    {"id":"compound-inventory-policy-reverse","verdict":"PASS","finding":"Correct stock plus delivery terms with fictional-data qualification."},
+    {"id":"context-stock-selection","verdict":"PASS","finding":"Three cards rendered and actual Keep in context selection succeeded."},
+    {"id":"selected-vehicle-and-policy","verdict":"FAIL","finding":"Generic COMPOUND_HANDLED answer without outward child answers/evidence."},
+    {"id":"governed-write-intent","verdict":"FAIL","finding":"Informational booking request clarifies knowledge domain instead of explaining known requirements; no write."}
+  ],
+  "integrity": {
+    "judgingMethod": "Manual evidence review; no lexical answer grading",
+    "allHttp200": true,
+    "browserErrors": 0,
+    "blockedRequests": 0,
+    "successfulWriteActions": 0,
+    "sameConversationRetainedWithinEachSession": true,
+    "originalCustomerAssignmentChanged": false,
+    "newInfrastructureCreated": false,
+    "frameworkOrRuntimeCodeChangedForThisTrial": false
+  },
+  "rawReportSha256": "6bf033c6a2ac7855c0f435aaf6e812fd384b3f2e9cb45cb4bb781551450b957c",
+  "privateEvidenceRelativeRoot": "quality-20261024/tuned-semantic-guidance-11",
+  "acceptance": "Do not promote; targeted subset only, remaining failures and follow-up regression are retained"
+}

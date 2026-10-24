@@ -2,7 +2,50 @@
 
 Date: 24 October 2026. Status: **NEEDS IMPROVEMENT**.
 
-## Latest Result: Configuration Trial Completed
+## Follow-Up: Explicit Guidance Trial Not Accepted
+
+After the owner requested a working-status update, a focused11-query test ran
+on the same internal runtime with configuration `ver-21e8391f`. Only the prompt
+artifact changed: explicit structured extraction instructions plus stronger
+evidence-only generation guidance. Numeric budgets, model, actions, source
+content, framework and runtime image were unchanged. Normal draft validation
+and publication passed; a cold restart loaded the new artifact. No new
+infrastructure, business writes, customer assignment or funding change.
+
+The test produced **5 PASS,1 PARTIAL,4 FAIL and1 SOURCE_GAP**. It correctly
+refused to infer towing capability from AWD/SUV labels, but the lowest-mileage
+follow-up regressed to knowledge-domain clarification. Inventory-first plus
+policy, selected-context compound presentation and booking information still
+failed. This is an11-case subset, not a new20-case total or proof that the
+earlier configuration is reliably stable. **Do not promote this prompt bundle.**
+
+The code inspection identifies two narrow contracts to investigate next:
+
+- The managed extraction template says an uncertain vector space may be omitted
+  and the system will route/fan out, while this deployment's actual recovery
+  policy is `LLM_REPAIR_THEN_CLARIFY`. It also documents `needsAdvancedRAG` less
+  strictly than the validator requires and omits `obligationId` in its sample
+  schema. Additional deployment guidance did not consistently correct these
+  decisions. Verify the exact released template before any framework change;
+  this is not permission for deterministic semantic defaults.
+- The framework sanitizer produces sanitized nested `children`, and the widget
+  already has a compound-results renderer. The Runtime's canonical DTO does not
+  project children, and the canonical widget adapter builds no `data.results`.
+  A mixed success/clarification therefore loses useful per-child answers. A
+  bounded safe projection must preserve each child's actual status, use only
+  sanitized allowlisted fields and never replace a failed child with an invented
+  success or expose raw internal data. No such code change is implemented yet.
+
+The internal runtime remains on the explicitly recorded trial artifact; it is
+not assigned to the original customer app. The independent separation chat's
+12-check customer journey is different evidence and does not close these
+answer-quality failures. No query runner is left active. Main released its
+temporary firewall hold back to that chat for closure after its own live work.
+
+Private raw evidence: `quality-20261024/tuned-semantic-guidance-11/`.
+SHA256 `6bf033c6a2ac7855c0f435aaf6e812fd384b3f2e9cb45cb4bb781551450b957c`.
+
+## Last Full20 Result: Configuration Trial Completed
 
 The final internal live trial completed at15:34:44 UTC: **9 PASS,2 PARTIAL,
 4 FAIL and5 SOURCE_GAP** across the same20 questions. The original baseline
