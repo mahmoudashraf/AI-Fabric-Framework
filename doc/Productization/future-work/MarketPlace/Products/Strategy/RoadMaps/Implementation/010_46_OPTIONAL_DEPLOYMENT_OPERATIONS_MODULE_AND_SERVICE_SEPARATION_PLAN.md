@@ -536,6 +536,32 @@ the 63-test document/search reports are archived under
 `/tmp/01046-runtime-target-state-cde62f78c/`. A successful immutable image build and
 the fresh hosted journey remain outstanding, not inferred from these local passes.
 
+**Corrected-runtime hosted follow-up:** Commit
+`5534d55121b0dc60e8cb7ad7787e369eb79b2a84` passed runtime CI `40134173390`:
+514 runtime tests, zero failures/errors/skips, and successful provider-accounting
+verification. Immutable runtime image
+`ghcr.io/mahmoudashraf/ai-fabric-runtime@sha256:68793b4a3899240aafbcb099ae5572d66f9efcb4d13a4c0cecb44495fce67b69`
+was registered as `dsa-2598ad7d` and pinned by a new reviewed offer. The separate
+framework dependency remains unchanged. Fresh deployment `dep-bf68df32` and app
+`awi_pub_48c1ceaed1c11dfbcb1d904b60f8ec0d` passed the full seven-send staging
+workspace journey: all 12 bounded technical checks, three indexed policies, real
+sign-in/cancel, one confirmed external receipt and actual asynchronous Inbox reply.
+Both optional operations-service containers remain stopped during this proof.
+
+Actual cold release `rel-0ccd4e0f` completed its native replacement and retained
+the exact three `ACTIVE` source registrations and versions. Runtime retrieval proof
+returned all three retained evidence records without re-indexing. A remaining
+Platform verification predicate incorrectly required their origin release to equal
+the new release. The narrow correction checks tenant/customer/deployment/target,
+dataset, active catalog source ID and exact integral version while retaining
+nonblank bounded origin-release provenance; current-release private authorization
+and read-only scopes remain unchanged. Its five-suite focused run passed 62 tests
+with zero failures/errors/skips (`/tmp/01046-document-target-verifier.log`), and
+independent read-only review found no concrete P1. Deploying this backend-only fix
+and rechecking the same cold release remain required; no additional native cold
+apply or document re-index is needed. Production promotion and final proof cleanup
+are still open and are not counted as passed.
+
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.
 - [x] Manual-first scope, optional module boundary, provider-use modes and later service contract drafted.

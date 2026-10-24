@@ -1181,7 +1181,7 @@ public class DeploymentReleaseVerificationService {
             boolean datasetReady = retrievalProbe.success()
                 && retrievalProofContains(
                     retrievalProbe.body(), datasetId, sourceId, activeVersion,
-                    deployment.getId(), release.getTargetProfileId(), release.getId()
+                    deployment.getTenantId(), deployment.getCustomerId(), deployment.getId(), release.getTargetProfileId()
                 );
             retrievalReady &= datasetReady;
             ObjectNode datasetResult = objectMapper.createObjectNode();
@@ -1200,8 +1200,8 @@ public class DeploymentReleaseVerificationService {
             "document_retrieval_evidence_ready",
             retrievalReady ? "PASSED" : "FAILED",
             retrievalReady
-                ? "Every external document dataset returned evidence for its active source and release boundary."
-                : "One or more external document datasets did not return evidence for its active source and release boundary.",
+                ? "Every external document dataset returned evidence for its active source and target ownership boundary."
+                : "One or more external document datasets did not return evidence for its active source and target ownership boundary.",
             retrievalDetails
         );
     }
@@ -1231,18 +1231,27 @@ public class DeploymentReleaseVerificationService {
                                            String datasetId,
                                            String sourceId,
                                            long sourceVersion,
+                                           String tenantId,
+                                           String customerId,
                                            String deploymentId,
-                                           String targetProfileId,
-                                           String releaseId) {
-        if (proof == null || proof.path("evidenceCount").asInt(0) < 1 || !proof.path("evidence").isArray()) return false;
+                                           String targetProfileId) {
+        if (!hasText(tenantId) || !hasText(customerId) || sourceVersion < 1
+            || proof == null || proof.path("evidenceCount").asInt(0) < 1 || !proof.path("evidence").isArray()) return false;
         for (JsonNode evidence : proof.path("evidence")) {
             JsonNode metadata = evidence.path("metadata");
             if (sourceId.equals(evidence.path("sourceId").asText(""))
+                && evidence.path("sourceVersion").isIntegralNumber()
+                && evidence.path("sourceVersion").canConvertToLong()
                 && sourceVersion == evidence.path("sourceVersion").asLong(-1)
                 && datasetId.equals(metadata.path("datasetId").asText(""))
+                && tenantId.equals(metadata.path("tenantId").asText(""))
+                && customerId.equals(metadata.path("customerId").asText(""))
                 && deploymentId.equals(metadata.path("deploymentId").asText(""))
                 && targetProfileId.equals(metadata.path("targetProfileId").asText(""))
-                && releaseId.equals(metadata.path("releaseId").asText(""))) {
+                // Runtime checks origin provenance against its owned catalog; it need not be the current release.
+                && metadata.path("releaseId").isTextual()
+                && hasText(metadata.path("releaseId").asText())
+                && metadata.path("releaseId").asText().length() <= 128) {
                 return true;
             }
         }

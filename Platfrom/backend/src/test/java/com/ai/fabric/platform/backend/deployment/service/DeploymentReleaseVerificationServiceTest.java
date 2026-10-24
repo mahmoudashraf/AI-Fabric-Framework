@@ -34,6 +34,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
@@ -882,8 +884,9 @@ class DeploymentReleaseVerificationServiceTest {
         }
     }
 
-    @Test
-    void verifyRequiresReadyDocumentConnectorWithExactReadOnlyScopeAndBinding() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"rel-123", "rel-origin-previous"})
+    void verifyRequiresReadyDocumentConnectorWithExactReadOnlyScopeAndBinding(String originReleaseId) throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         AtomicReference<JsonNode> assertionClaims = new AtomicReference<>();
         try {
@@ -896,7 +899,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "documents-primary",
                 assertionClaims
             );
-            registerActiveDocumentEvidenceHandlers(runtimeServer);
+            registerActiveDocumentEvidenceHandlers(runtimeServer, originReleaseId);
             runtimeServer.start();
 
             PlatformSecretService platformSecretService = runtimePrivateSecrets();
@@ -908,8 +911,11 @@ class DeploymentReleaseVerificationServiceTest {
             );
 
             String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
+            var documentDeployment = deployment(runtimeBaseUrl, runtimeBaseUrl);
+            documentDeployment.setTenantId("tenant-123");
+            documentDeployment.setCustomerId("customer-123");
             DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
-                deployment(runtimeBaseUrl, runtimeBaseUrl),
+                documentDeployment,
                 documentEnabledRuntimeOnlyVersion(),
                 runtimeOnlyImageRelease(),
                 "POST_DEPLOY"
@@ -929,6 +935,39 @@ class DeploymentReleaseVerificationServiceTest {
         } finally {
             runtimeServer.stop(0);
         }
+    }
+
+    @Test
+    void retainedDocumentProofStillRequiresTheExactOwnerActiveVersionAndOriginProvenance() throws Exception {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        ObjectNode proof = (ObjectNode) objectMapper.readTree("""
+            {"evidenceCount":1,"evidence":[{"sourceId":"doc-source-1","sourceVersion":1,"metadata":{
+              "tenantId":"tenant-123","customerId":"customer-123","deploymentId":"dep-123",
+              "targetProfileId":"dtp-coolify-staging","datasetId":"documents-primary","releaseId":"rel-origin-previous"
+            }}]}
+            """);
+        java.util.function.Function<JsonNode, Boolean> accepts = candidate -> ReflectionTestUtils.invokeMethod(service,
+            "retrievalProofContains", candidate, "documents-primary", "doc-source-1", 1L,
+            "tenant-123", "customer-123", "dep-123", "dtp-coolify-staging");
+        assertThat(accepts.apply(proof)).isTrue();
+        for (String field : List.of("tenantId", "customerId", "deploymentId", "targetProfileId", "datasetId")) {
+            ObjectNode foreign = proof.deepCopy();
+            ((ObjectNode) foreign.path("evidence").get(0).path("metadata")).put(field, "foreign");
+            assertThat(accepts.apply(foreign)).as(field).isFalse();
+            ((ObjectNode) foreign.path("evidence").get(0).path("metadata")).remove(field);
+            assertThat(accepts.apply(foreign)).as("missing " + field).isFalse();
+        }
+        ObjectNode stale = proof.deepCopy();
+        ((ObjectNode) stale.path("evidence").get(0)).put("sourceVersion", 2);
+        assertThat(accepts.apply(stale)).isFalse();
+        ((ObjectNode) stale.path("evidence").get(0)).put("sourceVersion", 1.5d);
+        assertThat(accepts.apply(stale)).isFalse();
+        ObjectNode unowned = proof.deepCopy();
+        ((ObjectNode) unowned.path("evidence").get(0)).put("sourceId", "doc-other");
+        assertThat(accepts.apply(unowned)).isFalse();
+        ObjectNode unattributed = proof.deepCopy();
+        ((ObjectNode) unattributed.path("evidence").get(0).path("metadata")).remove("releaseId");
+        assertThat(accepts.apply(unattributed)).isFalse();
     }
 
     @Test
@@ -3180,7 +3219,7 @@ class DeploymentReleaseVerificationServiceTest {
         });
     }
 
-    private void registerActiveDocumentEvidenceHandlers(HttpServer server) {
+    private void registerActiveDocumentEvidenceHandlers(HttpServer server, String originReleaseId) {
         server.createContext("/api/documents/sources/doc-source-1/preview", privateRuntimeJsonHandler("""
             {
               "source": {"sourceId":"doc-source-1","datasetId":"documents-primary","status":"ACTIVE","activeVersion":1},
@@ -3207,14 +3246,16 @@ class DeploymentReleaseVerificationServiceTest {
                   "sourceVersion":1,
                   "metadata":{
                     "datasetId":"documents-primary",
+                    "tenantId":"tenant-123",
+                    "customerId":"customer-123",
                     "deploymentId":"dep-123",
                     "targetProfileId":"dtp-coolify-staging",
-                    "releaseId":"rel-123"
+                    "releaseId":"%s"
                   }
                 }
               ]
             }
-            """));
+            """.formatted(originReleaseId)));
     }
 
     private void registerRuntimeOnlyImageHandlers(HttpServer server, DeploymentArtifactBundleSummary artifacts) {
