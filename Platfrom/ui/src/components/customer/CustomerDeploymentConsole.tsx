@@ -378,6 +378,11 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const selectedConsumer = creatingNewAssignment ? null : deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
     ?? deploymentConsumers[0]
     ?? null
+  const assignmentCreationGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
+    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
+    selectedOffer?.entitlement.revision, selectedDeploymentId, stagingTargetProfileId, stagingRelease?.id,
+    consumerId.trim(), consumerName.trim(), creatingNewAssignment,
+  ]))
   const readinessGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id,
     selectedOffer?.fingerprint, selectedOffer?.entitlement.revision, selectedDeploymentId,
@@ -607,8 +612,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   })
 
   const createConsumer = useMutation({
-    mutationFn: async () => {
-      if (!selectedOffer || !selectedDeployment) {
+    mutationFn: async ({ token }: { token: symbol }) => {
+      if (!selectedOffer || !selectedDeployment || !assignmentCreationGuard.isCurrent(token)) {
         throw new Error('A reviewed offer and customer-staging deployment are required.')
       }
       const offer = selectedOffer
@@ -623,7 +628,10 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
           versionId: release.deploymentVersionId, releaseId: release.id,
           operation: 'ACTIVATE', operationKey: key,
         })
+      } else {
+        await probeCustomerOfferTargetPlacement(offer.id, selectedDeployment.bootstrapTargetProfileId)
       }
+      if (!assignmentCreationGuard.isCurrent(token)) throw new Error('Assignment setup changed. Review the current deployment before creating it.')
       return createCustomerDeploymentStagingConsumer(offer.id, selectedDeploymentId, {
         consumerId: consumerId.trim(),
         displayName: consumerName.trim(),
@@ -1344,7 +1352,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                       </Stack>
                       <Button variant="outlined" startIcon={<AddRoundedIcon />}
                         disabled={consumerId.length < 3 || consumerName.trim().length < 2 || createConsumer.isPending}
-                        onClick={() => createConsumer.mutate()}>
+                        onClick={() => createConsumer.mutate({ token: assignmentCreationGuard.capture() })}>
                         Create staging assignment
                       </Button>
                     </>

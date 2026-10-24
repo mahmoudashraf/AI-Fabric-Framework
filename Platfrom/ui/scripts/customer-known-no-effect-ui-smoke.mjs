@@ -161,6 +161,15 @@ async function fixture(name, { consoleView = false, holdPlan = false, holdSettle
         : [{ ...reservation(ids.targetB), id: 'destination-allocation', deploymentId: ids.b, state: 'ACTIVE' }])
     }
     if (path.endsWith('/placement-evidence') && method === 'POST') return json({ id: 'placement', intent: 'CUSTOMER_STAGING' })
+    if (path.endsWith('/staging-consumer-assignments') && method === 'POST') {
+      assert.equal(path, `/api/customer-self-service/catalogue/${ids.offer}/deployments/${ids.a}/staging-consumer-assignments`)
+      assert.ok(state.calls.some(call => call.method === 'POST' && call.path === `/api/customer-self-service/catalogue/${ids.offer}/targets/${ids.targetA}/placement-evidence`),
+        'Configuration-only assignment must prepare current placement before creating it')
+      assert.equal(body.releaseId, undefined)
+      const created = consumer(body.consumerId, body.displayName, ids.a)
+      state.consumers.push(created)
+      return json(created)
+    }
     if (path.endsWith('/staging-consumer-activations') && method === 'POST') {
       assert.ok(path.includes('/dep-b/'))
       const selected = state.consumers.find((item) => item.consumerId === body.consumerId)
@@ -310,6 +319,19 @@ try {
     assert.equal(planCalls(f)[1].body.reason, 'New target review')
     assert.equal(await f.page.getByLabel(confirmLabel, { exact: true }).isChecked(), false)
     assert.equal(settleCalls(f).length, 0)
+  })
+
+  await scenario('new-assignment-prepares-placement', { consoleView: true }, async (f) => {
+    await choose(f.page, 'Customer app assignment', 'Create new assignment')
+    await f.page.getByRole('textbox', { name: 'Assignment ID', exact: true }).fill('fresh-workspace')
+    await f.page.getByRole('textbox', { name: 'Display name', exact: true }).fill('Fresh workspace')
+    await f.page.getByRole('button', { name: 'Create staging assignment', exact: true }).click()
+    await f.page.getByText('App assignment configured. Its staging release is awaiting activation.', { exact: true }).waitFor()
+    await waitUntil(async () => (await f.page.getByRole('combobox', { name: /^Customer app assignment/ }).innerText()).includes('Fresh workspace'), 'new assignment selected after refreshed list')
+    assert.equal(f.state.calls.filter(call => call.method === 'POST' && call.path.endsWith('/placement-evidence')).length, 1)
+    assert.equal(f.state.calls.filter(call => call.method === 'POST' && call.path.endsWith('/staging-consumer-assignments')).length, 1)
+    assert.equal(f.state.calls.filter(call => call.method === 'POST' && call.path.endsWith('/admission-reservations')).length, 0)
+    assert.equal(await f.page.getByRole('textbox', { name: 'Assignment ID', exact: true }).count(), 0)
   })
 
   await scenario('parent-settlement-and-owned-reuse', { consoleView: true }, async (f) => {

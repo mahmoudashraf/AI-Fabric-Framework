@@ -43,6 +43,19 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
 
+02:22UTC follow-up: selector source `83f860b9b5898d46920a085d6b515feb74c12ffa`
+is LIVE VERIFIED on both servers, UI image
+`sha256:14b30e901868971460d2bbefa2f54f089cb9a0a81291c1fd3070264417cf8d61`,
+CI40052870452. Actual fresh UI selected the new-assignment option, then its
+configuration POST returned409 `PLACEMENT_EVIDENCE_STALE`: the earlier placement
+proof expired during the longer onboarding. No assignment/app was created.
+Correction now SOURCE QUALIFIED: configuration-only assignment creation prepares
+current placement as part of the explicit command, retains admission authorization
+for real activation, and aborts after an actor/offer/deployment/input scope change.
+No lease/admission checks removed. Build,19 scope scenarios and6 real-component
+browser checks passed, including automatic preflight without a capacity reservation
+and selecting the newly created assignment after refresh. Hosted retry remains.
+
 Owner-requested attended fixture maintenance is complete: 30 exact AI-only native
 resources and18 archived storage volumes removed,8 old deployment configurations
 archived,7 apps disabled,7 assignments detached and6 capacity holds released.
