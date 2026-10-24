@@ -16,6 +16,30 @@ class RuntimeBudgetResolverFactoryTest extends RuntimeBudgetFixture.TestScope {
     private static final String FIXTURE_KEY = "fixture-key-not-a-provider-credential";
 
     @Test
+    void miniAliasAndSnapshotRequireTheVersionedCardForEveryPurpose() throws Exception {
+        var fixture = new RuntimeBudgetFixture();
+        var original = scope();
+        var extended = new Scope(original.customerId(), original.deploymentId(), original.targetProfileId(), original.environment(),
+            original.credentialIdentity(), ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE);
+        var budgets = fixture.service(extended);
+        for (String model : List.of(ReviewedOpenAiRateCard.GPT_54_MINI_MODEL, ReviewedOpenAiRateCard.GPT_54_MINI_SNAPSHOT)) {
+            var config = providers(); config.getOpenai().setModel(model);
+            var resolver = RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
+                budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS);
+            assertThat(resolver.resolveChatOptions("openai", null).getModel()).isEqualTo(model);
+            assertThat(budgets.scope()).isEqualTo(extended);
+            resolver.destroy();
+            assertRejected(config);
+        }
+        var generationOnly = providers(); generationOnly.getGeneration().setModel(ReviewedOpenAiRateCard.GPT_54_MINI_MODEL);
+        assertRejected(generationOnly);
+        var unreviewed = providers(); unreviewed.getOpenai().setModel("gpt-5.4");
+        assertThatThrownBy(() -> RuntimeBudgetResolverFactory.create(unreviewed, ObservationRegistry.NOOP, fixture.ledger,
+            budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS)).isInstanceOf(OpenAiBudgetException.class);
+        assertThat(budgets.readStore().binding().storeUuid()).isNull();
+    }
+
+    @Test
     void offlineGuardedResolverConstructionDoesNotNeedAnApprovalOrPerformModelCalls() throws Exception {
         var fixture = new RuntimeBudgetFixture();
         var budgets = fixture.service(scope());

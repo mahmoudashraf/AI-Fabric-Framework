@@ -113,6 +113,89 @@ class GuardedNativeTransportTest {
         if (executor != null) executor.shutdownNow();
     }
 
+    @ParameterizedTest @ValueSource(strings = {GPT_54_MINI_MODEL, GPT_54_MINI_SNAPSHOT})
+    void miniReservesItsOwnEnvelopeAndSettlesNativeUsageIncludingReasoning(String model) throws Exception {
+        miniScope();
+        approve(600_000);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        response.put("model", GPT_54_MINI_SNAPSHOT);
+        response.withObject("/usage").put("prompt_tokens", 200_000).put("completion_tokens", 13).put("total_tokens", 200_013);
+        response.withObject("/usage/completion_tokens_details").put("reasoning_tokens", 10);
+        response.withObject("/usage/prompt_tokens_details").put("cached_tokens", 100_000);
+        var release = new CountDownLatch(1);
+        replies.add(new Reply(200, json.writeValueAsString(response), null, release));
+        var request = AIGenerationRequest.builder().model(model).maxTokens(1000).temperature(0.2)
+            .parameters(Map.of("response_format", Map.of("type", "json_object"))).build();
+        var chatModel = resolver().resolveChatModel("openai", request);
+        var future = java.util.concurrent.CompletableFuture.supplyAsync(() -> chatModel.call(new Prompt("fixture")));
+        try {
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (sends.get() == 0 && System.nanoTime() < until) Thread.sleep(5);
+            assertEquals(1, sends.get());
+            assertEquals(chat(model, 400_000, 1000), ledger.read("approval", scope).accountedUsage());
+            var body = json.readTree(requests.element());
+            assertEquals(model, body.path("model").textValue());
+            assertEquals(1000, body.path("max_completion_tokens").intValue());
+            assertFalse(body.has("max_tokens")); assertFalse(body.has("temperature"));
+            assertEquals("none", body.path("reasoning_effort").textValue());
+            assertEquals("json_object", body.path("response_format").path("type").textValue());
+        } finally { release.countDown(); }
+        future.get(3, TimeUnit.SECONDS);
+        var snapshot = ledger.read("approval", scope);
+        assertEquals(chat(model, 200_000, 13), snapshot.accountedUsage());
+        assertEquals(150_058_500L, snapshot.accountedUsage().costNanoUsd());
+        assertFalse(snapshot.stopped());
+    }
+
+    @Test void miniCannotExpandALegacyAllocation() {
+        approve(600_000);
+        var request = AIGenerationRequest.builder().model(GPT_54_MINI_MODEL).maxTokens(1000).build();
+        var failure = assertThrows(RuntimeException.class,
+            () -> resolver().resolveChatModel("openai", request).call(new Prompt("fixture")));
+        assertEquals(OpenAiBudgetException.Code.RATE_CARD_MISMATCH,
+            OpenAiBudgetTransportException.find(failure).orElseThrow().guardCode().orElseThrow());
+        assertEquals(0, sends.get());
+        assertEquals(0, ledger.read("approval", scope).providerAttempts());
+        assertEquals(REFERENCE, scope.rateCardReference());
+    }
+
+    @Test void miniResponseCannotSettleAtAnotherModelsLowerRate() {
+        miniScope(); approve(600_000);
+        replies.add(new Reply(200, CHAT, null, null));
+        var request = AIGenerationRequest.builder().model(GPT_54_MINI_MODEL).maxTokens(1000).build();
+        var failure = assertThrows(RuntimeException.class,
+            () -> resolver().resolveChatModel("openai", request).call(new Prompt("fixture")));
+        assertEquals(OpenAiBudgetException.Code.ATTEMPT_AMBIGUOUS,
+            OpenAiBudgetTransportException.find(failure).orElseThrow().guardCode().orElseThrow());
+        assertEquals(chat(GPT_54_MINI_MODEL, 400_000, 1000), ledger.read("approval", scope).accountedUsage());
+        assertEquals(1, sends.get());
+    }
+
+    @Test void miniAllGeneratedTokenBreachStopsTheAllocationAndRetainsItsHold() throws Exception {
+        miniScope(); approve(600_000);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        response.put("model", GPT_54_MINI_SNAPSHOT);
+        response.withObject("/usage").put("completion_tokens", 1001).put("total_tokens", 1013);
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null));
+        var request = AIGenerationRequest.builder().model(GPT_54_MINI_MODEL).maxTokens(1000).build();
+        var resolver = resolver();
+        var failure = assertThrows(RuntimeException.class,
+            () -> resolver.resolveChatModel("openai", request).call(new Prompt("fixture")));
+        assertEquals(OpenAiBudgetException.Code.METERING_BOUND_BREACH,
+            OpenAiBudgetTransportException.find(failure).orElseThrow().guardCode().orElseThrow());
+        assertTrue(ledger.read("approval", scope).stopped());
+        assertEquals(chat(GPT_54_MINI_MODEL, 400_000, 1000), ledger.read("approval", scope).accountedUsage());
+        assertThrows(RuntimeException.class, () -> resolver.resolveChatModel("openai", request).call(new Prompt("fixture")));
+        assertEquals(1, sends.get());
+    }
+
+    private void miniScope() {
+        scope = new Scope(scope.customerId(), scope.deploymentId(), scope.targetProfileId(), scope.environment(),
+            scope.credentialIdentity(), GPT_54_MINI_REFERENCE);
+    }
+
     @Test void nativeChatSettlesOnceFromJsonAndKeepsStructuredOptions() throws Exception {
         approve(200_000);
         replies.add(new Reply(200, CHAT, null, null));

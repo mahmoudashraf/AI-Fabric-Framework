@@ -23,6 +23,36 @@ public interface ProviderBudgetLedger {
 
     Snapshot read(String approvalId, Scope scope);
 
+    /** Separately authorized additive credit; never resets usage, expiry, holds or stop state. */
+    default TopUpReceipt topUp(Approval original, TopUpCommand command) {
+        throw new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE);
+    }
+
+    default Optional<TopUpReceipt> readTopUp(String approvalId, Scope scope, String topUpId) {
+        throw new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE);
+    }
+
+    record TopUpCommand(int schemaVersion, String topUpId, String approvalId, UUID storeUuid,
+                        String runtimeFingerprint, Limits expectedEffectiveLimits, Limits additionalLimits,
+                        String authorizedBy, String approvalEvidenceRef, String payerRef, String reason) {
+        public TopUpCommand {
+            if (schemaVersion != 1 || storeUuid == null || expectedEffectiveLimits == null || additionalLimits == null
+                || runtimeFingerprint == null || !runtimeFingerprint.matches("[a-f0-9]{64}")) throw invalid();
+            topUpId = text(topUpId, 128); approvalId = text(approvalId, 128);
+            if (!topUpId.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")) throw invalid();
+            authorizedBy = text(authorizedBy, 256); approvalEvidenceRef = text(approvalEvidenceRef, 255);
+            payerRef = text(payerRef, 255); reason = text(reason, 512);
+            if (additionalLimits.equals(new Limits(0, 0, 0))) throw invalid();
+            addLimits(expectedEffectiveLimits, additionalLimits);
+        }
+        @Override public String toString() { return "TopUpCommand[topUpId=" + topUpId + "]"; }
+    }
+
+    record TopUpReceipt(int schemaVersion, String topUpId, String approvalId, Scope scope, UUID storeUuid,
+                        String runtimeFingerprint, Limits previousEffectiveLimits, Limits additionalLimits,
+                        Limits effectiveLimits, String authorizedBy, String approvalEvidenceRef, String payerRef,
+                        String reasonSha256, Instant authorizedAt) { }
+
     /** Separate from the immutable original approval; unsupported adapters remain conservative. */
     default Instant effectiveExpiresAt(String approvalId, Scope scope) { return read(approvalId, scope).approval().expiresAt(); }
 
@@ -92,7 +122,17 @@ public interface ProviderBudgetLedger {
 
     /** accountedUsage = settled usage + full holds for RESERVED/AMBIGUOUS attempts. */
     record Snapshot(Approval approval, long chatAttempts, long providerAttempts,
-                    Usage accountedUsage, boolean stopped, String stopReason) { }
+                    Usage accountedUsage, boolean stopped, String stopReason, Limits effectiveLimits) {
+        public Snapshot(Approval approval, long chatAttempts, long providerAttempts, Usage accountedUsage,
+                        boolean stopped, String stopReason) {
+            this(approval, chatAttempts, providerAttempts, accountedUsage, stopped, stopReason, approval.limits());
+        }
+    }
+
+    static Limits addLimits(Limits left, Limits right) {
+        return new Limits(checkedAdd(left.chatAttempts(), right.chatAttempts()),
+            checkedAdd(left.totalTokens(), right.totalTokens()), checkedAdd(left.costNanoUsd(), right.costNanoUsd()));
+    }
 
     private static void nonnegative(long value) { if (value < 0) throw invalid(); }
 

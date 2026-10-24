@@ -19,7 +19,7 @@ public final class RuntimeOpenAiBudgetScopeResolver implements OpenAiBudgetScope
         if (!expected.scope().credentialIdentity().equals(credentialIdentity)) {
             throw new OpenAiBudgetException(OpenAiBudgetException.Code.CREDENTIAL_SCOPE_MISMATCH);
         }
-        if (!ReviewedOpenAiRateCard.REFERENCE.equals(expected.scope().rateCardReference())) {
+        if (!ReviewedOpenAiRateCard.isReviewedReference(expected.scope().rateCardReference())) {
             throw new OpenAiBudgetException(OpenAiBudgetException.Code.RATE_CARD_MISMATCH);
         }
         return new Binding(expected.id(), expected.scope());

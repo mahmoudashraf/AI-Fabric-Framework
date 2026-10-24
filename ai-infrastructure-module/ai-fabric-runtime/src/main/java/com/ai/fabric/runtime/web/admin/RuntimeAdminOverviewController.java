@@ -326,6 +326,7 @@ public class RuntimeAdminOverviewController {
             case "conversation-orchestration-state" -> "loomai-conversation-orchestration-state-v1";
             case "provider-budget-accounting" -> "provider-budget-accounting-v1";
             case "provider-budget-validity-extensions" -> "provider-budget-validity-extensions-v1";
+            case "provider-budget-top-ups" -> "provider-budget-top-ups-v1";
             default -> slug + "-v" + version.trim();
         };
     }

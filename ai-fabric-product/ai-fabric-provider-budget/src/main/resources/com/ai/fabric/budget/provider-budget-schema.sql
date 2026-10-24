@@ -11,6 +11,9 @@ CREATE TABLE provider_budget_approval (
     max_chat_attempts BIGINT NOT NULL CHECK (max_chat_attempts >= 0),
     max_total_tokens BIGINT NOT NULL CHECK (max_total_tokens >= 0),
     max_cost_nano_usd BIGINT NOT NULL CHECK (max_cost_nano_usd >= 0),
+    original_chat_attempts BIGINT NOT NULL CHECK (original_chat_attempts >= 0 AND original_chat_attempts <= max_chat_attempts),
+    original_total_tokens BIGINT NOT NULL CHECK (original_total_tokens >= 0 AND original_total_tokens <= max_total_tokens),
+    original_cost_nano_usd BIGINT NOT NULL CHECK (original_cost_nano_usd >= 0 AND original_cost_nano_usd <= max_cost_nano_usd),
     expires_second BIGINT NOT NULL,
     expires_nano INTEGER NOT NULL CHECK (expires_nano BETWEEN 0 AND 999999999),
     chat_attempts BIGINT NOT NULL DEFAULT 0 CHECK (chat_attempts >= 0),
@@ -71,4 +74,25 @@ CREATE TABLE provider_budget_validity_extension (
     authorized_nano INTEGER NOT NULL CHECK (authorized_nano BETWEEN 0 AND 999999999),
     UNIQUE (approval_id, previous_second, previous_nano),
     CHECK (expires_second > previous_second OR (expires_second = previous_second AND expires_nano > previous_nano))
+);
+
+CREATE TABLE provider_budget_top_up (
+    top_up_id VARCHAR(128) PRIMARY KEY,
+    approval_id VARCHAR(128) NOT NULL REFERENCES provider_budget_approval(approval_id),
+    store_uuid VARCHAR(36) NOT NULL,
+    runtime_fingerprint VARCHAR(64) NOT NULL,
+    previous_chat BIGINT NOT NULL CHECK (previous_chat >= 0),
+    previous_tokens BIGINT NOT NULL CHECK (previous_tokens >= 0),
+    previous_cost BIGINT NOT NULL CHECK (previous_cost >= 0),
+    additional_chat BIGINT NOT NULL CHECK (additional_chat >= 0),
+    additional_tokens BIGINT NOT NULL CHECK (additional_tokens >= 0),
+    additional_cost BIGINT NOT NULL CHECK (additional_cost >= 0),
+    authorized_by VARCHAR(256) NOT NULL,
+    approval_evidence_ref VARCHAR(255) NOT NULL UNIQUE,
+    payer_ref VARCHAR(255) NOT NULL,
+    reason_sha256 VARCHAR(64) NOT NULL,
+    authorized_second BIGINT NOT NULL,
+    authorized_nano INTEGER NOT NULL CHECK (authorized_nano BETWEEN 0 AND 999999999),
+    UNIQUE (approval_id, previous_chat, previous_tokens, previous_cost),
+    CHECK (additional_chat > 0 OR additional_tokens > 0 OR additional_cost > 0)
 );

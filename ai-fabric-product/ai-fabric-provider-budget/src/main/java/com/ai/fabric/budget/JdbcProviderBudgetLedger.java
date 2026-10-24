@@ -42,13 +42,15 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                 try (var statement = connection.prepareStatement("""
                     INSERT INTO provider_budget_approval
                     (approval_id, customer_id, deployment_id, target_profile_id, environment_name, credential_identity, rate_card_reference,
-                     max_chat_attempts, max_total_tokens, max_cost_nano_usd, expires_second, expires_nano)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     max_chat_attempts, max_total_tokens, max_cost_nano_usd, expires_second, expires_nano,
+                     original_chat_attempts, original_total_tokens, original_cost_nano_usd)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """)) {
                     bind(statement, approval.id(), approval.scope().customerId(), approval.scope().deploymentId(),
                         approval.scope().targetProfileId(), approval.scope().environment(), approval.scope().credentialIdentity(), approval.scope().rateCardReference(),
                         approval.limits().chatAttempts(), approval.limits().totalTokens(), approval.limits().costNanoUsd(),
-                        approval.expiresAt().getEpochSecond(), approval.expiresAt().getNano());
+                        approval.expiresAt().getEpochSecond(), approval.expiresAt().getNano(),
+                        approval.limits().chatAttempts(), approval.limits().totalTokens(), approval.limits().costNanoUsd());
                     statement.executeUpdate();
                 } catch (SQLException error) {
                     if ("23505".equals(error.getSQLState())) throw new ApprovalRace();
@@ -78,7 +80,7 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                 }
             }
             active(connection, snapshot);
-            if (snapshot.chatAttempts() >= snapshot.approval().limits().chatAttempts())
+            if (snapshot.chatAttempts() >= snapshot.effectiveLimits().chatAttempts())
                 return capacityDenied("CHAT_LIMIT");
             long ordinal = checkedAdd(snapshot.chatAttempts(), 1);
             execute(connection, "INSERT INTO provider_budget_chat_ingress (approval_id, server_attempt_id, ordinal) VALUES (?, ?, ?)",
@@ -108,8 +110,8 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                 if (overflow.code() != ARITHMETIC_OVERFLOW) throw overflow;
                 return integrityDenied(connection, approvalId, "ARITHMETIC_OVERFLOW", ARITHMETIC_OVERFLOW);
             }
-            if (next.totalTokens() > snapshot.approval().limits().totalTokens()) return capacityDenied("TOKEN_LIMIT");
-            if (next.costNanoUsd() > snapshot.approval().limits().costNanoUsd()) return capacityDenied("COST_LIMIT");
+            if (next.totalTokens() > snapshot.effectiveLimits().totalTokens()) return capacityDenied("TOKEN_LIMIT");
+            if (next.costNanoUsd() > snapshot.effectiveLimits().costNanoUsd()) return capacityDenied("COST_LIMIT");
             long attempts;
             try { attempts = checkedAdd(snapshot.providerAttempts(), 1); }
             catch (BudgetException overflow) { return integrityDenied(connection, approvalId, "ARITHMETIC_OVERFLOW", ARITHMETIC_OVERFLOW); }
@@ -203,6 +205,66 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
     @Override public Instant effectiveExpiresAt(String approvalId, Scope scope) {
         check(approvalId, scope, new UUID(0, 0));
         return transaction(connection -> effectiveExpiry(connection, require(connection, approvalId, scope)));
+    }
+
+    @Override public TopUpReceipt topUp(Approval original, TopUpCommand command) {
+        if (original == null || command == null || !original.id().equals(command.approvalId())) throw new BudgetException(INVALID_REQUEST);
+        return transaction(connection -> {
+            Snapshot snapshot = require(connection, original.id(), original.scope());
+            sameApproval(snapshot, original);
+            TopUpReceipt previous = topUp(connection, command.topUpId(), snapshot);
+            if (previous != null) {
+                if (!previous.storeUuid().equals(command.storeUuid()) || !previous.runtimeFingerprint().equals(command.runtimeFingerprint())
+                    || !previous.previousEffectiveLimits().equals(command.expectedEffectiveLimits())
+                    || !previous.additionalLimits().equals(command.additionalLimits()) || !previous.authorizedBy().equals(command.authorizedBy())
+                    || !previous.approvalEvidenceRef().equals(command.approvalEvidenceRef()) || !previous.payerRef().equals(command.payerRef())
+                    || !previous.reasonSha256().equals(reasonDigest(command.reason()))) throw new BudgetException(TOP_UP_CONFLICT);
+                return previous;
+            }
+            active(connection, snapshot);
+            if (!snapshot.effectiveLimits().equals(command.expectedEffectiveLimits())) throw new BudgetException(TOP_UP_LIMITS_CHANGED);
+            Limits next = addLimits(snapshot.effectiveLimits(), command.additionalLimits());
+            Instant now = clock.instant();
+            try {
+                execute(connection, """
+                    INSERT INTO provider_budget_top_up
+                    (top_up_id,approval_id,store_uuid,runtime_fingerprint,previous_chat,previous_tokens,previous_cost,
+                     additional_chat,additional_tokens,additional_cost,authorized_by,approval_evidence_ref,payer_ref,
+                     reason_sha256,authorized_second,authorized_nano) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, command.topUpId(), original.id(), command.storeUuid().toString(), command.runtimeFingerprint(),
+                    snapshot.effectiveLimits().chatAttempts(), snapshot.effectiveLimits().totalTokens(), snapshot.effectiveLimits().costNanoUsd(),
+                    command.additionalLimits().chatAttempts(), command.additionalLimits().totalTokens(), command.additionalLimits().costNanoUsd(),
+                    command.authorizedBy(), command.approvalEvidenceRef(), command.payerRef(), reasonDigest(command.reason()),
+                    now.getEpochSecond(), now.getNano());
+            } catch (SQLException collision) {
+                if ("23505".equals(collision.getSQLState())) throw new BudgetException(TOP_UP_CONFLICT);
+                throw collision;
+            }
+            execute(connection, "UPDATE provider_budget_approval SET max_chat_attempts=?,max_total_tokens=?,max_cost_nano_usd=? WHERE approval_id=?",
+                next.chatAttempts(), next.totalTokens(), next.costNanoUsd(), original.id());
+            return topUp(connection, command.topUpId(), snapshot);
+        });
+    }
+
+    @Override public Optional<TopUpReceipt> readTopUp(String approvalId, Scope scope, String topUpId) {
+        check(approvalId, scope, new UUID(0, 0)); text(topUpId, 128);
+        return transaction(connection -> Optional.ofNullable(topUp(connection, topUpId, require(connection, approvalId, scope))));
+    }
+
+    private static TopUpReceipt topUp(Connection connection, String id, Snapshot snapshot) throws SQLException {
+        try (var query = connection.prepareStatement("SELECT * FROM provider_budget_top_up WHERE top_up_id=?")) {
+            bind(query, id);
+            try (var rows = query.executeQuery()) {
+                if (!rows.next()) return null;
+                if (!snapshot.approval().id().equals(rows.getString("approval_id"))) throw new BudgetException(TOP_UP_CONFLICT);
+                Limits before = new Limits(rows.getLong("previous_chat"), rows.getLong("previous_tokens"), rows.getLong("previous_cost"));
+                Limits addition = new Limits(rows.getLong("additional_chat"), rows.getLong("additional_tokens"), rows.getLong("additional_cost"));
+                return new TopUpReceipt(1, id, snapshot.approval().id(), snapshot.approval().scope(),
+                    UUID.fromString(rows.getString("store_uuid")), rows.getString("runtime_fingerprint"), before, addition, addLimits(before, addition),
+                    rows.getString("authorized_by"), rows.getString("approval_evidence_ref"), rows.getString("payer_ref"), rows.getString("reason_sha256"),
+                    Instant.ofEpochSecond(rows.getLong("authorized_second"), rows.getInt("authorized_nano")));
+            }
+        }
     }
 
     @Override public Optional<ValidityExtensionReceipt> readValidityExtension(String approvalId, Scope scope, String extensionId) {
@@ -319,11 +381,12 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                 Scope scope = new Scope(rows.getString("customer_id"), rows.getString("deployment_id"), rows.getString("target_profile_id"), rows.getString("environment_name"),
                     rows.getString("credential_identity"), rows.getString("rate_card_reference"));
                 Approval approval = new Approval(id, scope,
-                    new Limits(rows.getLong("max_chat_attempts"), rows.getLong("max_total_tokens"), rows.getLong("max_cost_nano_usd")),
+                    new Limits(rows.getLong("original_chat_attempts"), rows.getLong("original_total_tokens"), rows.getLong("original_cost_nano_usd")),
                     Instant.ofEpochSecond(rows.getLong("expires_second"), rows.getInt("expires_nano")));
                 return new Snapshot(approval, rows.getLong("chat_attempts"), rows.getLong("provider_attempts"),
                     new Usage(rows.getLong("accounted_input_tokens"), rows.getLong("accounted_output_tokens"), rows.getLong("accounted_cost_nano_usd")),
-                    rows.getBoolean("stopped"), rows.getString("stop_reason"));
+                    rows.getBoolean("stopped"), rows.getString("stop_reason"),
+                    new Limits(rows.getLong("max_chat_attempts"), rows.getLong("max_total_tokens"), rows.getLong("max_cost_nano_usd")));
             }
         }
     }

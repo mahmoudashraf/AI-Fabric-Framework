@@ -39,6 +39,44 @@ class GuardedResolverContractTest {
     private final OpenAiExchangeGuard guard = new OpenAiExchangeGuard(ledger, identity -> { throw new AssertionError("No IO allowed"); });
     private final AtomicInteger constructed = new AtomicInteger();
 
+    @ParameterizedTest @ValueSource(strings = {GPT_54_MINI_MODEL, GPT_54_MINI_SNAPSHOT})
+    void miniUsesAnAllGeneratedTokenCapAndOmitsSamplingWithoutMutatingTheRequest(String model) {
+        var config = config(); config.getOpenai().setModel(model); config.getOpenai().setTemperature(0.7);
+        var request = AIGenerationRequest.builder().maxTokens(400).temperature(0.2)
+            .parameters(Map.of("response_format", Map.of("type", "json_object"))).build();
+        var options = (OpenAiChatOptions) resolver(config, MAX_COMPLETION_TOKENS).resolveChatOptions("openai", request);
+        assertEquals(model, options.getModel());
+        assertNull(options.getMaxTokens());
+        assertEquals(400, options.getMaxCompletionTokens());
+        assertNull(options.getTemperature());
+        assertNull(options.getTopP());
+        assertEquals("none", options.getReasoningEffort());
+        assertEquals("JSON_OBJECT", options.getResponseFormat().getType().name());
+        assertEquals(0.2, request.getTemperature());
+        assertEquals(0.7, config.getOpenai().getTemperature());
+        var nativeCap = (OpenAiChatOptions) resolver(config).resolveChatOptions("openai", request);
+        assertNull(nativeCap.getMaxTokens());
+        assertEquals(400, nativeCap.getMaxCompletionTokens());
+        assertEquals(0, constructed.get()); assertEquals(0, ledgerCalls.get());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"\"temperature\":0.2", "\"top_p\":0.9", "\"logprobs\":true"})
+    void miniNativeSamplingOverridesAreDeniedBeforeIo(String option) {
+        assertThrows(OpenAiBudgetException.class, () -> guard.plan(request("chat/completions",
+            "{\"model\":\"gpt-5.4-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"fixture\"}],"
+                + "\"max_completion_tokens\":400,\"service_tier\":\"default\",\"reasoning_effort\":\"none\"," + option + "}")));
+        assertEquals(0, ledgerCalls.get());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"\"reasoning_effort\":\"high\",\"max_completion_tokens\":400",
+        "\"reasoning_effort\":\"none\",\"max_tokens\":400", "\"reasoning_effort\":\"none\",\"max_completion_tokens\":16385"})
+    void miniCannotExpandReasoningOrUseAnUnsupportedCap(String options) {
+        assertThrows(OpenAiBudgetException.class, () -> guard.plan(request("chat/completions",
+            "{\"model\":\"gpt-5.4-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"fixture\"}],"
+                + "\"service_tier\":\"default\"," + options + "}")));
+        assertEquals(0, ledgerCalls.get());
+    }
+
     @Test void superclassNativeOptionsAndStructuredJsonAreRetained() {
         var config = config(); config.getOpenai().setTemperature(0.7); config.getOpenai().setMaxTokens(800);
         config.getOpenai().setEmbeddingDimensions(512);

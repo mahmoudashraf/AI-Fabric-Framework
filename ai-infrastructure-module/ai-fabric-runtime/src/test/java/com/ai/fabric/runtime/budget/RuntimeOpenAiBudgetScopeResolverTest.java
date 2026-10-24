@@ -7,11 +7,27 @@ import com.ai.fabric.budget.BudgetException;
 import com.ai.fabric.budget.ProviderBudgetLedger.Approval;
 import com.ai.fabric.budget.ProviderBudgetLedger.Scope;
 import com.ai.fabric.budget.openai.OpenAiBudgetException;
+import com.ai.fabric.budget.openai.ReviewedOpenAiRateCard;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class RuntimeOpenAiBudgetScopeResolverTest extends RuntimeBudgetFixture.TestScope {
+    @Test
+    void bothReviewedCardsRetainTheirOriginalImmutableApprovalScope() throws Exception {
+        for (String card : java.util.List.of(ReviewedOpenAiRateCard.REFERENCE, ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE)) {
+            var fixture = new RuntimeBudgetFixture();
+            var scope = new Scope(SCOPE.customerId(), SCOPE.deploymentId(), SCOPE.targetProfileId(), SCOPE.environment(), CREDENTIAL, card);
+            var approval = new Approval(APPROVAL.id(), scope, APPROVAL.limits(), APPROVAL.expiresAt());
+            var service = fixture.service(scope);
+            activate(service, service.initialize(allocation(approval)));
+            var binding = new RuntimeOpenAiBudgetScopeResolver(service).requireBinding(CREDENTIAL);
+            assertThat(binding.scope()).isEqualTo(scope);
+            assertThat(binding.scope().rateCardReference()).isEqualTo(card);
+            assertThat(fixture.ledger.read(approval.id(), scope).approval()).isEqualTo(approval);
+        }
+    }
+
     @Test
     void backgroundThreadUsesOnlyTheExactStartupApprovalWithoutRequestContext() throws Exception {
         var fixture = new RuntimeBudgetFixture();

@@ -106,12 +106,22 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
         override(request == null ? null : request.getParameters());
         // Keep the framework's request overrides, token selection and native structured JSON options intact.
         OpenAiChatOptions options = (OpenAiChatOptions) super.resolveChatOptions(provider, request);
-        if (!CHAT_MODEL.equals(options.getModel()) || options.getMaxTokens() == null || options.getMaxTokens() < 1
-            || options.getMaxTokens() > CHAT_MAX_OUTPUT_TOKENS) throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);
+        Integer cap = options.getMaxCompletionTokens() != null ? options.getMaxCompletionTokens() : options.getMaxTokens();
+        if (!isReviewedChatModel(options.getModel()) || cap == null || cap < 1 || cap > CHAT_MAX_OUTPUT_TOKENS
+            || (options.getMaxTokens() != null && options.getMaxCompletionTokens() != null))
+            throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);
         var guarded = options.mutate().n(1).serviceTier("default");
+        if (isGpt54Mini(options.getModel())) {
+            if (options.getMaxCompletionTokens() == null && outputCapMode != OutputCapMode.MAX_COMPLETION_TOKENS)
+                throw new OpenAiBudgetException(UNSUPPORTED_OUTPUT_LIMIT_MODE);
+            // The bounded mini profile does not expose sampling or configurable reasoning options.
+            guarded.temperature(null).topP(null).logprobs(null).topLogprobs(null)
+                .frequencyPenalty(null).presencePenalty(null).logitBias(null).seed(null).stop(null)
+                .reasoningEffort("none");
+        }
         if (outputCapMode == OutputCapMode.MAX_COMPLETION_TOKENS) {
             // Explicit host opt-in moves the same effective cap using only the public native option API.
-            guarded.maxTokens(null).maxCompletionTokens(options.getMaxTokens());
+            guarded.maxTokens(null).maxCompletionTokens(cap);
         }
         return guarded.build();
     }

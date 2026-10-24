@@ -55,6 +55,65 @@ abstract class LedgerContract {
         assertEquals(code, assertThrows(BudgetException.class, work).code());
     }
 
+    TopUpCommand topUp(String id, Limits before, Limits additional) {
+        return new TopUpCommand(1, id, "approval", UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            "a".repeat(64), before, additional, "admin", "owner-approval", "prepaid-owner", "bounded canary continuation");
+    }
+
+    @Test void additiveTopUpRestoresCapacityWithoutChangingOriginalApprovalOrUsageAndReplaysExactly() {
+        var original = approval(new Limits(1, 30, 80)); ledger.approve(original);
+        ledger.recordChatIngress(original.id(), scope, UUID.randomUUID());
+        var attempt = UUID.randomUUID(); ledger.reserveAttempt(original.id(), scope, attempt, usage(20, 10, 80));
+        ledger.markAmbiguous(original.id(), scope, attempt, "unknown provider outcome");
+        denied(LIMIT_EXCEEDED, () -> ledger.recordChatIngress(original.id(), scope, UUID.randomUUID()));
+        var before = ledger.read(original.id(), scope);
+        var command = topUp("top-up", original.limits(), new Limits(2, 100, 200));
+        var receipt = ledger.topUp(original, command);
+        assertEquals(new Limits(3, 130, 280), receipt.effectiveLimits());
+        var restarted = new JdbcProviderBudgetLedger(dataSource, clock);
+        var after = restarted.read(original.id(), scope);
+        assertEquals(original, after.approval()); assertEquals(before.accountedUsage(), after.accountedUsage());
+        assertEquals(before.chatAttempts(), after.chatAttempts()); assertEquals(before.providerAttempts(), after.providerAttempts());
+        assertEquals(receipt, restarted.topUp(original, command));
+        assertEquals(after, restarted.approve(original));
+        assertEquals(receipt, restarted.readTopUp(original.id(), scope, "top-up").orElseThrow());
+        assertEquals(2, restarted.recordChatIngress(original.id(), scope, UUID.randomUUID()).ordinal());
+        assertTrue(restarted.reserveAttempt(original.id(), scope, UUID.randomUUID(), usage(20, 10, 80)).newlyReserved());
+        assertEquals(AttemptState.AMBIGUOUS, restarted.reserveAttempt(original.id(), scope, attempt, usage(20, 10, 80)).attempt().state());
+        denied(TOP_UP_LIMITS_CHANGED, () -> restarted.topUp(original, topUp("stale", original.limits(), new Limits(1, 1, 1))));
+        denied(TOP_UP_CONFLICT, () -> restarted.topUp(original, topUp("top-up", original.limits(), new Limits(3, 100, 200))));
+        denied(TOP_UP_CONFLICT, () -> restarted.topUp(original, topUp("duplicate-funding", receipt.effectiveLimits(), new Limits(1, 1, 1))));
+        assertEquals(original.expiresAt(), restarted.effectiveExpiresAt(original.id(), scope));
+    }
+
+    @Test void topUpCannotUnstopOrReviveExpiredApprovalOrOverflowOrCrossScope() {
+        var original = approval(new Limits(1, 30, 80)); ledger.approve(original);
+        var command = topUp("top-up", original.limits(), new Limits(1, 100, 200));
+        ledger.stop(original.id(), scope, "integrity stop");
+        denied(STOPPED, () -> ledger.topUp(original, command));
+        assertTrue(ledger.readTopUp(original.id(), scope, "top-up").isEmpty());
+        denied(SCOPE_MISMATCH, () -> ledger.topUp(new Approval(original.id(), changedScopes().getFirst(), original.limits(), original.expiresAt()), command));
+        denied(ARITHMETIC_OVERFLOW, () -> topUp("overflow", new Limits(Long.MAX_VALUE, 1, 1), new Limits(1, 1, 1)));
+        denied(INVALID_REQUEST, () -> topUp("zero", original.limits(), new Limits(0, 0, 0)));
+        var another = new Approval("expired", scope, original.limits(), original.expiresAt()); ledger.approve(another);
+        clock.now = original.expiresAt();
+        denied(EXPIRED, () -> ledger.topUp(another, new TopUpCommand(1, "expired-top-up", another.id(), command.storeUuid(),
+            command.runtimeFingerprint(), another.limits(), command.additionalLimits(), command.authorizedBy(),
+            command.approvalEvidenceRef(), command.payerRef(), command.reason())));
+    }
+
+    @Test void concurrentTopUpsCannotBothSpendTheSameExpectedLimits() throws Exception {
+        var original = approval(new Limits(1, 30, 80)); ledger.approve(original);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var latch = new CountDownLatch(1);
+            Callable<Boolean> first = () -> { latch.await(); try { ledger.topUp(original, topUp(UUID.randomUUID().toString(), original.limits(), new Limits(1, 1, 1))); return true; }
+                catch (BudgetException failure) { assertEquals(TOP_UP_LIMITS_CHANGED, failure.code()); return false; } };
+            var a = executor.submit(first); var b = executor.submit(first); latch.countDown();
+            assertNotEquals(a.get(10, TimeUnit.SECONDS), b.get(10, TimeUnit.SECONDS));
+        }
+        assertEquals(new Limits(2, 31, 81), ledger.read(original.id(), scope).effectiveLimits());
+    }
+
     @Test void approvalIsImmutableAndExactReplayNeverResetsCounters() {
         Approval approved = approval(new Limits(8, 100, 1_000));
         ledger.approve(approved);

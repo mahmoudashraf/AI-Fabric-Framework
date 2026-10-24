@@ -52,7 +52,7 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var before = ledger.read(approval.id(), scope);
         var bindingBefore = service.readStore().binding();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("20");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("21");
         assertThat(ledger.read(approval.id(), scope)).isEqualTo(before);
         assertThat(service.readStore().binding()).isEqualTo(bindingBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM provider_budget_validity_extension", Long.class)).isZero();
@@ -91,23 +91,41 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var now = Instant.parse("2026-10-18T12:00:00Z"); var clock = Clock.fixed(now, ZoneOffset.UTC);
         var scope = new Scope("customer", "deployment", "target", "staging", "sha256:" + "a".repeat(64), ReviewedOpenAiRateCard.REFERENCE);
         var approval = new Approval("historical", scope, new Limits(50, 100_000, 2_000_000_000L), now.plusSeconds(3600));
-        var service = new RuntimeBudgetBindingService(new RuntimeBudgetConfiguration(true, scope, "tenant"),
-            new JdbcProviderBudgetLedger(source, clock), source, clock);
-        var binding = service.initialize(new RuntimeBudgetAllocation(approval, RuntimeBudgetAllocation.fingerprint(approval)));
-        // Test-owned V19 history, as written by the prior runtime before V20 existed.
-        jdbc.update("UPDATE runtime_provider_budget_binding SET binding_state='ACTIVE' WHERE singleton_id=1");
+        // Actual historical V19 columns, not the new ledger writing into an old schema.
+        var storeUuid = UUID.randomUUID(); var fingerprint = RuntimeBudgetAllocation.fingerprint(approval);
+        jdbc.update("""
+            INSERT INTO provider_budget_approval (approval_id,customer_id,deployment_id,target_profile_id,environment_name,
+                credential_identity,rate_card_reference,max_chat_attempts,max_total_tokens,max_cost_nano_usd,expires_second,expires_nano)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, approval.id(), scope.customerId(), scope.deploymentId(), scope.targetProfileId(), scope.environment(),
+            scope.credentialIdentity(), scope.rateCardReference(), 50, 100_000, 2_000_000_000L, approval.expiresAt().getEpochSecond(), 0);
+        jdbc.update("UPDATE runtime_provider_budget_binding SET binding_state='ACTIVE',store_uuid=?,approval_id=?,allocation_fingerprint=? WHERE singleton_id=1",
+            storeUuid.toString(), approval.id(), fingerprint);
         jdbc.update("UPDATE provider_budget_approval SET provider_attempts=1,accounted_input_tokens=4,accounted_output_tokens=3,accounted_cost_nano_usd=10 WHERE approval_id='historical'");
         jdbc.update("INSERT INTO provider_budget_attempt (approval_id,attempt_id,bound_input_tokens,bound_output_tokens,bound_cost_nano_usd,attempt_state,ambiguity_reason) VALUES ('historical',?,4,3,10,'AMBIGUOUS','unknown transport')", UUID.randomUUID().toString());
         var tables = java.util.List.of("provider_budget_approval", "provider_budget_chat_ingress", "provider_budget_attempt", "runtime_provider_budget_binding");
         var before = tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
         var upgraded = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema).locations("classpath:db/runtime-migration").load();
         upgraded.migrate(); upgraded.validate();
-        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("20");
-        assertThat(tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList()).isEqualTo(before);
-        var command = new ValidityExtensionCommand(1, "historical-extension", approval.id(), binding.storeUuid(), binding.runtimeFingerprint(), approval.expiresAt(), approval.expiresAt().plusSeconds(60), "reviewed extension");
+        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("21");
+        // Compare every original column; migration adds only immutable original-limit copies and an empty receipt table.
+        for (int i = 0; i < tables.size(); i++) {
+            var after = jdbc.queryForList("SELECT * FROM " + tables.get(i));
+            for (int j = 0; j < after.size(); j++) assertThat(after.get(j)).containsAllEntriesOf(before.get(i).get(j));
+        }
+        var service = new RuntimeBudgetBindingService(new RuntimeBudgetConfiguration(true, scope, "tenant"),
+            new JdbcProviderBudgetLedger(source, clock), source, clock);
+        var command = new ValidityExtensionCommand(1, "historical-extension", approval.id(), storeUuid, fingerprint, approval.expiresAt(), approval.expiresAt().plusSeconds(60), "reviewed extension");
         service.extendValidity(command);
         assertThat(service.requireActive().approval()).isEqualTo(approval);
         assertThat(service.requireActive().accountedUsage()).isEqualTo(new Usage(4, 3, 10));
-        assertThat(tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList()).isEqualTo(before);
+        var receipt = service.topUp(new TopUpCommand(1, "historical-top-up", approval.id(), storeUuid, fingerprint, approval.limits(),
+            new Limits(25, 100_000, 2_000_000_000L), "admin", "owner-approval", "prepaid-owner", "bounded continuation"));
+        assertThat(service.requireActive().approval()).isEqualTo(approval);
+        assertThat(service.requireActive().accountedUsage()).isEqualTo(new Usage(4, 3, 10));
+        assertThat(service.requireActive().providerAttempts()).isEqualTo(1);
+        assertThat(service.requireActive().effectiveLimits()).isEqualTo(receipt.effectiveLimits());
+        upgraded.migrate(); upgraded.validate();
+        assertThat(service.readTopUp("historical-top-up")).contains(receipt);
     }
 }

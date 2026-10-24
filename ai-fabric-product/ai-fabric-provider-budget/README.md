@@ -69,6 +69,36 @@ requires `runtime:admin:provider-budget:write`; receipt GET requires
 `runtime:admin:overview`. Anonymous chat cannot authorize an extension. The
 library still executes no DDL and makes no provider calls.
 
+### Separately Funded Top-Ups
+
+Runtime Flyway V21 preserves the original approval limits in `original_*`
+columns and keeps the existing database checks on the effective `max_*`
+ceilings. A top-up appends one receipt and increases those ceilings in the same
+approval-row transaction. It never resets requests, settled usage, reserved or
+ambiguous holds, expiry, the store identity, credential scope or a stop flag.
+The original approval and its fingerprint remain unchanged across restarts.
+
+Private runtime POST `/api/admin/provider-budget/top-ups` requires
+`runtime:admin:provider-budget:write`; GET `/top-ups/{topUpId}` requires
+`runtime:admin:overview`. Commands fence the approval, store UUID, runtime
+fingerprint and expected effective limits. Exact replay returns the historical
+receipt; changed replay, stale limits, reused funding evidence, stopped or
+expired approvals fail. Readback exposes original `limits` separately from
+`effectiveLimits`. Token reservations use the effective ceilings.
+
+Platform admins use `/api/deployments/provider-usage/top-ups/plan`, then send the
+returned exact command to `/{topUpId}/execute`. A new owner-approval evidence
+reference and payer reference authorize **additional funding**, not another draw
+on the exhausted original grant. Each command is bounded to 10,000 interactive
+attempts, 100 million tokens and USD 100; normal staff authorization and exact
+release/credential/capability checks still apply. Reviews and INTENT/ACK/UNKNOWN
+events are immutable. An uncertain send is never automatically repeated; use
+GET status and POST `/{topUpId}/reconcile` for receipt-only observation.
+
+Top-ups do not expand the approved model profile. A separately reviewed model
+and rate-card binding is required for a new model; existing approvals are not
+silently reinterpreted. Neither operation is a public customer billing API.
+
 ### Independent Transactions
 
 Every method obtains its own connection, uses `SELECT ... FOR UPDATE` on the approval row, and commits before returning. No network work occurs inside these transactions. Approval-row-first ordering serializes ingress, reservations, settlement and stop across runtime/worker instances. Approval insertion races are resolved by uniqueness plus exact-request comparison, not an overwrite.

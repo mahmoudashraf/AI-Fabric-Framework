@@ -25,10 +25,11 @@ public final class RuntimeBudgetResolverFactory {
         if (Boolean.TRUE.equals(providers.getEnableFallback()) || configured(providers.getGenerationFallbackProviders())
             || configured(providers.getEmbeddingFallbackProviders())) throw unsupported();
         String expectedCredential = budgets.scope().credentialIdentity();
-        if (!ReviewedOpenAiRateCard.REFERENCE.equals(budgets.scope().rateCardReference())) throw unsupported();
-        chat(providers.resolveLlmDefaults());
-        chat(providers.resolveOrchestrationLlmDefaults());
-        chat(providers.resolveGenerationLlmDefaults());
+        String rateCard = budgets.scope().rateCardReference();
+        if (!ReviewedOpenAiRateCard.isReviewedReference(rateCard)) throw unsupported();
+        chat(providers.resolveLlmDefaults(), rateCard);
+        chat(providers.resolveOrchestrationLlmDefaults(), rateCard);
+        chat(providers.resolveGenerationLlmDefaults(), rateCard);
         credential(expectedCredential, providers.getOpenai().getApiKey());
         endpoint(providers.getOpenai().getBaseUrl());
         if (providers.getOrchestration() != null) {
@@ -55,8 +56,9 @@ public final class RuntimeBudgetResolverFactory {
     }
 
     private static boolean configured(List<String> values) { return values != null && !values.isEmpty(); }
-    private static void chat(AIProviderConfig.GenerationDefaults defaults) {
-        if (!"openai".equals(defaults.providerName()) || !ReviewedOpenAiRateCard.CHAT_MODEL.equals(defaults.model())
+    private static void chat(AIProviderConfig.GenerationDefaults defaults, String rateCard) {
+        if (!"openai".equals(defaults.providerName()) || !ReviewedOpenAiRateCard.isReviewedChatModel(defaults.model())
+            || !ReviewedOpenAiRateCard.supportsModel(rateCard, defaults.model())
             || defaults.maxTokens() == null || defaults.maxTokens() < 1
             || defaults.maxTokens() > ReviewedOpenAiRateCard.CHAT_MAX_OUTPUT_TOKENS) throw unsupported();
     }

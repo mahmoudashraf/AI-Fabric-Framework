@@ -50,6 +50,21 @@ public final class RuntimeProviderBudgetAdminController {
         return budgets.extendValidity(command);
     }
 
+    @PostMapping("/top-ups")
+    public com.ai.fabric.budget.ProviderBudgetLedger.TopUpReceipt topUp(HttpServletRequest request,
+        @RequestBody com.ai.fabric.budget.ProviderBudgetLedger.TopUpCommand command) {
+        administration.authorize(request, request.getRequestURI(), WRITE_SCOPE);
+        return budgets.topUp(command);
+    }
+
+    @GetMapping("/top-ups/{topUpId}")
+    public com.ai.fabric.budget.ProviderBudgetLedger.TopUpReceipt readTopUp(HttpServletRequest request, @PathVariable String topUpId) {
+        administration.authorize(request, request.getRequestURI(),
+            com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW);
+        return budgets.readTopUp(topUpId).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+            HttpStatus.NOT_FOUND, "RUNTIME_BUDGET_TOP_UP_NOT_FOUND"));
+    }
+
     @GetMapping("/validity-extensions/{extensionId}")
     public ValidityExtensionReceipt readValidityExtension(HttpServletRequest request, @PathVariable String extensionId) {
         administration.authorize(request, request.getRequestURI(),

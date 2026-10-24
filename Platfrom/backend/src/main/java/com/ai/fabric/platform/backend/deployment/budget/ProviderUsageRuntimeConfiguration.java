@@ -17,6 +17,10 @@ final class ProviderUsageRuntimeConfiguration {
     record OutputCaps(int primary, int orchestration, int generation) { }
 
     static OutputCaps require(String value, ProviderUsageAllowanceCodec codec) {
+        return require(value, codec, ProviderUsageRuntimeProfile.RATE_CARD);
+    }
+
+    static OutputCaps require(String value, ProviderUsageAllowanceCodec codec, String rateCard) {
         JsonNode config;
         try { config = codec.read(value, JsonNode.class); }
         catch (ProviderUsageAllowanceFailure invalid) { throw conflict("PROVIDER_USAGE_RUNTIME_CONFIG_INVALID"); }
@@ -29,9 +33,9 @@ final class ProviderUsageRuntimeConfiguration {
         String provider = ManagedDeploymentProfileCatalog.resolveLlmProvider(config);
         if (!"openai".equals(provider)) throw conflict("PROVIDER_USAGE_RUNTIME_PROVIDER_NOT_REVIEWED");
         String model = ManagedDeploymentProfileCatalog.openAiModel(config);
-        requireModel(model, "gpt-4o-mini");
-        requireModel(orInherit(ManagedDeploymentProfileCatalog.orchestrationModel(config), model), "gpt-4o-mini");
-        requireModel(orInherit(ManagedDeploymentProfileCatalog.generationModel(config), model), "gpt-4o-mini");
+        requireChatModel(model, rateCard);
+        requireChatModel(orInherit(ManagedDeploymentProfileCatalog.orchestrationModel(config), model), rateCard);
+        requireChatModel(orInherit(ManagedDeploymentProfileCatalog.generationModel(config), model), rateCard);
         if ("openai".equals(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(config))) {
             requireModel(ManagedDeploymentProfileCatalog.openAiEmbeddingModel(config), "text-embedding-3-small");
         }
@@ -80,6 +84,11 @@ final class ProviderUsageRuntimeConfiguration {
 
     private static void requireModel(String actual, String expected) {
         if (!expected.equals(actual)) throw conflict("PROVIDER_USAGE_RUNTIME_MODEL_NOT_REVIEWED");
+    }
+
+    private static void requireChatModel(String model, String rateCard) {
+        if (!ProviderUsageRuntimeProfile.supportsChatModel(model, rateCard))
+            throw conflict("PROVIDER_USAGE_RUNTIME_MODEL_NOT_REVIEWED");
     }
 
     private static String orInherit(String declared, String inherited) { return declared.isBlank() ? inherited : declared; }

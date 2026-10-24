@@ -74,6 +74,16 @@ public class ProviderUsageRuntimeClient {
             null, headers, ProviderUsageValidityExtensionContracts.RuntimeReceipt.class);
     }
 
+    public ProviderUsageTopUpContracts.RuntimeReceipt topUp(String baseUrl,
+        ProviderUsageTopUpContracts.RuntimeCommand command, Map<String, String> headers) {
+        return exchange(baseUrl, PATH + "/top-ups", command, headers, ProviderUsageTopUpContracts.RuntimeReceipt.class);
+    }
+
+    public ProviderUsageTopUpContracts.RuntimeReceipt readTopUp(String baseUrl, String topUpId, Map<String, String> headers) {
+        return exchange(baseUrl, PATH + "/top-ups/" + ProviderUsageTopUpContracts.identifier(topUpId), null, headers,
+            ProviderUsageTopUpContracts.RuntimeReceipt.class);
+    }
+
     private <T> T exchange(String baseUrl, String path, Object body, Map<String, String> headers, Class<T> type) {
         return exchange(baseUrl, path, body, headers, type, 16_384);
     }
@@ -115,7 +125,14 @@ public class ProviderUsageRuntimeClient {
     public record Readback(String state, UUID storeUuid, String approvalId, String runtimeFingerprint,
                            String customerId, String deploymentId, String targetProfileId, String environment,
                            String rateCardReference, Limits limits, Instant expiresAt, Long chatAttempts,
-                           Long providerAttempts, Usage accountedUsage, Boolean stopped, Instant effectiveExpiresAt) {
+                           Long providerAttempts, Usage accountedUsage, Boolean stopped, Instant effectiveExpiresAt, Limits effectiveLimits) {
+        public Readback(String state, UUID storeUuid, String approvalId, String runtimeFingerprint,
+            String customerId, String deploymentId, String targetProfileId, String environment, String rateCardReference,
+            Limits limits, Instant expiresAt, Long chatAttempts, Long providerAttempts, Usage accountedUsage, Boolean stopped,
+            Instant effectiveExpiresAt) {
+            this(state, storeUuid, approvalId, runtimeFingerprint, customerId, deploymentId, targetProfileId, environment,
+                rateCardReference, limits, expiresAt, chatAttempts, providerAttempts, accountedUsage, stopped, effectiveExpiresAt, null);
+        }
         public Readback(String state, UUID storeUuid, String approvalId, String runtimeFingerprint,
             String customerId, String deploymentId, String targetProfileId, String environment, String rateCardReference,
             Limits limits, Instant expiresAt, Long chatAttempts, Long providerAttempts, Usage accountedUsage, Boolean stopped) {

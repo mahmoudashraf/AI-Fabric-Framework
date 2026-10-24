@@ -114,14 +114,14 @@ class RuntimeAdminOverviewControllerTest {
                 .locations("classpath:db/runtime-migration").load();
             v20.migrate(); v20.validate();
             beans.addBean("flyway", v20);
-            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("20");
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("21");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
-            assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1")
+            assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1")
                 .doesNotContain("provider-budget-accounting-v19", "provider-budget-validity-extensions-v20");
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "provider-budget-validity-extensions-v1",
                 "version", "20", "description", "provider budget validity extensions", "state", "SUCCESS"));
-            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 1);
+            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 2);
         }
     }
 

@@ -15,6 +15,32 @@ import org.springframework.web.server.ResponseStatusException;
 
 class RuntimeProviderBudgetAdminControllerTest extends RuntimeBudgetFixture.TestScope {
     @Test
+    void topUpRequiresPrivateWriteScopeAndExactActiveStoreWhileOriginalTermsStayImmutable() throws Exception {
+        var fixture = new RuntimeBudgetFixture(); var budgets = fixture.register();
+        var binding = budgets.readStore().binding();
+        var auth = mock(RuntimeRequestAuthResolver.class); var request = new MockHttpServletRequest();
+        when(auth.resolveVerifiedPrivateContext(eq(request), anyString()))
+            .thenReturn(identity("customer", "deployment", List.of(RUNTIME_ADMIN_OVERVIEW)));
+        var controller = new RuntimeProviderBudgetAdminController(budgets, new RuntimeBudgetAdminReadback(budgets, auth));
+        var command = new com.ai.fabric.budget.ProviderBudgetLedger.TopUpCommand(1, "top-up", APPROVAL.id(), binding.storeUuid(),
+            binding.runtimeFingerprint(), APPROVAL.limits(), new com.ai.fabric.budget.ProviderBudgetLedger.Limits(5, 100_000, 1_000_000_000),
+            "staff", "owner-approval", "prepaid-owner", "bounded quality canary");
+        assertThatThrownBy(() -> controller.topUp(request, command)).isInstanceOf(ResponseStatusException.class);
+        when(auth.resolveVerifiedPrivateContext(eq(request), anyString())).thenReturn(identity("customer", "deployment",
+            List.of(RUNTIME_ADMIN_OVERVIEW, RuntimeProviderBudgetAdminController.WRITE_SCOPE)));
+        var receipt = controller.topUp(request, command);
+        assertThat(controller.readTopUp(request, "top-up")).isEqualTo(receipt);
+        assertThat(controller.topUp(request, command)).isEqualTo(receipt);
+        assertThat(controller.read(request).limits()).isEqualTo(APPROVAL.limits());
+        assertThat(controller.read(request).effectiveLimits()).isEqualTo(receipt.effectiveLimits());
+        assertThat(budgets.readCurrent().approval()).isEqualTo(APPROVAL);
+        assertThat(budgets.readStore().binding()).isEqualTo(binding);
+        var foreign = new com.ai.fabric.budget.ProviderBudgetLedger.TopUpCommand(1, "foreign", APPROVAL.id(), java.util.UUID.randomUUID(),
+            binding.runtimeFingerprint(), receipt.effectiveLimits(), command.additionalLimits(), "staff", "owner-approval", "prepaid-owner", "reason");
+        assertThatThrownBy(() -> controller.topUp(request, foreign)).isInstanceOf(RuntimeBudgetBindingException.class);
+    }
+
+    @Test
     void exactPrivateTwoPhaseProtocolEchoesOnlyTheSingleRuntimeFingerprint() throws Exception {
         var budgets = new RuntimeBudgetFixture().service();
         var auth = mock(RuntimeRequestAuthResolver.class);

@@ -188,6 +188,25 @@ Read on 2026-10-18; changes require a newly reviewed rate-card reference:
 
 ## Tests
 
+### Additional Reviewed Mini Profile (24 October 2026)
+
+`openai-gpt4omini-gpt54mini-embedding3small-20261024-v2` additionally permits
+`gpt-5.4-mini` and the pinned `gpt-5.4-mini-2026-03-17` snapshot. The original
+v1 reference remains limited to its original models. New allocations require
+an explicitly reviewed binding; a top-up does not change that binding.
+
+The [official model specification](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+defines a 400,000-token context and standard uncached rates of USD 0.75 per
+million input tokens and USD 4.50 per million output tokens. This bounded host
+profile reserves the full context, caps output at 16,384, uses
+`max_completion_tokens`, fixes reasoning to `none`, and omits unsupported
+sampling options. Native usage, including reported reasoning output, settles
+the reservation. Standard uncached prices conservatively account for cached
+tokens; they are not an invoice-exact billing claim. Existing fallback, official
+endpoint, credential, response-model and transport restrictions remain intact.
+
+### Offline Qualification
+
 `GuardedResolverContractTest` covers public option parity, strict provider/model/
 endpoint rules, text-only surfaces and batch/token-array bounds.
 `GuardedNativeTransportTest` uses the real native SDK, Spring model builders,

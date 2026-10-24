@@ -28,7 +28,9 @@ final class OpenAiExchangeGuard implements Interceptor {
     private static final Set<String> CHAT_FIELDS = Set.of("model", "messages", "max_tokens", "max_completion_tokens",
         "n", "stream", "frequency_penalty", "presence_penalty", "logit_bias", "logprobs", "top_logprobs",
         "response_format", "seed", "stop", "temperature", "top_p", "user", "parallel_tool_calls", "store",
-        "metadata", "service_tier", "prompt_cache_key", "tools", "tool_choice", "modalities");
+        "metadata", "service_tier", "prompt_cache_key", "tools", "tool_choice", "modalities", "reasoning_effort");
+    private static final Set<String> MINI_UNREVIEWED_OPTIONS = Set.of("temperature", "top_p", "logprobs", "top_logprobs",
+        "frequency_penalty", "presence_penalty", "logit_bias", "seed", "stop");
     private static final Set<String> EMBEDDING_FIELDS = Set.of("model", "input", "dimensions", "encoding_format", "user");
     private final ObjectMapper json = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -61,7 +63,7 @@ final class OpenAiExchangeGuard implements Interceptor {
         UUID attemptId = UUID.randomUUID();
         try {
             plan = plan(request);
-            binding = binding(request);
+            binding = binding(request, plan);
             meteringStops.requireUnbreached(binding);
             var receipt = ledger.reserveAttempt(binding.approvalId(), binding.scope(), attemptId, plan.upperBound());
             if (receipt == null || !receipt.newlyReserved()) throw new OpenAiBudgetException(ATTEMPT_REPLAY);
@@ -149,9 +151,14 @@ final class OpenAiExchangeGuard implements Interceptor {
 
     private Plan chatPlan(JsonNode body) {
         fields(body, CHAT_FIELDS);
-        if (!CHAT_MODEL.equals(body.path("model").asText()) || (body.has("stream") && !body.get("stream").isBoolean())
+        String model = body.path("model").asText();
+        if (!isReviewedChatModel(model) || (body.has("stream") && !body.get("stream").isBoolean())
             || body.path("stream").asBoolean() || (body.has("n") && integer(body.get("n")) != 1)
             || !"default".equals(body.path("service_tier").asText())) throw unsupported();
+        if (isGpt54Mini(model)) {
+            if (!"none".equals(body.path("reasoning_effort").asText())
+                || MINI_UNREVIEWED_OPTIONS.stream().anyMatch(body::has)) throw unsupported();
+        } else if (body.has("reasoning_effort")) throw unsupported();
         if (body.has("modalities") && (!body.get("modalities").isArray() || body.get("modalities").size() != 1
             || !"text".equals(body.get("modalities").get(0).asText()))) throw unsupported();
         if (body.has("max_tokens") || !body.has("max_completion_tokens"))
@@ -176,7 +183,7 @@ final class OpenAiExchangeGuard implements Interceptor {
         }
         if (body.has("tools")) functionTools(body.get("tools"));
         // The ledger has component-wise bounds; this deliberately overholds the shared context envelope.
-        return new Plan(true, output, chat(CHAT_CONTEXT_TOKENS, output));
+        return new Plan(true, model, output, chat(model, chatContextTokens(model), output));
     }
 
     private Plan embeddingPlan(JsonNode body) {
@@ -199,7 +206,7 @@ final class OpenAiExchangeGuard implements Interceptor {
                 bound = Math.min(Math.multiplyExact(input.size(), EMBEDDING_INPUT_TOKENS), EMBEDDING_REQUEST_TOKENS);
             }
         } else throw unsupported();
-        return new Plan(false, 0, embedding(bound));
+        return new Plan(false, EMBEDDING_MODEL, 0, embedding(bound));
     }
 
     private static long tokenArray(JsonNode input) {
@@ -208,20 +215,20 @@ final class OpenAiExchangeGuard implements Interceptor {
         return input.size();
     }
 
-    private OpenAiBudgetScopeResolver.Binding binding(Request request) {
+    private OpenAiBudgetScopeResolver.Binding binding(Request request, Plan plan) {
         var headers = request.headers("Authorization");
         if (headers.size() != 1 || !headers.getFirst().startsWith("Bearer ")) throw new OpenAiBudgetException(CREDENTIAL_SCOPE_MISMATCH);
         String identity = credentialIdentity(headers.getFirst().substring(7));
         var binding = scopes.requireBinding(identity);
         if (binding == null || !identity.equals(binding.scope().credentialIdentity())) throw new OpenAiBudgetException(CREDENTIAL_SCOPE_MISMATCH);
-        if (!REFERENCE.equals(binding.scope().rateCardReference())) throw new OpenAiBudgetException(RATE_CARD_MISMATCH);
+        if (!supportsModel(binding.scope().rateCardReference(), plan.model())) throw new OpenAiBudgetException(RATE_CARD_MISMATCH);
         return binding;
     }
 
     private Usage actual(Plan plan, JsonNode response) {
         if (response == null || !response.isObject() || response.has("error")) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
         String model = response.path("model").asText();
-        if (plan.chat() ? !Set.of(CHAT_MODEL, "gpt-4o-mini-2024-07-18").contains(model) : !EMBEDDING_MODEL.equals(model))
+        if (plan.chat() ? !matchesChatResponse(plan.model(), model) : !EMBEDDING_MODEL.equals(model))
             throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
         var usage = response.path("usage");
         if (!usage.isObject()) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
@@ -229,12 +236,13 @@ final class OpenAiExchangeGuard implements Interceptor {
         long output = plan.chat() ? integer(usage.get("completion_tokens")) : 0;
         long total = integer(usage.get("total_tokens"));
         if (Math.addExact(input, output) != total) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
-        if (input > plan.upperBound().inputTokens() || output > plan.outputCap() || (plan.chat() && total > CHAT_CONTEXT_TOKENS))
+        if (input > plan.upperBound().inputTokens() || output > plan.outputCap()
+            || (plan.chat() && total > chatContextTokens(plan.model())))
             throw new OpenAiBudgetException(METERING_BOUND_BREACH);
         if (response.has("service_tier") && (!response.get("service_tier").isTextual()
             || !"default".equals(response.get("service_tier").textValue())))
             throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
-        return plan.chat() ? chat(input, output) : embedding(input);
+        return plan.chat() ? chat(plan.model(), input, output) : embedding(input);
     }
 
     private static void functionTools(JsonNode tools) {
@@ -268,5 +276,5 @@ final class OpenAiExchangeGuard implements Interceptor {
         return new OpenAiBudgetTransportException(attemptId, code, METERING_BOUND_BREACH);
     }
 
-    record Plan(boolean chat, long outputCap, Usage upperBound) { }
+    record Plan(boolean chat, String model, long outputCap, Usage upperBound) { }
 }

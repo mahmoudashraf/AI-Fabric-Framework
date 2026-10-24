@@ -164,6 +164,26 @@ public final class RuntimeBudgetBindingService {
         return receipt;
     }
 
+    public ProviderBudgetLedger.TopUpReceipt topUp(ProviderBudgetLedger.TopUpCommand command) {
+        requireEnabled();
+        if (command == null) throw new BudgetException(BudgetException.Code.INVALID_REQUEST);
+        StoreReceipt current = transaction(connection -> binding(connection, false));
+        if (current.state() != State.ACTIVE) throw failure(NOT_ACTIVE);
+        requireMatch(current, command.approvalId(), command.storeUuid(), command.runtimeFingerprint());
+        return ledger.topUp(readExact(current).approval(), command);
+    }
+
+    public Optional<ProviderBudgetLedger.TopUpReceipt> readTopUp(String topUpId) {
+        requireEnabled();
+        ProviderBudgetLedger.text(topUpId, 128);
+        StoreReceipt current = transaction(connection -> binding(connection, false));
+        if (current.state() == State.UNINITIALIZED || current.state() == State.INITIALIZING) return Optional.empty();
+        readExact(current);
+        var receipt = ledger.readTopUp(current.approvalId(), configuration.scope(), topUpId);
+        receipt.ifPresent(value -> requireMatch(current, value.approvalId(), value.storeUuid(), value.runtimeFingerprint()));
+        return receipt;
+    }
+
     /** Host must resolve verified auth first. Every HTTP retry receives a fresh server attempt. */
     public ChatReceipt recordVerifiedChatIngress(RuntimeResolvedIdentity identity) {
         return recordVerifiedInteractiveIngress(identity, "chat:query");
