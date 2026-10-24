@@ -19,6 +19,7 @@ import com.ai.fabric.runtime.handover.RuntimeConversationHandoverService;
 import com.ai.fabric.runtime.handover.RuntimeConversationTurn;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
+import com.ai.fabric.runtime.web.dto.ChatQueryResultItem;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
 import com.ai.fabric.runtime.web.dto.ConversationParticipantMessageResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
@@ -450,6 +451,8 @@ public class ChatRuntimeController {
             .sources(canonicalSources(sanitizedPayload, data, rawData))
             .ragResponse(canonicalRagResponse(sanitizedPayload, data, rawData))
             .actions(actions)
+            .results("COMPOUND_HANDLED".equals(resultType)
+                ? canonicalResultItems(sanitizedPayload, sanitizedData) : List.of())
             .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
             .authenticationRequirement(WorkspaceAuthenticationRequirementSupport.resolve(result, identity))
@@ -460,6 +463,27 @@ public class ChatRuntimeController {
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build();
+    }
+
+    private List<ChatQueryResultItem> canonicalResultItems(Map<String, Object> sanitizedPayload,
+                                                          Map<String, Object> sanitizedData) {
+        // Never recover nested results from raw data: only sanitizer-owned text crosses this boundary.
+        List<Object> children = sanitizedPayload.containsKey("children")
+            ? firstList(sanitizedPayload.get("children")) : firstList(sanitizedData.get("results"));
+        List<ChatQueryResultItem> items = new ArrayList<>();
+        for (Object child : children) {
+            Map<String, Object> item = objectMap(child);
+            String type = firstText(item.get("type"));
+            if (type == null || !(item.get("success") instanceof Boolean success)) {
+                continue;
+            }
+            Map<String, Object> childData = objectMap(item.get("data"));
+            String answer = firstText(item.get("safeSummary"), item.get("answer"),
+                childData.get("answer"), item.get("message"));
+            items.add(new ChatQueryResultItem(type, success, answer,
+                success ? null : firstText(item.get("errorCode"), type)));
+        }
+        return List.copyOf(items);
     }
 
     private List<Object> canonicalSources(Map<String, Object> sanitizedPayload,

@@ -33,6 +33,9 @@ public class ChatQueryResponse {
     @Builder.Default
     private List<Object> actions = List.of();
     @Builder.Default
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<ChatQueryResultItem> results = List.of();
+    @Builder.Default
     private List<Object> suggestions = List.of();
     private String fallbackReason;
     @Builder.Default
