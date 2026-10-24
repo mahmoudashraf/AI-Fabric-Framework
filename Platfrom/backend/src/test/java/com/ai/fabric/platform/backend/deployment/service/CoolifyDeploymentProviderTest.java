@@ -1745,6 +1745,59 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
+    void managedVectorProvisioningPassesTheExactReleaseTargetInBothBranches() {
+        for (boolean required : List.of(true, false)) {
+            for (String target : List.of("dtp-coolify-staging", "dtp-coolify-production")) {
+                var vectorProvisioning = mock(DeploymentManagedVectorProvisioningService.class);
+                var vectorResources = mock(DeploymentManagedVectorResourceService.class);
+                var provider = fixtureProvider(mock(DeploymentTargetProfileRepository.class),
+                    mock(DeploymentProviderResourceHandleRepository.class), mock(DeploymentSourceArtifactService.class),
+                    mock(RailwayProvisioningPlanService.class), vectorProvisioning, vectorResources,
+                    mock(CoolifyTargetProfileResolver.class), mock(CoolifyApiClient.class), null, null, null, objectMapper);
+                var deployment = deployment();
+                var version = version();
+                var release = release();
+                release.setTargetProfileId(target);
+                var result = new ManagedVectorProvisioningResult(objectMapper.createObjectNode(), objectMapper.createObjectNode());
+                when(vectorProvisioning.requiresProvisioning(version)).thenReturn(required);
+                when(vectorProvisioning.ensureProvisioned(deployment, version, target)).thenReturn(result);
+
+                ManagedVectorProvisioningResult actual = ReflectionTestUtils.invokeMethod(provider,
+                    "ensureManagedVectorProvisioned", deployment, version, release, ProvisioningProgressTracker.noop());
+
+                assertThat(actual).isSameAs(result);
+                verify(vectorProvisioning).ensureProvisioned(deployment, version, target);
+                verify(vectorProvisioning, never()).ensureProvisioned(any(), any());
+                verify(vectorResources).syncProvisionedResources(deployment, version, release, result);
+            }
+        }
+    }
+
+    @Test
+    void managedVectorProvisioningKeepsTargetValidationFailuresVisible() {
+        var vectorProvisioning = mock(DeploymentManagedVectorProvisioningService.class);
+        var vectorResources = mock(DeploymentManagedVectorResourceService.class);
+        var provider = fixtureProvider(mock(DeploymentTargetProfileRepository.class),
+            mock(DeploymentProviderResourceHandleRepository.class), mock(DeploymentSourceArtifactService.class),
+            mock(RailwayProvisioningPlanService.class), vectorProvisioning, vectorResources,
+            mock(CoolifyTargetProfileResolver.class), mock(CoolifyApiClient.class), null, null, null, objectMapper);
+        var deployment = deployment();
+        var version = version();
+        var release = release();
+        release.setTargetProfileId(null);
+        when(vectorProvisioning.requiresProvisioning(version)).thenReturn(true);
+        when(vectorProvisioning.ensureProvisioned(deployment, version, null))
+            .thenThrow(new RailwayProvisioningConfigurationException("MANAGED_VECTOR_TARGET_REQUIRED"));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(provider, "ensureManagedVectorProvisioned",
+            deployment, version, release, ProvisioningProgressTracker.noop()))
+            .hasMessageContaining("MANAGED_VECTOR_TARGET_REQUIRED");
+        verify(vectorProvisioning).ensureProvisioned(deployment, version, null);
+        verify(vectorProvisioning, never()).ensureProvisioned(any(), any());
+        verifyNoInteractions(vectorResources);
+    }
+
+    @Test
     void provisionsPublicGitApplicationWithResolvedManagedVectorProviderConfig() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
@@ -1809,7 +1862,8 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(managedVectorProvisioningService.requiresProvisioning(any())).thenReturn(true);
-        when(managedVectorProvisioningService.ensureProvisioned(any(), any())).thenReturn(managedVectorResult);
+        when(managedVectorProvisioningService.ensureProvisioned(any(), any(), eq("dtp-coolify-staging")))
+            .thenReturn(managedVectorResult);
         when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig), anyString(), nullable(String.class))).thenReturn(plan);
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),

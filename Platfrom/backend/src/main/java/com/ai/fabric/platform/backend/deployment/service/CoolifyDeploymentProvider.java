@@ -2829,9 +2829,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 progressTracker,
                 "ensure_vector_backend",
                 "Create or reconcile managed external vector resources before runtime deployment.",
-                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
+                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version, release.getTargetProfileId())
             )
-            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version, release.getTargetProfileId());
         if (deploymentManagedVectorResourceService != null) {
             deploymentManagedVectorResourceService.syncProvisionedResources(deployment, version, release, result);
         }
