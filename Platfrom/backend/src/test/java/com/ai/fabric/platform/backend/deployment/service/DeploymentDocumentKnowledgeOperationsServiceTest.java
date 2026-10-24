@@ -51,8 +51,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary =
         mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
-    private final com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService sourcePrerequisites =
-        mock(com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService.class);
+    private final com.ai.fabric.platform.backend.deployment.operations.CoreSourceAccessService sourceAccess =
+        mock(com.ai.fabric.platform.backend.deployment.operations.CoreSourceAccessService.class);
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -69,7 +69,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
         service().index(target, "source-1", "mixed-modes-1");
 
-        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "mixed-modes-1",
+        verify(sourceAccess).require(target, Operation.SOURCE_INDEX, "mixed-modes-1",
             java.util.Set.of(DocumentAudience.PUBLIC, DocumentAudience.AUTHENTICATED));
         for (DocumentAudience audience : DocumentAudience.values()) {
             verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.SOURCE_INDEX),
@@ -108,7 +108,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         verify(offerBoundary).requireOperationalRead(any(), eq("target-1"), eq("rel-1"), eq(DocumentAudience.PUBLIC));
         verify(offerBoundary, never()).requireOperationalRead(any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
         verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
-        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites);
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess);
         verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of("documents:read"), Duration.ofMinutes(5));
     }
@@ -121,7 +121,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
         service().index(target, "source-1", "public-index-1");
 
-        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "public-index-1", java.util.Set.of(DocumentAudience.PUBLIC));
+        verify(sourceAccess).require(target, Operation.SOURCE_INDEX, "public-index-1", java.util.Set.of(DocumentAudience.PUBLIC));
         verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.SOURCE_INDEX), eq("public-index-1"),
             eq(java.util.Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode("PUBLIC"))), any(), any(), eq(DocumentAudience.PUBLIC));
         verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
@@ -137,12 +137,12 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         when(transport.send(any(), any(), any(), any(), any(), any())).thenReturn(
             new DeploymentRuntimeJsonTransport.Response(201, objectMapper.createObjectNode()));
         var service = new DeploymentDocumentKnowledgeOperationsService(targetContextService, runtimeAuthority, auditService,
-            objectMapper, transport, offerBoundary, sourcePrerequisites);
+            objectMapper, transport, offerBoundary, sourceAccess);
 
         assertThat(service.register(target, body, "public-register-1").statusCode()).isEqualTo(201);
 
         verify(transport).send(eq("https://runtime.example"), eq("POST"), eq("/api/documents/sources"), any(), eq(body), eq("public-register-1"));
-        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "public-register-1", java.util.Set.of(DocumentAudience.PUBLIC));
+        verify(sourceAccess).require(target, Operation.SOURCE_INDEX, "public-register-1", java.util.Set.of(DocumentAudience.PUBLIC));
         verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of("documents:register"), Duration.ofMinutes(5));
     }
@@ -156,7 +156,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         assertThatThrownBy(() -> service().register(target, body, "visibility-1"))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("visibility is not allowed");
 
-        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, runtimeAuthority);
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess, runtimeAuthority);
         verify(httpClient, never()).send(any(), any());
     }
 
@@ -169,7 +169,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
         assertThatThrownBy(() -> service().index(target, "source-1", "disjoint-1")).hasMessageContaining("SETTING_FORBIDDEN");
 
-        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, runtimeAuthority);
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess, runtimeAuthority);
         verify(httpClient, never()).send(any(), any());
     }
 
@@ -197,7 +197,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
         assertThatThrownBy(() -> service().index(target, "source-1", "invalid-modes-1"))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("authModes");
-        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, offerBoundary, runtimeAuthority);
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess, offerBoundary, runtimeAuthority);
         verify(httpClient, never()).send(any(), any());
     }
 
@@ -218,7 +218,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
             assertThatThrownBy(() -> mutate(operation, key)).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Idempotency-Key is required");
         }
-        org.mockito.Mockito.verifyNoInteractions(targetContextService, sourcePrerequisites, offerBoundary, runtimeAuthority, httpClient);
+        org.mockito.Mockito.verifyNoInteractions(targetContextService, sourceAccess, offerBoundary, runtimeAuthority, httpClient);
     }
 
     @ParameterizedTest
@@ -269,7 +269,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(202, "{}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         service().index(target, "source-1", "index-1");
-        verify(sourcePrerequisites).ensureFresh(target,
+        verify(sourceAccess).require(target,
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_INDEX,
             "index-1", java.util.Set.of(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC));
         var settings = ArgumentCaptor.forClass(java.util.Map.class);
@@ -289,7 +289,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         version.setKnowledgeSourceConfigJson("{\"sources\":[{\"datasetRef\":\"policies\",\"authModes\":[\"PUBLIC_RUNTIME_ANONYMOUS\"]}]}");
         when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
         org.mockito.Mockito.doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.PRECONDITION_FAILED,
-            "SOURCE_CONNECTOR_PROBE_FAILED")).when(sourcePrerequisites).ensureFresh(eq(target), any(), eq("index-1"), any());
+            "SOURCE_CONNECTOR_PROBE_FAILED")).when(sourceAccess).require(eq(target), any(), eq("index-1"), any());
         assertThatThrownBy(() -> service().index(target, "source-1", "index-1"))
             .hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
         verify(httpClient, never()).send(any(), any());
@@ -412,7 +412,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
             objectMapper,
             httpClient,
             offerBoundary,
-            sourcePrerequisites
+            sourceAccess
         );
     }
 

@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.budget;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties;
+import com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,13 @@ public class ProviderUsageModeResolver {
 
     private final DeploymentOperationsProperties properties;
     private final JdbcTemplate jdbc;
+    private final CoreReleaseAuthorizationStore authorizations;
 
-    public ProviderUsageModeResolver(DeploymentOperationsProperties properties, JdbcTemplate jdbc) {
+    public ProviderUsageModeResolver(DeploymentOperationsProperties properties, JdbcTemplate jdbc,
+                                    CoreReleaseAuthorizationStore authorizations) {
         this.properties = properties;
         this.jdbc = jdbc;
+        this.authorizations = authorizations;
     }
 
     public String resolve(DeploymentEntity deployment, String targetProfileId) {
@@ -35,8 +39,9 @@ public class ProviderUsageModeResolver {
     }
 
     Optional<String> forRelease(DeploymentEntity deployment, DeploymentReleaseEntity release) {
-        var authorization = ProviderUsageAuthorizedReleaseReader.coreAuthorization(jdbc, release.getId());
-        if (authorization.isEmpty()) return Optional.empty();
+        var authorization = ProviderUsageAuthorizedReleaseReader.coreAuthorization(authorizations, release.getId());
+        if (authorization.isEmpty()) return hasAllocation(deployment.getId(), release.getTargetProfileId())
+            ? Optional.of(Mode.FUNDED.name()) : Optional.empty();
         var record = authorization.get();
         record.requireScope(deployment, release);
         var pinned = mode(record.providerUsageMode());

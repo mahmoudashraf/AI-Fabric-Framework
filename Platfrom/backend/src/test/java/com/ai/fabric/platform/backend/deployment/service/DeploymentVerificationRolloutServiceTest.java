@@ -70,11 +70,10 @@ import static org.mockito.Mockito.doNothing;
 class DeploymentVerificationRolloutServiceTest {
 
     @Test
-    void listRolloutsRecoversStaleInProgressReleasesBeforeSummarizing() {
+    void listRolloutsSummarizesInterruptedReleasesWithoutDispatchingRecovery() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
-        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
@@ -113,13 +112,11 @@ class DeploymentVerificationRolloutServiceTest {
         when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
-        when(deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId())).thenReturn(true);
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
             deploymentRepository,
             releaseRepository,
             deploymentService,
-            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,
@@ -135,16 +132,15 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentVerificationRolloutSummary summary = service.listRollouts();
 
         assertThat(summary.items()).isNotEmpty();
-        verify(deploymentReleaseRecoveryService).reconcileLatestInProgressRelease(existing.getId());
-        verify(deploymentRepository, times(2)).findAllByOrderByCreatedAtDesc();
+        verify(deploymentRepository).findAllByOrderByCreatedAtDesc();
+        verify(deploymentService, never()).applyVersionInternal(anyString(), anyString(), any(), anyBoolean());
     }
 
     @Test
-    void recreateRolloutsRecoversExistingDeploymentBeforeApply() {
+    void recreateRolloutsPublishesAndExplicitlyAppliesExistingDeployment() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
-        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
@@ -177,7 +173,6 @@ class DeploymentVerificationRolloutServiceTest {
         when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId(), true)).thenReturn(true);
         ObjectMapper objectMapper = new ObjectMapper();
         when(deploymentService.getActiveDraftForDeploymentInternal(existing.getId())).thenReturn(new DeploymentDraftResponse(
             "drf-weaviate",
@@ -217,7 +212,6 @@ class DeploymentVerificationRolloutServiceTest {
             deploymentRepository,
             releaseRepository,
             deploymentService,
-            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,
@@ -232,8 +226,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         service.recreateRollouts(List.of("weaviate"));
 
-        InOrder order = inOrder(deploymentReleaseRecoveryService, deploymentService);
-        order.verify(deploymentReleaseRecoveryService).reconcileLatestInProgressRelease(existing.getId(), true);
+        InOrder order = inOrder(deploymentService);
         order.verify(deploymentService).getActiveDraftForDeploymentInternal(existing.getId());
         order.verify(deploymentService).applyVersionInternal(existing.getId(), "ver-new", null, true);
     }
@@ -762,7 +755,6 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
-        DeploymentReleaseRecoveryService recoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository assignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService assignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository userRepository = mock(PlatformUserRepository.class);
@@ -806,7 +798,6 @@ class DeploymentVerificationRolloutServiceTest {
             versionRepository,
             deploymentService,
             null,
-            recoveryService,
             assignmentRepository,
             assignmentService,
             userRepository,
@@ -850,7 +841,6 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentEntityConfigMigrationService migrationService =
             mock(DeploymentEntityConfigMigrationService.class);
-        DeploymentReleaseRecoveryService recoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository assignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService assignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository userRepository = mock(PlatformUserRepository.class);
@@ -964,7 +954,6 @@ class DeploymentVerificationRolloutServiceTest {
             versionRepository,
             deploymentService,
             migrationService,
-            recoveryService,
             assignmentRepository,
             assignmentService,
             userRepository,
@@ -1001,7 +990,6 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
-        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
@@ -1092,7 +1080,6 @@ class DeploymentVerificationRolloutServiceTest {
             deploymentRepository,
             releaseRepository,
             deploymentService,
-            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,
@@ -1110,7 +1097,6 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(summary.summaryMessage()).contains("2 canonical verification rollout deployment(s)");
         verify(deploymentService, times(2)).createDeployment(any(CreateDeploymentRequest.class));
         verify(deploymentService, times(2)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
-        verify(deploymentReleaseRecoveryService, times(4)).reconcileLatestInProgressRelease(anyString(), eq(true));
     }
 
     @Test
@@ -1118,7 +1104,6 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
-        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
@@ -1215,7 +1200,6 @@ class DeploymentVerificationRolloutServiceTest {
             deploymentRepository,
             releaseRepository,
             deploymentService,
-            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,

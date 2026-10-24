@@ -30,8 +30,6 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 
 @Service
 public class CustomerReviewedCompositionService {
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties operationsProperties;
     private final CustomerOfferCodec codec;
     private final ObjectMapper mapper;
     private final Validator validator;
@@ -66,10 +64,8 @@ public class CustomerReviewedCompositionService {
         if (definition == null || !validator.validate(definition).isEmpty()
             || !"1".equals(definition.schemaVersion()) || definition.artifacts().isEmpty()
             || definition.targets().isEmpty() || definition.operations().isEmpty()
-            || !definition.admissionPrerequisites().containsAll(operationsProperties == null
-                ? Set.of(Prerequisite.APPROVED_POLICY, Prerequisite.IMMUTABLE_ARTIFACTS, Prerequisite.STORAGE,
-                    Prerequisite.IDENTITY, Prerequisite.CAPACITY, Prerequisite.NOTIFICATIONS, Prerequisite.OPERATING_POLICY)
-                : Set.of(Prerequisite.APPROVED_POLICY, Prerequisite.IMMUTABLE_ARTIFACTS))) {
+            || !definition.admissionPrerequisites().containsAll(
+                Set.of(Prerequisite.APPROVED_POLICY, Prerequisite.IMMUTABLE_ARTIFACTS))) {
             throw invalid();
         }
         unique(definition.targets(), TargetPermission::targetProfileId);

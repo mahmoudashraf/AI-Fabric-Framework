@@ -7,10 +7,10 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures;
-import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyResource;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
+import com.ai.fabric.platform.backend.deployment.provider.CoolifyHostVolumeReclamationService;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -264,13 +264,11 @@ class OwnedDependencyOwnershipTest {
         List<Runnable> operations = List.of(
             () -> reconcile(inbox(), "inbox-service"),
             () -> service.disableOwnedDependency(connection, "graph", "inbox-service", "inbox", "app", checkpoint),
-            () -> service.quiesceOwnedDependencyForRuntimeGeneration(connection, "graph", "inbox-service", "inbox", "app", checkpoint),
-            () -> service.resumeOwnedDependencyAfterRuntimeGeneration(connection, "graph", "inbox-service", "inbox", "app", checkpoint),
             () -> service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(), resources, "binding", "operator"),
             () -> service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(), resources, restriction, checkpoint),
             () -> service.verifyOwnedDependencyReady(connection, "graph", "inbox-service", "inbox", "app", null, resources.volumes()),
             () -> service.retireOwnedDependency(connection, "graph", "inbox-service", "inbox", resources, checkpoint),
-            () -> service.verifyOwnedDependenciesReclaimed(connection, "graph", List.of(new ManagedDependencyRetirementAdapter.Resource(
+            () -> service.verifyOwnedDependenciesReclaimed(connection, "graph", List.of(new ManagedDependencyResource(
                 "inbox", "inbox-service", "app", null, resources.volumes()))));
         for (var operation : operations) assertThatThrownBy(operation::run).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         noMutations();
@@ -607,7 +605,7 @@ class OwnedDependencyOwnershipTest {
         verify(api, times(1)).delete(connection, "app", true, true, false, false);
         assertThat(fixture.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).containsOnly("DELETED");
         var resources = fixture.resources();
-        service.verifyOwnedDependenciesReclaimed(connection, "graph", List.of(new ManagedDependencyRetirementAdapter.Resource(
+        service.verifyOwnedDependenciesReclaimed(connection, "graph", List.of(new ManagedDependencyResource(
             "inbox", "inbox-service", "app", null, resources.volumes(), resources.volumeReclamationPlan(), resources.reclaimedVolumeUuids())));
     }
 

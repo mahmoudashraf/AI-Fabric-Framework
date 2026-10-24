@@ -47,7 +47,8 @@ class ProviderUsageAllowancePostgresTest extends ProviderUsageGrantVoidUnusedCon
     }
 
     @Test void realFlywayUpgradeAttributesKnownLegacyHistoryWithoutBlockingUnusedGrant() throws Exception {
-        var allocation = allocated(); var terms = codec.read(jdbc.queryForObject(
+        service.approveGrant(grant());
+        var allocation = seedHistoricalAllocation(command()); var terms = codec.read(jdbc.queryForObject(
             "SELECT payload_json FROM provider_usage_allocations WHERE approval_id=?", String.class, allocation.approvalId()), AllocationTerms.class);
         var legacySource = freshDataSource(); var legacy = new JdbcTemplate(legacySource);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V190__provider_usage_allowance.sql")).execute(legacySource);
@@ -108,8 +109,8 @@ class ProviderUsageAllowancePostgresTest extends ProviderUsageGrantVoidUnusedCon
             return switch (index) {
                 case 0 -> service.readAllocation(allocation.scope()).approvalId();
                 case 1 -> service.findForDeployment("deployment", "target").orElseThrow().approvalId();
-                case 2 -> service.allocate(command(), r7("deployment")).approvalId();
-                case 3 -> service.markInitialized(allocation.scope(), store, allocation.runtimeAllocationFingerprint()).approvalId();
+                case 2 -> service.prepareForAuthorizedRelease("release-deployment").approvalId();
+                case 3 -> service.markInitializedForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint()).approvalId();
                 case 4 -> {
                     assertThatThrownBy(() -> service.voidUnused("grant", voidCommand(grant()))).hasMessageContaining("GRANT_NOT_UNUSED");
                     yield "void-rejected";

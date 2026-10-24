@@ -7,7 +7,7 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationS
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerStagingAssignmentAccessGate;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerReviewedBindingBoundary;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -71,9 +71,8 @@ public class PlatformCustomerConsumerService {
     private final AIWorkspaceInstallationRepository aiWorkspaceInstallations;
     private final AIWorkspaceDeploymentSecurityProjectionService aiWorkspaceSecurityProjection;
     private final ObjectMapper objectMapper;
-    private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    private final DeploymentTargetMutationService targetMutations;
     private final DeploymentTargetProfileRepository targetProfiles;
-    private final CustomerStagingAssignmentAccessGate stagingAssignmentAccessGate;
     private final CustomerReviewedBindingBoundary reviewedBindingBoundary;
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager unusedCancellationEntityManager;
@@ -89,9 +88,8 @@ public class PlatformCustomerConsumerService {
                                            AIWorkspaceInstallationRepository aiWorkspaceInstallations,
                                            AIWorkspaceDeploymentSecurityProjectionService aiWorkspaceSecurityProjection,
                                            ObjectMapper objectMapper,
-                                           com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates,
+                                           DeploymentTargetMutationService targetMutations,
                                            DeploymentTargetProfileRepository targetProfiles,
-                                           CustomerStagingAssignmentAccessGate stagingAssignmentAccessGate,
                                            CustomerReviewedBindingBoundary reviewedBindingBoundary) {
         this.consumerRepository = consumerRepository;
         this.bindingHistoryRepository = bindingHistoryRepository;
@@ -104,9 +102,8 @@ public class PlatformCustomerConsumerService {
         this.aiWorkspaceInstallations = aiWorkspaceInstallations;
         this.aiWorkspaceSecurityProjection = aiWorkspaceSecurityProjection;
         this.objectMapper = objectMapper;
-        this.retirementGates = retirementGates;
+        this.targetMutations = targetMutations;
         this.targetProfiles = targetProfiles;
-        this.stagingAssignmentAccessGate = stagingAssignmentAccessGate;
         this.reviewedBindingBoundary = reviewedBindingBoundary;
     }
 
@@ -473,6 +470,10 @@ public class PlatformCustomerConsumerService {
         }
         DeploymentEntity deployment = deploymentRepository.findById(consumer.getBoundDeploymentId())
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Consumer binding points to a missing deployment."));
+        if (!consumer.getCustomerId().equals(deployment.getCustomerId())
+            || deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Consumer deployment binding ownership or lifecycle changed.");
+        }
         DeploymentReleaseEntity release = null;
         if (StringUtils.hasText(consumer.getBoundReleaseId())) {
             release = deploymentReleaseRepository.findById(consumer.getBoundReleaseId().trim())
@@ -486,10 +487,10 @@ public class PlatformCustomerConsumerService {
             }
         }
         reviewedBindingBoundary.requireExplicitRuntimeAssignment(deployment.getId(), consumer.getBoundTargetProfileId(), release);
-        String targetProfileId = StringUtils.hasText(consumer.getBoundTargetProfileId())
-            ? consumer.getBoundTargetProfileId()
-            : release == null ? null : release.getTargetProfileId();
-        stagingAssignmentAccessGate.requireAvailable(consumer.getCustomerId(), deployment.getId(), targetProfileId);
+        if (release != null && StringUtils.hasText(consumer.getBoundTargetProfileId())
+            && !consumer.getBoundTargetProfileId().equals(release.getTargetProfileId())) {
+            throw new ResponseStatusException(CONFLICT, "Consumer release binding does not belong to its target.");
+        }
         return new ResolvedPublicConsumer(consumer, deployment, release);
     }
 
@@ -598,7 +599,7 @@ public class PlatformCustomerConsumerService {
 
         boolean changed = !sameBinding(consumer, nextDeploymentId, nextReleaseId, nextTargetProfileId);
         if (changed && nextDeploymentId != null && StringUtils.hasText(nextTargetProfileId)) {
-            retirementGates.requireAvailableForMutation(nextDeploymentId, nextTargetProfileId);
+            targetMutations.requireAvailableForMutation(nextDeploymentId, nextTargetProfileId);
         }
         if (changed && enforceWorkspaceGuard) aiWorkspaceBindingGuard.validateRebind(consumer, nextDeploymentId, nextReleaseId);
         String previousDeploymentId = consumer.getBoundDeploymentId();

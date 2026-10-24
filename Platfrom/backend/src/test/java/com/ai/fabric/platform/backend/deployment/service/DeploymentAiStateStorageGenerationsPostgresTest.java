@@ -5,7 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentAiStateStorageContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.*;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -48,7 +48,7 @@ class DeploymentAiStateStorageGenerationsPostgresTest {
     @Container private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
-    private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
+    private final DeploymentTargetMutationService retirement = mock(DeploymentTargetMutationService.class);
     private final DeploymentAiStateStorageProbe probe = mock(DeploymentAiStateStorageProbe.class);
     private SessionFactory entityManagerFactory;
     private TransactionTemplate transaction;

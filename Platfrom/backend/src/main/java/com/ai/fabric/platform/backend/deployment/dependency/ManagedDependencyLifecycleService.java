@@ -387,11 +387,6 @@ public class ManagedDependencyLifecycleService {
         return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, true);
     }
 
-    Summary resumeForRelease(String deploymentId, String targetProfileId, String releaseId,
-                             String operationKey) {
-        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, true, true);
-    }
-
     private Summary schedule(String deploymentId, String targetProfileId, String operationKey, boolean initialize) {
         requireScope(deploymentId, targetProfileId, true);
         var graph = find(deploymentId, targetProfileId);
@@ -400,14 +395,9 @@ public class ManagedDependencyLifecycleService {
 
     private Summary runForRelease(String deploymentId, String targetProfileId, String releaseId,
                                   String operationKey, boolean initialize) {
-        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, initialize, false);
-    }
-
-    private Summary runForRelease(String deploymentId, String targetProfileId, String releaseId,
-                                  String operationKey, boolean initialize, boolean resume) {
         var graph = find(deploymentId, targetProfileId);
         if (releaseId == null || !releaseId.equals(graph.getReleaseId())) fail("DEPENDENCY_RELEASE_BINDING_CHANGED");
-        schedule(graph, operationKey, initialize, true, resume);
+        schedule(graph, operationKey, initialize, true);
         var completed = find(deploymentId, targetProfileId);
         String expected = initialize ? "READY" : "PROVISIONED";
         if (!expected.equals(completed.getStatus())) {
@@ -418,16 +408,11 @@ public class ManagedDependencyLifecycleService {
 
     private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
                              boolean synchronous) {
-        return schedule(graph, operationKey, initialize, synchronous, false);
-    }
-
-    private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
-                             boolean synchronous, boolean resume) {
         required(operationKey, 128);
         boolean[] accepted = {false};
         store.mutate(graph.getId(), null, (current, state) -> {
             if ("RETIRING".equals(current.getStatus()) || "RETIRED".equals(current.getStatus())) fail("DEPENDENCY_RETIREMENT_IN_PROGRESS");
-            accepted[0] = command(state, operationKey, validator.fingerprint(List.of(resume ? "RESUME" : initialize ? "RECONCILE" : "PROVISION", current.getSpecFingerprint(),
+            accepted[0] = command(state, operationKey, validator.fingerprint(List.of(initialize ? "RECONCILE" : "PROVISION", current.getSpecFingerprint(),
                 current.getBindingFingerprint(), state.configurationRevision)), current.getId());
         });
         if (!accepted[0]) return summary(store.read(graph.getId()));
@@ -443,7 +428,7 @@ public class ManagedDependencyLifecycleService {
         });
         if (claimed) {
             if (synchronous) {
-                execute(graph.getId(), token, initialize, resume);
+                execute(graph.getId(), token, initialize);
             } else {
                 try { executor.execute(() -> execute(graph.getId(), token, initialize)); }
                 catch (RuntimeException error) { failure(graph.getId(), token, "DEPENDENCY_EXECUTOR_REJECTED"); }
@@ -453,10 +438,6 @@ public class ManagedDependencyLifecycleService {
     }
 
     void execute(String graphId, String token, boolean initialize) {
-        execute(graphId, token, initialize, false);
-    }
-
-    private void execute(String graphId, String token, boolean initialize, boolean resume) {
         try {
             var graph = store.read(graphId); var spec = store.spec(graph); validator.validate(spec);
             if (!validator.fingerprint(spec).equals(graph.getSpecFingerprint())) fail("DEPENDENCY_SPEC_DRIFT");
@@ -524,22 +505,10 @@ public class ManagedDependencyLifecycleService {
                     disabled[0] = true;
                     continue;
                 }
-                var checkpointState = store.state(store.read(graphId));
-                boolean checkpointed = resume && Set.of("PROVISIONED", "INITIALIZING", "READY").contains(node.status);
-                if (resume && !checkpointed && (!"PLANNED".equals(node.status)
-                    || node.provisionedConfigurationRevision != -1 || node.baseUrl != null || node.initialized)) {
-                    fail("DEPENDENCY_CONTINUATION_CHECKPOINT_CHANGED");
-                }
-                if (checkpointed && (node.provisionedConfigurationRevision != checkpointState.configurationRevision
-                    || node.baseUrl == null)) fail("DEPENDENCY_CONTINUATION_CONFIGURATION_CHANGED");
                 var result = admission.existingConfiguration()
                     ? provisioning.reconcileExistingOwnedDependency(connection, graphId, node.serviceRef, service,
                         resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid),
                         checkpoint(graphId, token, service.slot(), true))
-                    : checkpointed
-                    ? provisioning.verifyOwnedDependencyCheckpoint(connection, graphId, node.serviceRef, service,
-                        resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid),
-                        node.baseUrl, checkpoint(graphId, token, service.slot()))
                     : provisioning.reconcileOwnedDependency(connection, graphId, node.serviceRef, service,
                         resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid), checkpoint(graphId, token, service.slot()));
                 store.mutate(graphId, token, (current, state) -> {
@@ -599,17 +568,6 @@ public class ManagedDependencyLifecycleService {
             }
             if (token.equals(store.read(graphId).getWorkerToken())) failure(graphId, token, code);
         }
-    }
-
-    public Summary recoverInterrupted(String deploymentId, String targetProfileId, String expectedWorkerToken, String operationKey) {
-        requireScope(deploymentId, targetProfileId, true);
-        var graph = find(deploymentId, targetProfileId);
-        if (expectedWorkerToken == null || !expectedWorkerToken.equals(graph.getWorkerToken())) fail("DEPENDENCY_WORKER_GENERATION_CONFLICT");
-        gate().requireInterruptedWorkerTerminated(scope(graph), expectedWorkerToken);
-        store.mutate(graph.getId(), expectedWorkerToken, (current, state) -> {
-            current.setWorkerToken(null); current.setStatus("BLOCKED"); current.setFailureCode("DEPENDENCY_INTERRUPTED");
-        });
-        return reconcile(deploymentId, targetProfileId, operationKey);
     }
 
     private List<CoolifyEnvVar> environment(String graphId, ManagedDependencySpec.Service service,
@@ -795,136 +753,6 @@ public class ManagedDependencyLifecycleService {
             fail("DEPENDENCY_SERVICE_HOST_INVALID");
             return null;
         }
-    }
-
-    public record RuntimeGenerationEvidence(Map<String, String> readbacks) {
-        public RuntimeGenerationEvidence {
-            readbacks = readbacks == null ? Map.of() : Map.copyOf(readbacks);
-        }
-    }
-
-    /** Internal apply integration. It fences only dependency processes that call back into the runtime. */
-    public RuntimeGenerationEvidence quiesceForRuntimeGeneration(String deploymentId, String targetProfileId,
-            String previousReleaseId, String nextReleaseId, String nextVersionId) {
-        var graph = generationGraph(deploymentId, targetProfileId, nextVersionId);
-        if (graph == null) return new RuntimeGenerationEvidence(Map.of());
-        var spec = store.spec(graph);
-        var inboxServices = spec.services().stream()
-            .filter(service -> service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1)
-            .toList();
-        if (inboxServices.isEmpty()) return new RuntimeGenerationEvidence(Map.of());
-        if (inboxServices.size() != 1) fail("DEPENDENCY_GENERATION_INBOX_AMBIGUOUS");
-        String operationKey = generationOperationKey(graph, previousReleaseId, nextReleaseId);
-        beginGenerationTransition(graph.getId(), operationKey);
-        var connection = provisioning.ownedDependencyConnection(graph.getTargetProfileId(), environment(graph));
-        var service = inboxServices.getFirst();
-        var state = store.state(store.read(graph.getId()));
-        var node = node(state, service.slot());
-        String reference = provisioning.quiesceOwnedDependencyForRuntimeGeneration(
-            connection, graph.getId(), node.serviceRef, service.slot(), node.applicationUuid,
-            generationCheckpoint(graph.getId(), operationKey)
-        );
-        store.mutate(graph.getId(), null, (current, currentState) -> {
-            requireGenerationOperation(current, currentState, operationKey);
-            if (!currentState.runtimeGenerationStoppedSlots.contains(service.slot())) {
-                currentState.runtimeGenerationStoppedSlots.add(service.slot());
-                currentState.runtimeGenerationStoppedSlots.sort(String::compareTo);
-            }
-            currentState.runtimeGenerationState = "QUIESCED";
-        });
-        return new RuntimeGenerationEvidence(Map.of("HUMAN_INBOX", reference));
-    }
-
-    public void resumeAfterRuntimeGeneration(String deploymentId, String targetProfileId,
-            String previousReleaseId, String nextReleaseId, String nextVersionId) {
-        var graph = generationGraph(deploymentId, targetProfileId, nextVersionId);
-        if (graph == null) return;
-        String operationKey = generationOperationKey(graph, previousReleaseId, nextReleaseId);
-        var state = store.state(graph);
-        if (state.runtimeGenerationOperationKey == null) return;
-        requireGenerationOperation(graph, state, operationKey);
-        if ("RESUMED".equals(state.runtimeGenerationState)) return;
-        if (!"QUIESCED".equals(state.runtimeGenerationState)) fail("DEPENDENCY_GENERATION_NOT_QUIESCED");
-        var spec = store.spec(graph);
-        var connection = provisioning.ownedDependencyConnection(graph.getTargetProfileId(), environment(graph));
-        for (String slot : List.copyOf(state.runtimeGenerationStoppedSlots)) {
-            var service = spec.services().stream().filter(value -> slot.equals(value.slot()))
-                .findFirst().orElseThrow(() -> conflict("DEPENDENCY_GENERATION_SLOT_MISSING"));
-            if (service.contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1) {
-                fail("DEPENDENCY_GENERATION_SLOT_INVALID");
-            }
-            var current = store.state(store.read(graph.getId()));
-            var node = node(current, slot);
-            provisioning.resumeOwnedDependencyAfterRuntimeGeneration(
-                connection, graph.getId(), node.serviceRef, slot, node.applicationUuid,
-                generationCheckpoint(graph.getId(), operationKey)
-            );
-            store.mutate(graph.getId(), null, (owned, currentState) -> {
-                requireGenerationOperation(owned, currentState, operationKey);
-                currentState.runtimeGenerationStoppedSlots.remove(slot);
-            });
-        }
-        store.mutate(graph.getId(), null, (current, currentState) -> {
-            requireGenerationOperation(current, currentState, operationKey);
-            if (!currentState.runtimeGenerationStoppedSlots.isEmpty()) fail("DEPENDENCY_GENERATION_RESUME_INCOMPLETE");
-            currentState.runtimeGenerationState = "RESUMED";
-        });
-    }
-
-    private ManagedDependencyGraphEntity generationGraph(String deploymentId, String targetProfileId, String nextVersionId) {
-        var graph = store.find(deploymentId, targetProfileId).orElse(null);
-        if (graph == null) return null;
-        if (!deploymentId.equals(graph.getDeploymentId()) || !targetProfileId.equals(graph.getTargetProfileId())
-            || !nextVersionId.equals(graph.getVersionId()) || graph.getWorkerToken() != null
-            || !generationGraphPrepared(graph)) fail("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        return graph;
-    }
-
-    private boolean generationGraphPrepared(ManagedDependencyGraphEntity graph) {
-        // Reapply prepares foundations before quiescing the existing runtime-bound Inbox.
-        return "READY".equals(graph.getStatus()) || "PROVISIONED".equals(graph.getStatus())
-            && "RUNTIME_INITIALIZATION_REQUIRED".equals(graph.getStep()) && graph.getFailureCode() == null;
-    }
-
-    private void beginGenerationTransition(String graphId, String operationKey) {
-        store.mutate(graphId, null, (graph, state) -> {
-            if (state.runtimeGenerationOperationKey != null && !state.runtimeGenerationOperationKey.equals(operationKey)
-                && !"RESUMED".equals(state.runtimeGenerationState)) fail("DEPENDENCY_GENERATION_OPERATION_CONFLICT");
-            if (!operationKey.equals(state.runtimeGenerationOperationKey)) {
-                state.runtimeGenerationOperationKey = operationKey;
-                state.runtimeGenerationState = "QUIESCING";
-                state.runtimeGenerationStoppedSlots.clear();
-            }
-        });
-    }
-
-    private void requireGenerationOperation(ManagedDependencyGraphEntity graph, ManagedDependencyState state,
-            String operationKey) {
-        if (!operationKey.equals(state.runtimeGenerationOperationKey) || graph.getWorkerToken() != null
-            || !generationGraphPrepared(graph)) fail("DEPENDENCY_GENERATION_OPERATION_CHANGED");
-    }
-
-    private PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint generationCheckpoint(
-            String graphId, String operationKey) {
-        return new PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint() {
-            @Override public void guard() {
-                var current = store.read(graphId);
-                requireGenerationOperation(current, store.state(current), operationKey);
-            }
-            @Override public void creating(String kind) { fail("DEPENDENCY_GENERATION_RESOURCE_CREATION_FORBIDDEN"); }
-            @Override public void created(String kind, String uuid) { fail("DEPENDENCY_GENERATION_RESOURCE_CREATION_FORBIDDEN"); }
-            @Override public void volume(String mountPath, String uuid) { fail("DEPENDENCY_GENERATION_RESOURCE_CREATION_FORBIDDEN"); }
-            @Override public void volumeReclamationPlanned(Map<String, String> volumeNamesByUuid) { fail("DEPENDENCY_GENERATION_RESOURCE_RECLAMATION_FORBIDDEN"); }
-            @Override public void volumesReclaimed(Set<String> volumeUuids) { fail("DEPENDENCY_GENERATION_RESOURCE_RECLAMATION_FORBIDDEN"); }
-        };
-    }
-
-    private String generationOperationKey(ManagedDependencyGraphEntity graph, String previousReleaseId,
-            String nextReleaseId) {
-        required(previousReleaseId, 64);
-        required(nextReleaseId, 64);
-        return validator.fingerprint(List.of("RUNTIME_GENERATION", graph.getId(), graph.getTargetProfileId(),
-            previousReleaseId, nextReleaseId, graph.getSpecFingerprint(), graph.getBindingFingerprint()));
     }
 
     private List<ManagedDependencyPrerequisites.Binding> bindingProjection(String deploymentId, String targetProfileId,

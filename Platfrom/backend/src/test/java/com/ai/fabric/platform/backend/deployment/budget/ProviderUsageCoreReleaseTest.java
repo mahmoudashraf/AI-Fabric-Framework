@@ -53,6 +53,17 @@ class ProviderUsageCoreReleaseTest {
         assertNoDebit();
     }
 
+    @Test void missingCoreAuthorizationCannotUseLegacyIssuanceOrMintAReplacement() {
+        f.service.approveGrant(f.runtimeGrant()); authorize("deployment", "FUNDED");
+        f.jdbc.update("DELETE FROM platform_release_authorizations");
+        dropAdmissionTables(); SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> f.service.prepareForAuthorizedRelease("release-deployment"))
+            .hasMessageContaining("CORE_AUTHORIZATION_REQUIRED");
+        assertThatThrownBy(() -> f.service.findForAuthorizedRelease("release-deployment"))
+            .hasMessageContaining("CORE_AUTHORIZATION_REQUIRED");
+        assertNoDebit();
+    }
+
     @Test void expiryDoesNotReissueTheGrantOrDisableItsContract() {
         f.service.approveGrant(f.runtimeGrant()); authorize("deployment", "FUNDED"); dropAdmissionTables();
         var allocation = f.service.prepareForAuthorizedRelease("release-deployment");
@@ -86,9 +97,9 @@ class ProviderUsageCoreReleaseTest {
 
     @Test void deniedOrIncompleteCoreRecordNeverFallsBackToTheValidLegacyAdmissionReceipt() {
         f.service.approveGrant(f.runtimeGrant()); authorize("deployment", "FUNDED");
-        f.jdbc.update("UPDATE platform_release_authorizations SET decision='DENY'");
+        ProviderUsageCoreReleaseTestSchema.decision(f.jdbc, "DENY", "a".repeat(64));
         assertThatThrownBy(() -> f.service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_DENIED");
-        f.jdbc.update("UPDATE platform_release_authorizations SET decision='BYPASSED',request_fingerprint=NULL");
+        ProviderUsageCoreReleaseTestSchema.decision(f.jdbc, "BYPASSED", null);
         assertThatThrownBy(() -> f.service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_CHANGED");
         assertNoDebit();
     }
@@ -110,11 +121,12 @@ class ProviderUsageCoreReleaseTest {
 
     @Test void oldFundedAllocationHistoryAndStoreSurviveNewCoreReleaseWithoutAdmissionReadback() {
         var grant = f.runtimeGrant(); f.service.approveGrant(grant);
-        var old = f.service.allocate(new AllocationCommand(grant.id(), "deployment", "target", grant.credits(), grant.binding(),
-            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(f.secretValue.get())), f.r7("deployment"));
+        var old = f.seedHistoricalAllocation(new AllocationCommand(grant.id(), "deployment", "target", grant.credits(), grant.binding(),
+            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(f.secretValue.get())));
+        authorize("deployment", "FUNDED");
         var store = UUID.randomUUID();
-        f.service.markInitialized(old.scope(), store, old.runtimeAllocationFingerprint());
-        var active = f.service.markActive(old.scope(), store, old.runtimeAllocationFingerprint());
+        f.service.markInitializedForAuthorizedRelease("release-deployment", store, old.runtimeAllocationFingerprint());
+        var active = f.service.markActiveForAuthorizedRelease("release-deployment", store, old.runtimeAllocationFingerprint());
         String originalTerms = f.jdbc.queryForObject("SELECT payload_json FROM provider_usage_allocations", String.class);
         authorize("deployment", "FUNDED"); dropAdmissionTables(); SecurityContextHolder.clearContext();
         assertThat(f.service.prepareForAuthorizedRelease("release-deployment")).isEqualTo(active);
@@ -184,7 +196,7 @@ class ProviderUsageCoreReleaseTest {
     private void authorize(String deployment, String mode) {
         f.authorizeRelease(deployment);
         f.jdbc.update("UPDATE platform_deployment_releases SET source_artifact_id='artifact' WHERE id=?", "release-" + deployment);
-        ProviderUsageCoreReleaseTestSchema.authorize(f.jdbc, deployment, mode);
+        f.jdbc.update("UPDATE platform_release_authorizations SET provider_usage_mode=? WHERE release_id=?", mode, "release-" + deployment);
     }
 
     private AllocationTerms terms(SafeAllowanceProjection allocation) {
@@ -201,7 +213,7 @@ class ProviderUsageCoreReleaseTest {
     private void dropAdmissionTables() {
         for (String table : List.of("deployment_admission_release_bindings", "deployment_admission_authorizations",
             "deployment_admission_activity_watermarks", "deployment_admission_extension_commands", "deployment_capacity_reservations",
-            "deployment_admission_reviews", "deployment_admission_mutex")) f.jdbc.execute("DROP TABLE " + table);
+            "deployment_admission_reviews", "deployment_admission_mutex")) f.jdbc.execute("DROP TABLE IF EXISTS " + table);
     }
 
     static class Fixture extends ProviderUsageAllowanceContract {

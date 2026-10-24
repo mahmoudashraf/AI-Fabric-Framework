@@ -30,6 +30,7 @@ class DeploymentOperationsServiceTest {
     private final ProviderUsageModeResolver modes = mock(ProviderUsageModeResolver.class);
     private final CustomerOfferDeploymentRepository offers = mock(CustomerOfferDeploymentRepository.class);
     private final CustomerOfferEntitlementService entitlements = mock(CustomerOfferEntitlementService.class);
+    private final Definition definition = mock(Definition.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final DeploymentOperationsService service = new DeploymentOperationsService(properties, client, store, modes,
         offers, entitlements, mapper, new CustomerOfferCodec(mapper));
@@ -45,7 +46,6 @@ class DeploymentOperationsServiceTest {
         release.setDeploymentVersionId("version"); release.setSourceArtifactId("artifact");
         when(modes.resolve(deployment, "staging")).thenReturn("TEAM_AUTHORIZED");
         var offer = new CustomerOfferEntity("offer", "{}", "hash", "review", "admin", Instant.now());
-        var definition = mock(Definition.class);
         when(definition.topology()).thenReturn(new ReviewedTopology(1, 2000, 4096, 6144, 1, 2, 1, 1));
         when(definition.aiStateStorageTopologies()).thenReturn(Map.of());
         when(entitlements.requireOffer("offer")).thenReturn(offer);
@@ -70,6 +70,41 @@ class DeploymentOperationsServiceTest {
         assertThat(result.status()).isEqualTo("BYPASSED");
         verify(client, times(1)).assess(any());
         verify(store).save(deployment, version, release, "command", "TEAM_AUTHORIZED", result);
+    }
+
+    @Test void unavailableOptionalDemandBypassesWithoutHttpAndStillPersistsCoreAuthorization() {
+        properties.setMode(Mode.ENFORCE);
+        when(definition.topology()).thenReturn(null);
+
+        var result = service.authorize(deployment, version, release, "command");
+
+        assertThat(result.status()).isEqualTo("BYPASSED");
+        assertThat(result.reason()).isEqualTo("OPERATIONS_DEMAND_UNAVAILABLE");
+        assertThat(result.assessmentId()).isNull();
+        assertThat(result.requestFingerprint()).isNotBlank();
+        verifyNoInteractions(client);
+        verify(store).save(deployment, version, release, "command", "TEAM_AUTHORIZED", result);
+    }
+
+    @Test void mismatchedCustomerCannotBecomeAnOptionalDemandOutageBypass() {
+        properties.setMode(Mode.ENFORCE);
+        when(offers.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(
+            "deployment", "foreign-customer", "tenant", "offer", "staging", "hash", 1, "bootstrap", Instant.now())));
+
+        assertThatThrownBy(() -> service.authorize(deployment, version, release, "command"))
+            .hasMessage("CORE_RELEASE_AUTHORIZATION_SCOPE_CHANGED");
+
+        verifyNoInteractions(client, store, entitlements);
+    }
+
+    @Test void corruptCoreDefinitionCannotBecomeAnOptionalDemandOutageBypass() {
+        properties.setMode(Mode.ENFORCE);
+        when(entitlements.definition(any())).thenThrow(new IllegalStateException("CORE_DEFINITION_INVALID"));
+
+        assertThatThrownBy(() -> service.authorize(deployment, version, release, "command"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("CORE_DEFINITION_INVALID");
+
+        verifyNoInteractions(client, store);
     }
 
     @Test void explicitHealthyDenialCannotBecomeAnOutageBypass() {

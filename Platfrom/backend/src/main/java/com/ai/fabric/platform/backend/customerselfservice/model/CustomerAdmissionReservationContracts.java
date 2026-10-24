@@ -2,12 +2,13 @@ package com.ai.fabric.platform.backend.customerselfservice.model;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.Instant;
 
-/** Customer-safe admission contracts. Capacity and provider evidence remain staff-owned. */
+/** Legacy request shapes and read-only history. These records cannot authorize capacity operations. */
 public final class CustomerAdmissionReservationContracts {
     private CustomerAdmissionReservationContracts() { }
 
@@ -42,7 +43,7 @@ public final class CustomerAdmissionReservationContracts {
                           String expiryState,
                           Instant keepUntil,
                           boolean occupiesActiveSlot,
-                          com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Vector chargedDemand) {
+                          JsonNode chargedDemand) {
         public Summary(String id, String deploymentId, String targetProfileId, TargetIntent intent, Operation operation,
                        String state, long revision, Instant expiresAt, String expiryState, Instant keepUntil) {
             this(id, deploymentId, targetProfileId, intent, operation, state, revision, expiresAt, expiryState, keepUntil,

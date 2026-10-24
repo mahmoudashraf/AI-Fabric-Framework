@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService;
+import com.ai.fabric.platform.backend.deployment.operations.CoreSourceAccessService;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -45,7 +45,7 @@ class DeploymentIntegrationOperationsServiceTest {
     private final DeploymentTargetContextService targetContexts = mock(DeploymentTargetContextService.class);
     private final DeploymentRuntimeAuthorityService runtimeAuthority = mock(DeploymentRuntimeAuthorityService.class);
     private final CustomerSelfServiceOperationBoundary offerBoundary = mock(CustomerSelfServiceOperationBoundary.class);
-    private final CustomerSourcePrerequisiteRefreshService sourcePrerequisites = mock(CustomerSourcePrerequisiteRefreshService.class);
+    private final CoreSourceAccessService sourceAccess = mock(CoreSourceAccessService.class);
     private final PlatformAuditService auditService = mock(PlatformAuditService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private HttpServer server;
@@ -102,7 +102,7 @@ class DeploymentIntegrationOperationsServiceTest {
             "dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_WRITE), Duration.ofMinutes(5)
         );
-        verify(sourcePrerequisites).ensureFresh(eq(target()),
+        verify(sourceAccess).require(eq(target()),
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_REFRESH),
             eq("reconcile-1"), eq(Set.of(
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC)));
@@ -133,7 +133,7 @@ class DeploymentIntegrationOperationsServiceTest {
         assertThat(response.statusCode()).isEqualTo(202);
         assertThat(path.get()).isEqualTo("/api/admin/connector/integrations/webhooks/neutral-events/events/event-1/replay");
         assertThat(key.get()).isEqualTo("replay-1");
-        verify(sourcePrerequisites).ensureFresh(eq(target()),
+        verify(sourceAccess).require(eq(target()),
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_REFRESH),
             eq("replay-1"), eq(Set.of(
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC)));
@@ -156,7 +156,7 @@ class DeploymentIntegrationOperationsServiceTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("not present in the immutable release configuration");
 
-        verify(sourcePrerequisites, never()).ensureFresh(any(), any(), any(), any());
+        verify(sourceAccess, never()).require(any(), any(), any(), any());
         verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(runtimeAuthority, never()).issuePlatformProxyHeaders(any(), any(), any(), any(), any(), any());
     }
@@ -175,7 +175,7 @@ class DeploymentIntegrationOperationsServiceTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("does not declare a unique reviewed document audience");
 
-        verify(sourcePrerequisites, never()).ensureFresh(any(), any(), any(), any());
+        verify(sourceAccess, never()).require(any(), any(), any(), any());
         verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(runtimeAuthority, never()).issuePlatformProxyHeaders(any(), any(), any(), any(), any(), any());
     }
@@ -191,7 +191,7 @@ class DeploymentIntegrationOperationsServiceTest {
 
         assertThat(service().reconcile(target(), "neutral-source", "reconcile-reviewed").statusCode()).isEqualTo(202);
 
-        verify(sourcePrerequisites).ensureFresh(eq(target()),
+        verify(sourceAccess).require(eq(target()),
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_REFRESH),
             eq("reconcile-reviewed"), eq(Set.of(
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.AUTHENTICATED)));
@@ -313,12 +313,12 @@ class DeploymentIntegrationOperationsServiceTest {
                 }
             }).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Idempotency-Key is required");
         }
-        org.mockito.Mockito.verifyNoInteractions(targetContexts, offerBoundary, sourcePrerequisites, runtimeAuthority);
+        org.mockito.Mockito.verifyNoInteractions(targetContexts, offerBoundary, sourceAccess, runtimeAuthority);
     }
 
     private DeploymentIntegrationOperationsService service() {
         return new DeploymentIntegrationOperationsService(targetContexts, runtimeAuthority, offerBoundary,
-            sourcePrerequisites, auditService, objectMapper);
+            sourceAccess, auditService, objectMapper);
     }
 
     private void configure(DeploymentVersionEntity version) {

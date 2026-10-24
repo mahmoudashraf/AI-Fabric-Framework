@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class DeploymentProviderResourceActionServiceTest {
+    private final DeploymentTargetMutationService targetMutations = mock(DeploymentTargetMutationService.class);
 
     @ParameterizedTest
     @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING",
@@ -41,6 +44,7 @@ class DeploymentProviderResourceActionServiceTest {
         when(handles.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(handle));
         var service = new DeploymentProviderResourceActionService(handles,
             mock(DeploymentTargetProfileRepository.class), providers, audit, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
 
         assertThatThrownBy(() -> service.start(handle.getId(), null)).isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> service.stop(handle.getId(), null)).isInstanceOf(ResponseStatusException.class);
@@ -73,6 +77,7 @@ class DeploymentProviderResourceActionServiceTest {
             mock(PlatformAuditService.class),
             new ObjectMapper()
         );
+        ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
 
         var summaries = service.listResources(null, "dep-123", null, false);
 
@@ -111,6 +116,7 @@ class DeploymentProviderResourceActionServiceTest {
             mock(PlatformAuditService.class),
             new ObjectMapper()
         );
+        ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
 
         var summaries = service.listResources(null, "dep-123", null, true);
 
@@ -119,6 +125,39 @@ class DeploymentProviderResourceActionServiceTest {
         assertThat(summaries.get(0).lastObservedStatus()).isEqualTo("running:healthy");
         assertThat(summaries.get(0).fqdn()).isEqualTo("runtime.example.test");
         verify(resourceHandleRepository).save(handle);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"start", "stop", "restart", "delete", "mark-lifecycle"})
+    void activeApplyRejectsManualMutationBeforeNativeCallsOrLocalChanges(String action) {
+        var handles = mock(DeploymentProviderResourceHandleRepository.class);
+        var providers = mock(DeploymentProviderRegistry.class);
+        var audit = mock(PlatformAuditService.class);
+        var handle = providerHandle("ACTIVE");
+        when(handles.findById(handle.getId())).thenReturn(Optional.of(handle));
+        var service = new DeploymentProviderResourceActionService(handles,
+            mock(DeploymentTargetProfileRepository.class), providers, audit, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            "RELEASE_APPLY_IN_PROGRESS")).when(targetMutations)
+            .requireAvailableForMutation(handle.getDeploymentId(), handle.getTargetProfileId());
+
+        assertThatThrownBy(() -> {
+            switch (action) {
+                case "start" -> service.start(handle.getId(), null);
+                case "stop" -> service.stop(handle.getId(), null);
+                case "restart" -> service.restart(handle.getId(), null);
+                case "delete" -> service.delete(handle.getId(), null);
+                case "mark-lifecycle" -> service.markLifecycleStatus(handle.getId(),
+                    new DeploymentProviderResourceLifecycleRequest("DELETED", "operator review"));
+            }
+        }).isInstanceOfSatisfying(ResponseStatusException.class, error -> {
+            assertThat(error.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+            assertThat(error.getReason()).isEqualTo("RELEASE_APPLY_IN_PROGRESS");
+        });
+        assertThat(handle.getStatus()).isEqualTo("ACTIVE");
+        verify(handles, never()).save(any());
+        verifyNoInteractions(providers, audit);
     }
 
     private static DeploymentProviderResourceHandleEntity providerHandle(String status) {

@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.budget;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts.EffectiveDecision;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 final class ProviderUsageCoreReleaseTestSchema {
     private ProviderUsageCoreReleaseTestSchema() { }
@@ -21,8 +23,21 @@ final class ProviderUsageCoreReleaseTestSchema {
             INSERT INTO platform_release_authorizations
               (release_id,customer_id,tenant_id,deployment_id,target_profile_id,version_id,version_config_hash,source_artifact_id,
                operation_key,actor_id,provider_usage_mode,operations_mode,decision,reason,request_fingerprint,decision_json,created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,'DISABLED','BYPASSED','DISABLED_MANUAL_TEAM',?,'{}',CURRENT_TIMESTAMP)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,'DISABLED','BYPASSED','DISABLED_MANUAL_TEAM',?,?,CURRENT_TIMESTAMP)
             """, "release-" + deploymentId, "customer", "tenant", deploymentId, "target", "version-" + deploymentId,
-            "config-hash", "artifact", "apply-" + deploymentId, "staff", mode, "a".repeat(64));
+            "config-hash", "artifact", "apply-" + deploymentId, "staff", mode, "a".repeat(64),
+            decisionJson("BYPASSED", "a".repeat(64)));
+    }
+
+    static void decision(JdbcTemplate jdbc, String status, String fingerprint) {
+        jdbc.update("UPDATE platform_release_authorizations SET decision=?,request_fingerprint=?,decision_json=?",
+            status, fingerprint, decisionJson(status, fingerprint));
+    }
+
+    private static String decisionJson(String status, String fingerprint) {
+        try {
+            return new ObjectMapper().writeValueAsString(new EffectiveDecision(
+                "DISABLED", status, "DISABLED_MANUAL_TEAM", fingerprint, null, null, null));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) { throw new AssertionError(error); }
     }
 }

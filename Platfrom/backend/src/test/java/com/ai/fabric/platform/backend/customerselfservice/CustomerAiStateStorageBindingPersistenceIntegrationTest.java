@@ -15,8 +15,9 @@ import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArt
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentAiStateStorageContracts;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties;
 import com.ai.fabric.platform.backend.deployment.repository.*;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.deployment.service.*;
 import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationEndpointPolicy;
 import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy;
@@ -44,6 +45,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -99,6 +101,7 @@ import static org.mockito.Mockito.*;
     "spring.jpa.hibernate.ddl-auto=none", "spring.datasource.hikari.maximum-pool-size=6"
 }, showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@EnableConfigurationProperties(DeploymentOperationsProperties.class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -106,7 +109,8 @@ import static org.mockito.Mockito.*;
     CustomerSelfServiceAuthorizationService.class, CustomerReviewedCompositionService.class,
     CustomerWorkspaceProfileValidator.class, CustomerOfferCodec.class, DeploymentAiStateStorageBindingService.class,
     PlatformSecretService.class, PlatformAuditService.class, PlatformCustomerAccessService.class,
-    DeploymentAccessService.class, TargetRetirementGateService.class, ManagedDependencyArtifactPolicy.class,
+    DeploymentAccessService.class, DeploymentTargetMutationService.class, DeploymentDocumentBindingResolver.class,
+    ManagedDependencyArtifactPolicy.class,
     DeploymentSourceCapabilityManifestService.class, ExternalIntegrationPolicy.class, ExternalIntegrationEndpointPolicy.class,
     AIWorkspaceConfigurationValidator.class, AIWorkspaceAssetCatalogService.class, AIWorkspaceExperiencePackRegistry.class,
     AIWorkspaceConnectionProfileRegistry.class, AIWorkspaceAuthenticationProfileRegistry.class,
@@ -391,12 +395,12 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     }
 
     @Test
-    void probeFailureRollsBackTheCommandSigningSecretAuditAndRetirementGate() {
+    void probeFailureRollsBackTheCommandSigningSecretAndAuditWithoutWritingALegacyGate() {
         AtomicBoolean writesObserved = new AtomicBoolean();
         doAnswer(call -> {
             entityManager.flush();
             assertThat(rowCount("platform_secrets", "deployment_id", deploymentId)).isEqualTo(1);
-            assertThat(rowCount("platform_target_retirement_gates", "deployment_id", deploymentId)).isEqualTo(1);
+            assertThat(rowCount("platform_target_retirement_gates", "deployment_id", deploymentId)).isZero();
             writesObserved.set(true);
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "SYNTHETIC_SQL_PROBE_REJECTED");
         }).when(probe).verify(any());
@@ -755,7 +759,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
         }
         @Bean CustomerTargetPlacementService placement(CustomerSelfServiceProperties properties,
             CustomerReviewedCompositionService composition, CustomerOfferCodec codec, CustomerPlacementEvidenceRepository evidence) {
-            // Real cached-evidence validation only; provider HTTP dependencies are deliberately absent.
+            // Real configured-target validation; provider HTTP dependencies are deliberately absent.
             return new CustomerTargetPlacementService(properties, null, null, composition, codec, evidence);
         }
     }

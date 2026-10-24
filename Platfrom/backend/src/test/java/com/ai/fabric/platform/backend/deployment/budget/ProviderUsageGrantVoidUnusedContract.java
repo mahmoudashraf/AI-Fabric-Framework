@@ -91,7 +91,7 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
 
     @Test void evenZeroCreditAllocationRowPreventsUnusedVoid() {
         service.approveGrant(grant());
-        service.allocate(command("deployment", new Limits(0, 0, 0)), r7("deployment"));
+        seedHistoricalAllocation(command("deployment", new Limits(0, 0, 0)));
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
         assertThatThrownBy(() -> service.voidUnused("grant", voidCommand(grant()))).hasMessageContaining("GRANT_NOT_UNUSED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_grant_void_receipts", Integer.class)).isZero();
@@ -99,9 +99,9 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
 
     @Test void usedAndRetiredGrantCannotBeVoidedOrRefunded() {
         var allocation = allocated(); UUID store = UUID.randomUUID();
-        service.markInitialized(allocation.scope(), store, allocation.runtimeAllocationFingerprint());
-        service.markActive(allocation.scope(), store, allocation.runtimeAllocationFingerprint());
-        changeR7("deployment", "state", "RELEASED"); deploymentRows.remove("deployment");
+        service.markInitializedForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint());
+        service.markActiveForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint());
+        deploymentRows.remove("deployment");
         var before = service.readQuota("grant");
         assertThatThrownBy(() -> service.voidUnused("grant", voidCommand(grant()))).hasMessageContaining("GRANT_NOT_UNUSED");
         assertThat(service.readQuota("grant")).isEqualTo(before);
@@ -179,20 +179,20 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
         assertThat(stageQuota.availableForAllocation().costNanoUsd() + productionQuota.availableForAllocation().costNanoUsd()).isEqualTo(12_000_000_000L);
         assertThat(service.approveGrant(original).availableForAllocation()).isEqualTo(new Limits(0, 0, 0));
         assertThatThrownBy(() -> service.approveGrant(copyGrant("duplicate-stage", staging.credits()))).hasMessageContaining("CAMPAIGN_ALREADY_REVIEWED");
-        var allocation = service.allocate(new AllocationCommand(staging.id(), "deployment", "target", staging.credits(), binding,
-            staging.rateCardReference(), command().expectedCredentialSha256()), r7("deployment"));
+        authorizeRelease("deployment");
+        var allocation = service.prepareForAuthorizedRelease("release-deployment");
         assertThat(allocation.caps()).isEqualTo(staging.credits());
         assertThat(service.readQuota(original.id()).lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
     }
 
     @Test void allocationAndVoidRaceHasExactlyOneWinner() throws Exception {
-        service.approveGrant(grant());
+        service.approveGrant(grant()); authorizeRelease("deployment");
         var results = race(2, index -> () -> {
             try {
-                if (index == 0) { instance(NOW).allocate(command(), r7("deployment")); return "allocation"; }
+                if (index == 0) { instance(NOW).prepareForAuthorizedRelease("release-deployment"); return "allocation"; }
                 instance(NOW).voidUnused("grant", voidCommand(grant())); return "void";
             } catch (ProviderUsageAllowanceFailure failure) {
-                assertThat(failure.getReason()).isIn("PROVIDER_USAGE_GRANT_VOID_UNUSED", "PROVIDER_USAGE_GRANT_NOT_UNUSED");
+                assertThat(failure.getReason()).isIn("PROVIDER_USAGE_GRANT_VOID_UNUSED", "PROVIDER_USAGE_GRANT_NOT_UNUSED", "PROVIDER_USAGE_REVIEWED_GRANT_REQUIRED");
                 return "rejected";
             }
         });
@@ -221,7 +221,7 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
         assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-deployment", store, "a".repeat(64))).hasMessageContaining("REVIEWED_GRANT_REQUIRED");
         assertThatThrownBy(() -> service.markActiveForAuthorizedRelease("release-deployment", store, "a".repeat(64))).hasMessageContaining("REVIEWED_GRANT_REQUIRED");
         authenticate(PlatformRole.PLATFORM_ADMIN);
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("GRANT_VOID_UNUSED");
+        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
         verifyNoInteractions(secrets);
     }
@@ -242,9 +242,9 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
         var allocation = allocated();
         jdbc.update("UPDATE provider_usage_grants SET lifecycle_status='VOID_UNUSED' WHERE id='grant'");
         UUID store = UUID.randomUUID();
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("GRANT_VOID_UNUSED");
-        assertThatThrownBy(() -> service.markInitialized(allocation.scope(), store, allocation.runtimeAllocationFingerprint())).hasMessageContaining("GRANT_VOID_UNUSED");
-        assertThatThrownBy(() -> service.markActive(allocation.scope(), store, allocation.runtimeAllocationFingerprint())).hasMessageContaining("GRANT_VOID_UNUSED");
+        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
+        assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint())).hasMessageContaining("GRANT_VOID_UNUSED");
+        assertThatThrownBy(() -> service.markActiveForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint())).hasMessageContaining("GRANT_VOID_UNUSED");
         assertThatThrownBy(() -> service.readAllocation(allocation.scope())).hasMessageContaining("GRANT_VOID_UNUSED");
         assertThatThrownBy(() -> service.findForDeployment("deployment", "target")).hasMessageContaining("GRANT_VOID_UNUSED");
         assertThat(jdbc.queryForObject("SELECT allocated_cost_nano_usd FROM provider_usage_grants WHERE id='grant'", Long.class)).isEqualTo(grant().credits().costNanoUsd());
@@ -253,7 +253,7 @@ abstract class ProviderUsageGrantVoidUnusedContract extends ProviderUsageAllowan
     @Test void durableVoidReceiptStillBlocksAllocationIfStatusWasIncorrectlyReactivated() {
         var original = runtimeGrant(); service.approveGrant(original); service.voidUnused(original.id(), voidCommand(original));
         jdbc.update("UPDATE provider_usage_grants SET lifecycle_status='ACTIVE' WHERE id='grant'");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("GRANT_VOID_UNUSED");
+        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThatThrownBy(() -> service.readQuota("grant")).hasMessageContaining("VOID_RECORD_CHANGED");
         authorizeRelease("deployment"); SecurityContextHolder.clearContext();
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("GRANT_VOID_UNUSED");

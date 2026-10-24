@@ -1,6 +1,6 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** First delivery implemented, deployed and verified on staging and production. The fresh customer journey passed with operations services stopped, then after restoration. Advanced automatic operations remain explicitly deferred.
+**Status:** Direct-service first delivery is verified. The owner has now authorized full removal of legacy operational dependencies from Platform core; that follow-up is in progress. Advanced automatic operations remain deferred, not prerequisites for this work.
 **Date:** 24 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
@@ -58,7 +58,7 @@ Capacity/admission/retirement currently live inside the Platform backend artifac
 
 **Customer authorization and operations policy are mixed.** [CustomerSelfServiceAuthorizationService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/service/CustomerSelfServiceAuthorizationService.java:126) combines entitlement, ownership, permitted configuration and target checks with placement/prerequisite evidence. Its prerequisite validation requires a reservation when `CAPACITY` is required. Disabling capacity therefore needs a deliberate authorization/prerequisite split, not a permissive replacement authorizer.
 
-**Releases require admission allocations.** [AdmissionReleaseCoordinator](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/AdmissionReleaseCoordinator.java:112) rejects an offer-backed release without an allocation binding. [DeploymentService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentService.java:1789) binds admission during release creation. A missing component is not currently an effective manual mode.
+**Releases require admission allocations.** [AdmissionReleaseCoordinator](https://github.com/mahmoudashraf/AI-Fabric-Framework/blob/67bd82919/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/AdmissionReleaseCoordinator.java#L112) rejects an offer-backed release without an allocation binding. [DeploymentService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentService.java:1789) binds admission during release creation. A missing component is not currently an effective manual mode.
 
 **Provisioning crosses admission and funding before native creation.** [DeploymentReleaseExecutionService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseExecutionService.java:306) begins admission provisioning, prepares provider usage, prepares dependencies, provisions resources, then initializes the runtime allowance. These are real sequencing dependencies.
 
@@ -66,11 +66,11 @@ Capacity/admission/retirement currently live inside the Platform backend artifac
 
 **Promotion/readiness and the UI require allocation state.** [CustomerGoLiveReadinessService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/service/CustomerGoLiveReadinessService.java:174) reads the current release reservation. [DeploymentPracticalPromotionService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPracticalPromotionService.java:208) schedules staging retirement after activation. [CustomerAdmissionCommands](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/components/customer/customerAdmissionCommands.ts:51) probes placement, lists allocations and reserves before commands. Backend-only bypass would leave the UI blocked.
 
-**Source operations inherit admission coupling.** [DeploymentAdmissionCustomerPrerequisiteEvidenceProvider](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/DeploymentAdmissionCustomerPrerequisiteEvidenceProvider.java:120) resolves source prerequisites using release/allocation state. Document storage, audience and release ownership remain required; a healthy source must not become unusable merely because a capacity policy expired.
+**Source operations inherit admission coupling.** [DeploymentAdmissionCustomerPrerequisiteEvidenceProvider](https://github.com/mahmoudashraf/AI-Fabric-Framework/blob/67bd82919/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/DeploymentAdmissionCustomerPrerequisiteEvidenceProvider.java#L120) resolves source prerequisites using release/allocation state. Document storage, audience and release ownership remain required; a healthy source must not become unusable merely because a capacity policy expired.
 
-**Replacement incorporates draining.** [CoolifyDeploymentProvider](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/CoolifyDeploymentProvider.java:1306) invokes runtime `drainAndFence` during generation replacement. The [generation coordinator](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/generation/DeploymentRuntimeGenerationService.java:83) is more than a capacity check. Cold replacement needs its own simple execution strategy, not a fabricated graceful-drain receipt.
+**Replacement incorporates draining.** [CoolifyDeploymentProvider](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/CoolifyDeploymentProvider.java:1306) invokes runtime `drainAndFence` during generation replacement. The [generation coordinator](https://github.com/mahmoudashraf/AI-Fabric-Framework/blob/67bd82919/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/generation/DeploymentRuntimeGenerationService.java#L83) is more than a capacity check. Cold replacement needs its own simple execution strategy, not a fabricated graceful-drain receipt.
 
-**Recovery also runs on ordinary paths.** [DeploymentReleaseRecoveryService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseRecoveryService.java:83) marks interrupted releases on startup and contains reconciliation/redispatch behavior; [DeploymentService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentService.java:500) invokes recovery during ordinary operations. Basic truthful interruption reporting should remain; advanced reconstruction/resume policy should become optional.
+**Recovery also runs on ordinary paths.** [DeploymentReleaseRecoveryService](https://github.com/mahmoudashraf/AI-Fabric-Framework/blob/67bd82919/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseRecoveryService.java#L83) marks interrupted releases on startup and contains reconciliation/redispatch behavior; [DeploymentService](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentService.java:500) invokes recovery during ordinary operations. Basic truthful interruption reporting should remain; advanced reconstruction/resume policy should become optional.
 
 **Worker toggles are not a feature bypass.** [Current application settings](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/resources/application.yml:153) can disable admission lifecycle/release workers, notices and retirement scheduling. Those flags do not remove request-time prerequisites or funding's SQL dependencies.
 
@@ -395,6 +395,61 @@ No new public framework release, semantic text matching, AI fallback, business-s
 **Stop rule:** Phase one is complete when the real product journey works with the operations component absent, real failures are clear, core security/ownership hold and the chosen provider-use mode is honest. Do not make the first delivery wait for automated handling of every uncertain historical release.
 
 ## 10. Current Tracking
+
+### Full Core Decoupling Follow-Up: Authorized 24 October 2026
+
+The first delivery removed policy prerequisites from the normal journey but retained
+legacy admission, retirement, generation and recovery components in the backend
+dependency graph. The owner explicitly requested completing the separation rather
+than retaining disabled machinery as a permanent architecture.
+
+- [x] Remove legacy operational components and their direct wiring from the active backend artifact. Preserve existing migrations, financial records, source ownership and audit history. Packaged-artifact absence is verified locally; hosted rollout remains below.
+- [x] Make cold replacement an explicit core lifecycle: stop owned connectors/index workers, stop and confirm the runtime, retain state, start and verify the replacement. No drain certificate, reservation or artifact-repair journal selects that path. Source compiles; integrated and hosted verification remain separate checks below.
+- [x] Keep minimal core target-mutation exclusion, command identity, exact artifact provenance and truthful interruption/failure reporting. Native resource mutations also use the core target guard; ordinary reads never redispatch provider effects.
+- [x] Decouple customer readiness, source access, assignments, funding and required dependency provisioning from old operational classes. Historical records cannot authorize new provider effects. Customer historical operations are scoped read-only projections; retired mutation routes reject explicitly.
+- [x] Add an architectural regression that prevents legacy admission/retirement/generation classes from returning to the active core artifact, plus focused basic lifecycle/security/funding tests.
+- [ ] Verify a fresh hosted staging deployment, same-target cold replacement with retained AI state, production promotion and the same Engage app switch; check indexing, chat, sign-in, actions and handover without the operations service. Failed-stop/non-redispatch behavior is covered by focused tests, not by manufacturing a hosted provider outage.
+- [ ] Record actual images, test results and hosted changes; remove only owned temporary proof resources and coordinate shared firewall closure with the main task.
+
+The main dealership-quality stream is paused by the owner during this follow-up.
+Its existing canary, original app assignment, financial terms and quality evidence
+are preserved. No framework semantic changes or unrelated UI redesign are included.
+
+**Local verification:** Main source and all test source compile. The final bounded
+selection covers 72 classes and 1,484 non-overlapping passing tests, with zero
+failures, errors or skips in the qualified pass set. This is not one all-green
+command: the initial clean run executed 1,483 tests with two failures in newly
+added policy-boundary test fixtures. A test-only correction and focused three-class
+rerun passed 14 tests and packaged successfully. Per-suite replacement, rather
+than summing overlapping runs, produces the qualified count. Critical PostgreSQL,
+source ownership, funding, cold-stop, interruption, startup and architecture checks
+passed. Original logs, both class selections and XML reports are retained under
+`/tmp/01046-final-integrated-20261024193922Z/`. The packaged JAR SHA-256 is
+`04cd01e7de6b22842379cdb511daf523f606ec198d184818dd84521c07f9c409`;
+it contains no admission/retirement/generation package classes or listed retired
+engines, and contains all required core lifecycle/provider classes. Earlier focused
+runs (244 customer/source tests, 261 funding/dependency tests and 27 dependency
+tests) overlap and are not added to the final count. This is local evidence, not
+hosted acceptance.
+Obsolete operational engines and their specific tests are removed from the active
+build, with Git history and all database migrations retained. Native ownership,
+volume verification and financial invariants retain focused regression coverage.
+
+The hosted cold-replacement acceptance is for the actual Coolify targets. Release
+metadata explicitly reports `COLD_REPLACE` for Coolify and `PROVIDER_NATIVE` for
+other adapters. Railway's native deployment behavior is retained, not mislabeled
+as a verified single-writer cold-stop implementation. Extending that provider's
+replacement semantics is a separate provider-specific task, not a new dependency
+of the existing Coolify customer journey.
+
+The cold-upgrade audit identified a normal-path integration gap: an external
+vector binding rejected every later published configuration version solely because
+its version ID/configuration hash differed. The connection now remains target-owned:
+its original published approval/hash is still verified, while a later reviewed
+version may reuse the same endpoint, credentials, authentication type and
+tenant/deployment/target namespace. No old binding is rewritten, no vector records
+are transferred and no foreign target or credential rotation is implicitly allowed.
+This is required for a real version upgrade, not an automatic recovery mechanism.
 
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.

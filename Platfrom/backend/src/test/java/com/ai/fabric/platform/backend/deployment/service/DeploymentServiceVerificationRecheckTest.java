@@ -66,7 +66,6 @@ class DeploymentServiceVerificationRecheckTest {
     private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
     private final DeploymentReleaseVerificationService verification = mock(DeploymentReleaseVerificationService.class);
     private final DeploymentReleaseExecutionService execution = mock(DeploymentReleaseExecutionService.class);
-    private final DeploymentReleaseRecoveryService recovery = mock(DeploymentReleaseRecoveryService.class);
     private final CustomerSelfServiceOperationBoundary boundary = mock(CustomerSelfServiceOperationBoundary.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final ObjectMapper mapper = new ObjectMapper();
@@ -101,7 +100,7 @@ class DeploymentServiceVerificationRecheckTest {
             mock(DeploymentPromptRevisionRepository.class), versions, releases, runs,
             mock(DeploymentConfigCompiler.class), mock(DeploymentDraftValidationService.class),
             mock(DeploymentProvisioningService.class), mock(RailwayProvisioningPlanService.class),
-            verification, execution, recovery, mock(DeploymentServiceConfigModelService.class),
+            verification, execution, mock(DeploymentServiceConfigModelService.class),
             mock(DeploymentServiceNavigationService.class), mock(DeploymentProductionReadinessScorecardService.class),
             mock(DeploymentProviderConnectivityService.class), mock(DeploymentSecretUsageService.class),
             mock(DeploymentSecurityGovernanceService.class), mock(DeploymentSourceOfTruthService.class),
@@ -178,6 +177,25 @@ class DeploymentServiceVerificationRecheckTest {
         SecurityContextHolder.clearContext();
     }
 
+    @Test
+    void legacyRecoveryIsExplicitlyRetiredForAnAuthorizedOperatorWithoutDispatch() {
+        assertThatThrownBy(() -> service.reconcileLatestRelease("dep-1"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, error -> {
+                assertThat(error.getStatusCode()).isEqualTo(HttpStatus.GONE);
+                assertThat(error.getReason()).contains("LEGACY_RELEASE_RECOVERY_RETIRED");
+            });
+        verifyNoInteractions(releases, versions, verification, execution, runs, boundary, audit);
+    }
+
+    @Test
+    void legacyRecoveryStillRejectsAForeignCustomerBeforeRevealingRetirement() {
+        deployment.setCustomerId("another-customer");
+        assertThatThrownBy(() -> service.reconcileLatestRelease("dep-1"))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        verifyNoInteractions(releases, versions, verification, execution, runs, boundary, audit);
+    }
+
     @ParameterizedTest
     @CsvSource({"FAILED, PASSED", "APPLIED_VERIFIED, PASSED", "FAILED, FAILED", "APPLIED_VERIFIED, FAILED"})
     void rechecksExactStagingReleaseAfterProductionWithoutChangingGlobalProjection(String productionStatus, String result) {
@@ -215,7 +233,6 @@ class DeploymentServiceVerificationRecheckTest {
         verify(deployments, never()).save(any());
         verify(verification).verify(deployment, version, staging, "MANUAL_RERUN");
         verifyNoMoreInteractions(verification);
-        verifyNoInteractions(recovery);
         verify(versions, never()).findById("ver-production");
         verify(releases, never()).findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(anyString(), anyString());
         verify(boundary).require(eq(deployment), eq("target-staging"), eq("rel-staging"), eq(Operation.VERIFY),
@@ -264,7 +281,7 @@ class DeploymentServiceVerificationRecheckTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void omittedReleaseRetainsLegacyLatestActiveVersionSelectionAndRecovery(boolean useOverload) {
+    void omittedReleaseRetainsLatestActiveVersionSelectionWithoutRecovery(boolean useOverload) {
         var activeVersion = new DeploymentVersionEntity();
         activeVersion.setId("ver-production");
         activeVersion.setDeploymentId("dep-1");
@@ -279,7 +296,6 @@ class DeploymentServiceVerificationRecheckTest {
         assertThat(summary.releaseId()).isEqualTo("rel-production");
         assertThat(summary.deploymentVersionId()).isEqualTo("ver-production");
         assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
-        verify(recovery).reconcileLatestInProgressRelease("dep-1");
         verify(deployments).save(deployment);
         verifyNoInteractions(boundary, profiles, handles);
         verify(releases, never()).findById(anyString());
@@ -291,7 +307,7 @@ class DeploymentServiceVerificationRecheckTest {
 
         assertRejected(HttpStatus.NOT_FOUND);
 
-        verifyNoInteractions(releases, versions, profiles, handles, boundary, recovery);
+        verifyNoInteractions(releases, versions, profiles, handles, boundary);
     }
 
     @Test
@@ -300,7 +316,7 @@ class DeploymentServiceVerificationRecheckTest {
 
         assertRejected(HttpStatus.NOT_FOUND);
 
-        verifyNoInteractions(versions, profiles, handles, boundary, recovery);
+        verifyNoInteractions(versions, profiles, handles, boundary);
         verify(releases, never()).findTopByDeploymentIdOrderByCreatedAtDesc(anyString());
     }
 
@@ -310,7 +326,7 @@ class DeploymentServiceVerificationRecheckTest {
 
         assertRejected(HttpStatus.NOT_FOUND);
 
-        verifyNoInteractions(versions, profiles, handles, boundary, recovery);
+        verifyNoInteractions(versions, profiles, handles, boundary);
         verify(releases, never()).findTopByDeploymentIdOrderByCreatedAtDesc(anyString());
     }
 
@@ -329,7 +345,7 @@ class DeploymentServiceVerificationRecheckTest {
 
         assertRejected(HttpStatus.CONFLICT);
 
-        verifyNoInteractions(boundary, recovery);
+        verifyNoInteractions(boundary);
     }
 
     @Test
@@ -339,8 +355,6 @@ class DeploymentServiceVerificationRecheckTest {
                 anyString(), eq(Map.of()), isNull(), isNull(), isNull());
 
         assertRejected(HttpStatus.FORBIDDEN);
-
-        verifyNoInteractions(recovery);
     }
 
     @ParameterizedTest
@@ -365,7 +379,7 @@ class DeploymentServiceVerificationRecheckTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                     error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
         }
-        verifyNoInteractions(releases, versions, verification, recovery, runs, boundary, audit);
+        verifyNoInteractions(releases, versions, verification, runs, boundary, audit);
     }
 
     @ParameterizedTest
@@ -376,7 +390,7 @@ class DeploymentServiceVerificationRecheckTest {
 
         assertRejected("ARCHIVED".equals(state) ? HttpStatus.BAD_REQUEST : HttpStatus.CONFLICT);
 
-        verifyNoInteractions(releases, versions, boundary, recovery);
+        verifyNoInteractions(releases, versions, boundary);
     }
 
     private void assertRejected(HttpStatus status) {

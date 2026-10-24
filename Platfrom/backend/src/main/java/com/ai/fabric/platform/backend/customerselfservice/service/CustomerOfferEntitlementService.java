@@ -25,8 +25,6 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 
 @Service
 public class CustomerOfferEntitlementService {
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties operationsProperties;
     private final CustomerOfferRepository offers;
     private final CustomerOfferEntitlementRepository entitlements;
     private final CustomerEntitlementCommandRepository commands;
@@ -68,8 +66,7 @@ public class CustomerOfferEntitlementService {
         if (offers.existsById(request.offerId())) throw conflict(OFFER_IMMUTABLE);
         for (TargetPermission permission : request.definition().targets()) {
             var profile = profiles.findById(permission.targetProfileId()).orElseThrow(() -> conflict(UNENTITLED_TARGET));
-            if (operationsProperties != null) placement.requireConfiguredPlacement(profile, permission.intent());
-            else placement.requireFreshEvidence(profile, permission.intent());
+            placement.requireConfiguredPlacement(profile, permission.intent());
         }
         offers.saveAndFlush(new CustomerOfferEntity(request.offerId(), codec.write(request.definition()), hash,
             request.reviewReference(), PlatformSecurityContext.currentPrincipal().actorId(), Instant.now()));

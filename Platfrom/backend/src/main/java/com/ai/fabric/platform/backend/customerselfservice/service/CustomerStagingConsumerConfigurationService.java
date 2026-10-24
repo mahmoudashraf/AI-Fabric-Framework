@@ -38,8 +38,6 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 /** Configuration only: reuses the canonical consumer binding/history and atomic draft-origin projection. */
 @Service
 public class CustomerStagingConsumerConfigurationService {
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties operationsProperties;
     private static final String KIND = "CONFIGURE_EXISTING_STAGING_CONSUMER_V1";
     // This is the existing schema's configuration category, not a new-consumer creation receipt.
     private static final String COMMAND_TYPE = "BOOTSTRAP_CONFIG";
@@ -173,12 +171,11 @@ public class CustomerStagingConsumerConfigurationService {
         var draft = (DeploymentDraftEntity) drafts.getFirst(); entityManager.refresh(draft);
         if (!deployment.getId().equals(draft.getDeploymentId()) || !Set.of("DRAFT", "MODIFIED").contains(draft.getStatus()))
             throw conflict(RELEASE_IN_PROGRESS);
-        for (String table : List.of("platform_deployment_versions", "platform_deployment_releases", "deployment_admission_release_bindings",
+        for (String table : List.of("platform_deployment_versions", "platform_deployment_releases",
             "deployment_managed_dependency_graphs", "provider_usage_allocations", "platform_deployment_managed_vector_resources",
             "platform_tenant_scoped_vector_resources", "platform_vectorization_runs", "platform_vectorization_runner_sessions",
-            "platform_target_retirement_operations", "platform_deployment_deletion_operations",
+            "platform_deployment_deletion_operations",
             "platform_runtime_target_authorities", "platform_runtime_authority_snapshots", "deployment_external_integration_snapshots")) {
-            if (operationsProperties != null && "deployment_admission_release_bindings".equals(table)) continue;
             if (((Number) entityManager.createNativeQuery("SELECT count(*) FROM " + table + " WHERE deployment_id=?1")
                 .setParameter(1, deployment.getId()).getSingleResult()).longValue() != 0) throw conflict(RELEASE_IN_PROGRESS);
         }

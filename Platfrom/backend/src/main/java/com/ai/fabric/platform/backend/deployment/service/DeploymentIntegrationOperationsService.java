@@ -6,7 +6,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService;
+import com.ai.fabric.platform.backend.deployment.operations.CoreSourceAccessService;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -46,7 +46,7 @@ public class DeploymentIntegrationOperationsService {
     private final DeploymentTargetContextService targetContexts;
     private final DeploymentRuntimeAuthorityService runtimeAuthority;
     private final CustomerSelfServiceOperationBoundary offerBoundary;
-    private final CustomerSourcePrerequisiteRefreshService sourcePrerequisites;
+    private final CoreSourceAccessService sourceAccess;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -55,14 +55,14 @@ public class DeploymentIntegrationOperationsService {
         DeploymentTargetContextService targetContexts,
         DeploymentRuntimeAuthorityService runtimeAuthority,
         CustomerSelfServiceOperationBoundary offerBoundary,
-        CustomerSourcePrerequisiteRefreshService sourcePrerequisites,
+        CoreSourceAccessService sourceAccess,
         PlatformAuditService auditService,
         ObjectMapper objectMapper
     ) {
         this.targetContexts = targetContexts;
         this.runtimeAuthority = runtimeAuthority;
         this.offerBoundary = offerBoundary;
-        this.sourcePrerequisites = sourcePrerequisites;
+        this.sourceAccess = sourceAccess;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
@@ -231,7 +231,7 @@ public class DeploymentIntegrationOperationsService {
                 Operation.SOURCE_REFRESH, operationKey, Map.of(), null, null, null);
             return new OperationAccess(context);
         }
-        sourcePrerequisites.ensureFresh(target, Operation.SOURCE_REFRESH, operationKey, audiences);
+        sourceAccess.require(target, Operation.SOURCE_REFRESH, operationKey, audiences);
         for (DocumentAudience audience : audiences) {
             offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(),
                 Operation.SOURCE_REFRESH, operationKey,

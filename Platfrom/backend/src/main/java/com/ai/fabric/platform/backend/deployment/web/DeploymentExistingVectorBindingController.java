@@ -2,7 +2,6 @@ package com.ai.fabric.platform.backend.deployment.web;
 
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Summary;
-import com.ai.fabric.platform.backend.deployment.model.UnusedVectorBindingHandoffContracts;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import org.springframework.http.HttpStatus;
@@ -37,17 +36,7 @@ public class DeploymentExistingVectorBindingController {
         return service.get(deploymentId, targetId);
     }
 
-    @PostMapping("/handoff-unused")
-    public UnusedVectorBindingHandoffContracts.Receipt handoff(@PathVariable String deploymentId, @PathVariable String targetId,
-            @RequestBody UnusedVectorBindingHandoffContracts.Request request) {
-        return service.handoffUnused(deploymentId, targetId, request);
-    }
 
-    @GetMapping("/handoff-unused/{operationKey}")
-    public UnusedVectorBindingHandoffContracts.Receipt handoffReceipt(@PathVariable String deploymentId, @PathVariable String targetId,
-            @PathVariable String operationKey) {
-        return service.getUnusedHandoff(deploymentId, targetId, operationKey);
-    }
 
     @RestControllerAdvice(assignableTypes = DeploymentExistingVectorBindingController.class)
     public static class InvalidBindingRequestHandler {

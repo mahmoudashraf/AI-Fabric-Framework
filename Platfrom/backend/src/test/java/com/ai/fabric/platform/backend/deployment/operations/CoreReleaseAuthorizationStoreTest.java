@@ -72,6 +72,12 @@ class CoreReleaseAuthorizationStoreTest {
         assertThatThrownBy(() -> store.find("release")).hasMessage("CORE_RELEASE_AUTHORIZATION_CHANGED");
     }
 
+    @Test void missingAuthorizationCannotBeInferredFromAnExistingRelease() {
+        assertThatThrownBy(() -> store.require(deployment, version, release))
+            .hasMessageContaining("CORE_RELEASE_AUTHORIZATION_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM platform_release_authorizations", Integer.class)).isZero();
+    }
+
     private void save() {
         store.save(deployment, version, release, "command", "TEAM_AUTHORIZED",
             new EffectiveDecision("DISABLED", "BYPASSED", "DISABLED_MANUAL_TEAM", "c".repeat(64), null, null, Instant.now()));

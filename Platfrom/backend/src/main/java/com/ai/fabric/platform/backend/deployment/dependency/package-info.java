@@ -67,7 +67,7 @@
  * password or an explicitly reviewed H2 file path and persistent volume is mandatory.
  * Runtime binding maps the returned provider/callback secret refs, never an operator key.
  *
- * <h2>Operator and retirement contracts</h2>
+ * <h2>Operator contracts</h2>
  * Only the persisted CUSTOMER_ADMIN owner enrolls operators. No platform roles are granted.
  * API prefix: /api/deployments/{deploymentId}/targets/{targetProfileId}/managed-dependencies.
  * GET status never returns keys or secret refs. POST operators enrolls; POST
@@ -79,15 +79,12 @@
  * key accepted. Revoking the last operator invokes disableAndVerifyBinding and stops/readbacks
  * the owned Inbox without deleting its database/volume. Selected disabled Inbox blocks readiness.
  *
- * R3 calls retirement.plan then retire/compensateUnused with expectedRevision, plan fingerprint
- * and operation key. It must hold its activation/retirement admission barrier throughout execution.
- * requireUnused rechecks assignments, generations, drained human work and retention before each
- * destructive step. verifyReclaimed must prove physical database/volume reclamation before capacity
- * release; absent application metadata alone is insufficient. Retry the same retirement command
- * after uncertain responses. History and IDs are retained. No deployment-wide deletion is invoked.
- * recoverInterrupted requires proof the old worker process terminated; stale heartbeat alone is
- * insufficient. Creation-intent uncertainty reconciles exact ownership markers or blocks, never
- * allocates a replacement. No automatic lease steal can race an in-flight provider creation.
+ * The legacy retirement/generation/recovery engine has been removed; automatic retirement is
+ * unsupported. Explicit native cleanup still checks exact ownership and physical database/volume
+ * reclamation using immutable owned-resource evidence; absent application metadata alone is
+ * insufficient. Graph history and IDs are retained.
+ * Creation-intent uncertainty reconciles exact ownership markers or blocks, never allocates a
+ * replacement. No automatic lease steal can race an in-flight provider creation.
  *
  * <h2>Outstanding hosted prerequisites</h2>
  * Reviewed artifact/spec publication, core release authorization, approved callback/

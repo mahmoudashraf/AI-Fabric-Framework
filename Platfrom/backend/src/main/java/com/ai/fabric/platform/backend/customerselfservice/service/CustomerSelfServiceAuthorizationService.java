@@ -1,6 +1,5 @@
 package com.ai.fabric.platform.backend.customerselfservice.service;
 
-import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDeploymentEntity;
@@ -12,7 +11,6 @@ import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Set;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
@@ -39,22 +36,16 @@ public class CustomerSelfServiceAuthorizationService {
     private final PlatformTenantRepository tenants;
     private final PlatformConsumerRepository consumers;
     private final DeploymentAccessService access;
-    private final ObjectProvider<CustomerPrerequisiteEvidenceProvider> evidenceProviders;
-    private final CustomerSelfServiceProperties properties;
     private final CustomerOfferDeploymentRepository offerDeployments;
-
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
+    private final com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
 
     public CustomerSelfServiceAuthorizationService(CustomerOfferEntitlementService entitlements,
         CustomerReviewedCompositionService composition, CustomerTargetPlacementService placement,
         DeploymentRepository deployments, DeploymentReleaseRepository releases, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository profiles,
         PlatformTenantRepository tenants, PlatformConsumerRepository consumers, DeploymentAccessService access,
-        ObjectProvider<CustomerPrerequisiteEvidenceProvider> evidenceProviders, CustomerSelfServiceProperties properties,
-        CustomerOfferDeploymentRepository offerDeployments) {
+        CustomerOfferDeploymentRepository offerDeployments,
+        com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings) {
         this.entitlements = entitlements;
         this.composition = composition;
         this.placement = placement;
@@ -65,9 +56,8 @@ public class CustomerSelfServiceAuthorizationService {
         this.tenants = tenants;
         this.consumers = consumers;
         this.access = access;
-        this.evidenceProviders = evidenceProviders;
-        this.properties = properties;
         this.offerDeployments = offerDeployments;
+        this.documentBindings = documentBindings;
     }
 
     /** Join the owning command transaction so revoke cannot race the persisted mutation. */
@@ -95,16 +85,15 @@ public class CustomerSelfServiceAuthorizationService {
     }
 
     /**
-     * Validate the exact customer command before its admission reservation exists. This is intentionally
-     * limited to operations whose permission row requires admission evidence; every other authorization
-     * check remains identical to the owning command path.
+     * Compatibility boundary for release preparation. Core prerequisites always apply;
+     * optional capacity policy does not authorize the command.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization prepareAdmission(String customerId, AuthorizationRequest request) {
         return authorize(customerId, request, EvidenceMode.ADMISSION_PREPARATION);
     }
 
-    /** The source probe collects placement/prerequisite evidence after this short transaction has ended. */
+    /** Compatibility boundary for source preparation; it grants no prerequisite bypass. */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization prepareSourcePrerequisiteRefresh(String customerId, AuthorizationRequest request) {
         return authorize(customerId, request, EvidenceMode.SOURCE_REFRESH);
@@ -188,22 +177,16 @@ public class CustomerSelfServiceAuthorizationService {
         composition.validate(definition);
         var profile = profiles.findById(target.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
         composition.requireProfile(profile, target);
-        if (deploymentOperations != null) placement.requireConfiguredPlacement(profile, target.intent());
-        var placementEvidence = deploymentOperations != null ? null : switch (evidenceMode) {
-            case SOURCE_REFRESH -> null;
-            case OPERATIONAL_READ -> placement.requireOperationalReadEvidence(profile, target.intent());
-            default -> placement.requireFreshEvidence(profile, target.intent());
-        };
+        placement.requireConfiguredPlacement(profile, target.intent());
         if (request.operation() != Operation.READ && request.operation() != Operation.TEMPLATE_SELECT
             && request.operation() != Operation.SOURCE_DISCOVER && request.operation() != Operation.SOURCE_PREVIEW) {
             entitlements.requireOperationKey(request.operationKey());
         }
         AdmissionContext context = new AdmissionContext(customerId, request.tenantId(), request.deploymentId(),
             request.releaseId(), target.targetProfileId(), target.intent(), offer.getId(), offer.getFingerprint(),
-            entitlement.getRevision(), placementEvidence == null ? null : placementEvidence.getId(),
+            entitlement.getRevision(), null,
             request.operation(), request.operationKey(), definition.limits(), definition.topology());
-        if (evidenceMode == EvidenceMode.REQUIRED || evidenceMode == EvidenceMode.OPERATIONAL_READ)
-            requirePrerequisites(context, requiredPrerequisites(definition, row));
+        requirePrerequisites(context, requiredPrerequisites(definition, row));
         return new Authorization(context, definition);
     }
 
@@ -245,24 +228,7 @@ public class CustomerSelfServiceAuthorizationService {
 
     public void requirePrerequisites(AdmissionContext context, Set<Prerequisite> required) {
         if (required.isEmpty()) return;
-        if (deploymentOperations != null) {
-            requireCorePrerequisites(context, required);
-            return;
-        }
-        List<CustomerPrerequisiteEvidenceProvider> providers = evidenceProviders.orderedStream().toList();
-        if (providers.size() != 1 || properties.evidenceMaxAgeSeconds() <= 0) throw conflict(PREREQUISITE_EVIDENCE_REQUIRED);
-        PrerequisiteEvidence evidence;
-        try { evidence = providers.getFirst().resolve(context); }
-        catch (RuntimeException ex) { throw conflict(PREREQUISITE_EVIDENCE_REQUIRED); }
-        Instant now = Instant.now();
-        if (evidence == null || !context.equals(evidence.context()) || blank(evidence.evidenceReference())
-            || evidence.checkedAt() == null || evidence.expiresAt() == null || evidence.checkedAt().isAfter(now)
-            || evidence.checkedAt().isBefore(now.minusSeconds(properties.evidenceMaxAgeSeconds()))
-            || !evidence.expiresAt().isAfter(now)) throw conflict(PREREQUISITE_EVIDENCE_REQUIRED);
-        for (Prerequisite prerequisite : Prerequisite.values()) {
-            if (required.contains(prerequisite) && !evidence.passed().contains(prerequisite)) throw conflict(error(prerequisite));
-        }
-        if (required.contains(Prerequisite.CAPACITY) && blank(evidence.capacityReservationId())) throw conflict(CAPACITY_REQUIRED);
+        requireCorePrerequisites(context, required);
     }
 
     private void requireCorePrerequisites(AdmissionContext context, Set<Prerequisite> required) {
@@ -339,8 +305,7 @@ public class CustomerSelfServiceAuthorizationService {
         var entitlement = entitlements.requireEntitlement(context.customerId(), context.offerId(), ownerId, true);
         if (entitlement.getRevision() != context.entitlementRevision()) throw conflict(REVISION_CONFLICT);
         var profile = profiles.findById(context.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
-        if (deploymentOperations != null) placement.requireConfiguredPlacement(profile, context.intent());
-        else placement.requireEvidenceById(profile, context.intent(), context.placementEvidenceId());
+        placement.requireConfiguredPlacement(profile, context.intent());
         var deployment = deployments.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         entitlements.requireOperationKey(context.operationKey());
         if (!context.customerId().equals(deployment.getCustomerId()) || blank(deployment.getTenantId())
@@ -364,17 +329,6 @@ public class CustomerSelfServiceAuthorizationService {
             context.operationKey(), Instant.now()));
     }
 
-    private CustomerSelfServiceException.Code error(Prerequisite prerequisite) {
-        return switch (prerequisite) {
-            case APPROVED_POLICY -> APPROVED_POLICY_REQUIRED;
-            case IMMUTABLE_ARTIFACTS -> ARTIFACT_REQUIRED;
-            case STORAGE -> STORAGE_REQUIRED;
-            case IDENTITY -> IDENTITY_REQUIRED;
-            case CAPACITY -> CAPACITY_REQUIRED;
-            case NOTIFICATIONS -> NOTIFICATIONS_REQUIRED;
-            case OPERATING_POLICY -> OPERATING_POLICY_REQUIRED;
-        };
-    }
     private boolean isSourceOperation(Operation operation) {
         return switch (operation) {
             case SOURCE_DISCOVER, SOURCE_PREVIEW, SOURCE_INDEX, SOURCE_REFRESH, SOURCE_REMOVE -> true;

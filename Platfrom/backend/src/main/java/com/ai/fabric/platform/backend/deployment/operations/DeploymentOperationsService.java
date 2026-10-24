@@ -110,18 +110,18 @@ public class DeploymentOperationsService {
     private ResourceDemand demand(DeploymentEntity deployment, DeploymentVersionEntity version) {
         var association = offers.findById(deployment.getId());
         if (association.isEmpty()) return null;
-        var definition = entitlements.definition(entitlements.requireOffer(association.get().getOfferId()));
         if (!Objects.equals(association.get().getCustomerId(), deployment.getCustomerId())
             || !Objects.equals(association.get().getTenantId(), deployment.getTenantId()))
             throw new IllegalStateException("CORE_RELEASE_AUTHORIZATION_SCOPE_CHANGED");
+        var definition = entitlements.definition(entitlements.requireOffer(association.get().getOfferId()));
         var topology = definition.topology();
         if (!definition.aiStateStorageTopologies().isEmpty()) {
             try {
                 var selected = AiStateStorageMode.valueOf(mapper.readTree(version.getProviderConfigJson()).path("aiStateStorageMode").asText());
                 topology = definition.aiStateStorageTopologies().get(selected);
-            } catch (Exception exception) { throw new IllegalStateException("REVIEWED_DEPLOYMENT_TOPOLOGY_REQUIRED"); }
+            } catch (Exception exception) { return null; }
         }
-        if (topology == null) throw new IllegalStateException("REVIEWED_DEPLOYMENT_TOPOLOGY_REQUIRED");
+        if (topology == null) return null;
         return new ResourceDemand(topology.cpuMillis(), topology.memoryMiB(), topology.diskMiB(), topology.databases(),
             topology.indexes(), topology.dependencies(), topology.replicas(), topology.concurrentApplies());
     }

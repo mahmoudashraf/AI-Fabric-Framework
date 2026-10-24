@@ -8,7 +8,7 @@ import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFix
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
+import com.ai.fabric.platform.backend.deployment.provider.CoolifyHostVolumeReclamationService;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;

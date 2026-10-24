@@ -3,7 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
@@ -21,7 +21,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,12 +58,11 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     private final DeploymentReleaseExecutionService execution = mock(DeploymentReleaseExecutionService.class);
     private final DeploymentRuntimeAuthorityService authorities = mock(DeploymentRuntimeAuthorityService.class);
     private final CustomerOfferDeploymentRepository offerDeployments = mock(CustomerOfferDeploymentRepository.class);
-    private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
-    private final AdmissionReleaseCoordinator admission = mock(AdmissionReleaseCoordinator.class);
+    private final DeploymentTargetMutationService targetMutations = mock(DeploymentTargetMutationService.class);
+    private final DeploymentOperationsService operations = mock(DeploymentOperationsService.class);
     private final com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary =
         mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
     private final DeploymentAccessService access = mock(DeploymentAccessService.class);
-    private final DeploymentReleaseRecoveryService recovery = mock(DeploymentReleaseRecoveryService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
@@ -107,8 +106,8 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         when(releases.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         service = service();
-        ReflectionTestUtils.setField(service, "retirementGates", retirement);
-        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+        ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
+        ReflectionTestUtils.setField(service, "deploymentOperations", operations);
         ReflectionTestUtils.setField(service, "offerBoundary", offerBoundary);
     }
 
@@ -145,7 +144,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             deployment.getId(), target.getId(), release.getValue().getId(),
             candidate.snapshotId(), candidate.fingerprint()
         );
-        verify(admission).bind(deployment, version, release.getValue());
+        verify(operations).authorize(deployment, version, release.getValue(), null);
         verify(access).requireDeploymentOperatorAccess(deployment);
         var order = inOrder(authorities, releases, execution);
         order.verify(authorities).freezeCandidateForAuthorizedApply(anyString(), anyString(), anyString(), any());
@@ -156,110 +155,31 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     }
 
     @Test
-    void staffPreflightDerivesSafeCandidateFromExactPublishedVersionAndActiveTarget() {
-        version.setSecurityConfigJson("""
-            {"authzMode":"ALLOW_VERIFIED","publicRuntimeBootstrapEnabled":true,
-             "corsAllowedOrigins":"https://workspace.example.com, https://admin.example.com"}
-            """);
-        when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
+    void reviewedCompositionDriftFailsBeforeAuthorityFreezeOrReleasePersistence() {
         var approved = mock(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization.class);
-        when(offerBoundary.prepareAdmission(eq(deployment), eq(target.getId()),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY), anyString()))
-            .thenReturn(approved);
-        when(authorities.freezeCandidateForAuthorizedApply(
-            deployment.getId(), target.getId(), version.getId(),
-            List.of("https://workspace.example.com", "https://admin.example.com")
-        )).thenReturn(new RuntimeAuthorityBinding.Snapshot(
-            "authority-candidate",
-            null,
-            "authority-fingerprint",
-            new RuntimeAuthorityBinding(
-                deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), target.getId(),
-                version.getId(), version.getConfigHash(), 3, "private-issuer", "private-audience",
-                "public-issuer", "public-audience", true, true,
-                List.of("https://admin.example.com", "https://workspace.example.com"), java.util.Map.of()
-            )
-        ));
-
-        var evidence = service.prepareReviewedRuntimeAuthorityCandidate(
-            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest(
-                deployment.getId(), target.getId(), version.getId()
-            )
-        );
-
-        assertThat(evidence.snapshotId()).isEqualTo("authority-candidate");
-        assertThat(evidence.fingerprint()).isEqualTo("authority-fingerprint");
-        assertThat(evidence.generation()).isEqualTo(3);
-        assertThat(evidence.allowedOrigins()).containsExactly(
-            "https://admin.example.com", "https://workspace.example.com"
-        );
-        verify(authorities).freezeCandidateForAuthorizedApply(
-            deployment.getId(), target.getId(), version.getId(),
-            List.of("https://workspace.example.com", "https://admin.example.com")
-        );
-        verify(offerBoundary).prepareAdmission(eq(deployment), eq(target.getId()),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY), anyString());
-        verify(offerBoundary).requireVersion(approved, version);
-        verifyNoInteractions(releases, execution, admission);
-    }
-
-    @Test
-    void staffPreflightRejectsDeploymentsOutsideReviewedCustomerOffers() {
-        version.setSecurityConfigJson("{\"corsAllowedOrigins\":\"https://workspace.example.com\"}");
-        when(offerDeployments.existsById(deployment.getId())).thenReturn(false);
-
-        assertThatThrownBy(() -> service.prepareReviewedRuntimeAuthorityCandidate(
-            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest(
-                deployment.getId(), target.getId(), version.getId()
-            )
-        )).isInstanceOf(ResponseStatusException.class)
-            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.CONFLICT));
-
-        verifyNoInteractions(authorities, releases, execution, admission);
-    }
-
-    @Test
-    void staffPreflightDoesNotGenerateAuthorityForAnUnreviewedOfferTarget() {
-        version.setSecurityConfigJson("{\"corsAllowedOrigins\":\"https://workspace.example.com\"}");
-        when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
-        org.mockito.Mockito.doThrow(
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
-                com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.UNENTITLED_TARGET
-            )
-        ).when(offerBoundary).prepareAdmission(eq(deployment), eq(target.getId()),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY), anyString());
-
-        assertThatThrownBy(() -> service.prepareReviewedRuntimeAuthorityCandidate(
-            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest(
-                deployment.getId(), target.getId(), version.getId()
-            )
-        )).hasMessageContaining("UNENTITLED_TARGET");
-
-        verifyNoInteractions(authorities, releases, execution, admission);
-    }
-
-    @Test
-    void staffPreflightDoesNotGenerateAuthorityWhenPublishedCompositionDrifts() {
-        version.setSecurityConfigJson("{\"corsAllowedOrigins\":\"https://workspace.example.com\"}");
-        when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
-        var approved = mock(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization.class);
-        when(offerBoundary.prepareAdmission(eq(deployment), eq(target.getId()),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY), anyString()))
+        when(offerBoundary.require(eq(deployment), eq(target.getId()), org.mockito.ArgumentMatchers.isNull(),
+            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY),
+            eq("reviewed-apply"), org.mockito.ArgumentMatchers.anyMap(),
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull()))
             .thenReturn(approved);
         org.mockito.Mockito.doThrow(
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
-                com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.REVIEWED_COMPOSITION_CHANGED
-            )
-        ).when(offerBoundary).requireVersion(approved, version);
+                com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.REVIEWED_COMPOSITION_CHANGED))
+            .when(offerBoundary).requireVersion(approved, version);
 
-        assertThatThrownBy(() -> service.prepareReviewedRuntimeAuthorityCandidate(
-            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest(
-                deployment.getId(), target.getId(), version.getId()
-            )
-        )).hasMessageContaining("REVIEWED_COMPOSITION_CHANGED");
+        assertThatThrownBy(() -> service.applyVersion(deployment.getId(), version.getId(), null,
+            target.getId(), "reviewed-artifact", "reviewed-apply"))
+            .hasMessageContaining("REVIEWED_COMPOSITION_CHANGED");
+        verifyNoInteractions(authorities, releases, execution, operations, targetMutations);
+    }
 
-        verifyNoInteractions(authorities, releases, execution, admission);
+    @Test
+    void missingCoreAuthorizationServiceCannotDispatchARelease() {
+        version.setSecurityConfigJson("{\"authzMode\":\"DENY_ALL\",\"publicRuntimeBootstrapEnabled\":false}");
+        ReflectionTestUtils.setField(service, "deploymentOperations", null);
+        assertThatThrownBy(() -> service.applyVersion(deployment.getId(), version.getId(), null, target.getId(), null))
+            .hasMessageContaining("Core release authorization is required.");
+        verifyNoInteractions(execution);
     }
 
     @Test
@@ -277,7 +197,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             target.getId(), "reviewed-artifact", "apply-operation")).hasMessageContaining("UNENTITLED_TARGET");
         verify(releases, never()).save(any());
         verify(releases, never()).saveAndFlush(any());
-        verifyNoInteractions(authorities, execution, recovery);
+        verifyNoInteractions(authorities, execution);
     }
 
     @Test
@@ -382,7 +302,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         assertThat(release.getValue().getRuntimeAuthoritySnapshotId()).isNull();
         assertThat(release.getValue().getRuntimeAuthorityFingerprint()).isNull();
         verifyNoInteractions(authorities);
-        verify(releases, never()).saveAndFlush(any());
+        verify(releases).saveAndFlush(release.getValue());
         verify(execution).executeApply(deployment.getId(), version.getId(), release.getValue().getId());
     }
 
@@ -401,7 +321,6 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             mock(RailwayProvisioningPlanService.class),
             mock(DeploymentReleaseVerificationService.class),
             execution,
-            recovery,
             mock(DeploymentServiceConfigModelService.class),
             mock(DeploymentServiceNavigationService.class),
             mock(DeploymentProductionReadinessScorecardService.class),

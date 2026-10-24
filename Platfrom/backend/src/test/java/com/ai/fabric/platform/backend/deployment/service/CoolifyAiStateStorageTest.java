@@ -2,8 +2,6 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.*;
-import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
-import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService;
 import com.ai.fabric.platform.backend.deployment.model.*;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -73,7 +71,9 @@ class CoolifyAiStateStorageTest {
         version.setMarketplaceDatasetConfigJson("{\"datasets\":[{\"ingestionMode\":\"EXTERNAL_SYNC_HTTP\"}]}");
         var runtime = environment("runtime", version, List.of(new RailwayEnvVarSummary("SPRING_FLYWAY_URL", "jdbc:unsafe"),
             new RailwayEnvVarSummary("SPRING_DATASOURCE_HIKARI_JDBC_URL", "jdbc:unsafe"),
-            new RailwayEnvVarSummary("SPRING_FLYWAY_ENABLED", "false")));
+            new RailwayEnvVarSummary("SPRING_FLYWAY_ENABLED", "false"),
+            new RailwayEnvVarSummary("LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "true"),
+            new RailwayEnvVarSummary("LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "true")));
         assertThat(runtime).containsEntry("SPRING_DATASOURCE_URL", binding().jdbcUrl())
             .containsEntry("SPRING_FLYWAY_URL", binding().jdbcUrl())
             .containsEntry("SPRING_DATASOURCE_HIKARI_JDBC_URL", binding().jdbcUrl())
@@ -84,6 +84,8 @@ class CoolifyAiStateStorageTest {
             .containsEntry("SPRING_DATASOURCE_HIKARI_SCHEMA", "ai_runtime")
             .containsEntry("SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA", "ai_runtime")
             .containsEntry("PLATFORM_AI_STATE_STORAGE_BINDING_ID", "binding")
+            .containsEntry("LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false")
+            .containsEntry("LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false")
             .doesNotContainKeys("PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET");
         var connector = environment("connector", version, List.of(
             new RailwayEnvVarSummary("REST_CONNECTOR_PERSISTENCE_ENABLED", "true"),
@@ -116,30 +118,6 @@ class CoolifyAiStateStorageTest {
         verifyNoInteractions(client, resolver, targets);
     }
 
-    @ParameterizedTest @ValueSource(strings = {"authority", "fingerprint", "drain-service", "stop-checkpoint"})
-    void replacementCredentialsCannotBypassExistingSequentialGenerationProof(String missing) {
-        var release = release(); release.setRuntimeAuthoritySnapshotId("authority-snapshot");
-        release.setRuntimeAuthorityFingerprint("f".repeat(64));
-        if (!missing.equals("drain-service")) provider.setDeploymentRuntimeGenerationService(mock(DeploymentRuntimeGenerationService.class));
-        if (!missing.equals("stop-checkpoint")) provider.setRuntimeGenerationCheckpointService(mock(RuntimeGenerationCheckpointService.class));
-        if (missing.equals("authority")) release.setRuntimeAuthoritySnapshotId(null);
-        if (missing.equals("fingerprint")) release.setRuntimeAuthorityFingerprint(null);
-        var prior = new RuntimeGenerationCheckpointService.PriorRuntime("old-release", "runtime-uuid", "https://runtime.test");
-        assertThatThrownBy(() -> provider.requireAiStateSequentialReplacement(release, prior))
-            .hasMessageContaining("SEQUENTIAL_REPLACEMENT_REQUIRED");
-        verifyNoInteractions(client, resolver, handles);
-    }
-
-    @Test void validSequentialInfrastructureIsRequiredOnlyWhenReplacingAnExistingGeneration() {
-        provider.requireAiStateSequentialReplacement(release(), null);
-        var release = release(); release.setRuntimeAuthoritySnapshotId("authority-snapshot");
-        release.setRuntimeAuthorityFingerprint("f".repeat(64));
-        provider.setDeploymentRuntimeGenerationService(mock(DeploymentRuntimeGenerationService.class));
-        provider.setRuntimeGenerationCheckpointService(mock(RuntimeGenerationCheckpointService.class));
-        provider.requireAiStateSequentialReplacement(release,
-            new RuntimeGenerationCheckpointService.PriorRuntime("old-release", "runtime-uuid", "https://runtime.test"));
-        verifyNoInteractions(client, resolver, handles);
-    }
 
     @SuppressWarnings("unchecked")
     private Map<String, String> environment(String role, DeploymentVersionEntity version, List<RailwayEnvVarSummary> env) throws Exception {

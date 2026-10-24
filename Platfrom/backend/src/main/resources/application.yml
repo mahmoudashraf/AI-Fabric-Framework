@@ -157,22 +157,6 @@ platform:
     allow-insecure-http: ${PLATFORM_DEPLOYMENT_OPERATIONS_ALLOW_INSECURE_HTTP:false}
     provider-usage-mode: ${PLATFORM_DEPLOYMENT_PROVIDER_USAGE_MODE:FUNDED}
     team-authorized-targets: ${PLATFORM_DEPLOYMENT_TEAM_AUTHORIZED_TARGETS:}
-  deployment:
-    admission:
-      release:
-        worker-enabled: ${PLATFORM_ADMISSION_RELEASE_WORKER_ENABLED:false}
-        initial-delay: ${PLATFORM_ADMISSION_RELEASE_INITIAL_DELAY:PT30S}
-        poll-delay: ${PLATFORM_ADMISSION_RELEASE_POLL_DELAY:PT30S}
-      lifecycle:
-        worker-enabled: ${PLATFORM_ADMISSION_LIFECYCLE_WORKER_ENABLED:false}
-        initial-delay: ${PLATFORM_ADMISSION_LIFECYCLE_INITIAL_DELAY:PT30S}
-        poll-delay: ${PLATFORM_ADMISSION_LIFECYCLE_POLL_DELAY:PT30S}
-        batch-size: ${PLATFORM_ADMISSION_LIFECYCLE_BATCH_SIZE:32}
-        notice-transport-reference: ${PLATFORM_ADMISSION_NOTICE_TRANSPORT_REFERENCE:loomai-admission-console-smtp-v1}
-        console-enabled: ${PLATFORM_ADMISSION_CONSOLE_NOTICES_ENABLED:false}
-        owner-email-enabled: ${PLATFORM_ADMISSION_OWNER_EMAIL_ENABLED:false}
-        owner-email-from: ${PLATFORM_ADMISSION_OWNER_EMAIL_FROM:}
-        retirement-worker-enabled: ${PLATFORM_ADMISSION_RETIREMENT_WORKER_ENABLED:false}
   customer-self-service:
     trusted-servers:
       CUSTOMER_STAGING:
@@ -184,11 +168,6 @@ platform:
         address: ${PLATFORM_CUSTOMER_SELF_SERVICE_PRODUCTION_SERVER_ADDRESS:}
         reported-address: ${PLATFORM_CUSTOMER_SELF_SERVICE_PRODUCTION_SERVER_REPORTED_ADDRESS:}
     evidence-max-age-seconds: ${PLATFORM_CUSTOMER_SELF_SERVICE_EVIDENCE_MAX_AGE_SECONDS:900}
-  target-retirement:
-    worker-enabled: ${PLATFORM_TARGET_RETIREMENT_WORKER_ENABLED:false}
-    poll-delay-ms: ${PLATFORM_TARGET_RETIREMENT_POLL_DELAY_MS:15000}
-    approved-staging-addresses: ${PLATFORM_TARGET_RETIREMENT_APPROVED_STAGING_ADDRESSES:}
-    approved-retained-volume-mounts: ${PLATFORM_TARGET_RETIREMENT_APPROVED_RETAINED_VOLUME_MOUNTS:}
   provider-host-volume-reclamation:
     enabled: ${PLATFORM_PROVIDER_HOST_VOLUME_RECLAMATION_ENABLED:false}
     timeout: ${PLATFORM_PROVIDER_HOST_VOLUME_RECLAMATION_TIMEOUT:PT15S}

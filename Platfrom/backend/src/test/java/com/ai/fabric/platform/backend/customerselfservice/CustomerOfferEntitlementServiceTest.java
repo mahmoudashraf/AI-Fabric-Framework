@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessSer
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
@@ -31,6 +33,8 @@ class CustomerOfferEntitlementServiceTest {
     private final PlatformUserRepository users = mock(PlatformUserRepository.class);
     private final PlatformCustomerRepository customers = mock(PlatformCustomerRepository.class);
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
+    private final CustomerTargetPlacementService placement = mock(CustomerTargetPlacementService.class);
+    private final DeploymentTargetProfileRepository profiles = mock(DeploymentTargetProfileRepository.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final Map<String, CustomerEntitlementCommandEntity> receipts = new HashMap<>();
     private CustomerOfferEntitlementService service;
@@ -61,7 +65,7 @@ class CustomerOfferEntitlementServiceTest {
             receipts.put(command.getEntitlementId() + ":" + command.getOperationKey(), command); return command;
         });
         service = new CustomerOfferEntitlementService(offers, entitlements, commands, new PlatformCustomerAccessService(users, customers),
-            customers, users, codec, composition, mock(CustomerTargetPlacementService.class), mock(DeploymentTargetProfileRepository.class), audit);
+            customers, users, codec, composition, placement, profiles, audit);
         CustomerOfferTestFixtures.authenticate("admin-key", PlatformRole.PLATFORM_ADMIN, "API_KEY");
     }
 
@@ -112,8 +116,12 @@ class CustomerOfferEntitlementServiceTest {
         for (PlatformRole role : List.of(PlatformRole.CUSTOMER_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT)) {
             CustomerOfferTestFixtures.authenticate("actor", role, "SESSION");
             assertCode(STAFF_ADMIN_REQUIRED, this::invite);
+            assertCode(STAFF_ADMIN_REQUIRED, () -> service.publish(
+                new PublishOfferRequest("new-offer", CustomerOfferTestFixtures.definition(), "review")));
         }
         clear(); assertCode(STAFF_ADMIN_REQUIRED, this::invite);
+        assertCode(STAFF_ADMIN_REQUIRED, () -> service.publish(
+            new PublishOfferRequest("new-offer", CustomerOfferTestFixtures.definition(), "review")));
         verify(entitlements, never()).saveAndFlush(any());
     }
 
@@ -139,6 +147,42 @@ class CustomerOfferEntitlementServiceTest {
         assertCode(OFFER_IMMUTABLE, () -> service.publish(new PublishOfferRequest("offer", CustomerOfferTestFixtures.definition(), "review")));
     }
 
+    @Test void publicationRequiresConfiguredTargetTrustWithoutAnOperationsBeanOrFreshSample() {
+        reviewedTargetProfiles();
+        var definition = CustomerOfferTestFixtures.definition();
+        var fingerprint = service.publish(new PublishOfferRequest("new-offer", definition, "review"));
+
+        assertThat(fingerprint).isEqualTo(CustomerOfferTestFixtures.codec().hash(definition));
+        verify(composition).validate(definition);
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_PRODUCTION));
+        verify(placement, never()).requireFreshEvidence(any(), any());
+        verify(placement, never()).probeAndRecord(any(), any());
+        verify(offers).saveAndFlush(argThat(value -> "new-offer".equals(value.getId())
+            && fingerprint.equals(value.getFingerprint())));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CustomerSelfServiceException.Code.class, names = {"PLACEMENT_DENIED", "TRUSTED_PLACEMENT_REQUIRED"})
+    void configuredTargetDenialsPreventPublicationAndSuccessAudit(CustomerSelfServiceException.Code code) {
+        var staging = reviewedTargetProfiles();
+        doThrow(CustomerSelfServiceException.conflict(code)).when(placement)
+            .requireConfiguredPlacement(staging, TargetIntent.CUSTOMER_STAGING);
+
+        assertCode(code, () -> service.publish(new PublishOfferRequest("new-offer", CustomerOfferTestFixtures.definition(), "review")));
+
+        verify(offers, never()).saveAndFlush(any());
+        verifyNoInteractions(audit);
+        verify(placement, never()).requireFreshEvidence(any(), any());
+    }
+
+    @Test void missingReviewedTargetCannotBePublished() {
+        assertCode(UNENTITLED_TARGET, () -> service.publish(
+            new PublishOfferRequest("new-offer", CustomerOfferTestFixtures.definition(), "review")));
+        verifyNoInteractions(placement, audit);
+        verify(offers, never()).saveAndFlush(any());
+    }
+
     @Test void unfinishedExternalReleaseBlocksRevocationAndReinvitationWithoutRecordingSuccess() {
         var invitation = invite();
         when(entitlements.countUnfinishedExternalReleases("customer", "offer")).thenReturn(1L);
@@ -157,6 +201,13 @@ class CustomerOfferEntitlementServiceTest {
     private EntitlementSummary invite() {
         return service.invite("offer", new InviteRequest("customer", "owner", "reviewed-invite",
             Instant.parse("2099-01-01T00:00:00Z"), 0, "invite-key", "Approved early access"));
+    }
+    private com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity reviewedTargetProfiles() {
+        var staging = CustomerOfferTestFixtures.profile("staging-target", "stage-server");
+        var production = CustomerOfferTestFixtures.profile("production-target", "prod-server");
+        when(profiles.findById(staging.getId())).thenReturn(Optional.of(staging));
+        when(profiles.findById(production.getId())).thenReturn(Optional.of(production));
+        return staging;
     }
     private void assertCode(CustomerSelfServiceException.Code code, Runnable operation) {
         assertThatThrownBy(operation::run).isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(code));

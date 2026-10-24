@@ -5,7 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentAiStateStorageContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.*;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -33,7 +33,7 @@ class DeploymentAiStateStorageBindingServiceTest {
     private final DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
     private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
     private final PlatformSecretService secrets = mock(PlatformSecretService.class);
-    private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
+    private final DeploymentTargetMutationService retirement = mock(DeploymentTargetMutationService.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final DeploymentAiStateStorageProbe probe = mock(DeploymentAiStateStorageProbe.class);
     private final Map<String, String> vault = new HashMap<>();
@@ -449,18 +449,18 @@ class DeploymentAiStateStorageBindingServiceTest {
             .allSatisfy(json -> assertThat(json).doesNotContain("private-pass", "sql.customer.example", "ai_runtime", "ai_user"));
     }
 
-    @Test void aRetirementFenceDoesNotBecomeAnImplicitRotationPermit() {
+    @Test void activeApplyDoesNotBecomeAnImplicitCredentialRotationPermit() {
         service.bind(deployment.getId(), target.getId(), request());
         var originalVault = Map.copyOf(vault);
         String originalMetadata = saved.getMetadataJson();
         doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
-            "TARGET_RETIREMENT_FENCED")).when(retirement).requireAvailableForMutation(deployment.getId(), target.getId());
+            "RELEASE_APPLY_IN_PROGRESS")).when(retirement).requireAvailableForMutation(deployment.getId(), target.getId());
         var request = request();
         clearInvocations(probe, secrets, handles, audit);
 
         assertThatThrownBy(() -> service.bind(deployment.getId(), target.getId(), new Request(version.getId(),
             request.host(), request.port(), request.databaseName(), request.runtimeSchema(), request.connectorSchema(),
-            request.username(), "new-secret-credential", true, "approval"))).hasMessageContaining("TARGET_RETIREMENT_FENCED");
+            request.username(), "new-secret-credential", true, "approval"))).hasMessageContaining("RELEASE_APPLY_IN_PROGRESS");
         assertThat(vault).isEqualTo(originalVault);
         assertThat(saved.getMetadataJson()).isEqualTo(originalMetadata);
         verifyNoInteractions(probe, secrets, audit);

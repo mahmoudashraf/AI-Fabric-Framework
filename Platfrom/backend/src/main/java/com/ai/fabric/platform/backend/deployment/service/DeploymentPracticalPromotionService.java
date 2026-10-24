@@ -19,7 +19,6 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerGoLiveReadinessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
@@ -88,10 +87,7 @@ public class DeploymentPracticalPromotionService {
     private final DeploymentPromotionCommandService commands;
     private final DeploymentTargetContextService targets;
     private final CustomerSelfServicePromotionBoundary customerBoundary;
-    private final AdmissionPromotionRetirementScheduler retirementScheduler;
     private final CustomerGoLiveReadinessService goLiveReadiness;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     public DeploymentPracticalPromotionService(DeploymentRepository deploymentRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
@@ -108,7 +104,6 @@ public class DeploymentPracticalPromotionService {
                                                DeploymentPromotionCommandService commands,
                                                DeploymentTargetContextService targets,
                                                CustomerSelfServicePromotionBoundary customerBoundary,
-                                               AdmissionPromotionRetirementScheduler retirementScheduler,
                                                CustomerGoLiveReadinessService goLiveReadiness) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
@@ -125,7 +120,6 @@ public class DeploymentPracticalPromotionService {
         this.commands = commands;
         this.targets = targets;
         this.customerBoundary = customerBoundary;
-        this.retirementScheduler = retirementScheduler;
         this.goLiveReadiness = goLiveReadiness;
     }
 
@@ -206,9 +200,6 @@ public class DeploymentPracticalPromotionService {
         DeploymentPracticalPromotionSummary result = commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ACTIVATE",
             request.operationKey(), request.expectedBindingRevision(), request,
             consumer -> activateProductionConsumerOnce(deployment, request, consumer));
-        if (deploymentOperations == null && request.markStagingSuperseded() && StringUtils.hasText(result.stagingTargetProfileId())) {
-            retirementScheduler.scheduleAfterCommit(deploymentId, result.stagingTargetProfileId(), request.operationKey());
-        }
         return result;
     }
 

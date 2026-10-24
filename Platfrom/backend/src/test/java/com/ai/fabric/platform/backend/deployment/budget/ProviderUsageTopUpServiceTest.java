@@ -1,6 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.budget;
 
-import com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver;
+import com.ai.fabric.platform.backend.deployment.service.ReleaseArtifactResolver;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -65,11 +65,11 @@ class ProviderUsageTopUpServiceTest {
         migrateTopUps();
         f.service.approveGrant(f.runtimeGrant()); f.authorizeRelease("deployment");
         var first = f.service.prepareForAuthorizedRelease("release-deployment"); var store = UUID.randomUUID();
-        f.service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint());
-        active = f.service.markActive(first.scope(), store, first.runtimeAllocationFingerprint()); runtimeLimits = active.caps();
+        f.service.markInitializedForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint());
+        active = f.service.markActiveForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint()); runtimeLimits = active.caps();
 
         var manifests = new DeploymentSourceCapabilityManifestService(f.mapper);
-        var releases = mock(DeploymentReleaseRepository.class); var resolver = mock(EffectiveRuntimeArtifactResolver.class);
+        var releases = mock(DeploymentReleaseRepository.class); var resolver = mock(ReleaseArtifactResolver.class);
         var release = new DeploymentReleaseEntity(); release.setId("release-deployment"); release.setDeploymentId("deployment");
         release.setTargetProfileId("target"); release.setSourceArtifactId("artifact");
         when(releases.findById("release-deployment")).thenReturn(Optional.of(release));

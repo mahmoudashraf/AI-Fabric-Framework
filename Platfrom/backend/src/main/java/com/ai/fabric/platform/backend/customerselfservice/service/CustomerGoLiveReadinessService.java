@@ -13,9 +13,10 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
-import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
-import com.ai.fabric.platform.backend.deployment.admission.ReviewedManagedDependencyEvidenceService;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecRepository;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
@@ -26,8 +27,9 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
+import com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPromotionCandidateService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -68,15 +70,14 @@ public class CustomerGoLiveReadinessService {
     private final AIWorkspaceInstallationRepository installations;
     private final AIWorkspaceReadinessService workspaceReadiness;
     private final DeploymentPromotionCandidateService candidates;
-    private final DeploymentAdmissionService admissions;
-    private final TargetRetirementOperationRepository retirements;
     private final CustomerReviewedCompositionService composition;
-    private final ReviewedManagedDependencyEvidenceService dependencyEvidence;
+    private final ManagedDependencySpecRepository dependencySpecs;
+    private final ManagedDependencySpecValidator dependencyValidator;
+    private final ManagedDependencyArtifactPolicy dependencyOwnership;
+    private final CoreReleaseAuthorizationStore releaseAuthorizations;
+    private final DeploymentOperationsService deploymentOperations;
+    private final DeploymentDocumentBindingResolver documentBindings;
     private final ObjectMapper mapper;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
 
     public CustomerGoLiveReadinessService(CustomerOfferEntitlementService entitlements,
                                           CustomerOfferDeploymentRepository associations,
@@ -89,10 +90,13 @@ public class CustomerGoLiveReadinessService {
                                           AIWorkspaceInstallationRepository installations,
                                           AIWorkspaceReadinessService workspaceReadiness,
                                           DeploymentPromotionCandidateService candidates,
-                                          DeploymentAdmissionService admissions,
-                                          TargetRetirementOperationRepository retirements,
                                           CustomerReviewedCompositionService composition,
-                                          ReviewedManagedDependencyEvidenceService dependencyEvidence,
+                                          ManagedDependencySpecRepository dependencySpecs,
+                                          ManagedDependencySpecValidator dependencyValidator,
+                                          ManagedDependencyArtifactPolicy dependencyOwnership,
+                                          CoreReleaseAuthorizationStore releaseAuthorizations,
+                                          DeploymentOperationsService deploymentOperations,
+                                          DeploymentDocumentBindingResolver documentBindings,
                                           ObjectMapper mapper) {
         this.entitlements = entitlements;
         this.associations = associations;
@@ -105,10 +109,13 @@ public class CustomerGoLiveReadinessService {
         this.installations = installations;
         this.workspaceReadiness = workspaceReadiness;
         this.candidates = candidates;
-        this.admissions = admissions;
-        this.retirements = retirements;
         this.composition = composition;
-        this.dependencyEvidence = dependencyEvidence;
+        this.dependencySpecs = dependencySpecs;
+        this.dependencyValidator = dependencyValidator;
+        this.dependencyOwnership = dependencyOwnership;
+        this.releaseAuthorizations = releaseAuthorizations;
+        this.deploymentOperations = deploymentOperations;
+        this.documentBindings = documentBindings;
         this.mapper = mapper;
     }
 
@@ -173,20 +180,13 @@ public class CustomerGoLiveReadinessService {
         CandidateEvidence candidate = candidateEvidence(definition, deployment, version, release, target, consumer, now);
         items.add(candidate.composition());
 
-        Reservation reservation = null;
-        if (deploymentOperations == null) try {
-            reservation = admissions.activeCustomerReleaseReservation(deployment.getId(), release.getId());
-        } catch (RuntimeException error) {
-            reservation = null;
-        }
-        items.add(deploymentOperations == null ? connectionItem(reservation, now)
-            : coreConnectionItem(deployment, version, release, candidate, now));
+        items.add(coreConnectionItem(deployment, version, release, candidate, now));
         items.add(knowledgeItem(definition, candidate.run(), now));
         items.add(workspaceItem(definition, deployment, release, consumer, now));
         items.add(securityItem(candidate, now));
-        items.add(deploymentOperations == null ? operationsItem(release, reservation, now) : externalOperationsItem(release, now));
+        items.add(externalOperationsItem(release, now));
         items.add(integrationItem(definition, release, now));
-        items.add(postActivationItem(deployment, release, consumer, candidate.node(), now));
+        items.add(postActivationItem(release, now));
 
         List<String> blockers = items.stream()
             .filter(Item::mandatory)
@@ -216,7 +216,7 @@ public class CustomerGoLiveReadinessService {
         }
         try { composition.requireVersion(definition, version); }
         catch (RuntimeException error) { failures.add("Published version no longer matches the reviewed composition."); }
-        try { dependencyEvidence.requireProductionPersistence(definition); }
+        try { requireProductionDependencies(definition); }
         catch (RuntimeException error) { failures.add("Managed production dependency persistence is not supported or proven."); }
         try { composition.requireProfile(target, definition.targets().stream()
             .filter(value -> value.targetProfileId().equals(target.getId()))
@@ -255,7 +255,12 @@ public class CustomerGoLiveReadinessService {
         DeploymentVerificationRunEntity run = null;
         try {
             candidates.requireFreshVerification(deployment, version, release, target);
-            run = verifications.findById(release.getVerificationRunId()).orElse(null);
+            run = verifications.findById(release.getVerificationRunId())
+                .filter(value -> deployment.getId().equals(value.getDeploymentId())
+                    && release.getId().equals(value.getReleaseId())
+                    && version.getId().equals(value.getDeploymentVersionId())
+                    && "POST_APPLY".equals(value.getVerificationType()))
+                .orElse(null);
             if (run == null) failures.add("Exact verification run is unavailable.");
         } catch (RuntimeException error) {
             failures.add("Exact verification evidence is missing, failed, or stale.");
@@ -269,31 +274,35 @@ public class CustomerGoLiveReadinessService {
         return new CandidateEvidence(node, expectedRevision, run, item);
     }
 
-    private Item connectionItem(Reservation reservation, Instant now) {
-        List<String> failures = new ArrayList<>();
-        if (reservation == null) failures.add("A current production admission reservation is missing.");
-        else if (reservation.prerequisiteReadback() == null
-            || reservation.prerequisiteReadback().validUntil() == null
-            || !reservation.prerequisiteReadback().validUntil().isAfter(now)
-            || !StringUtils.hasText(reservation.prerequisiteReadback().evidenceReference())
-            || reservation.prerequisiteReadback().placement() == null) {
-            failures.add("Production connection and prerequisite readback is missing or stale.");
+    private void requireProductionDependencies(Definition definition) {
+        var matches = dependencySpecs.findByTemplateVersionIdAndActiveTrue(definition.template().versionId());
+        if (definition.topology().dependencies() == 0) {
+            if (!matches.isEmpty()) throw new IllegalStateException("UNEXPECTED_REVIEWED_DEPENDENCY_SPEC");
+            return;
         }
-        return item("production_connections", "Connections", "Production connections and bindings",
-            Phase.ACTIVATION, failures.isEmpty() ? Status.PASSED : Status.BLOCKED, true,
-            "Customer and Platform operator", reservationReference(reservation),
-            reservation == null || reservation.prerequisiteReadback() == null ? null
-                : reservation.prerequisiteReadback().observedAt(),
-            reservation == null || reservation.prerequisiteReadback() == null ? null
-                : reservation.prerequisiteReadback().validUntil(), failures,
-            "Refresh customer-owned storage, identity, provider, and target prerequisite evidence.");
+        if (matches.size() != 1) throw new IllegalStateException("REVIEWED_DEPENDENCY_SPEC_MISSING_OR_AMBIGUOUS");
+        var reviewed = matches.getFirst();
+        try {
+            var spec = mapper.readValue(reviewed.getSpecJson(), ManagedDependencySpec.class);
+            dependencyValidator.validate(spec);
+            if (!definition.template().versionId().equals(reviewed.getTemplateVersionId())
+                || !reviewed.isActive() || reviewed.getReviewedAt() == null
+                || !StringUtils.hasText(reviewed.getReviewedBy()) || !StringUtils.hasText(reviewed.getReviewReference())
+                || !dependencyValidator.fingerprint(spec).equals(reviewed.getFingerprint())) {
+                throw new IllegalStateException("REVIEWED_DEPENDENCY_SPEC_CHANGED");
+            }
+            dependencyOwnership.requireAllowed(spec);
+            dependencyValidator.requireProductionInboxPersistence(spec);
+        } catch (Exception error) {
+            throw new IllegalStateException("REVIEWED_DEPENDENCY_PRODUCTION_READINESS_UNPROVEN", error);
+        }
     }
 
     private Item coreConnectionItem(DeploymentEntity deployment, DeploymentVersionEntity version,
                                     DeploymentReleaseEntity release, CandidateEvidence candidate, Instant now) {
         List<String> failures = new ArrayList<>();
         try {
-            deploymentOperations.require(deployment, version, release);
+            releaseAuthorizations.require(deployment, version, release);
             documentBindings.requireUnchanged(deployment, version, release);
             if (candidate.run() == null || !"PASSED".equals(candidate.run().getStatus()))
                 failures.add("Exact production connection verification is unavailable.");
@@ -306,8 +315,10 @@ public class CustomerGoLiveReadinessService {
     }
 
     private Item externalOperationsItem(DeploymentReleaseEntity release, Instant now) {
-        var status = deploymentOperations.status();
-        return item("operations_ready", "Operations", "Optional deployment operations: " + status.mode(),
+        String mode;
+        try { mode = deploymentOperations.status().mode(); }
+        catch (RuntimeException unavailable) { mode = "UNAVAILABLE"; }
+        return item("operations_ready", "Operations", "Optional deployment operations: " + mode,
             Phase.ACTIVATION, Status.NOT_APPLICABLE, false, "Integration team", "release:" + release.getId(),
             release.getUpdatedAt(), null, List.of(),
             "Capacity, expiry, graceful drain and advanced recovery are optional; actual release verification remains required.");
@@ -380,21 +391,6 @@ public class CustomerGoLiveReadinessService {
             "Run exact-release security, behavior, and runtime verification again.");
     }
 
-    private Item operationsItem(DeploymentReleaseEntity release, Reservation reservation, Instant now) {
-        List<String> failures = new ArrayList<>();
-        if (!"APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
-            || !"PASSED".equalsIgnoreCase(release.getVerificationStatus())) {
-            failures.add("Production release is not in verified operating state.");
-        }
-        if (reservation == null) failures.add("Production capacity and lifecycle reservation is missing.");
-        return item("operations_ready", "Operations", "Capacity, lifecycle, and recovery controls",
-            Phase.ACTIVATION, failures.isEmpty() ? Status.PASSED : Status.BLOCKED, true,
-            "Platform operator", reservationReference(reservation),
-            reservation == null ? release.getUpdatedAt() : reservation.updatedAt(),
-            reservation == null ? null : reservation.expiresAt(), failures,
-            "Restore a current production reservation and repeat operational verification.");
-    }
-
     private Item integrationItem(Definition definition, DeploymentReleaseEntity release, Instant now) {
         List<String> failures = new ArrayList<>();
         if (!StringUtils.hasText(definition.approvedPolicyRef())
@@ -409,54 +405,10 @@ public class CustomerGoLiveReadinessService {
             "Review and republish the integration and operating policy contract.");
     }
 
-    private Item postActivationItem(DeploymentEntity deployment, DeploymentReleaseEntity release,
-                                    PlatformConsumerEntity consumer, ObjectNode candidate, Instant now) {
-        if (deploymentOperations != null) {
-            return item("staging_disposition", "Lifecycle", "Integration-team staging cleanup",
-                Phase.POST_ACTIVATION, Status.NOT_APPLICABLE, false, "Integration team", "release:" + release.getId(),
-                now, null, List.of(), "Stop staging when it is no longer needed; automatic retirement is not required for promotion.");
-        }
-        boolean activated = release.getId().equals(consumer.getBoundReleaseId())
-            && release.getTargetProfileId().equals(consumer.getBoundTargetProfileId());
-        if (!activated) {
-            return item("staging_disposition", "Lifecycle", "Post-activation staging disposition",
-                Phase.POST_ACTIVATION, Status.PENDING, true, "Customer and Platform operator", null,
-                now, null, List.of("Production is not active yet."),
-                "After activation, retire staging or retain it through a bounded entitlement.");
-        }
-        String stagingTarget = candidate == null ? null : candidate.path("stagingTargetProfileId").asText(null);
-        if (!StringUtils.hasText(stagingTarget)) {
-            return item("staging_disposition", "Lifecycle", "Post-activation staging disposition",
-                Phase.POST_ACTIVATION, Status.BLOCKED, true, "Platform operator", null,
-                now, null, List.of("Frozen staging target identity is unavailable."),
-                "Recover the exact promotion candidate before staging disposition.");
-        }
-        var complete = retirements.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(
-                deployment.getId(), stagingTarget).stream()
-            .filter(value -> value.getState() == TargetRetirementContracts.State.COMPLETE)
-            .findFirst().orElse(null);
-        if (complete != null) {
-            return item("staging_disposition", "Lifecycle", "Post-activation staging disposition",
-                Phase.POST_ACTIVATION, Status.PASSED, true, "Platform operator",
-                "retirement:" + complete.getId(), complete.getCompletedAt(), null, List.of(), null);
-        }
-        try {
-            var retained = admissions.activeCustomerReservations(deployment.getId(), stagingTarget).stream()
-                .filter(value -> value.keepUntil() != null && value.keepUntil().isAfter(now))
-                .filter(value -> StringUtils.hasText(value.keepEntitlementReference()))
-                .findFirst().orElse(null);
-            if (retained != null) {
-                return item("staging_disposition", "Lifecycle", "Post-activation staging disposition",
-                    Phase.POST_ACTIVATION, Status.PASSED, true, "Customer and Platform operator",
-                    reservationReference(retained), retained.updatedAt(), retained.keepUntil(), List.of(), null);
-            }
-        } catch (RuntimeException ignored) {
-            // The durable retirement ledger remains the primary evidence path.
-        }
-        return item("staging_disposition", "Lifecycle", "Post-activation staging disposition",
-            Phase.POST_ACTIVATION, Status.BLOCKED, true, "Customer and Platform operator", null,
-            now, null, List.of("Staging is neither retired nor covered by a current retention entitlement."),
-            "Retire staging or record a bounded keep-until entitlement.");
+    private Item postActivationItem(DeploymentReleaseEntity release, Instant now) {
+        return item("staging_disposition", "Lifecycle", "Integration-team staging cleanup",
+            Phase.POST_ACTIVATION, Status.NOT_APPLICABLE, false, "Integration team", "release:" + release.getId(),
+            now, null, List.of(), "Stop staging when it is no longer needed; automatic retirement is not required for promotion.");
     }
 
     private CustomerOfferDeploymentEntity requireAssociation(String offerId, DeploymentEntity deployment, String customerId) {
@@ -512,11 +464,6 @@ public class CustomerGoLiveReadinessService {
 
     private void exact(ObjectNode node, String field, String expected, List<String> failures) {
         if (!expected.equals(node.path(field).asText())) failures.add("Frozen candidate " + field + " changed.");
-    }
-
-    private String reservationReference(Reservation reservation) {
-        return reservation == null ? null : "admission:" + reservation.id() + ":"
-            + reservation.generation() + ":" + reservation.revision();
     }
 
     private String reference(String kind, String value) {

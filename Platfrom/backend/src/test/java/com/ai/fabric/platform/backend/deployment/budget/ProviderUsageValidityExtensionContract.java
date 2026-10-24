@@ -39,8 +39,8 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         var grant = runtimeGrant(); service.approveGrant(grant); authorizeRelease("deployment");
         var first = service.prepareForAuthorizedRelease("release-deployment");
         var store = UUID.randomUUID();
-        service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint());
-        active = service.markActive(first.scope(), store, first.runtimeAllocationFingerprint());
+        service.markInitializedForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint());
+        active = service.markActiveForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint());
         time = NOW.plusSeconds(3601); runtimeEffective = active.expiresAt();
         extensions = extensionService(time);
         when(access.resolve(any(), anyString(), anyBoolean())).thenAnswer(call -> {
@@ -70,7 +70,7 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
     ProviderUsageValidityExtensionService extensionService(Instant at) {
         var manifests = new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper);
         var releases = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class);
-        var resolver = mock(com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver.class);
+        var resolver = mock(com.ai.fabric.platform.backend.deployment.service.ReleaseArtifactResolver.class);
         var release = new com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity();
         release.setId("release-deployment"); release.setDeploymentId("deployment"); release.setTargetProfileId("target");
         release.setSourceArtifactId("artifact");
@@ -125,8 +125,7 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         return List.of(Map.of("grants", jdbc.queryForList("SELECT * FROM provider_usage_grants ORDER BY id")),
             Map.of("allocations", jdbc.queryForList("SELECT * FROM provider_usage_allocations ORDER BY approval_id")),
             Map.of("events", jdbc.queryForList("SELECT * FROM provider_usage_allowance_events ORDER BY id")),
-            Map.of("r7", jdbc.queryForList("SELECT * FROM deployment_capacity_reservations ORDER BY id")),
-            Map.of("authorizations", jdbc.queryForList("SELECT * FROM deployment_admission_authorizations ORDER BY operation_key")),
+            Map.of("authorizations", jdbc.queryForList("SELECT * FROM platform_release_authorizations ORDER BY release_id")),
             Map.of("releases", jdbc.queryForList("SELECT * FROM platform_deployment_releases ORDER BY id")));
     }
 
@@ -158,7 +157,7 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         var grant = runtimeGrant();
         var command = new AllocationCommand(grant.id(), "new-deployment", "target", new Limits(0, 0, 0), grant.binding(),
             grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get()));
-        assertThatThrownBy(() -> instance(time).allocate(command, r7("new-deployment"))).hasMessageContaining("GRANT_EXPIRED");
+        assertThatThrownBy(() -> instance(time).allocate(command, r7("new-deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
 

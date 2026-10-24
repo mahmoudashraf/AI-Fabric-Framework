@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.customerselfservice;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.entity.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
@@ -19,12 +18,10 @@ import com.ai.fabric.platform.backend.tenant.repository.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Stream;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict;
@@ -47,9 +44,8 @@ class CustomerSelfServiceAuthorizationServiceTest {
     private final DeploymentAssignmentRepository assignments = mock(DeploymentAssignmentRepository.class);
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
     private final CustomerTargetPlacementService placement = mock(CustomerTargetPlacementService.class);
-    private final CustomerPrerequisiteEvidenceProvider provider = mock(CustomerPrerequisiteEvidenceProvider.class);
-    @SuppressWarnings("unchecked")
-    private final ObjectProvider<CustomerPrerequisiteEvidenceProvider> providers = mock(ObjectProvider.class);
+    private final com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver bindings =
+        mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
     private final CustomerOfferCodec codec = CustomerOfferTestFixtures.codec();
     private CustomerSelfServiceAuthorizationService service;
     private CustomerOfferEntitlementService entitlements;
@@ -90,16 +86,12 @@ class CustomerSelfServiceAuthorizationServiceTest {
         var reviewedVersion = new DeploymentVersionEntity();
         reviewedVersion.setId("version"); reviewedVersion.setDeploymentId("deployment"); reviewedVersion.setStatus("PUBLISHED");
         when(versions.findById("version")).thenReturn(Optional.of(reviewedVersion));
-        when(placement.requireFreshEvidence(any(), any())).thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", "staging-target",
-            TargetIntent.CUSTOMER_STAGING, "staging-hash", "stage-server", "46.224.145.148", "destination", Instant.now().minusSeconds(1), Instant.now().plusSeconds(60)));
         var customerAccess = new PlatformCustomerAccessService(users, customers);
         entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
             customerAccess, customers, users, codec, composition, placement, profiles, mock(PlatformAuditService.class));
         var access = new DeploymentAccessService(assignments, mock(PublicApiDeploymentRepository.class), users, customerAccess);
         service = new CustomerSelfServiceAuthorizationService(entitlements, composition, placement, deployments, releases, versions, profiles,
-            tenants, consumers, access, providers, new CustomerSelfServiceProperties(null, 60), associations);
-        when(providers.orderedStream()).thenAnswer(call -> Stream.of(provider));
-        when(provider.resolve(any())).thenAnswer(call -> evidence(call.getArgument(0), EnumSet.allOf(Prerequisite.class)));
+            tenants, consumers, access, associations, bindings);
         CustomerOfferTestFixtures.authenticate(owner.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
     }
 
@@ -109,28 +101,21 @@ class CustomerSelfServiceAuthorizationServiceTest {
         var authorization = service.authorize("customer", request(Operation.APPLY));
         assertThat(authorization.context().entitlementRevision()).isEqualTo(2);
         service.requirePinnedComposition(authorization, "template-v1", Set.of(), Set.of("runtime-artifact"));
-        verify(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
     @Test void externalOperationsPathDoesNotRequireCapacityOrPlacementLease() {
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations",
-            mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class));
         var approved = service.authorize("customer", request(Operation.APPLY));
         assertThat(approved.context().placementEvidenceId()).isNull();
         verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         verify(placement, never()).requireFreshEvidence(any(), any());
-        verifyNoInteractions(provider);
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("other-customer", request(Operation.APPLY)));
         grant.setStatus(EntitlementStatus.REVOKED);
         assertCode(ENTITLEMENT_REVOKED, () -> service.authorize("customer", request(Operation.APPLY)));
     }
 
     @Test void sourceAccessStillRequiresTheFrozenOwnedStorageBindingWithoutCapacityRecords() {
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations",
-            mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class));
-        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
         var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
         release.setDeploymentVersionId("version"); release.setTargetProfileId("staging-target");
         release.setSourceArtifactId("runtime-artifact");
@@ -140,7 +125,6 @@ class CustomerSelfServiceAuthorizationServiceTest {
             Operation.SOURCE_PREVIEW, "preview-command", Set.of(), null, null, DocumentAudience.PUBLIC);
         service.authorize("customer", source);
         verify(bindings).requireUnchanged(eq(deployment), any(), eq(release));
-        verifyNoInteractions(provider);
         doThrow(new IllegalStateException("STORAGE_BINDING_CHANGED")).when(bindings).requireUnchanged(any(), any(), any());
         assertThatThrownBy(() -> service.authorize("customer", source)).hasMessage("STORAGE_BINDING_CHANGED");
     }
@@ -155,8 +139,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertThat(approved.context().operation()).isEqualTo(Operation.APPLY);
         assertThat(approved.context().targetProfileId()).isEqualTo("staging-target");
         assertThat(approved.context().offerId()).isEqualTo("offer");
-        verify(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
-        verify(provider, never()).resolve(any());
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
 
         assertCode(UNENTITLED_TARGET, () -> boundary.prepareAdmission(
             deployment, "other-target", Operation.APPLY, "runtime-authority-preflight"
@@ -341,18 +324,18 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertCode(BINDING_SLOT_FORBIDDEN, () -> service.authorize("customer", invalid));
     }
 
-    @Test void absentOrAmbiguousPrerequisiteAdapterNeverInventsReadiness() {
-        when(providers.orderedStream()).thenAnswer(call -> Stream.empty()); assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
-        when(providers.orderedStream()).thenAnswer(call -> Stream.of(provider, provider)); assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
+    @Test void capacityAndNotificationPolicyDoNotBecomeSecurityPrerequisites() {
+        service.authorize("customer", request(Operation.APPLY));
+        var context = service.authorize("customer", request(Operation.APPLY)).context();
+        service.requirePrerequisites(context, Set.of(Prerequisite.CAPACITY, Prerequisite.NOTIFICATIONS));
+        verifyNoInteractions(bindings);
     }
 
     @Test void admissionPreparationKeepsEveryAuthorizationCheckButDoesNotRequireItsFutureReservation() {
-        when(providers.orderedStream()).thenAnswer(call -> Stream.empty());
         var prepared = service.prepareAdmission("customer", request(Operation.APPLY));
         assertThat(prepared.context().operation()).isEqualTo(Operation.APPLY);
         assertThat(prepared.context().customerId()).isEqualTo("customer");
-        verifyNoInteractions(provider);
-        assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
+        service.authorize("customer", request(Operation.APPLY));
 
         deployment.setCustomerId("other");
         assertCode(RESOURCE_SCOPE_MISMATCH,
@@ -362,7 +345,6 @@ class CustomerSelfServiceAuthorizationServiceTest {
     @Test void admissionPreparationCannotBeUsedForOperationsWithoutAdmissionEvidence() {
         assertCode(OPERATION_FORBIDDEN,
             () -> service.prepareAdmission("customer", request(Operation.DRAFT_EDIT)));
-        verifyNoInteractions(provider);
     }
 
     @Test void sourceRefreshPreparationRequiresExactEntitlementAndReleaseBeforeCollectingEvidence() {
@@ -377,7 +359,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
 
         assertThat(prepared.context().entitlementRevision()).isEqualTo(2);
         assertThat(prepared.context().placementEvidenceId()).isNull();
-        verifyNoInteractions(provider, placement);
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         grant.setStatus(EntitlementStatus.REVOKED);
         assertCode(ENTITLEMENT_REVOKED, () -> service.prepareSourcePrerequisiteRefresh("customer", request));
         grant.setStatus(EntitlementStatus.ACTIVE);
@@ -387,16 +369,14 @@ class CustomerSelfServiceAuthorizationServiceTest {
             () -> service.prepareSourcePrerequisiteRefresh("customer", request(Operation.APPLY)));
     }
 
-    @Test void missingStaleAndMismatchedPlacementEvidenceNeverTriggersAProbeUnderCommandLocks() {
-        for (var code : List.of(PLACEMENT_EVIDENCE_REQUIRED, PLACEMENT_EVIDENCE_STALE, PLACEMENT_DENIED)) {
-            doThrow(conflict(code)).when(placement).requireFreshEvidence(any(), any());
-            assertDenied(code, Operation.APPLY);
-        }
+    @Test void configuredTargetIdentityRemainsMandatoryWithoutAnyPlacementLease() {
+        doThrow(conflict(PLACEMENT_DENIED)).when(placement).requireConfiguredPlacement(any(), any());
+        assertDenied(PLACEMENT_DENIED, Operation.APPLY);
         verify(placement, never()).probeAndRecord(any(), any());
+        verify(placement, never()).requireFreshEvidence(any(), any());
     }
 
     @Test void prerequisiteConfigurationDoesNotRequireAdmissionOrReserveCapacity() {
-        when(providers.orderedStream()).thenAnswer(call -> Stream.empty());
         var request = new AuthorizationRequest("offer", "staging-target", null, null, null,
             Operation.BOOTSTRAP_CONFIGURATION, "configure-operation", Set.of(), null, null, null);
         var authorization = service.authorize("customer", request);
@@ -406,27 +386,21 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verify(associations).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getBootstrapTargetProfileId()).isEqualTo("staging-target");
         when(associations.findById("deployment")).thenReturn(Optional.of(saved.getValue()));
-        verifyNoInteractions(provider);
-        assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
+        service.authorize("customer", request(Operation.APPLY));
     }
 
-    @ParameterizedTest @EnumSource(Prerequisite.class)
-    void everyAdmissionPrerequisiteIsMandatory(Prerequisite missing) {
-        var passed = EnumSet.allOf(Prerequisite.class); passed.remove(missing);
-        when(provider.resolve(any())).thenAnswer(call -> evidence(call.getArgument(0), passed));
-        assertThatThrownBy(() -> service.authorize("customer", request(Operation.APPLY))).isInstanceOf(CustomerSelfServiceException.class);
-    }
-
-    @Test void wrongContextStaleEvidenceAndMissingCapacityReservationDeny() {
-        when(provider.resolve(any())).thenReturn(new PrerequisiteEvidence(null, EnumSet.allOf(Prerequisite.class),
-            Instant.now().minusSeconds(1), Instant.now().plusSeconds(100), "evidence", "reservation"));
-        assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
-        when(provider.resolve(any())).thenAnswer(call -> new PrerequisiteEvidence(call.getArgument(0), EnumSet.allOf(Prerequisite.class),
-            Instant.now().minusSeconds(120), Instant.now().plusSeconds(100), "evidence", "reservation"));
-        assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
-        when(provider.resolve(any())).thenAnswer(call -> new PrerequisiteEvidence(call.getArgument(0), EnumSet.allOf(Prerequisite.class),
-            Instant.now().minusSeconds(1), Instant.now().plusSeconds(100), "evidence", null));
-        assertDenied(CAPACITY_REQUIRED, Operation.APPLY);
+    @Test void sourcePreparationCannotBypassFrozenStorageChecks() {
+        var release = new DeploymentReleaseEntity();
+        release.setId("release"); release.setDeploymentId("deployment"); release.setDeploymentVersionId("version");
+        release.setTargetProfileId("staging-target"); release.setSourceArtifactId("runtime-artifact");
+        when(releases.findById("release")).thenReturn(Optional.of(release));
+        when(bindings.required(any())).thenReturn(true);
+        var request = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", "release",
+            Operation.SOURCE_PREVIEW, null, Set.of(), null, null, DocumentAudience.PUBLIC);
+        doThrow(new IllegalStateException("STORAGE_BINDING_CHANGED")).when(bindings).requireUnchanged(any(), any(), any());
+        assertThatThrownBy(() -> service.prepareSourcePrerequisiteRefresh("customer", request))
+            .hasMessage("STORAGE_BINDING_CHANGED");
+        assertThatThrownBy(() -> service.authorize("customer", request)).hasMessage("STORAGE_BINDING_CHANGED");
     }
 
     @Test void adminAssignedOperatorAndOperatorKeyKeepDistinctCeilings() {
@@ -472,7 +446,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertThat(result.targets()).hasSize(2);
         String json = codec.write(result);
         assertThat(json).doesNotContain("PRIVATE_CREDENTIAL_REF", "PRIVATE_PROVIDER_VALUE", "runtime-artifact", "providerConfig", "imageRepository");
-        doThrow(conflict(PLACEMENT_DENIED)).when(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        doThrow(conflict(PLACEMENT_DENIED)).when(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         result = catalogue.offer("offer");
         assertThat(result.targets()).extracting(TargetSummary::id).containsExactly("production-target");
         assertThat(result.blockers()).contains("PLACEMENT_DENIED");
@@ -481,9 +455,6 @@ class CustomerSelfServiceAuthorizationServiceTest {
     private AuthorizationRequest request(Operation operation) {
         return new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", null,
             operation, "operation", Set.of(), null, null, null);
-    }
-    private PrerequisiteEvidence evidence(AdmissionContext context, Set<Prerequisite> passed) {
-        return new PrerequisiteEvidence(context, passed, Instant.now().minusSeconds(1), Instant.now().plusSeconds(100), "evidence", "reservation");
     }
     private void assertDenied(CustomerSelfServiceException.Code code, Operation operation) {
         assertCode(code, () -> service.authorize("customer", request(operation)));

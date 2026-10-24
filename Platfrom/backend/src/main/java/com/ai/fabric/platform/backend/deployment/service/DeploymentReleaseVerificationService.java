@@ -60,7 +60,7 @@ public class DeploymentReleaseVerificationService {
     @Autowired
     private DeploymentRuntimeAuthorityService runtimeAuthorityService;
     @Autowired
-    private com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver effectiveRuntimeArtifacts;
+    private ReleaseArtifactResolver effectiveRuntimeArtifacts;
     @Autowired(required = false)
     private DeploymentExistingVectorBindingService existingVectorBindings;
     private static final int JSON_PROBE_MAX_ATTEMPTS = 3;

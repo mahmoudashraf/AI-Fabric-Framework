@@ -12,15 +12,14 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerGoLiveRe
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.customerselfservice.service.*;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Placement;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.PrerequisiteReadback;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
-import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
-import com.ai.fabric.platform.backend.deployment.admission.ReviewedManagedDependencyEvidenceService;
+import com.ai.fabric.platform.backend.deployment.dependency.*;
+import com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.*;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPromotionCandidateService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -52,21 +51,26 @@ class CustomerGoLiveReadinessServiceTest {
     private final AIWorkspaceInstallationRepository installations = mock(AIWorkspaceInstallationRepository.class);
     private final AIWorkspaceReadinessService workspaceReadiness = mock(AIWorkspaceReadinessService.class);
     private final DeploymentPromotionCandidateService candidates = mock(DeploymentPromotionCandidateService.class);
-    private final DeploymentAdmissionService admissions = mock(DeploymentAdmissionService.class);
-    private final TargetRetirementOperationRepository retirements = mock(TargetRetirementOperationRepository.class);
+
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
-    private final ReviewedManagedDependencyEvidenceService dependencyEvidence = mock(ReviewedManagedDependencyEvidenceService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    private final ManagedDependencySpecRepository dependencySpecs = mock(ManagedDependencySpecRepository.class);
+    private final ManagedDependencySpecValidator dependencyValidator = spy(new ManagedDependencySpecValidator(mapper));
+    private final ManagedDependencyArtifactPolicy dependencyOwnership = mock(ManagedDependencyArtifactPolicy.class);
+    private final CoreReleaseAuthorizationStore releaseAuthorizations = mock(CoreReleaseAuthorizationStore.class);
+    private final DeploymentOperationsService operations = mock(DeploymentOperationsService.class);
+    private final DeploymentDocumentBindingResolver bindings = mock(DeploymentDocumentBindingResolver.class);
     private final CustomerGoLiveReadinessService service = new CustomerGoLiveReadinessService(
         entitlements, associations, deployments, releases, versions, targets, verifications, consumers,
-        installations, workspaceReadiness, candidates, admissions, retirements, composition, dependencyEvidence, mapper);
+        installations, workspaceReadiness, candidates, composition, dependencySpecs, dependencyValidator,
+        dependencyOwnership, releaseAuthorizations, operations, bindings, mapper);
 
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
     private DeploymentReleaseEntity release;
     private PlatformConsumerEntity consumer;
     private Definition definition;
-    private Reservation reservation;
+    private ManagedDependencySpecEntity reviewedDependency;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -135,21 +139,19 @@ class CustomerGoLiveReadinessServiceTest {
         when(verifications.findById("verification")).thenReturn(Optional.of(run));
         when(candidates.fingerprint(any())).thenReturn("candidate-fp");
 
-        reservation = mock(Reservation.class);
-        when(reservation.customerOperation()).thenReturn(Operation.PROMOTION_PLAN);
-        when(reservation.consumesCapacity()).thenReturn(true);
-        when(reservation.id()).thenReturn("reservation"); when(reservation.generation()).thenReturn("generation");
-        when(reservation.revision()).thenReturn(2L); when(reservation.updatedAt()).thenReturn(now);
-        when(reservation.expiresAt()).thenReturn(now.plusSeconds(3600));
-        var readback = mock(PrerequisiteReadback.class);
-        when(readback.observedAt()).thenReturn(now); when(readback.validUntil()).thenReturn(now.plusSeconds(3600));
-        when(readback.evidenceReference()).thenReturn("prerequisites:verified");
-        when(readback.placement()).thenReturn(mock(Placement.class));
-        when(reservation.prerequisiteReadback()).thenReturn(readback);
-        when(admissions.activeCustomerReleaseReservation("deployment", "production-release")).thenReturn(reservation);
-        when(admissions.activeCustomerReservations("deployment", "staging")).thenReturn(List.of());
-        when(retirements.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(anyString(), anyString()))
-            .thenReturn(List.of());
+        var topology = ManagedDependencyFixtures.topology();
+        var production = new ManagedDependencySpec(topology.schemaVersion(), topology.services().stream()
+            .map(value -> "inbox".equals(value.slot()) ? ManagedDependencyFixtures.productionInbox() : value).toList(),
+            topology.runtimeEnvironment());
+        reviewedDependency = new ManagedDependencySpecEntity();
+        reviewedDependency.setId("spec"); reviewedDependency.setTemplateVersionId("template-version");
+        reviewedDependency.setSpecJson(mapper.writeValueAsString(production));
+        reviewedDependency.setFingerprint(dependencyValidator.fingerprint(production));
+        reviewedDependency.setActive(true); reviewedDependency.setReviewedBy("reviewer");
+        reviewedDependency.setReviewedAt(now); reviewedDependency.setReviewReference("dependency-review");
+        when(dependencySpecs.findByTemplateVersionIdAndActiveTrue("template-version")).thenReturn(List.of(reviewedDependency));
+        when(operations.status()).thenReturn(new DeploymentOperationsContracts.Status(
+            "DISABLED", true, false, "TEAM_AUTHORIZED", "EXTERNAL_SERVICE"));
 
         var installation = new AIWorkspaceInstallationEntity();
         installation.setId("installation-entity"); installation.setInstallationId("installation");
@@ -166,7 +168,7 @@ class CustomerGoLiveReadinessServiceTest {
         var summary = service.project("offer", "deployment", "production-release", "workspace");
 
         assertThat(summary.activationReady()).isTrue();
-        assertThat(summary.postActivationComplete()).isFalse();
+        assertThat(summary.postActivationComplete()).isTrue();
         assertThat(summary.candidateFingerprint()).isEqualTo("candidate-fp");
         assertThat(summary.items()).filteredOn(item -> item.phase().name().equals("ACTIVATION"))
             .allMatch(item -> item.status() == Status.PASSED || item.status() == Status.NOT_APPLICABLE);
@@ -207,9 +209,9 @@ class CustomerGoLiveReadinessServiceTest {
     }
 
     @Test
-    void anUnrelatedCurrentAllocationCannotSatisfyTheExactReleaseReadiness() {
-        when(admissions.activeCustomerReleaseReservation("deployment", "production-release"))
-            .thenThrow(new IllegalStateException("ACTIVE_RELEASE_ALLOCATION_REQUIRED"));
+    void missingExactCoreReleaseAuthorityCannotBeReplacedByOptionalPolicyStatus() {
+        when(releaseAuthorizations.require(deployment, version, release))
+            .thenThrow(new IllegalStateException("CORE_RELEASE_AUTHORIZATION_REQUIRED"));
 
         var summary = service.project("offer", "deployment", "production-release", "workspace");
 
@@ -221,7 +223,7 @@ class CustomerGoLiveReadinessServiceTest {
     @Test
     void unsupportedManagedPersistenceBlocksProjectionAndActivationDespiteFreshStoredEvidence() {
         doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.PRECONDITION_FAILED,
-            "INBOX_PRODUCTION_POSTGRES_REQUIRED")).when(dependencyEvidence).requireProductionPersistence(definition);
+            "INBOX_PRODUCTION_POSTGRES_REQUIRED")).when(dependencyValidator).requireProductionInboxPersistence(any());
 
         var summary = service.project("offer", "deployment", "production-release", "workspace");
 
@@ -230,7 +232,7 @@ class CustomerGoLiveReadinessServiceTest {
             .singleElement().extracting("status").isEqualTo(Status.BLOCKED);
         assertThatThrownBy(() -> service.requireActivationReady(deployment, release, consumer))
             .hasMessageContaining("Managed production dependency persistence");
-        verify(dependencyEvidence, times(2)).requireProductionPersistence(definition);
+        verify(dependencyValidator, times(2)).requireProductionInboxPersistence(any());
     }
 
     @Test
@@ -239,15 +241,11 @@ class CustomerGoLiveReadinessServiceTest {
 
         service.requireActivationReady(deployment, release, consumer);
 
-        verifyNoInteractions(dependencyEvidence);
+        verifyNoInteractions(dependencySpecs, releaseAuthorizations, bindings);
     }
 
     @Test
     void coreVerifiedReadinessDoesNotRequireCapacityReservationsOrAutomaticRetirement() {
-        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
-        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations", operations);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
         when(operations.status()).thenReturn(new com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts.Status(
             "DISABLED",true,false,"TEAM_AUTHORIZED","EXTERNAL_SERVICE"));
 
@@ -258,17 +256,12 @@ class CustomerGoLiveReadinessServiceTest {
         assertThat(summary.items()).filteredOn(item -> item.code().equals("operations_ready")
             || item.code().equals("staging_disposition"))
             .allMatch(item -> !item.mandatory() && item.status() == Status.NOT_APPLICABLE);
-        verify(operations).require(deployment,version,release);
+        verify(releaseAuthorizations).require(deployment,version,release);
         verify(bindings).requireUnchanged(deployment,version,release);
-        verifyNoInteractions(admissions, retirements);
     }
 
     @Test
     void optionalPolicyBypassCannotReplaceActualConnectionOrVerificationEvidence() {
-        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
-        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations", operations);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
         when(operations.status()).thenReturn(new com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts.Status(
             "ENFORCE",true,true,"TEAM_AUTHORIZED","EXTERNAL_SERVICE"));
         doThrow(new IllegalStateException("DOCUMENT_BINDING_CHANGED")).when(bindings)
@@ -279,7 +272,33 @@ class CustomerGoLiveReadinessServiceTest {
         assertThat(summary.activationReady()).isFalse();
         assertThat(summary.items()).filteredOn(item -> item.code().equals("production_connections"))
             .singleElement().extracting("status").isEqualTo(Status.BLOCKED);
-        verifyNoInteractions(admissions, retirements);
+    }
+
+    @Test
+    void unavailableOperationsStatusDoesNotBlockOtherwiseVerifiedProduction() {
+        when(operations.status()).thenThrow(new IllegalStateException("OPERATIONS_UNAVAILABLE"));
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isTrue();
+        verify(releaseAuthorizations).require(deployment, version, release);
+        verify(bindings).requireUnchanged(deployment, version, release);
+    }
+
+    @Test
+    void missingDriftedOrUnownedRequiredDependenciesBlockReadiness() {
+        reviewedDependency.setFingerprint("changed");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        reviewedDependency.setFingerprint(dependencyValidator.fingerprint(
+            new CustomerOfferCodec(mapper).read(reviewedDependency.getSpecJson(), ManagedDependencySpec.class)));
+        doThrow(new IllegalStateException("DEPENDENCY_ARTIFACT_OWNERSHIP_REQUIRED"))
+            .when(dependencyOwnership).requireAllowed(any(ManagedDependencySpec.class));
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        when(dependencySpecs.findByTemplateVersionIdAndActiveTrue("template-version")).thenReturn(List.of());
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+    }
+
+    @Test
+    void aPassedVerificationForAnotherReleaseCannotSatisfyReadiness() {
+        verifications.findById("verification").orElseThrow().setReleaseId("foreign-release");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
     }
 
     private Definition definition() {

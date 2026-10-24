@@ -5,10 +5,10 @@ import com.ai.fabric.platform.backend.config.*;
 import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures;
-import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyResource;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
-import com.ai.fabric.platform.backend.deployment.retirement.ProviderHostCommandRunner;
+import com.ai.fabric.platform.backend.deployment.provider.CoolifyHostVolumeReclamationService;
+import com.ai.fabric.platform.backend.deployment.provider.ProviderHostCommandRunner;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -22,7 +22,7 @@ final class OwnedReclamationVerificationFixture {
     final CoolifyConnection connection;
     final OwnedDependencyOwnershipFixture ownership;
     final PlatformManagedProductProvisioningService service;
-    final List<ManagedDependencyRetirementAdapter.Resource> resources;
+    final List<ManagedDependencyResource> resources;
     OwnedReclamationVerificationFixture(boolean proven) {
         var mapper = new ObjectMapper();
         var api = mock(CoolifyApiClient.class);
@@ -51,7 +51,7 @@ final class OwnedReclamationVerificationFixture {
         ownership.authority.volumesDeleted(context,"application",volumes,null);
         ownership.checkpoint.volumeReclamationPlanned(plan);
         if (proven) ownership.checkpoint.volumesReclaimed(Set.of(volume.uuid()));
-        resources = List.of(new ManagedDependencyRetirementAdapter.Resource("inbox","managed-inbox","application",null,
+        resources = List.of(new ManagedDependencyResource("inbox","managed-inbox","application",null,
             volumes,plan,proven?Set.of(volume.uuid()):Set.of()));
         var placement = new CustomerSelfServiceProperties(Map.of(TargetIntent.CUSTOMER_STAGING,
             new CustomerSelfServiceProperties.TrustedServer("server","192.0.2.1","host.docker.internal")),60);

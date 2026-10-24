@@ -276,43 +276,6 @@ class ManagedDependencyLifecycleServiceTest {
             Map.of("conversation-handover-callback-signing", "TARGET_CALLBACK_SECRET"), true)).when(gate).reserve(any(), any(), any());
     }
 
-    @Test void explicitResumeReusesProvisionedNodesAndRetainsInitializationKeys() {
-        var ready = ready("staging"); var graph = graphs.get(ready.graphId()); graph.setReleaseId("release");
-        var failedKeys = new ArrayList<String>();
-        doAnswer(call -> { failedKeys.add(call.getArgument(3)); throw new org.springframework.web.server.ResponseStatusException(
-            org.springframework.http.HttpStatus.CONFLICT, "FRESH_MEASURED_CAPACITY_REQUIRED"); })
-            .when(gate).initializeAndVerify(any(), anyString(), any(), anyString());
-        assertThatThrownBy(() -> lifecycle.reconcileForRelease("dep-1", "staging", "release", "failed-initialization"))
-            .hasMessageContaining("FRESH_MEASURED_CAPACITY_REQUIRED");
-        var failed = store.state(graph); var before = failed.nodes.stream()
-            .map(n -> List.of(n.applicationUuid, Objects.toString(n.databaseUuid, ""))).toList();
-        clearInvocations(provider, gate);
-        doNothing().when(gate).initializeAndVerify(any(), anyString(), any(), anyString());
-        when(provider.verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any()))
-            .thenAnswer(call -> {
-                var resources = call.getArgument(4, PlatformManagedProductProvisioningService.OwnedDependencyResources.class);
-                call.getArgument(7, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
-                return new PlatformManagedProductProvisioningService.OwnedDependencyResult(resources.applicationUuid(),
-                    resources.databaseUuid(), call.getArgument(6));
-            });
-        assertThat(lifecycle.resumeForRelease("dep-1", "staging", "release", "explicit-resume").status()).isEqualTo("READY");
-        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
-        verify(provider, times(3)).verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any());
-        var resumedKeys = ArgumentCaptor.forClass(String.class);
-        verify(gate, times(3)).initializeAndVerify(any(), anyString(), any(), resumedKeys.capture());
-        assertThat(resumedKeys.getAllValues().getFirst()).isEqualTo(failedKeys.getFirst());
-        assertThat(store.state(graph).nodes.stream().map(n -> List.of(n.applicationUuid, Objects.toString(n.databaseUuid, ""))).toList()).isEqualTo(before);
-    }
-
-    @Test void explicitResumeRejectsChangedConfigurationWithoutReprovisioning() {
-        var ready = ready("staging"); var graph = graphs.get(ready.graphId()); graph.setReleaseId("release");
-        store.mutate(graph.getId(), null, (current, state) -> state.configurationRevision++);
-        clearInvocations(provider);
-        assertThatThrownBy(() -> lifecycle.resumeForRelease("dep-1", "staging", "release", "changed-config-resume"))
-            .hasMessageContaining("DEPENDENCY_CONTINUATION_CONFIGURATION_CHANGED");
-        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
-        verify(provider, never()).verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any());
-    }
     @Test void configurationChangeProducesFreshInitializationGenerations() {
         var initial = ready("staging");
         var initialKeys = ArgumentCaptor.forClass(String.class);
@@ -547,23 +510,6 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(result.failureCode()).isEqualTo("DEPENDENCY_PROVIDER_HTTP_400");
         assertThat(result.toString()).doesNotContain("upstream detail", "credential=secret", "/private?");
     }
-    @Test void retirementChecksUnusedReclaimedAndRetainsHistory() {
-        var ready = ready("staging"); var adapter = new ManagedDependencyRetirementAdapter(lifecycle, store, provider, secrets, validator);
-        var plan = adapter.plan("dep-1", "staging");
-        var result = adapter.retire("dep-1", "staging", plan.expectedRevision(), plan.fingerprint(), "retire");
-        assertThat(result.status()).isEqualTo("RETIRED"); assertThat(graphs).containsKey(ready.graphId());
-        verify(gate).verifyReclaimed(any(), anyList()); verify(gate).releaseReservation(any(), anyString());
-        verify(deployments, never()).delete(any());
-        clearInvocations(provider);
-        adapter.retire("dep-1", "staging", plan.expectedRevision(), plan.fingerprint(), "retire"); verifyNoInteractions(provider);
-    }
-    @Test void uncertainReclamationKeepsCapacityAndRetryIsVisible() {
-        ready("staging"); doThrow(new IllegalStateException()).when(gate).verifyReclaimed(any(), anyList());
-        var adapter = new ManagedDependencyRetirementAdapter(lifecycle, store, provider, secrets, validator);
-        var plan = adapter.plan("dep-1", "staging");
-        var result = adapter.retire("dep-1", "staging", plan.expectedRevision(), plan.fingerprint(), "retire");
-        assertThat(result.status()).isEqualTo("RETIREMENT_BLOCKED"); verify(gate, never()).releaseReservation(any(), anyString());
-    }
     @Test void explicitProvisionedBindingsCanBootstrapRuntimeWithoutClaimingReady() {
         submit("staging");
         var pending = lifecycle.provision("dep-1", "staging", "resources-only");
@@ -638,32 +584,7 @@ class ManagedDependencyLifecycleServiceTest {
             .hasMessageContaining("DEPENDENCY_TARGET_SECRET_MISSING");
     }
 
-    @Test void runtimeGenerationQuiescesAndResumesOnlyTheManagedInbox() {
-        var ready = ready("staging");
-        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
-            eq("inbox"), anyString(), any())).thenReturn("managed-dependency-generation:stopped");
-        when(provider.resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
-            eq("inbox"), anyString(), any())).thenReturn("managed-dependency-generation:running");
-
-        var evidence = lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v1"
-        );
-        assertThat(evidence.readbacks()).containsEntry("HUMAN_INBOX", "managed-dependency-generation:stopped");
-        var quiesced = store.state(graphs.get(ready.graphId()));
-        assertThat(quiesced.runtimeGenerationState).isEqualTo("QUIESCED");
-        assertThat(quiesced.runtimeGenerationStoppedSlots).containsExactly("inbox");
-
-        lifecycle.resumeAfterRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v1");
-        var resumed = store.state(graphs.get(ready.graphId()));
-        assertThat(resumed.runtimeGenerationState).isEqualTo("RESUMED");
-        assertThat(resumed.runtimeGenerationStoppedSlots).isEmpty();
-        verify(provider).quiesceOwnedDependencyForRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
-            eq("inbox"), anyString(), any());
-        verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
-            eq("inbox"), anyString(), any());
-    }
-
-    @Test void releaseReapplyQuiescesPreparedFoundationsThenResumesBeforeRuntimeBoundInitialization() {
+    @Test void releaseReapplyRetainsOwnedFoundationsAndOperatorIdentityBeforeRuntimeBoundInitialization() {
         var first = ready("staging");
         var graph = graphs.get(first.graphId());
         graph.setReleaseId("release-old");
@@ -680,29 +601,6 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(graph.getStep()).isEqualTo("RUNTIME_INITIALIZATION_REQUIRED");
         assertThat(store.state(graph).effectiveConfigurationRevision).isEqualTo(-1);
         clearInvocations(provider);
-        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
-            eq("inbox"), anyString(), any())).thenAnswer(call -> {
-                call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
-                return "managed-dependency-generation:stopped";
-            });
-        when(provider.resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(first.graphId()), anyString(),
-            eq("inbox"), anyString(), any())).thenAnswer(call -> {
-                call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
-                return "managed-dependency-generation:running";
-            });
-
-        lifecycle.quiesceForRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v2");
-        assertThat(store.state(graph).runtimeGenerationState).isEqualTo("QUIESCED");
-        lifecycle.resumeAfterRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v2");
-        assertThat(store.state(graph).runtimeGenerationState).isEqualTo("RESUMED");
-        assertThat(graph.getStatus()).isEqualTo("PROVISIONED");
-        assertThat(store.state(graph).effectiveConfigurationRevision).isEqualTo(-1);
-        verify(provider).quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
-            eq("inbox"), anyString(), any());
-        verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(first.graphId()), anyString(),
-            eq("inbox"), anyString(), any());
-        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
-
         var completed = lifecycle.reconcileForRelease("dep-1", "staging", "release-new", "reapply-runtime-bound");
         assertThat(completed.status()).isEqualTo("READY");
         var after = store.state(graph);
@@ -712,61 +610,6 @@ class ManagedDependencyLifecycleServiceTest {
         var retained = after.operators.getFirst();
         assertThat(List.of(retained.id, retained.secretName, Integer.toString(retained.credentialRevision)))
             .isEqualTo(operatorIdentity);
-    }
-
-    @Test void runtimeGenerationRejectsIncompleteOrBusyGraphsBeforeProviderCalls() {
-        var first = ready("staging");
-        var graph = graphs.get(first.graphId());
-        clearInvocations(provider);
-        for (String status : List.of("PLANNED", "RUNNING", "BLOCKED", "FAILED", "RETIRING", "RETIRED")) {
-            graph.setStatus(status);
-            graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
-            assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-                "dep-1", "staging", "release-old", "release-new", "v1"))
-                .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        }
-        graph.setStatus("PROVISIONED");
-        graph.setStep("PROVISION:inbox");
-        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v1"))
-            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
-        graph.setWorkerToken("other-worker");
-        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v1"))
-            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        graph.setWorkerToken(null);
-        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v2"))
-            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        graph.setFailureCode("DEPENDENCY_RECONCILE_FAILED");
-        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v1"))
-            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
-        verifyNoInteractions(provider);
-    }
-
-    @Test void preparedRuntimeGenerationCheckpointRejectsConcurrentWorkerAndResourceCreation() {
-        var first = ready("staging");
-        var graph = graphs.get(first.graphId());
-        graph.setStatus("PROVISIONED");
-        graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
-        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
-            eq("inbox"), anyString(), any())).thenAnswer(call -> {
-                var checkpoint = call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class);
-                checkpoint.guard();
-                assertThatThrownBy(() -> checkpoint.creating("APPLICATION"))
-                    .hasMessageContaining("DEPENDENCY_GENERATION_RESOURCE_CREATION_FORBIDDEN");
-                graph.setWorkerToken("concurrent-worker");
-                checkpoint.guard();
-                return "unreachable";
-            });
-        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
-            "dep-1", "staging", "release-old", "release-new", "v1"))
-            .hasMessageContaining("DEPENDENCY_GENERATION_OPERATION_CHANGED");
-        assertThat(store.state(graph).runtimeGenerationState).isNotEqualTo("QUIESCED");
-        verify(provider, never()).resumeOwnedDependencyAfterRuntimeGeneration(any(), anyString(), anyString(),
-            anyString(), anyString(), any());
     }
 
     @Test void releaseRebindAdvancesGenerationAndInitialOwnerEnrollmentIsIdempotent() {

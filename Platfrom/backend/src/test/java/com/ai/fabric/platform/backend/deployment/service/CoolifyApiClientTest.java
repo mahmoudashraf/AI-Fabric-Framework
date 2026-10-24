@@ -23,34 +23,6 @@ class CoolifyApiClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @ParameterizedTest @ValueSource(ints = {200, 503})
-    void reviewedProvenanceUpdateIsOneExactBulkPatchAndNeverRetries(int status) throws Exception {
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        var patches = new AtomicInteger(); var body = new AtomicReference<JsonNode>();
-        server.createContext("/api/v1/applications/app/envs/bulk", exchange -> {
-            assertThat(exchange.getRequestMethod()).isEqualTo("PATCH");
-            patches.incrementAndGet(); body.set(objectMapper.readTree(exchange.getRequestBody()));
-            sendJson(exchange, status, "[]");
-        });
-        server.createContext("/api/v1/applications/app/envs", exchange -> {
-            assertThat(exchange.getRequestMethod()).isEqualTo("GET");
-            sendJson(exchange, 200, new RuntimeArtifactRepairProvenanceTest().environment("a".repeat(40)).toString());
-        }); server.start();
-        try {
-            var client = new CoolifyApiClient(objectMapper);
-            if (status == 200) client.updateRuntimeRepairProvenance(connection(server), "app", "a".repeat(40), "b".repeat(40));
-            else assertThatThrownBy(() -> client.updateRuntimeRepairProvenance(connection(server), "app", "a".repeat(40), "b".repeat(40)))
-                .isInstanceOf(CoolifyApiException.class);
-            assertThat(patches).hasValue(1); assertThat(body.get().path("data")).hasSize(4);
-            for (var row : body.get().path("data")) {
-                assertThat(row.path("key").textValue()).isIn("APP_BUILD_COMMIT", "PLATFORM_SOURCE_COMMIT");
-                assertThat(row.path("value").textValue()).isEqualTo("b".repeat(40));
-                assertThat(row.path("is_literal").booleanValue()).isTrue();
-                assertThat(row.path("is_runtime").booleanValue()).isTrue();
-                assertThat(row.path("is_buildtime").booleanValue()).isFalse();
-            }
-        } finally { server.stop(0); }
-    }
 
     @ParameterizedTest
     @ValueSource(strings = {"{\"count\":2,\"deployments\":[]}", "{\"deployments\":[]}",

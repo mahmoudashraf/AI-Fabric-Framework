@@ -1,30 +1,22 @@
 package com.ai.fabric.platform.backend.customerselfservice.service;
 
-import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDeploymentEntity;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Request;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.RefreshRequest;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Request;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Summary;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AuthorizationRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reserve;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionManifestService;
-import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Comparator;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
@@ -32,155 +24,117 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.invalid;
 
-/** Bridges reviewed customer authorization to the durable R7 admission ledger without holding provider locks. */
+/** Preserves customer-scoped history without loading or executing the retired capacity engine. */
 @Service
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
+@Transactional
 public class CustomerAdmissionReservationService {
     private final CustomerOfferEntitlementService entitlements;
     private final CustomerSelfServiceAuthorizationService authorization;
     private final DeploymentRepository deployments;
-    private final DeploymentVersionRepository versions;
-    private final DeploymentReleaseRepository releases;
-    private final CustomerOfferDeploymentRepository offerDeployments;
-    private final CustomerAdmissionManifestService manifests;
-    private final DeploymentAdmissionService admissions;
-    private final TransactionTemplate preparation;
+    private final CustomerOfferDeploymentRepository associations;
+    private final JdbcTemplate jdbc;
+    private final CustomerOfferCodec codec;
 
     public CustomerAdmissionReservationService(CustomerOfferEntitlementService entitlements,
-                                               CustomerSelfServiceAuthorizationService authorization,
-                                               DeploymentRepository deployments,
-                                               DeploymentVersionRepository versions,
-                                               DeploymentReleaseRepository releases,
-                                               CustomerOfferDeploymentRepository offerDeployments,
-                                               CustomerAdmissionManifestService manifests,
-                                               DeploymentAdmissionService admissions,
-                                               PlatformTransactionManager transactionManager) {
+            CustomerSelfServiceAuthorizationService authorization, DeploymentRepository deployments,
+            CustomerOfferDeploymentRepository associations, JdbcTemplate jdbc, CustomerOfferCodec codec) {
         this.entitlements = entitlements;
         this.authorization = authorization;
         this.deployments = deployments;
-        this.versions = versions;
-        this.releases = releases;
-        this.offerDeployments = offerDeployments;
-        this.manifests = manifests;
-        this.admissions = admissions;
-        this.preparation = new TransactionTemplate(transactionManager);
-        this.preparation.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.associations = associations;
+        this.jdbc = jdbc;
+        this.codec = codec;
     }
 
     public Summary reserve(String offerId, String deploymentId, Request request) {
-        validate(request);
-        var actor = entitlements.requireCustomerActor();
-        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
-        Authorization prepared = preparation.execute(status -> prepare(offerId, deployment, request));
-        if (prepared == null) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        var manifest = manifests.prepare(deployment, version, prepared);
-        Reservation reservation = admissions.reserveCustomer(deploymentId, request.versionId(),
-            new Reserve(request.operationKey(), manifest.id(), prepared.context(), request.allocationId()));
-        Summary result = summary(reservation);
-        return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
-            request.operation(), result.state(), result.revision(), result.expiresAt(), result.expiryState(),
-            result.keepUntil(), result.occupiesActiveSlot(), result.chargedDemand());
+        if (request == null || blank(request.targetProfileId(), 64)) throw invalid();
+        var deployment = ownedDeployment(offerId, deploymentId);
+        authorizeRead(offerId, deployment, request.targetProfileId());
+        throw retired();
     }
 
     public Summary refreshEvidence(String offerId, String deploymentId, String reservationId, RefreshRequest request) {
-        if (blank(offerId, 64) || blank(reservationId, 64) || request == null || request.expectedRevision() < 0
-            || (request.operation() != Operation.APPLY && request.operation() != Operation.PROMOTION_APPLY)) throw invalid();
-        Request originalApply = new Request(request.targetProfileId(), request.versionId(), null,
-            request.operation(), request.operationKey());
-        validate(originalApply);
-        var actor = entitlements.requireCustomerActor();
-        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
-        Authorization prepared = preparation.execute(status -> prepare(offerId, deployment, originalApply));
-        if (prepared == null) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        var manifest = manifests.prepare(deployment, version, prepared);
-        return summary(admissions.refreshCustomerEvidence(deploymentId, request.versionId(), reservationId,
-            request.expectedRevision(), new Reserve(request.operationKey(), manifest.id(), prepared.context(), null)));
+        status(offerId, deploymentId, reservationId);
+        throw retired();
     }
 
     public Summary status(String offerId, String deploymentId, String reservationId) {
-        if (blank(offerId, 64) || blank(deploymentId, 64) || blank(reservationId, 64)) throw invalid();
-        var actor = entitlements.requireCustomerActor();
-        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
-        Reservation reservation = admissions.status(deploymentId, reservationId);
-        authorizeRead(actor.customerId(), offerId, deployment, reservation.targetProfileId());
-        return summary(reservation);
+        if (blank(reservationId, 64)) throw invalid();
+        var deployment = ownedDeployment(offerId, deploymentId);
+        var rows = jdbc.query("""
+            SELECT target_profile_id, payload_json FROM deployment_capacity_reservations
+            WHERE id=? AND customer_id=? AND deployment_id=?
+            """, (rs, index) -> new History(rs.getString("target_profile_id"), rs.getString("payload_json")),
+            reservationId, deployment.getCustomerId(), deploymentId);
+        if (rows.size() != 1) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var row = rows.getFirst();
+        authorizeRead(offerId, deployment, row.targetProfileId());
+        return summary(deployment, reservationId, row);
     }
 
     public List<Summary> list(String offerId, String deploymentId, String targetProfileId) {
-        if (blank(offerId, 64) || blank(deploymentId, 64) || blank(targetProfileId, 64)) throw invalid();
+        var deployment = ownedDeployment(offerId, deploymentId);
+        authorizeRead(offerId, deployment, targetProfileId);
+        return jdbc.query("""
+            SELECT id, target_profile_id, payload_json FROM deployment_capacity_reservations
+            WHERE customer_id=? AND deployment_id=? AND target_profile_id=? ORDER BY updated_at DESC LIMIT 200
+            """, (rs, index) -> summary(deployment, rs.getString("id"),
+                new History(rs.getString("target_profile_id"), rs.getString("payload_json"))),
+            deployment.getCustomerId(), deploymentId, targetProfileId);
+    }
+
+    private DeploymentEntity ownedDeployment(String offerId, String deploymentId) {
+        if (blank(offerId, 64) || blank(deploymentId, 64)) throw invalid();
         var actor = entitlements.requireCustomerActor();
-        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
-        authorizeRead(actor.customerId(), offerId, deployment, targetProfileId);
-        return admissions.activeCustomerReservations(deploymentId, targetProfileId).stream()
-            .sorted(Comparator.comparing(Reservation::updatedAt).reversed())
-            .map(this::summary)
-            .toList();
-    }
-
-    private void authorizeRead(String customerId, String offerId, DeploymentEntity deployment, String targetProfileId) {
-        if (blank(targetProfileId, 64)) throw deny(RESOURCE_SCOPE_MISMATCH);
-        Boolean authorized = preparation.execute(status -> {
-            requireAssociation(offerId, deployment);
-            authorization.authorizeOwnedTargetRead(customerId, new AuthorizationRequest(offerId, targetProfileId,
-                deployment.getId(), deployment.getTenantId(), null, Operation.READ, null, Set.of(), null, null, null));
-            return Boolean.TRUE;
-        });
-        if (!Boolean.TRUE.equals(authorized)) throw deny(RESOURCE_SCOPE_MISMATCH);
-    }
-
-    private Authorization prepare(String offerId, DeploymentEntity deployment, Request request) {
-        Authorization prepared = authorization.prepareAdmission(deployment.getCustomerId(), new AuthorizationRequest(
-            offerId, request.targetProfileId(), deployment.getId(), deployment.getTenantId(), request.releaseId(),
-            request.operation(), request.operationKey(), Set.of(), null, null, null));
-        var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        if (!deployment.getId().equals(version.getDeploymentId()) || !"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
-            throw deny(RESOURCE_SCOPE_MISMATCH);
-        }
-        authorization.requireReviewedVersion(prepared, version);
-        if (request.releaseId() != null) {
-            var release = releases.findById(request.releaseId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-            if (!deployment.getId().equals(release.getDeploymentId())
-                || !request.versionId().equals(release.getDeploymentVersionId())
-                || !request.targetProfileId().equals(release.getTargetProfileId())) {
-                throw deny(RESOURCE_SCOPE_MISMATCH);
-            }
-        }
-        return prepared;
-    }
-
-    private DeploymentEntity ownedDeployment(String customerId, String deploymentId) {
-        if (blank(deploymentId, 64)) throw invalid();
-        return deployments.findById(deploymentId).filter(deployment -> customerId.equals(deployment.getCustomerId()))
+        var deployment = deployments.findById(deploymentId)
+            .filter(value -> actor.customerId().equals(value.getCustomerId()) && value.getArchivedAt() == null
+                && !"ARCHIVED".equals(value.getStatus()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-    }
-
-    private void requireAssociation(String offerId, DeploymentEntity deployment) {
-        CustomerOfferDeploymentEntity association = offerDeployments.findById(deployment.getId())
-            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        if (!offerId.equals(association.getOfferId()) || !deployment.getCustomerId().equals(association.getCustomerId())
+        var association = associations.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        if (!offerId.equals(association.getOfferId()) || !actor.customerId().equals(association.getCustomerId())
             || !deployment.getTenantId().equals(association.getTenantId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        return deployment;
     }
 
-    private Summary summary(Reservation reservation) {
-        if (reservation == null || reservation.customerOperation() == null) throw deny(RESOURCE_SCOPE_MISMATCH);
-        TargetIntent intent;
-        try { intent = TargetIntent.valueOf(reservation.intent().name()); }
-        catch (RuntimeException ex) { throw deny(RESOURCE_SCOPE_MISMATCH); }
-        return new Summary(reservation.id(), reservation.deploymentId(), reservation.targetProfileId(), intent,
-            reservation.customerOperation(), reservation.state().name(), reservation.revision(), reservation.expiresAt(),
-            reservation.expiryState().name(), reservation.keepUntil(), reservation.occupiesActiveSlot(), reservation.chargedDemand());
+    private void authorizeRead(String offerId, DeploymentEntity deployment, String targetProfileId) {
+        if (blank(targetProfileId, 64)) throw invalid();
+        authorization.authorizeOwnedTargetRead(deployment.getCustomerId(), new AuthorizationRequest(offerId,
+            targetProfileId, deployment.getId(), deployment.getTenantId(), null, Operation.READ, null,
+            Set.of(), null, null, null));
     }
 
-    private void validate(Request request) {
-        if (request == null || blank(request.targetProfileId(), 64) || blank(request.versionId(), 64)
-            || request.operation() == null || blank(request.operationKey(), 128)
-            || (request.allocationId() != null && blank(request.allocationId(), 64))
-            || (request.releaseId() != null && blank(request.releaseId(), 64))) throw invalid();
+    private Summary summary(DeploymentEntity deployment, String id, History row) {
+        JsonNode payload = codec.tree(row.payload());
+        if (!id.equals(payload.path("id").asText())
+            || !deployment.getId().equals(payload.path("deploymentId").asText())
+            || !deployment.getCustomerId().equals(payload.path("customerId").asText())
+            || !deployment.getTenantId().equals(payload.path("tenantId").asText())
+            || !row.targetProfileId().equals(payload.path("targetProfileId").asText())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        String state = payload.path("state").asText();
+        try {
+            return new Summary(id, deployment.getId(), row.targetProfileId(),
+                TargetIntent.valueOf(payload.path("intent").asText()),
+                Operation.valueOf(payload.path("customerOperation").asText()), state,
+                payload.path("revision").longValue(), instant(payload, "expiresAt"), payload.path("expiryState").asText(),
+                instant(payload, "keepUntil"), !Set.of("RELEASED", "RETAINED_EXTERNAL").contains(state), null);
+        } catch (RuntimeException error) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Legacy reservation history is unreadable.");
+        }
+    }
+
+    private Instant instant(JsonNode value, String field) {
+        return value.path(field).isNull() || value.path(field).isMissingNode() ? null
+            : codec.read(value.path(field).toString(), Instant.class);
+    }
+
+    private ResponseStatusException retired() {
+        return new ResponseStatusException(HttpStatus.GONE,
+            "LEGACY_CAPACITY_OPERATIONS_RETIRED: capacity history is read-only; no reservation was changed.");
     }
 
     private boolean blank(String value, int maxLength) {
         return value == null || value.isBlank() || value.length() > maxLength || !value.equals(value.trim());
     }
+
+    private record History(String targetProfileId, String payload) { }
 }

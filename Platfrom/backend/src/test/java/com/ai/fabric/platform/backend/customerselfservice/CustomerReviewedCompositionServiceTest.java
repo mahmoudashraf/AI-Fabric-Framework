@@ -76,6 +76,22 @@ class CustomerReviewedCompositionServiceTest {
 
     @Test void explicitReviewedPublishedImmutableCompositionPasses() { service.validate(definition); }
 
+    @Test void optionalPrerequisitesMayBeAbsentButCorePolicyAndImmutableArtifactsRemainMandatory() {
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(codec.write(definition));
+        tree.putArray("admissionPrerequisites").add("APPROVED_POLICY").add("IMMUTABLE_ARTIFACTS");
+        definition = codec.read(codec.write(tree), Definition.class);
+        service.validate(definition);
+
+        for (String retained : List.of("APPROVED_POLICY", "IMMUTABLE_ARTIFACTS")) {
+            tree.putArray("admissionPrerequisites").add(retained);
+            var incomplete = codec.read(codec.write(tree), Definition.class);
+            assertThatThrownBy(() -> service.validate(incomplete)).isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(INVALID_CONTRACT));
+        }
+        artifact.setImageDigest(null);
+        assertCode(ARTIFACT_REQUIRED);
+    }
+
     @Test void stagingOnlyWithoutPromotionPassesWithoutInferringProductionPermissionOrArtifactPromotion() {
         definition = copyWithTargetsAndOperations(List.of(definition.targets().getFirst()), withoutPromotionOperations());
         artifact.setPromotionChannel("staging");

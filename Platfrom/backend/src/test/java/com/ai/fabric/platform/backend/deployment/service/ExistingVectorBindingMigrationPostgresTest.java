@@ -12,7 +12,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
@@ -209,7 +209,7 @@ class ExistingVectorBindingMigrationPostgresTest {
                 "Serverless", "", 0, "RUNNING", endpoint, "Free"));
         when(zilliz.listServingCollections(endpoint, "synthetic-serving-token")).thenReturn(java.util.List.of());
         var service = new DeploymentExistingVectorBindingService(deployments, versions, targets, handles, secrets, zilliz,
-            new TenantScopedVectorHandleResolver(), mock(TargetRetirementGateService.class), mock(PlatformAuditService.class), mapper);
+            new TenantScopedVectorHandleResolver(), mock(DeploymentTargetMutationService.class), mock(PlatformAuditService.class), mapper);
         var request = new Request(version.getId(), "synthetic-cluster", "project-test", "region-test", "Free", "default",
             null, null, "synthetic-approval", AuthenticationType.TOKEN, "synthetic-serving-token");
         Instant observedAt = Instant.parse(timestamp);

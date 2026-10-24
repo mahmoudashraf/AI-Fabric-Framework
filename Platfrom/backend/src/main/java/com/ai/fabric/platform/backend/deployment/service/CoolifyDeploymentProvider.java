@@ -8,10 +8,6 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionDatabaseCapacityVerifier;
-import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
-import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService;
-import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationRemoteEvidenceProvider;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflightSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
@@ -64,10 +60,8 @@ import java.util.function.Supplier;
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore coreReleaseAuthorizations;
     @Autowired
-    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver> effectiveRuntimeArtifacts;
+    private ReleaseArtifactResolver releaseArtifacts;
 
     private static final Logger log = LoggerFactory.getLogger(CoolifyDeploymentProvider.class);
     private static final Duration TRACKED_STEP_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
@@ -124,12 +118,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
     private DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService;
-    private RuntimeRetirementTopologyPlanService runtimeRetirementTopologyPlanService;
     private CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
-    private CustomerAdmissionDatabaseCapacityVerifier customerAdmissionDatabaseCapacityVerifier;
-    private DeploymentRuntimeGenerationService deploymentRuntimeGenerationService;
-    private RuntimeGenerationCheckpointService runtimeGenerationCheckpointService;
-    private RuntimeGenerationRemoteEvidenceProvider runtimeGenerationRemoteEvidenceProvider;
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
     @Autowired
     private CoolifyResourceOwnership resourceOwnership;
@@ -177,36 +166,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     @Autowired(required = false)
-    void setRuntimeRetirementTopologyPlanService(RuntimeRetirementTopologyPlanService runtimeRetirementTopologyPlanService) {
-        this.runtimeRetirementTopologyPlanService = runtimeRetirementTopologyPlanService;
-    }
-
-    @Autowired(required = false)
     void setCustomerOfferDeploymentRepository(CustomerOfferDeploymentRepository customerOfferDeploymentRepository) {
         this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
-    }
-
-    @Autowired(required = false)
-    void setCustomerAdmissionDatabaseCapacityVerifier(
-        CustomerAdmissionDatabaseCapacityVerifier customerAdmissionDatabaseCapacityVerifier) {
-        this.customerAdmissionDatabaseCapacityVerifier = customerAdmissionDatabaseCapacityVerifier;
-    }
-
-    @Autowired(required = false)
-    void setDeploymentRuntimeGenerationService(DeploymentRuntimeGenerationService deploymentRuntimeGenerationService) {
-        this.deploymentRuntimeGenerationService = deploymentRuntimeGenerationService;
-    }
-
-    @Autowired(required = false)
-    void setRuntimeGenerationCheckpointService(RuntimeGenerationCheckpointService runtimeGenerationCheckpointService) {
-        this.runtimeGenerationCheckpointService = runtimeGenerationCheckpointService;
-    }
-
-    @Autowired(required = false)
-    void setRuntimeGenerationRemoteEvidenceProviders(List<RuntimeGenerationRemoteEvidenceProvider> providers) {
-        if (providers == null || providers.isEmpty()) return;
-        if (providers.size() != 1) throw new IllegalStateException("Duplicate runtime generation remote evidence providers.");
-        this.runtimeGenerationRemoteEvidenceProvider = providers.getFirst();
     }
 
     @Autowired(required = false)
@@ -306,22 +267,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                         ProvisioningProgressTracker progressTracker) {
         DeploymentTargetProfileEntity profile = requireActiveProfile(release.getTargetProfileId());
         CoolifyRuntimeDatabaseBinding externalAiState = validateAiStateStorageBeforeEffects(deployment, version, release, profile);
-        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime = resourceHandleRepository
+        boolean replacingRuntime = resourceHandleRepository
             .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
                 deployment.getId(), profile.getId(), RESOURCE_KIND_APPLICATION
             )
-            .filter(handle -> StringUtils.hasText(handle.getReleaseId())
-                && !release.getId().equals(handle.getReleaseId()))
-            .map(handle -> new RuntimeGenerationCheckpointService.PriorRuntime(
-                handle.getReleaseId(),
-                handle.getProviderResourceUuid(),
-                normalizeRuntimeBaseUrl(handle.getFqdn())
-            ))
-            .orElse(null);
-        if (externalAiState != null && !coldReplacement(release)) {
-            previousRuntime = runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
-            requireAiStateSequentialReplacement(release, previousRuntime);
-        }
+            .filter(handle -> StringUtils.hasText(handle.getProviderResourceUuid()))
+            .isPresent();
         CoolifyConnection connection = tracked(
             progressTracker,
             "coolify_preflight",
@@ -798,83 +749,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
 
-        RuntimeGenerationCheckpointService.PriorRuntime generationPriorRuntime =
-            coldReplacement(release) ? null : runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
-        var remoteGenerationEvidence = coldReplacement(release) ? null : quiesceRuntimeGenerationDependencies(
-            deployment,
-            release,
-            generationPriorRuntime,
-            connection,
-            connectorApplication,
-            vectorizationRunnerApplication,
-            resourceDefaults,
-            progressTracker
-        );
-        RuntimeGenerationCheckpointService.Checkpoint generationCheckpoint = coldReplacement(release) ? null : prepareRuntimeGenerationReplacement(
-            deployment,
-            release,
-            generationPriorRuntime,
-            runtimeApplication,
-            runtimeBaseUrl,
-            runtimeEnvironment,
-            resourceDefaults,
-            remoteGenerationEvidence
-        );
-
         CoolifyActionResponse connectorDeployResponse = null;
         CoolifyApplicationSummary observedConnector = null;
         CoolifyActionResponse vectorizationRunnerDeployResponse = null;
         CoolifyApplicationSummary observedVectorizationRunner = null;
 
-        if (coldReplacement(release) && previousRuntime != null) {
+        if (replacingRuntime || localLuceneRuntime) {
             stopBeforeColdReplacement(connection, runtimeApplication, connectorApplication, vectorizationRunnerApplication,
                 resourceDefaults, progressTracker);
-        } else if (generationCheckpoint != null
-            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.FENCED) {
-            String stopEvidence = tracked(
-                progressTracker,
-                "stop_coolify_runtime_for_generation_transition",
-                "Stop and read back the previous runtime generation before adopting the replacement.",
-                () -> stopApplicationBeforeSingleWriterReplacement(
-                    connection,
-                    runtimeApplication,
-                    resourceDefaults,
-                    progressTracker
-                )
-            );
-            generationCheckpoint = runtimeGenerationCheckpointService.recordProviderStop(
-                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint), stopEvidence
-            );
-        } else if (generationCheckpoint != null
-            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
-            generationCheckpoint = refreshResumedRuntimeGenerationProviderStop(
-                generationCheckpoint,
-                release,
-                connection,
-                runtimeApplication,
-                resourceDefaults,
-                progressTracker
-            );
-        } else if (generationCheckpoint != null
-            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED) {
-            tracked(progressTracker, "stop_coolify_runtime_after_verified_cold_maintenance",
-                "Stop the already adopted staging runtime before continuing its exact repaired release.",
-                () -> stopApplicationBeforeSingleWriterReplacement(connection, runtimeApplication, resourceDefaults, progressTracker));
-        } else if (localLuceneRuntime && generationCheckpoint == null) {
-            tracked(
-                progressTracker,
-                "stop_coolify_runtime_before_single_writer_replacement",
-                "Stop the previous runtime before replacing a single-writer local Lucene process.",
-                () -> {
-                    stopApplicationBeforeSingleWriterReplacement(
-                        connection,
-                        runtimeApplication,
-                        resourceDefaults,
-                        progressTracker
-                    );
-                    return null;
-                }
-            );
         }
 
         CoolifyActionResponse runtimeDeployResponse = tracked(
@@ -899,41 +781,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
 
         if (source.sourceArtifact() != null) requireImmutableRuntimeImage(source.sourceArtifact(), observedRuntime);
-
-        if (generationCheckpoint != null
-            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
-            var transition = deploymentRuntimeGenerationService.adoptAfterProviderStop(
-                deployment,
-                release,
-                generationCheckpoint.drainReceipt(),
-                runtimeBaseUrl,
-                generationCheckpoint.nextTopologyFingerprint(),
-                generationCheckpoint.providerStopEvidenceReference()
-            );
-            generationCheckpoint = runtimeGenerationCheckpointService.recordAdopted(
-                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint),
-                transition.transitionedAt()
-            );
-        }
-        if (generationCheckpoint != null
-            && (generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.ADOPTED
-                || generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED)) {
-            RuntimeGenerationCheckpointService.PriorRuntime persistedPriorRuntime =
-                generationCheckpoint.priorRuntime();
-            tracked(
-                progressTracker,
-                "resume_remote_dependencies_after_generation_transition",
-                "Restart and verify remote dependencies after the replacement runtime becomes authoritative.",
-                () -> {
-                    resumeRuntimeGenerationDependencies(
-                        deployment,
-                        release,
-                        persistedPriorRuntime
-                    );
-                    return null;
-                }
-            );
-        }
 
         if (connectorApplication != null) {
             CoolifyApplicationSummary finalConnectorApplication = connectorApplication;
@@ -1235,35 +1082,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return providerStopEvidence(observed.get(), application.uuid());
     }
 
-    RuntimeGenerationCheckpointService.Checkpoint refreshResumedRuntimeGenerationProviderStop(
-        RuntimeGenerationCheckpointService.Checkpoint checkpoint,
-        DeploymentReleaseEntity release,
-        CoolifyConnection connection,
-        CoolifyApplicationSummary runtimeApplication,
-        JsonNode resourceDefaults,
-        ProvisioningProgressTracker progressTracker
-    ) {
-        if (checkpoint == null
-            || checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
-            return checkpoint;
-        }
-        String checkpointFingerprint = runtimeGenerationCheckpointService.fingerprint(checkpoint);
-        String refreshedStopEvidence = tracked(
-            progressTracker,
-            "refresh_coolify_runtime_stop_evidence_for_generation_transition",
-            "Refresh authoritative provider stop evidence before adopting a resumed runtime replacement.",
-            () -> stopApplicationBeforeSingleWriterReplacement(
-                connection,
-                runtimeApplication,
-                resourceDefaults,
-                progressTracker
-            )
-        );
-        return runtimeGenerationCheckpointService.refreshProviderStop(
-            release.getId(), checkpointFingerprint, refreshedStopEvidence
-        );
-    }
-
     private String providerStopEvidence(CoolifyApplicationSummary observed, String applicationUuid) {
         String state = observed == null || observed.status() == null ? "unknown" : observed.status();
         String payload = String.join("\n", "coolify", applicationUuid, state, Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
@@ -1272,145 +1090,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             return "coolify-stop:" + applicationUuid + ":" + digest;
         } catch (Exception exception) { throw new IllegalStateException("Provider stop evidence could not be encoded.", exception); }
-    }
-
-    RuntimeGenerationCheckpointService.Checkpoint prepareRuntimeGenerationReplacement(
-        DeploymentEntity deployment,
-        DeploymentReleaseEntity release,
-        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime,
-        CoolifyApplicationSummary runtimeApplication,
-        String runtimeBaseUrl,
-        List<CoolifyEnvVar> runtimeEnvironment,
-        JsonNode resourceDefaults,
-        DeploymentRuntimeGenerationService.RemoteDependencyEvidence remoteEvidence
-    ) {
-        String nextTopologyFingerprint = environmentValue(
-            runtimeEnvironment, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256"
-        );
-        if (nextTopologyFingerprint == null) return null;
-        if (!nextTopologyFingerprint.matches("[a-f0-9]{64}")) {
-            throw new IllegalStateException("RUNTIME_GENERATION_NEXT_TOPOLOGY_REQUIRED");
-        }
-        if (runtimeGenerationCheckpointService != null) {
-            var persisted = runtimeGenerationCheckpointService.read(release.getId());
-            if (persisted.isPresent()) {
-                var checkpoint = persisted.get();
-                if (!runtimeApplication.uuid().equals(checkpoint.priorRuntime().providerResourceUuid())
-                    || !runtimeBaseUrl.equals(checkpoint.priorRuntime().baseUrl())
-                    || !nextTopologyFingerprint.equals(checkpoint.nextTopologyFingerprint())) {
-                    throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
-                }
-                if (checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.ADOPTED
-                    && checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED
-                    && deploymentRuntimeGenerationService == null) {
-                    throw new IllegalStateException("RUNTIME_GENERATION_COORDINATOR_REQUIRED");
-                }
-                return checkpoint;
-            }
-        }
-        if (previousRuntime == null) return null;
-        if (deploymentRuntimeGenerationService == null || runtimeGenerationCheckpointService == null) {
-            throw new IllegalStateException("RUNTIME_GENERATION_COORDINATOR_REQUIRED");
-        }
-        if (!runtimeApplication.uuid().equals(previousRuntime.providerResourceUuid())) {
-            throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
-        }
-        String previousBaseUrl = previousRuntime.baseUrl();
-        if (!runtimeBaseUrl.equals(previousBaseUrl)) {
-            throw new IllegalStateException("RUNTIME_GENERATION_ENDPOINT_CHANGED");
-        }
-        var receipt = deploymentRuntimeGenerationService.drainAndFence(
-            deployment,
-            release,
-            previousRuntime.releaseId(),
-            previousBaseUrl,
-            durationSeconds(resourceDefaults, "replacementDrainTimeoutSeconds", Duration.ofMinutes(5)),
-            durationSeconds(resourceDefaults, "replacementDrainPollSeconds", Duration.ofSeconds(2)),
-            remoteEvidence
-        );
-        return runtimeGenerationCheckpointService.recordFenced(
-            release.getId(),
-            previousRuntime,
-            receipt,
-            nextTopologyFingerprint
-        );
-    }
-
-    RuntimeGenerationCheckpointService.PriorRuntime runtimeGenerationPriorRuntime(
-        String releaseId,
-        RuntimeGenerationCheckpointService.PriorRuntime discovered
-    ) {
-        if (discovered != null || runtimeGenerationCheckpointService == null) return discovered;
-        return runtimeGenerationCheckpointService.read(releaseId)
-            .map(RuntimeGenerationCheckpointService.Checkpoint::priorRuntime)
-            .orElse(null);
-    }
-
-    DeploymentRuntimeGenerationService.RemoteDependencyEvidence quiesceRuntimeGenerationDependencies(
-        DeploymentEntity deployment,
-        DeploymentReleaseEntity release,
-        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime,
-        CoolifyConnection connection,
-        CoolifyApplicationSummary connectorApplication,
-        CoolifyApplicationSummary vectorizationRunnerApplication,
-        JsonNode resourceDefaults,
-        ProvisioningProgressTracker progressTracker
-    ) {
-        if (previousRuntime == null) return null;
-        Map<String, String> evidence = new java.util.TreeMap<>();
-        if (connectorApplication != null) {
-            evidence.put("CONNECTOR", tracked(
-                progressTracker,
-                "stop_coolify_connector_for_generation_transition",
-                "Stop and read back the connector before draining the previous runtime generation.",
-                () -> stopApplicationBeforeSingleWriterReplacement(
-                    connection, connectorApplication, resourceDefaults, progressTracker
-                )
-            ));
-        }
-        if (vectorizationRunnerApplication != null) {
-            evidence.put("VECTORIZATION_RUNNER", tracked(
-                progressTracker,
-                "stop_coolify_vectorization_runner_for_generation_transition",
-                "Stop and read back the vectorization runner before draining the previous runtime generation.",
-                () -> stopApplicationBeforeSingleWriterReplacement(
-                    connection, vectorizationRunnerApplication, resourceDefaults, progressTracker
-                )
-            ));
-        }
-        if (runtimeGenerationRemoteEvidenceProvider != null) {
-            var remote = runtimeGenerationRemoteEvidenceProvider.quiesce(
-                deployment, previousRuntime.releaseId(), release
-            );
-            if (remote == null || remote.readbacks() == null) {
-                throw new IllegalStateException("RUNTIME_GENERATION_REMOTE_DEPENDENCY_EVIDENCE_REQUIRED");
-            }
-            remote.readbacks().forEach((kind, reference) -> {
-                if (evidence.putIfAbsent(kind, reference) != null) {
-                    throw new IllegalStateException("RUNTIME_GENERATION_REMOTE_DEPENDENCY_EVIDENCE_DUPLICATE");
-                }
-            });
-        }
-        return new DeploymentRuntimeGenerationService.RemoteDependencyEvidence(evidence);
-    }
-
-    void resumeRuntimeGenerationDependencies(
-        DeploymentEntity deployment,
-        DeploymentReleaseEntity release,
-        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime
-    ) {
-        if (runtimeGenerationRemoteEvidenceProvider == null) return;
-        if (previousRuntime == null) {
-            throw new IllegalStateException("RUNTIME_GENERATION_PRIOR_RUNTIME_REQUIRED");
-        }
-        runtimeGenerationRemoteEvidenceProvider.resumeAfterAdoption(
-            deployment, previousRuntime.releaseId(), release
-        );
-    }
-
-    private String environmentValue(List<CoolifyEnvVar> environment, String key) {
-        if (environment == null) return null;
-        return environment.stream().filter(value -> key.equals(value.key())).map(CoolifyEnvVar::value).findFirst().orElse(null);
     }
 
     private boolean hasEnvironmentValue(RailwayServicePlanSummary plan, String key, String expectedValue) {
@@ -1662,289 +1341,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             safeApplicationDetails(application),
             Instant.now()
         );
-    }
-
-    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyRetryReadback(
-        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt) {
-        return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, false);
-    }
-
-    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback postProvisionResumeReadback(
-        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt) {
-        return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, true);
-    }
-
-    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback coldMaintenanceReapplyReadback(
-        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.VerifiedRepair proof) {
-        if (proof == null || effectiveRuntimeArtifacts == null || effectiveRuntimeArtifacts.getIfAvailable() == null
-            || !proof.equals(effectiveRuntimeArtifacts.getObject().verifiedRepair(proof.scope().releaseId()))
-            || !proof.finalNativeInventory().containsKey("coldMaintenanceReceipt")) throw failedApplyRetryUnproven();
-        var current = runtimeArtifactRepairInventory(proof.scope());
-        var expected = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper).read(
-            proof.finalNativeInventory().get("inventory"), com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory.class);
-        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper);
-        var observed = objectMapper.valueToTree(current).deepCopy();
-        var original = objectMapper.valueToTree(expected).deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) observed).remove("observedAt");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) original).remove("observedAt");
-        if (!observed.equals(original) || !"running:healthy".equalsIgnoreCase(current.runtimeStatus())
-            || !"running:healthy".equalsIgnoreCase(current.connectorStatus())) throw failedApplyRetryUnproven();
-        var inventory = new java.util.TreeMap<String, String>();
-        inventory.put(RESOURCE_KIND_APPLICATION, codec.fingerprint(observed));
-        inventory.put(RESOURCE_KIND_CONNECTOR_APPLICATION, codec.fingerprint(current.connectorJobs()));
-        inventory.put(RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, proof.scope().databaseUuid());
-        return new com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback(current.observedAt(), Map.copyOf(inventory));
-    }
-
-    /** Retry an in-place reapply only while the prior runtime still owns the running generation. */
-    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback reapplyBeforeRuntimeStopReadback(
-        String deploymentId, String targetProfileId, String failedReleaseId, String priorReleaseId,
-        Instant priorReleaseCreatedAt, Instant failedReleaseCreatedAt, Instant failedAt) {
-        if (priorReleaseId == null || priorReleaseId.equals(failedReleaseId) || priorReleaseCreatedAt == null
-            || failedReleaseCreatedAt == null || failedAt == null || !priorReleaseCreatedAt.isBefore(failedReleaseCreatedAt)
-            || failedAt.isBefore(failedReleaseCreatedAt)) throw failedApplyRetryUnproven();
-        var handles = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetProfileId)
-            .stream().filter(h -> !PreservedExternalBindingKinds.isPreserved(h.getResourceKind())).toList();
-        var kinds = handles.stream().map(DeploymentProviderResourceHandleEntity::getResourceKind).sorted().toList();
-        if (!kinds.equals(List.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION,
-            RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE))) throw failedApplyRetryUnproven();
-        var inventory = new java.util.TreeMap<String, String>();
-        for (var handle : handles) {
-            boolean runtime = RESOURCE_KIND_APPLICATION.equals(handle.getResourceKind());
-            if (!deploymentId.equals(handle.getDeploymentId()) || !targetProfileId.equals(handle.getTargetProfileId())
-                || !(runtime ? priorReleaseId : failedReleaseId).equals(handle.getReleaseId())
-                || handle.getProviderType() != DeploymentProviderType.COOLIFY) throw failedApplyRetryUnproven();
-            var connection = connectionForHandle(handle);
-            requireOwnedHandle(connection, handle, false);
-            var identity = objectMapper.createObjectNode().put("handleId", handle.getId())
-                .put("uuid", handle.getProviderResourceUuid()).put("releaseId", handle.getReleaseId());
-            if (isRuntimePostgresDatabase(handle)) {
-                var database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid())
-                    .orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                if (!"running:healthy".equalsIgnoreCase(database.status())) throw failedApplyRetryUnproven();
-                identity.put("status", database.status());
-            } else {
-                var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid())
-                    .orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                if (runtime ? !"running:healthy".equalsIgnoreCase(app.status())
-                    : !Set.of("exited:unhealthy", "exited", "stopped").contains(app.status())) throw failedApplyRetryUnproven();
-                var jobs = coolifyApiClient.applicationDeploymentHistory(connection, app.uuid());
-                if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !Set.of("finished", "failed", "cancelled").contains(job.status())
-                    || !StringUtils.hasText(job.deploymentUuid()) || !StringUtils.hasText(job.createdAt())
-                    || !StringUtils.hasText(job.finishedAt()))) throw failedApplyRetryUnproven();
-                var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
-                var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid())
-                    .orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                Instant created = Instant.parse(exact.createdAt()), finished = Instant.parse(exact.finishedAt());
-                if (!app.uuid().equals(exact.applicationUuid()) || !"finished".equals(exact.status())
-                    || !latest.status().equals(exact.status()) || !latest.createdAt().equals(exact.createdAt())
-                    || !latest.finishedAt().equals(exact.finishedAt()) || created.isBefore(priorReleaseCreatedAt)
-                    || !created.isBefore(failedReleaseCreatedAt) || finished.isBefore(created)
-                    || finished.isAfter(failedReleaseCreatedAt)) throw failedApplyRetryUnproven();
-                identity.put("status", app.status()).put("image", app.imageRepository()).put("tag", app.imageTag());
-                var history = identity.putArray("jobs");
-                jobs.stream().sorted(java.util.Comparator.comparing(CoolifyDeploymentSummary::deploymentUuid)).forEach(job ->
-                    history.addObject().put("uuid", job.deploymentUuid()).put("status", job.status())
-                        .put("createdAt", job.createdAt()).put("finishedAt", job.finishedAt()));
-            }
-            inventory.put(handle.getResourceKind(), identity.toString());
-        }
-        return new com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback(
-            Instant.now(), Map.copyOf(inventory));
-    }
-
-    /** Exact native ownership is rechecked for every repair observation and effect. No local lock spans these calls. */
-    public com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory runtimeArtifactRepairInventory(
-        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
-        var fingerprints = new java.util.TreeMap<String, String>();
-        var runtime = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
-        var connector = repairHandle(scope, RESOURCE_KIND_CONNECTOR_APPLICATION, scope.connectorApplicationUuid());
-        var database = repairHandle(scope, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, scope.databaseUuid());
-        var connection = connectionForHandle(runtime);
-        var app = coolifyApiClient.getApplication(connection, runtime.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        var connectorApp = coolifyApiClient.getApplication(connectionForHandle(connector), connector.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        var db = coolifyApiClient.getDatabase(connectionForHandle(database), database.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        if (!"running:healthy".equalsIgnoreCase(db.status())) throw failedApplyRetryUnproven();
-        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper);
-        for (var handle : List.of(runtime, connector, database)) {
-            var handleConnection = connectionForHandle(handle);
-            String kind = handle.getResourceKind();
-            fingerprints.put(kind + ":storage", codec.fingerprint(isRuntimePostgresDatabase(handle)
-                ? coolifyApiClient.listDatabaseStorages(handleConnection, handle.getProviderResourceUuid())
-                : coolifyApiClient.listApplicationStorages(handleConnection, handle.getProviderResourceUuid())));
-            if (!isRuntimePostgresDatabase(handle)) {
-                var item = kind.equals(RESOURCE_KIND_APPLICATION) ? app : connectorApp;
-                var config = RuntimeArtifactRepairApplicationProjection.project(item.raw(), kind.equals(RESOURCE_KIND_APPLICATION));
-                fingerprints.put(kind + ":configuration", codec.fingerprint(config));
-                fingerprints.put(kind + ":configuration:base64", codec.fingerprint(
-                    RuntimeArtifactRepairApplicationProjection.base64Labels(item.raw(), kind.equals(RESOURCE_KIND_APPLICATION))));
-                var environment = coolifyApiClient.runtimeRepairEnvironmentInventory(handleConnection, handle.getProviderResourceUuid());
-                if (kind.equals(RESOURCE_KIND_APPLICATION)) {
-                    var provenance = RuntimeArtifactRepairProvenance.inspect(environment);
-                    fingerprints.put(kind + ":environment", codec.fingerprint(provenance.stable()));
-                    fingerprints.put("runtimeSourceCommit", provenance.commit());
-                } else fingerprints.put(kind + ":environment", codec.fingerprint(environment));
-            }
-        }
-        fingerprints.put("databaseUuid", db.uuid()); fingerprints.put("databaseName", db.name());
-        fingerprints.put("connectorRepository", connectorApp.imageRepository()); fingerprints.put("connectorTag", connectorApp.imageTag());
-        return new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory(
-            fingerprints, app.status(), connectorApp.status(), app.imageRepository(), app.imageTag(),
-            repairJobs(connection, app.uuid()), repairJobs(connectionForHandle(connector), connectorApp.uuid()), Instant.now());
-    }
-
-    public void stopRuntimeArtifactRepairApplication(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, boolean connector) {
-        var handle = repairHandle(scope, connector ? RESOURCE_KIND_CONNECTOR_APPLICATION : RESOURCE_KIND_APPLICATION,
-            connector ? scope.connectorApplicationUuid() : scope.runtimeApplicationUuid());
-        coolifyApiClient.stop(connectionForHandle(handle), handle.getProviderResourceUuid(), false);
-    }
-
-    public String runtimeArtifactRepairTopology(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
-        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
-        var environment = coolifyApiClient.runtimeRepairEnvironmentInventory(connectionForHandle(handle), handle.getProviderResourceUuid());
-        if (environment == null || !environment.isArray()) throw failedApplyRetryUnproven();
-        String topology = null; var previews = new java.util.HashSet<Boolean>();
-        for (var row : environment) if ("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256".equals(row.path("key").asText())) {
-            String value = row.path("value").asText();
-            if (!value.matches("[a-f0-9]{64}") || !row.path("is_runtime").asBoolean()
-                || !row.path("is_preview").isBoolean() || !previews.add(row.path("is_preview").booleanValue())
-                || topology != null && !topology.equals(value)) throw failedApplyRetryUnproven();
-            topology = value;
-        }
-        if (topology == null || !previews.equals(Set.of(false, true))) throw failedApplyRetryUnproven();
-        return topology;
-    }
-
-    public record OwnedRepairDatabase(CoolifyConnection connection,
-        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent intent, String databaseUuid) { }
-
-    public OwnedRepairDatabase runtimeArtifactRepairDatabase(
-        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
-        var handle = repairHandle(scope, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, scope.databaseUuid());
-        var connection = connectionForHandle(handle);
-        var database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        if (!scope.databaseUuid().equals(database.uuid()) || !"running:healthy".equalsIgnoreCase(database.status())) throw failedApplyRetryUnproven();
-        var profile = targetProfileRepository.findById(scope.targetProfileId()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        var intent = switch (profile.getEnvironmentName().toUpperCase(java.util.Locale.ROOT)) {
-            case "STAGING" -> com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING;
-            case "PRODUCTION" -> com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_PRODUCTION;
-            default -> throw failedApplyRetryUnproven();
-        };
-        return new OwnedRepairDatabase(connection, intent, database.uuid());
-    }
-
-    public void patchRuntimeArtifactRepairImage(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope,
-        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ArtifactPin replacement) {
-        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
-        var connection = connectionForHandle(handle);
-        var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        if (!Set.of("exited", "exited:unhealthy", "stopped").contains(app.status())) throw failedApplyRetryUnproven();
-        coolifyApiClient.updateRuntimeRepairImage(connection, handle.getProviderResourceUuid(), replacement.repository(), "sha256-" + replacement.digest().substring(7));
-    }
-
-    public String deployRuntimeArtifactRepairApplication(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, boolean connector) {
-        var handle = repairHandle(scope, connector ? RESOURCE_KIND_CONNECTOR_APPLICATION : RESOURCE_KIND_APPLICATION,
-            connector ? scope.connectorApplicationUuid() : scope.runtimeApplicationUuid());
-        var response = coolifyApiClient.start(connectionForHandle(handle), handle.getProviderResourceUuid(), false, false);
-        if (response == null || !StringUtils.hasText(response.deploymentUuid())) throw failedApplyRetryUnproven();
-        return response.deploymentUuid();
-    }
-
-    public void patchRuntimeArtifactRepairProvenance(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope,
-        String expectedCommit, String replacementCommit) {
-        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
-        var connection = connectionForHandle(handle);
-        var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-        if (!Set.of("exited", "exited:unhealthy", "stopped").contains(app.status())) throw failedApplyRetryUnproven();
-        coolifyApiClient.updateRuntimeRepairProvenance(connection, handle.getProviderResourceUuid(), expectedCommit, replacementCommit);
-    }
-
-    private DeploymentProviderResourceHandleEntity repairHandle(
-        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, String kind, String uuid) {
-        var matches = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(scope.deploymentId(), scope.targetProfileId())
-            .stream().filter(h -> kind.equals(h.getResourceKind())).toList();
-        if (matches.size() != 1) throw failedApplyRetryUnproven();
-        var handle = matches.getFirst();
-        String expectedRelease = RESOURCE_KIND_APPLICATION.equals(kind) && scope.priorRuntimeReleaseId() != null
-            ? scope.priorRuntimeReleaseId() : scope.releaseId();
-        if (!expectedRelease.equals(handle.getReleaseId()) || !uuid.equals(handle.getProviderResourceUuid())
-            || handle.getProviderType() != DeploymentProviderType.COOLIFY) throw failedApplyRetryUnproven();
-        requireOwnedHandle(connectionForHandle(handle), handle, false);
-        return handle;
-    }
-
-    private List<com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob> repairJobs(CoolifyConnection connection, String appUuid) {
-        var history = coolifyApiClient.applicationDeploymentHistory(connection, appUuid);
-        var result = new ArrayList<com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob>();
-        for (var item : history) {
-            var exact = coolifyApiClient.getDeployment(connection, item.deploymentUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-            if (!appUuid.equals(exact.applicationUuid()) || !item.status().equals(exact.status())) throw failedApplyRetryUnproven();
-            result.add(new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob(exact.deploymentUuid(),
-                exact.applicationUuid(), exact.status(), Instant.parse(exact.createdAt()),
-                StringUtils.hasText(exact.finishedAt()) ? Instant.parse(exact.finishedAt()) : null));
-        }
-        return List.copyOf(result);
-    }
-
-    private com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyReadback(
-        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt,
-        boolean completedNativePhase) {
-        Instant observedAt = Instant.now();
-        var handles = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetProfileId)
-            .stream().filter(h -> !PreservedExternalBindingKinds.isPreserved(h.getResourceKind())).toList();
-        var kinds = handles.stream().map(DeploymentProviderResourceHandleEntity::getResourceKind).collect(java.util.stream.Collectors.toSet());
-        if (handles.size() != kinds.size() || !kinds.containsAll(Set.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION))
-            || !Set.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE).containsAll(kinds))
-            throw failedApplyRetryUnproven();
-        var inventory = new java.util.TreeMap<String, String>();
-        for (var handle : handles) {
-            if (!releaseId.equals(handle.getReleaseId()) || handle.getProviderType() != DeploymentProviderType.COOLIFY)
-                throw failedApplyRetryUnproven();
-            var connection = connectionForHandle(handle);
-            requireOwnedHandle(connection, handle, false);
-            String kind = handle.getResourceKind();
-            var identity = objectMapper.createObjectNode().put("handleId", handle.getId())
-                .put("uuid", handle.getProviderResourceUuid());
-            if (isRuntimePostgresDatabase(handle)) {
-                var database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                if (!"running:healthy".equalsIgnoreCase(database.status())) throw failedApplyRetryUnproven();
-                identity.put("status", database.status());
-            } else {
-                var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                boolean connector = RESOURCE_KIND_CONNECTOR_APPLICATION.equals(kind);
-                if (connector && !completedNativePhase ? !Set.of("exited:unhealthy", "exited", "stopped").contains(app.status())
-                    : !"running:healthy".equalsIgnoreCase(app.status())) throw failedApplyRetryUnproven();
-                var jobs = coolifyApiClient.applicationDeploymentHistory(connection, app.uuid());
-                if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !Set.of("finished", "failed", "cancelled").contains(job.status())
-                    || !StringUtils.hasText(job.deploymentUuid()) || !StringUtils.hasText(job.createdAt()) || !StringUtils.hasText(job.finishedAt())))
-                    throw failedApplyRetryUnproven();
-                var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
-                var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
-                Instant created = Instant.parse(exact.createdAt());
-                boolean verifiedRepairJob = completedNativePhase && effectiveRuntimeArtifacts != null
-                    && effectiveRuntimeArtifacts.getIfAvailable() != null && (connector
-                        ? effectiveRuntimeArtifacts.getObject().permitsConnectorJob(releaseId, app.uuid(), exact.deploymentUuid(),
-                            app.imageRepository(), app.imageTag(), created, Instant.parse(exact.finishedAt()), exact.status())
-                        : effectiveRuntimeArtifacts.getObject().permitsRuntimeJob(releaseId, app.uuid(), exact.deploymentUuid(),
-                            app.imageRepository(), app.imageTag(), created, Instant.parse(exact.finishedAt()), exact.status()));
-                if (!app.uuid().equals(exact.applicationUuid()) || !latest.status().equals(exact.status())
-                    || created.isBefore(releaseCreatedAt) || created.isAfter(failedAt) && !verifiedRepairJob
-                    || !(connector && !completedNativePhase ? "failed".equals(exact.status()) : "finished".equals(exact.status())))
-                    throw failedApplyRetryUnproven();
-                identity.put("status", app.status()).put("image", app.imageRepository())
-                    .put("tag", app.imageTag());
-                var history = identity.putArray("jobs");
-                jobs.stream().sorted(java.util.Comparator.comparing(CoolifyDeploymentSummary::deploymentUuid)).forEach(job ->
-                    history.addObject().put("uuid", job.deploymentUuid()).put("status", job.status())
-                        .put("createdAt", job.createdAt()).put("finishedAt", job.finishedAt()));
-            }
-            inventory.put(kind, identity.toString());
-        }
-        return new com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback(observedAt, Map.copyOf(inventory));
-    }
-
-    private static ResponseStatusException failedApplyRetryUnproven() {
-        return new ResponseStatusException(HttpStatus.CONFLICT, "COOLIFY_FAILED_APPLY_RETRY_NATIVE_STATE_UNPROVEN");
     }
 
     @Override
@@ -2243,17 +1639,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return null;
     }
 
-    void requireAiStateSequentialReplacement(DeploymentReleaseEntity release,
-        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime) {
-        if (previousRuntime == null) return;
-        if (!StringUtils.hasText(release.getRuntimeAuthoritySnapshotId())
-            || !StringUtils.hasText(release.getRuntimeAuthorityFingerprint())
-            || deploymentRuntimeGenerationService == null || runtimeGenerationCheckpointService == null) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
-                "AI_STATE_STORAGE_SEQUENTIAL_REPLACEMENT_REQUIRED");
-        }
-    }
-
     private String resolveRuntimeDatabaseInternalHost(CoolifyDatabaseSummary database) {
         String internalDbUrl = textFirst(database.raw(), "internal_db_url", "internalDbUrl");
         if (StringUtils.hasText(internalDbUrl)) {
@@ -2401,20 +1786,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             && customerOfferDeploymentRepository.existsById(deployment.getId());
         CoolifyDatabaseRuntimeSettings databaseCapacity = CoolifyDatabaseCapacity.fromTargetDefaults(
             resourceDefaults, productizedCustomerDeployment);
-        if (productizedCustomerDeployment && coreReleaseAuthorizations == null) {
-            if (customerAdmissionDatabaseCapacityVerifier == null) {
-                throw new ResponseStatusException(
-                    HttpStatus.PRECONDITION_FAILED,
-                    "CUSTOMER_RUNTIME_DATABASE_ADMISSION_VERIFIER_REQUIRED"
-                );
-            }
-            customerAdmissionDatabaseCapacityVerifier.requireCovered(
-                deployment.getId(),
-                profile.getId(),
-                CoolifyDatabaseCapacity.cpuMillicores(databaseCapacity),
-                CoolifyDatabaseCapacity.memoryBytes(databaseCapacity)
-            );
-        }
         return databaseCapacity;
     }
 
@@ -2986,9 +2357,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private DeploymentSourceArtifactEntity resolveSourceArtifact(DeploymentReleaseEntity release, JsonNode resourceDefaults) {
         if (StringUtils.hasText(release.getSourceArtifactId())) {
-            if (effectiveRuntimeArtifacts == null || effectiveRuntimeArtifacts.getIfAvailable() == null)
-                throw new IllegalStateException("EFFECTIVE_RUNTIME_ARTIFACT_RESOLVER_REQUIRED");
-            DeploymentSourceArtifactEntity artifact = effectiveRuntimeArtifacts.getObject().resolve(release);
+            if (releaseArtifacts == null) throw new IllegalStateException("RELEASE_ARTIFACT_RESOLVER_REQUIRED");
+            DeploymentSourceArtifactEntity artifact = releaseArtifacts.resolve(release);
             validateDockerImageArtifact(artifact);
             return artifact;
         }
@@ -3175,48 +2545,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 && customerOfferDeploymentRepository.existsById(deployment.getId())) {
                 throw new IllegalStateException("Customer provider-usage accounting coordinator is required.");
             }
-            boolean durableTargetStore = runtimeDatabaseBinding != null;
-            if (!coldReplacement(release)) requireDurableRuntimeStoreForProductizedDeployment(deployment, durableTargetStore);
-            boolean attestedTarget = !coldReplacement(release) && durableTargetStore
-                && StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());
-            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", Boolean.toString(attestedTarget));
-            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", Boolean.toString(attestedTarget));
-            if (attestedTarget) {
-                Map<String, String> runtimeEnvironment = new LinkedHashMap<>();
-                env.forEach((key, value) -> runtimeEnvironment.put(key, value.value()));
-                RuntimeRetirementTopologyPlanService planner = runtimeRetirementTopologyPlanService == null
-                    ? new RuntimeRetirementTopologyPlanService(objectMapper)
-                    : runtimeRetirementTopologyPlanService;
-                var topology = planner.plan(
-                    deployment,
-                    version,
-                    release,
-                    runtimeEnvironment,
-                    source != null && source.connectorPlan() != null,
-                    source != null && source.vectorizationRunnerPlan() != null
-                );
-                putEnv(env, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON", topology.json());
-                putEnv(env, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", topology.sha256());
-            }
+            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false");
+            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false");
         }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
         return withPreviewEnvironment(new ArrayList<>(env.values()));
-    }
-
-    void requireDurableRuntimeStoreForProductizedDeployment(DeploymentEntity deployment,
-                                                            boolean durableTargetStore) {
-        if (!durableTargetStore
-            && customerOfferDeploymentRepository != null
-            && customerOfferDeploymentRepository.existsById(deployment.getId())) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Productized Coolify runtimes require explicitly selected durable PostgreSQL for fencing and recovery."
-            );
-        }
-    }
-
-    private boolean coldReplacement(DeploymentReleaseEntity release) {
-        return coreReleaseAuthorizations != null && coreReleaseAuthorizations.find(release.getId()).isPresent();
     }
 
     void mergeFrozenRuntimeAuthorityEnvironment(DeploymentEntity deployment,

@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.tenant;
 
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerReviewedBindingBoundary;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerStagingAssignmentAccessGate;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -25,10 +25,10 @@ class PlatformConsumerPublicResolutionTest {
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final CustomerOfferDeploymentRepository offers = mock(CustomerOfferDeploymentRepository.class);
-    private final CustomerStagingAssignmentAccessGate expiry = mock(CustomerStagingAssignmentAccessGate.class);
+    private final DeploymentTargetMutationService targetMutations = mock(DeploymentTargetMutationService.class);
     private final PlatformCustomerConsumerService service = new PlatformCustomerConsumerService(consumers,
-        null, null, deployments, releases, null, null, null, null, null, new ObjectMapper(), null, null,
-        expiry, new CustomerReviewedBindingBoundary(offers));
+        null, null, deployments, releases, null, null, null, null, null, new ObjectMapper(), targetMutations, null,
+        new CustomerReviewedBindingBoundary(offers));
     private final PlatformConsumerEntity consumer = new PlatformConsumerEntity();
 
     @BeforeEach void setup() {
@@ -44,25 +44,46 @@ class PlatformConsumerPublicResolutionTest {
     @Test void configurationOnlyReviewedConsumerCannotResolveDeploymentWideRuntime() {
         assertThatThrownBy(() -> service.resolvePublicConsumer("customer-web"))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("explicitly activated verified release");
-        verifyNoInteractions(expiry);
+        verifyNoInteractions(targetMutations);
     }
 
     @Test void reviewedConsumerRequiresItsExactPersistedTargetEvenForAVerifiedRelease() {
         var release = bindVerifiedRelease(); release.setTargetProfileId("customer-production");
         assertThatThrownBy(() -> service.resolvePublicConsumer("customer-web"))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("verified release and target");
-        verifyNoInteractions(expiry);
+        verifyNoInteractions(targetMutations);
     }
 
-    @Test void reviewedConsumerWithExactVerifiedReleaseUsesCanonicalAssignmentAndExpiryGuard() {
+    @Test void reviewedConsumerWithExactVerifiedReleaseUsesCanonicalAssignmentWithoutCapacityPolicy() {
         var release = bindVerifiedRelease();
         assertThat(service.resolvePublicConsumer("customer-web").release()).isSameAs(release);
-        verify(expiry).requireAvailable("customer", "deployment", "customer-staging");
+        verifyNoInteractions(targetMutations);
     }
 
     @Test void nonOfferDeploymentsRetainTheirExistingDiscoveryContract() {
         when(offers.existsById("deployment")).thenReturn(false);
         assertThat(service.resolvePublicConsumer("customer-web").release()).isNull();
+    }
+
+    @Test void verifiedReleaseCannotBypassCrossCustomerDeploymentOwnership() {
+        bindVerifiedRelease();
+        deployments.findById("deployment").orElseThrow().setCustomerId("foreign");
+        assertThatThrownBy(() -> service.resolvePublicConsumer("customer-web"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("ownership");
+    }
+
+    @Test void archivedDeploymentCannotRemainAnActivePublicAssignment() {
+        bindVerifiedRelease();
+        deployments.findById("deployment").orElseThrow().setArchivedAt(java.time.Instant.now());
+        assertThatThrownBy(() -> service.resolvePublicConsumer("customer-web"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("lifecycle");
+    }
+
+    @Test void nonOfferReleaseAlsoMustBelongToItsExplicitAssignedTarget() {
+        when(offers.existsById("deployment")).thenReturn(false);
+        bindVerifiedRelease().setTargetProfileId("foreign-target");
+        assertThatThrownBy(() -> service.resolvePublicConsumer("customer-web"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("target");
     }
 
     private DeploymentReleaseEntity bindVerifiedRelease() {

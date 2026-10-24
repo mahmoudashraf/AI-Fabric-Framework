@@ -1,7 +1,5 @@
 package com.ai.fabric.platform.backend.deployment.dependency;
 
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts;
-import com.ai.fabric.platform.backend.deployment.admission.ManagedDependencyAdmissionLedger;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthoritySnapshotEntity;
@@ -11,11 +9,6 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateEntity;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationEntity;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileConfig;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseEndpointService;
@@ -43,7 +36,6 @@ import static org.mockito.Mockito.*;
 
 class ProductionManagedDependencyPrerequisitesTest {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-    private final ManagedDependencyAdmissionLedger admission = mock(ManagedDependencyAdmissionLedger.class);
     private final ManagedDependencyCoreReleaseAuthorization core = mock(ManagedDependencyCoreReleaseAuthorization.class);
     private final ManagedDependencyGraphStore graphs = mock(ManagedDependencyGraphStore.class);
     private final DeploymentSourceArtifactRepository artifacts = mock(DeploymentSourceArtifactRepository.class);
@@ -51,8 +43,6 @@ class ProductionManagedDependencyPrerequisitesTest {
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final DeploymentReleaseEndpointService endpoints = mock(DeploymentReleaseEndpointService.class);
     private final PlatformManagedProductProvisioningService provisioning = mock(PlatformManagedProductProvisioningService.class);
-    private final TargetRetirementOperationRepository retirementOperations = mock(TargetRetirementOperationRepository.class);
-    private final TargetRetirementGateRepository retirementGates = mock(TargetRetirementGateRepository.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<ManagedDependencyInitializationVerifier> verifiers = mock(ObjectProvider.class);
     private final DeploymentSourceCapabilityManifestService manifests =
@@ -110,7 +100,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         graph.setDeploymentId("deployment"); graph.setTargetProfileId("target"); graph.setVersionId("version");
         graph.setReleaseId("release");
         graph.setSpecFingerprint(specFingerprint); graph.setBindingFingerprint(bindingFingerprint);
-        graph.setReservationRef("reservation"); graph.setStatus("READY"); graph.setRevision(7);
+        graph.setReservationRef("core-release:release"); graph.setStatus("READY"); graph.setRevision(7);
         state = new ManagedDependencyState();
         var node = new ManagedDependencyState.Node();
         node.slot = "service"; node.serviceRef = "managed-service"; node.accountId = "account";
@@ -121,13 +111,6 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(graphs.read("graph")).thenReturn(graph);
         when(graphs.spec(graph)).thenReturn(spec);
         when(graphs.state(graph)).thenReturn(state);
-
-        var evidence = new ManagedDependencyAdmissionLedger.Evidence("reservation", "generation", 2,
-            AdmissionContracts.Intent.CUSTOMER_STAGING, "manifest", "a".repeat(64), bindingFingerprint,
-            new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence",
-            Instant.now().plusSeconds(300));
-        when(admission.require(any(), any())).thenReturn(evidence);
-        when(admission.requireForExecution(any(), any())).thenReturn(evidence);
 
         var snapshot = new RuntimeAuthoritySnapshotEntity();
         snapshot.setId("snapshot"); snapshot.setDeploymentId("deployment"); snapshot.setTargetProfileId("target");
@@ -141,11 +124,12 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(releases.findById("release")).thenReturn(Optional.of(release));
         when(verifiers.orderedStream()).thenReturn(Stream.empty());
 
-        prerequisites = new ProductionManagedDependencyPrerequisites(admission, core, graphs, artifacts, manifests,
-            snapshots, releases, endpoints, provisioning, retirementOperations, retirementGates, verifiers, mapper,
+        prerequisites = new ProductionManagedDependencyPrerequisites(core, graphs, artifacts, manifests,
+            snapshots, releases, endpoints, provisioning, verifiers, mapper,
             new ManagedDependencyArtifactPolicy(artifacts, manifests));
         when(artifacts.findById(service.sourceArtifactId()))
             .thenReturn(Optional.of(ManagedDependencyFixtures.ownedAiArtifact(service)));
+        useCoreAuthorization(false);
     }
 
     @Test
@@ -154,25 +138,35 @@ class ProductionManagedDependencyPrerequisitesTest {
         artifact.setCapabilityManifestJson("{}");
         artifact.setCapabilityManifestHash(null);
         when(artifacts.findById(artifact.getId())).thenReturn(Optional.of(artifact));
-        clearInvocations(admission, provisioning);
+        clearInvocations(core, provisioning);
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec,
             ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
             .hasMessageContaining("DEPENDENCY_ARTIFACT_OWNERSHIP_UNPROVEN");
-        verifyNoInteractions(admission, provisioning);
+        verifyNoInteractions(provisioning);
     }
 
     @Test
-    void reserveReplaysTheParentAdmissionAndReturnsOnlyFrozenAuthorityData() {
+    void reserveReplaysCoreAuthorizationAndReturnsOnlyFrozenAuthorityData() {
         var first = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION);
         var replay = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION);
-
         assertThat(replay).isEqualTo(first);
-        assertThat(first.reservationRef()).isEqualTo("reservation");
+        assertThat(first.reservationRef()).isNull();
+        assertThat(first.authorityReference()).isEqualTo("core-release:release");
         assertThat(first.origins()).containsExactly("https://customer.example.test");
         assertThat(first.callbacks()).isEmpty();
-        verify(admission, times(2)).requireForExecution(any(), isNull());
+        verify(core, times(2)).find(scope, graph, spec);
     }
 
+    @Test
+    void historicalReservationCannotReplaceMissingCoreAuthorization() {
+        graph.setReservationRef("historical-reservation");
+        when(core.find(scope, graph, spec)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining("DEPENDENCY_CORE_RELEASE_AUTHORIZATION_REQUIRED");
+        assertThatThrownBy(() -> prerequisites.validateReservation(scope, "historical-reservation"))
+            .hasMessageContaining("DEPENDENCY_CORE_RELEASE_AUTHORIZATION_REQUIRED");
+        verifyNoInteractions(provisioning);
+    }
     @Test
     void coreReleaseAuthorizationDoesNotManufactureOrReadACapacityReservation() {
         useCoreAuthorization(false);
@@ -187,7 +181,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         prerequisites.validateReservation(scope, graph.getReservationRef());
         prerequisites.validateExecutionReservation(scope, graph.getReservationRef());
         prerequisites.validateArtifact(scope, spec.services().getFirst());
-        verifyNoInteractions(admission, provisioning);
+        verifyNoInteractions(provisioning);
     }
 
     @Test
@@ -200,7 +194,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec,
             ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
             .hasMessageContaining("DEPENDENCY_AUTHORITY_CONFIG_CHANGED");
-        verifyNoInteractions(admission, provisioning);
+        verifyNoInteractions(provisioning);
     }
 
     @Test
@@ -211,7 +205,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         var verifier = mock(ManagedDependencyInitializationVerifier.class);
         when(verifier.supports(service.initializationContract())).thenReturn(true);
         when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
-        clearInvocations(admission, provisioning);
+        clearInvocations(core, provisioning);
 
         var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
         assertThat(result.existingConfiguration()).isTrue();
@@ -225,7 +219,6 @@ class ProductionManagedDependencyPrerequisitesTest {
             node.accountId, node.bindingId, Map.copyOf(node.secrets));
         prerequisites.initializeAndVerify(scope, service.initializationContract(), binding, "core-init");
 
-        verifyNoInteractions(admission);
         verify(provisioning).ownedDependencyConnection("target", "production");
         verify(provisioning).verifyOwnedDependencyReady(any(), eq("graph"), eq("managed-service"), eq("inbox"),
             eq("application"), eq("database"), eq(Map.of("/app/data", "volume")));
@@ -238,7 +231,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         useCoreAuthorization(true);
         var node = state.nodes.getFirst();
         node.applicationUuid = null;
-        clearInvocations(admission);
+        clearInvocations(core);
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
             .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
         verifyNoInteractions(provisioning);
@@ -255,7 +248,6 @@ class ProductionManagedDependencyPrerequisitesTest {
                 node.accountId, node.bindingId, Map.copyOf(node.secrets)), "core-init"))
             .hasMessageContaining("provider-readback-failed");
         verify(verifier, never()).initializeAndVerify(any(), any(), any(), any());
-        verifyNoInteractions(admission);
     }
 
     @Test
@@ -271,17 +263,17 @@ class ProductionManagedDependencyPrerequisitesTest {
         existingProductionInbox();
         useCoreAuthorization(true);
         when(endpoints.connectorBaseUrl(releases.findById("release").orElseThrow())).thenReturn(null);
-        clearInvocations(admission);
+        clearInvocations(core);
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
             .hasMessageContaining("DEPENDENCY_CALLBACK_ENDPOINT_MISSING");
-        verifyNoInteractions(admission, provisioning);
+        verifyNoInteractions(provisioning);
     }
 
     private void useCoreAuthorization(boolean production) {
         graph.setReservationRef("core-release:release");
         when(core.find(scope, graph, spec)).thenReturn(Optional.of(
             new ManagedDependencyCoreReleaseAuthorization.Proof("release", authority.versionConfigHash(), production)));
-        clearInvocations(admission);
+        clearInvocations(core);
     }
 
     @Test
@@ -367,12 +359,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         artifact.setPromotionChannel("staging");
         prerequisites.validateArtifact(scope, spec.services().getFirst());
 
-        var productionEvidence = new ManagedDependencyAdmissionLedger.Evidence("reservation", "generation", 2,
-            AdmissionContracts.Intent.CUSTOMER_PRODUCTION, "manifest", "a".repeat(64), scope.bindingFingerprint(),
-            new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence",
-            Instant.now().plusSeconds(300));
-        when(admission.require(any(), any())).thenReturn(productionEvidence);
-        when(admission.requireForExecution(any(), any())).thenReturn(productionEvidence);
+        useCoreAuthorization(true);
         assertThatThrownBy(() -> prerequisites.validateArtifact(scope, spec.services().getFirst()))
             .hasMessageContaining("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");
         artifact.setPromotionChannel("production");
@@ -441,13 +428,11 @@ class ProductionManagedDependencyPrerequisitesTest {
         var verifier = mock(ManagedDependencyInitializationVerifier.class);
         when(verifier.supports("inbox-callback-canary/v1")).thenReturn(true);
         when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
-        clearInvocations(admission);
-        when(admission.require(any(), any())).thenThrow(new IllegalStateException("expired admission"));
-        when(admission.requireForExecution(any(), any())).thenThrow(new IllegalStateException("expired admission"));
+        clearInvocations(core);
 
         prerequisites.verifyOperatorRevocation(scope, binding, List.of("RETIRED_KEY"), "revoke", false);
 
-        verifyNoInteractions(admission, provisioning);
+        verifyNoInteractions(provisioning);
         verify(verifier).verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
             List.of("RETIRED_KEY"), "revoke", false);
     }
@@ -461,60 +446,32 @@ class ProductionManagedDependencyPrerequisitesTest {
                 "server", "destination", "example.test", null, 1, 10, false, true,
                 "8080", "/actuator/health", "8080"));
         when(provisioning.ownedDependencyConnection("target", "staging")).thenReturn(connection);
-        var resources = List.of(new ManagedDependencyRetirementAdapter.Resource("service", "managed-service",
+        var resources = List.of(new ManagedDependencyResource("service", "managed-service",
             "application", null, Map.of("/app/data", "volume")));
         prerequisites.verifyReclaimed(scope, resources);
         verify(provisioning).verifyOwnedDependenciesReclaimed(connection, "graph", resources);
     }
 
     @Test
-    void retirementProbesOnlyLiveNodesAndAcceptsExactSameOperationCheckpoints() {
-        configureRetirement("retire-1");
+    void retirementRejectsUnsupportedCoreCommandEvenForHistoricalNodeCheckpoints() {
         graph.setStatus("RETIRING");
-        var retired = new ManagedDependencyState.Node();
-        retired.slot = "removed"; retired.serviceRef = "removed-service";
-        retired.status = "RETIRED"; retired.retirementOperationKey = "retire-1";
-        state.nodes.add(retired);
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports("test-init/v1")).thenReturn(true);
-        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
-
-        prerequisites.requireUnused(scope, graph.getRevision(), "retire-1");
-
-        verify(verifier).requireUnused(eq(scope), eq("test-init/v1"), any(), eq("retire-1"));
-    }
-
-    @Test
-    void retirementRejectsNodeCheckpointFromAnotherOperation() {
-        configureRetirement("retire-1");
-        graph.setStatus("RETIRING");
-        state.nodes.getFirst().status = "RETIRING";
-        state.nodes.getFirst().retirementOperationKey = "retire-other";
-
-        assertThatThrownBy(() -> prerequisites.requireUnused(scope, graph.getRevision(), "retire-1"))
+        for (String status : List.of("READY", "DISABLED", "RETIRING", "RETIRED")) {
+            state.nodes.getFirst().status = status;
+            state.nodes.getFirst().retirementOperationKey = "retire-1";
+            assertThatThrownBy(() -> prerequisites.requireUnused(scope, graph.getRevision(), "retire-1"))
+                .hasMessageContaining("DEPENDENCY_CORE_RETIREMENT_UNSUPPORTED");
+        }
+        assertThatThrownBy(() -> prerequisites.requireUnused(scope, graph.getRevision() + 1, "retire-1"))
             .hasMessageContaining("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
-    }
-
-    @Test
-    void previouslyDisabledNodeDoesNotRequireAStoppedHttpEndpoint() {
-        configureRetirement("retire-1");
-        graph.setStatus("RETIRING");
-        state.nodes.getFirst().status = "DISABLED";
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports("test-init/v1")).thenReturn(true);
-        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
-
-        prerequisites.requireUnused(scope, graph.getRevision(), "retire-1");
-
-        verifyNoInteractions(verifier);
+        verifyNoInteractions(provisioning, verifiers);
     }
 
     @Test void previouslyEffectiveActiveInboxUsesConfigurationAuthorityAtEveryReconcileBoundary() throws Exception {
         existingProductionInbox();
         var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
         assertThat(result.existingConfiguration()).isTrue();
-        prerequisites.validateReservation(scope, "reservation");
-        prerequisites.validateExecutionReservation(scope, "reservation");
+        prerequisites.validateReservation(scope, "core-release:release");
+        prerequisites.validateExecutionReservation(scope, "core-release:release");
         var service = spec.services().getFirst();
         prerequisites.validateArtifact(scope, service);
         var verifier = mock(ManagedDependencyInitializationVerifier.class);
@@ -524,10 +481,6 @@ class ProductionManagedDependencyPrerequisitesTest {
         prerequisites.initializeAndVerify(scope, service.initializationContract(),
             new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
                 Map.copyOf(node.secrets)), "initialize");
-        verify(admission, atLeastOnce()).requireConfigurationForExecution(any(), eq("reservation"), eq("release"));
-        verify(admission, atLeastOnce()).requireConfiguration(any(), eq("reservation"), eq("release"));
-        verify(admission, never()).require(any(), any());
-        verify(admission, never()).requireForExecution(any(), any());
         verify(verifier).initializeAndVerify(eq(scope), eq(service.initializationContract()), any(), eq("initialize"));
     }
 
@@ -547,50 +500,52 @@ class ProductionManagedDependencyPrerequisitesTest {
         releases.findById("release").orElseThrow().setProvisioningStatus("SUPERSEDED");
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
             .hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-        verify(admission, never()).requireForExecution(any(), any());
         verifyNoInteractions(provisioning);
     }
 
-    @Test void previouslyEffectiveStagingInboxUsesOrdinaryFreshAdmissionForConfigurationUpdates() throws Exception {
-        existingProductionInbox();
-        when(admission.reviewedIntent(any(), eq("reservation"))).thenReturn(AdmissionContracts.Intent.CUSTOMER_STAGING);
-        clearInvocations(admission);
+    @Test void previouslyEffectiveStagingInboxStillRechecksOwnedConfiguration() throws Exception {
+        existingProductionInbox(); useCoreAuthorization(false);
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
+        assertThat(result.existingConfiguration()).isTrue();
+        prerequisites.validateReservation(scope, "core-release:release");
+        prerequisites.validateExecutionReservation(scope, "core-release:release");
+        state.nodes.getFirst().applicationUuid = null;
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        verifyNoInteractions(provisioning);
+    }
 
+    @Test void existingConfigurationRejectsFailedInflightAndUnverifiedExactReleaseAtEveryMutationBoundary() throws Exception {
+        existingProductionInbox();
+        var release = releases.findById("release").orElseThrow();
+        var service = spec.services().getFirst();
+        var node = state.nodes.getFirst();
+        var binding = new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
+            node.accountId, node.bindingId, Map.copyOf(node.secrets));
+        for (var phase : List.of(Map.entry("FAILED", "ACTIVE"), Map.entry("PROVISIONING", "RUNNING"),
+            Map.entry("VERIFYING", "ACTIVE"), Map.entry("APPLY_REQUESTED", "QUEUED"),
+            Map.entry("APPLIED_VERIFIED", "RUNNING"), Map.entry("APPLIED_VERIFIED", "SUPERSEDED"))) {
+            release.setStatus(phase.getKey()); release.setProvisioningStatus(phase.getValue());
+            assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+                .as("reserve %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+            assertThatThrownBy(() -> prerequisites.validateReservation(scope, "core-release:release"))
+                .as("configuration %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+            assertThatThrownBy(() -> prerequisites.validateExecutionReservation(scope, "core-release:release"))
+                .as("execution %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+            assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, service.initializationContract(), binding, "update"))
+                .as("initialize %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+        }
+        verifyNoInteractions(provisioning, verifiers);
+    }
+    @Test void firstConfigurationRequiresCoreAuthorityAndNeverClaimsPriorConfiguration() throws Exception {
+        existingProductionInbox(); state.effectiveConfigurationRevision = -1;
         var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
         assertThat(result.existingConfiguration()).isFalse();
-        prerequisites.validateReservation(scope, "reservation");
-        prerequisites.validateExecutionReservation(scope, "reservation");
-        var service = spec.services().getFirst();
-        prerequisites.validateArtifact(scope, service);
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports(service.initializationContract())).thenReturn(true);
-        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
-        var node = state.nodes.getFirst();
-        prerequisites.initializeAndVerify(scope, service.initializationContract(),
-            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
-                Map.copyOf(node.secrets)), "staging-update");
-
-        verify(admission, atLeastOnce()).requireForExecution(any(), any());
-        verify(admission, atLeastOnce()).require(any(), eq("reservation"));
-        verify(admission, never()).requireConfigurationForExecution(any(), any(), any());
-        verify(admission, never()).requireConfiguration(any(), any(), any());
-        verify(verifier).initializeAndVerify(eq(scope), eq(service.initializationContract()), any(), eq("staging-update"));
-    }
-
-    @Test void firstConfigurationAndRetirementKeepOriginalAdmissionBoundary() throws Exception {
-        existingProductionInbox();
-        state.effectiveConfigurationRevision = -1;
-        when(admission.requireForExecution(any(), any())).thenThrow(new IllegalStateException("fresh admission required"));
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("fresh admission required");
-        state.effectiveConfigurationRevision = 0; graph.setStatus("RETIRING");
-        when(admission.require(any(), any())).thenThrow(new IllegalStateException("fresh admission required"));
-        assertThatThrownBy(() -> prerequisites.validateReservation(scope, "reservation")).hasMessageContaining("fresh admission required");
-        verify(admission, never()).requireConfigurationForExecution(any(), any(), any());
-        verify(admission, never()).requireConfiguration(any(), any(), any());
+        when(core.find(scope, graph, spec)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> prerequisites.validateExecutionReservation(scope, "core-release:release"))
+            .hasMessageContaining("DEPENDENCY_CORE_RELEASE_AUTHORIZATION_REQUIRED");
         verifyNoInteractions(provisioning);
     }
-
     private void existingProductionInbox() throws Exception {
         var inbox = ManagedDependencyFixtures.productionInbox();
         configureSpecAndSecrets(new ManagedDependencySpec("managed-dependencies/v1", List.of(inbox)), Map.of());
@@ -601,13 +556,8 @@ class ProductionManagedDependencyPrerequisitesTest {
         release.setProvisioningStatus("ACTIVE"); release.setStatus("APPLIED_VERIFIED");
         when(endpoints.connectorBaseUrl(release)).thenReturn("https://connector.example.test");
         when(artifacts.findById(inbox.sourceArtifactId())).thenReturn(Optional.of(ManagedDependencyFixtures.ownedAiArtifact(inbox)));
-        var evidence = new ManagedDependencyAdmissionLedger.Evidence("reservation", "generation", 2,
-            AdmissionContracts.Intent.CUSTOMER_PRODUCTION, "manifest", "a".repeat(64), scope.bindingFingerprint(),
-            new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence", Instant.now().plusSeconds(60), true);
-        when(admission.requireConfigurationForExecution(any(), eq("reservation"), eq("release"))).thenReturn(evidence);
-        when(admission.requireConfiguration(any(), eq("reservation"), eq("release"))).thenReturn(evidence);
-        when(admission.reviewedIntent(any(), eq("reservation"))).thenReturn(AdmissionContracts.Intent.CUSTOMER_PRODUCTION);
-        clearInvocations(admission, provisioning);
+        useCoreAuthorization(true);
+        clearInvocations(provisioning);
     }
 
     private void configureSpecAndSecrets(ManagedDependencySpec replacement,
@@ -628,29 +578,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         var snapshot = snapshots.findByReleaseId("release").orElseThrow();
         snapshot.setFingerprint(bindingFingerprint); snapshot.setBindingJson(bindingJson);
         releases.findById("release").orElseThrow().setRuntimeAuthorityFingerprint(bindingFingerprint);
-        var evidence = new ManagedDependencyAdmissionLedger.Evidence(
-            "reservation", "generation", 2, AdmissionContracts.Intent.CUSTOMER_STAGING, "manifest", "a".repeat(64),
-            bindingFingerprint, new AdmissionContracts.Placement("server", "destination", "127.0.0.1"),
-            "evidence", Instant.now().plusSeconds(300));
-        when(admission.require(any(), any())).thenReturn(evidence);
-        when(admission.requireForExecution(any(), any())).thenReturn(evidence);
-    }
-
-    private void configureRetirement(String operationKey) {
-        var operation = new TargetRetirementOperationEntity();
-        operation.setId("retirement"); operation.setCustomerId("customer");
-        operation.setDeploymentId("deployment"); operation.setTargetProfileId("target");
-        operation.setOperationKey(operationKey); operation.setState(TargetRetirementContracts.State.RUNNING);
-        operation.setStep(TargetRetirementContracts.Step.DEPENDENCIES); operation.setWorkerToken("worker");
-        operation.setLeaseExpiresAt(Instant.now().plusSeconds(60)); operation.setDestructiveStarted(true);
-        operation.setFenceEpoch(4);
-        when(retirementOperations.findByDeploymentIdAndTargetProfileIdAndOperationKey(
-            "deployment", "target", operationKey)).thenReturn(Optional.of(operation));
-        var gate = new TargetRetirementGateEntity();
-        gate.setId("gate"); gate.setDeploymentId("deployment"); gate.setTargetProfileId("target");
-        gate.setState("RETIRING"); gate.setOperationId("retirement"); gate.setEpoch(4);
-        when(retirementGates.findByDeploymentIdAndTargetProfileId("deployment", "target"))
-            .thenReturn(Optional.of(gate));
+        useCoreAuthorization(false);
     }
 
     private ManagedDependencyPrerequisites.Binding binding() {

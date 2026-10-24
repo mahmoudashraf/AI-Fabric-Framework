@@ -92,87 +92,6 @@ class DeploymentRuntimeAuthorityServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
-    @Test void onlyClaimedStaffColdPlanCanMintTheDedicatedSystemScope() throws Exception {
-        var local = coldRepairAuthority(true);
-        var ordinary = service.issueRuntimeArtifactRepairHeaders("cold-plan", true);
-        var cold = service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan");
-        var coldPayload = payload(cold.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
-        var ordinaryPayload = payload(ordinary.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
-        assertThat(coldPayload.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
-        assertThat(coldPayload.path("scopes")).hasSize(1);
-        assertThat(coldPayload.path("scopes").get(0).asText()).isEqualTo("runtime:target-retirement:cold-maintenance:write");
-        assertThat(ordinaryPayload.path("scopes").toString()).doesNotContain("cold-maintenance");
-        var prior = service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan");
-        var priorPayload = payload(prior.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
-        assertThat(priorPayload.path("scopes").toString()).doesNotContain(":write");
-        assertThat(local.scope().releaseId()).isEqualTo("cold-candidate");
-    }
-
-    @Test void customerAndUnacknowledgedPlansCannotMintColdMaintenanceAuthority() {
-        coldRepairAuthority(false);
-        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan"))
-            .hasMessageContaining("acknowledgement");
-        principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);
-        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan"))
-            .hasMessageContaining("authority is required");
-        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
-            .hasMessageContaining("authority is required");
-    }
-
-    @Test void reviewedUnassignedVerificationFailureCanOnlyReadThePriorGeneration() throws Exception {
-        coldRepairAuthority(true, true);
-        var prior = releases.findById("cold-prior").orElseThrow();
-        prior.setStatus("APPLIED_VERIFICATION_FAILED"); prior.setVerificationStatus("FAILED");
-        var headers = service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan");
-        var body = payload(headers.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
-        assertThat(body.path("scopes").toString()).doesNotContain(":write");
-        prior.setProvisioningStatus("FAILED");
-        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
-            .hasMessageContaining("Prior cold-maintenance authority changed");
-    }
-
-    @Test void ordinaryColdPlanCannotTreatVerificationFailureAsAVerifiedRuntime() {
-        coldRepairAuthority(true);
-        var prior = releases.findById("cold-prior").orElseThrow();
-        prior.setStatus("APPLIED_VERIFICATION_FAILED"); prior.setVerificationStatus("FAILED");
-        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
-            .hasMessageContaining("Prior cold-maintenance authority changed");
-    }
-
-    private com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence coldRepairAuthority(boolean consent) {
-        return coldRepairAuthority(consent, false);
-    }
-
-    private com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence coldRepairAuthority(boolean consent, boolean unassigned) {
-        principal(com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN);
-        var prior = release("staging", "cold-prior");
-        var priorRelease = releases.findById("cold-prior").orElseThrow();
-        priorRelease.setStatus("APPLIED_VERIFIED"); priorRelease.setVerificationStatus("PASSED");
-        var frozen = release("staging", "cold-candidate");
-        var failed = releases.findById("cold-candidate").orElseThrow();
-        failed.setStatus("FAILED"); failed.setProvisioningStatus("FAILED"); failed.setSourceArtifactId("original");
-        var scope = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope(
-            "customer-1", "tenant-1", "dep-1", "staging", "cold-candidate", "version-1", "config", frozen.fingerprint(),
-            "reservation", "generation", "https://runtime.example", "runtime-app", "connector-app", "runtime-db", "cold-prior");
-        var original = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ArtifactPin(
-            "original", "pin", "runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "ci", "staging", "manifest");
-        var request = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Request(
-            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Fence("reservation", 1, "generation"), "replacement", "offer", 1,
-            "repair", "attended staging", true, com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Mode.COLD_MAINTENANCE_REAPPLY,
-            new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdMaintenanceAcknowledgement("cold-prior", "owner-approved", consent));
-        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper);
-        var local = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence(scope, request, original, original,
-            Map.of("coldPriorRuntime", codec.write(new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdPriorRuntime(
-                "cold-prior", "version-1", prior.fingerprint(), unassigned))), Instant.now().plusSeconds(300), Instant.now().plusSeconds(1800));
-        var journal = mock(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class);
-        when(journal.authorityEvidence(eq("cold-plan"), eq("staff"), anyBoolean())).thenReturn(local);
-        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory(); beans.registerSingleton("repairs", journal);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "artifactRepairs",
-            beans.getBeanProvider(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class));
-        when(deployments.findById("dep-1")).thenReturn(Optional.of(deployment));
-        return local;
-    }
-
     private void principal(com.ai.fabric.platform.backend.security.PlatformRole role) {
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
             new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
@@ -416,26 +335,10 @@ class DeploymentRuntimeAuthorityServiceTest {
         assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, current, false)).hasMessageContaining("does not match");
     }
 
-    @Test void generationWorkerRequiresBothExactFrozenReleasesAndIssuesNoArbitraryScopes() throws Exception {
-        var previous = release("staging", "release-old");
-        var next = release("staging", "release-next");
-        var nextRow = releases.findById(next.releaseId()).orElseThrow();
-        clearInvocations(access);
-        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next"))
-            .hasMessageContaining("claimed provisioning release");
-        nextRow.setStatus("PROVISIONING"); nextRow.setProvisioningStatus("RUNNING");
-        var result = service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next");
-        var claims = payload(result.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
-        var scopes = new ArrayList<String>(); claims.path("scopes").forEach(scope -> scopes.add(scope.asText()));
-        assertThat(scopes).containsExactlyInAnyOrder("runtime:target-retirement:read", "runtime:target-retirement:write");
-        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, nextRow.getId(), next.fingerprint(), "replace:release-next"))
-            .hasMessageContaining("Distinct");
-        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), "0".repeat(64), "replace:release-next"))
-            .hasMessageContaining("Previous generation authority changed");
-        nextRow.setRuntimeAuthoritySnapshotId(previous.snapshotId());
-        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next"))
-            .hasMessageContaining("exact release");
-        verifyNoInteractions(access);
+    @Test void coreAuthorityExposesNoLegacyRepairDrainOrGenerationEntryPoints() {
+        assertThat(Arrays.stream(DeploymentRuntimeAuthorityService.class.getDeclaredMethods()).map(java.lang.reflect.Method::getName))
+            .noneMatch(name -> name.contains("ArtifactRepair") || name.contains("ColdMaintenance")
+                || name.contains("GenerationTransition") || name.contains("TargetRetirement"));
     }
 
     @Test void missingContextInvalidOriginsStaleFingerprintAndUnprovisionedReleaseAreBlocked() {

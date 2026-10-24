@@ -60,17 +60,18 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
-    @Test void verifiedEffectiveRuntimeSourceOverridesExpectationsWithoutRewritingOriginalProvenance() {
+    @Test void exactImmutableArtifactControlsSourceExpectationsWithoutRewritingReleaseProvenance() {
         var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
-        var resolver = mock(com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver.class);
-        ReflectionTestUtils.setField(service, "effectiveRuntimeArtifacts", resolver);
+        var artifacts = mock(DeploymentSourceArtifactService.class);
+        ReflectionTestUtils.setField(service, "effectiveRuntimeArtifacts", new ReleaseArtifactResolver(artifacts));
         var release = release(); release.setSourceArtifactId("original-artifact");
         String original = "{\"sourceCapabilityManifestHash\":\"original-hash\",\"sourceGitCommit\":\"original-commit\"}";
         release.setProvisioningDetailsJson(original);
         var artifact = new com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity();
         artifact.setCapabilityManifestHash("c".repeat(64)); artifact.setGitCommitSha("d".repeat(40));
         artifact.setCapabilityManifestJson("{\"migrationIds\":[\"provider-budget-validity-extensions-v1\"]}");
-        when(resolver.resolve(release)).thenReturn(artifact);
+        artifact.setId("original-artifact");
+        when(artifacts.require("original-artifact")).thenReturn(artifact);
         Object expected = ReflectionTestUtils.invokeMethod(service, "expectedRuntimeSource", release, objectMapper.valueToTree(Map.of(
             "sourceCapabilityManifestHash", "original-hash", "sourceGitCommit", "original-commit")));
         assertThat((String) ReflectionTestUtils.invokeMethod(expected, "capabilityManifestHash")).isEqualTo("c".repeat(64));

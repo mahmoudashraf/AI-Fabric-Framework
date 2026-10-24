@@ -258,7 +258,7 @@ class DeploymentDocumentStorageBindingServiceTest {
                 secretService,
                 auditService,
                 objectMapper,
-                mock(com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService.class),
+                mock(com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService.class),
                 offerBoundary
             ),
             deployment,

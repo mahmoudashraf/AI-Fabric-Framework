@@ -13,8 +13,6 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRu
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateEvidence;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
@@ -110,8 +108,6 @@ public class DeploymentService {
     private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
     @Autowired(required = false)
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository draftRepository;
@@ -125,7 +121,6 @@ public class DeploymentService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
-    private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentServiceNavigationService deploymentServiceNavigationService;
     private final DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService;
@@ -167,7 +162,7 @@ public class DeploymentService {
     private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     @Autowired
-    private com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    private com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService targetMutations;
     @Autowired
     private com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDeploymentSecurityProjectionService workspaceSecurityProjection;
     private VectorizationPlanRepository vectorizationPlanRepository;
@@ -290,7 +285,6 @@ public class DeploymentService {
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
-                             DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentServiceNavigationService deploymentServiceNavigationService,
                              DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService,
@@ -327,7 +321,6 @@ public class DeploymentService {
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
-        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentServiceNavigationService = deploymentServiceNavigationService;
         this.deploymentProductionReadinessScorecardService = deploymentProductionReadinessScorecardService;
@@ -500,7 +493,6 @@ public class DeploymentService {
 
     public DeploymentOverviewSummary getDeploymentOverview(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return toOverview(getDeployment(deploymentId));
     }
 
@@ -512,7 +504,6 @@ public class DeploymentService {
 
     public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
@@ -760,7 +751,6 @@ public class DeploymentService {
 
     public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
@@ -789,7 +779,6 @@ public class DeploymentService {
 
     public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
@@ -1706,7 +1695,6 @@ public class DeploymentService {
             offerBoundary.requireArtifact(approved, sourceArtifactId);
             offerBoundary.requireVersion(approved, version);
         }
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
             .ifPresent(release -> {
@@ -1716,8 +1704,8 @@ public class DeploymentService {
                 );
             });
         deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
-        if (retirementGates == null) throw new IllegalStateException("Target retirement interlock is required.");
-        retirementGates.requireAvailableForMutation(deploymentId, targetProfile.getId());
+        if (targetMutations == null) throw new IllegalStateException("Core target mutation lock is required.");
+        targetMutations.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
         JsonNode reviewedProviderConfig = readJson(version.getProviderConfigJson());
         if (DeploymentAiStateStorageSelection.selected(reviewedProviderConfig) != null) {
@@ -1789,16 +1777,15 @@ public class DeploymentService {
         releaseRepository.saveAndFlush(release);
 
         deployment.setStatus("APPLY_REQUESTED");
-        if (deploymentOperations != null) {
-            var decision = deploymentOperations.authorize(deployment, version, release, operationKey);
-            ObjectNode details = (ObjectNode) readJson(release.getProvisioningDetailsJson());
-            details.set("deploymentOperations", objectMapper.valueToTree(decision));
-            release.setProvisioningDetailsJson(details.toString());
-            releaseRepository.save(release);
-        } else if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.bind(deployment, version, release);
-        else if (customerOfferDeploymentRepository.existsById(deploymentId)) {
-            throw new IllegalStateException("Customer release admission coordinator is required.");
-        }
+        if (deploymentOperations == null) throw new IllegalStateException("Core release authorization is required.");
+        var decision = deploymentOperations.authorize(deployment, version, release, operationKey);
+        ObjectNode details = (ObjectNode) readJson(release.getProvisioningDetailsJson());
+        details.put("replacementStrategy", targetProfile.getProviderType()
+            == com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY
+            ? "COLD_REPLACE" : "PROVIDER_NATIVE");
+        details.set("deploymentOperations", objectMapper.valueToTree(decision));
+        release.setProvisioningDetailsJson(details.toString());
+        releaseRepository.save(release);
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
         platformAuditService.record(
@@ -1839,83 +1826,7 @@ public class DeploymentService {
         );
     }
 
-    /**
-     * Staff-only admission preflight. The request selects identities only; origins and authority
-     * material are derived from the immutable published version and server-owned target state.
-     */
-    @Transactional
-    public RuntimeAuthorityCandidateEvidence prepareReviewedRuntimeAuthorityCandidate(
-        RuntimeAuthorityCandidateRequest request
-    ) {
-        if (request == null
-            || !StringUtils.hasText(request.deploymentId())
-            || !StringUtils.hasText(request.targetProfileId())
-            || !StringUtils.hasText(request.versionId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Deployment, target profile and version are required.");
-        }
-        String deploymentId = request.deploymentId().trim();
-        String targetProfileId = request.targetProfileId().trim();
-        String versionId = request.versionId().trim();
-        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        if (!customerOfferDeploymentRepository.existsById(deploymentId)) {
-            throw new ResponseStatusException(CONFLICT,
-                "Reviewed runtime authority preflight is limited to productized customer-offer deployments.");
-        }
-        DeploymentVersionEntity version = versionRepository.findById(versionId)
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
-        if (!deploymentId.equals(version.getDeploymentId())) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                "Version does not belong to deployment: " + deploymentId);
-        }
-        DeploymentTargetProfileEntity target = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
-        var approved = offerBoundary.prepareAdmission(
-            deployment,
-            target.getId(),
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
-            "runtime-authority-" + UUID.nameUUIDFromBytes(
-                (deploymentId + "|" + target.getId() + "|" + versionId)
-                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)
-            )
-        );
-        offerBoundary.requireVersion(approved, version);
-        return prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, target.getId());
-    }
 
-    /**
-     * Internal continuation after the owning customer/staff boundary has authorized the exact
-     * deployment, target and immutable version. It accepts no caller-provided origins or secrets.
-     */
-    @Transactional
-    public RuntimeAuthorityCandidateEvidence prepareAuthorizedRuntimeAuthorityCandidate(
-        DeploymentEntity deployment,
-        DeploymentVersionEntity version,
-        String targetProfileId
-    ) {
-        if (deployment == null || version == null || !StringUtils.hasText(targetProfileId)
-            || !deployment.getId().equals(version.getDeploymentId())
-            || !"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Authorized runtime authority candidate is invalid.");
-        }
-        DeploymentTargetProfileEntity target = deploymentProvisioningService.selectedTargetProfile(targetProfileId.trim());
-        List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version);
-        RuntimeAuthorityBinding.Snapshot candidate = runtimeAuthorityService.freezeCandidateForAuthorizedApply(
-            deployment.getId(),
-            target.getId(),
-            version.getId(),
-            reviewedOrigins
-        );
-        RuntimeAuthorityBinding binding = candidate.binding();
-        return new RuntimeAuthorityCandidateEvidence(
-            deployment.getId(),
-            target.getId(),
-            version.getId(),
-            candidate.snapshotId(),
-            candidate.fingerprint(),
-            binding.generation(),
-            binding.allowedOrigins()
-        );
-    }
 
     private List<String> reviewedRuntimeAuthorityOrigins(DeploymentVersionEntity version) {
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
@@ -2109,7 +2020,6 @@ public class DeploymentService {
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toReleaseSummary)
             .toList();
@@ -2117,16 +2027,13 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentReleaseSummary reconcileLatestRelease(String deploymentId) {
-        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId(), true);
-        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No release found for deployment: " + deploymentId));
-        return toReleaseSummary(latestRelease);
+        getDeploymentForOperatorAction(deploymentId);
+        throw new ResponseStatusException(org.springframework.http.HttpStatus.GONE,
+            "LEGACY_RELEASE_RECOVERY_RETIRED: inspect the release, recheck verification or submit an explicit new cold apply.");
     }
 
     public List<DeploymentVerificationRunSummary> listVerificationRuns(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toVerificationRunSummary)
             .toList();
@@ -2145,7 +2052,6 @@ public class DeploymentService {
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
         DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         deployment = getDeploymentForOperatorAction(deploymentId);
         assertNotArchived(deployment, "rerun verification");
         if (deployment.getActiveVersionId() == null) {
@@ -2201,7 +2107,7 @@ public class DeploymentService {
                                                                 DeploymentVersionEntity version,
                                                                 DeploymentReleaseEntity release,
                                                                 boolean updateDeploymentProjection) {
-        if (DeploymentReleaseRecoveryService.ACTIVE_RELEASE_STATUSES.contains(release.getStatus())
+        if (com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService.ACTIVE_RELEASE_STATUSES.contains(release.getStatus())
             || deploymentReleaseExecutionService.isApplyExecuting(release.getId())) {
             throw new ResponseStatusException(CONFLICT, "RELEASE_APPLY_IN_PROGRESS");
         }

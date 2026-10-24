@@ -9,8 +9,8 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
-import com.ai.fabric.platform.backend.deployment.retirement.ProviderHostCommandRunner;
+import com.ai.fabric.platform.backend.deployment.provider.CoolifyHostVolumeReclamationService;
+import com.ai.fabric.platform.backend.deployment.provider.ProviderHostCommandRunner;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;

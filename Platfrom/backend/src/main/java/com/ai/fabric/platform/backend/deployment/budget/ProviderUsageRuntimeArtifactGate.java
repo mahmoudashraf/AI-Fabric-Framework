@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
-import com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver;
+import com.ai.fabric.platform.backend.deployment.service.ReleaseArtifactResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -10,10 +10,10 @@ import org.springframework.stereotype.Component;
 /** A startup flag cannot retrofit a guard into an older image. Require the reviewed immutable artifact. */
 @Component
 public class ProviderUsageRuntimeArtifactGate {
-    private final EffectiveRuntimeArtifactResolver artifacts;
+    private final ReleaseArtifactResolver artifacts;
     private final DeploymentSourceCapabilityManifestService manifests;
 
-    public ProviderUsageRuntimeArtifactGate(EffectiveRuntimeArtifactResolver artifacts,
+    public ProviderUsageRuntimeArtifactGate(ReleaseArtifactResolver artifacts,
         DeploymentSourceCapabilityManifestService manifests) {
         this.artifacts = artifacts; this.manifests = manifests;
     }

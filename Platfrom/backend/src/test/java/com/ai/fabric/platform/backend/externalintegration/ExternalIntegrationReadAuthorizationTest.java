@@ -1,6 +1,5 @@
 package com.ai.fabric.platform.backend.externalintegration;
 
-import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.entity.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.repository.*;
@@ -21,7 +20,6 @@ import jakarta.validation.Validation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -78,7 +76,8 @@ class ExternalIntegrationReadAuthorizationTest {
         assertThat(request.getValue().bindingSlotId()).isNull();
         assertThat(request.getValue().selectedProfileId()).isNull();
         verify(r.composition).requireVersion(any(Definition.class), same(r.f.version));
-        verify(r.placement).requireFreshEvidence(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(r.placement).requireConfiguredPlacement(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(r.placement, never()).requireFreshEvidence(any(), any());
         r.assertNoEffects();
     }
 
@@ -104,8 +103,8 @@ class ExternalIntegrationReadAuthorizationTest {
                 case "revoked" -> r.f.grant.setStatus(EntitlementStatus.REVOKED);
                 case "expired" -> r.f.grant.setExpiresAt(Instant.now().minusSeconds(1));
                 case "placement" -> doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict(
-                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_EVIDENCE_STALE))
-                    .when(r.placement).requireFreshEvidence(any(), any());
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_DENIED))
+                    .when(r.placement).requireConfiguredPlacement(any(), any());
                 case "version" -> r.f.version.setStatus("DRAFT");
                 case "target" -> r.f.target.setEnvironmentName("changed-environment");
                 case "slot", "profile" -> { }
@@ -184,6 +183,8 @@ class ExternalIntegrationReadAuthorizationTest {
         assertThat(request.getValue().targetProfileId()).isEqualTo(r.f.target.getId());
         verify(r.composition).requireVersion(any(Definition.class), same(r.f.version));
         verify(r.composition).requireProfile(same(r.f.target), any(TargetPermission.class));
+        verify(r.placement).requireConfiguredPlacement(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(r.placement, never()).requireFreshEvidence(any(), any());
         r.assertNoEffects();
     }
 
@@ -264,8 +265,8 @@ class ExternalIntegrationReadAuthorizationTest {
                 case "expired" -> r.f.grant.setExpiresAt(Instant.now().minusSeconds(1));
                 case "invited" -> r.f.grant.setStatus(EntitlementStatus.INVITED);
                 case "placement" -> doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict(
-                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_EVIDENCE_STALE))
-                    .when(r.placement).requireFreshEvidence(any(), any());
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_DENIED))
+                    .when(r.placement).requireConfiguredPlacement(any(), any());
                 case "target" -> r.f.target.setEnvironmentName("foreign-environment");
                 case "read-not-offered" -> {
                     var tree = (com.fasterxml.jackson.databind.node.ObjectNode) r.f.mapper.valueToTree(r.f.definition);
@@ -278,7 +279,7 @@ class ExternalIntegrationReadAuthorizationTest {
                 case "association", "invited" -> "ENTITLEMENT_REQUIRED";
                 case "revoked" -> "ENTITLEMENT_REVOKED";
                 case "expired" -> "ENTITLEMENT_EXPIRED";
-                case "placement" -> "PLACEMENT_EVIDENCE_STALE";
+                case "placement" -> "PLACEMENT_DENIED";
                 case "target", "offer-integrity" -> "REVIEWED_COMPOSITION_CHANGED";
                 case "read-not-offered" -> "OPERATION_FORBIDDEN";
                 default -> "RESOURCE_SCOPE_MISMATCH";
@@ -447,11 +448,9 @@ class ExternalIntegrationReadAuthorizationTest {
             var entitlements = new CustomerOfferEntitlementService(offers, grants, f.commands, customerAccess, customers, users,
                 f.codec, composition, placement, f.targets, f.audit);
             var access = new DeploymentAccessService(mock(DeploymentAssignmentRepository.class), mock(PublicApiDeploymentRepository.class), users, customerAccess);
-            @SuppressWarnings("unchecked") ObjectProvider<CustomerPrerequisiteEvidenceProvider> providers = mock(ObjectProvider.class);
             authorization = spy(new CustomerSelfServiceAuthorizationService(entitlements, composition, placement, f.deployments, f.releases, f.versions,
-                f.targets, tenants, mock(PlatformConsumerRepository.class), access, providers, new CustomerSelfServiceProperties(null, 60), f.associations));
-            when(placement.requireFreshEvidence(any(), any())).thenReturn(new CustomerPlacementEvidenceEntity("placement", f.target.getId(),
-                TargetIntent.CUSTOMER_STAGING, "fingerprint", "server", "public-address", "destination", Instant.now().minusSeconds(1), Instant.now().plusSeconds(60)));
+                f.targets, tenants, mock(PlatformConsumerRepository.class), access, f.associations,
+                mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class)));
             publish(f.definition, true);
             service = new ExternalIntegrationService(entitlements, authorization, composition, f.commands, f.deployments, f.versions, f.targets,
                 f.policy, f.integrity, f.store, f.vault, f.secrets, f.codec, f.mapper, f.audit, validator);

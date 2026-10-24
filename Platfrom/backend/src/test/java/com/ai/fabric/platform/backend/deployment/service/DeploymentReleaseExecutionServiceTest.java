@@ -1,6 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
+import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService;
 import com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseExecutionServiceTest {
 
     @Test void coreAuthorizedApplyProvisionsAndVerifiesWithoutCallingLegacyAdmission() {
-        var fixture = new BindingApplyFixture(); fixture.prepareContinuation();
+        var fixture = new BindingApplyFixture(); fixture.prepareApply();
         fixture.release.setProvisioningDetailsJson("{}");
         var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
         ReflectionTestUtils.setField(fixture.service, "deploymentOperations", operations);
@@ -65,11 +65,11 @@ class DeploymentReleaseExecutionServiceTest {
         order.verify(fixture.provisioning).provision(any(), any(), any(), any());
         order.verify(fixture.dependencies).completeRuntimeBound(any(), any(), any());
         order.verify(fixture.verification).verify(any(), any(), any(), eq("POST_APPLY"));
-        verifyNoInteractions(fixture.admission);
+        verify(operations, org.mockito.Mockito.atLeastOnce()).report(eq("rel-123"), any());
     }
 
     @Test void coreAuthorityFailureRemainsFatalBeforeProviderEffects() {
-        var fixture = new BindingApplyFixture(); fixture.prepareContinuation(); fixture.release.setProvisioningDetailsJson("{}");
+        var fixture = new BindingApplyFixture(); fixture.prepareApply(); fixture.release.setProvisioningDetailsJson("{}");
         var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
         ReflectionTestUtils.setField(fixture.service, "deploymentOperations", operations);
         ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService",
@@ -79,13 +79,13 @@ class DeploymentReleaseExecutionServiceTest {
         fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
         assertThat(fixture.release.getStatus()).isEqualTo("FAILED");
         assertThat(fixture.release.getErrorMessage()).contains("CORE_RELEASE_AUTHORIZATION_SCOPE_CHANGED");
-        verifyNoInteractions(fixture.admission, fixture.provisioning, fixture.dependencies, fixture.datasets);
+        verifyNoInteractions(fixture.provisioning, fixture.dependencies, fixture.datasets, fixture.budget);
     }
 
     @Test
-    void liveApplyCannotBeRecoveredOrDuplicatedWhileRuntimeDependenciesInitialize() {
+    void liveApplyCannotBeDuplicatedWhileRuntimeDependenciesInitialize() {
         var fixture = new BindingApplyFixture();
-        fixture.prepareContinuation();
+        fixture.prepareApply();
         fixture.release.setProvisioningDetailsJson("{}");
         var progress = new DeploymentReleaseProgressService(fixture.releases, fixture.mapper);
         ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService", progress);
@@ -102,9 +102,6 @@ class DeploymentReleaseExecutionServiceTest {
         when(fixture.deployments.findByIdForUpdate("dep-123")).thenReturn(Optional.of(fixture.deployment));
         when(fixture.releases.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123"))
             .thenReturn(Optional.of(fixture.release));
-        var recovery = new DeploymentReleaseRecoveryService(fixture.deployments, fixture.releases,
-            fixture.service, fixture.verifications, mock(RailwayGraphqlClient.class),
-            mock(com.ai.fabric.platform.backend.config.PlatformProvisioningProperties.class), fixture.mapper);
         org.mockito.Mockito.doAnswer(invocation -> {
             assertThat(fixture.deployment.getStatus()).isEqualTo("VERIFYING");
             assertThat(fixture.release.getStatus()).isEqualTo("VERIFYING");
@@ -112,8 +109,6 @@ class DeploymentReleaseExecutionServiceTest {
             assertThat(fixture.release.getVerificationStatus()).isEqualTo("PENDING");
             assertThat(fixture.service.isApplyExecuting("rel-123")).isTrue();
             fixture.release.setUpdatedAt(Instant.now().minusSeconds(600));
-            assertThat(recovery.reconcileLatestInProgressRelease("dep-123")).isFalse();
-            assertThat(recovery.reconcileLatestInProgressRelease("dep-123", true)).isFalse();
             fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
             verify(fixture.verification, never()).verify(any(), any(), any(), eq("POST_APPLY"));
             return null;
@@ -141,46 +136,22 @@ class DeploymentReleaseExecutionServiceTest {
         assertThat(fixture.service.isApplyExecuting("rel-123")).isFalse();
         assertThat(fixture.release.getStatus()).isEqualTo("FAILED");
         assertThat(fixture.release.getErrorMessage()).contains("EXPECTED_BINDING_FAILURE");
-        verify(fixture.admission, org.mockito.Mockito.times(2)).observe("rel-123");
+        verify(fixture.operations, org.mockito.Mockito.times(2)).report("rel-123", "FAILED");
         verifyNoInteractions(fixture.dependencies, fixture.provisioning, fixture.datasets);
     }
 
-    @Test void explicitPostProvisionContinuationSkipsProvisioningAndFundingAndFinishesOnlyOnce() {
-        var fixture = new BindingApplyFixture(); var nativeProvider = fixture.prepareContinuation();
-        fixture.service.runApply("dep-123", "ver-123", "rel-123");
-        verify(nativeProvider).postProvisionResumeReadback(eq("dep-123"), eq("target-stage"), eq("rel-123"), any(), any());
-        verify(fixture.admission).beginProvisioning("rel-123");
-        verify(fixture.budget).verifyActive(fixture.deployment, fixture.version, fixture.release);
-        verify(fixture.budget, never()).prepare(any(), any()); verify(fixture.budget, never()).initializeAndActivate(any(), any(), any());
-        verify(fixture.dependencies, never()).prepareFoundation(any(), any(), any());
-        verify(fixture.dependencies).resumeRuntimeBound(fixture.deployment, fixture.version, fixture.release, "a".repeat(64));
-        verifyNoInteractions(fixture.provisioning);
-        verify(fixture.datasets).syncReleaseDatasets(fixture.deployment, fixture.version, fixture.release);
-        assertThat(fixture.release.getStatus()).isEqualTo("APPLIED_VERIFIED");
-        fixture.service.runApply("dep-123", "ver-123", "rel-123");
-        verify(fixture.dependencies, org.mockito.Mockito.times(1)).resumeRuntimeBound(any(), any(), any(), any());
-    }
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"proofFingerprint\":\"retired-proof\",\"operationKey\":\"explicit-resume\"}"})
+    void legacyContinuationIsRejectedWithoutResumedOrNewEffects(String continuation) {
+        var fixture = new BindingApplyFixture();
+        var nativeProvider = fixture.prepareApply();
+        fixture.release.setProvisioningDetailsJson("{\"postProvisionResume\":" + continuation + "}");
 
-    @Test void continuationRechecksNativeStateBeforeAnyDependencyOrFinancialWork() {
-        var fixture = new BindingApplyFixture(); var nativeProvider = fixture.prepareContinuation();
-        org.mockito.Mockito.doThrow(new IllegalStateException("NATIVE_DRIFT")).when(nativeProvider)
-            .postProvisionResumeReadback(any(), any(), any(), any(), any());
-        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("NATIVE_DRIFT");
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .hasMessageContaining("LEGACY_POST_PROVISION_RESUME_RETIRED");
+
         fixture.assertNoProviderEffects();
-    }
-
-    @Test void continuationCannotCreateDependenciesWhenTheExistingWalletIsLost() {
-        var fixture = new BindingApplyFixture(); fixture.prepareContinuation();
-        org.mockito.Mockito.doThrow(new IllegalStateException("WALLET_LOST")).when(fixture.budget).verifyActive(any(), any(), any());
-        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("WALLET_LOST");
-        verifyNoInteractions(fixture.provisioning, fixture.dependencies, fixture.datasets);
-        verify(fixture.budget, never()).initializeAndActivate(any(), any(), any());
-    }
-
-    @Test void malformedContinuationCannotFallBackToFullNativeApply() {
-        var fixture = new BindingApplyFixture(); fixture.prepareContinuation(); fixture.release.setProvisioningDetailsJson("{\"postProvisionResume\":{}}");
-        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("POST_PROVISION_RESUME_AUTHORITY_REQUIRED");
-        fixture.assertNoProviderEffects();
+        verifyNoInteractions(nativeProvider, fixture.bindings);
     }
 
     @Test void externalIntegrationWorkerUsesTypedAuthorityBeforeAdmissionBudgetAndProviderEffects() {
@@ -321,9 +292,9 @@ class DeploymentReleaseExecutionServiceTest {
         assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
             .isSameAs(reachedProvisioning);
 
-        var order = inOrder(fixture.bindings, fixture.admission, fixture.budget, fixture.dependencies, fixture.provisioning);
+        var order = inOrder(fixture.bindings, fixture.operations, fixture.budget, fixture.dependencies, fixture.provisioning);
         order.verify(fixture.bindings).resolve(fixture.deployment, fixture.version, fixture.providerConfig, "target-stage");
-        order.verify(fixture.admission).beginProvisioning("rel-123");
+        order.verify(fixture.operations).require(fixture.deployment, fixture.version, fixture.release);
         order.verify(fixture.budget).prepare(fixture.deployment, fixture.release);
         order.verify(fixture.dependencies).prepareFoundation(fixture.deployment, fixture.version, fixture.release);
         order.verify(fixture.provisioning).provision(any(), any(), any(), any());
@@ -340,7 +311,7 @@ class DeploymentReleaseExecutionServiceTest {
             .isSameAs(reachedProvisioning);
 
         verifyNoInteractions(fixture.bindings);
-        verify(fixture.admission).beginProvisioning("rel-123");
+        verify(fixture.operations).require(fixture.deployment, fixture.version, fixture.release);
         verify(fixture.budget).prepare(fixture.deployment, fixture.release);
         verify(fixture.dependencies).prepareFoundation(fixture.deployment, fixture.version, fixture.release);
     }
@@ -465,11 +436,11 @@ class DeploymentReleaseExecutionServiceTest {
         when(verificationRunRepository.save(any(DeploymentVerificationRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentReleaseVerificationService.verify(deployment, version, release, "PRE_APPLY")).thenReturn(failedPreflight);
 
-        var admission = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator.class);
-        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+        var operations = mock(DeploymentOperationsService.class);
+        ReflectionTestUtils.setField(service, "deploymentOperations", operations);
         service.runApply("dep-123", "ver-123", "rel-123");
-        verify(admission, never()).beginProvisioning(any());
-        verify(admission).observe("rel-123");
+        verify(operations, never()).require(any(), any(), any());
+        verify(operations, org.mockito.Mockito.atLeastOnce()).report(eq("rel-123"), any());
 
         verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
         assertThat(release.getStatus()).isEqualTo("PRE_APPLY_BLOCKED");
@@ -838,12 +809,12 @@ class DeploymentReleaseExecutionServiceTest {
 
         ManagedDependencyReleaseCoordinator dependencyCoordinator = mock(ManagedDependencyReleaseCoordinator.class);
         ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencyCoordinator);
-        var admission = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator.class);
-        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+        var operations = mock(DeploymentOperationsService.class);
+        ReflectionTestUtils.setField(service, "deploymentOperations", operations);
         service.executeApply("dep-123", "ver-123", "rel-123");
 
-        var order = inOrder(admission, dependencyCoordinator, deploymentProvisioningService, marketplaceDatasetSyncService);
-        order.verify(admission).beginProvisioning("rel-123");
+        var order = inOrder(operations, dependencyCoordinator, deploymentProvisioningService, marketplaceDatasetSyncService);
+        order.verify(operations).require(deployment, version, release);
         order.verify(dependencyCoordinator).prepareFoundation(deployment, version, release);
         order.verify(deploymentProvisioningService).provision(any(), any(), any(), any());
         order.verify(dependencyCoordinator).completeRuntimeBound(deployment, version, release);
@@ -851,7 +822,7 @@ class DeploymentReleaseExecutionServiceTest {
         verify(marketplaceDatasetSyncService).syncReleaseDatasets(deployment, version, release);
         assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
         assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
-        verify(admission, org.mockito.Mockito.atLeastOnce()).observe("rel-123");
+        verify(operations, org.mockito.Mockito.atLeastOnce()).report("rel-123", "ACTIVE");
     }
 
     @Test
@@ -916,7 +887,7 @@ class DeploymentReleaseExecutionServiceTest {
         final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
         final DeploymentProviderRegistry providers = mock(DeploymentProviderRegistry.class);
         final DeploymentExistingVectorBindingService bindings = mock(DeploymentExistingVectorBindingService.class);
-        final AdmissionReleaseCoordinator admission = mock(AdmissionReleaseCoordinator.class);
+        final DeploymentOperationsService operations = mock(DeploymentOperationsService.class);
         final ProviderUsageReleaseCoordinator budget = mock(ProviderUsageReleaseCoordinator.class);
         final ManagedDependencyReleaseCoordinator dependencies = mock(ManagedDependencyReleaseCoordinator.class);
         final DeploymentEntity deployment = new DeploymentEntity();
@@ -946,18 +917,15 @@ class DeploymentReleaseExecutionServiceTest {
             when(verification.verify(deployment, version, release, "PRE_APPLY")).thenReturn(preflight);
             when(bindings.resolve(deployment, version, providerConfig, "target-stage")).thenReturn(providerConfig);
             ReflectionTestUtils.setField(service, "existingVectorBindings", bindings);
-            ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+            ReflectionTestUtils.setField(service, "deploymentOperations", operations);
             ReflectionTestUtils.setField(service, "providerUsageReleaseCoordinator", budget);
             ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencies);
         }
 
-        CoolifyDeploymentProvider prepareContinuation() {
+        CoolifyDeploymentProvider prepareApply() {
             deployment.setActiveVersionId(version.getId()); deployment.setRuntimeBaseUrl("https://runtime.example");
             release.setProviderType(DeploymentProviderType.COOLIFY); release.setCreatedAt(Instant.parse("2026-10-20T21:00:00Z"));
-            var continuation = mapper.createObjectNode()
-                .put("boundary", com.ai.fabric.platform.backend.deployment.admission.PostProvisionResumeContracts.BOUNDARY)
-                .put("operationKey", "explicit-resume").put("proofFingerprint", "a".repeat(64)).put("failedAt", "2026-10-20T21:20:00Z");
-            release.setProvisioningDetailsJson(mapper.createObjectNode().set("postProvisionResume", continuation).toString());
+            release.setProvisioningDetailsJson("{}");
             var provider = mock(CoolifyDeploymentProvider.class); when(providers.require(DeploymentProviderType.COOLIFY)).thenReturn(provider);
             ReflectionTestUtils.setField(service, "aiStateStorageBindings", mock(DeploymentAiStateStorageBindingService.class));
             ReflectionTestUtils.setField(service, "externalIntegrations", mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class));
@@ -969,7 +937,7 @@ class DeploymentReleaseExecutionServiceTest {
         }
 
         void assertNoProviderEffects() {
-            verify(admission, never()).beginProvisioning(any());
+            verify(operations, never()).require(any(), any(), any());
             verifyNoInteractions(budget, dependencies, provisioning, datasets);
             assertThat(deployment.getStatus()).isNotEqualTo("PROVISIONING");
         }

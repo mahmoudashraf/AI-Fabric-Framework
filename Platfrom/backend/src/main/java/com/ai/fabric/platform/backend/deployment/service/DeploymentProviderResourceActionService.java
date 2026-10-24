@@ -35,6 +35,8 @@ import java.util.Set;
 
 @Service
 public class DeploymentProviderResourceActionService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService targetMutations;
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentProviderResourceActionService.class);
     private static final Set<String> PROVIDER_LIFECYCLE_RESOURCE_KINDS = Set.of(
@@ -171,6 +173,7 @@ public class DeploymentProviderResourceActionService {
                                                                           DeploymentProviderResourceLifecycleRequest request) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
         requireProviderManagedLifecycle(handle);
+        targetMutations.requireAvailableForMutation(handle.getDeploymentId(), handle.getTargetProfileId());
         String previousStatus = handle.getStatus();
         String status = normalizeLifecycleStatus(request == null ? null : request.status());
         String reason = reason(request == null ? null : new DeploymentProviderResourceActionRequest(request.reason()));
@@ -233,6 +236,7 @@ public class DeploymentProviderResourceActionService {
                                                                  ResourceActionInvoker invoker) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
         requireProviderManagedLifecycle(handle);
+        targetMutations.requireAvailableForMutation(handle.getDeploymentId(), handle.getTargetProfileId());
         DeploymentProviderResourceActionSummary result = invoker.invoke(handle);
         String normalizedStatus = "DELETE".equals(action) ? "DELETE_REQUESTED" : action + "_REQUESTED";
         handle.setStatus(normalizedStatus);

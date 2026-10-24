@@ -79,8 +79,8 @@ class ProviderUsageModelAdmissionTest {
         f.service.approveGrant(f.runtimeGrant()); f.authorizeRelease("deployment");
         var allocation = f.service.prepareForAuthorizedRelease("release-deployment");
         var store = UUID.randomUUID();
-        f.service.markInitialized(allocation.scope(), store, allocation.runtimeAllocationFingerprint());
-        return f.service.markActive(allocation.scope(), store, allocation.runtimeAllocationFingerprint());
+        f.service.markInitializedForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint());
+        return f.service.markActiveForAuthorizedRelease("release-deployment", store, allocation.runtimeAllocationFingerprint());
     }
 
     private void configure(String deployment, String model) {

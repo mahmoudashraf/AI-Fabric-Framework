@@ -69,6 +69,6 @@ public interface ManagedDependencyPrerequisites {
     // Called immediately before every destructive action. Must serialize against activation in R3.
     void requireUnused(Scope scope, long graphRevision, String retirementOperationKey);
     // Confirm physical database/volume reclamation, not just absent application metadata.
-    void verifyReclaimed(Scope scope, List<ManagedDependencyRetirementAdapter.Resource> resources);
+    void verifyReclaimed(Scope scope, List<ManagedDependencyResource> resources);
     void releaseReservation(Scope scope, String reservationRef);
 }

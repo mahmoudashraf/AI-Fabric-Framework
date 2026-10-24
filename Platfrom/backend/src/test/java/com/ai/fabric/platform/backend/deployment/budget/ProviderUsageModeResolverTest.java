@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.deployment.budget;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties;
+import com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +25,8 @@ class ProviderUsageModeResolverTest {
         jdbc = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:provider_modes_" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("CREATE TABLE provider_usage_allocations(approval_id VARCHAR(96),deployment_id VARCHAR(64),target_profile_id VARCHAR(64))");
         ProviderUsageCoreReleaseTestSchema.create(jdbc);
-        resolver = new ProviderUsageModeResolver(properties, jdbc);
+        resolver = new ProviderUsageModeResolver(properties, jdbc,
+            new CoreReleaseAuthorizationStore(jdbc, new ObjectMapper().findAndRegisterModules()));
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
         release.setId("release-deployment"); release.setDeploymentId("deployment"); release.setDeploymentVersionId("version-deployment");
         release.setTargetProfileId("target"); release.setSourceArtifactId("artifact");
@@ -89,12 +92,20 @@ class ProviderUsageModeResolverTest {
         assertThat(resolver.forRelease(deployment, release)).isEmpty();
     }
 
+    @Test void historicalAllocationCannotLoseEnforcementWhenCoreAuthorizationIsAbsent() {
+        properties.setProviderUsageMode("TEAM_AUTHORIZED"); properties.setTeamAuthorizedTargets(Set.of("target"));
+        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('historical','deployment','target')");
+        assertThat(resolver.forRelease(deployment, release)).contains("FUNDED");
+        release.setTargetProfileId("other");
+        assertThat(resolver.forRelease(deployment, release)).isEmpty();
+    }
+
     @Test void coreScopeAndDecisionCannotBeSubstitutedByReleaseMetadata() {
         ProviderUsageCoreReleaseTestSchema.authorize(jdbc, "deployment", "TEAM_AUTHORIZED");
         release.setTargetProfileId("foreign");
         assertThatThrownBy(() -> resolver.forRelease(deployment, release)).hasMessageContaining("CORE_AUTHORIZATION_SCOPE_CHANGED");
         release.setTargetProfileId("target");
-        jdbc.update("UPDATE platform_release_authorizations SET decision='DENY'");
+        ProviderUsageCoreReleaseTestSchema.decision(jdbc, "DENY", "a".repeat(64));
         assertThatThrownBy(() -> resolver.forRelease(deployment, release)).hasMessageContaining("CORE_AUTHORIZATION_DENIED");
     }
 }

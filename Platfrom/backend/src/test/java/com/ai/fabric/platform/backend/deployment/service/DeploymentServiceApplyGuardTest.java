@@ -8,10 +8,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -73,7 +72,6 @@ class DeploymentServiceApplyGuardTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
-        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
         DeploymentServiceNavigationService deploymentServiceNavigationService = mock(DeploymentServiceNavigationService.class);
         DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService = mock(DeploymentProductionReadinessScorecardService.class);
@@ -107,7 +105,6 @@ class DeploymentServiceApplyGuardTest {
             railwayProvisioningPlanService,
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
-            deploymentReleaseRecoveryService,
             deploymentServiceConfigModelService,
             deploymentServiceNavigationService,
             deploymentProductionReadinessScorecardService,
@@ -174,16 +171,28 @@ class DeploymentServiceApplyGuardTest {
     }
 
     @Test
-    void applyVersionRejectsOverlappingRelease() {
-        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123"))
+    void applyVersionRejectsOverlappingReleaseOnTheExactTargetBeforeQueueingEffects() {
+        var target = new DeploymentTargetProfileEntity(); target.setId("target-staging");
+        target.setProviderType(DeploymentProviderType.COOLIFY);
+        var release = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123").orElseThrow();
+        release.setTargetProfileId(target.getId());
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        when(releaseRepository.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("dep-123", target.getId()))
+            .thenReturn(java.util.List.of(release));
+        when(deploymentProvisioningService.selectedTargetProfile(target.getId())).thenReturn(target);
+        ReflectionTestUtils.setField(service, "targetMutations",
+            new DeploymentTargetMutationService(deploymentRepository, releaseRepository));
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", null, target.getId(), null))
             .isInstanceOf(ResponseStatusException.class)
             .satisfies(ex -> {
                 ResponseStatusException responseStatusException = (ResponseStatusException) ex;
                 assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-                assertThat(responseStatusException.getReason()).contains("apply in progress");
+                assertThat(responseStatusException.getReason()).isEqualTo("RELEASE_APPLY_IN_PROGRESS");
             });
 
-        verifyNoInteractions(deploymentReleaseExecutionService);
+        verifyNoInteractions(deploymentReleaseExecutionService, deploymentOperationApprovalService);
+        verify(releaseRepository, never()).saveAndFlush(any());
     }
 
     @ParameterizedTest
@@ -278,15 +287,13 @@ class DeploymentServiceApplyGuardTest {
         }
         var gate = spy(new MilvusTokenRuntimeArtifactGate(sourceArtifactService, capabilityManifestService));
         ReflectionTestUtils.setField(service, "milvusTokenArtifacts", gate);
-        var admission = mock(AdmissionReleaseCoordinator.class);
-        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
 
         assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
 
         verify(gate).require(version, objectMapper.readTree(version.getProviderConfigJson()), "runtime");
-        verifyNoInteractions(deploymentOperationApprovalService, admission,
+        verifyNoInteractions(deploymentOperationApprovalService,
             deploymentReleaseExecutionService, platformAuditService);
         verify(releaseRepository, never()).save(any());
         verify(releaseRepository, never()).saveAndFlush(any());
@@ -333,7 +340,7 @@ class DeploymentServiceApplyGuardTest {
         target.setEnvironmentName("staging"); target.setSourceStrategy("IMAGE_SOURCE");
         target.setResourceDefaultsJson("{\"sourceStrategy\":\"IMAGE_SOURCE\"}");
         when(deploymentProvisioningService.selectedTargetProfile("target-staging")).thenReturn(target);
-        ReflectionTestUtils.setField(service, "retirementGates", mock(TargetRetirementGateService.class));
+        ReflectionTestUtils.setField(service, "targetMutations", mock(DeploymentTargetMutationService.class));
         return artifact;
     }
 

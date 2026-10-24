@@ -137,8 +137,6 @@ class CustomerStagingConsumerConfigurationPostgresTest {
         consumer.setConsumerId(consumerId);consumer.setDisplayName("Original app consumer");consumer.setDescription("Preserve this");
         consumer.setStatus("ACTIVE");consumer.setBindingRevision(2);consumer.setCreatedAt(now);consumer.setUpdatedAt(now);consumers.saveAndFlush(consumer);
         createApp(appId,"https://app.test.invalid");
-        when(placement.requireFreshEvidence(any(),any())).thenReturn(new CustomerPlacementEvidenceEntity("synthetic-placement",
-            "staging-target",TargetIntent.CUSTOMER_STAGING,"staging-hash","server","127.0.0.1","destination",now.minusSeconds(1),now.plusSeconds(60)));
         authenticate();
     }
 

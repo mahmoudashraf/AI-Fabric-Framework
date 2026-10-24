@@ -45,8 +45,33 @@ class DeploymentOperationsApplicationIntegrationTest {
             .andExpect(jsonPath("$.decisionSource").value("EXTERNAL_SERVICE"))
             .andExpect(jsonPath("$.manualDeploymentsAllowed").value(true)).andReturn().getResponse().getContentAsString();
         assertThat(result).doesNotContain("private-test-service-key", "127.0.0.1", "password");
-        assertThat(context.containsBean("admissionLifecycleWorker")).isFalse();
-        assertThat(context.containsBean("admissionReleaseReconciliationWorker")).isFalse();
-        assertThat(context.containsBean("targetRetirementScheduler")).isFalse();
+        assertThat(context.getBeansOfType(com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService.class))
+            .hasSize(1);
+        assertThat(context.getBeansOfType(com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentReleaseLifecycleService.class))
+            .hasSize(1);
+        assertThat(context.getBeansOfType(com.ai.fabric.platform.backend.deployment.service.ReleaseArtifactResolver.class))
+            .hasSize(1);
+        for (String beanName : context.getBeanDefinitionNames()) {
+            Class<?> type = context.getType(beanName);
+            if (type != null) assertThat(type.getName()).as("bean %s", beanName)
+                .doesNotStartWith("com.ai.fabric.platform.backend.deployment.admission.")
+                .doesNotStartWith("com.ai.fabric.platform.backend.deployment.retirement.")
+                .doesNotStartWith("com.ai.fabric.platform.backend.deployment.generation.");
+        }
+        for (String beanName : java.util.List.of("admissionLifecycleWorker", "admissionReleaseReconciliationWorker",
+            "targetRetirementScheduler", "deploymentReleaseRecoveryService", "unusedVectorTransferService",
+            "unusedVectorBindingHandoffService")) {
+            assertThat(context.containsBean(beanName)).as("retired bean %s", beanName).isFalse();
+        }
+    }
+
+    @Test void runtimeClasspathContainsNoRetiredOperationalPackagesOrRecoveryEngine() throws Exception {
+        var resources = new org.springframework.core.io.support.PathMatchingResourcePatternResolver(context.getClassLoader());
+        for (String name : java.util.List.of("admission", "retirement", "generation")) {
+            assertThat(resources.getResources("classpath*:com/ai/fabric/platform/backend/deployment/" + name + "/**/*.class"))
+                .as("retired package %s", name).isEmpty();
+        }
+        assertThat(context.getClassLoader().getResource(
+            "com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseRecoveryService.class")).isNull();
     }
 }

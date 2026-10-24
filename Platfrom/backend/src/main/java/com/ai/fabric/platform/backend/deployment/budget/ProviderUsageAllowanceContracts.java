@@ -47,7 +47,7 @@ public final class ProviderUsageAllowanceContracts {
         }
     }
 
-    /** A locator/fence only: the service re-reads the real R7 reservation and reviewed manifest. */
+    /** Read-only financial history shape; never authority for issuing or mutating an allowance. */
     public record ReviewedR7Context(String reservationId, String generation, String versionId) {
         public ReviewedR7Context {
             reservationId = text(reservationId, 64); generation = text(generation, 64); versionId = text(versionId, 64);

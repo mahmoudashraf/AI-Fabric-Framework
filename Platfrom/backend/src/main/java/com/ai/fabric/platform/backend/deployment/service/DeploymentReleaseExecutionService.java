@@ -44,9 +44,6 @@ public class DeploymentReleaseExecutionService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
     @Autowired
-    private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
-
-    @Autowired
     private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentReleaseExecutionService.class);
@@ -234,7 +231,7 @@ public class DeploymentReleaseExecutionService {
             transactionOperations.executeWithoutResult(status -> markFailed(releaseId, deploymentId, ex));
         } finally {
             try {
-                observeAdmissionAfterCommit(releaseId);
+                reportOperationsOutcomeAfterCommit(releaseId);
             } finally {
                 activeApplyReleases.remove(releaseId);
             }
@@ -270,10 +267,8 @@ public class DeploymentReleaseExecutionService {
         DeploymentReleaseEntity release = getRelease(releaseId);
 
         JsonNode continuation = readJson(release.getProvisioningDetailsJson()).path("postProvisionResume");
-        if (!continuation.isMissingNode()) {
-            runPostProvisionResume(deploymentId, versionId, releaseId, continuation);
-            return;
-        }
+        if (!continuation.isMissingNode()) throw new IllegalStateException(
+            "LEGACY_POST_PROVISION_RESUME_RETIRED: submit an explicit new cold apply");
 
         JsonNode publishedProviderConfig = readJson(version.getProviderConfigJson());
         if (DeploymentAiStateStorageSelection.selected(publishedProviderConfig) != null) {
@@ -306,8 +301,8 @@ public class DeploymentReleaseExecutionService {
             .required(readJson(version.getCompositionProvenanceJson()))) {
             transactionOperations.executeWithoutResult(status -> externalIntegrations.releaseEnvironmentForProvisioning(deployment, version, release));
         }
-        if (deploymentOperations != null) deploymentOperations.require(deployment, version, release);
-        else if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
+        if (deploymentOperations == null) throw new IllegalStateException("Core release authorization is required.");
+        deploymentOperations.require(deployment, version, release);
         transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
 
         if (providerUsageReleaseCoordinator != null) providerUsageReleaseCoordinator.prepare(deployment, release);
@@ -340,39 +335,6 @@ public class DeploymentReleaseExecutionService {
         runVerification(deploymentId, versionId, releaseId);
     }
 
-    private void runPostProvisionResume(String deploymentId, String versionId, String releaseId, JsonNode continuation) {
-        String proof = continuation.path("proofFingerprint").asText();
-        if (!com.ai.fabric.platform.backend.deployment.admission.PostProvisionResumeContracts.BOUNDARY.equals(continuation.path("boundary").asText())
-            || !proof.matches("[a-f0-9]{64}") || continuation.path("operationKey").asText().isBlank()
-            || continuation.path("failedAt").asText().isBlank()) throw new IllegalStateException("POST_PROVISION_RESUME_AUTHORITY_REQUIRED");
-        var deployment = getDeployment(deploymentId); var version = getVersion(versionId); var release = getRelease(releaseId);
-        if (!versionId.equals(deployment.getActiveVersionId()) || !deploymentId.equals(version.getDeploymentId())
-            || !versionId.equals(release.getDeploymentVersionId()) || release.getProviderType() != DeploymentProviderType.COOLIFY
-            || providerRegistry == null || !(providerRegistry.require(DeploymentProviderType.COOLIFY) instanceof CoolifyDeploymentProvider coolify))
-            throw new IllegalStateException("POST_PROVISION_RESUME_SCOPE_CHANGED");
-        coolify.postProvisionResumeReadback(deploymentId, release.getTargetProfileId(), releaseId,
-            release.getCreatedAt(), Instant.parse(continuation.path("failedAt").asText()));
-        if (aiStateStorageBindings == null || externalIntegrations == null || documentBindingResolver == null
-            || admissionReleaseCoordinator == null || providerUsageReleaseCoordinator == null || managedDependencyReleaseCoordinator == null)
-            throw new IllegalStateException("POST_PROVISION_RESUME_ADAPTER_REQUIRED");
-        aiStateStorageBindings.requireUnchanged(deployment, version, release);
-        transactionOperations.executeWithoutResult(status -> externalIntegrations.requireForRecovery(deployment, release));
-        documentBindingResolver.requireUnchanged(deployment, version, release);
-        JsonNode config = readJson(version.getProviderConfigJson());
-        if (DeploymentExistingVectorBindingService.required(config)) {
-            if (existingVectorBindings == null) throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
-            existingVectorBindings.resolve(deployment, version, config, release.getTargetProfileId());
-        }
-        admissionReleaseCoordinator.beginProvisioning(releaseId);
-        transactionOperations.executeWithoutResult(status -> deploymentReleaseProgressService.transition(releaseId,
-            "VERIFYING", "ACTIVE", "PENDING", "resume_managed_dependencies",
-            "Continue dependency setup using the existing healthy runtime and active allowance.", null));
-        providerUsageReleaseCoordinator.verifyActive(deployment, version, getRelease(releaseId));
-        managedDependencyReleaseCoordinator.resumeRuntimeBound(deployment, version, release, proof);
-        deploymentReleaseProgressService.stepCompleted(releaseId, "resume_managed_dependencies", "Managed dependencies initialized without redeploying runtime services.");
-        syncMarketplaceDatasets(deploymentId, versionId, releaseId);
-        runVerification(deploymentId, versionId, releaseId);
-    }
 
     protected void refreshProviderResourceHandlesAfterProvisioning(String deploymentId, String releaseId) {
         if (resourceHandleRepository == null || providerRegistry == null) {
@@ -627,7 +589,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
-        observeAdmissionAfterCommit(releaseId);
+        reportOperationsOutcomeAfterCommit(releaseId);
     }
 
     @Transactional
@@ -666,7 +628,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus(deployment.getActiveVersionId() == null ? "VERSION_PUBLISHED" : "ACTIVE");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
-        observeAdmissionAfterCommit(releaseId);
+        reportOperationsOutcomeAfterCommit(releaseId);
     }
 
     @Transactional
@@ -690,7 +652,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("PROVISIONING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
-        observeAdmissionAfterCommit(releaseId);
+        reportOperationsOutcomeAfterCommit(releaseId);
     }
 
     @Transactional
@@ -718,22 +680,23 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("APPLY_FAILED");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
-        observeAdmissionAfterCommit(releaseId);
+        reportOperationsOutcomeAfterCommit(releaseId);
     }
 
-    private void observeAdmissionAfterCommit(String releaseId) {
-        if (deploymentOperations == null && admissionReleaseCoordinator == null) return;
+    @Transactional
+    public void markInterrupted(String releaseId, String deploymentId) {
+        markFailed(releaseId, deploymentId, new IllegalStateException(
+            "Deployment apply was interrupted by a Platform backend restart. Inspect the owned resources and submit an explicit new apply."));
+    }
+
+    private void reportOperationsOutcomeAfterCommit(String releaseId) {
+        if (deploymentOperations == null) return;
         Runnable observe = () -> {
-            if (deploymentOperations != null) {
-                var release = getRelease(releaseId);
-                String status = "APPLIED_VERIFIED".equals(release.getStatus()) ? "ACTIVE"
-                    : Set.of("FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED").contains(release.getStatus())
-                    ? "FAILED" : null;
-                if (status != null) deploymentOperations.report(releaseId, status);
-                return;
-            }
-            try { admissionReleaseCoordinator.observe(releaseId); }
-            catch (RuntimeException error) { log.warn("Release admission reconciliation remains pending for {}", releaseId); }
+            var release = getRelease(releaseId);
+            String status = "APPLIED_VERIFIED".equals(release.getStatus()) ? "ACTIVE"
+                : Set.of("FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED").contains(release.getStatus())
+                ? "FAILED" : null;
+            if (status != null) deploymentOperations.report(releaseId, status);
         };
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(

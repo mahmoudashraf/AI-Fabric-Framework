@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
-import com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver;
+import com.ai.fabric.platform.backend.deployment.service.ReleaseArtifactResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -14,13 +14,13 @@ import static org.mockito.Mockito.*;
 class ProviderUsageRuntimeArtifactGateTest {
     private final ObjectMapper json = new ObjectMapper();
     private final DeploymentSourceCapabilityManifestService manifests = new DeploymentSourceCapabilityManifestService(json);
-    private final EffectiveRuntimeArtifactResolver artifacts = mock(EffectiveRuntimeArtifactResolver.class);
+    private final ReleaseArtifactResolver artifacts = mock(ReleaseArtifactResolver.class);
     private final ProviderUsageRuntimeArtifactGate gate = new ProviderUsageRuntimeArtifactGate(artifacts, manifests);
 
     @Test void effectiveArtifactAndValidityGatesHaveResolvableProductionConstructors() {
         new org.springframework.boot.test.context.runner.ApplicationContextRunner()
             .withBean(ObjectMapper.class, ObjectMapper::new)
-            .withBean(EffectiveRuntimeArtifactResolver.class, () -> artifacts)
+            .withBean(ReleaseArtifactResolver.class, () -> artifacts)
             .withBean(ProviderUsageRuntimeClient.class, () -> mock(ProviderUsageRuntimeClient.class))
             .withBean(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class,
                 () -> mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class))

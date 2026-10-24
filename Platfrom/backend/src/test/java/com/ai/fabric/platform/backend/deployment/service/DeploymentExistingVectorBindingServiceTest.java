@@ -12,7 +12,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +48,7 @@ class DeploymentExistingVectorBindingServiceTest {
     private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
     private final PlatformSecretService secrets = mock(PlatformSecretService.class);
     private final ZillizCloudControlPlaneClient zilliz = mock(ZillizCloudControlPlaneClient.class);
-    private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
+    private final DeploymentTargetMutationService retirement = mock(DeploymentTargetMutationService.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final TenantScopedVectorHandleResolver scopes = new TenantScopedVectorHandleResolver();
     private final Map<String, String> vault = new HashMap<>();
@@ -113,28 +113,18 @@ class DeploymentExistingVectorBindingServiceTest {
     }
     private static final String URI_HOST = "cluster-free.serverless.aws-eu-central-1.cloud.zilliz.com";
 
-    @Test void freshCandidateRequiresExactCancellationProofForEveryHistoricalClusterHandle() {
-        var proof = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "unusedCancellations", proof);
+    @Test void historicalClusterHandlesCannotBeReusedByAFreshBinding() {
         var first = historicalHandle("old-one");
         var second = historicalHandle("old-two");
         when(handles.findFirstByProviderTypeAndProviderResourceUuid(DeploymentProviderType.COOLIFY, CLUSTER)).thenReturn(Optional.of(first));
         when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(first, second));
-        when(proof.permitsFreshBinding(eq(first), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), anyString())).thenReturn(true);
         denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
         verifyNoInteractions(zilliz);
         verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
-        when(proof.permitsFreshBinding(eq(second), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), anyString())).thenReturn(true);
-        var bound = service.bind(deployment.getId(), TARGET, request());
-        String prefix = scopes.targetScopedProviderConfig(deployment, config, TARGET).path("milvusCollectionPrefix").asText();
-        assertThat(bound.collectionPrefix()).isEqualTo(prefix);
-        verify(proof, atLeastOnce()).permitsFreshBinding(eq(first), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), eq(prefix));
-        verify(proof, atLeastOnce()).permitsFreshBinding(eq(second), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), eq(prefix));
-        verify(zilliz).getCluster(CLUSTER, "control-plane-only");
-        verify(zilliz).listServingCollections(ENDPOINT, "db_admin", "serving-password");
+        verify(handles, never()).saveAndFlush(any());
     }
 
-    @Test void inactiveHistoricalHandleWithoutReceiptReaderStillBlocksAndSameDeploymentCannotBeRebound() {
+    @Test void inactiveHistoricalHandleStillBlocksAndSameDeploymentCannotBeRebound() {
         var old = historicalHandle("old-one");
         when(handles.findFirstByProviderTypeAndProviderResourceUuid(DeploymentProviderType.COOLIFY, CLUSTER)).thenReturn(Optional.of(old));
         when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(old));
@@ -161,15 +151,13 @@ class DeploymentExistingVectorBindingServiceTest {
         return handle;
     }
 
-    @Test void historicalCancellationCannotAuthorizeAnotherTargetOrProviderType() {
-        var proof = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "unusedCancellations", proof);
+    @Test void historicalBindingInAnotherTargetOrProviderTypeStillBlocksClusterReuse() {
         var previous = historicalHandle("previous"); previous.setTargetProfileId("other-target");
         when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(previous));
         denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
         previous.setTargetProfileId(TARGET); previous.setProviderType(DeploymentProviderType.RAILWAY_API);
         denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
-        verifyNoInteractions(proof, zilliz);
+        verifyNoInteractions(zilliz);
         verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
     }
 
@@ -235,6 +223,90 @@ class DeploymentExistingVectorBindingServiceTest {
         verify(secrets, never()).resolveSecret("ZILLIZ_CLOUD_API_KEY");
         denied(() -> service.resolve(deployment, version, config, TARGET), "READBACK_CREDENTIAL_REQUIRED");
         verifyNoInteractions(zilliz);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
+    void laterPublishedVersionReusesTargetIntegrationWithoutRewritingApprovalOrCredentials(String authType) throws Exception {
+        bindSynthetic(authType);
+        var later = laterPublishedVersion();
+        String metadata = saved.getMetadataJson();
+        var credentials = Map.copyOf(vault);
+        var updatedAt = saved.getUpdatedAt();
+        String providerConfig = config.toString();
+        clearInvocations(versions, zilliz, secrets, handles, audit);
+
+        var local = service.resolveLocal(deployment, later, config, TARGET);
+        assertThat(service.resolve(deployment, later, config, TARGET)).isEqualTo(local);
+
+        assertThat(local.path("milvusHost").asText()).isEqualTo(URI_HOST);
+        assertThat(local.path("milvusAuthenticationType").asText()).isEqualTo(authType);
+        assertThat(saved.getMetadataJson()).isEqualTo(metadata);
+        assertThat(mapper.readTree(metadata).path("versionId").asText()).isEqualTo(version.getId());
+        assertThat(mapper.readTree(metadata).path("configHash").asText()).isEqualTo(version.getConfigHash());
+        assertThat(saved.getUpdatedAt()).isEqualTo(updatedAt);
+        assertThat(vault).isEqualTo(credentials);
+        assertThat(config.toString()).isEqualTo(providerConfig);
+        assertThat(later.getId()).isNotEqualTo(version.getId());
+        assertThat(later.getConfigHash()).isNotEqualTo(version.getConfigHash());
+        verify(versions, times(2)).findById(version.getId());
+        verify(zilliz).getCluster(CLUSTER, "control-plane-only");
+        if (authType.equals("TOKEN")) verify(zilliz).listServingCollections(ENDPOINT, "synthetic-serving-token");
+        else verify(zilliz).listServingCollections(ENDPOINT, "db_admin", "serving-password");
+        verifyNoMoreInteractions(zilliz);
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, never()).save(any());
+        verify(handles, never()).saveAndFlush(any());
+        verifyNoInteractions(audit);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing", "hash", "unpublished", "foreign-deployment"})
+    void laterVersionCannotReuseMissingOrChangedOriginalApproval(String change) {
+        service.bind(deployment.getId(), TARGET, request());
+        var later = laterPublishedVersion();
+        String metadata = saved.getMetadataJson();
+        var credentials = Map.copyOf(vault);
+        switch (change) {
+            case "missing" -> when(versions.findById(version.getId())).thenReturn(Optional.empty());
+            case "hash" -> version.setConfigHash("changed-original-approval");
+            case "unpublished" -> version.setStatus("DRAFT");
+            case "foreign-deployment" -> version.setDeploymentId("foreign-deployment");
+        }
+        clearInvocations(zilliz, secrets, handles, audit);
+        String code = change.equals("missing") ? "APPROVAL_VERSION_REQUIRED" : "APPROVAL_VERSION_CHANGED";
+
+        denied(() -> service.resolveLocal(deployment, later, config, TARGET), code);
+        denied(() -> service.resolve(deployment, later, config, TARGET), code);
+
+        assertThat(saved.getMetadataJson()).isEqualTo(metadata);
+        assertThat(vault).isEqualTo(credentials);
+        verifyNoInteractions(zilliz, secrets, audit);
+        verify(handles, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"deployment", "target", "auth", "prefix", "unpublished"})
+    void laterVersionStillCannotChangeIntegrationScopeAuthPrefixOrPublication(String change) throws Exception {
+        service.bind(deployment.getId(), TARGET, request());
+        var later = laterPublishedVersion();
+        var provider = config.deepCopy();
+        String target = change.equals("target") ? "target-production" : TARGET;
+        String code = switch (change) {
+            case "deployment" -> { later.setDeploymentId("foreign-deployment"); yield "BINDING_SCOPE_CHANGED"; }
+            case "target" -> "BINDING_REQUIRED";
+            case "auth" -> { provider.put("milvusAuthenticationType", "TOKEN"); yield "AUTH_TYPE_MISMATCH"; }
+            case "prefix" -> {
+                saveRehashedMetadata(((ObjectNode) mapper.readTree(saved.getMetadataJson())).put("collectionPrefix", "foreign_scope__"));
+                yield "PREFIX_CHANGED";
+            }
+            case "unpublished" -> { later.setStatus("DRAFT"); yield "PUBLISHED_VERSION_REQUIRED"; }
+            default -> throw new IllegalArgumentException(change);
+        };
+        clearInvocations(zilliz, secrets, handles, audit);
+
+        denied(() -> service.resolveLocal(deployment, later, provider, target), code);
+        denied(() -> service.resolve(deployment, later, provider, target), code);
+
+        verifyNoInteractions(zilliz, secrets, audit);
+        verify(handles, never()).saveAndFlush(any());
     }
 
     @ParameterizedTest @MethodSource("localBindingFailures")
@@ -331,14 +403,12 @@ class DeploymentExistingVectorBindingServiceTest {
         denied(() -> service.resolve(deployment, version, config, null), "COMPLETE_SCOPE_REQUIRED");
     }
 
-    @ParameterizedTest @ValueSource(strings = {"customer", "tenant", "version", "hash", "deployment"})
+    @ParameterizedTest @ValueSource(strings = {"customer", "tenant", "deployment"})
     void rejectsChangedScope(String change) {
         service.bind(deployment.getId(), TARGET, request());
         switch (change) {
             case "customer" -> deployment.setCustomerId("foreign-customer");
             case "tenant" -> deployment.setTenantId("foreign-tenant");
-            case "version" -> version.setId("foreign-version");
-            case "hash" -> version.setConfigHash("changed-config");
             case "deployment" -> version.setDeploymentId("foreign-deployment");
         }
         denied(() -> service.resolve(deployment, version, config, TARGET), "BINDING_SCOPE_CHANGED");
@@ -635,6 +705,14 @@ class DeploymentExistingVectorBindingServiceTest {
         denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "FREE_COLLECTION_LIMIT");
         verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
         verify(handles, never()).saveAndFlush(any());
+    }
+
+    private DeploymentVersionEntity laterPublishedVersion() {
+        var later = new DeploymentVersionEntity();
+        BeanUtils.copyProperties(version, later);
+        later.setId("later-published-version");
+        later.setConfigHash("later-published-config-hash");
+        return later;
     }
 
     private void useTokenConfig() {

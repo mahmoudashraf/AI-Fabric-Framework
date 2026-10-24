@@ -14,7 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,7 +50,7 @@ public class DeploymentAiStateStorageBindingService {
     private final DeploymentTargetProfileRepository targets;
     private final DeploymentProviderResourceHandleRepository handles;
     private final PlatformSecretService secrets;
-    private final TargetRetirementGateService retirement;
+    private final DeploymentTargetMutationService retirement;
     private final PlatformAuditService audit;
     private final DeploymentAiStateStorageProbe probe;
     private final JdbcTemplate jdbc;
@@ -58,7 +58,7 @@ public class DeploymentAiStateStorageBindingService {
 
     public DeploymentAiStateStorageBindingService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository targets, DeploymentProviderResourceHandleRepository handles,
-        PlatformSecretService secrets, TargetRetirementGateService retirement, PlatformAuditService audit,
+        PlatformSecretService secrets, DeploymentTargetMutationService retirement, PlatformAuditService audit,
         DeploymentAiStateStorageProbe probe, JdbcTemplate jdbc, ObjectMapper mapper) {
         this.deployments = deployments; this.versions = versions; this.targets = targets; this.handles = handles;
         this.secrets = secrets; this.retirement = retirement; this.audit = audit; this.probe = probe;

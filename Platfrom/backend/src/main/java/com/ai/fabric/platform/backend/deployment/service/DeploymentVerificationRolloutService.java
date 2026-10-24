@@ -98,7 +98,6 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentService deploymentService;
     private final DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService;
-    private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final DeploymentAssignmentService deploymentAssignmentService;
     private final PlatformUserRepository platformUserRepository;
@@ -119,7 +118,6 @@ public class DeploymentVerificationRolloutService {
                                                 DeploymentVersionRepository deploymentVersionRepository,
                                                 DeploymentService deploymentService,
                                                 DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService,
-                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                 DeploymentAssignmentService deploymentAssignmentService,
                                                 PlatformUserRepository platformUserRepository,
@@ -138,7 +136,6 @@ public class DeploymentVerificationRolloutService {
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentService = deploymentService;
         this.deploymentEntityConfigMigrationService = deploymentEntityConfigMigrationService;
-        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentAssignmentService = deploymentAssignmentService;
         this.platformUserRepository = platformUserRepository;
@@ -157,7 +154,6 @@ public class DeploymentVerificationRolloutService {
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
-                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                 DeploymentAssignmentService deploymentAssignmentService,
                                                 PlatformUserRepository platformUserRepository,
@@ -175,7 +171,6 @@ public class DeploymentVerificationRolloutService {
             null,
             deploymentService,
             null,
-            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,
@@ -195,7 +190,6 @@ public class DeploymentVerificationRolloutService {
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
-                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                 DeploymentAssignmentService deploymentAssignmentService,
                                                 PlatformUserRepository platformUserRepository,
@@ -211,43 +205,6 @@ public class DeploymentVerificationRolloutService {
             releaseRepository,
             null,
             deploymentService,
-            null,
-            deploymentReleaseRecoveryService,
-            deploymentAssignmentRepository,
-            deploymentAssignmentService,
-            platformUserRepository,
-            platformSecretService,
-            deploymentVectorizationVerificationService,
-            vectorizationSourceConnectionRepository,
-            vectorizationPlanRepository,
-            vectorizationPlanRevisionRepository,
-            defaultSuiteProperties(),
-            ECOMMERCE_UPSTREAM_BASE_URL,
-            objectMapper,
-            resourceLoader,
-            Runnable::run
-        );
-    }
-
-    DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
-                                         DeploymentReleaseRepository releaseRepository,
-                                         DeploymentService deploymentService,
-                                         DeploymentAssignmentRepository deploymentAssignmentRepository,
-                                         DeploymentAssignmentService deploymentAssignmentService,
-                                         PlatformUserRepository platformUserRepository,
-                                         PlatformSecretService platformSecretService,
-                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
-                                         VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
-                                         VectorizationPlanRepository vectorizationPlanRepository,
-                                         VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
-                                         ObjectMapper objectMapper,
-                                         ResourceLoader resourceLoader) {
-        this(
-            deploymentRepository,
-            releaseRepository,
-            null,
-            deploymentService,
-            null,
             null,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
@@ -370,19 +327,6 @@ public class DeploymentVerificationRolloutService {
 
     private DeploymentVerificationRolloutSummary buildSummary(String overrideSummaryMessage) {
         List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
-        if (deploymentReleaseRecoveryService != null) {
-            boolean recovered = false;
-            for (VerificationRolloutDefinition definition : definitions()) {
-                DeploymentEntity existing = resolveExisting(deployments, definition);
-                if (existing == null) {
-                    continue;
-                }
-                recovered = deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId()) || recovered;
-            }
-            if (recovered) {
-                deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
-            }
-        }
         List<DeploymentEntity> deploymentsSnapshot = deployments;
         List<DeploymentVerificationRolloutItemSummary> items = definitions().stream()
             .map(definition -> toSummary(definition, resolveExisting(deploymentsSnapshot, definition)))
@@ -446,7 +390,6 @@ public class DeploymentVerificationRolloutService {
             }
         }
 
-        forceRedispatchLatestQueuedApply(deploymentId);
         ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
@@ -489,7 +432,6 @@ public class DeploymentVerificationRolloutService {
 
         DeploymentVersionSummary version = deploymentService.publishDraftInternal(draft.id(), true);
         deploymentService.applyVersionInternal(deploymentId, version.id(), null, true);
-        forceRedispatchLatestQueuedApply(deploymentId);
     }
 
     private void executeSequentially(List<VerificationRolloutDefinition> definitions,
@@ -562,15 +504,8 @@ public class DeploymentVerificationRolloutService {
 
         DeploymentVersionSummary version = deploymentService.publishDraftInternal(draft.id(), true);
         deploymentService.applyVersionInternal(deploymentId, version.id(), null, true);
-        forceRedispatchLatestQueuedApply(deploymentId);
     }
 
-    private void forceRedispatchLatestQueuedApply(String deploymentId) {
-        if (deploymentReleaseRecoveryService == null || !hasText(deploymentId)) {
-            return;
-        }
-        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deploymentId, true);
-    }
 
     private void ensureCanonicalOwnershipAssignments(String deploymentId) {
         List<DeploymentAssignmentEntity> assignments = deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(deploymentId);

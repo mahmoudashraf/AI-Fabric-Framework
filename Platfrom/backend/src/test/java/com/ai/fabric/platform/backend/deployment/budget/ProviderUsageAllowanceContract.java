@@ -1,11 +1,5 @@
 package com.ai.fabric.platform.backend.deployment.budget;
 
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionJson;
-import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionManifestService;
-import com.ai.fabric.platform.backend.deployment.admission.ReviewedManagedDependencyEvidenceService;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts;
-import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -14,9 +8,6 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.secret.model.DeploymentSecretResolutionSummary;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
@@ -32,27 +23,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -84,7 +69,7 @@ abstract class ProviderUsageAllowanceContract {
     final Map<String, DeploymentEntity> deploymentRows = new ConcurrentHashMap<>();
     final Map<String, DeploymentVersionEntity> versionRows = new ConcurrentHashMap<>();
     final AtomicReference<String> secretValue = new AtomicReference<>("fictional-provider-credential");
-    final ProviderBinding binding = new ProviderBinding("fixture-provider", List.of("chat-model", "embedding-model"), "OPENAI_API_KEY", null);
+    final ProviderBinding binding = new ProviderBinding("openai", List.of("gpt-4o-mini", "text-embedding-3-small"), "OPENAI_API_KEY", null);
     DataSource source; JdbcTemplate jdbc; ProviderUsageAllowanceService service;
     DeploymentTargetProfileEntity profile; PlatformCustomerEntity customer;
 
@@ -92,14 +77,6 @@ abstract class ProviderUsageAllowanceContract {
 
     @BeforeEach void initialize() throws Exception {
         source = freshDataSource(); jdbc = new JdbcTemplate(source);
-        jdbc.execute("CREATE TABLE deployment_admission_mutex (id INTEGER PRIMARY KEY)"); jdbc.update("INSERT INTO deployment_admission_mutex VALUES (1)");
-        jdbc.execute("""
-            CREATE TABLE deployment_capacity_reservations
-            (id VARCHAR(64) PRIMARY KEY,customer_id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64),
-             generation VARCHAR(64),state VARCHAR(32),payload_json TEXT)
-            """);
-        jdbc.execute("CREATE TABLE deployment_admission_reviews (kind VARCHAR(16),record_key VARCHAR(128),payload_json TEXT,PRIMARY KEY(kind,record_key))");
-        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V178__admission_allocation_authorizations.sql")).execute(source);
         jdbc.execute("""
             CREATE TABLE platform_deployment_releases
             (id VARCHAR(64) PRIMARY KEY,deployment_id VARCHAR(64),deployment_version_id VARCHAR(64),target_profile_id VARCHAR(64),
@@ -135,7 +112,7 @@ abstract class ProviderUsageAllowanceContract {
     }
 
     ProviderUsageGrant grant() { return new ProviderUsageGrant("grant", "campaign", "customer", "target", "staging",
-        new Limits(50, 200_000, 2_000_000_000L), NOW.plusSeconds(3600), binding, "fixture-rate-card", "fixture-owner-approval", "fixture-payer"); }
+        new Limits(50, 200_000, 2_000_000_000L), NOW.plusSeconds(3600), binding, "openai-gpt4omini-embedding3small-20261018-v1", "fixture-owner-approval", "fixture-payer"); }
     ProviderUsageGrant runtimeGrant() {
         var original = grant();
         return new ProviderUsageGrant(original.id(), original.campaignId(), original.customerId(), original.targetProfileId(),
@@ -144,10 +121,10 @@ abstract class ProviderUsageAllowanceContract {
             "openai-gpt4omini-embedding3small-20261018-v1", original.ownerApprovalEvidenceRef(), original.payerRef());
     }
     AllocationCommand command(String deployment, Limits caps) { return new AllocationCommand("grant", deployment, "target", caps, binding,
-        "fixture-rate-card", ProviderUsageAllowanceCodec.sha256(secretValue.get())); }
+        "openai-gpt4omini-embedding3small-20261018-v1", ProviderUsageAllowanceCodec.sha256(secretValue.get())); }
     AllocationCommand command() { return command("deployment", grant().credits()); }
     ReviewedR7Context r7(String deployment) { return new ReviewedR7Context("reservation-" + deployment, "generation", "version-" + deployment); }
-    SafeAllowanceProjection allocated() { service.approveGrant(grant()); return service.allocate(command(), r7("deployment")); }
+    SafeAllowanceProjection allocated() { service.approveGrant(grant()); authorizeRelease("deployment"); return service.prepareForAuthorizedRelease("release-deployment"); }
 
     void addDeployment(String id) {
         var deployment = new DeploymentEntity(); deployment.setId(id); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
@@ -155,44 +132,6 @@ abstract class ProviderUsageAllowanceContract {
         var version = new DeploymentVersionEntity(); version.setId("version-" + id); version.setDeploymentId(id); version.setStatus("PUBLISHED");
         version.setConfigHash("config-hash"); versionRows.put(version.getId(), version);
         version.setProviderConfigJson(DECLARED_PROVIDER_CONFIG);
-        // Match the customer manifest producer: physical topology only; no financial authorization in R7 demand.
-        var amounts = new EnumMap<AdmissionContracts.Dimension, Long>(AdmissionContracts.Dimension.class);
-        for (var dimension : AdmissionContracts.Dimension.values()) amounts.put(dimension, 0L);
-        amounts.put(AdmissionContracts.Dimension.ENVIRONMENTS, 1L);
-        amounts.put(AdmissionContracts.Dimension.REPLICAS, 1L);
-        amounts.put(AdmissionContracts.Dimension.CPU_MILLICORES, 3_750L);
-        amounts.put(AdmissionContracts.Dimension.MEMORY_BYTES, 5_888L * 1024 * 1024);
-        amounts.put(AdmissionContracts.Dimension.DISK_BYTES, 16_384L * 1024 * 1024);
-        amounts.put(AdmissionContracts.Dimension.DATABASES, 2L);
-        amounts.put(AdmissionContracts.Dimension.INDEXES, 2L);
-        amounts.put(AdmissionContracts.Dimension.DEPENDENCIES, 4L);
-        amounts.put(AdmissionContracts.Dimension.CONCURRENT_APPLIES, 1L);
-        var manifest = new AdmissionContracts.Manifest("manifest-" + id, id, version.getId(), version.getConfigHash(), "target", "binding", "fixture-topology",
-            new AdmissionContracts.Vector(amounts), Set.of("fixture-evidence"), Map.of());
-        String manifestFingerprint = codec.fingerprint(manifest);
-        jdbc.update("INSERT INTO deployment_admission_reviews VALUES ('MANIFEST',?,?)", manifest.id(), codec.write(manifest));
-        var evidence = new AdmissionContracts.PrerequisiteReadback(NOW, NOW.plusSeconds(120), "fixture-prerequisite",
-            new AdmissionContracts.Placement("fixture-server", "fixture-destination", "fixture-ip"),
-            DeploymentTargetProfileIdentity.fingerprint(mapper, profile), manifestFingerprint, "binding", Set.of("fixture-evidence"),
-            "fixture-restore", "fixture-privacy", "fixture-owner", "fixture-notices");
-        Map<String, Object> value = new HashMap<>();
-        value.put("id", "reservation-" + id); value.put("customerId", "customer"); value.put("tenantId", "tenant"); value.put("deploymentId", id);
-        value.put("targetProfileId", "target"); value.put("generation", "generation"); value.put("state", "RESERVED"); value.put("manifestId", manifest.id());
-        value.put("manifestFingerprint", manifestFingerprint); value.put("bindingFingerprint", "binding"); value.put("expiresAt", NOW.plusSeconds(7200));
-        value.put("intent", "CUSTOMER_STAGING"); value.put("prerequisiteReadback", evidence);
-        value.put("expiryState", "CURRENT"); value.put("demand", manifest.demand());
-        var reservation = mapper.convertValue(value, AdmissionContracts.Reservation.class);
-        jdbc.update("INSERT INTO deployment_capacity_reservations VALUES (?,?,?,?,?,?,?)", reservation.id(), reservation.customerId(), id, "target", "generation",
-            reservation.state().name(), codec.write(reservation));
-    }
-
-    void changeR7(String deployment, String field, Object value) {
-        String id = "reservation-" + deployment;
-        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(codec.read(
-            jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?", String.class, id), AdmissionContracts.Reservation.class));
-        tree.set(field, mapper.valueToTree(value));
-        jdbc.update("UPDATE deployment_capacity_reservations SET payload_json=? WHERE id=?", codec.write(tree), id);
-        if (field.equals("state")) jdbc.update("UPDATE deployment_capacity_reservations SET state=? WHERE id=?", value.toString(), id);
     }
 
     static void authenticate(PlatformRole role) {
@@ -225,109 +164,92 @@ abstract class ProviderUsageAllowanceContract {
     @Test void exactAllocationReplayReusesApprovalAndNeverResetsLifetimeDebit() {
         var first = allocated();
         assertThat(first.state()).isEqualTo(InitializationState.UNINITIALIZED); assertThat(first.storeUuid()).isNull();
-        assertThat(instance(NOW).allocate(command(), r7("deployment"))).isEqualTo(first);
+        assertThat(instance(NOW).prepareForAuthorizedRelease("release-deployment")).isEqualTo(first);
         assertThat(service.approveGrant(grant()).lifetimeAllocated()).isEqualTo(grant().credits());
         assertThat(service.readQuota("grant").remaining()).isEqualTo(new Limits(0, 0, 0));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allowance_events WHERE event_type='ALLOWANCE_ALLOCATED'", Integer.class)).isEqualTo(1);
     }
 
-    @Test void allocationCannotMintCreditsWithoutRealGrantAndR7Proof() {
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("GRANT_NOT_FOUND");
+    @Test void legacyReservationNeverAuthorizesNewIssuance() {
         service.approveGrant(grant());
-        assertThatThrownBy(() -> service.allocate(command(), new ReviewedR7Context("missing", "generation", "version-deployment"))).hasMessageContaining("R7_REQUIRED");
-        assertThatThrownBy(() -> service.allocate(command(), new ReviewedR7Context("reservation-deployment", "wrong-generation", "version-deployment"))).hasMessageContaining("R7_REQUIRED");
-        assertThatThrownBy(() -> service.allocate(command(), new ReviewedR7Context("reservation-deployment", "generation", "other-version"))).hasMessageContaining("VERSION_NOT_FOUND");
+        for (var reviewed : List.of(r7("deployment"), new ReviewedR7Context("missing", "wrong", "other"))) {
+            assertThatThrownBy(() -> service.allocate(command(), reviewed)).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
+        }
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
     }
-
-    @Test void rawCustomerCommandsAndUnassignedOperatorsCannotAllocate() {
+    @Test void rawCustomerCommandsAndLegacyStaffCommandsCannotAllocate() {
         service.approveGrant(grant()); authenticate(PlatformRole.CUSTOMER_ADMIN);
         assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("TRUSTED_SERVER_REQUIRED");
         authenticate(PlatformRole.PLATFORM_OPERATOR);
-        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "fixture-unassigned"))
-            .when(deploymentAccess).requireDeploymentOperatorAccess(deploymentRows.get("deployment"));
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("fixture-unassigned");
+        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
+        verifyNoInteractions(deploymentAccess);
     }
-
     @Test void profileEnvironmentAndActualDeploymentOwnershipCannotBeSpoofed() {
-        service.approveGrant(grant()); profile.setEnvironmentName("production");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("TARGET_SCOPE_DENIED");
+        service.approveGrant(grant()); authorizeRelease("deployment"); profile.setEnvironmentName("production");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("REVIEWED_GRANT_REQUIRED");
         profile.setEnvironmentName("staging"); deploymentRows.get("deployment").setCustomerId("other");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
         deploymentRows.get("deployment").setCustomerId("customer"); customer.setStatus("DISABLED");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("CUSTOMER_INACTIVE");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CUSTOMER_INACTIVE");
     }
-
-    @Test void archivedOrRetiringDeploymentAndReleasedR7CannotReceiveNewCredits() {
-        service.approveGrant(grant()); deploymentRows.get("deployment").setArchivedAt(NOW);
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
+    @Test void archivedOrDeletingDeploymentCannotReceiveNewCredits() {
+        service.approveGrant(grant()); authorizeRelease("deployment"); deploymentRows.get("deployment").setArchivedAt(NOW);
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
         deploymentRows.get("deployment").setArchivedAt(null); deploymentRows.get("deployment").setDeletionRequestedAt(NOW);
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
-        deploymentRows.get("deployment").setDeletionRequestedAt(null); changeR7("deployment", "state", "RELEASED");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("ACTIVE_R7_REQUIRED");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("DEPLOYMENT_SCOPE_DENIED");
     }
-
-    @Test void targetConfigurationAndReviewedVersionDriftDenyWithoutDebiting() {
-        service.approveGrant(grant()); profile.setNetworkPolicyJson("{\"changed\":true}");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("R7_PROFILE_CHANGED");
-        profile.setNetworkPolicyJson("{}"); versionRows.get("version-deployment").setConfigHash("changed");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("REVIEWED_VERSION_CHANGED");
+    @Test void inactiveTargetAndReviewedVersionDriftDenyWithoutDebiting() {
+        service.approveGrant(grant()); authorizeRelease("deployment"); profile.setActive(false);
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("TARGET_SCOPE_DENIED");
+        profile.setActive(true); versionRows.get("version-deployment").setConfigHash("changed");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_SCOPE_CHANGED");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
     }
-
-    @Test void modelPricingCapAndActualCredentialChangesCannotAlterAnAllocation() {
-        var first = allocated(); var original = command();
-        var otherModel = new ProviderBinding(binding.provider(), List.of("other-model"), binding.secretPurpose(), null);
-        assertThatThrownBy(() -> service.allocate(new AllocationCommand(original.grantId(), original.deploymentId(), original.targetProfileId(),
-            original.caps(), otherModel, original.rateCardReference(), original.expectedCredentialSha256()), r7("deployment"))).hasMessageContaining("BINDING_CHANGED");
-        assertThatThrownBy(() -> service.allocate(new AllocationCommand(original.grantId(), original.deploymentId(), original.targetProfileId(),
-            original.caps(), binding, "other-price", original.expectedCredentialSha256()), r7("deployment"))).hasMessageContaining("BINDING_CHANGED");
-        assertThatThrownBy(() -> service.allocate(command("deployment", new Limits(1, 1, 1)), r7("deployment"))).hasMessageContaining("ALLOCATION_IMMUTABLE");
+    @Test void legacyCommandsAndActualCredentialChangesCannotAlterAnAllocation() {
+        var first = allocated();
+        assertThatThrownBy(() -> service.allocate(command("deployment", new Limits(1, 1, 1)), r7("deployment")))
+            .hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         secretValue.set("rotated-fictional-credential");
-        assertThatThrownBy(() -> service.allocate(original, r7("deployment"))).hasMessageContaining("CREDENTIAL_CHANGED");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("ALLOCATION_IMMUTABLE");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("ALLOCATION_IMMUTABLE");
         assertThat(service.readAllocation(first.scope())).isEqualTo(first);
         assertThat(codec.write(first)).doesNotContain("fictional-provider-credential").doesNotContain("rotated-fictional-credential");
     }
-
     @Test void missingActualCredentialNeverProducesAFakeHashOrAllocation() {
-        service.approveGrant(grant()); var command = command(); secretValue.set(null);
-        assertThatThrownBy(() -> service.allocate(command, r7("deployment"))).hasMessageContaining("CREDENTIAL_UNRESOLVED");
+        service.approveGrant(grant()); authorizeRelease("deployment"); secretValue.set(null);
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CREDENTIAL_UNRESOLVED");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
     }
-
-    @Test void retirementAndRemovalNeverRefundOrDeleteLifetimeProviderCredits() {
-        var first = allocated(); changeR7("deployment", "state", "RELEASED");
-        deploymentRows.remove("deployment"); jdbc.update("DELETE FROM deployment_capacity_reservations WHERE id='reservation-deployment'");
+    @Test void removalNeverRefundsOrDeletesLifetimeProviderCredits() {
+        var first = allocated(); deploymentRows.remove("deployment");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
         assertThat(service.readAllocation(first.scope())).isEqualTo(first);
-        addDeployment("replacement");
-        assertThatThrownBy(() -> service.allocate(command("replacement", grant().credits()), r7("replacement"))).hasMessageContaining("LIFETIME_CREDITS_EXCEEDED");
+        addDeployment("replacement"); authorizeRelease("replacement");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-replacement")).hasMessageContaining("LIFETIME_CREDITS_EXCEEDED");
         assertThat(service.readQuota("grant").remaining()).isEqualTo(new Limits(0, 0, 0));
     }
-
     @Test void twoPhaseInitializationAndActivationHaveExactIdempotentStoreReceipts() {
         var first = allocated(); UUID store = UUID.randomUUID();
-        assertThatThrownBy(() -> service.markActive(first.scope(), store, first.runtimeAllocationFingerprint())).hasMessageContaining("INITIALIZATION_REQUIRED");
-        assertThatThrownBy(() -> service.markInitialized(first.scope(), store, "0".repeat(64))).hasMessageContaining("FINGERPRINT_CHANGED");
-        var initialized = service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint());
+        assertThatThrownBy(() -> service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint())).hasMessageContaining("INITIALIZATION_REQUIRED");
+        assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, "0".repeat(64))).hasMessageContaining("FINGERPRINT_CHANGED");
+        var initialized = service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint());
         assertThat(initialized.state()).isEqualTo(InitializationState.INITIALIZED); assertThat(initialized.storeUuid()).isEqualTo(store);
-        assertThat(instance(NOW).markInitialized(first.scope(), store, first.runtimeAllocationFingerprint())).isEqualTo(initialized);
-        var active = service.markActive(first.scope(), store, first.runtimeAllocationFingerprint());
+        assertThat(instance(NOW).markInitializedForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint())).isEqualTo(initialized);
+        var active = service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint());
         assertThat(active.state()).isEqualTo(InitializationState.ACTIVE);
-        assertThat(service.markActive(first.scope(), store, first.runtimeAllocationFingerprint())).isEqualTo(active);
-        assertThat(service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint())).isEqualTo(active);
+        assertThat(service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint())).isEqualTo(active);
+        assertThat(service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint())).isEqualTo(active);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allowance_events WHERE subject_id=?", Integer.class, first.approvalId())).isEqualTo(3);
     }
 
     @Test void storeLossCannotBeAutomaticallyReinitializedOrRefunded() {
         var first = allocated(); UUID original = UUID.randomUUID();
-        service.markInitialized(first.scope(), original, first.runtimeAllocationFingerprint()); service.markActive(first.scope(), original, first.runtimeAllocationFingerprint());
+        service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), original, first.runtimeAllocationFingerprint()); service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), original, first.runtimeAllocationFingerprint());
         var restarted = instance(NOW);
-        assertThatThrownBy(() -> restarted.markInitialized(first.scope(), UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("STORE_REPLACEMENT_FORBIDDEN");
-        assertThatThrownBy(() -> restarted.markActive(first.scope(), UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("STORE_REPLACEMENT_FORBIDDEN");
+        assertThatThrownBy(() -> restarted.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("STORE_REPLACEMENT_FORBIDDEN");
+        assertThatThrownBy(() -> restarted.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("STORE_REPLACEMENT_FORBIDDEN");
         assertThat(restarted.readQuota("grant").remaining()).isEqualTo(new Limits(0, 0, 0));
         assertThat(restarted.readAllocation(first.scope()).storeUuid()).isEqualTo(original);
     }
@@ -339,42 +261,41 @@ abstract class ProviderUsageAllowanceContract {
             new AllocationScope(first.approvalId(), "customer", "deployment", "other", "staging"),
             new AllocationScope(first.approvalId(), "customer", "deployment", "target", "production"))) {
             assertThatThrownBy(() -> service.readAllocation(scope)).hasMessageContaining("SCOPE_MISMATCH");
-            assertThatThrownBy(() -> service.markInitialized(scope, UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("SCOPE_MISMATCH");
+            assertThatThrownBy(() -> service.markInitialized(scope, UUID.randomUUID(), first.runtimeAllocationFingerprint())).hasMessageContaining("AUTHORIZED_RELEASE_REQUIRED");
         }
         assertThat(service.readAllocation(first.scope())).isEqualTo(first);
     }
 
     @Test void expiryBlocksNewAllocationAndActivationButNeverRestoresLifetimeCredits() {
-        var first = allocated(); UUID store = UUID.randomUUID(); service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint());
+        var first = allocated(); UUID store = UUID.randomUUID(); service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint());
         var expired = instance(grant().expiresAt());
-        assertThatThrownBy(() -> expired.markActive(first.scope(), store, first.runtimeAllocationFingerprint())).hasMessageContaining("ALLOWANCE_EXPIRED");
+        assertThatThrownBy(() -> expired.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint())).hasMessageContaining("ALLOWANCE_EXPIRED");
         assertThat(expired.approveGrant(grant()).lifetimeAllocated()).isEqualTo(grant().credits());
         assertThat(expired.readQuota("grant").remaining()).isEqualTo(new Limits(0, 0, 0));
     }
 
     @Test void concurrentDistinctDeploymentAllocationsCannotOverbookLifetimeGrant() throws Exception {
         service.approveGrant(grant());
-        for (int index = 0; index < 8; index++) addDeployment("deployment-" + index);
+        for (int index = 0; index < 8; index++) { addDeployment("deployment-" + index); authorizeRelease("deployment-" + index); }
         var results = race(8, index -> () -> {
-            try { return instance(NOW).allocate(command("deployment-" + index, new Limits(20, 80_000, 800_000_000)), r7("deployment-" + index)); }
+            try { return instance(NOW).prepareForAuthorizedRelease("release-deployment-" + index); }
             catch (ProviderUsageAllowanceFailure failure) { assertThat(failure.getReason()).isEqualTo("PROVIDER_USAGE_LIFETIME_CREDITS_EXCEEDED"); return null; }
         });
-        assertThat(results.stream().filter(java.util.Objects::nonNull).count()).isEqualTo(2);
-        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(40, 160_000, 1_600_000_000));
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(2);
+        assertThat(results.stream().filter(java.util.Objects::nonNull).count()).isEqualTo(1);
+        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
-
     @Test void concurrentExactAllocationRetriesDebitOnceAndReturnOneApproval() throws Exception {
-        service.approveGrant(grant()); var results = race(8, index -> () -> instance(NOW).allocate(command(), r7("deployment")));
+        service.approveGrant(grant()); authorizeRelease("deployment"); var results = race(8, index -> () -> instance(NOW).prepareForAuthorizedRelease("release-deployment"));
         assertThat(results).allMatch(results.getFirst()::equals);
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
 
     @Test void failedMandatoryAuditRollsBackBothLifetimeDebitAndNewApproval() {
-        service.approveGrant(grant());
+        service.approveGrant(grant()); authorizeRelease("deployment");
         jdbc.execute("ALTER TABLE provider_usage_allowance_events ADD CONSTRAINT fixture_fail_alloc_audit CHECK (event_type <> 'ALLOWANCE_ALLOCATED')");
-        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
     }
@@ -382,7 +303,7 @@ abstract class ProviderUsageAllowanceContract {
     @Test void lifecycleAuditFailureCannotLeaveAnUnreceiptedInitialization() {
         var first = allocated();
         jdbc.execute("ALTER TABLE provider_usage_allowance_events ADD CONSTRAINT fixture_fail_init_audit CHECK (event_type <> 'ALLOWANCE_INITIALIZED')");
-        assertThatThrownBy(() -> service.markInitialized(first.scope(), UUID.randomUUID(), first.runtimeAllocationFingerprint()))
+        assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), UUID.randomUUID(), first.runtimeAllocationFingerprint()))
             .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(service.readAllocation(first.scope())).isEqualTo(first);
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
@@ -393,19 +314,18 @@ abstract class ProviderUsageAllowanceContract {
         service.approveGrant(new ProviderUsageGrant(original.id(), original.campaignId(), original.customerId(), original.targetProfileId(),
             original.environment(), maximum, original.expiresAt(), original.binding(), original.rateCardReference(),
             original.ownerApprovalEvidenceRef(), original.payerRef()));
-        service.allocate(command("deployment", maximum), r7("deployment")); addDeployment("second");
-        assertThatThrownBy(() -> service.allocate(command("second", new Limits(1, 1, 1)), r7("second")))
-            .hasMessageContaining("CREDIT_OVERFLOW");
+        authorizeRelease("deployment"); service.prepareForAuthorizedRelease("release-deployment");
+        addDeployment("second"); authorizeRelease("second");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-second")).hasMessageContaining("CREDIT_OVERFLOW");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(maximum);
         assertThat(service.readQuota("grant").remaining()).isEqualTo(new Limits(0, 0, 0));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
-
     @Test void committedLifetimeDebitSurvivesCallerRollback() throws Exception {
-        service.approveGrant(grant());
+        service.approveGrant(grant()); authorizeRelease("deployment");
         try (var outer = source.getConnection(); var statement = outer.createStatement()) {
             statement.execute("CREATE TABLE fixture_caller_work(id INTEGER PRIMARY KEY)"); outer.setAutoCommit(false);
-            statement.executeUpdate("INSERT INTO fixture_caller_work VALUES (1)"); service.allocate(command(), r7("deployment")); outer.rollback();
+            statement.executeUpdate("INSERT INTO fixture_caller_work VALUES (1)"); service.prepareForAuthorizedRelease("release-deployment"); outer.rollback();
         }
         assertThat(instance(NOW).readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
     }
@@ -427,13 +347,13 @@ abstract class ProviderUsageAllowanceContract {
         assertThat(first.runtimeAllocationFingerprint()).isNotEqualTo(first.approvalFingerprint());
         assertThat(jdbc.queryForObject("SELECT runtime_allocation_fingerprint FROM provider_usage_allocations", String.class))
             .isEqualTo(first.runtimeAllocationFingerprint());
-        assertThatThrownBy(() -> service.markInitialized(first.scope(), store, first.approvalFingerprint()))
+        assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.approvalFingerprint()))
             .hasMessageContaining("INITIALIZATION_FINGERPRINT_CHANGED");
         assertThat(service.readAllocation(first.scope()).state()).isEqualTo(InitializationState.UNINITIALIZED);
-        service.markInitialized(first.scope(), store, first.runtimeAllocationFingerprint());
-        assertThatThrownBy(() -> service.markActive(first.scope(), store, first.approvalFingerprint()))
+        service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint());
+        assertThatThrownBy(() -> service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.approvalFingerprint()))
             .hasMessageContaining("INITIALIZATION_FINGERPRINT_CHANGED");
-        var active = service.markActive(first.scope(), store, first.runtimeAllocationFingerprint());
+        var active = service.markActiveForAuthorizedRelease("release-" + first.scope().deploymentId(), store, first.runtimeAllocationFingerprint());
         assertThat(active.initializationFingerprint()).isEqualTo(first.runtimeAllocationFingerprint());
         assertThat(jdbc.queryForList("SELECT payload_fingerprint FROM provider_usage_allowance_events WHERE subject_id=?", String.class, first.approvalId()))
             .containsOnly(first.approvalFingerprint());
@@ -442,7 +362,7 @@ abstract class ProviderUsageAllowanceContract {
     @Test void storedRuntimeFingerprintCannotSubstituteForIndependentRecomputation() {
         var first = allocated(); String forged = "0".repeat(64);
         jdbc.update("UPDATE provider_usage_allocations SET runtime_allocation_fingerprint=? WHERE approval_id=?", forged, first.approvalId());
-        assertThatThrownBy(() -> service.markInitialized(first.scope(), UUID.randomUUID(), forged))
+        assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-" + first.scope().deploymentId(), UUID.randomUUID(), forged))
             .hasMessageContaining("ALLOCATION_RECORD_CHANGED");
         assertThatThrownBy(() -> service.readAllocation(first.scope())).hasMessageContaining("ALLOCATION_RECORD_CHANGED");
         assertThat(jdbc.queryForObject("SELECT initialization_state FROM provider_usage_allocations", String.class)).isEqualTo("UNINITIALIZED");
@@ -470,55 +390,50 @@ abstract class ProviderUsageAllowanceContract {
             original.environment(), original.credits(), original.expiresAt(), original.binding(), original.rateCardReference(),
             original.ownerApprovalEvidenceRef(), original.payerRef());
         service.approveGrant(second); var command = command();
-        service.allocate(new AllocationCommand(second.id(), command.deploymentId(), command.targetProfileId(), command.caps(),
-            command.binding(), command.rateCardReference(), command.expectedCredentialSha256()), r7("deployment"));
+        seedHistoricalAllocation(new AllocationCommand(second.id(), command.deploymentId(), command.targetProfileId(), command.caps(),
+            command.binding(), command.rateCardReference(), command.expectedCredentialSha256()));
         assertThatThrownBy(() -> service.findForDeployment("deployment", "target")).hasMessageContaining("ALLOCATION_AMBIGUOUS");
     }
 
     void authorizeRelease(String deployment) {
-        var reviewed = r7(deployment);
-        var reservation = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?",
-            String.class, reviewed.reservationId()), AdmissionContracts.Reservation.class);
-        var manifest = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE record_key=?",
-            String.class, reservation.manifestId()), AdmissionContracts.Manifest.class);
-        var scope = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
-            "customer", "tenant", deployment, null, "target",
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
-            "offer", "offer-fingerprint", 1, "placement",
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
-            "apply-" + deployment, null, null);
-        var command = new AdmissionContracts.Reserve(scope.operationKey(), manifest.id(), scope);
-        String request = codec.fingerprint(Map.of("customer", "customer", "tenant", "tenant", "deployment", deployment,
-            "manifestId", manifest.id(), "manifestFingerprint", codec.fingerprint(manifest), "target", "target", "customerContext", scope));
-        var receipt = new AdmissionContracts.AuthorizationReceipt(reviewed.reservationId(), reviewed.generation(),
-            codec.fingerprint(manifest), request, codec.fingerprint(scope), command);
-        jdbc.update("""
-            INSERT INTO deployment_admission_authorizations
-            (customer_id,deployment_id,target_profile_id,operation_key,reservation_id,generation,operation,version_id,
-             request_fingerprint,context_fingerprint,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """, "customer", deployment, "target", scope.operationKey(), reviewed.reservationId(), reviewed.generation(), "APPLY",
-            reviewed.versionId(), request, codec.fingerprint(scope), codec.write(receipt), java.sql.Timestamp.from(NOW));
-        jdbc.update("""
-            INSERT INTO deployment_admission_release_bindings
-            (release_id,reservation_id,generation,authorization_key,version_id,version_config_hash,customer_id,tenant_id,
-             deployment_id,target_profile_id,state,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, "release-" + deployment, reviewed.reservationId(), reviewed.generation(), scope.operationKey(), reviewed.versionId(),
-            manifest.versionConfigHash(), "customer", "tenant", deployment, "target", "PROVISIONING", java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
+        if (jdbc.queryForObject("SELECT count(*) FROM platform_deployment_releases WHERE id=?", Integer.class, "release-" + deployment) != 0) return;
         jdbc.update("""
             INSERT INTO platform_deployment_releases
-              (id,deployment_id,deployment_version_id,target_profile_id,status,provisioning_status) VALUES (?,?,?,?,?,?)
-            """, "release-" + deployment, deployment,
-            reviewed.versionId(), "target", "PROVISIONING", "RUNNING");
-        changeR7(deployment, "state", "PROVISIONING");
+              (id,deployment_id,deployment_version_id,target_profile_id,status,provisioning_status,source_artifact_id)
+              VALUES (?,?,?,?,?,?,?)
+            """, "release-" + deployment, deployment, "version-" + deployment, "target", "VERIFYING", "ACTIVE", "artifact");
+        ProviderUsageCoreReleaseTestSchema.authorize(jdbc, deployment, "FUNDED");
     }
 
-    @Test void authorizedWorkerNeedsNoAmbientPrincipalAndDebitsWholeReviewedGrantDespiteZeroR7FinancialDemand() {
+    // Immutable pre-extraction financial records are fixtures, not an alternate issuance API.
+    SafeAllowanceProjection seedHistoricalAllocation(AllocationCommand command) {
+        var grant = codec.read(jdbc.queryForObject("SELECT payload_json FROM provider_usage_grants WHERE id=?",
+            String.class, command.grantId()), ProviderUsageGrant.class);
+        String id = "historical-" + UUID.randomUUID();
+        var scope = new AllocationScope(id, grant.customerId(), command.deploymentId(), command.targetProfileId(), grant.environment());
+        var terms = new AllocationTerms(id, grant.id(), scope, command.caps(), grant.expiresAt(), command.rateCardReference(),
+            command.binding(), command.expectedCredentialSha256(), r7(command.deploymentId()));
+        jdbc.update("""
+            INSERT INTO provider_usage_allocations
+              (approval_id,grant_id,customer_id,deployment_id,target_profile_id,environment_name,approval_fingerprint,
+               runtime_allocation_fingerprint,payload_json,initialization_state,created_at)
+              VALUES (?,?,?,?,?,?,?,?,?,'UNINITIALIZED',?)
+            """, id, grant.id(), scope.customerId(), scope.deploymentId(), scope.targetProfileId(), scope.environment(),
+            codec.fingerprint(terms), ProviderUsageRuntimeAllocationIdentity.fingerprint(terms), codec.write(terms), java.sql.Timestamp.from(NOW));
+        jdbc.update("""
+            UPDATE provider_usage_grants SET allocated_chat_attempts=allocated_chat_attempts+?,
+              allocated_total_tokens=allocated_total_tokens+?,allocated_cost_nano_usd=allocated_cost_nano_usd+? WHERE id=?
+            """, command.caps().chatAttempts(), command.caps().totalTokens(), command.caps().costNanoUsd(), grant.id());
+        jdbc.update("""
+            INSERT INTO provider_usage_allowance_events
+              (id,event_type,subject_id,grant_id,actor_id,actor_role,payload_fingerprint,created_at)
+              VALUES (?,'ALLOWANCE_ALLOCATED',?,?,'historical-fixture','TEST',?,?)
+            """, UUID.randomUUID().toString(), id, grant.id(), codec.fingerprint(terms), java.sql.Timestamp.from(NOW));
+        return service.readAllocation(scope);
+    }
+
+    @Test void authorizedWorkerNeedsNoAmbientPrincipalAndDebitsWholeReviewedGrant() {
         var grant = runtimeGrant(); service.approveGrant(grant); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        var manifest = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE record_key='manifest-deployment'",
-            String.class), AdmissionContracts.Manifest.class);
-        assertThat(manifest.demand().amounts()).containsEntry(AdmissionContracts.Dimension.API_REQUESTS_PER_WINDOW, 0L)
-            .containsEntry(AdmissionContracts.Dimension.PROVIDER_TOKENS_PER_WINDOW, 0L)
-            .containsEntry(AdmissionContracts.Dimension.PROVIDER_SPEND_MICROS_PER_WINDOW, 0L);
         assertThat(service.findForAuthorizedRelease("release-deployment")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
         var allowance = service.prepareForAuthorizedRelease("release-deployment");
@@ -543,6 +458,7 @@ abstract class ProviderUsageAllowanceContract {
     @Test void authorizedWorkerInitializationRequiresAppliedRuntimeAndExactNativeReceipt() {
         service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
         var allowance = service.prepareForAuthorizedRelease("release-deployment"); UUID store = UUID.randomUUID();
+        jdbc.update("UPDATE platform_deployment_releases SET status='PROVISIONING',provisioning_status='RUNNING'");
         assertThatThrownBy(() -> service.markInitializedForAuthorizedRelease("release-deployment", store, allowance.runtimeAllocationFingerprint()))
             .hasMessageContaining("RELEASE_PHASE_DENIED");
         jdbc.update("UPDATE platform_deployment_releases SET status='VERIFYING',provisioning_status='ACTIVE'");
@@ -580,8 +496,8 @@ abstract class ProviderUsageAllowanceContract {
     void freshDeploymentUsesOneWholeUnallocatedGrantWithoutResettingAnOlderAllocation(boolean partial) {
         var original = runtimeGrant(); service.approveGrant(original);
         var caps = partial ? new Limits(1, 1, 1) : original.credits();
-        var old = service.allocate(new AllocationCommand(original.id(), "deployment", "target", caps,
-            original.binding(), original.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())), r7("deployment"));
+        var old = seedHistoricalAllocation(new AllocationCommand(original.id(), "deployment", "target", caps,
+            original.binding(), original.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())));
         var before = service.readQuota(original.id());
         var fresh = new ProviderUsageGrant("new-grant", "new-campaign", original.customerId(), original.targetProfileId(),
             original.environment(), original.credits(), original.expiresAt(), original.binding(), original.rateCardReference(),
@@ -601,48 +517,34 @@ abstract class ProviderUsageAllowanceContract {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(2);
     }
 
-    @Test void authorizedWorkerDeniesMissingBindingStaleGenerationAndDifferentReleaseScope() {
+    @Test void authorizedWorkerRequiresExactCoreReleaseScope() {
         service.approveGrant(runtimeGrant()); SecurityContextHolder.clearContext();
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("missing")).hasMessageContaining("RELEASE_REQUIRED");
         authorizeRelease("deployment");
-        jdbc.update("UPDATE deployment_admission_release_bindings SET generation='other'");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("R7_REQUIRED");
-        jdbc.update("UPDATE deployment_admission_release_bindings SET generation='generation'");
         jdbc.update("UPDATE platform_deployment_releases SET deployment_id='other'");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CURRENT_RELEASE_REQUIRED");
-        jdbc.update("DELETE FROM deployment_admission_release_bindings");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RELEASE_BINDING_REQUIRED");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_SCOPE_CHANGED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
     }
-
-    @Test void authorizedWorkerRequiresExactApplyReceiptAndCurrentRelease() {
+    @Test void authorizedWorkerRequiresUnchangedCoreDecisionAndCannotFallBack() {
         service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        jdbc.update("UPDATE deployment_admission_authorizations SET request_fingerprint=?", "0".repeat(64));
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("AUTHORIZATION_CHANGED");
-        jdbc.update("DELETE FROM deployment_admission_authorizations");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("AUTHORIZATION_REQUIRED");
-        jdbc.update("UPDATE deployment_admission_release_bindings SET state='SUPERSEDED'");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CURRENT_RELEASE_REQUIRED");
+        jdbc.update("UPDATE platform_release_authorizations SET request_fingerprint=?", "0".repeat(64));
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_CHANGED");
+        jdbc.update("DELETE FROM platform_release_authorizations");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CORE_AUTHORIZATION_REQUIRED");
     }
-
-    @Test void authorizedWorkerCannotSpendDuringRetirementExpiryWorkerOrFailedRelease() {
+    @Test void authorizedWorkerCannotSpendDuringFailedOrSupersededRelease() {
         service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        changeR7("deployment", "workerToken", "expiry-worker");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("ACTIVE_R7_REQUIRED");
-        changeR7("deployment", "workerToken", null); changeR7("deployment", "retirementOperationId", "retire");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("ACTIVE_R7_REQUIRED");
-        changeR7("deployment", "retirementOperationId", null); changeR7("deployment", "expiryState", "CLAIMED");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CURRENT_RELEASE_REQUIRED");
-        changeR7("deployment", "expiryState", "CURRENT"); jdbc.update("UPDATE platform_deployment_releases SET status='FAILED'");
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RELEASE_PHASE_DENIED");
+        for (String status : List.of("FAILED", "SUPERSEDED", "INTERRUPTED")) {
+            jdbc.update("UPDATE platform_deployment_releases SET status=?", status);
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RELEASE_PHASE_DENIED");
+        }
     }
-
     @Test void authorizedWorkerRejectsPartiallyAllocatedGrantInsteadOfUsingRemainingCredits() {
         var grant = runtimeGrant(); service.approveGrant(grant);
         var split = new Limits(7, 1_000, 1_234_000);
         addDeployment("manual");
-        var manual = service.allocate(new AllocationCommand(grant.id(), "manual", "target", split, grant.binding(),
-            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())), r7("manual"));
+        var manual = seedHistoricalAllocation(new AllocationCommand(grant.id(), "manual", "target", split, grant.binding(),
+            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())));
         authorizeRelease("deployment"); SecurityContextHolder.clearContext();
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
             .hasMessageContaining("LIFETIME_CREDITS_EXCEEDED");
@@ -656,8 +558,8 @@ abstract class ProviderUsageAllowanceContract {
     @Test void authorizedWorkerCannotEnlargeAnExistingManualSplitForTheSameDeployment() {
         var grant = runtimeGrant(); service.approveGrant(grant);
         var split = new Limits(7, 1_000, 1_234_000);
-        var manual = service.allocate(new AllocationCommand(grant.id(), "deployment", "target", split, grant.binding(),
-            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())), r7("deployment"));
+        var manual = seedHistoricalAllocation(new AllocationCommand(grant.id(), "deployment", "target", split, grant.binding(),
+            grant.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())));
         authorizeRelease("deployment"); SecurityContextHolder.clearContext();
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("ALLOCATION_IMMUTABLE");
         assertThatThrownBy(() -> service.findForAuthorizedRelease("release-deployment")).hasMessageContaining("ALLOCATION_IMMUTABLE");
@@ -693,8 +595,6 @@ abstract class ProviderUsageAllowanceContract {
     @Test void authorizedWorkerCannotRefundOrReuseWholeGrantAfterRetirementAndRecreation() {
         var grant = runtimeGrant(); service.approveGrant(grant); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
         var original = service.prepareForAuthorizedRelease("release-deployment");
-        changeR7("deployment", "state", "RELEASED");
-        jdbc.update("UPDATE deployment_admission_release_bindings SET state='SUPERSEDED' WHERE release_id='release-deployment'");
         jdbc.update("UPDATE platform_deployment_releases SET status='FAILED' WHERE id='release-deployment'");
         deploymentRows.remove("deployment");
         addDeployment("replacement"); authorizeRelease("replacement");
@@ -707,19 +607,17 @@ abstract class ProviderUsageAllowanceContract {
         assertThat(service.approveGrant(grant).lifetimeAllocated()).isEqualTo(grant.credits());
     }
 
-    @Test void unsupportedRuntimeGrantFailsBeforeDebitButGenericStaffSplitRemainsSupported() {
-        service.approveGrant(grant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
-            .hasMessageContaining("PROVIDER_USAGE_RUNTIME_PROFILE_NOT_REVIEWED");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allowance_events WHERE event_type='ALLOWANCE_ALLOCATED'", Integer.class)).isZero();
+    @Test void unsupportedRuntimeGrantAndLegacySplitFailBeforeDebit() {
+        var original = grant();
+        var unsupported = new ProviderUsageGrant(original.id(), original.campaignId(), original.customerId(), original.targetProfileId(),
+            original.environment(), original.credits(), original.expiresAt(), new ProviderBinding("fixture", List.of("unreviewed"), "OPENAI_API_KEY", null),
+            "fixture-price", original.ownerApprovalEvidenceRef(), original.payerRef());
+        service.approveGrant(unsupported); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RUNTIME_PROFILE_NOT_REVIEWED");
         authenticate(PlatformRole.PLATFORM_ADMIN);
+        assertThatThrownBy(() -> service.allocate(command(), r7("deployment"))).hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
-        var split = new Limits(7, 1_000, 1_234_000);
-        assertThat(service.allocate(command("deployment", split), r7("deployment")).caps()).isEqualTo(split);
-        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(split);
     }
-
     @Test void automaticPreparationUsesExplicitPublishedCapAndPurposeInheritanceWithoutChangingConfiguration() {
         var version = versionRows.get("version-deployment"); String original = version.getProviderConfigJson();
         assertThat(ProviderUsageRuntimeConfiguration.require(original, codec))
@@ -830,13 +728,13 @@ abstract class ProviderUsageAllowanceContract {
         }
     }
 
-    @Test void staffGenericSplitAllocationDoesNotAdoptAutomaticRuntimeConfigurationRestrictions() {
-        versionRows.get("version-deployment").setProviderConfigJson("{}"); service.approveGrant(grant());
-        var split = new Limits(7, 1000, 1_234_000);
-        assertThat(service.allocate(command("deployment", split), r7("deployment")).caps()).isEqualTo(split);
-        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(split);
+    @Test void legacyStaffSplitCannotBypassRuntimeConfigurationReview() {
+        versionRows.get("version-deployment").setProviderConfigJson("{}"); service.approveGrant(grant()); authorizeRelease("deployment");
+        assertThatThrownBy(() -> service.allocate(command("deployment", new Limits(7, 1000, 1_234_000)), r7("deployment")))
+            .hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RUNTIME_OUTPUT_CAP_REQUIRED");
+        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
     }
-
     private com.fasterxml.jackson.databind.node.ObjectNode providerConfiguration() {
         return (com.fasterxml.jackson.databind.node.ObjectNode) codec.read(
             DECLARED_PROVIDER_CONFIG, com.fasterxml.jackson.databind.JsonNode.class);
@@ -848,131 +746,6 @@ abstract class ProviderUsageAllowanceContract {
         assertThat(jdbc.queryForObject("SELECT allocated_chat_attempts FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT allocated_total_tokens FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT allocated_cost_nano_usd FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
-    }
-
-    @Test void stillProvisioningButNoLongerCurrentReleaseCannotAcquireOrInitializeCredits() {
-        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        jdbc.update("""
-            INSERT INTO deployment_admission_release_bindings
-            (release_id,reservation_id,generation,authorization_key,version_id,version_config_hash,customer_id,tenant_id,
-             deployment_id,target_profile_id,state,created_at,updated_at)
-            SELECT 'newer-release',reservation_id,generation,'other-command',version_id,version_config_hash,customer_id,tenant_id,
-                   deployment_id,target_profile_id,'PROVISIONING',?,? FROM deployment_admission_release_bindings WHERE release_id='release-deployment'
-            """, java.sql.Timestamp.from(NOW.plusSeconds(1)), java.sql.Timestamp.from(NOW.plusSeconds(1)));
-        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("CURRENT_RELEASE_REQUIRED");
-        assertThatThrownBy(() -> service.findForAuthorizedRelease("release-deployment")).hasMessageContaining("CURRENT_RELEASE_REQUIRED");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
-    }
-
-    @Test void actualCustomerManifestProducerFeedsPositiveWholeGrantWithoutFinancialR7Demand() throws Exception {
-        var deployment = deploymentRows.get("deployment"); var version = versionRows.get("version-deployment");
-        var manifest = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE record_key='manifest-deployment'",
-            String.class), AdmissionContracts.Manifest.class);
-        jdbc.execute("ALTER TABLE deployment_admission_mutex ADD active_policy_ref VARCHAR(128)");
-        jdbc.execute("ALTER TABLE deployment_admission_reviews ADD fingerprint VARCHAR(64)");
-        jdbc.execute("ALTER TABLE deployment_admission_reviews ADD reviewed_by VARCHAR(255)");
-        jdbc.execute("ALTER TABLE deployment_admission_reviews ADD reviewed_at TIMESTAMP WITH TIME ZONE");
-        jdbc.execute("CREATE TABLE deployment_admission_grants(customer_id VARCHAR(64) PRIMARY KEY,record_ref VARCHAR(128))");
-        var zero = new EnumMap<AdmissionContracts.Dimension, Long>(AdmissionContracts.Dimension.class);
-        for (var dimension : AdmissionContracts.Dimension.values()) zero.put(dimension, 0L);
-        var budget = new AdmissionContracts.Budget(manifest.demand(), new AdmissionContracts.Vector(zero), new AdmissionContracts.Vector(zero),
-            "fixture-measurement", NOW.minusSeconds(1), NOW.plusSeconds(7200));
-        var policy = new AdmissionContracts.FleetPolicy("fixture-policy", budget,
-            Map.of("target", new AdmissionContracts.TargetBudget("target", AdmissionContracts.Intent.CUSTOMER_STAGING,
-                new AdmissionContracts.Placement("zf25hgk9694bt7q0zwb98ado", "xjhfu65nacrr30xax5cp0ry7", "46.224.145.148"),
-                DeploymentTargetProfileIdentity.fingerprint(mapper, profile), budget)),
-            new AdmissionContracts.LifecyclePolicy(3600, 300, 3600, 1, 86400, 86400, 30, 3600, 30, 3, 120, 3600,
-                "fixture-operating-policy", "fixture-notices"), "fixture-restore", "fixture-privacy", "fixture-support");
-        var physicalGrant = new AdmissionContracts.CustomerGrant("customer", manifest.demand(), Map.of("target", manifest.demand()),
-            NOW.plusSeconds(7200), "fixture-owner", "fixture-payer", "fixture-keep");
-        jdbc.update("INSERT INTO deployment_admission_reviews(kind,record_key,fingerprint,payload_json) VALUES ('POLICY',?,?,?)",
-            policy.id(), new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper).fingerprint(policy), codec.write(policy));
-        jdbc.update("UPDATE deployment_admission_mutex SET active_policy_ref=? WHERE id=1", policy.id());
-        changeR7("deployment", "policyId", policy.id());
-        var prerequisites = new java.util.HashSet<>(manifest.prerequisiteReferences());
-        prerequisites.add("policy:" + policy.id());
-        manifest = new AdmissionContracts.Manifest(manifest.id(), manifest.deploymentId(), manifest.versionId(),
-            manifest.versionConfigHash(), manifest.targetProfileId(), manifest.bindingFingerprint(), manifest.topologyReference(),
-            manifest.demand(), prerequisites, manifest.customerPrerequisiteReferences());
-        jdbc.update("UPDATE deployment_admission_reviews SET payload_json=?,fingerprint=? WHERE kind='MANIFEST' AND record_key=?",
-            codec.write(manifest), new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper).fingerprint(manifest), manifest.id());
-        bindReviewedManifest(manifest);
-        jdbc.update("INSERT INTO deployment_admission_reviews(kind,record_key,payload_json) VALUES ('GRANT','fixture-physical-grant',?)", codec.write(physicalGrant));
-        jdbc.update("INSERT INTO deployment_admission_grants VALUES ('customer','fixture-physical-grant')");
-        var topology = new CustomerOfferContracts.ReviewedTopology(1, 3750, 5888, 16384, 2, 2, 4, 1);
-        var limits = new CustomerOfferContracts.ReviewedLimits("fixture-measurement", 1, 1, 4000, 6144, 16384, 2, 2, 4, 1, 24, 24, 24);
-        var definition = new CustomerOfferContracts.Definition("1", "Reviewed fixture offer", "template",
-            new CustomerOfferContracts.PluginPin("template-plugin", "template-version", "fixture-hash"), List.of(),
-            List.of(new CustomerOfferContracts.ArtifactPin("runtime", "fixture-artifact-hash")),
-            List.of(new CustomerOfferContracts.TargetPermission("target", CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
-                DeploymentTargetProfileIdentity.fingerprint(mapper, profile))), EnumSet.of(CustomerOfferContracts.Operation.APPLY), List.of(),
-            List.of(new CustomerOfferContracts.BindingSlot("document-storage", CustomerOfferContracts.BindingKind.CUSTOMER_S3, Set.of("reviewed-s3"))),
-            Set.of(CustomerOfferContracts.DocumentAudience.PUBLIC), EnumSet.allOf(CustomerOfferContracts.Prerequisite.class),
-            limits, topology, "fixture-approved-policy", "fixture-operating-policy", "fixture-identity-policy", "fixture-storage-policy");
-        var authorization = new CustomerOfferContracts.Authorization(new CustomerOfferContracts.AdmissionContext(
-            "customer", "tenant", "deployment", null, "target", CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
-            "offer", "offer-fingerprint", 1, "placement", CustomerOfferContracts.Operation.APPLY, "apply-deployment", limits, topology), definition);
-        var runtime = mock(DeploymentService.class); var documents = mock(DeploymentDocumentBindingResolver.class);
-        var dependencies = mock(ReviewedManagedDependencyEvidenceService.class); var audit = mock(PlatformAuditService.class);
-        var external = mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
-        when(external.resolveLocal(anyString(), anyString(), anyString())).thenReturn(List.of());
-        when(documents.snapshot(deployment, version, "target"))
-            .thenReturn(mapper.createObjectNode().put("schema", "DOCUMENT_STORAGE_BINDING_V1").put("resourceHandleId", "fixture-storage"));
-        when(runtime.prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, "target"))
-            .thenReturn(new AdmissionContracts.RuntimeAuthorityCandidateEvidence("deployment", "target", version.getId(), "fixture-snapshot",
-                "a".repeat(64), 1, List.of("https://app.example.test")));
-        when(dependencies.resolve(any(), any())).thenReturn(Optional.empty());
-        AdmissionContracts.Manifest produced;
-        try (var context = new AnnotationConfigApplicationContext()) {
-            context.registerBean(ObjectMapper.class, () -> mapper);
-            context.registerBean(JdbcTemplate.class, () -> jdbc);
-            context.registerBean(PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
-            context.registerBean(AdmissionJson.class);
-            context.registerBean(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class,
-                () -> mock(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class));
-            context.registerBean(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class,
-                () -> mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class));
-            // Spring wires the package-private real store without exposing production-only test accessors.
-            context.registerBean("admissionStore", Class.forName("com.ai.fabric.platform.backend.deployment.admission.AdmissionStore"));
-            context.getBeanFactory().registerSingleton("deploymentService", runtime);
-            context.getBeanFactory().registerSingleton("documentBindings", documents);
-            context.getBeanFactory().registerSingleton("dependencyEvidence", dependencies);
-            context.getBeanFactory().registerSingleton("audit", audit);
-            context.getBeanFactory().registerSingleton("externalIntegrations", external);
-            context.registerBean(CustomerAdmissionManifestService.class);
-            context.refresh();
-            org.springframework.test.util.ReflectionTestUtils.setField(context.getBean("admissionStore"), "clock", Clock.fixed(NOW, ZoneOffset.UTC));
-            produced = context.getBean(CustomerAdmissionManifestService.class).prepare(deployment, version, authorization);
-        }
-        assertThat(produced.demand()).isEqualTo(manifest.demand());
-        assertThat(produced.demand().amounts()).containsEntry(AdmissionContracts.Dimension.API_REQUESTS_PER_WINDOW, 0L)
-            .containsEntry(AdmissionContracts.Dimension.PROVIDER_TOKENS_PER_WINDOW, 0L)
-            .containsEntry(AdmissionContracts.Dimension.PROVIDER_SPEND_MICROS_PER_WINDOW, 0L);
-        var persisted = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE kind='MANIFEST' AND record_key=?",
-            String.class, produced.id()), AdmissionContracts.Manifest.class);
-        assertThat(persisted).isEqualTo(produced);
-        bindReviewedManifest(produced);
-        var grant = runtimeGrant(); service.approveGrant(grant); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
-        var allowance = instance(NOW).prepareForAuthorizedRelease("release-deployment");
-        assertThat(allowance.caps()).isEqualTo(grant.credits());
-        assertThat(instance(NOW).findForAuthorizedRelease("release-deployment")).contains(allowance);
-        assertThat(instance(NOW).prepareForAuthorizedRelease("release-deployment")).isEqualTo(allowance);
-        authenticate(PlatformRole.PLATFORM_ADMIN);
-        assertThat(service.readQuota(grant.id()).lifetimeAllocated()).isEqualTo(grant.credits());
-    }
-
-    void bindReviewedManifest(AdmissionContracts.Manifest replacement) {
-        var reservation = codec.read(jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id='reservation-deployment'",
-            String.class), AdmissionContracts.Reservation.class);
-        var evidence = reservation.prerequisiteReadback();
-        changeR7("deployment", "manifestId", replacement.id());
-        changeR7("deployment", "manifestFingerprint", codec.fingerprint(replacement));
-        changeR7("deployment", "bindingFingerprint", replacement.bindingFingerprint());
-        changeR7("deployment", "demand", replacement.demand());
-        changeR7("deployment", "prerequisiteReadback", new AdmissionContracts.PrerequisiteReadback(evidence.observedAt(), evidence.validUntil(),
-            evidence.evidenceReference(), evidence.placement(), evidence.profileFingerprint(), codec.fingerprint(replacement), replacement.bindingFingerprint(),
-            evidence.verifiedPrerequisiteReferences(), evidence.restoreEvidenceReference(), evidence.privacyEvidenceReference(),
-            evidence.ownerContactEvidenceReference(), evidence.noticeTransportReference()));
     }
 
     <T> List<T> race(int count, java.util.function.IntFunction<Callable<T>> work) throws Exception {

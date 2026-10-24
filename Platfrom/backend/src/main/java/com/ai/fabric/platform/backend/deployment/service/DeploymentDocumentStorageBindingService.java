@@ -47,7 +47,7 @@ public class DeploymentDocumentStorageBindingService {
     private final PlatformSecretService secretService;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
-    private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    private final com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService retirementGates;
     private final CustomerSelfServiceOperationBoundary offerBoundary;
 
     public DeploymentDocumentStorageBindingService(
@@ -58,7 +58,7 @@ public class DeploymentDocumentStorageBindingService {
         PlatformSecretService secretService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
-        com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates,
+        com.ai.fabric.platform.backend.deployment.lifecycle.DeploymentTargetMutationService retirementGates,
         CustomerSelfServiceOperationBoundary offerBoundary
     ) {
         this.deploymentRepository = deploymentRepository;

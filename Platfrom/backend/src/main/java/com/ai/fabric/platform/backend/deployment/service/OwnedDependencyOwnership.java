@@ -130,7 +130,7 @@ public class OwnedDependencyOwnership {
     }
 
     void requireReclaimedResources(Context context,
-            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource resource) {
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyResource resource) {
         requireReadyResources(context, resource.applicationUuid(), resource.databaseUuid(), resource.volumes());
         var node = node(context);
         requireResources(context, new PlatformManagedProductProvisioningService.OwnedDependencyResources(node.applicationUuid,
@@ -143,7 +143,7 @@ public class OwnedDependencyOwnership {
     }
 
     void requireReclamationInventory(String graphId,
-            List<com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource> resources) {
+            List<com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyResource> resources) {
         var graph = graphs.read(required(graphId));
         var nodes = graphs.state(graph).nodes;
         if (!graphId.equals(graph.getId()) || resources == null || resources.isEmpty() || resources.size() != nodes.size()

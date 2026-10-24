@@ -2,7 +2,6 @@ package com.ai.fabric.platform.backend.customerselfservice;
 
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferEntity;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferEntitlementEntity;
-import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerPlacementEvidenceEntity;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferEntitlementRepository;
@@ -115,7 +114,7 @@ class CustomerSelfServiceCatalogueServiceTest {
     }
 
     @ParameterizedTest @EnumSource(value = Code.class, names = {"PLACEMENT_EVIDENCE_REQUIRED", "PLACEMENT_EVIDENCE_STALE"})
-    void reviewedTargetRemainsDiscoverableWithAnExplicitPlacementRecheckBlocker(Code failure) {
+    void missingOrStaleEvidenceDoesNotGateAConfiguredReviewedTarget(Code failure) {
         var staging = reviewedProfiles();
         when(placement.requireFreshEvidence(staging, TargetIntent.CUSTOMER_STAGING)).thenThrow(conflict(failure));
 
@@ -124,36 +123,40 @@ class CustomerSelfServiceCatalogueServiceTest {
         assertThat(result.targets()).extracting(TargetSummary::id).containsExactly("staging-target", "production-target");
         var target = result.targets().getFirst();
         assertThat(target.intent()).isEqualTo(TargetIntent.CUSTOMER_STAGING);
-        assertThat(target.readiness()).isEqualTo("PLACEMENT_RECHECK_REQUIRED");
-        assertThat(target.blockers()).containsExactly(failure.name(), PREREQUISITE_EVIDENCE_REQUIRED.name());
+        assertThat(target.readiness()).isEqualTo("REVIEWED_TARGET_READY");
+        assertThat(target.blockers()).isEmpty();
         assertThat(target.capabilities()).contains(Operation.APPLY).doesNotContain(Operation.PROMOTION_APPLY);
         assertThat(target.limits()).isEqualTo(definition.limits());
-        assertThat(result.targets().getLast().readiness()).isEqualTo("PLACEMENT_VERIFIED_ADMISSION_REQUIRED");
-        assertThat(result.targets().getLast().blockers()).containsExactly(PREREQUISITE_EVIDENCE_REQUIRED.name());
-        assertThat(result.blockers()).containsExactly(failure.name());
+        assertThat(result.targets().getLast().readiness()).isEqualTo("REVIEWED_TARGET_READY");
+        assertThat(result.targets().getLast().blockers()).isEmpty();
+        assertThat(result.blockers()).isEmpty();
         assertThat(result.workspaceProfiles()).isEqualTo(definition.workspaceProfiles());
         var order = inOrder(composition, profiles, placement);
         order.verify(composition).validate(definition);
         order.verify(profiles).findById("staging-target");
         order.verify(composition).requireProfile(staging, definition.targets().getFirst());
-        order.verify(placement).requireFreshEvidence(staging, TargetIntent.CUSTOMER_STAGING);
+        order.verify(placement).requireConfiguredPlacement(staging, TargetIntent.CUSTOMER_STAGING);
+        verify(placement, never()).requireFreshEvidence(any(), any());
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
-    @Test void freshPlacementRetainsTheExistingDiscoveryOnlyReadinessAndCapabilities() {
+    @Test void configuredPlacementRetainsDiscoveryOnlyReadinessAndReviewedCapabilities() {
         reviewedProfiles();
 
         var result = catalogue.offer("offer");
 
         assertThat(result.targets()).hasSize(2).allSatisfy(target -> {
-            assertThat(target.readiness()).isEqualTo("PLACEMENT_VERIFIED_ADMISSION_REQUIRED");
-            assertThat(target.blockers()).containsExactly(PREREQUISITE_EVIDENCE_REQUIRED.name());
+            assertThat(target.readiness()).isEqualTo("REVIEWED_TARGET_READY");
+            assertThat(target.blockers()).isEmpty();
             assertThat(target.capabilities()).containsExactlyInAnyOrderElementsOf(definition.operations().stream()
                 .filter(operation -> CustomerPermissionMatrix.row(operation).targetIntents().contains(target.intent())).toList());
             assertThat(target.limits()).isEqualTo(definition.limits());
         });
         assertThat(result.blockers()).isEmpty();
         assertThat(result.workspaceProfiles()).isEqualTo(definition.workspaceProfiles());
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_PRODUCTION));
+        verify(placement, never()).requireFreshEvidence(any(), any());
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
@@ -165,10 +168,11 @@ class CustomerSelfServiceCatalogueServiceTest {
 
         assertThat(result.targets()).extracting(TargetSummary::id).containsExactly("staging-target", "production-target");
         assertThat(result.targets()).allSatisfy(target -> {
-            assertThat(target.readiness()).isEqualTo("PLACEMENT_RECHECK_REQUIRED");
-            assertThat(target.blockers()).containsExactly(PLACEMENT_EVIDENCE_STALE.name(), PREREQUISITE_EVIDENCE_REQUIRED.name());
+            assertThat(target.readiness()).isEqualTo("REVIEWED_TARGET_READY");
+            assertThat(target.blockers()).isEmpty();
         });
-        assertThat(result.blockers()).containsExactly(PLACEMENT_EVIDENCE_STALE.name());
+        assertThat(result.blockers()).isEmpty();
+        verify(placement, never()).requireFreshEvidence(any(), any());
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
@@ -176,9 +180,9 @@ class CustomerSelfServiceCatalogueServiceTest {
         "PLACEMENT_DENIED", "TRUSTED_PLACEMENT_REQUIRED", "PREFLIGHT_REQUIRED", "REVIEWED_COMPOSITION_CHANGED",
         "UNENTITLED_TARGET", "OPERATION_FORBIDDEN"
     })
-    void nonrecoverablePlacementFailuresDoNotExposeTheTarget(Code failure) {
+    void configuredPlacementFailuresDoNotExposeTheTarget(Code failure) {
         var staging = reviewedProfiles();
-        when(placement.requireFreshEvidence(staging, TargetIntent.CUSTOMER_STAGING)).thenThrow(conflict(failure));
+        doThrow(conflict(failure)).when(placement).requireConfiguredPlacement(staging, TargetIntent.CUSTOMER_STAGING);
 
         var result = catalogue.offer("offer");
 
@@ -190,7 +194,7 @@ class CustomerSelfServiceCatalogueServiceTest {
     @ParameterizedTest @EnumSource(value = Code.class, names = {
         "REVIEWED_COMPOSITION_CHANGED", "PLACEMENT_DENIED", "PLACEMENT_EVIDENCE_REQUIRED", "PLACEMENT_EVIDENCE_STALE"
     })
-    void failedProfileTrustChecksAreNotDowngradedToPlacementRechecks(Code failure) {
+    void failedProfileTrustChecksDoNotReachConfiguredPlacementOrExposeTheTarget(Code failure) {
         var staging = reviewedProfiles();
         doThrow(conflict(failure)).when(composition).requireProfile(staging, definition.targets().getFirst());
 
@@ -198,6 +202,7 @@ class CustomerSelfServiceCatalogueServiceTest {
 
         assertThat(result.targets()).extracting(TargetSummary::id).containsExactly("production-target");
         assertThat(result.blockers()).containsExactly(failure.name());
+        verify(placement, never()).requireConfiguredPlacement(staging, TargetIntent.CUSTOMER_STAGING);
         verify(placement, never()).requireFreshEvidence(staging, TargetIntent.CUSTOMER_STAGING);
     }
 
@@ -206,13 +211,6 @@ class CustomerSelfServiceCatalogueServiceTest {
         var production = CustomerOfferTestFixtures.profile("production-target", "prod-server");
         when(profiles.findById(staging.getId())).thenReturn(Optional.of(staging));
         when(profiles.findById(production.getId())).thenReturn(Optional.of(production));
-        Instant checkedAt = Instant.now().minusSeconds(1);
-        when(placement.requireFreshEvidence(staging, TargetIntent.CUSTOMER_STAGING)).thenReturn(new CustomerPlacementEvidenceEntity(
-            "staging-proof", staging.getId(), TargetIntent.CUSTOMER_STAGING, "staging-hash", "stage-server", "46.224.145.148",
-            "destination", checkedAt, checkedAt.plusSeconds(60)));
-        when(placement.requireFreshEvidence(production, TargetIntent.CUSTOMER_PRODUCTION)).thenReturn(new CustomerPlacementEvidenceEntity(
-            "production-proof", production.getId(), TargetIntent.CUSTOMER_PRODUCTION, "production-hash", "prod-server", "46.225.162.106",
-            "destination", checkedAt, checkedAt.plusSeconds(60)));
         return staging;
     }
 }

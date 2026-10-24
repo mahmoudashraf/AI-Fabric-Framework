@@ -18,7 +18,6 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromotionCommandRepository;
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerGoLiveReadinessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
@@ -213,8 +212,6 @@ class DeploymentPracticalPromotionServiceTest {
             "promotion:" + DeploymentEvidenceFingerprint.hash(new ObjectMapper(), new ObjectMapper().createObjectNode()
                 .put("kind", "activate").put("key", "activate-operation"))
         );
-        verify(fixture.retirementScheduler).scheduleAfterCommit(
-            deployment.getId(), "dtp-coolify-prod-staging", "activate-operation");
     }
 
     @Test
@@ -379,7 +376,6 @@ class DeploymentPracticalPromotionServiceTest {
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var commands = new DeploymentPromotionCommandService(mock(DeploymentPromotionCommandRepository.class), consumerRepository, mapper);
-        var retirementScheduler = mock(AdmissionPromotionRetirementScheduler.class);
         var goLiveReadiness = mock(CustomerGoLiveReadinessService.class);
         DeploymentPracticalPromotionService service = new DeploymentPracticalPromotionService(
             deploymentRepository,
@@ -397,7 +393,6 @@ class DeploymentPracticalPromotionServiceTest {
             commands,
             mock(DeploymentTargetContextService.class),
             mock(CustomerSelfServicePromotionBoundary.class),
-            retirementScheduler,
             goLiveReadiness
         );
         return new TestFixture(
@@ -411,7 +406,6 @@ class DeploymentPracticalPromotionServiceTest {
             deploymentAccessService,
             consumerService,
             auditService,
-            retirementScheduler,
             goLiveReadiness
         );
     }
@@ -532,7 +526,6 @@ class DeploymentPracticalPromotionServiceTest {
         DeploymentAccessService deploymentAccessService,
         PlatformCustomerConsumerService consumerService,
         PlatformAuditService auditService,
-        AdmissionPromotionRetirementScheduler retirementScheduler,
         CustomerGoLiveReadinessService goLiveReadiness
     ) {
     }

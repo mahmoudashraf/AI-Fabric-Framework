@@ -5,9 +5,6 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTarget
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerTargetRetirementContracts.Summary;
 import com.ai.fabric.platform.backend.customerselfservice.web.CustomerSelfServiceExceptionHandler;
 import com.ai.fabric.platform.backend.customerselfservice.web.CustomerTargetRetirementController;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementController;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,19 +48,21 @@ class CustomerTargetRetirementControllerTest {
         """;
     @Autowired WebApplicationContext context;
     @Autowired CustomerTargetRetirementService service;
-    @Autowired TargetRetirementService genericService;
-    private TargetRetirementService genericMock;
     private MockMvc mvc;
 
     @BeforeEach void setup() {
-        genericMock = org.springframework.test.util.AopTestUtils.getUltimateTargetObject(genericService);
-        reset(service, genericMock);
+        reset(service);
+        var retired = new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.GONE, "LEGACY_TARGET_RETIREMENT_RETIRED");
+        when(service.plan(anyString(), anyString(), any())).thenThrow(retired);
+        when(service.execute(anyString(), anyString(), anyString(), any())).thenThrow(retired);
+        when(service.retry(anyString(), anyString(), anyString(), any())).thenThrow(retired);
+        when(service.cancel(anyString(), anyString(), anyString(), any())).thenThrow(retired);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    @Test void customerCanPlanWithoutInternalConsumerIdentifiers() throws Exception {
+    @Test void authenticatedCustomerReceivesAnExplicitRetiredPlanResponse() throws Exception {
         mvc.perform(post(ROUTE).contentType("application/json").content(BODY).with(auth(PlatformRole.CUSTOMER_ADMIN)))
-            .andExpect(status().isOk());
+            .andExpect(status().isGone());
         verify(service).plan(eq("offer"), eq("deployment"), argThat(request ->
             "staging-target".equals(request.targetProfileId()) && List.of("release").equals(request.releaseIds())
                 && "retire-key".equals(request.operationKey())));
@@ -101,14 +100,10 @@ class CustomerTargetRetirementControllerTest {
         mvc.perform(get(BASE + "/retirement").with(auth(PlatformRole.CUSTOMER_ADMIN)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.requestFingerprint").value("planned-fingerprint"))
             .andExpect(jsonPath("$.snapshot").doesNotExist()).andExpect(jsonPath("$.resources").doesNotExist());
-        when(service.execute(eq("offer"), eq("deployment"), eq("retirement"), any())).thenReturn(summary);
-        when(service.retry(eq("offer"), eq("deployment"), eq("retirement"), any())).thenReturn(summary);
-        when(service.cancel(eq("offer"), eq("deployment"), eq("retirement"), any())).thenReturn(summary);
         for (String action : List.of("execute", "retry", "cancel")) {
             mvc.perform(post(BASE + "/retirement/" + action).contentType("application/json")
                 .content("{\"requestFingerprint\":\"planned-fingerprint\"}").with(auth(PlatformRole.CUSTOMER_ADMIN)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value("retirement"))
-                .andExpect(jsonPath("$.snapshot").doesNotExist()).andExpect(jsonPath("$.operationKey").doesNotExist());
+                .andExpect(status().isGone());
         }
         verify(service).execute(eq("offer"), eq("deployment"), eq("retirement"), argThat(command ->
             "planned-fingerprint".equals(command.requestFingerprint())));
@@ -141,31 +136,21 @@ class CustomerTargetRetirementControllerTest {
         verifyNoInteractions(service);
     }
 
-    @Test void genericInventoryAndInternalExpectationRoutesAreStaffOnlyForEveryOperation() throws Exception {
+    @Test void removedGenericEngineRoutesExposeNoInventoryToCustomersOrPublicCallers() throws Exception {
         for (PlatformRole role : List.of(PlatformRole.CUSTOMER_ADMIN, PlatformRole.PUBLIC_API_CLIENT)) {
-            mvc.perform(get(GENERIC).with(auth(role))).andExpect(status().isForbidden());
-            mvc.perform(get(GENERIC + "/retirement").with(auth(role))).andExpect(status().isForbidden());
+            mvc.perform(get(GENERIC).with(auth(role))).andExpect(status().isNotFound());
             mvc.perform(post(GENERIC + "/plan").contentType("application/json").content("{}").with(auth(role)))
-                .andExpect(status().isForbidden());
-            for (String action : List.of("execute", "retry", "cancel")) {
-                mvc.perform(post(GENERIC + "/retirement/" + action).contentType("application/json")
-                    .content("{\"requestFingerprint\":\"planned-fingerprint\"}").with(auth(role)))
-                    .andExpect(status().isForbidden());
-            }
+                .andExpect(status().isNotFound());
         }
-        verifyNoInteractions(genericMock);
-        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR)) {
-            mvc.perform(get(GENERIC).with(auth(role))).andExpect(status().isOk());
-        }
-        verify(genericMock, times(2)).list("deployment", "staging-target");
+        verifyNoInteractions(service);
     }
 
     private Summary summary() {
         var now = java.time.Instant.parse("2026-10-16T00:00:00Z");
-        return new Summary("retirement", "deployment", "staging-target", "planned-fingerprint", TargetRetirementContracts.State.PLANNED,
-            TargetRetirementContracts.Step.DRAIN, now.plusSeconds(3600),
-            new TargetRetirementContracts.Retention(TargetRetirementContracts.RetentionDecision.RECLAIM, null, null, "rebuild"),
-            0, null, null, List.of(), false, true, now, null, null, now);
+        return new Summary("retirement", "deployment", "staging-target", "planned-fingerprint", "PLANNED",
+            "DRAIN", now.plusSeconds(3600),
+            new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("decision", "RECLAIM").put("backupDecisionReference", "rebuild"),
+            0, null, null, List.of(), false, false, now, null, null, now);
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor auth(PlatformRole role) {
@@ -177,13 +162,9 @@ class CustomerTargetRetirementControllerTest {
     @EnableWebMvc @EnableWebSecurity @EnableMethodSecurity
     static class Config {
         @Bean CustomerTargetRetirementService service() { return mock(CustomerTargetRetirementService.class); }
-        @Bean TargetRetirementService genericService() { return mock(TargetRetirementService.class); }
         @Bean CustomerOfferCodec codec() { return CustomerOfferTestFixtures.codec(); }
         @Bean CustomerTargetRetirementController controller(CustomerTargetRetirementService service, CustomerOfferCodec codec) {
             return new CustomerTargetRetirementController(service, codec);
-        }
-        @Bean TargetRetirementController genericController(TargetRetirementService genericService) {
-            return new TargetRetirementController(genericService);
         }
         @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }
         @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {

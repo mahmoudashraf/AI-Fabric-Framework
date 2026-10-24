@@ -1,15 +1,10 @@
 package com.ai.fabric.platform.backend.deployment.dependency;
 
-import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts;
-import com.ai.fabric.platform.backend.deployment.admission.ManagedDependencyAdmissionLedger;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthoritySnapshotRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
-import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseEndpointService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
@@ -20,7 +15,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -38,7 +32,6 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 public class ProductionManagedDependencyPrerequisites implements ManagedDependencyPrerequisites {
-    private final ManagedDependencyAdmissionLedger admission;
     private final ManagedDependencyCoreReleaseAuthorization coreAuthorizations;
     private final ManagedDependencyGraphStore graphs;
     private final DeploymentSourceArtifactRepository artifacts;
@@ -47,23 +40,17 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     private final DeploymentReleaseRepository releases;
     private final DeploymentReleaseEndpointService endpoints;
     private final PlatformManagedProductProvisioningService provisioning;
-    private final TargetRetirementOperationRepository retirementOperations;
-    private final TargetRetirementGateRepository retirementGates;
     private final ObjectProvider<ManagedDependencyInitializationVerifier> initializationVerifiers;
     private final ObjectMapper mapper;
     private final ManagedDependencyArtifactPolicy ownership;
 
-    public ProductionManagedDependencyPrerequisites(ManagedDependencyAdmissionLedger admission,
-            ManagedDependencyCoreReleaseAuthorization coreAuthorizations,
+    public ProductionManagedDependencyPrerequisites(ManagedDependencyCoreReleaseAuthorization coreAuthorizations,
             ManagedDependencyGraphStore graphs, DeploymentSourceArtifactRepository artifacts,
             DeploymentSourceCapabilityManifestService capabilityManifests,
             RuntimeAuthoritySnapshotRepository authoritySnapshots, DeploymentReleaseRepository releases,
             DeploymentReleaseEndpointService endpoints, PlatformManagedProductProvisioningService provisioning,
-            TargetRetirementOperationRepository retirementOperations,
-            TargetRetirementGateRepository retirementGates,
             ObjectProvider<ManagedDependencyInitializationVerifier> initializationVerifiers,
             ObjectMapper mapper, ManagedDependencyArtifactPolicy ownership) {
-        this.admission = admission;
         this.coreAuthorizations = coreAuthorizations;
         this.graphs = graphs;
         this.artifacts = artifacts;
@@ -72,8 +59,6 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         this.releases = releases;
         this.endpoints = endpoints;
         this.provisioning = provisioning;
-        this.retirementOperations = retirementOperations;
-        this.retirementGates = retirementGates;
         this.initializationVerifiers = initializationVerifiers;
         this.mapper = mapper;
         this.ownership = ownership;
@@ -89,7 +74,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         validator.validate(spec);
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
         ownership.requireAllowed(spec);
-        var evidence = authorization(scope, spec, true, phase == ProvisioningPhase.RUNTIME_BOUND, null);
+        var evidence = authorization(scope, spec, phase == ProvisioningPhase.RUNTIME_BOUND, null);
         if (evidence.production()) {
             validator.requireProductionInboxPersistence(spec);
         }
@@ -111,7 +96,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         var graph = graph(scope);
         ManagedDependencySpec spec = graphs.spec(graph);
         ownership.requireAllowed(spec);
-        authorization(scope, spec, false, true, required(reservationRef, "DEPENDENCY_AUTHORIZATION_REQUIRED"));
+        authorization(scope, spec, true, required(reservationRef, "DEPENDENCY_AUTHORIZATION_REQUIRED"));
         authority(scope);
     }
 
@@ -121,7 +106,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         requireScope(scope);
         var graph = graph(scope); var spec = graphs.spec(graph);
         ownership.requireAllowed(spec);
-        authorization(scope, spec, true, true, required(reservationRef, "DEPENDENCY_AUTHORIZATION_REQUIRED"));
+        authorization(scope, spec, true, required(reservationRef, "DEPENDENCY_AUTHORIZATION_REQUIRED"));
         authority(scope);
     }
 
@@ -131,7 +116,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         var artifact = artifacts.findById(required(service.sourceArtifactId(), "DEPENDENCY_ARTIFACT_REQUIRED"))
             .orElseThrow(() -> conflict("DEPENDENCY_ARTIFACT_MISSING"));
         String expectedImage = artifact.getImageRepository() + "@" + artifact.getImageDigest();
-        var evidence = authorization(scope, graphs.spec(graph(scope)), false, true, graph(scope).getReservationRef());
+        var evidence = authorization(scope, graphs.spec(graph(scope)), true, graph(scope).getReservationRef());
         boolean productionIntent = evidence.production();
         boolean acceptedChannel = "production".equals(artifact.getPromotionChannel())
             || !productionIntent && "staging".equals(artifact.getPromotionChannel());
@@ -153,7 +138,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
                                     String operationKey) {
         validateReservation(scope, graph(scope).getReservationRef());
         var graph = graph(scope);
-        var evidence = authorization(scope, graphs.spec(graph), false, true, graph.getReservationRef());
+        var evidence = authorization(scope, graphs.spec(graph), true, graph.getReservationRef());
         if (evidence.production()) {
             new ManagedDependencySpecValidator(mapper).requireProductionInboxPersistence(graphs.spec(graph));
         }
@@ -218,45 +203,12 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         if (graph.getRevision() != graphRevision || !"RETIRING".equals(graph.getStatus())) {
             fail("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
         }
-        var operation = retirementOperations.findByDeploymentIdAndTargetProfileIdAndOperationKey(
-                scope.deploymentId(), scope.targetProfileId(), required(retirementOperationKey,
-                    "DEPENDENCY_RETIREMENT_OPERATION_REQUIRED"))
-            .orElseThrow(() -> conflict("DEPENDENCY_TARGET_RETIREMENT_REQUIRED"));
-        var gate = retirementGates.findByDeploymentIdAndTargetProfileId(scope.deploymentId(), scope.targetProfileId())
-            .orElseThrow(() -> conflict("DEPENDENCY_TARGET_RETIREMENT_REQUIRED"));
-        if (!scope.customerId().equals(operation.getCustomerId())
-            || operation.getState() != TargetRetirementContracts.State.RUNNING
-            || operation.getStep() != TargetRetirementContracts.Step.DEPENDENCIES
-            || operation.getWorkerToken() == null || operation.getLeaseExpiresAt() == null
-            || !operation.getLeaseExpiresAt().isAfter(Instant.now()) || !operation.isDestructiveStarted()
-            || !"RETIRING".equals(gate.getState()) || !operation.getId().equals(gate.getOperationId())
-            || operation.getFenceEpoch() != gate.getEpoch()) {
-            fail("DEPENDENCY_TARGET_RETIREMENT_UNPROVEN");
-        }
-        validateReservation(scope, graph.getReservationRef());
-        for (var node : graphs.state(graph).nodes) {
-            if ("DISABLED".equals(node.status)) continue;
-            if ("RETIRED".equals(node.status)) {
-                if (!retirementOperationKey.equals(node.retirementOperationKey)) {
-                    fail("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
-                }
-                continue;
-            }
-            if ("RETIRING".equals(node.status)) {
-                if (!retirementOperationKey.equals(node.retirementOperationKey)) {
-                    fail("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
-                }
-                continue;
-            }
-            String contract = service(graph, node.slot).initializationContract();
-            verifier(contract).requireUnused(scope, contract,
-                new Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
-                    Map.copyOf(node.secrets)), retirementOperationKey);
-        }
+        required(retirementOperationKey, "DEPENDENCY_RETIREMENT_OPERATION_REQUIRED");
+        fail("DEPENDENCY_CORE_RETIREMENT_UNSUPPORTED");
     }
 
     @Override
-    public void verifyReclaimed(Scope scope, List<ManagedDependencyRetirementAdapter.Resource> resources) {
+    public void verifyReclaimed(Scope scope, List<ManagedDependencyResource> resources) {
         requireScope(scope);
         if (resources == null) fail("DEPENDENCY_RECLAMATION_EVIDENCE_REQUIRED");
         provisioning.verifyOwnedDependenciesReclaimed(
@@ -266,66 +218,34 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
 
     @Override
     public void releaseReservation(Scope scope, String reservationRef) {
-        // Core authority has no capacity lease to release. Historical R7 accounting remains
-        // parent-owned; this method neither manufactures nor releases a reservation.
+        // Core authority has no capacity lease to release; this validates identity only.
         validateReservation(scope, reservationRef);
-    }
-
-    private ManagedDependencyAdmissionLedger.Requirement requirement(Scope scope, ManagedDependencySpec spec) {
-        ManagedDependencySpec.Capacity capacity = spec.totalCapacity();
-        long databases = spec.services().stream().filter(value -> value.database() != null).count();
-        return new ManagedDependencyAdmissionLedger.Requirement(scope.customerId(), scope.tenantId(),
-            scope.deploymentId(), scope.targetProfileId(), scope.versionId(), scope.bindingFingerprint(),
-            scope.specFingerprint(), capacity.milliCpu(), mib(capacity.memoryMiB()), mib(capacity.diskMiB()),
-            databases, capacity.resources());
     }
 
     private record AuthorizationEvidence(String reservationRef, String coreReleaseId,
         String bindingFingerprint, boolean production, boolean existingConfiguration) { }
 
     private AuthorizationEvidence authorization(Scope scope, ManagedDependencySpec spec,
-            boolean execution, boolean allowExisting, String reservationRef) {
+            boolean allowExisting, String reservationRef) {
         var graph = graph(scope);
         var state = graphs.state(graph);
         if (!scope.specFingerprint().equals(new ManagedDependencySpecValidator(mapper).fingerprint(spec)))
             fail("DEPENDENCY_SPEC_DRIFT");
-        var core = coreAuthorizations.find(scope, graph, spec);
-        if (core.isPresent()) {
-            var proof = core.get();
-            String reference = "core-release:" + proof.releaseId();
-            if (reservationRef != null && !reference.equals(reservationRef)
-                || graph.getReservationRef() != null && !reference.equals(graph.getReservationRef()))
-                fail("DEPENDENCY_AUTHORIZATION_DRIFT");
-            if (!proof.versionConfigHash().equals(authority(scope).versionConfigHash()))
-                fail("DEPENDENCY_AUTHORITY_CONFIG_CHANGED");
-            var release = releases.findById(scope.releaseId())
-                .orElseThrow(() -> conflict("DEPENDENCY_RELEASE_BINDING_MISSING"));
-            boolean existing = allowExisting && state.effectiveConfigurationRevision >= 0
-                && !graph.getStatus().startsWith("RETIR")
-                && "ACTIVE".equals(release.getProvisioningStatus()) && "APPLIED_VERIFIED".equals(release.getStatus())
-                && spec.services().stream().anyMatch(service -> service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1);
-            if (existing) requireExistingConfiguration(scope, graph, spec, state);
-            return new AuthorizationEvidence(null, proof.releaseId(), scope.bindingFingerprint(),
-                proof.production(), existing);
-        }
-        // Candidate/release transitions explicitly clear this durable proof of prior configuration.
-        boolean previouslyEffective = allowExisting && state.effectiveConfigurationRevision >= 0
+        var proof = coreAuthorizations.find(scope, graph, spec)
+            .orElseThrow(() -> conflict("DEPENDENCY_CORE_RELEASE_AUTHORIZATION_REQUIRED"));
+        String reference = "core-release:" + proof.releaseId();
+        if (reservationRef != null && !reference.equals(reservationRef)
+            || graph.getReservationRef() != null && !reference.equals(graph.getReservationRef()))
+            fail("DEPENDENCY_AUTHORIZATION_DRIFT");
+        if (!proof.versionConfigHash().equals(authority(scope).versionConfigHash()))
+            fail("DEPENDENCY_AUTHORITY_CONFIG_CHANGED");
+        boolean existing = allowExisting && state.effectiveConfigurationRevision >= 0
             && !graph.getStatus().startsWith("RETIR")
             && spec.services().stream().anyMatch(service -> service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1);
-        var requirement = requirement(scope, spec);
-        boolean existingProduction = previouslyEffective && admission.reviewedIntent(requirement,
-            required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED")) == AdmissionContracts.Intent.CUSTOMER_PRODUCTION;
-        var evidence = existingProduction
-            ? execution ? admission.requireConfigurationForExecution(requirement,
-                required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED"), scope.releaseId())
-                : admission.requireConfiguration(requirement, required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED"), scope.releaseId())
-            : execution ? admission.requireForExecution(requirement, reservationRef) : admission.require(requirement, reservationRef);
-        if (reservationRef != null && !reservationRef.equals(evidence.reservationId())) fail("DEPENDENCY_RESERVATION_DRIFT");
-        if (evidence.existingConfiguration()) {
-            requireExistingConfiguration(scope, graph, spec, state);
-        }
-        return new AuthorizationEvidence(evidence.reservationId(), null, evidence.bindingFingerprint(),
-            evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION, evidence.existingConfiguration());
+        // Prior configuration must pass exact release verification, never fall back to initial provisioning.
+        if (existing) requireExistingConfiguration(scope, graph, spec, state);
+        return new AuthorizationEvidence(null, proof.releaseId(), scope.bindingFingerprint(),
+            proof.production(), existing);
     }
 
     private void requireExistingConfiguration(Scope scope, ManagedDependencyGraphEntity graph,
@@ -502,13 +422,8 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
 
     private String environment(Scope scope) {
         var graph = graph(scope);
-        return authorization(scope, graphs.spec(graph), false, true, graph.getReservationRef()).production()
+        return authorization(scope, graphs.spec(graph), true, graph.getReservationRef()).production()
             ? "production" : "staging";
-    }
-
-    private long mib(long value) {
-        try { return Math.multiplyExact(value, 1024L * 1024L); }
-        catch (ArithmeticException error) { fail("DEPENDENCY_CAPACITY_OVERFLOW"); return 0; }
     }
 
     private String sha256(String value) {
