@@ -255,18 +255,106 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             .hasMessageContaining("ACTIVE_CUSTOMER_QUOTA_REQUIRED");
     }
 
-    @Test
-    void activeProductionStillRequiresCurrentMeasuredPolicy() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void activeProductionSourceProofOutlivesAdmissionMeasurementsButRetainsPolicyAuthority(boolean continued) throws Exception {
         useProductionTarget();
         CustomerGrant grant = customerGrant(4);
         store.approveGrant(new CustomerGrant(grant.customerId(), grant.fleetLimit(), grant.targetLimits(), NOW.plusSeconds(20_000),
             grant.ownerContactEvidenceReference(), grant.payerReference(), grant.keepStagingEntitlementReference()), "operator", NOW);
         Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
         activateRelease("release-1", allocation);
+        Reservation active = store.require(allocation.id());
+        if (continued) {
+            var next = AdmissionPolicyContinuityTest.continuation(store, json, "production-next", List.of(active), NOW,
+                NOW.plusSeconds(300));
+            AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        }
+        FleetPolicy policy = store.activePolicy();
+        var policyRecords = jdbc.queryForList("SELECT * FROM deployment_admission_reviews WHERE kind IN ('POLICY','POLICY_CONT') ORDER BY kind,record_key");
+        Instant later = reviewedPolicy.fleet().validUntil().plusSeconds(1);
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+        freshSourceEvidence(source, later, later.plusSeconds(45));
+
+        assertThat(providerAt(later).sourceSnapshot(source).expiresAt()).isEqualTo(NOW.plusSeconds(20_000));
+        assertThat(providerAt(later).resolve(source).expiresAt()).isEqualTo(later.plusSeconds(45));
+        assertThat(store.require(active.id())).isEqualTo(active);
+        assertThat(store.activePolicy()).isEqualTo(policy);
+        assertThat(jdbc.queryForList("SELECT * FROM deployment_admission_reviews WHERE kind IN ('POLICY','POLICY_CONT') ORDER BY kind,record_key"))
+            .isEqualTo(policyRecords);
+        if (continued) {
+            jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+            assertThatThrownBy(() -> providerAt(later).sourceSnapshot(source)).hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"fleet", "target", "both"})
+    void activeProductionSourceExpiryIsNotCappedByEitherHistoricBudget(String expired) throws Exception {
+        useProductionTarget();
+        usePolicyDeadlines("target".equals(expired) ? NOW.plusSeconds(10_000) : NOW.plusSeconds(30),
+            "fleet".equals(expired) ? NOW.plusSeconds(10_000) : NOW.plusSeconds(30));
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var source = sourceContext(Operation.SOURCE_INDEX, "daily-index", "release-1", "offer-fingerprint", 2);
+        freshSourceEvidence(source, NOW.plusSeconds(31), NOW.plusSeconds(90));
+
+        assertThat(providerAt(NOW.plusSeconds(31)).sourceSnapshot(source).expiresAt()).isEqualTo(store.customerGrant("customer").validUntil());
+        assertThat(providerAt(NOW.plusSeconds(31)).resolve(source).expiresAt()).isEqualTo(NOW.plusSeconds(90));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"staging", "provisioning", "failed-verification"})
+    void stagingAndProductionCandidatesStillRequireFreshCapacityMeasurements(String lifecycle) throws Exception {
+        if (!"staging".equals(lifecycle)) useProductionTarget();
+        usePolicyDeadlines(NOW.plusSeconds(30), NOW.plusSeconds(30));
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        if ("staging".equals(lifecycle)) activateRelease("release-1", allocation);
+        else {
+            Reservation candidate = provisionRelease("release-1");
+            if ("failed-verification".equals(lifecycle)) {
+                store.outcome(candidate.fence(), State.OUTCOME_UNKNOWN, "verification-failed", "worker", NOW.plusSeconds(2));
+                store.releaseBindingState("release-1", "OUTCOME_UNKNOWN");
+                targetContexts.resolve("deployment1", TARGET, "release-1", false).release().setStatus("APPLIED_VERIFICATION_FAILED");
+            }
+        }
+        var source = sourceContext(Operation.SOURCE_INDEX, "source-index", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(NOW.plusSeconds(31)).sourceSnapshot(source))
+            .hasMessageContaining("FRESH_MEASURED_CAPACITY_REQUIRED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"identity", "window", "vector", "lifecycle", "restore-reference", "fingerprint"})
+    void activeProductionDoesNotTrustMalformedOrChangedPolicyRecords(String changed) throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var payload = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(reviewedPolicy);
+        String expected = switch (changed) {
+            case "identity" -> { payload.put("id", "different-policy"); yield "CUSTOMER_ADMISSION_POLICY_IDENTITY_CHANGED"; }
+            case "window" -> {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) payload.path("fleet")).put("validUntil", NOW.minusSeconds(2).toString());
+                yield "CUSTOMER_ADMISSION_POLICY_STRUCTURE_INVALID";
+            }
+            case "vector" -> {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) payload.path("fleet").path("measured").path("amounts")).remove("MEMORY_BYTES");
+                yield "COMPLETE_RESOURCE_ENVELOPE_REQUIRED";
+            }
+            case "lifecycle" -> {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) payload.path("lifecycle")).put("readbackMaxAgeSeconds", 0);
+                yield "EXPLICIT_LIFECYCLE_POLICY_REQUIRED";
+            }
+            case "restore-reference" -> { payload.put("restoreEvidenceReference", ""); yield "ADMISSION_INPUT_INVALID"; }
+            case "fingerprint" -> { payload.put("supportReference", "changed-support"); yield "POLICY_CONTINUITY_RECORD_CHANGED"; }
+            default -> throw new AssertionError(changed);
+        };
+        FleetPolicy corrupt = json.read(payload.toString(), FleetPolicy.class);
+        jdbc.update("UPDATE deployment_admission_reviews SET payload_json=?,fingerprint=? WHERE kind='POLICY' AND record_key=?",
+            json.write(corrupt), "fingerprint".equals(changed) ? json.fingerprint(reviewedPolicy) : json.fingerprint(corrupt), reviewedPolicy.id());
         var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
 
-        assertThatThrownBy(() -> providerAt(reviewedPolicy.fleet().validUntil()).sourceSnapshot(source))
-            .hasMessageContaining("FRESH_MEASURED_CAPACITY_REQUIRED");
+        assertThatThrownBy(() -> providerAt(NOW.plusSeconds(1001)).sourceSnapshot(source)).hasMessageContaining(expected);
     }
 
     @Test
@@ -730,6 +818,19 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_PRODUCTION,
                 reviewedProfileFingerprint, production.serverUuid(), production.ip(), production.destinationUuid(),
                 NOW.minusSeconds(1), NOW.plusSeconds(120)));
+    }
+
+    private void usePolicyDeadlines(Instant fleetUntil, Instant targetUntil) {
+        Budget before = reviewedPolicy.fleet();
+        Budget fleet = new Budget(before.measured(), before.baseline(), before.headroom(), before.measurementReference(),
+            before.measuredAt(), fleetUntil);
+        var target = reviewedPolicy.targets().get(TARGET);
+        Budget targetBudget = new Budget(before.measured(), before.baseline(), before.headroom(), before.measurementReference(),
+            before.measuredAt(), targetUntil);
+        reviewedPolicy = new FleetPolicy("short-policy", fleet,
+            Map.of(TARGET, new TargetBudget(TARGET, target.intent(), target.placement(), target.profileFingerprint(), targetBudget)),
+            reviewedPolicy.lifecycle(), reviewedPolicy.restoreEvidenceReference(), reviewedPolicy.privacyEvidenceReference(), reviewedPolicy.supportReference());
+        store.approvePolicy(reviewedPolicy, "operator", NOW);
     }
 
     private void activateRelease(String releaseId, Reservation allocation) {

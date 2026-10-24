@@ -91,7 +91,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         store.requireCustomerAuthorization(reservation, requested);
 
         AdmissionContext current = store.context(reservation);
-        validateCurrentReservation(requested, reservation, current, now, true);
+        validateCurrentReservation(requested, reservation, current, now, true, false);
         validateDeploymentAndVersion(requested, current);
         validateTarget(current.target());
         CustomerPlacementEvidenceEntity placementEvidence = placement.requireEvidenceById(
@@ -164,7 +164,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             throw unavailable("CUSTOMER_CAPACITY_RESERVATION_INVALID");
         }
         AdmissionContext current = store.context(reservation);
-        validateCurrentReservation(requested, reservation, current, now, false);
+        validateCurrentReservation(requested, reservation, current, now, false, activeProduction);
         validateReleaseVersion(allocation.release(), current);
         validateDeploymentAndVersion(requested, current);
         validateTarget(current.target());
@@ -189,9 +189,9 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
                 "runtimeAuthority", Objects.toString(runtime.release().getRuntimeAuthorityFingerprint(), ""))));
         EnumSet<Prerequisite> passed = EnumSet.of(Prerequisite.STORAGE);
         if (current.manifest().customerPrerequisiteReferences().containsKey(Prerequisite.IDENTITY)) passed.add(Prerequisite.IDENTITY);
-        Instant expiresAt = minimum(current.grant().validUntil(), current.policy().fleet().validUntil(),
-            current.target().budget().validUntil());
-        if (!activeProduction) expiresAt = minimum(expiresAt, reservation.expiresAt());
+        Instant expiresAt = activeProduction ? current.grant().validUntil()
+            : minimum(reservation.expiresAt(), current.grant().validUntil(), current.policy().fleet().validUntil(),
+                current.target().budget().validUntil());
         return new SourceSnapshot(scope, runtime, current.target(), binding.path("safeMetadata").path("connectorType").asText(),
             binding.path("resourceHandleId").asText(), passed, expiresAt, current.policy().lifecycle().readbackMaxAgeSeconds());
     }
@@ -255,9 +255,10 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
 
     private void validateCurrentReservation(
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested,
-        Reservation reservation, AdmissionContext current, Instant now, boolean requireFreshReadback) {
+        Reservation reservation, AdmissionContext current, Instant now, boolean requireFreshReadback, boolean activeProductionSource) {
         store.requireEffectivePolicy(reservation, current);
-        policy(current.policy(), now);
+        if (activeProductionSource) validateActiveProductionSourcePolicy(reservation, current);
+        else policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
         if (requireFreshReadback) prerequisites(current, reservation.prerequisiteReadback(), now);
@@ -279,6 +280,31 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
                 || !current.target().placement().equals(original.placement())) {
                 throw unavailable("CUSTOMER_PREREQUISITE_EVIDENCE_UNKNOWN");
             }
+        }
+    }
+
+    private void validateActiveProductionSourcePolicy(Reservation reservation, AdmissionContext current) {
+        // Effective-policy checks above verify immutable records and explicit continuity; no new capacity is admitted here.
+        FleetPolicy policy = current.policy();
+        String originalPolicyId = current.policyAuthority() == null ? policy.id() : current.policyAuthority().originalPolicyId();
+        if (!reservation.policyId().equals(originalPolicyId) || policy.targets() == null
+            || !Objects.equals(current.target(), policy.targets().get(reservation.targetProfileId()))) {
+            throw unavailable("CUSTOMER_ADMISSION_POLICY_IDENTITY_CHANGED");
+        }
+        required(policy.id(), 64);
+        lifecycle(policy.lifecycle());
+        required(policy.restoreEvidenceReference(), 255);
+        required(policy.privacyEvidenceReference(), 255);
+        required(policy.supportReference(), 255);
+        for (Budget budget : new Budget[] {policy.fleet(), current.target().budget()}) {
+            if (budget == null || budget.measuredAt() == null || budget.validUntil() == null
+                || !budget.validUntil().isAfter(budget.measuredAt())) throw unavailable("CUSTOMER_ADMISSION_POLICY_STRUCTURE_INVALID");
+            required(budget.measurementReference(), 255);
+            vector(budget.measured()); vector(budget.baseline()); vector(budget.headroom());
+            for (Dimension dimension : java.util.List.of(Dimension.CPU_MILLICORES, Dimension.MEMORY_BYTES, Dimension.DISK_BYTES)) {
+                if (budget.measured().amounts().get(dimension) == 0) throw unavailable("MEASURED_CPU_RAM_DISK_REQUIRED");
+            }
+            within(sum(java.util.List.of(budget.baseline(), budget.headroom())), budget.measured(), "INVALID_HEADROOM");
         }
     }
 
