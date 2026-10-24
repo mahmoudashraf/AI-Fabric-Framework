@@ -44,6 +44,21 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
 
+05:12UTC checkpoint: current valid-input `rel-10ad02d0` reached post-apply checks:
+27passed/1failed/5skipped. S3 connectivity/scope now pass; the remaining gate is
+expected `document_active_sources_ready` until the customer approves/indexes files.
+UI discovery then failed `SOURCE_CONNECTOR_PROBE_FAILED` before registering any
+source. Read-only diagnostic returned ready=true, exact binding/type/scope digest,
+but a runtime timestamp slightly ahead of the receiving clock. Source evidence
+now bounds future clock skew to two seconds and records local observation time;
+stale/foreign/unready responses still fail, original response timestamp remains
+covered by its digest.80 focused backend checks passed. The customer UI also gains
+an exact-release recheck command on staging/production, without rebuilding or
+reserving capacity;5actual-component browser scenarios,19scope checks/build passed.
+These fixes are SOURCE QUALIFIED, not yet hosted. Discovery receipt412 is retained;
+no documents/index jobs/business writes occurred. Continue current deployment,
+do not reset/rebuild it. Index three policies after the fix, then verify it in UI.
+
 04:25UTC checkpoint: complete backend fix `0577e2fb1b8eee6ffc9ec78a08d0395105a2ad49`
 is LIVE VERIFIED on both control planes, image
 `sha256:ad6e0c760f32e5360e74128b0146d8f4a6c6e9d3c3ec1f6d7357d6ff930ab606`,

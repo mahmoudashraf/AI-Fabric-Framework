@@ -97,6 +97,7 @@ import {
   type PlatformConsumerSummary,
 } from '../../api/platformApi'
 import { canApplyReviewedVersion, CustomerAdmissionCommands } from './customerAdmissionCommands'
+import { CustomerReleaseVerificationButton } from './CustomerReleaseVerificationButton'
 import { KnownNoEffectSettlementPanel } from './KnownNoEffectSettlementPanel'
 import { createDurableCommandHolds } from './durableCommandHolds'
 import { createPostProvisionResumeHolds } from './postProvisionResumeHolds'
@@ -1251,6 +1252,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                       {stagingRelease.errorMessage ? ` ${stagingRelease.errorMessage}` : ''}
                     </Alert>
                   ) : null}
+                  <CustomerReleaseVerificationButton session={session} offer={selectedOffer}
+                    deploymentId={selectedDeploymentId} release={stagingRelease}
+                    label="Verify staging release" onVerified={invalidateCustomerState} />
                   <PreparedFailureRecoveryPanel
                     session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
                     targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
@@ -1508,6 +1512,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   </Button>
                 ) : null}
               </Stack>
+              {selectedOffer && selectedDeploymentId ? <CustomerReleaseVerificationButton session={session} offer={selectedOffer}
+                deploymentId={selectedDeploymentId} release={productionRelease}
+                label="Verify production release" onVerified={invalidateCustomerState} /> : null}
               {reviewedPromotion ? <Alert severity={reviewedPromotion.status.includes('FAILED') ? 'error' : 'info'}>{reviewedPromotion.message}</Alert> : null}
             </Stack>
 

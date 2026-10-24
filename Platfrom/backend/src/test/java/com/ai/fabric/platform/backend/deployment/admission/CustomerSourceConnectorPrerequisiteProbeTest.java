@@ -88,8 +88,17 @@ class CustomerSourceConnectorPrerequisiteProbeTest {
         assertThatThrownBy(() -> probe.probe(snapshot)).hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
         response.put("ready", true).put("checkedAt", NOW.minusSeconds(61).toString());
         assertThatThrownBy(() -> probe.probe(snapshot)).hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
-        response.put("checkedAt", NOW.plusSeconds(1).toString());
+        response.put("checkedAt", NOW.plusMillis(2001).toString());
         assertThatThrownBy(() -> probe.probe(snapshot)).hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
+    }
+
+    @Test void boundedRuntimeClockSkewUsesLocalObservationTimeWithoutChangingSourceIdentity() {
+        for (long offset : List.of(-500L, 82L, 2000L)) {
+            response.put("checkedAt", NOW.plusMillis(offset).toString());
+            var result = probe.probe(snapshot);
+            assertThat(result.checkedAt()).isEqualTo(NOW);
+            assertThat(result.digest()).isEqualTo(new AdmissionJson(mapper).fingerprint(response));
+        }
     }
 
     private byte[] digest(String value) {

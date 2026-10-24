@@ -67,8 +67,9 @@ class CustomerSourceConnectorPrerequisiteProbe {
         try { checkedAt = Instant.parse(body.path("checkedAt").asText()).truncatedTo(ChronoUnit.MICROS); }
         catch (RuntimeException ex) { throw failure(); }
         Instant now = clock.instant();
-        if (checkedAt.isAfter(now) || checkedAt.isBefore(now.minusSeconds(snapshot.maxAgeSeconds()))) throw failure();
-        return new Proof(json.fingerprint(body), checkedAt);
+        if (checkedAt.isAfter(now.plusSeconds(2)) || checkedAt.isBefore(now.minusSeconds(snapshot.maxAgeSeconds()))) throw failure();
+        // Keep subsequent evidence checks on the control-plane clock; retain the provider timestamp in the digest.
+        return new Proof(json.fingerprint(body), now);
     }
 
     private String expectedScopeDigest(DeploymentAdmissionCustomerPrerequisiteEvidenceProvider.SourceSnapshot snapshot) {

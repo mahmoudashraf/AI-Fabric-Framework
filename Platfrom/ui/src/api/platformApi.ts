@@ -6733,9 +6733,10 @@ export function fetchDeploymentRailwayLogs(
   return request<DeploymentRailwayLogsResponse>(`/api/deployments/${deploymentId}/railway-logs${suffix}`)
 }
 
-export function rerunDeploymentVerification(deploymentId: string) {
+export function rerunDeploymentVerification(deploymentId: string, releaseId?: string) {
+  const suffix = releaseId ? `?${new URLSearchParams({ releaseId })}` : ''
   return request<DeploymentVerificationRunSummary>(
-    `/api/deployments/${deploymentId}/verification-runs/recheck`,
+    `/api/deployments/${deploymentId}/verification-runs/recheck${suffix}`,
     {
       method: 'POST',
     },
