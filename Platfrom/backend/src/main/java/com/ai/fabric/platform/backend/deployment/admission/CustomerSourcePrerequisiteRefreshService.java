@@ -30,6 +30,8 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 /** Revalidates a release's source access without renewing or allocating deployment capacity. */
 @Service
 public class CustomerSourcePrerequisiteRefreshService {
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.CoreSourceAccessService coreSourceAccess;
     private final CustomerOfferDeploymentRepository associations;
     private final CustomerSelfServiceAuthorizationService authorization;
     private final CustomerOfferEntitlementService entitlements;
@@ -80,6 +82,10 @@ public class CustomerSourcePrerequisiteRefreshService {
                             Set<DocumentAudience> audiences) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Source prerequisite refresh cannot run inside a transaction.");
+        }
+        if (coreSourceAccess != null) {
+            coreSourceAccess.require(target, operation, operationKey, audiences);
+            return;
         }
         Prepared prepared = transaction.execute(status -> {
             entityManager.clear();

@@ -468,12 +468,12 @@ public class ManagedDependencyLifecycleService {
             var admission = gate.reserve(scope, spec, phase);
             validateAdmission(graph, admission);
             store.mutate(graphId, token, (current, state) -> {
-                if (current.getReservationRef() != null && !current.getReservationRef().equals(admission.reservationRef())) fail("DEPENDENCY_RESERVATION_DRIFT");
+                if (current.getReservationRef() != null && !current.getReservationRef().equals(admission.authorityReference())) fail("DEPENDENCY_AUTHORIZATION_DRIFT");
                 if (!state.callbacks.isEmpty() && !compatible(state.callbacks, admission.callbacks())) fail("DEPENDENCY_BINDING_DRIFT");
                 if (!state.origins.isEmpty() && !state.origins.equals(admission.origins())) fail("DEPENDENCY_BINDING_DRIFT");
                 if (!state.targetValues.isEmpty() && !compatible(state.targetValues, admission.targetValues())
                     || !state.targetSecretReferences.isEmpty() && !compatible(state.targetSecretReferences, admission.targetSecretReferences())) fail("DEPENDENCY_BINDING_DRIFT");
-                current.setReservationRef(admission.reservationRef()); state.callbacks = new TreeMap<>(admission.callbacks());
+                current.setReservationRef(admission.authorityReference()); state.callbacks = new TreeMap<>(admission.callbacks());
                 state.origins = List.copyOf(admission.origins());
                 state.targetValues = new TreeMap<>(admission.targetValues()); state.targetSecretReferences = new TreeMap<>(admission.targetSecretReferences());
             });
@@ -998,10 +998,12 @@ public class ManagedDependencyLifecycleService {
     }
     void audit(String graphId, String action, Map<String, ?> details) { audit.record(action, "DEPENDENCY_GRAPH", graphId, details); }
     private void validateAdmission(ManagedDependencyGraphEntity graph, ManagedDependencyPrerequisites.Admission admission) {
-        if (admission == null || admission.reservationRef() == null || admission.reservationRef().isBlank()
+        if (admission == null || admission.authorityReference() == null || admission.authorityReference().isBlank()
+            || admission.coreReleaseAuthorizationRef() != null
+                && !admission.coreReleaseAuthorizationRef().equals(graph.getReleaseId())
             || !graph.getBindingFingerprint().equals(admission.bindingFingerprint()) || admission.callbacks() == null
             || admission.origins() == null || admission.targetValues() == null
-            || admission.targetSecretReferences() == null) fail("DEPENDENCY_ADMISSION_INVALID");
+            || admission.targetSecretReferences() == null) fail("DEPENDENCY_AUTHORIZATION_INVALID");
         admission.callbacks().values().forEach(ManagedDependencyLifecycleService::https);
         admission.origins().forEach(ManagedDependencyLifecycleService::https);
     }

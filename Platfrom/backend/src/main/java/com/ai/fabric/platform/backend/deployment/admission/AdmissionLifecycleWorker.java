@@ -13,8 +13,6 @@ import java.time.Instant;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 
 /** Bounded durable orchestrator. It coordinates stores but never performs provider deletion itself. */
-@Service
-@ConditionalOnProperty(name = "platform.deployment.admission.lifecycle.worker-enabled", havingValue = "true")
 final class AdmissionLifecycleWorker {
     @Autowired
     private AdmissionActivityReconciler activity;

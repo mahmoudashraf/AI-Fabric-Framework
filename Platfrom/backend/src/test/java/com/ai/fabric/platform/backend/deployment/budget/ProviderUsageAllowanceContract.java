@@ -103,8 +103,9 @@ abstract class ProviderUsageAllowanceContract {
         jdbc.execute("""
             CREATE TABLE platform_deployment_releases
             (id VARCHAR(64) PRIMARY KEY,deployment_id VARCHAR(64),deployment_version_id VARCHAR(64),target_profile_id VARCHAR(64),
-             status VARCHAR(64),provisioning_status VARCHAR(64))
+             status VARCHAR(64),provisioning_status VARCHAR(64),source_artifact_id VARCHAR(64))
             """);
+        ProviderUsageCoreReleaseTestSchema.create(jdbc);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V190__provider_usage_allowance.sql")).execute(source);
         ProviderUsageGrantLifecycleTestSchema.migrate(source);
         profile = new DeploymentTargetProfileEntity(); profile.setId("target"); profile.setEnvironmentName("staging");
@@ -503,7 +504,10 @@ abstract class ProviderUsageAllowanceContract {
              deployment_id,target_profile_id,state,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, "release-" + deployment, reviewed.reservationId(), reviewed.generation(), scope.operationKey(), reviewed.versionId(),
             manifest.versionConfigHash(), "customer", "tenant", deployment, "target", "PROVISIONING", java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
-        jdbc.update("INSERT INTO platform_deployment_releases VALUES (?,?,?,?,?,?)", "release-" + deployment, deployment,
+        jdbc.update("""
+            INSERT INTO platform_deployment_releases
+              (id,deployment_id,deployment_version_id,target_profile_id,status,provisioning_status) VALUES (?,?,?,?,?,?)
+            """, "release-" + deployment, deployment,
             reviewed.versionId(), "target", "PROVISIONING", "RUNNING");
         changeR7(deployment, "state", "PROVISIONING");
     }

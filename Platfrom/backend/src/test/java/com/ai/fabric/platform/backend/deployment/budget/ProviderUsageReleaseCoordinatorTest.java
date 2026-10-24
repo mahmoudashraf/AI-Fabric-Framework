@@ -24,7 +24,8 @@ class ProviderUsageReleaseCoordinatorTest {
     private final ProviderUsageRuntimeClient runtime = mock(ProviderUsageRuntimeClient.class);
     private final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
     private final ProviderUsageRuntimeArtifactGate artifacts = mock(ProviderUsageRuntimeArtifactGate.class);
-    private final ProviderUsageReleaseCoordinator coordinator = new ProviderUsageReleaseCoordinator(offers, allowances, runtime, authority, artifacts);
+    private final ProviderUsageModeResolver modes = mock(ProviderUsageModeResolver.class);
+    private final ProviderUsageReleaseCoordinator coordinator = new ProviderUsageReleaseCoordinator(offers, allowances, runtime, authority, artifacts, modes);
     private final DeploymentEntity deployment = new DeploymentEntity();
     private final DeploymentReleaseEntity release = new DeploymentReleaseEntity();
     private final DeploymentVersionEntity version = new DeploymentVersionEntity();
@@ -39,6 +40,7 @@ class ProviderUsageReleaseCoordinatorTest {
         release.setTargetProfileId("target-1");
         version.setId("ver-1"); version.setDeploymentId("dep-1");
         when(offers.existsById("dep-1")).thenReturn(true);
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.empty());
         when(authority.issueProviderBudgetProvisioningHeaders(deployment, version, release)).thenReturn(headers);
     }
 
@@ -189,6 +191,41 @@ class ProviderUsageReleaseCoordinatorTest {
         verifyNoInteractions(allowances, runtime, authority);
         release.setDeploymentId("foreign");
         assertThatThrownBy(() -> coordinator.prepare(deployment, release)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test void coreAuthorizedTeamReleaseDisablesTheGuardWithoutAnOfferOrFinancialAllocation() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("TEAM_AUTHORIZED"));
+        coordinator.prepare(deployment, release);
+        assertThat(coordinator.environment(deployment, release)).containsExactlyEntriesOf(Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "false"));
+        coordinator.initializeAndActivate(deployment, version, release);
+        coordinator.verifyActive(deployment, version, release);
+        verifyNoInteractions(offers, allowances, runtime, authority, artifacts);
+    }
+
+    @Test void coreAuthorizedFundedReleaseRequiresTheRealGuardEvenWithoutAnOffer() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("FUNDED"));
+        var initial = allocation(InitializationState.UNINITIALIZED, null);
+        when(allowances.prepareForAuthorizedRelease("rel-1")).thenReturn(initial);
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.of(initial));
+        coordinator.prepare(deployment, release);
+        assertThat(coordinator.environment(deployment, release)).containsEntry("LOOMAI_PROVIDER_BUDGET_ENABLED", "true");
+        verifyNoInteractions(offers, runtime, authority);
+        verify(allowances).prepareForAuthorizedRelease("rel-1");
+    }
+
+    @Test void missingFundingOnACoreFundedReleaseNeverBecomesTeamAuthorized() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("FUNDED"));
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> coordinator.environment(deployment, release)).hasMessage("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED");
+        verifyNoInteractions(offers, runtime, authority);
+    }
+
+    @Test void teamReleaseStillRequiresExactVersionForActivationAndContinuation() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("TEAM_AUTHORIZED"));
+        version.setId("foreign");
+        assertThatThrownBy(() -> coordinator.initializeAndActivate(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(offers, allowances, runtime, authority, artifacts);
     }
 
     private SafeAllowanceProjection allocation(InitializationState state, UUID storeUuid) {

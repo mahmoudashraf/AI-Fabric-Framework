@@ -21,6 +21,8 @@ public class CustomerSelfServiceCatalogueService {
     private final DeploymentTargetProfileRepository profiles;
     private final CustomerReviewedCompositionService composition;
     private final CustomerTargetPlacementService placement;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     public CustomerSelfServiceCatalogueService(CustomerOfferEntitlementService access,
         CustomerOfferEntitlementRepository entitlements, DeploymentTargetProfileRepository profiles,
@@ -60,7 +62,10 @@ public class CustomerSelfServiceCatalogueService {
                     composition.requireProfile(profile, permission);
                     String readiness = "PLACEMENT_VERIFIED_ADMISSION_REQUIRED";
                     List<String> targetBlockers = new ArrayList<>();
-                    try {
+                    if (deploymentOperations != null) {
+                        placement.requireConfiguredPlacement(profile, permission.intent());
+                        readiness = "REVIEWED_TARGET_READY";
+                    } else try {
                         placement.requireFreshEvidence(profile, permission.intent());
                     } catch (CustomerSelfServiceException ex) {
                         if (ex.code() != PLACEMENT_EVIDENCE_REQUIRED && ex.code() != PLACEMENT_EVIDENCE_STALE) throw ex;
@@ -69,7 +74,7 @@ public class CustomerSelfServiceCatalogueService {
                         blockers.add(ex.code().name());
                     }
                     // Discovery never reserves capacity or claims admission readiness.
-                    targetBlockers.add(PREREQUISITE_EVIDENCE_REQUIRED.name());
+                    if (deploymentOperations == null) targetBlockers.add(PREREQUISITE_EVIDENCE_REQUIRED.name());
                     var capabilities = definition.operations().stream()
                         .filter(operation -> CustomerPermissionMatrix.row(operation).targetIntents().contains(permission.intent()))
                         .collect(java.util.stream.Collectors.toSet());

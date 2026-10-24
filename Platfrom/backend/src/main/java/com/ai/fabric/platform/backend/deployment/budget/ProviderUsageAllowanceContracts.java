@@ -54,6 +54,13 @@ public final class ProviderUsageAllowanceContracts {
         }
     }
 
+    record CoreReleaseContext(String releaseId, String versionId, String versionConfigHash, String requestFingerprint) {
+        CoreReleaseContext {
+            releaseId = text(releaseId, 64); versionId = text(versionId, 64);
+            versionConfigHash = text(versionConfigHash, 255); requestFingerprint = text(requestFingerprint, 255);
+        }
+    }
+
     public record AllocationScope(String approvalId, String customerId, String deploymentId,
                                   String targetProfileId, String environment) {
         public AllocationScope {
@@ -85,7 +92,14 @@ public final class ProviderUsageAllowanceContracts {
     // Internal immutable payload, separate from lifecycle metadata and never changed on retirement.
     record AllocationTerms(String approvalId, String grantId, AllocationScope scope, Limits caps, Instant expiresAt,
                            String pricingReference, ProviderBinding binding, String credentialSha256,
-                           ReviewedR7Context initialAdmission) { }
+                           ReviewedR7Context initialAdmission,
+                           @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                           CoreReleaseContext initialCoreRelease) {
+        AllocationTerms(String approvalId, String grantId, AllocationScope scope, Limits caps, Instant expiresAt,
+                        String pricingReference, ProviderBinding binding, String credentialSha256, ReviewedR7Context initialAdmission) {
+            this(approvalId, grantId, scope, caps, expiresAt, pricingReference, binding, credentialSha256, initialAdmission, null);
+        }
+    }
 
     static String text(String value, int max) {
         if (value == null || value.isBlank() || value.length() > max) throw invalid();

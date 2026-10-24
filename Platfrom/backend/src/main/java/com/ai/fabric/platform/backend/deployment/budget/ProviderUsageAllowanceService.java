@@ -41,7 +41,7 @@ import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllo
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageGrantLifecycleContracts.*;
 
 /**
- * Lifetime financial allowance issuer. Call only after the physical R7 transaction has committed.
+ * Lifetime financial allowance issuer. New releases are authorized by core, independently of capacity policy.
  * No model-call traffic, runtime DB bootstrap, provider calls, refunds, expiry jobs or retirement hooks.
  */
 @Service
@@ -200,11 +200,18 @@ public class ProviderUsageAllowanceService {
             AdmissionContracts.Reservation reservation = reservation(reviewed);
             GrantRow row = requireActiveGrant(command.grantId());
             ProviderUsageGrant grant = row.grant();
-            if (!grant.targetProfileId().equals(command.targetProfileId()) || !grant.binding().equals(command.binding())
-                || !grant.rateCardReference().equals(command.rateCardReference())) throw conflict("PROVIDER_USAGE_BINDING_CHANGED");
             DeploymentEntity deployment = ownedDeployment(command.deploymentId(), grant.customerId());
             DeploymentTargetProfileEntity profile = actualTarget(command.targetProfileId(), grant.environment());
             validateR7(reservation, reviewed, deployment, profile);
+            return allocateFinanciallyLocked(command, reviewed, null, row, deployment, profile, auditActor);
+    }
+
+    private SafeAllowanceProjection allocateFinanciallyLocked(AllocationCommand command, ReviewedR7Context reviewed,
+        CoreReleaseContext coreRelease, GrantRow row, DeploymentEntity deployment, DeploymentTargetProfileEntity profile,
+        AuditActor auditActor) {
+            ProviderUsageGrant grant = row.grant();
+            if (!grant.targetProfileId().equals(command.targetProfileId()) || !grant.binding().equals(command.binding())
+                || !grant.rateCardReference().equals(command.rateCardReference())) throw conflict("PROVIDER_USAGE_BINDING_CHANGED");
             String credentialSha = actualCredentialSha(command.deploymentId(), grant.binding());
             if (!credentialSha.equals(command.expectedCredentialSha256())) throw conflict("PROVIDER_USAGE_CREDENTIAL_CHANGED");
             var existing = jdbc.query("SELECT approval_id FROM provider_usage_allocations WHERE grant_id=? AND deployment_id=? AND target_profile_id=?",
@@ -225,7 +232,7 @@ public class ProviderUsageAllowanceService {
             String id = "pua-" + UUID.randomUUID();
             AllocationScope scope = new AllocationScope(id, grant.customerId(), deployment.getId(), profile.getId(), profile.getEnvironmentName());
             AllocationTerms terms = new AllocationTerms(id, grant.id(), scope, command.caps(), grant.expiresAt(), grant.rateCardReference(),
-                grant.binding(), credentialSha, reviewed);
+                grant.binding(), credentialSha, reviewed, coreRelease);
             String fingerprint = codec.fingerprint(terms);
             jdbc.update("""
                 INSERT INTO provider_usage_allocations
@@ -253,9 +260,10 @@ public class ProviderUsageAllowanceService {
         if (scope == null || storeUuid == null) throw invalid();
         sha(fingerprint);
         return transaction(() -> {
-            lockR7();
             var locator = allocation(scope.approvalId(), false);
             if (!locator.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
+            if (locator.terms().initialCoreRelease() != null) throw conflict("PROVIDER_USAGE_AUTHORIZED_RELEASE_REQUIRED");
+            lockR7();
             operatorAccess(scope.deploymentId());
             return transitionLocked(scope, storeUuid, fingerprint, activate, null, staffActor());
         });
@@ -263,11 +271,16 @@ public class ProviderUsageAllowanceService {
 
     private SafeAllowanceProjection transitionLocked(AllocationScope scope, UUID storeUuid, String fingerprint, boolean activate,
                                                      AuthorizedRelease authorized, AuditActor auditActor) {
-            // Immutable locator read; mutation lock order remains R7 -> grant -> allowance.
+            // Financial lock order remains grant -> allowance; legacy callers acquire their admission lock first.
             AllocationRow locator = allocation(scope.approvalId(), false);
             if (!locator.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
-            ReviewedR7Context reviewed = authorized == null ? locator.terms().initialAdmission() : authorized.reviewed();
-            AdmissionContracts.Reservation reservation = reservation(reviewed);
+            ReviewedR7Context reviewed = null;
+            AdmissionContracts.Reservation reservation = null;
+            if (authorized == null || authorized.coreRelease() == null) {
+                reviewed = authorized == null ? locator.terms().initialAdmission() : authorized.reviewed();
+                if (reviewed == null) throw conflict("PROVIDER_USAGE_AUTHORIZED_RELEASE_REQUIRED");
+                reservation = reservation(reviewed);
+            }
             requireActiveGrant(locator.terms().grantId());
             AllocationRow row = requireAllocation(scope.approvalId());
             ownedDeployment(scope.deploymentId(), scope.customerId()); actualTarget(scope.targetProfileId(), scope.environment());
@@ -280,7 +293,7 @@ public class ProviderUsageAllowanceService {
             }
             if (activate && row.state() != InitializationState.INITIALIZED) throw conflict("PROVIDER_USAGE_INITIALIZATION_REQUIRED");
             if (!clock.instant().isBefore(row.terms().expiresAt())) throw conflict("PROVIDER_USAGE_ALLOWANCE_EXPIRED");
-            validateR7(reservation, reviewed, ownedDeployment(scope.deploymentId(), scope.customerId()),
+            if (reservation != null) validateR7(reservation, reviewed, ownedDeployment(scope.deploymentId(), scope.customerId()),
                 actualTarget(scope.targetProfileId(), scope.environment()));
             if (!actualCredentialSha(scope.deploymentId(), row.terms().binding()).equals(row.terms().credentialSha256()))
                 throw conflict("PROVIDER_USAGE_CREDENTIAL_CHANGED");
@@ -301,14 +314,16 @@ public class ProviderUsageAllowanceService {
     SafeAllowanceProjection prepareForAuthorizedRelease(String releaseId) {
         text(releaseId, 64);
         return transaction(() -> {
-            lockR7();
             var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.PREPARE);
-            var version = versions.findById(authorized.reviewed().versionId())
+            var version = versions.findById(authorized.versionId())
                 .orElseThrow(() -> missing("PROVIDER_USAGE_VERSION_NOT_FOUND"));
             var grant = grantForRelease(authorized);
             ProviderUsageRuntimeProfile.require(grant.grant().binding(), grant.grant().rateCardReference());
             ProviderUsageRuntimeConfiguration.require(version.getProviderConfigJson(), codec, grant.grant().rateCardReference());
             var command = commandForRelease(authorized, grant);
+            if (authorized.coreRelease() != null)
+                return allocateFinanciallyLocked(command, null, authorized.coreRelease(), grant,
+                    authorized.deployment(), authorized.profile(), SYSTEM_ACTOR);
             return allocateLocked(command, authorized.reviewed(), SYSTEM_ACTOR);
         });
     }
@@ -317,7 +332,6 @@ public class ProviderUsageAllowanceService {
     Optional<SafeAllowanceProjection> findForAuthorizedRelease(String releaseId) {
         text(releaseId, 64);
         return transaction(() -> {
-            lockR7();
             var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.READ);
             return allocationForRelease(authorized).map(this::projection);
         });
@@ -334,7 +348,6 @@ public class ProviderUsageAllowanceService {
     private SafeAllowanceProjection transitionForRelease(String releaseId, UUID storeUuid, String runtimeFingerprint, boolean activate) {
         text(releaseId, 64); sha(runtimeFingerprint); if (storeUuid == null) throw invalid();
         return transaction(() -> {
-            lockR7();
             var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.INITIALIZE);
             var allocation = allocationForRelease(authorized).orElseThrow(() -> missing("PROVIDER_USAGE_ALLOCATION_NOT_FOUND"));
             return transitionLocked(allocation.terms().scope(), storeUuid, runtimeFingerprint, activate, authorized, SYSTEM_ACTOR);
@@ -344,6 +357,30 @@ public class ProviderUsageAllowanceService {
     private AuthorizedRelease authorizedRelease(String releaseId, ProviderUsageAuthorizedReleaseReader.Phase phase) {
         var reader = new ProviderUsageAuthorizedReleaseReader(jdbc, codec);
         var release = reader.release(releaseId, phase);
+        var core = ProviderUsageAuthorizedReleaseReader.coreAuthorization(jdbc, releaseId);
+        if (core.isPresent()) {
+            var authorization = core.get();
+            if (ProviderUsageModeResolver.mode(authorization.providerUsageMode()) != ProviderUsageModeResolver.Mode.FUNDED)
+                throw conflict("PROVIDER_USAGE_FUNDED_MODE_REQUIRED");
+            var deployment = ownedDeployment(authorization.deploymentId(), authorization.customerId());
+            var profile = targets.findById(authorization.targetProfileId())
+                .orElseThrow(() -> missing("PROVIDER_USAGE_TARGET_NOT_FOUND"));
+            profile = actualTarget(profile.getId(), profile.getEnvironmentName());
+            var version = versions.findById(authorization.versionId())
+                .orElseThrow(() -> missing("PROVIDER_USAGE_VERSION_NOT_FOUND"));
+            if (!Objects.equals(authorization.releaseId(), release.id())
+                || !Objects.equals(authorization.deploymentId(), release.deploymentId())
+                || !Objects.equals(authorization.tenantId(), deployment.getTenantId())
+                || !Objects.equals(authorization.versionId(), release.versionId())
+                || !Objects.equals(authorization.targetProfileId(), release.targetProfileId())
+                || !Objects.equals(authorization.sourceArtifactId(), release.sourceArtifactId())
+                || !Objects.equals(version.getDeploymentId(), deployment.getId())
+                || !Objects.equals(version.getConfigHash(), authorization.versionConfigHash())
+                || !"PUBLISHED".equals(version.getStatus()))
+                throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_SCOPE_CHANGED");
+            return new AuthorizedRelease(null, authorization.context(), authorization.versionId(), deployment, profile);
+        }
+        lockR7();
         var locator = reader.binding(releaseId, false);
         var reviewed = new ReviewedR7Context(locator.reservationId(), locator.generation(), locator.versionId());
         var reservation = reservation(reviewed);
@@ -355,7 +392,7 @@ public class ProviderUsageAllowanceService {
         var manifest = validateR7(reservation, reviewed, deployment, profile);
         if (!Objects.equals(manifest.demand(), reservation.demand())) throw conflict("PROVIDER_USAGE_R7_MANIFEST_DEMAND_CHANGED");
         reader.validate(release, binding, reservation, manifest, phase);
-        return new AuthorizedRelease(binding, reviewed, deployment, profile);
+        return new AuthorizedRelease(reviewed, null, binding.versionId(), deployment, profile);
     }
 
     private GrantRow grantForRelease(AuthorizedRelease authorized) {
@@ -390,7 +427,7 @@ public class ProviderUsageAllowanceService {
 
     private AllocationCommand commandForRelease(AuthorizedRelease authorized, GrantRow row) {
         var grant = row.grant();
-        // Physical admission authorizes the release; only the immutable staff grant authorizes provider credits.
+        // Release authority never supplies credits; only the immutable staff grant authorizes them.
         return new AllocationCommand(grant.id(), authorized.deployment().getId(), authorized.profile().getId(), grant.credits(),
             grant.binding(), grant.rateCardReference(), actualCredentialSha(authorized.deployment().getId(), grant.binding()));
     }
@@ -648,6 +685,6 @@ public class ProviderUsageAllowanceService {
     private record VoidRequest(String grantId, VoidUnusedCommand command) { }
     private record AllocationRow(AllocationTerms terms, String fingerprint, InitializationState state, UUID storeUuid, String initializationFingerprint) { }
     private record AuditActor(String id, String role) { }
-    private record AuthorizedRelease(AdmissionContracts.ReleaseBinding binding, ReviewedR7Context reviewed,
+    private record AuthorizedRelease(ReviewedR7Context reviewed, CoreReleaseContext coreRelease, String versionId,
                                      DeploymentEntity deployment, DeploymentTargetProfileEntity profile) { }
 }

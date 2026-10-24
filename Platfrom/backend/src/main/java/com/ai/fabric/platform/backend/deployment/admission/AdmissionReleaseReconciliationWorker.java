@@ -5,11 +5,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /** Runs release readback only on control-plane instances explicitly assigned lifecycle work. */
-@Service
-@ConditionalOnProperty(
-    name = "platform.deployment.admission.release.worker-enabled",
-    havingValue = "true"
-)
 final class AdmissionReleaseReconciliationWorker {
     private final AdmissionReleaseCoordinator coordinator;
 

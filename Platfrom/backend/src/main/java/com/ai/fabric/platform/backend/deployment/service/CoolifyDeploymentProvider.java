@@ -64,6 +64,8 @@ import java.util.function.Supplier;
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore coreReleaseAuthorizations;
     @Autowired
     private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver> effectiveRuntimeArtifacts;
 
@@ -316,7 +318,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 normalizeRuntimeBaseUrl(handle.getFqdn())
             ))
             .orElse(null);
-        if (externalAiState != null) {
+        if (externalAiState != null && !coldReplacement(release)) {
             previousRuntime = runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
             requireAiStateSequentialReplacement(release, previousRuntime);
         }
@@ -797,8 +799,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
 
         RuntimeGenerationCheckpointService.PriorRuntime generationPriorRuntime =
-            runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
-        var remoteGenerationEvidence = quiesceRuntimeGenerationDependencies(
+            coldReplacement(release) ? null : runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
+        var remoteGenerationEvidence = coldReplacement(release) ? null : quiesceRuntimeGenerationDependencies(
             deployment,
             release,
             generationPriorRuntime,
@@ -808,7 +810,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             resourceDefaults,
             progressTracker
         );
-        RuntimeGenerationCheckpointService.Checkpoint generationCheckpoint = prepareRuntimeGenerationReplacement(
+        RuntimeGenerationCheckpointService.Checkpoint generationCheckpoint = coldReplacement(release) ? null : prepareRuntimeGenerationReplacement(
             deployment,
             release,
             generationPriorRuntime,
@@ -824,7 +826,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         CoolifyActionResponse vectorizationRunnerDeployResponse = null;
         CoolifyApplicationSummary observedVectorizationRunner = null;
 
-        if (generationCheckpoint != null
+        if (coldReplacement(release) && previousRuntime != null) {
+            stopBeforeColdReplacement(connection, runtimeApplication, connectorApplication, vectorizationRunnerApplication,
+                resourceDefaults, progressTracker);
+        } else if (generationCheckpoint != null
             && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.FENCED) {
             String stopEvidence = tracked(
                 progressTracker,
@@ -1165,6 +1170,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             volumeName,
             RUNTIME_DATA_MOUNT_PATH
         );
+    }
+
+    void stopBeforeColdReplacement(CoolifyConnection connection, CoolifyApplicationSummary runtime,
+        CoolifyApplicationSummary connector, CoolifyApplicationSummary runner, JsonNode defaults,
+        ProvisioningProgressTracker tracker) {
+        if (connector != null) tracked(tracker, "cold_stop_connector", "Stop and confirm the owned connector before cold replacement.",
+            () -> stopApplicationBeforeSingleWriterReplacement(connection, connector, defaults, tracker));
+        if (runner != null) tracked(tracker, "cold_stop_indexing_runner", "Stop and confirm the owned indexing runner before cold replacement.",
+            () -> stopApplicationBeforeSingleWriterReplacement(connection, runner, defaults, tracker));
+        tracked(tracker, "cold_stop_previous_runtime", "Stop and confirm the owned previous runtime before cold replacement.",
+            () -> stopApplicationBeforeSingleWriterReplacement(connection, runtime, defaults, tracker));
     }
 
     String stopApplicationBeforeSingleWriterReplacement(
@@ -2385,7 +2401,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             && customerOfferDeploymentRepository.existsById(deployment.getId());
         CoolifyDatabaseRuntimeSettings databaseCapacity = CoolifyDatabaseCapacity.fromTargetDefaults(
             resourceDefaults, productizedCustomerDeployment);
-        if (productizedCustomerDeployment) {
+        if (productizedCustomerDeployment && coreReleaseAuthorizations == null) {
             if (customerAdmissionDatabaseCapacityVerifier == null) {
                 throw new ResponseStatusException(
                     HttpStatus.PRECONDITION_FAILED,
@@ -3160,8 +3176,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 throw new IllegalStateException("Customer provider-usage accounting coordinator is required.");
             }
             boolean durableTargetStore = runtimeDatabaseBinding != null;
-            requireDurableRuntimeStoreForProductizedDeployment(deployment, durableTargetStore);
-            boolean attestedTarget = durableTargetStore && StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());
+            if (!coldReplacement(release)) requireDurableRuntimeStoreForProductizedDeployment(deployment, durableTargetStore);
+            boolean attestedTarget = !coldReplacement(release) && durableTargetStore
+                && StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());
             putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", Boolean.toString(attestedTarget));
             putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", Boolean.toString(attestedTarget));
             if (attestedTarget) {
@@ -3196,6 +3213,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 "Productized Coolify runtimes require explicitly selected durable PostgreSQL for fencing and recovery."
             );
         }
+    }
+
+    private boolean coldReplacement(DeploymentReleaseEntity release) {
+        return coreReleaseAuthorizations != null && coreReleaseAuthorizations.find(release.getId()).isPresent();
     }
 
     void mergeFrozenRuntimeAuthorityEnvironment(DeploymentEntity deployment,

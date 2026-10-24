@@ -2,19 +2,41 @@ package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllowanceFailure.*;
 
-/** Called with the R7 mutex held; reservation locks precede binding locks, matching R7 apply. */
+/** New releases use immutable core authorization. Admission reads are confined to legacy releases. */
 final class ProviderUsageAuthorizedReleaseReader {
     enum Phase { READ, PREPARE, INITIALIZE }
     record Release(String id, String deploymentId, String versionId, String targetProfileId,
-                   String status, String provisioningStatus) { }
+                   String status, String provisioningStatus, String sourceArtifactId) { }
+
+    record CoreAuthorization(String releaseId, String customerId, String tenantId, String deploymentId,
+                             String targetProfileId, String versionId, String versionConfigHash, String sourceArtifactId,
+                             String operationKey, String actorId, String providerUsageMode, String decision,
+                             String requestFingerprint) {
+        void requireScope(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+            if (deployment == null || release == null || !Objects.equals(releaseId, release.getId())
+                || !Objects.equals(customerId, deployment.getCustomerId()) || !Objects.equals(tenantId, deployment.getTenantId())
+                || !Objects.equals(deploymentId, deployment.getId()) || !Objects.equals(deploymentId, release.getDeploymentId())
+                || !Objects.equals(targetProfileId, release.getTargetProfileId()) || !Objects.equals(versionId, release.getDeploymentVersionId())
+                || !Objects.equals(sourceArtifactId, release.getSourceArtifactId()))
+                throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_SCOPE_CHANGED");
+        }
+
+        ProviderUsageAllowanceContracts.CoreReleaseContext context() {
+            return new ProviderUsageAllowanceContracts.CoreReleaseContext(releaseId, versionId, versionConfigHash, requestFingerprint);
+        }
+    }
 
     private final JdbcTemplate jdbc;
     private final ProviderUsageAllowanceCodec codec;
@@ -25,9 +47,9 @@ final class ProviderUsageAuthorizedReleaseReader {
 
     Release release(String releaseId, Phase phase) {
         var rows = jdbc.query("""
-            SELECT id,deployment_id,deployment_version_id,target_profile_id,status,provisioning_status
+            SELECT id,deployment_id,deployment_version_id,target_profile_id,status,provisioning_status,source_artifact_id
               FROM platform_deployment_releases WHERE id=?
-            """, (rs, row) -> new Release(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6)), releaseId);
+            """, (rs, row) -> new Release(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7)), releaseId);
         if (rows.size() != 1) throw missing("PROVIDER_USAGE_RELEASE_REQUIRED");
         var release = rows.getFirst();
         Set<String> allowed = phase == Phase.READ
@@ -38,6 +60,27 @@ final class ProviderUsageAuthorizedReleaseReader {
             && (!Set.of("VERIFYING", "APPLIED_VERIFIED").contains(release.status()) || !"ACTIVE".equals(release.provisioningStatus()))))
             throw conflict("PROVIDER_USAGE_RELEASE_PHASE_DENIED");
         return release;
+    }
+
+    static Optional<CoreAuthorization> coreAuthorization(JdbcTemplate jdbc, String releaseId) {
+        var rows = jdbc.query("""
+            SELECT release_id,customer_id,tenant_id,deployment_id,target_profile_id,version_id,version_config_hash,
+                   source_artifact_id,operation_key,actor_id,provider_usage_mode,decision,request_fingerprint
+              FROM platform_release_authorizations WHERE release_id=?
+            """, (rs, row) -> new CoreAuthorization(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10),
+                rs.getString(11), rs.getString(12), rs.getString(13)), releaseId);
+        if (rows.isEmpty()) return Optional.empty();
+        if (rows.size() != 1) throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_CHANGED");
+        var authorization = rows.getFirst();
+        for (String value : new String[] {authorization.releaseId(), authorization.customerId(), authorization.tenantId(),
+            authorization.deploymentId(), authorization.targetProfileId(), authorization.versionId(), authorization.versionConfigHash(),
+            authorization.operationKey(), authorization.actorId(), authorization.requestFingerprint()})
+            if (value == null || value.isBlank()) throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_CHANGED");
+        if (authorization.decision() == null || !Set.of("ALLOWED", "OBSERVED", "BYPASSED").contains(authorization.decision()))
+            throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_DENIED");
+        ProviderUsageModeResolver.mode(authorization.providerUsageMode());
+        return Optional.of(authorization);
     }
 
     ReleaseBinding binding(String releaseId, boolean lock) {

@@ -281,7 +281,8 @@ class ManagedInboxProductionPersistenceGateTest {
             ObjectProvider<ManagedDependencyInitializationVerifier> verifiers = mock(ObjectProvider.class);
             when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
             when(verifier.supports(contract())).thenReturn(true);
-            service = new ProductionManagedDependencyPrerequisites(admission, graphs,
+            service = new ProductionManagedDependencyPrerequisites(admission,
+                mock(ManagedDependencyCoreReleaseAuthorization.class), graphs,
                 mock(DeploymentSourceArtifactRepository.class), new DeploymentSourceCapabilityManifestService(mapper),
                 snapshots, releases, mock(DeploymentReleaseEndpointService.class), provisioning, operations, gates,
                 verifiers, mapper, mock(ManagedDependencyArtifactPolicy.class));

@@ -1,0 +1,52 @@
+package com.ai.fabric.platform.backend.deployment.operations;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.*;
+
+@SpringBootTest(properties = {
+    "platform.auth.enabled=true", "platform.auth.api-key-enabled=false", "platform.auth.session-enabled=true",
+    "platform.auth.bootstrap-admin-enabled=true", "platform.auth.bootstrap-admin-email=operations-test@example.invalid",
+    "platform.auth.bootstrap-admin-password=TestOperations123!", "platform.auth.session-cookie-secure=false",
+    "platform.deployment-operations.mode=ENFORCE",
+    "platform.deployment-operations.service-url=http://127.0.0.1:1",
+    "platform.deployment-operations.allow-insecure-http=true",
+    "platform.deployment-operations.api-key=private-test-service-key-never-expose",
+    "platform.deployment-operations.provider-usage-mode=TEAM_AUTHORIZED",
+    "platform.deployment-operations.team-authorized-targets=reviewed-staging",
+    "platform.deployment.admission.lifecycle.worker-enabled=true",
+    "platform.deployment.admission.release.worker-enabled=true",
+    "platform.target-retirement.worker-enabled=true"
+})
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class DeploymentOperationsApplicationIntegrationTest {
+    @Autowired private MockMvc mvc;
+    @Autowired private org.springframework.context.ApplicationContext context;
+
+    @Test void optionalServiceOutageDoesNotPreventStartupAndConfigurationIsAuthenticatedAndSafe() throws Exception {
+        mvc.perform(get("/api/deployment-operations/status")).andExpect(status().isUnauthorized());
+        var response = mvc.perform(post("/api/platform/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"operations-test@example.invalid\",\"password\":\"TestOperations123!\"}"))
+            .andExpect(status().isOk()).andReturn().getResponse();
+        String setCookie = response.getHeader("Set-Cookie");
+        assertThat(setCookie).isNotBlank();
+        String[] cookie = setCookie.split(";", 2)[0].split("=", 2);
+        var result = mvc.perform(get("/api/deployment-operations/status").cookie(new jakarta.servlet.http.Cookie(cookie[0], cookie[1])))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.mode").value("ENFORCE"))
+            .andExpect(jsonPath("$.decisionSource").value("EXTERNAL_SERVICE"))
+            .andExpect(jsonPath("$.manualDeploymentsAllowed").value(true)).andReturn().getResponse().getContentAsString();
+        assertThat(result).doesNotContain("private-test-service-key", "127.0.0.1", "password");
+        assertThat(context.containsBean("admissionLifecycleWorker")).isFalse();
+        assertThat(context.containsBean("admissionReleaseReconciliationWorker")).isFalse();
+        assertThat(context.containsBean("targetRetirementScheduler")).isFalse();
+    }
+}

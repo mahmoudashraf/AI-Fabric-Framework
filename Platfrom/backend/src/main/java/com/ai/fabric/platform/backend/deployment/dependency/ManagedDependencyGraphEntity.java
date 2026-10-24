@@ -26,6 +26,7 @@ public class ManagedDependencyGraphEntity {
     @Column(nullable = false) private String status;
     @Column(nullable = false) private String step;
     @Column private String failureCode;
+    /** Historical column; new graphs store an explicit core-release:<releaseId> authority reference. */
     @Column private String reservationRef;
     @Column private String workerToken;
     @Column(nullable = false) private long revision;

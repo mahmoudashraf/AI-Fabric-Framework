@@ -1,0 +1,42 @@
+services:
+  operations-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: deployment_operations
+      POSTGRES_USER: deployment_operations
+      POSTGRES_PASSWORD: ${DEPLOYMENT_OPERATIONS_JDBC_PASSWORD:?Set a dedicated database password}
+    volumes:
+      - operations-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U deployment_operations -d deployment_operations"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  operations:
+    build:
+      context: .
+      dockerfile: deploy/container/Dockerfile
+    environment:
+      PORT: 8087
+      DEPLOYMENT_OPERATIONS_JDBC_URL: jdbc:postgresql://operations-db:5432/deployment_operations
+      DEPLOYMENT_OPERATIONS_JDBC_USERNAME: deployment_operations
+      DEPLOYMENT_OPERATIONS_JDBC_PASSWORD: ${DEPLOYMENT_OPERATIONS_JDBC_PASSWORD:?Set a dedicated database password}
+      DEPLOYMENT_OPERATIONS_API_KEY: ${DEPLOYMENT_OPERATIONS_API_KEY:?Set a service-only bearer secret}
+      DEPLOYMENT_OPERATIONS_CAPACITY_POLICY_JSON: ${DEPLOYMENT_OPERATIONS_CAPACITY_POLICY_JSON:?Set server-owned capacity policy JSON}
+      DEPLOYMENT_OPERATIONS_HOLD_TTL: ${DEPLOYMENT_OPERATIONS_HOLD_TTL:-5m}
+      JAVA_OPTS: -Xms64m -Xmx256m
+    ports:
+      - "127.0.0.1:${DEPLOYMENT_OPERATIONS_HOST_PORT:-8087}:8087"
+    depends_on:
+      operations-db:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+volumes:
+  operations-data:

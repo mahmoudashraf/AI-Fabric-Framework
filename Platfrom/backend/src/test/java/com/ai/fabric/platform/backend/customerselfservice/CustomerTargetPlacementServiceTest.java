@@ -70,6 +70,14 @@ class CustomerTargetPlacementServiceTest {
         verify(client).getServer(connection, "stage-server");
     }
 
+    @Test void configuredPlacementPreservesTrustedServerIdentityWithoutAProbeLease() {
+        service.requireConfiguredPlacement(profile, TargetIntent.CUSTOMER_STAGING);
+        verifyNoInteractions(resolver, client, evidenceRepository);
+        profile.setProviderConfigJson("{\"serverUuid\":\"prod-server\",\"destinationUuid\":\"destination\"}");
+        assertThatThrownBy(() -> service.requireConfiguredPlacement(profile, TargetIntent.CUSTOMER_STAGING))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, error -> assertThat(error.code()).isEqualTo(PLACEMENT_DENIED));
+    }
+
     @Test
     void mislabeledProductionServerNeverBecomesCustomerStaging() {
         profile.setId("dtp-coolify-prod-staging");

@@ -17,6 +17,13 @@ class CustomerStagingAssignmentAccessGateTest {
     private final CustomerStagingAssignmentAccessGate gate = new CustomerStagingAssignmentAccessGate(
         store, Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
 
+    @Test void externalOperationsDoesNotReadLegacyExpiryRecordsForAssignmentResolution() {
+        org.springframework.test.util.ReflectionTestUtils.setField(gate, "operationsProperties",
+            new com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties());
+        gate.requireAvailable("customer", "deployment", AdmissionFixture.TARGET);
+        org.mockito.Mockito.verifyNoInteractions(store);
+    }
+
     @Test
     void permitsAStillCurrentCustomerStagingAssignment() {
         when(store.held("deployment", AdmissionFixture.TARGET)).thenReturn(List.of(

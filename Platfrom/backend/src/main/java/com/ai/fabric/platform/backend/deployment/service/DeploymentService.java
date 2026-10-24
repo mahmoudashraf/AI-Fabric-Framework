@@ -164,6 +164,9 @@ public class DeploymentService {
     private com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary;
 
     @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
+
+    @Autowired
     private com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
     @Autowired
     private com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDeploymentSecurityProjectionService workspaceSecurityProjection;
@@ -1783,10 +1786,16 @@ public class DeploymentService {
                 release.getId(), authorityRelease.fingerprint());
         }
         if (externalBindingsRequired && authorityCandidate == null) throw new IllegalStateException("EXTERNAL_INTEGRATION_AUTHORITY_REQUIRED");
-        releaseRepository.save(release);
+        releaseRepository.saveAndFlush(release);
 
         deployment.setStatus("APPLY_REQUESTED");
-        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.bind(deployment, version, release);
+        if (deploymentOperations != null) {
+            var decision = deploymentOperations.authorize(deployment, version, release, operationKey);
+            ObjectNode details = (ObjectNode) readJson(release.getProvisioningDetailsJson());
+            details.set("deploymentOperations", objectMapper.valueToTree(decision));
+            release.setProvisioningDetailsJson(details.toString());
+            releaseRepository.save(release);
+        } else if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.bind(deployment, version, release);
         else if (customerOfferDeploymentRepository.existsById(deploymentId)) {
             throw new IllegalStateException("Customer release admission coordinator is required.");
         }

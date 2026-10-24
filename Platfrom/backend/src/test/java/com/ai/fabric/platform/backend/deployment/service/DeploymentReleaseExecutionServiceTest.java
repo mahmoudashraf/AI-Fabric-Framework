@@ -47,6 +47,41 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @Test void coreAuthorizedApplyProvisionsAndVerifiesWithoutCallingLegacyAdmission() {
+        var fixture = new BindingApplyFixture(); fixture.prepareContinuation();
+        fixture.release.setProvisioningDetailsJson("{}");
+        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
+        ReflectionTestUtils.setField(fixture.service, "deploymentOperations", operations);
+        ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService",
+            new DeploymentReleaseProgressService(fixture.releases, fixture.mapper));
+        when(fixture.provisioning.provision(any(), any(), any(), any())).thenReturn(
+            new ProvisioningResult("ACTIVE", "COOLIFY", "https://runtime.example", "https://connector.example", "{}"));
+        when(fixture.verification.verify(fixture.deployment, fixture.version, fixture.release, "POST_APPLY"))
+            .thenAnswer(call -> { var run = new DeploymentVerificationRunEntity(); run.setId("verified"); run.setStatus("PASSED"); return run; });
+        fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
+        assertThat(fixture.release.getStatus()).isEqualTo("APPLIED_VERIFIED");
+        var order = inOrder(operations, fixture.provisioning, fixture.dependencies, fixture.verification);
+        order.verify(operations).require(fixture.deployment, fixture.version, fixture.release);
+        order.verify(fixture.provisioning).provision(any(), any(), any(), any());
+        order.verify(fixture.dependencies).completeRuntimeBound(any(), any(), any());
+        order.verify(fixture.verification).verify(any(), any(), any(), eq("POST_APPLY"));
+        verifyNoInteractions(fixture.admission);
+    }
+
+    @Test void coreAuthorityFailureRemainsFatalBeforeProviderEffects() {
+        var fixture = new BindingApplyFixture(); fixture.prepareContinuation(); fixture.release.setProvisioningDetailsJson("{}");
+        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
+        ReflectionTestUtils.setField(fixture.service, "deploymentOperations", operations);
+        ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService",
+            new DeploymentReleaseProgressService(fixture.releases, fixture.mapper));
+        org.mockito.Mockito.doThrow(new IllegalStateException("CORE_RELEASE_AUTHORIZATION_SCOPE_CHANGED"))
+            .when(operations).require(any(), any(), any());
+        fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
+        assertThat(fixture.release.getStatus()).isEqualTo("FAILED");
+        assertThat(fixture.release.getErrorMessage()).contains("CORE_RELEASE_AUTHORIZATION_SCOPE_CHANGED");
+        verifyNoInteractions(fixture.admission, fixture.provisioning, fixture.dependencies, fixture.datasets);
+    }
+
     @Test
     void liveApplyCannotBeRecoveredOrDuplicatedWhileRuntimeDependenciesInitialize() {
         var fixture = new BindingApplyFixture();

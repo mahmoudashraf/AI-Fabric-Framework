@@ -113,6 +113,38 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
+    @Test void externalOperationsPathDoesNotRequireCapacityOrPlacementLease() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations",
+            mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class));
+        var approved = service.authorize("customer", request(Operation.APPLY));
+        assertThat(approved.context().placementEvidenceId()).isNull();
+        verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(placement, never()).requireFreshEvidence(any(), any());
+        verifyNoInteractions(provider);
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("other-customer", request(Operation.APPLY)));
+        grant.setStatus(EntitlementStatus.REVOKED);
+        assertCode(ENTITLEMENT_REVOKED, () -> service.authorize("customer", request(Operation.APPLY)));
+    }
+
+    @Test void sourceAccessStillRequiresTheFrozenOwnedStorageBindingWithoutCapacityRecords() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations",
+            mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class));
+        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
+        var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
+        release.setDeploymentVersionId("version"); release.setTargetProfileId("staging-target");
+        release.setSourceArtifactId("runtime-artifact");
+        when(releases.findById("release")).thenReturn(Optional.of(release));
+        when(bindings.required(any())).thenReturn(true);
+        var source = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", "release",
+            Operation.SOURCE_PREVIEW, "preview-command", Set.of(), null, null, DocumentAudience.PUBLIC);
+        service.authorize("customer", source);
+        verify(bindings).requireUnchanged(eq(deployment), any(), eq(release));
+        verifyNoInteractions(provider);
+        doThrow(new IllegalStateException("STORAGE_BINDING_CHANGED")).when(bindings).requireUnchanged(any(), any(), any());
+        assertThatThrownBy(() -> service.authorize("customer", source)).hasMessage("STORAGE_BINDING_CHANGED");
+    }
+
     @Test void authorityCandidatePreflightRechecksOfferTargetEntitlementAndPlacementWithoutAdmissionEvidence() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
 

@@ -149,6 +149,14 @@ platform:
     runtime-proxy-timeout-ms: ${PLATFORM_RUNTIME_PROXY_TIMEOUT_MS:60000}
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
+  deployment-operations:
+    mode: ${PLATFORM_DEPLOYMENT_OPERATIONS_MODE:DISABLED}
+    service-url: ${PLATFORM_DEPLOYMENT_OPERATIONS_SERVICE_URL:}
+    api-key: ${PLATFORM_DEPLOYMENT_OPERATIONS_API_KEY:}
+    timeout: ${PLATFORM_DEPLOYMENT_OPERATIONS_TIMEOUT:PT1S}
+    allow-insecure-http: ${PLATFORM_DEPLOYMENT_OPERATIONS_ALLOW_INSECURE_HTTP:false}
+    provider-usage-mode: ${PLATFORM_DEPLOYMENT_PROVIDER_USAGE_MODE:FUNDED}
+    team-authorized-targets: ${PLATFORM_DEPLOYMENT_TEAM_AUTHORIZED_TARGETS:}
   deployment:
     admission:
       release:

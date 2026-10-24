@@ -44,6 +44,7 @@ import static org.mockito.Mockito.*;
 class ProductionManagedDependencyPrerequisitesTest {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final ManagedDependencyAdmissionLedger admission = mock(ManagedDependencyAdmissionLedger.class);
+    private final ManagedDependencyCoreReleaseAuthorization core = mock(ManagedDependencyCoreReleaseAuthorization.class);
     private final ManagedDependencyGraphStore graphs = mock(ManagedDependencyGraphStore.class);
     private final DeploymentSourceArtifactRepository artifacts = mock(DeploymentSourceArtifactRepository.class);
     private final RuntimeAuthoritySnapshotRepository snapshots = mock(RuntimeAuthoritySnapshotRepository.class);
@@ -140,7 +141,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(releases.findById("release")).thenReturn(Optional.of(release));
         when(verifiers.orderedStream()).thenReturn(Stream.empty());
 
-        prerequisites = new ProductionManagedDependencyPrerequisites(admission, graphs, artifacts, manifests,
+        prerequisites = new ProductionManagedDependencyPrerequisites(admission, core, graphs, artifacts, manifests,
             snapshots, releases, endpoints, provisioning, retirementOperations, retirementGates, verifiers, mapper,
             new ManagedDependencyArtifactPolicy(artifacts, manifests));
         when(artifacts.findById(service.sourceArtifactId()))
@@ -170,6 +171,117 @@ class ProductionManagedDependencyPrerequisitesTest {
         assertThat(first.origins()).containsExactly("https://customer.example.test");
         assertThat(first.callbacks()).isEmpty();
         verify(admission, times(2)).requireForExecution(any(), isNull());
+    }
+
+    @Test
+    void coreReleaseAuthorizationDoesNotManufactureOrReadACapacityReservation() {
+        useCoreAuthorization(false);
+        graph.setReservationRef(null);
+
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION);
+
+        assertThat(result.reservationRef()).isNull();
+        assertThat(result.coreReleaseAuthorizationRef()).isEqualTo("release");
+        assertThat(result.authorityReference()).isEqualTo("core-release:release");
+        graph.setReservationRef(result.authorityReference());
+        prerequisites.validateReservation(scope, graph.getReservationRef());
+        prerequisites.validateExecutionReservation(scope, graph.getReservationRef());
+        prerequisites.validateArtifact(scope, spec.services().getFirst());
+        verifyNoInteractions(admission, provisioning);
+    }
+
+    @Test
+    void coreReleaseCannotUseAnotherAuthorityReferenceOrFrozenConfig() {
+        useCoreAuthorization(false);
+        assertThatThrownBy(() -> prerequisites.validateExecutionReservation(scope, "core-release:other"))
+            .hasMessageContaining("DEPENDENCY_AUTHORIZATION_DRIFT");
+        when(core.find(scope, graph, spec)).thenReturn(Optional.of(
+            new ManagedDependencyCoreReleaseAuthorization.Proof("release", "changed-config", false)));
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec,
+            ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining("DEPENDENCY_AUTHORITY_CONFIG_CHANGED");
+        verifyNoInteractions(admission, provisioning);
+    }
+
+    @Test
+    void effectiveCoreInboxRechecksOwnedResourcesAndCallbackCanaryWithoutAdmissionFreshness() throws Exception {
+        existingProductionInbox();
+        useCoreAuthorization(true);
+        var service = spec.services().getFirst();
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports(service.initializationContract())).thenReturn(true);
+        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
+        clearInvocations(admission, provisioning);
+
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
+        assertThat(result.existingConfiguration()).isTrue();
+        assertThat(result.reservationRef()).isNull();
+        assertThat(result.callbacks()).containsEntry("inbox",
+            "https://connector.example.test/integrations/conversation-channel/events");
+        prerequisites.validateExecutionReservation(scope, result.authorityReference());
+        prerequisites.validateArtifact(scope, service);
+        var node = state.nodes.getFirst();
+        var binding = new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
+            node.accountId, node.bindingId, Map.copyOf(node.secrets));
+        prerequisites.initializeAndVerify(scope, service.initializationContract(), binding, "core-init");
+
+        verifyNoInteractions(admission);
+        verify(provisioning).ownedDependencyConnection("target", "production");
+        verify(provisioning).verifyOwnedDependencyReady(any(), eq("graph"), eq("managed-service"), eq("inbox"),
+            eq("application"), eq("database"), eq(Map.of("/app/data", "volume")));
+        verify(verifier).initializeAndVerify(scope, service.initializationContract(), binding, "core-init");
+    }
+
+    @Test
+    void coreInboxMissingOwnedResourcesOrProviderReadbackCannotClaimInitialization() throws Exception {
+        existingProductionInbox();
+        useCoreAuthorization(true);
+        var node = state.nodes.getFirst();
+        node.applicationUuid = null;
+        clearInvocations(admission);
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        verifyNoInteractions(provisioning);
+
+        node.applicationUuid = "application";
+        var service = spec.services().getFirst();
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports(service.initializationContract())).thenReturn(true);
+        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
+        doThrow(new IllegalStateException("provider-readback-failed")).when(provisioning)
+            .verifyOwnedDependencyReady(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyMap());
+        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, service.initializationContract(),
+            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
+                node.accountId, node.bindingId, Map.copyOf(node.secrets)), "core-init"))
+            .hasMessageContaining("provider-readback-failed");
+        verify(verifier, never()).initializeAndVerify(any(), any(), any(), any());
+        verifyNoInteractions(admission);
+    }
+
+    @Test
+    void coreAuthorizationDoesNotSupplyMissingSecretsOrUnprovenCallbacks() throws Exception {
+        configureSpecAndSecrets(new ManagedDependencySpec(spec.schemaVersion(), spec.services(), List.of(
+            new ManagedDependencySpec.RuntimeEnvironmentBinding(ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.TARGET_SECRET, "conversation-handover-callback-signing")))), Map.of());
+        useCoreAuthorization(false);
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining("DEPENDENCY_TARGET_SECRET_UNAVAILABLE");
+
+        existingProductionInbox();
+        useCoreAuthorization(true);
+        when(endpoints.connectorBaseUrl(releases.findById("release").orElseThrow())).thenReturn(null);
+        clearInvocations(admission);
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_CALLBACK_ENDPOINT_MISSING");
+        verifyNoInteractions(admission, provisioning);
+    }
+
+    private void useCoreAuthorization(boolean production) {
+        graph.setReservationRef("core-release:release");
+        when(core.find(scope, graph, spec)).thenReturn(Optional.of(
+            new ManagedDependencyCoreReleaseAuthorization.Proof("release", authority.versionConfigHash(), production)));
+        clearInvocations(admission);
     }
 
     @Test

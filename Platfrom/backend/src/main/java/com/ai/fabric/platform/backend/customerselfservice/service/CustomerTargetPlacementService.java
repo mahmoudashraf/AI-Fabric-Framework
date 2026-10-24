@@ -75,6 +75,15 @@ public class CustomerTargetPlacementService {
         catch (RuntimeException ex) { throw conflict(PREFLIGHT_REQUIRED); }
     }
 
+    /** Reviewed target identity is core authorization; capacity/preflight leases are optional operations policy. */
+    public void requireConfiguredPlacement(DeploymentTargetProfileEntity profile, TargetIntent intent) {
+        var trusted = trusted(intent);
+        var config = codec.tree(profile.getProviderConfigJson());
+        if (!profile.isActive() || profile.getProviderType() != DeploymentProviderType.COOLIFY
+            || !trusted.uuid().equals(config.path("serverUuid").asText())
+            || blank(config.path("destinationUuid").asText())) throw conflict(PLACEMENT_DENIED);
+    }
+
     /** Pure database/config validation, safe to use while the owning command holds entitlement locks. */
     public CustomerPlacementEvidenceEntity requireFreshEvidence(DeploymentTargetProfileEntity profile, TargetIntent intent) {
         trusted(intent);

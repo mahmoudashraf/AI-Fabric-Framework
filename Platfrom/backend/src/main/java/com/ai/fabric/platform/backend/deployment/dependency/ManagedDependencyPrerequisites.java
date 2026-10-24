@@ -3,7 +3,7 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 import java.util.List;
 import java.util.Map;
 
-/** Adapter to existing template admission, target bindings, runtime sync and R3 drain policy.
+/** Adapter to core release authorization, target bindings, runtime sync and owned retirement.
  * No default implementation: absent reviewed prerequisites must block provisioning.
  */
 public interface ManagedDependencyPrerequisites {
@@ -18,19 +18,35 @@ public interface ManagedDependencyPrerequisites {
                 specFingerprint, bindingFingerprint);
         }
     }
+    /** Release authority and reviewed bindings. The legacy type name is not a capacity assertion. */
     record Admission(String reservationRef, String bindingFingerprint,
                      Map<String, String> callbacks, List<String> origins,
-                     Map<String, String> targetValues, Map<String, String> targetSecretReferences, boolean existingConfiguration) {
+                     Map<String, String> targetValues, Map<String, String> targetSecretReferences,
+                     boolean existingConfiguration, String coreReleaseAuthorizationRef) {
+        public Admission(String reservationRef, String bindingFingerprint, Map<String, String> callbacks, List<String> origins,
+                         Map<String, String> targetValues, Map<String, String> targetSecretReferences, boolean existingConfiguration) {
+            this(reservationRef, bindingFingerprint, callbacks, origins, targetValues, targetSecretReferences,
+                existingConfiguration, null);
+        }
         public Admission(String reservationRef, String bindingFingerprint, Map<String, String> callbacks, List<String> origins,
                          Map<String, String> targetValues, Map<String, String> targetSecretReferences) {
             this(reservationRef, bindingFingerprint, callbacks, origins, targetValues, targetSecretReferences, false);
+        }
+
+        /** A core authorization is not an R7 reservation or evidence that capacity was reserved. */
+        public String authorityReference() {
+            if (coreReleaseAuthorizationRef != null) {
+                if (reservationRef != null || coreReleaseAuthorizationRef.isBlank()) return null;
+                return "core-release:" + coreReleaseAuthorizationRef;
+            }
+            return reservationRef;
         }
     }
     record Binding(String slot, String serviceRef, String baseUrl, String accountId,
                    String bindingId, Map<String, String> secretReferences) {}
 
-    // Must atomically reserve the complete graph, include builds/concurrent work, and revalidate entitlement.
-    // Repeated graphId + fingerprint returns the same durable reservation; never manufacture capacity.
+    // Revalidate the exact release/spec/owner authority. New releases carry core authorization;
+    // the reservation field is populated only for an existing historical R7-backed graph.
     Admission reserve(Scope scope, ManagedDependencySpec spec, ProvisioningPhase phase);
     void validateReservation(Scope scope, String reservationRef);
     // Provider-effect checkpoints refresh real placement outside transactions; metadata projection stays read-only.

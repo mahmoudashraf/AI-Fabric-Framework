@@ -43,6 +43,11 @@ public class CustomerSelfServiceAuthorizationService {
     private final CustomerSelfServiceProperties properties;
     private final CustomerOfferDeploymentRepository offerDeployments;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
+
     public CustomerSelfServiceAuthorizationService(CustomerOfferEntitlementService entitlements,
         CustomerReviewedCompositionService composition, CustomerTargetPlacementService placement,
         DeploymentRepository deployments, DeploymentReleaseRepository releases, DeploymentVersionRepository versions,
@@ -183,7 +188,8 @@ public class CustomerSelfServiceAuthorizationService {
         composition.validate(definition);
         var profile = profiles.findById(target.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
         composition.requireProfile(profile, target);
-        var placementEvidence = switch (evidenceMode) {
+        if (deploymentOperations != null) placement.requireConfiguredPlacement(profile, target.intent());
+        var placementEvidence = deploymentOperations != null ? null : switch (evidenceMode) {
             case SOURCE_REFRESH -> null;
             case OPERATIONAL_READ -> placement.requireOperationalReadEvidence(profile, target.intent());
             default -> placement.requireFreshEvidence(profile, target.intent());
@@ -239,6 +245,10 @@ public class CustomerSelfServiceAuthorizationService {
 
     public void requirePrerequisites(AdmissionContext context, Set<Prerequisite> required) {
         if (required.isEmpty()) return;
+        if (deploymentOperations != null) {
+            requireCorePrerequisites(context, required);
+            return;
+        }
         List<CustomerPrerequisiteEvidenceProvider> providers = evidenceProviders.orderedStream().toList();
         if (providers.size() != 1 || properties.evidenceMaxAgeSeconds() <= 0) throw conflict(PREREQUISITE_EVIDENCE_REQUIRED);
         PrerequisiteEvidence evidence;
@@ -253,6 +263,21 @@ public class CustomerSelfServiceAuthorizationService {
             if (required.contains(prerequisite) && !evidence.passed().contains(prerequisite)) throw conflict(error(prerequisite));
         }
         if (required.contains(Prerequisite.CAPACITY) && blank(evidence.capacityReservationId())) throw conflict(CAPACITY_REQUIRED);
+    }
+
+    private void requireCorePrerequisites(AdmissionContext context, Set<Prerequisite> required) {
+        // Provisioning validates new connections; source commands validate the actual frozen release binding.
+        if (blank(context.releaseId())) return;
+        var release = releases.findById(context.releaseId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        var deployment = deployments.findById(context.deploymentId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        var version = versions.findById(release.getDeploymentVersionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        if (!context.deploymentId().equals(release.getDeploymentId())
+            || !context.targetProfileId().equals(release.getTargetProfileId())
+            || !context.customerId().equals(deployment.getCustomerId()) || !context.tenantId().equals(deployment.getTenantId())
+            || !deployment.getId().equals(version.getDeploymentId()) || !"PUBLISHED".equals(version.getStatus()))
+            throw deny(RESOURCE_SCOPE_MISMATCH);
+        if (required.contains(Prerequisite.STORAGE) && documentBindings.required(version))
+            documentBindings.requireUnchanged(deployment, version, release);
     }
 
     /** Validate actual values, not just the caller's declaration of changed field names. */
@@ -314,7 +339,8 @@ public class CustomerSelfServiceAuthorizationService {
         var entitlement = entitlements.requireEntitlement(context.customerId(), context.offerId(), ownerId, true);
         if (entitlement.getRevision() != context.entitlementRevision()) throw conflict(REVISION_CONFLICT);
         var profile = profiles.findById(context.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
-        placement.requireEvidenceById(profile, context.intent(), context.placementEvidenceId());
+        if (deploymentOperations != null) placement.requireConfiguredPlacement(profile, context.intent());
+        else placement.requireEvidenceById(profile, context.intent(), context.placementEvidenceId());
         var deployment = deployments.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         entitlements.requireOperationKey(context.operationKey());
         if (!context.customerId().equals(deployment.getCustomerId()) || blank(deployment.getTenantId())

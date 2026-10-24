@@ -1,0 +1,59 @@
+server:
+  port: ${PORT:8087}
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+  tomcat:
+    connection-timeout: 5s
+    max-connections: 100
+    accept-count: 20
+    threads:
+      max: 20
+
+spring:
+  application:
+    name: deployment-operations-service
+  datasource:
+    url: ${DEPLOYMENT_OPERATIONS_JDBC_URL:jdbc:postgresql://localhost:5432/deployment_operations}
+    username: ${DEPLOYMENT_OPERATIONS_JDBC_USERNAME:deployment_operations}
+    password: ${DEPLOYMENT_OPERATIONS_JDBC_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 3000
+      validation-timeout: 1000
+      data-source-properties:
+        connectTimeout: 3
+        socketTimeout: 10
+  jdbc:
+    template:
+      query-timeout: 5
+  flyway:
+    enabled: true
+    locations: classpath:db/deployment-operations-migration
+  mvc:
+    log-request-details: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+loomai:
+  deployment-operations:
+    api-key: ${DEPLOYMENT_OPERATIONS_API_KEY:}
+    capacity-policy-json: '${DEPLOYMENT_OPERATIONS_CAPACITY_POLICY_JSON:{"revision":"unconfigured","targets":{}}}'
+    hold-ttl: ${DEPLOYMENT_OPERATIONS_HOLD_TTL:5m}
+    max-request-age: ${DEPLOYMENT_OPERATIONS_MAX_REQUEST_AGE:5m}
+    max-clock-skew: ${DEPLOYMENT_OPERATIONS_MAX_CLOCK_SKEW:30s}
+    max-body-bytes: ${DEPLOYMENT_OPERATIONS_MAX_BODY_BYTES:16384}

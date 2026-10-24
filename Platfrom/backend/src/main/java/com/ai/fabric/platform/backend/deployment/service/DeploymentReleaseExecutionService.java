@@ -46,6 +46,9 @@ public class DeploymentReleaseExecutionService {
     @Autowired
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
+
     private static final Logger log = LoggerFactory.getLogger(DeploymentReleaseExecutionService.class);
 
     private final DeploymentRepository deploymentRepository;
@@ -303,7 +306,8 @@ public class DeploymentReleaseExecutionService {
             .required(readJson(version.getCompositionProvenanceJson()))) {
             transactionOperations.executeWithoutResult(status -> externalIntegrations.releaseEnvironmentForProvisioning(deployment, version, release));
         }
-        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
+        if (deploymentOperations != null) deploymentOperations.require(deployment, version, release);
+        else if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
 
         if (providerUsageReleaseCoordinator != null) providerUsageReleaseCoordinator.prepare(deployment, release);
@@ -718,8 +722,16 @@ public class DeploymentReleaseExecutionService {
     }
 
     private void observeAdmissionAfterCommit(String releaseId) {
-        if (admissionReleaseCoordinator == null) return;
+        if (deploymentOperations == null && admissionReleaseCoordinator == null) return;
         Runnable observe = () -> {
+            if (deploymentOperations != null) {
+                var release = getRelease(releaseId);
+                String status = "APPLIED_VERIFIED".equals(release.getStatus()) ? "ACTIVE"
+                    : Set.of("FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED").contains(release.getStatus())
+                    ? "FAILED" : null;
+                if (status != null) deploymentOperations.report(releaseId, status);
+                return;
+            }
             try { admissionReleaseCoordinator.observe(releaseId); }
             catch (RuntimeException error) { log.warn("Release admission reconciliation remains pending for {}", releaseId); }
         };

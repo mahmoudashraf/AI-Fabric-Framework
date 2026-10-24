@@ -12,8 +12,6 @@ import org.springframework.data.domain.PageRequest;
 
 import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.*;
 
-@Service
-@ConditionalOnProperty(name = "platform.target-retirement.worker-enabled", havingValue = "true")
 public class TargetRetirementScheduler {
     private static final Logger log = LoggerFactory.getLogger(TargetRetirementScheduler.class);
     private final TargetRetirementOperationRepository operations;

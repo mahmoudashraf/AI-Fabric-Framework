@@ -242,6 +242,46 @@ class CustomerGoLiveReadinessServiceTest {
         verifyNoInteractions(dependencyEvidence);
     }
 
+    @Test
+    void coreVerifiedReadinessDoesNotRequireCapacityReservationsOrAutomaticRetirement() {
+        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
+        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations", operations);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
+        when(operations.status()).thenReturn(new com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts.Status(
+            "DISABLED",true,false,"TEAM_AUTHORIZED","EXTERNAL_SERVICE"));
+
+        var summary = service.project("offer", "deployment", "production-release", "workspace");
+
+        assertThat(summary.activationReady()).isTrue();
+        assertThat(summary.postActivationComplete()).isTrue();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("operations_ready")
+            || item.code().equals("staging_disposition"))
+            .allMatch(item -> !item.mandatory() && item.status() == Status.NOT_APPLICABLE);
+        verify(operations).require(deployment,version,release);
+        verify(bindings).requireUnchanged(deployment,version,release);
+        verifyNoInteractions(admissions, retirements);
+    }
+
+    @Test
+    void optionalPolicyBypassCannotReplaceActualConnectionOrVerificationEvidence() {
+        var operations = mock(com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService.class);
+        var bindings = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "deploymentOperations", operations);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "documentBindings", bindings);
+        when(operations.status()).thenReturn(new com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsContracts.Status(
+            "ENFORCE",true,true,"TEAM_AUTHORIZED","EXTERNAL_SERVICE"));
+        doThrow(new IllegalStateException("DOCUMENT_BINDING_CHANGED")).when(bindings)
+            .requireUnchanged(deployment,version,release);
+
+        var summary = service.project("offer", "deployment", "production-release", "workspace");
+
+        assertThat(summary.activationReady()).isFalse();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("production_connections"))
+            .singleElement().extracting("status").isEqualTo(Status.BLOCKED);
+        verifyNoInteractions(admissions, retirements);
+    }
+
     private Definition definition() {
         Set<Prerequisite> prerequisites = EnumSet.allOf(Prerequisite.class);
         return new Definition("1", "Dealership", "dealership",

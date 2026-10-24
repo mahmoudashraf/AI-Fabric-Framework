@@ -49,6 +49,8 @@ public class DeploymentReleaseRecoveryService {
     private final ObjectMapper objectMapper;
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
     private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     @Autowired
     void setExternalIntegrations(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver service) {
@@ -117,6 +119,7 @@ public class DeploymentReleaseRecoveryService {
 
     @Transactional
     boolean reconcileLatestInProgressRelease(DeploymentEntity deployment, boolean force) {
+        if (deploymentOperations != null) return false;
         DeploymentReleaseEntity latestRelease = releaseRepository
             .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElse(null);

@@ -73,6 +73,10 @@ public class CustomerGoLiveReadinessService {
     private final CustomerReviewedCompositionService composition;
     private final ReviewedManagedDependencyEvidenceService dependencyEvidence;
     private final ObjectMapper mapper;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
 
     public CustomerGoLiveReadinessService(CustomerOfferEntitlementService entitlements,
                                           CustomerOfferDeploymentRepository associations,
@@ -169,17 +173,18 @@ public class CustomerGoLiveReadinessService {
         CandidateEvidence candidate = candidateEvidence(definition, deployment, version, release, target, consumer, now);
         items.add(candidate.composition());
 
-        Reservation reservation;
-        try {
+        Reservation reservation = null;
+        if (deploymentOperations == null) try {
             reservation = admissions.activeCustomerReleaseReservation(deployment.getId(), release.getId());
         } catch (RuntimeException error) {
             reservation = null;
         }
-        items.add(connectionItem(reservation, now));
+        items.add(deploymentOperations == null ? connectionItem(reservation, now)
+            : coreConnectionItem(deployment, version, release, candidate, now));
         items.add(knowledgeItem(definition, candidate.run(), now));
         items.add(workspaceItem(definition, deployment, release, consumer, now));
         items.add(securityItem(candidate, now));
-        items.add(operationsItem(release, reservation, now));
+        items.add(deploymentOperations == null ? operationsItem(release, reservation, now) : externalOperationsItem(release, now));
         items.add(integrationItem(definition, release, now));
         items.add(postActivationItem(deployment, release, consumer, candidate.node(), now));
 
@@ -284,6 +289,30 @@ public class CustomerGoLiveReadinessService {
             "Refresh customer-owned storage, identity, provider, and target prerequisite evidence.");
     }
 
+    private Item coreConnectionItem(DeploymentEntity deployment, DeploymentVersionEntity version,
+                                    DeploymentReleaseEntity release, CandidateEvidence candidate, Instant now) {
+        List<String> failures = new ArrayList<>();
+        try {
+            deploymentOperations.require(deployment, version, release);
+            documentBindings.requireUnchanged(deployment, version, release);
+            if (candidate.run() == null || !"PASSED".equals(candidate.run().getStatus()))
+                failures.add("Exact production connection verification is unavailable.");
+        } catch (RuntimeException error) { failures.add("Owned production release or frozen connection binding changed."); }
+        return item("production_connections", "Connections", "Verified production connections and bindings",
+            Phase.ACTIVATION, failures.isEmpty() ? Status.PASSED : Status.BLOCKED, true,
+            "Customer and Platform operator", "release:" + release.getId(),
+            candidate.run() == null ? null : candidate.run().getCompletedAt(), null, failures,
+            "Verify the production release and its customer-owned integrations.");
+    }
+
+    private Item externalOperationsItem(DeploymentReleaseEntity release, Instant now) {
+        var status = deploymentOperations.status();
+        return item("operations_ready", "Operations", "Optional deployment operations: " + status.mode(),
+            Phase.ACTIVATION, Status.NOT_APPLICABLE, false, "Integration team", "release:" + release.getId(),
+            release.getUpdatedAt(), null, List.of(),
+            "Capacity, expiry, graceful drain and advanced recovery are optional; actual release verification remains required.");
+    }
+
     private Item knowledgeItem(Definition definition, DeploymentVerificationRunEntity run, Instant now) {
         boolean required = !definition.documentAudiences().isEmpty() || definition.bindingSlots().stream()
             .anyMatch(slot -> slot.kind() == BindingKind.CUSTOMER_S3);
@@ -382,6 +411,11 @@ public class CustomerGoLiveReadinessService {
 
     private Item postActivationItem(DeploymentEntity deployment, DeploymentReleaseEntity release,
                                     PlatformConsumerEntity consumer, ObjectNode candidate, Instant now) {
+        if (deploymentOperations != null) {
+            return item("staging_disposition", "Lifecycle", "Integration-team staging cleanup",
+                Phase.POST_ACTIVATION, Status.NOT_APPLICABLE, false, "Integration team", "release:" + release.getId(),
+                now, null, List.of(), "Stop staging when it is no longer needed; automatic retirement is not required for promotion.");
+        }
         boolean activated = release.getId().equals(consumer.getBoundReleaseId())
             && release.getTargetProfileId().equals(consumer.getBoundTargetProfileId());
         if (!activated) {

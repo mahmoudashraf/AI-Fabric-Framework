@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllowanceContracts.*;
@@ -20,15 +21,19 @@ public class ProviderUsageReleaseCoordinator {
     private final ProviderUsageRuntimeClient runtime;
     private final DeploymentRuntimeAuthorityService authority;
     private final ProviderUsageRuntimeArtifactGate artifactGate;
+    private final ProviderUsageModeResolver modes;
 
+    @Autowired
     public ProviderUsageReleaseCoordinator(CustomerOfferDeploymentRepository offers, ProviderUsageAllowanceService allowances,
-        ProviderUsageRuntimeClient runtime, DeploymentRuntimeAuthorityService authority, ProviderUsageRuntimeArtifactGate artifactGate) {
-        this.offers = offers; this.allowances = allowances; this.runtime = runtime; this.authority = authority; this.artifactGate = artifactGate;
+        ProviderUsageRuntimeClient runtime, DeploymentRuntimeAuthorityService authority, ProviderUsageRuntimeArtifactGate artifactGate,
+        ProviderUsageModeResolver modes) {
+        this.offers = offers; this.allowances = allowances; this.runtime = runtime; this.authority = authority;
+        this.artifactGate = artifactGate; this.modes = modes;
     }
 
     public void prepare(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
-        if (offers.existsById(deployment.getId())) {
+        if (funded(deployment, release)) {
             artifactGate.require(release);
             supported(allowances.prepareForAuthorizedRelease(release.getId()));
         }
@@ -37,7 +42,9 @@ public class ProviderUsageReleaseCoordinator {
     /** Called last, after all customer-controlled/default environment merges. No environment-provided credits. */
     public Map<String, String> environment(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
-        if (!offers.existsById(deployment.getId())) return Map.of();
+        var pinned = modes.forRelease(deployment, release);
+        if (!pinned.map(ProviderUsageModeResolver.Mode.FUNDED.name()::equals).orElseGet(() -> offers.existsById(deployment.getId())))
+            return pinned.isPresent() ? Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "false") : Map.of();
         artifactGate.require(release);
         var allocation = required(release);
         return Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "true",
@@ -49,9 +56,9 @@ public class ProviderUsageReleaseCoordinator {
 
     public void initializeAndActivate(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
-        if (!offers.existsById(deployment.getId())) return;
-        artifactGate.require(release);
         if (!version.getId().equals(release.getDeploymentVersionId()) || !deployment.getId().equals(version.getDeploymentId())) fail();
+        if (!funded(deployment, release)) return;
+        artifactGate.require(release);
         var allocation = required(release);
         var headers = authority.issueProviderBudgetProvisioningHeaders(deployment, version, release);
         Readback observed = runtime.read(deployment.getRuntimeBaseUrl(), headers);
@@ -87,8 +94,9 @@ public class ProviderUsageReleaseCoordinator {
     /** Continuation may inspect the existing wallet, but must never initialize, activate or top it up. */
     public void verifyActive(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
-        if (!offers.existsById(deployment.getId()) || !version.getId().equals(release.getDeploymentVersionId())
+        if (!version.getId().equals(release.getDeploymentVersionId())
             || !deployment.getId().equals(version.getDeploymentId())) fail();
+        if (!funded(deployment, release)) return;
         artifactGate.require(release);
         var allocation = required(release);
         if (allocation.state() != InitializationState.ACTIVE || allocation.storeUuid() == null
@@ -108,6 +116,11 @@ public class ProviderUsageReleaseCoordinator {
     private SafeAllowanceProjection required(DeploymentReleaseEntity release) {
         return supported(allowances.findForAuthorizedRelease(release.getId())
             .orElseThrow(() -> new IllegalStateException("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED")));
+    }
+
+    private boolean funded(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        return modes.forRelease(deployment, release).map(ProviderUsageModeResolver.Mode.FUNDED.name()::equals)
+            .orElseGet(() -> offers.existsById(deployment.getId()));
     }
 
     private static SafeAllowanceProjection supported(SafeAllowanceProjection allowance) {

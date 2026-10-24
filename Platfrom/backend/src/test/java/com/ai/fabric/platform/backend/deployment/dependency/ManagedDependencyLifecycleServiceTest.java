@@ -150,6 +150,36 @@ class ManagedDependencyLifecycleServiceTest {
         var result = lifecycle.reconcile("dep-1", "staging", "apply");
         assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ADMISSION_ADAPTER_REQUIRED"); verifyNoInteractions(provider);
     }
+
+    @Test void coreReleaseReferenceSupportsTheFullLifecycleWithoutClaimingAReservation() {
+        var requested = submit("staging");
+        graphs.get(requested.graphId()).setReleaseId("release");
+        doAnswer(call -> new ManagedDependencyPrerequisites.Admission(
+            null, call.getArgument(0, ManagedDependencyPrerequisites.Scope.class).bindingFingerprint(),
+            Map.of("inbox", "https://connector.example.test/inbox/callback"), List.of("https://app.example.test"),
+            Map.of(), Map.of("conversation-handover-callback-signing", "TARGET_CALLBACK_SECRET"), false, "release"))
+            .when(gate).reserve(any(), any(), any());
+
+        var result = operators.enroll("dep-1", "staging",
+            new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "enroll"));
+
+        assertThat(result.status()).isEqualTo("READY");
+        assertThat(graphs.get(result.graphId()).getReservationRef()).isEqualTo("core-release:release");
+        verify(gate, atLeastOnce()).validateExecutionReservation(any(), eq("core-release:release"));
+        verify(gate, atLeastOnce()).initializeAndVerify(any(), anyString(), any(), anyString());
+    }
+
+    @Test void mixedCoreAndReservationProofIsRejectedBeforeProviderEffects() {
+        var requested = submit("staging");
+        graphs.get(requested.graphId()).setReleaseId("release");
+        doAnswer(call -> new ManagedDependencyPrerequisites.Admission(
+            "fake-reservation", call.getArgument(0, ManagedDependencyPrerequisites.Scope.class).bindingFingerprint(),
+            Map.of(), List.of(), Map.of(), Map.of(), false, "release"))
+            .when(gate).reserve(any(), any(), any());
+        var result = lifecycle.reconcile("dep-1", "staging", "apply");
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_AUTHORIZATION_INVALID");
+        verifyNoInteractions(provider);
+    }
     @Test void ambiguousAdmissionAdaptersBlockBeforeAnyProviderResource() {
         submit("staging");
         when(gates.orderedStream()).thenReturn(java.util.stream.Stream.of(gate, mock(ManagedDependencyPrerequisites.class)));

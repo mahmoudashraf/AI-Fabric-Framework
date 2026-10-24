@@ -12,9 +12,11 @@ import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContr
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Intent;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Fails public assignment resolution closed as soon as customer staging expires. */
+/** Historical expiry policy only; caller-owned assignment authorization remains in core. */
 @Service
 public class CustomerStagingAssignmentAccessGate {
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsProperties operationsProperties;
     private static final Set<ExpiryState> FENCED = Set.of(
         ExpiryState.CLAIMED, ExpiryState.HANDED_OFF, ExpiryState.RELEASED
     );
@@ -33,6 +35,7 @@ public class CustomerStagingAssignmentAccessGate {
     }
 
     public void requireAvailable(String customerId, String deploymentId, String targetProfileId) {
+        if (operationsProperties != null) return;
         if (customerId == null || deploymentId == null || targetProfileId == null) return;
         Instant now = clock.instant();
         var scoped = store.held(deploymentId, targetProfileId).stream()

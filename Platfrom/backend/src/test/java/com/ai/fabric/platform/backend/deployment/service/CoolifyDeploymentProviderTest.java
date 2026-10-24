@@ -148,6 +148,43 @@ class CoolifyDeploymentProviderTest {
         verify(admission).requireCovered("dep-123", profile.getId(), 250, 512L * 1024 * 1024);
     }
 
+    @Test void independentOperationsKeepsDatabaseLimitsWithoutRequiringAReservation() throws Exception {
+        var offers = mock(CustomerOfferDeploymentRepository.class);
+        var admission = mock(CustomerAdmissionDatabaseCapacityVerifier.class);
+        when(offers.existsById("dep-123")).thenReturn(true);
+        var provider = provider(); provider.setCustomerOfferDeploymentRepository(offers);
+        provider.setCustomerAdmissionDatabaseCapacityVerifier(admission);
+        ReflectionTestUtils.setField(provider, "coreReleaseAuthorizations",
+            mock(com.ai.fabric.platform.backend.deployment.operations.CoreReleaseAuthorizationStore.class));
+        var limits = provider.runtimeDatabaseCapacity(deployment(), profile(), objectMapper.readTree(
+            "{\"runtimeDatabaseCpuMillicores\":250,\"runtimeDatabaseMemoryMiB\":512}"));
+        assertThat(limits.limitsCpus()).isEqualTo("0.250"); assertThat(limits.limitsMemory()).isEqualTo("512M");
+        verifyNoInteractions(admission);
+        assertThatThrownBy(() -> provider.runtimeDatabaseCapacity(deployment(), profile(), objectMapper.readTree("{}")))
+            .hasMessageContaining("RUNTIME_DATABASE_CAPACITY_INVALID");
+    }
+
+    @Test void coldReplacementStopsOwnedWorkersThenRuntimeWithoutDrainOrRuntimeAccess() throws Exception {
+        var provider = org.mockito.Mockito.spy(provider());
+        var connection = new CoolifyConnection("https://coolify.test", "private", mock(CoolifyTargetProfileConfig.class));
+        var runtime = application("runtime-uuid", "running:healthy");
+        var connector = application("connector-uuid", "running:healthy");
+        var runner = application("runner-uuid", "running:healthy");
+        var defaults = objectMapper.createObjectNode();
+        var tracker = mock(ProvisioningProgressTracker.class);
+        org.mockito.Mockito.doReturn("native-stop-observed").when(provider)
+            .stopApplicationBeforeSingleWriterReplacement(eq(connection), any(), eq(defaults), eq(tracker));
+        provider.stopBeforeColdReplacement(connection, runtime, connector, runner, defaults, tracker);
+        var order = inOrder(provider);
+        order.verify(provider).stopApplicationBeforeSingleWriterReplacement(connection, connector, defaults, tracker);
+        order.verify(provider).stopApplicationBeforeSingleWriterReplacement(connection, runner, defaults, tracker);
+        order.verify(provider).stopApplicationBeforeSingleWriterReplacement(connection, runtime, defaults, tracker);
+        org.mockito.Mockito.doThrow(new IllegalStateException("NATIVE_STOP_UNCONFIRMED")).when(provider)
+            .stopApplicationBeforeSingleWriterReplacement(connection, connector, defaults, tracker);
+        assertThatThrownBy(() -> provider.stopBeforeColdReplacement(connection, runtime, connector, runner, defaults, tracker))
+            .hasMessage("NATIVE_STOP_UNCONFIRMED");
+    }
+
     @Test
     void productizedCoolifyReleaseFailsClosedWithoutFrozenTargetAuthority() {
         var offers = mock(CustomerOfferDeploymentRepository.class);

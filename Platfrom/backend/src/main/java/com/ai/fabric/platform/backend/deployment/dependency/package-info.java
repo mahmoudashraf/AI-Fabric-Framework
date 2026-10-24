@@ -28,13 +28,15 @@
  * Changed dependency topology/images require a separately reviewed lifecycle, not a hidden overlay.
  *
  * <h2>Required adapter</h2>
- * Provide exactly one ManagedDependencyPrerequisites bean integrating existing R1/R6/R7 admission.
- * reserve must prove approved bootstrap/candidate/owner entitlement, reserve the complete capacity
- * (services, databases, volumes, concurrent/build work) and return the same durable reservation
- * for the same owned graph, including an explicit admitted binding revision. It returns reviewed
+ * Provide exactly one ManagedDependencyPrerequisites bean integrating core release authorization.
+ * New releases prove approved candidate/owner entitlement, immutable configuration/spec/source and
+ * reviewed target identity without an R7 capacity reservation. The returned core authorization
+ * reference is distinct from a historical reservation and makes no capacity assertion. Existing
+ * R7-backed graphs retain their historical ledger path. The adapter returns reviewed
  * target values/secret refs, TLS origins and named callbacks from server-owned target bindings.
- * These are never browser-supplied URLs or environment overlays. validateReservation rechecks
- * ownership, entitlement, placement and the frozen binding fingerprint before each side effect.
+ * These are never browser-supplied URLs or environment overlays. The legacy-named validateReservation
+ * rechecks core ownership, entitlement, reviewed placement and the frozen binding before side effects;
+ * it does not require optional placement/capacity lease freshness for a core-authorized release.
  * validateArtifact must prove source artifact membership, registry availability, exact service
  * and database digests, supported architecture/provider digest semantics and mounted data paths.
  *
@@ -88,7 +90,7 @@
  * allocates a replacement. No automatic lease steal can race an in-flight provider creation.
  *
  * <h2>Outstanding hosted prerequisites</h2>
- * Reviewed artifact/spec publication, measured admission/reservation adapter, approved callback/
+ * Reviewed artifact/spec publication, core release authorization, approved callback/
  * runtime initialization canaries and physical volume readback are required before actual use.
  * Owner S3 canary remains a parent gate. Actual staging placement is only 46.224.145.148 and
  * production only 46.225.162.106; dtp-coolify-prod-staging is not accepted based on its name.

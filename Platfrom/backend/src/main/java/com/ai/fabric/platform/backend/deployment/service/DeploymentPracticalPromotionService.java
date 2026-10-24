@@ -90,6 +90,8 @@ public class DeploymentPracticalPromotionService {
     private final CustomerSelfServicePromotionBoundary customerBoundary;
     private final AdmissionPromotionRetirementScheduler retirementScheduler;
     private final CustomerGoLiveReadinessService goLiveReadiness;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.DeploymentOperationsService deploymentOperations;
 
     public DeploymentPracticalPromotionService(DeploymentRepository deploymentRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
@@ -204,7 +206,7 @@ public class DeploymentPracticalPromotionService {
         DeploymentPracticalPromotionSummary result = commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ACTIVATE",
             request.operationKey(), request.expectedBindingRevision(), request,
             consumer -> activateProductionConsumerOnce(deployment, request, consumer));
-        if (request.markStagingSuperseded() && StringUtils.hasText(result.stagingTargetProfileId())) {
+        if (deploymentOperations == null && request.markStagingSuperseded() && StringUtils.hasText(result.stagingTargetProfileId())) {
             retirementScheduler.scheduleAfterCommit(deploymentId, result.stagingTargetProfileId(), request.operationKey());
         }
         return result;
