@@ -43,6 +43,19 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
 
+02:49UTC checkpoint: both consoles LIVE VERIFIED at
+`0ec25392f36a8e53ed3dc0b229c6b0021e74c575`, image
+`sha256:a33c7efe437e9ebf4d96be4dcce19ef9308f05e88643b68da17b45df75be2716`.
+Fresh actual CUSTOMER_ADMIN UI created assignment `northfield-console-20261024`,
+DRAFT app `awi_pub_febdab2edb734cd430e75618154e2a3c`, published
+`ver-a95b4661`, and requested staging release `rel-5b11dd8b`. Both target approved
+stock/business connections were bound through the real customer UI. Separate new
+external Free/Serverless vectors were bound normally by staff; no records copied.
+Runtime and connector started; provisioning is checking restricted connector
+credentials after removing its temporary bootstrap credentials. The fresh app is
+NOT active and promotion is NOT complete. A verification-wrapper import failure
+made no requests and was corrected; the subsequent four binding commands passed.
+
 02:22UTC follow-up: selector source `83f860b9b5898d46920a085d6b515feb74c12ffa`
 is LIVE VERIFIED on both servers, UI image
 `sha256:14b30e901868971460d2bbefa2f54f089cb9a0a81291c1fd3070264417cf8d61`,
