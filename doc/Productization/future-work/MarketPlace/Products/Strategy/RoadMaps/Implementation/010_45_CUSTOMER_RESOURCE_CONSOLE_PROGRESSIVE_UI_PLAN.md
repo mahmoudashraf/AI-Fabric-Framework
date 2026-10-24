@@ -417,7 +417,24 @@ Remaining: one fresh complete journey through the new product-focused UI; U4's
 hosted gate remains open. Reuse existing promotion/cold replacement without
 adding recovery, draining, parallel-version operation or vector copying.
 
-2026-10-23 23:21 UTC: fresh customer configuration is LIVE VERIFIED, not a full
+2026-10-24 04:36UTC current checkpoint: fresh valid-input customer UI created
+`dep-3c4dbe4f`, app `awi_pub_d33c69a074da480628c2f81358a03144`, and published
+`ver-26d678f3`. Both target S3 identities and approved external stock/business
+connections are configured; vectors separately bound. Actual UI staging request
+accepted `rel-10ad02d0`, now provisioning, NOT yet a passing M4 result. The earlier
+capacity question is withdrawn/resolved; do not ask for another Free cluster.
+Execution record carries actual receipts, disposable cleanup and prior failures.
+
+Keep the valid-input customer journey separate from fault recovery. The earlier
+stale S3 identity caused a truthful verification failure; subsequent failed-release
+reapply still reached the known drain-capability limitation. Preserve/defer that
+case instead of adding drain/recovery machinery to this UI release. Its attended
+disposable-fixture reset was backed up/audited and is not normal product retirement
+or proof of customer self-service fault recovery. Validate external credentials
+before the current setup. No staff database edits are part of this fresh customer
+creation/publication/deployment/activation journey.
+
+Historical2026-10-23 23:21UTC: fresh customer configuration was LIVE VERIFIED, not a full
 M4 pass. Through the real customer UI: configuration-only dealership deployment,
 staging assignment, draft Engage app, two independent customer-owned S3 bindings,
 one published immutable version, and approved stock/business-service credentials
@@ -432,7 +449,7 @@ production activation has occurred. Resume deployment/verification/promotion onl
 after that prerequisite; do not reopen old target recovery or reuse a bound cluster.
 See the execution record and `product-m4/configuration-live.actual.json` evidence.
 
-#### M5 - Product-Scoped Daily Operations - PARTIAL
+#### M5 - Product-Scoped Daily Operations - LIVE VERIFIED
 
 Goal: open app/inbox, update policies, inspect synchronization/important failures,
 and manage supported branding/access from the relevant product.
@@ -440,9 +457,10 @@ Already: Knowledge/Connections controls and inspectors, Human support/Inbox
 entry, app management, failure notices and safe release selection. Hosted reads
 proved documents, inventory integration and reachable human handover; the
 UI-only run did not replay a booking or a human conversation.
-Remaining: organize useful tasks around each product, verify necessary daily
-edits, and remove status-read friction. Product-scoped task links and real policy/
-sync/handover reads are now available; live daily edits remain open. Generic Behaviour management, full audit
+Completed24October: product-scoped task navigation, real policy refresh, six-vehicle
+inventory reconciliation and operator enrollment/one-time credential delivery/
+effective revocation passed through the live customer UI. M4 separately owns the
+fresh conversation/human-handover proof. Generic Behaviour management, full audit
 and universal integration editors are NOT prerequisites.
 
 #### M6 - Verify And Close This Product Release - PARTIAL
@@ -450,8 +468,9 @@ and universal integration editors are NOT prerequisites.
 Already: clean build,18 customer scope regressions, staff parity, offline
 dealership/Shopify fixtures, UI publication to both servers, nine real customer
 views/both themes, retained drafts, release locking, basic mobile and logout.
-Remaining: the M2-M5 command journey, owner visual acceptance and the bounded
-existing UI rollback check. Recurring15-minute operational-read expiry is now
+Remaining: final fresh M4 journey and owner visual acceptance. The bounded UI-only
+rollback/restoration and unchanged staff/customer scope checks passed; this does
+not substitute for the fresh command journey. Recurring15-minute operational-read expiry is now
 resolved by backend`c82bb707d`, live on both servers. Final wider customer UI run
 passes with only the explicitly unavailable optional action-review extension;
 no renewal/probe or write-policy weakening. Earlier failed run is preserved.

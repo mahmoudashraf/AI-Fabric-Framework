@@ -15,9 +15,10 @@ below is retained; it does not close these product-composition milestones.
   customer assignment, real create/reload/edit/reload/delete and visible failures.
   Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
 - M4 IN PROGRESS: fresh new-UI staging-to-production customer journey.
-  Configuration/publication live verified; new runtime verification and promotion
-  require eligible vector capacity or a qualified disposable-canary reset. The
-  additional-Free-cluster question was withdrawn: Zilliz allows one per organization.
+  Configuration/publication live verified. The stale-credential attempt and its
+  failed drain retry are preserved. The disposable attempt has been reset; the
+  valid-input UI journey is running with verified separate S3 identities and
+  one-for-one vector replacements. No additional Free cluster is requested.
 - M5 LIVE DAILY COMMANDS VERIFIED: policy refresh, six-vehicle inventory sync,
   and existing-inbox operator enrollment/one-time delivery/effective revocation
   passed through the live customer UI. Fresh-journey handover stays under M4.
@@ -42,6 +43,34 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 ### M5/M6 - Actual Daily Commands And Bounded UI Rollback, 24 October
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
+
+04:25UTC checkpoint: complete backend fix `0577e2fb1b8eee6ffc9ec78a08d0395105a2ad49`
+is LIVE VERIFIED on both control planes, image
+`sha256:ad6e0c760f32e5360e74128b0146d8f4a6c6e9d3c3ec1f6d7357d6ff930ab606`,
+schema208 unchanged.52 focused checks passed (39readback +13actual PostgreSQL
+transaction scenarios). Actual customer retry accepted `rel-88fd43c5`, then FAILED
+at the existing `RUNTIME_GENERATION_DRAIN_INCOMPLETE` limitation. Neither failed
+release became verified. Do not expand this UI phase into drain recovery.
+
+Owner-approved attended disposable maintenance removed exactly the failed attempt's
+five AI-only native resources and three privately archived volumes. Both-host
+resource/container/volume absence and unrelated-running-service preservation passed.
+One configuration archived, one draft app disabled, one consumer detached and its
+single capacity hold released with preimage/completion audit records. Financial
+history/counters unchanged; failed release/drain records retained. The reviewed SQL
+passed a rolled-back qualification before actual execution. This is NOT normal
+product retirement, fault-recovery acceptance or a claim of data migration.
+Current external source systems and S3 remain unchanged. Vectors replaced one for
+one in the same projects/regions/types; no record transfer. A fresh valid-input
+customer UI setup now uses the working identities from the beginning. Private
+evidence: `fresh-failed-*` under `/Users/mahmoudashraf/.codex/private/loomai-m4/`,
+new UI root `/private/tmp/01045-fresh-valid-ui-20261024`.
+
+Capacity review `01045-fresh-ui-fleet-renewal-20261024` is approved through05:44UTC,
+using new61-sample host observations and explicit continuation of the then-held
+allocation. Physical/funding ceilings, headroom and customer quota unchanged.
+An earlier renewal input incorrectly changed the fleet compatibility anchor;
+it was rejected without effect and corrected without changing product code.
 
 03:33UTC checkpoint: backend `bac3273ed8cc96989120c67151f6300abb96a817`
 was verified on both control planes with unchanged schema/resources.201 checks
