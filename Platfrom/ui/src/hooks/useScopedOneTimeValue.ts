@@ -19,6 +19,7 @@ export function useScopedOneTimeValue<T>(scopeKey: string) {
   return {
     value: stored?.token === token ? stored.value : null,
     capture: () => token,
+    isCurrent: (captured: symbol) => mounted.current && scope.current.token === captured,
     publish: (captured: symbol, value: T | null) => {
       if (!mounted.current || scope.current.token !== captured) return false
       setStored(value === null ? null : { token: captured, value })

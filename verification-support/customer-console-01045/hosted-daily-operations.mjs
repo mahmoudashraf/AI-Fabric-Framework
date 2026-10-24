@@ -4,8 +4,8 @@ import { createRequire } from 'node:module'
 import { parseArgs } from 'node:util'
 
 const { values: args } = parseArgs({ options: Object.fromEntries(
-  ['mode', 'root', 'credentials', 'deployment', 'release', 'target', 'customer', 'app'].map(key => [key, { type: 'string' }])) })
-for (const key of ['mode', 'root', 'credentials', 'deployment', 'release', 'target', 'customer', 'app']) assert.ok(args[key], key)
+  ['mode', 'root', 'credentials', 'deployment', 'release', 'target', 'customer', 'app', 'offer'].map(key => [key, { type: 'string' }])) })
+for (const key of ['mode', 'root', 'credentials', 'deployment', 'release', 'target', 'customer', 'app', 'offer']) assert.ok(args[key], key)
 assert.ok(['documents', 'synchronization', 'operator'].includes(args.mode))
 process.umask(0o077)
 mkdirSync(args.root, { recursive: true, mode: 0o700 })
@@ -22,6 +22,7 @@ let page, phase = 'login', selectedSource, operatorId
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
   const allowed = path => ['/api/platform/auth/login', '/api/platform/auth/logout', '/api/platform/preferences'].includes(path)
+    || (args.mode === 'operator' && path === `/api/customer-self-service/catalogue/${args.offer}/targets/${args.target}/placement-evidence`)
     || (args.mode === 'documents' && path === `${releasePath}/document-knowledge/sources/${encodeURIComponent(selectedSource)}/refresh`)
     || (args.mode === 'synchronization' && path === `${releasePath}/integrations/sources/${encodeURIComponent(selectedSource)}/reconcile`)
     || (args.mode === 'operator' && (path === `${targetPath}/managed-dependencies/operators`

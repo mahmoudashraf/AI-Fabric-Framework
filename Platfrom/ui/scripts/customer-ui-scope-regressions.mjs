@@ -109,17 +109,18 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
     if (path === '/api/platform/customers/customer-one/consumers') return json(route, [])
     if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json(route, [])
     if (path === '/api/customer-self-service/deployments') return json(route, deployments)
-    if (path === '/api/customer-self-service/catalogue') {
+    if (path === '/api/customer-self-service/catalogue' || path === '/api/customer-self-service/catalogue/support-offer') {
       catalogueReads += 1
-      return json(route, [{
+      const offer = {
         id: 'support-offer', name: 'Support experience', fingerprint: 'reviewed', templateId: 'support-template',
         entitlement: { customerId: 'customer-one', status: 'ACTIVE', revision: 1 },
         targets: ['staging', 'production'].map(target => ({
           id: target, intent: target === 'staging' ? 'CUSTOMER_STAGING' : 'CUSTOMER_PRODUCTION',
           readiness: freshPlacement ? 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED' : 'PLACEMENT_RECHECK_REQUIRED',
-          blockers: freshPlacement ? [] : [placementBlocker], capabilities: [], limits: { stagingExpiryHours: 24 },
+          blockers: freshPlacement ? [] : [placementBlocker], capabilities: ['INBOX_OPERATOR_ENROLL', 'INBOX_OPERATOR_ROTATE', 'INBOX_OPERATOR_DELIVER'], limits: { stagingExpiryHours: 24 },
         })), settings: [], bindingSlots: [], blockers: [],
-      }])
+      }
+      return json(route, path.endsWith('/support-offer') ? offer : [offer])
     }
     if (path.endsWith('/placement-evidence') && method === 'POST') {
       freshPlacement = true
@@ -141,7 +142,8 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
       if (operation === 'draft') return json(route, { marketplaceDatasetConfig: { datasets: [] } })
       if (operation === 'marketplace/installs') return json(route, [])
       if (/^targets\/[^/]+\/releases\/[^/]+\/context$/.test(operation)) return json(route, {
-        deploymentId: id, externalIntegrationConfigured: false, conversationHandoverConfigured: true,
+        deploymentId: id, targetProfileId: operation.split('/')[1], releaseId: operation.split('/')[3],
+        externalIntegrationConfigured: false, conversationHandoverConfigured: true,
       })
       if (operation.endsWith('/conversation-handover')) return json(route, {
         runtime: { channelBindingId: 'support-inbox', handoverCounts: {}, recentDispatches: [] },

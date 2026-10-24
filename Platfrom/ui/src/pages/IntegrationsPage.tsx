@@ -37,6 +37,10 @@ import {
   fetchDeploymentReleases,
   fetchDeploymentTargetContext,
   fetchManagedDependencies,
+  fetchPlatformAuthSession,
+  fetchCustomerDeploymentPortfolio,
+  fetchCustomerSelfServiceOffer,
+  probeCustomerOfferTargetPlacement,
   reconcileDeploymentIntegrationSource,
   replayDeploymentIntegrationWebhook,
   revokeManagedDependencyOperator,
@@ -50,6 +54,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useScopedOneTimeValue } from '../hooks/useScopedOneTimeValue'
 import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
+import { prepareCustomerOperatorPlacement } from '../components/customer/customerOperatorPlacement'
 
 function statusColor(value: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
   const status = (value ?? '').toUpperCase()
@@ -101,6 +106,12 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
   }))
   const deliveredCredential = credential.value
   const operatorScope = () => ({ ...target, token: credential.capture() })
+  const prepareOperator = (input: ReturnType<typeof operatorScope>, operation: 'INBOX_OPERATOR_ENROLL' | 'INBOX_OPERATOR_ROTATE' | 'INBOX_OPERATOR_DELIVER') =>
+    prepareCustomerOperatorPlacement(input, auth.session, operation, {
+      session: fetchPlatformAuthSession, deployments: fetchCustomerDeploymentPortfolio,
+      offer: fetchCustomerSelfServiceOffer, target: fetchDeploymentTargetContext,
+      probe: probeCustomerOfferTargetPlacement,
+    }, () => credential.isCurrent(input.token))
   useEffect(() => {
     setSelectedReleaseId(initialReleaseId)
   }, [selectedDeploymentId, initialReleaseId])
@@ -179,28 +190,32 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     },
   })
   const enrollOperator = useMutation({
-    mutationFn: (input: ReturnType<typeof operatorScope> & { slot: string; displayName: string }) =>
-      enrollManagedDependencyOperator(input.deploymentId, input.targetProfileId, {
+    mutationFn: async (input: ReturnType<typeof operatorScope> & { slot: string; displayName: string }) => {
+      await prepareOperator(input, 'INBOX_OPERATOR_ENROLL')
+      return enrollManagedDependencyOperator(input.deploymentId, input.targetProfileId, {
         slot: input.slot,
         displayName: input.displayName,
         operationKey: crypto.randomUUID(),
-      }),
+      })
+    },
     onSuccess: async (_, input) => {
       if (credential.publish(input.token, null)) setOperatorName('')
       await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
     },
   })
   const mutateOperator = useMutation({
-    mutationFn: ({ operatorId, revision, command, deploymentId, targetProfileId }: ReturnType<typeof operatorScope>
-      & { operatorId: string; revision: number; command: 'rotate' | 'revoke' }) => (
-      command === 'rotate'
+    mutationFn: async (input: ReturnType<typeof operatorScope>
+      & { operatorId: string; revision: number; command: 'rotate' | 'revoke' }) => {
+      const { operatorId, revision, command, deploymentId, targetProfileId } = input
+      if (command === 'rotate') await prepareOperator(input, 'INBOX_OPERATOR_ROTATE')
+      return command === 'rotate'
         ? rotateManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
             expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
           })
         : revokeManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
             expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
           })
-    ),
+    },
     onSuccess: async (_, input) => {
       credential.publish(input.token, null)
       await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
@@ -208,12 +223,15 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
   })
   const deliverCredential = useMutation({
     gcTime: 0,
-    mutationFn: ({ operatorId, revision, deploymentId, targetProfileId }: ReturnType<typeof operatorScope>
-      & { operatorId: string; revision: number }) =>
-      deliverManagedDependencyOperatorCredential(deploymentId, targetProfileId, operatorId, {
+    mutationFn: async (input: ReturnType<typeof operatorScope>
+      & { operatorId: string; revision: number }) => {
+      const { operatorId, revision, deploymentId, targetProfileId } = input
+      await prepareOperator(input, 'INBOX_OPERATOR_DELIVER')
+      return deliverManagedDependencyOperatorCredential(deploymentId, targetProfileId, operatorId, {
         expectedCredentialRevision: revision,
         operationKey: crypto.randomUUID(),
-      }),
+      })
+    },
     retry: false,
     onSuccess: async (delivery, input) => {
       credential.publish(input.token, delivery.apiKey)
