@@ -207,6 +207,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const [consumerId, setConsumerId] = useState('')
   const [consumerName, setConsumerName] = useState('')
   const [selectedConsumerId, setSelectedConsumerId] = useState('')
+  const [creatingNewAssignment, setCreatingNewAssignment] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [placementEvidence, setPlacementEvidence] = useState<string | null>(null)
   const [admission, setAdmission] = useState<CustomerAdmissionReservationSummary | null>(null)
@@ -374,7 +375,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const stagingRelease = releases.find((release) => release.targetProfileId === stagingTargetProfileId) ?? null
   const productionRelease = releases.find((release) => release.targetProfileId === selectedProductionTargetProfileId) ?? null
   const deploymentConsumers = selectableCustomerAssignments(consumers, customerId, selectedDeploymentId)
-  const selectedConsumer = deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
+  const selectedConsumer = creatingNewAssignment ? null : deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
     ?? deploymentConsumers[0]
     ?? null
   const readinessGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
@@ -634,13 +635,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     },
     onSuccess: async (consumer) => {
       completeOperation('create-staging-assignment')
-      setSelectedConsumerId(consumer.consumerId)
       setConsumerId('')
       setConsumerName('')
       setNotice({ severity: 'success', message: consumer.boundReleaseId
         ? 'App assignment created for the verified customer deployment.'
         : 'App assignment configured. Its staging release is awaiting activation.' })
       await invalidateCustomerState()
+      setSelectedConsumerId(consumer.consumerId)
+      setCreatingNewAssignment(false)
     },
   })
 
@@ -1314,15 +1316,23 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                 <Stack spacing={2}>
                   <Typography variant="h6">Engage assignment</Typography>
                   {deploymentConsumers.length > 0 ? (
-                    <TextField select label="Customer app assignment" value={selectedConsumer?.consumerId ?? ''}
-                      onChange={(event) => setSelectedConsumerId(event.target.value)}>
+                    <TextField select label="Customer app assignment"
+                      value={creatingNewAssignment ? '__new_assignment__' : selectedConsumer?.consumerId ?? ''}
+                      disabled={createConsumer.isPending}
+                      onChange={(event) => {
+                        const isNew = event.target.value === '__new_assignment__'
+                        setCreatingNewAssignment(isNew)
+                        if (!isNew) setSelectedConsumerId(event.target.value)
+                      }}>
                       {deploymentConsumers.map((consumer) => (
                         <MenuItem key={consumer.consumerId} value={consumer.consumerId}>
                           {consumer.displayName} · revision {consumer.bindingRevision}{consumer.boundDeploymentId === null ? ' · Unassigned' : ''}
                         </MenuItem>
                       ))}
+                      <MenuItem value="__new_assignment__">Create new assignment</MenuItem>
                     </TextField>
-                  ) : (
+                  ) : null}
+                  {!selectedConsumer ? (
                     <>
                       <Alert severity="info">Configure the app assignment and Engage app before publishing. Activate the verified release when staging is ready.</Alert>
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -1338,7 +1348,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                         Create staging assignment
                       </Button>
                     </>
-                  )}
+                  ) : null}
                   {selectedConsumer ? (
                     <Stack spacing={1}>
                       <Button component={RouterLink} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', consumerId: selectedConsumer.consumerId })}`}

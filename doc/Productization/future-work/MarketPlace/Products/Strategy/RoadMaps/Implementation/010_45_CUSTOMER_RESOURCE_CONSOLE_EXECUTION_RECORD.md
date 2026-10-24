@@ -41,6 +41,55 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 ### M5/M6 - Actual Daily Commands And Bounded UI Rollback, 24 October
 
+#### Fresh UI Journey And Disposable Reset - 02:09 UTC
+
+Owner-requested attended fixture maintenance is complete: 30 exact AI-only native
+resources and18 archived storage volumes removed,8 old deployment configurations
+archived,7 apps disabled,7 assignments detached and6 capacity holds released.
+Actual both-host container/resource/volume absence passed; unrelated running
+services stayed running. Final scoped administrative preimage/completion audits
+were appended; financial grants, allocations, usage, immutable events and original
+failed retirement records were preserved. This is NOT normal product retirement
+or drain acceptance. The first metadata transaction fully rolled back because it
+treated two old inactive RETRYABLE_FAILURE DRAIN receipts as live workers. The
+qualified maintenance transaction rejects every claimable worker state/unexpired
+lease while preserving those failed receipts. No framework/recovery API change.
+Three orphan Inbox-volume associations were explicitly inferred from exact unique
+creation timestamps, recorded with their named parents and archived before removal;
+this is not claimed as authoritative native ownership metadata. Archive restoration
+was not tested. Private reset evidence is under
+`/Users/mahmoudashraf/.codex/private/loomai-m4/`.
+
+Old Free/Serverless clusters were absent before one-for-one replacements in the
+same projects/regions/types. Both new clusters RUNNING; zero vector records copied.
+Customer S3 and external simulator/dealership business systems were not removed.
+Fresh61-sample/5-minute observations passed on both hosts; existing physical
+ceilings, separate headroom and customer quota remained unchanged. Normal staff
+policy `01045-fresh-ui-fleet-20261024` is reviewed through03:46UTC. Original strict
+test assertion retained: server omits empty continuations and normalizes Instant
+milliseconds; read-only normalized equality passed, no publication replay.
+
+Runtime hotfix artifact `dsa-a5d7d25d`, template1.7.0 `mkv-90f02946` and offer
+`offer-dealership-01045-c2e886f80-20261024` were published through existing staff
+contracts. Same framework0.8.41, external business systems and one unchanged Inbox
+spec. New bounded staging/production grants allow50 logical test turns each;
+old wallet caps/counters were not reset. The same CUSTOMER_ADMIN accepted the
+invitation and CREATED `dep-fbdc2dab` / `ten-7fd3a5f1` from product Home through
+the real UI,200/CONFIGURATION_ONLY. A stale test heading assertion failed after
+successful creation; receipt/screenshot confirm persisted selection, not a create
+failure or replay. Both target S3 bindings saved through the customer UI.
+
+The fresh path exposed a real UI gap: any eligible unassigned old consumer hid
+new assignment creation, even when its disabled apps prevented reuse. A bounded
+generic selector choice now exposes new creation independently of reuse and waits
+for refreshed data before selecting the created assignment. Build,20 assignment
+checks,19 scope scenarios and5 actual-component browser scenarios passed. One
+earlier browser expectation lacked the newly added option; its failure is retained.
+This selector fix is SOURCE QUALIFIED, not yet live. Fresh app/runtime/promotion
+and complete M4/M6 closure remain pending. No dealership logic entered the generic
+console. External receiver configuration was updated to the new exact test scope;
+new scope granted, old denied, zero business writes and business DB unchanged.
+
 #### Latest Actual Checkpoint - 01:30 UTC
 
 01:35UTC follow-up: real CUSTOMER_ADMIN operator workflow PASSED. Temporary
