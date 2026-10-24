@@ -77,6 +77,7 @@ export async function verifyProductTasks({ browser, base, output, report }) {
   await tasks.waitFor()
   const href = async name => new URL(await tasks.getByRole('link', { name, exact: true }).getAttribute('href'), 'https://fixture.test').hash
   assert.equal((await href('Continue setup')).includes('deploymentId=preview-deployment&step=configure'), true)
+  assert.equal((await href('Configure data connection')).includes('/deployments?view=setup&deploymentId=preview-deployment&step=configure#approved-connections'), true)
   assert.equal((await href('Connect document storage')).includes('/document-knowledge?deploymentId=preview-deployment&view=manage'), true)
   assert.equal(await tasks.getByRole('link', { name: 'Policies & documents', exact: true }).getAttribute('aria-disabled'), 'true')
   await tasks.getByRole('combobox', { name: /^Working environment/ }).click()
