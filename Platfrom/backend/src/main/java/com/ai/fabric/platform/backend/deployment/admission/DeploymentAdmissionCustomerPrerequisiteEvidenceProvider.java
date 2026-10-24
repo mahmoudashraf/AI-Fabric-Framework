@@ -151,9 +151,14 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         validateReleaseBoundSourceScope(requested, allocation);
         Reservation reservation = allocation.reservation();
         Instant now = clock.instant();
+        // The admission deadline is not the lifetime of an already-active production allocation.
+        boolean activeProduction = requested.intent() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_PRODUCTION
+            && reservation.intent() == Intent.CUSTOMER_PRODUCTION && reservation.state() == State.ACTIVE
+            && "ACTIVE".equals(allocation.release().state()) && reservation.expiryState() == ExpiryState.CURRENT
+            && reservation.retirementOperationId() == null && reservation.workerToken() == null && reservation.failureCode() == null;
         if ((reservation.state() != State.ACTIVE && reservation.state() != State.PROVISIONING
                 && reservation.state() != State.OUTCOME_UNKNOWN) || !reservation.consumesCapacity()
-            || reservation.expiresAt() == null || !reservation.expiresAt().isAfter(now)
+            || reservation.expiresAt() == null || (!activeProduction && !reservation.expiresAt().isAfter(now))
             || reservation.expiryState() == ExpiryState.CLAIMED || reservation.expiryState() == ExpiryState.BLOCKED
             || reservation.expiryState() == ExpiryState.HANDED_OFF || reservation.expiryState() == ExpiryState.RELEASED) {
             throw unavailable("CUSTOMER_CAPACITY_RESERVATION_INVALID");
@@ -184,10 +189,11 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
                 "runtimeAuthority", Objects.toString(runtime.release().getRuntimeAuthorityFingerprint(), ""))));
         EnumSet<Prerequisite> passed = EnumSet.of(Prerequisite.STORAGE);
         if (current.manifest().customerPrerequisiteReferences().containsKey(Prerequisite.IDENTITY)) passed.add(Prerequisite.IDENTITY);
+        Instant expiresAt = minimum(current.grant().validUntil(), current.policy().fleet().validUntil(),
+            current.target().budget().validUntil());
+        if (!activeProduction) expiresAt = minimum(expiresAt, reservation.expiresAt());
         return new SourceSnapshot(scope, runtime, current.target(), binding.path("safeMetadata").path("connectorType").asText(),
-            binding.path("resourceHandleId").asText(), passed,
-            minimum(reservation.expiresAt(), current.grant().validUntil(), current.policy().fleet().validUntil(),
-                current.target().budget().validUntil()), current.policy().lifecycle().readbackMaxAgeSeconds());
+            binding.path("resourceHandleId").asText(), passed, expiresAt, current.policy().lifecycle().readbackMaxAgeSeconds());
     }
 
     record SourceSnapshot(CustomerSourcePrerequisiteEvidence.Scope scope, DeploymentTargetContextService.Context runtime,

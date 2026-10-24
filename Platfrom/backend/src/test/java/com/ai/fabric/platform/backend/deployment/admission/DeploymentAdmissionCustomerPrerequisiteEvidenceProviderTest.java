@@ -156,6 +156,138 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             .isEqualTo(1L);
     }
 
+    @ParameterizedTest
+    @EnumSource(value = Operation.class, names = {"SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX", "SOURCE_REFRESH", "SOURCE_REMOVE"})
+    void activeProductionSourceOperationsOutliveAdmissionExpiryWithoutRenewingTheAllocation(Operation operation) throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        Reservation active = store.require(allocation.id());
+        ReleaseBinding binding = store.releaseBinding("release-1");
+        var grant = store.customerGrant("customer");
+        Instant later = active.expiresAt().plusSeconds(1);
+        var source = sourceContext(operation, "daily-source-operation", "release-1", "offer-fingerprint", 2);
+        freshSourceEvidence(source, later, later.plusSeconds(45));
+
+        var snapshot = providerAt(later).sourceSnapshot(source);
+        var resolved = providerAt(later).resolve(source);
+
+        assertThat(snapshot.expiresAt()).isEqualTo(grant.validUntil());
+        assertThat(resolved.expiresAt()).isEqualTo(later.plusSeconds(45));
+        assertThat(resolved.capacityReservationId()).isEqualTo(active.id());
+        assertThat(resolved.passed()).contains(Prerequisite.STORAGE).doesNotContain(Prerequisite.CAPACITY);
+        assertThat(store.require(active.id())).isEqualTo(active);
+        assertThat(store.releaseBinding("release-1")).isEqualTo(binding);
+        assertThat(store.customerGrant("customer")).isEqualTo(grant);
+        assertThat(store.held()).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_authorizations", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    void activeStagingSourceOperationsRemainAdmissionExpiryFenced() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        Reservation active = store.require(allocation.id());
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(active.expiresAt()).sourceSnapshot(source))
+            .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
+        assertThat(store.require(active.id())).isEqualTo(active);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void productionSourceCandidatesRemainAdmissionExpiryFenced(boolean failedVerification) throws Exception {
+        useProductionTarget();
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        Reservation candidate = provisionRelease("candidate-1");
+        if (failedVerification) {
+            candidate = store.outcome(candidate.fence(), State.OUTCOME_UNKNOWN, "verification-failed", "worker", NOW.plusSeconds(2));
+            store.releaseBindingState("candidate-1", "OUTCOME_UNKNOWN");
+            targetContexts.resolve("deployment1", TARGET, "candidate-1", false).release().setStatus("APPLIED_VERIFICATION_FAILED");
+        }
+        Reservation before = candidate;
+        var source = sourceContext(Operation.SOURCE_INDEX, "candidate-index", "candidate-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(before.expiresAt()).sourceSnapshot(source))
+            .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
+        assertThat(store.require(before.id())).isEqualTo(before);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ExpiryState.class, mode = EnumSource.Mode.EXCLUDE, names = "CURRENT")
+    void productionExpiryFencesCannotUseTheActiveAllocationException(ExpiryState expiryState) throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        Reservation active = store.require(allocation.id());
+        var payload = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(active);
+        payload.put("expiryState", expiryState.name());
+        jdbc.update("UPDATE deployment_capacity_reservations SET expiry_state=?,payload_json=? WHERE id=?",
+            expiryState.name(), json.write(payload), active.id());
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(active.expiresAt()).sourceSnapshot(source))
+            .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SUPERSEDED", "RETIRED"})
+    void supersededOrRetiredProductionReleaseCannotUseTheActiveAllocationException(String state) throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        store.releaseBindingState("release-1", state);
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(store.require(allocation.id()).expiresAt()).sourceSnapshot(source))
+            .hasMessageContaining("ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+    }
+
+    @Test
+    void activeProductionStillRequiresAnUnexpiredQuotaGrant() throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(store.customerGrant("customer").validUntil()).sourceSnapshot(source))
+            .hasMessageContaining("ACTIVE_CUSTOMER_QUOTA_REQUIRED");
+    }
+
+    @Test
+    void activeProductionStillRequiresCurrentMeasuredPolicy() throws Exception {
+        useProductionTarget();
+        CustomerGrant grant = customerGrant(4);
+        store.approveGrant(new CustomerGrant(grant.customerId(), grant.fleetLimit(), grant.targetLimits(), NOW.plusSeconds(20_000),
+            grant.ownerContactEvidenceReference(), grant.payerReference(), grant.keepStagingEntitlementReference()), "operator", NOW);
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+
+        assertThatThrownBy(() -> providerAt(reviewedPolicy.fleet().validUntil()).sourceSnapshot(source))
+            .hasMessageContaining("FRESH_MEASURED_CAPACITY_REQUIRED");
+    }
+
+    @Test
+    void activeProductionAfterAdmissionExpiryStillNeedsFreshExactSourceAndPlacementProof() throws Exception {
+        useProductionTarget();
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        Instant later = store.require(allocation.id()).expiresAt().plusSeconds(1);
+        var source = sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1", "offer-fingerprint", 2);
+        assertThatThrownBy(() -> providerAt(later).resolve(source)).hasMessageContaining("SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+        freshSourceEvidence(source, later.minusSeconds(61), later.plusSeconds(45));
+        assertThatThrownBy(() -> providerAt(later).resolve(source)).hasMessageContaining("SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+        freshSourceEvidence(source, later, later.plusSeconds(45));
+        assertThatThrownBy(() -> providerAt(later).resolve(sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1",
+            "changed-offer", 2))).hasMessageContaining("ACTIVE_RELEASE_PREREQUISITE_SCOPE_CHANGED");
+        assertThatThrownBy(() -> providerAt(later).resolve(sourceContext(Operation.SOURCE_REFRESH, "daily-refresh", "release-1",
+            "offer-fingerprint", 3))).hasMessageContaining("ACTIVE_RELEASE_PREREQUISITE_SCOPE_CHANGED");
+        targetContexts.resolve("deployment1", TARGET, "release-1", false).release().setDocumentBindingFingerprint("changed-storage");
+        assertThatThrownBy(() -> providerAt(later).resolve(source)).hasMessageContaining("SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+    }
+
     @ParameterizedTest @EnumSource(value=Operation.class, names={"SOURCE_DISCOVER","SOURCE_PREVIEW","SOURCE_INDEX","SOURCE_REFRESH","SOURCE_REMOVE"})
     void sourceAdministrationUsesExplicitCurrentMeasuredPolicyWithoutRewritingReleaseProvenance(Operation operation) {
         Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
@@ -580,10 +712,33 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         return store.reserve(admission, command, evidence(admission, NOW), "owner", NOW);
     }
 
+    private void useProductionTarget() throws Exception {
+        Placement production = new Placement("kvufjk78dj4wyhjgp1mlxecr", "r3thf2xmxcjn1tt2bclabebz", "46.225.162.106");
+        targetProfile.setName("Reviewed production");
+        targetProfile.setEnvironmentName("customer-production");
+        targetProfile.setProviderConfigJson(mapper.writeValueAsString(Map.of(
+            "serverUuid", production.serverUuid(), "destinationUuid", production.destinationUuid())));
+        reviewedProfileFingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, targetProfile);
+        reviewedPolicy = new FleetPolicy("production-policy", reviewedPolicy.fleet(),
+            Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_PRODUCTION, production,
+                reviewedProfileFingerprint, reviewedPolicy.fleet())), reviewedPolicy.lifecycle(),
+            reviewedPolicy.restoreEvidenceReference(), reviewedPolicy.privacyEvidenceReference(), reviewedPolicy.supportReference());
+        store.approvePolicy(reviewedPolicy, "operator", NOW);
+        customerContext = context("customer", "tenant", "deployment1", TARGET, TargetIntent.CUSTOMER_PRODUCTION,
+            Operation.PROMOTION_APPLY, "operation", "offer-fingerprint", limits("measurement-proof"));
+        when(placement.requireEvidenceById(targetProfile, TargetIntent.CUSTOMER_PRODUCTION, "placement-proof"))
+            .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_PRODUCTION,
+                reviewedProfileFingerprint, production.serverUuid(), production.ip(), production.destinationUuid(),
+                NOW.minusSeconds(1), NOW.plusSeconds(120)));
+    }
+
     private void activateRelease(String releaseId, Reservation allocation) {
         Reservation provisioning = provisionRelease(releaseId);
         Reservation active = store.reconcile(provisioning.fence(),
-            readback(provisioning, NOW.plusSeconds(2), false, 0L, 0L), false, "worker", NOW.plusSeconds(2));
+            new ResourceReadback(provisioning.id(), provisioning.generation(), provisioning.revision(), provisioning.workerToken(),
+                provisioning.manifestFingerprint(), provisioning.bindingFingerprint(), reviewedPolicy.targets().get(TARGET).placement(),
+                NOW.plusSeconds(2), "inventory-and-drain-proof", true, true, false, true, true, true, 0, 0L, 0L, 0L, 0L),
+            false, "worker", NOW.plusSeconds(2));
         assertThat(active.id()).isEqualTo(allocation.id());
         store.releaseBindingState(releaseId, "ACTIVE");
         targetContexts.resolve("deployment1", TARGET, releaseId, false).release().setStatus("APPLIED_VERIFIED");
@@ -629,6 +784,16 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             "placement-proof", snapshot.passed(), "connector-proof-digest", checkedAt, expiresAt));
     }
 
+    private void freshSourceEvidence(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context,
+        Instant checkedAt, Instant expiresAt) {
+        Placement physical = reviewedPolicy.targets().get(TARGET).placement();
+        when(placement.requireEvidenceById(targetProfile, context.intent(), "placement-proof"))
+            .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, context.intent(), reviewedProfileFingerprint,
+                physical.serverUuid(), physical.ip(), physical.destinationUuid(), checkedAt, expiresAt));
+        sourceEvidence(context, checkedAt, expiresAt);
+    }
+
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context(
         String customer, String tenant, String deployment, String target, TargetIntent intent, Operation operation,
         String operationKey, String offerFingerprint, ReviewedLimits limits) {
@@ -647,7 +812,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext sourceContext(
         Operation operation, String operationKey, String releaseId, String offerFingerprint, long entitlementRevision) {
         return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
-            "customer", "tenant", "deployment1", releaseId, TARGET, TargetIntent.CUSTOMER_STAGING,
+            "customer", "tenant", "deployment1", releaseId, TARGET, customerContext.intent(),
             "offer", offerFingerprint, entitlementRevision, "placement-proof", operation, operationKey,
             limits("measurement-proof"), topology(1));
     }
