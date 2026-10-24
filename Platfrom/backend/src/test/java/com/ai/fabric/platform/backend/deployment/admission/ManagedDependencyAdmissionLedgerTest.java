@@ -245,4 +245,103 @@ class ManagedDependencyAdmissionLedgerTest extends AdmissionFixture {
             tables.put(name, jdbc.queryForList("SELECT * FROM " + name));
         return json.fingerprint(tables);
     }
+
+    @Test void existingActiveProductionConfigurationUsesHeldCapacityAfterHistoricDeadlinesWithoutWritingLedger() {
+        var active = activeProduction();
+        Instant now = NOW.plusSeconds(1_001);
+        var execution = configurationLedger(now);
+        var before = databaseSnapshot();
+
+        assertThat(execution.reviewedIntent(requirement, active.id())).isEqualTo(Intent.CUSTOMER_PRODUCTION);
+        var result = execution.requireConfigurationForExecution(requirement, active.id(), "release");
+        assertThat(result.existingConfiguration()).isTrue();
+        assertThat(result.validUntil()).isEqualTo(now.plusSeconds(60));
+        assertThat(result.generation()).isEqualTo(active.generation());
+        assertThat(execution.requireConfiguration(requirement, active.id(), "release")).isEqualTo(result);
+        assertThatThrownBy(() -> execution.requireForExecution(requirement, active.id()))
+            .hasMessageContaining("DEPENDENCY_ADMISSION_INVALID");
+        assertThat(databaseSnapshot()).isEqualTo(before);
+    }
+
+    @Test void configurationStillRequiresExactActiveReleaseGrantAndHeldEnvelope() {
+        var active = activeProduction();
+        var execution = configurationLedger(NOW.plusSeconds(1_001));
+        assertThatThrownBy(() -> execution.requireConfigurationForExecution(requirement, active.id(), "foreign"))
+            .hasMessageContaining("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+        var tooLarge = new ManagedDependencyAdmissionLedger.Requirement("customer", "tenant", "deployment1",
+            TARGET, "version", BINDING, SPEC, 1_001, 1, 1, 1, 1);
+        assertThatThrownBy(() -> execution.requireConfigurationForExecution(tooLarge, active.id(), "release"))
+            .hasMessageContaining("DEPENDENCY_CAPACITY_NOT_RESERVED");
+        assertThatThrownBy(() -> configurationLedger(NOW.plusSeconds(5_001))
+            .requireConfigurationForExecution(requirement, active.id(), "release"))
+            .hasMessageContaining("ACTIVE_CUSTOMER_QUOTA_REQUIRED");
+        store.releaseBindingState("release", "SUPERSEDED");
+        assertThatThrownBy(() -> execution.requireConfigurationForExecution(requirement, active.id(), "release"))
+            .hasMessageContaining("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+    }
+
+    @Test void configurationKeepsStagingExpiryFenced() {
+        var staging = reserve("managed", "stage");
+        assertThat(ledger.reviewedIntent(requirement, staging.id())).isEqualTo(Intent.CUSTOMER_STAGING);
+        assertThatThrownBy(() -> configurationLedger(NOW.plusSeconds(1_001))
+            .requireForExecution(requirement, staging.id())).hasMessageContaining("DEPENDENCY_ADMISSION_INVALID");
+        assertThatThrownBy(() -> configurationLedger(NOW.plusSeconds(1_001))
+            .requireConfigurationForExecution(requirement, staging.id(), "release"))
+            .hasMessageContaining("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+    }
+
+    @Test void configurationCannotAuthorizeAProductionCandidate() {
+        var active = activeProduction();
+        store.releaseBindingState("release", "QUEUED");
+        assertThatThrownBy(() -> configurationLedger(NOW.plusSeconds(1_001))
+            .requireConfigurationForExecution(requirement, active.id(), "release"))
+            .hasMessageContaining("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+    }
+
+    @Test void activeConfigurationStillRequiresExplicitPolicyContinuity() {
+        var active = activeProduction();
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(active), NOW, NOW.plusSeconds(100));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        assertThat(configurationLedger(NOW.plusSeconds(1_001))
+            .requireConfigurationForExecution(requirement, active.id(), "release").existingConfiguration()).isTrue();
+        jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+        assertThatThrownBy(() -> configurationLedger(NOW.plusSeconds(1_001))
+            .requireConfigurationForExecution(requirement, active.id(), "release"))
+            .hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+    }
+
+    private ManagedDependencyAdmissionLedger configurationLedger(Instant now) {
+        AdmissionEvidenceSource source = new AdmissionEvidenceSource() {
+            @Override public PrerequisiteReadback read(AdmissionContext context) {
+                throw new AssertionError("Existing configuration must use its explicit evidence boundary");
+            }
+            @Override public PrerequisiteReadback readExistingConfiguration(AdmissionContext context) {
+                return evidence(context, now);
+            }
+        };
+        return new ManagedDependencyAdmissionLedger(store, json, source, Clock.fixed(now, ZoneOffset.UTC));
+    }
+
+    private Reservation activeProduction() {
+        // Fixture setup only: establish the same held allocation and exact ACTIVE release binding.
+        var old = policy(20_000_000_000L);
+        var budget = new Budget(old.fleet().measured(), old.fleet().baseline(), old.fleet().headroom(),
+            old.fleet().measurementReference(), NOW.minusSeconds(1), NOW.plusSeconds(100));
+        var placement = new Placement("kvufjk78dj4wyhjgp1mlxecr", "r3thf2xmxcjn1tt2bclabebz", "46.225.162.106");
+        store.approvePolicy(new FleetPolicy("production-policy", budget,
+            Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_PRODUCTION, placement, "profile-fingerprint", budget)),
+            old.lifecycle(), old.restoreEvidenceReference(), old.privacyEvidenceReference(), old.supportReference()), "operator", NOW);
+        var reserved = reserve("managed", "production");
+        var active = store.reconcile(reserved.fence(), new ResourceReadback(reserved.id(), reserved.generation(), reserved.revision(),
+            reserved.workerToken(), reserved.manifestFingerprint(), reserved.bindingFingerprint(), placement, NOW.plusSeconds(2),
+            "inventory-proof", true, true, false, true, true, true, 0, 0L, 0L, 0L, 0L), false, "worker", NOW.plusSeconds(2));
+        jdbc.update("""
+            INSERT INTO deployment_admission_release_bindings
+            (release_id,reservation_id,generation,authorization_key,version_id,version_config_hash,
+             customer_id,tenant_id,deployment_id,target_profile_id,state,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, "release", active.id(), active.generation(), "production", "version", "config-hash",
+            "customer", "tenant", "deployment1", TARGET, "ACTIVE", java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
+        return active;
+    }
 }

@@ -1447,6 +1447,21 @@ public class PlatformManagedProductProvisioningService {
             String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
             OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
             OwnedDependencyCheckpoint checkpoint) {
+        return reconcileOwnedDependency(connection, graphId, serviceRef, spec, resources, environment, checkpoint, false);
+    }
+
+    public OwnedDependencyResult reconcileExistingOwnedDependency(CoolifyConnection connection, String graphId,
+            String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
+            OwnedDependencyCheckpoint checkpoint) {
+        requireExistingDependencyResources(connection, graphId, serviceRef, spec, resources);
+        return reconcileOwnedDependency(connection, graphId, serviceRef, spec, resources, environment, checkpoint, true);
+    }
+
+    private OwnedDependencyResult reconcileOwnedDependency(CoolifyConnection connection, String graphId,
+            String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
+            OwnedDependencyCheckpoint checkpoint, boolean existingOnly) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
         }
@@ -1485,6 +1500,7 @@ public class PlatformManagedProductProvisioningService {
                 db = authority.database(owner, dbUuid);
             }
             if (db == null) {
+                if (existingOnly) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
                 checkpoint.guard();
                 checkpoint.creating("DATABASE");
                 List<CoolifyEnvVar> values = environment.apply(null);
@@ -1529,6 +1545,7 @@ public class PlatformManagedProductProvisioningService {
             app = authority.application(owner, appUuid);
         }
         if (app == null) {
+            if (existingOnly) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
             checkpoint.guard();
             checkpoint.creating("APPLICATION");
             app = authority.createApplication(owner, () -> coolifyApiClient.createDockerImageApplication(connection, request));
@@ -1546,6 +1563,8 @@ public class PlatformManagedProductProvisioningService {
         }
         for (var volume : spec.volumes()) {
             checkpoint.guard();
+            if (existingOnly && !hasText(recordedVolumes.get(volume.mountPath())))
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
             var storage = authority.volume(owner, appUuid, volume.mountPath(), recordedVolumes.get(volume.mountPath()));
             if (!recordedVolumes.containsKey(volume.mountPath())) checkpoint.volume(volume.mountPath(), storage.uuid());
             recordedVolumes.put(volume.mountPath(), storage.uuid());

@@ -93,9 +93,26 @@ class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource {
         return read(context, true);
     }
 
+    @Override
+    public PrerequisiteReadback readExistingConfiguration(AdmissionContext context) {
+        return read(context, false, true);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NEVER)
+    public PrerequisiteReadback readExistingConfigurationForExecution(AdmissionContext context) {
+        return read(context, true, true);
+    }
+
     private PrerequisiteReadback read(AdmissionContext context, boolean execution) {
+        return read(context, execution, false);
+    }
+
+    private PrerequisiteReadback read(AdmissionContext context, boolean execution, boolean existingConfiguration) {
         if (context == null || context.manifest() == null || context.policy() == null || context.grant() == null
             || context.target() == null) throw unavailable("ADMISSION_CONTEXT_REQUIRED");
+        if (existingConfiguration && context.target().intent() != Intent.CUSTOMER_PRODUCTION)
+            throw unavailable("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
         requireNoticeTransport(context);
         owners.resolve(context.customerId(), context.grant().ownerContactEvidenceReference());
 
@@ -134,7 +151,8 @@ class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource {
             throw unavailable("TYPED_PREREQUISITE_EVIDENCE_REQUIRED");
         }
         Instant now = clock.instant();
-        Instant validUntil = minimum(List.of(
+        Instant validUntil = existingConfiguration ? minimum(List.of(placementEvidence.getExpiresAt(), context.grant().validUntil(),
+            placementEvidence.getCheckedAt().plusSeconds(context.policy().lifecycle().readbackMaxAgeSeconds()))) : minimum(List.of(
             placementEvidence.getExpiresAt(),
             context.policy().fleet().validUntil(),
             context.target().budget().validUntil(),

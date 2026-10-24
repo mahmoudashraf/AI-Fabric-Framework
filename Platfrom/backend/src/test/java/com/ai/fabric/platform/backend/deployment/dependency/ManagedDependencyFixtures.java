@@ -88,6 +88,18 @@ public final class ManagedDependencyFixtures {
             ));
     }
 
+    public static Service productionInbox() {
+        var inbox = topology().services().stream().filter(service -> "inbox".equals(service.slot())).findFirst().orElseThrow();
+        var environment = new TreeMap<>(inbox.environment());
+        environment.put("BASIC_INBOX_JDBC_URL", new Value(ValueKind.DATABASE_JDBC, null));
+        environment.put("BASIC_INBOX_JDBC_USERNAME", new Value(ValueKind.DATABASE_USERNAME, null));
+        environment.put("BASIC_INBOX_JDBC_PASSWORD", new Value(ValueKind.SECRET, "db"));
+        var secrets = new java.util.HashSet<>(inbox.secretPurposes()); secrets.add("db");
+        return new Service(inbox.slot(), inbox.contract(), inbox.image(), inbox.sourceArtifactId(), inbox.sourceCommit(),
+            inbox.port(), inbox.healthPath(), inbox.capacity(), secrets, environment,
+            new Database(IMAGE, "db", new Capacity(250, 512, 2048, 1)), inbox.volumes(), inbox.dependsOn(), inbox.initializationContract());
+    }
+
     private static void managedIdentity(Map<String, Value> env, String slot) {
         env.put("LOOMAI_MANAGED_DEPENDENCY_CUSTOMER_ID", new Value(ValueKind.CUSTOMER_ID, null));
         env.put("LOOMAI_MANAGED_DEPENDENCY_TENANT_ID", new Value(ValueKind.TENANT_ID, null));

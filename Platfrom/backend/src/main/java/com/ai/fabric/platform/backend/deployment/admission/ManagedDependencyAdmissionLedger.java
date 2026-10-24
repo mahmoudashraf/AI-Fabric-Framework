@@ -27,7 +27,13 @@ public class ManagedDependencyAdmissionLedger {
 
     public record Evidence(String reservationId, String generation, long revision, Intent intent,
                            String manifestId, String manifestFingerprint, String bindingFingerprint,
-                           Placement placement, String evidenceReference, Instant validUntil) { }
+                           Placement placement, String evidenceReference, Instant validUntil, boolean existingConfiguration) {
+        public Evidence(String reservationId, String generation, long revision, Intent intent, String manifestId,
+                        String manifestFingerprint, String bindingFingerprint, Placement placement, String evidenceReference, Instant validUntil) {
+            this(reservationId, generation, revision, intent, manifestId, manifestFingerprint, bindingFingerprint,
+                placement, evidenceReference, validUntil, false);
+        }
+    }
 
     private final AdmissionStore store;
     private final AdmissionJson json;
@@ -57,12 +63,41 @@ public class ManagedDependencyAdmissionLedger {
     }
 
     private Evidence require(Requirement requirement, String expectedReservationId, boolean execution) {
+        return require(requirement, expectedReservationId, execution, null);
+    }
+
+    /** Classification only; the selected admission path must still validate all execution evidence. */
+    public Intent reviewedIntent(Requirement requirement, String reservationId) {
+        requireInput(requirement);
+        var reservation = reservation(requirement, required(reservationId, 64));
+        var current = store.context(reservation);
+        if (!reservation.targetProfileId().equals(current.target().targetProfileId())
+            || reservation.intent() != current.target().intent())
+            throw unavailable("DEPENDENCY_ADMISSION_FINGERPRINT_CHANGED");
+        return current.target().intent();
+    }
+
+    public Evidence requireConfiguration(Requirement requirement, String reservationId, String releaseId) {
+        return require(requirement, required(reservationId, 64), false, required(releaseId, 64));
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public Evidence requireConfigurationForExecution(Requirement requirement, String reservationId, String releaseId) {
+        return require(requirement, required(reservationId, 64), true, required(releaseId, 64));
+    }
+
+    private Evidence require(Requirement requirement, String expectedReservationId, boolean execution, String releaseId) {
         requireInput(requirement);
         Reservation reservation = reservation(requirement, expectedReservationId);
-        AdmissionContext inspected = validate(requirement, reservation, clock.instant());
-        PrerequisiteReadback readback = execution ? prerequisites.readForExecution(inspected) : prerequisites.read(inspected);
+        boolean existingConfiguration = releaseId != null;
+        if (existingConfiguration && reservation.intent() != Intent.CUSTOMER_PRODUCTION)
+            throw unavailable("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+        AdmissionContext inspected = validate(requirement, reservation, clock.instant(), existingConfiguration, releaseId);
+        PrerequisiteReadback readback = existingConfiguration
+            ? execution ? prerequisites.readExistingConfigurationForExecution(inspected) : prerequisites.readExistingConfiguration(inspected)
+            : execution ? prerequisites.readForExecution(inspected) : prerequisites.read(inspected);
         Reservation current = reservation(requirement, expectedReservationId);
-        AdmissionContext context = validate(requirement, current, clock.instant());
+        AdmissionContext context = validate(requirement, current, clock.instant(), existingConfiguration, releaseId);
         if (!reservation.equals(current) || !inspected.equals(context))
             throw unavailable("DEPENDENCY_ADMISSION_CHANGED_DURING_READBACK");
         Instant now = clock.instant();
@@ -70,14 +105,15 @@ public class ManagedDependencyAdmissionLedger {
         if (!context.manifest().prerequisiteReferences().equals(readback.verifiedPrerequisiteReferences()))
             throw unavailable("DEPENDENCY_ADMISSION_FINGERPRINT_CHANGED");
 
-        Instant validUntil = minimum(current.expiresAt(), readback.validUntil(),
+        Instant validUntil = existingConfiguration ? minimum(readback.validUntil(), context.grant().validUntil(),
+            readback.observedAt().plusSeconds(context.policy().lifecycle().readbackMaxAgeSeconds())) : minimum(current.expiresAt(), readback.validUntil(),
             readback.observedAt().plusSeconds(context.policy().lifecycle().readbackMaxAgeSeconds()), context.grant().validUntil(),
             context.policy().fleet().validUntil(), context.target().budget().validUntil());
         if (!validUntil.isAfter(now)) throw unavailable("DEPENDENCY_ADMISSION_EXPIRED");
         return new Evidence(current.id(), current.generation(), current.revision(),
             current.intent(), current.manifestId(), current.manifestFingerprint(),
             current.bindingFingerprint(), context.target().placement(),
-            "admission:" + current.id() + ":" + current.generation() + ":" + current.revision(), validUntil);
+            "admission:" + current.id() + ":" + current.generation() + ":" + current.revision(), validUntil, existingConfiguration);
     }
 
     private Reservation reservation(Requirement requirement, String expectedReservationId) {
@@ -93,17 +129,29 @@ public class ManagedDependencyAdmissionLedger {
         return matches.getFirst();
     }
 
-    private AdmissionContext validate(Requirement requirement, Reservation reservation, Instant now) {
+    private AdmissionContext validate(Requirement requirement, Reservation reservation, Instant now,
+                                      boolean existingConfiguration, String releaseId) {
         if ((reservation.state() != State.RESERVED && reservation.state() != State.PROVISIONING
                 && reservation.state() != State.ACTIVE)
             || !reservation.consumesCapacity() || reservation.expiresAt() == null
-            || !reservation.expiresAt().isAfter(now) || reservation.expiryState() != ExpiryState.CURRENT
+            || (!existingConfiguration && !reservation.expiresAt().isAfter(now)) || reservation.expiryState() != ExpiryState.CURRENT
             || reservation.workerToken() != null || reservation.failureCode() != null) {
             throw unavailable("DEPENDENCY_ADMISSION_INVALID");
         }
 
         AdmissionContext current = store.context(reservation);
-        policy(current.policy(), now);
+        if (existingConfiguration) {
+            ReleaseBinding release = store.releaseBinding(releaseId);
+            if (reservation.state() != State.ACTIVE || reservation.intent() != Intent.CUSTOMER_PRODUCTION
+                || reservation.retirementOperationId() != null || release == null || !"ACTIVE".equals(release.state())
+                || !releaseId.equals(store.currentReleaseId(reservation)) || !reservation.id().equals(release.reservationId())
+                || !reservation.generation().equals(release.generation()) || !requirement.customerId().equals(release.customerId())
+                || !requirement.tenantId().equals(release.tenantId()) || !requirement.deploymentId().equals(release.deploymentId())
+                || !requirement.targetProfileId().equals(release.targetProfileId()) || !requirement.versionId().equals(release.versionId())
+                || !current.manifest().versionConfigHash().equals(release.versionConfigHash()))
+                throw unavailable("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+            historicalPolicy(reservation, current);
+        } else policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
 
@@ -112,6 +160,7 @@ public class ManagedDependencyAdmissionLedger {
             || !reservation.tenantId().equals(current.tenantId())
             || !reservation.deploymentId().equals(current.deploymentId())
             || !reservation.targetProfileId().equals(current.target().targetProfileId())
+            || reservation.intent() != current.target().intent()
             || !reservation.manifestId().equals(current.manifest().id())
             || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
             || !reservation.manifestFingerprint().equals(json.fingerprint(current.manifest()))

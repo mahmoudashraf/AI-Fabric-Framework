@@ -397,6 +397,107 @@ class ProductionManagedDependencyPrerequisitesTest {
         verifyNoInteractions(verifier);
     }
 
+    @Test void previouslyEffectiveActiveInboxUsesConfigurationAuthorityAtEveryReconcileBoundary() throws Exception {
+        existingProductionInbox();
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
+        assertThat(result.existingConfiguration()).isTrue();
+        prerequisites.validateReservation(scope, "reservation");
+        prerequisites.validateExecutionReservation(scope, "reservation");
+        var service = spec.services().getFirst();
+        prerequisites.validateArtifact(scope, service);
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports(service.initializationContract())).thenReturn(true);
+        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
+        var node = state.nodes.getFirst();
+        prerequisites.initializeAndVerify(scope, service.initializationContract(),
+            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
+                Map.copyOf(node.secrets)), "initialize");
+        verify(admission, atLeastOnce()).requireConfigurationForExecution(any(), eq("reservation"), eq("release"));
+        verify(admission, atLeastOnce()).requireConfiguration(any(), eq("reservation"), eq("release"));
+        verify(admission, never()).require(any(), any());
+        verify(admission, never()).requireForExecution(any(), any());
+        verify(verifier).initializeAndVerify(eq(scope), eq(service.initializationContract()), any(), eq("initialize"));
+    }
+
+    @Test void missingExistingResourceOrWrongReleaseNeverFallsBackToInitialProvisioning() throws Exception {
+        existingProductionInbox();
+        var node = state.nodes.getFirst();
+        node.applicationUuid = null;
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        node.applicationUuid = "application"; node.databaseUuid = null;
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        node.databaseUuid = "database"; node.volumes.clear();
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        node.volumes.put("/app/data", "volume");
+        releases.findById("release").orElseThrow().setProvisioningStatus("SUPERSEDED");
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+        verify(admission, never()).requireForExecution(any(), any());
+        verifyNoInteractions(provisioning);
+    }
+
+    @Test void previouslyEffectiveStagingInboxUsesOrdinaryFreshAdmissionForConfigurationUpdates() throws Exception {
+        existingProductionInbox();
+        when(admission.reviewedIntent(any(), eq("reservation"))).thenReturn(AdmissionContracts.Intent.CUSTOMER_STAGING);
+        clearInvocations(admission);
+
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
+        assertThat(result.existingConfiguration()).isFalse();
+        prerequisites.validateReservation(scope, "reservation");
+        prerequisites.validateExecutionReservation(scope, "reservation");
+        var service = spec.services().getFirst();
+        prerequisites.validateArtifact(scope, service);
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports(service.initializationContract())).thenReturn(true);
+        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
+        var node = state.nodes.getFirst();
+        prerequisites.initializeAndVerify(scope, service.initializationContract(),
+            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
+                Map.copyOf(node.secrets)), "staging-update");
+
+        verify(admission, atLeastOnce()).requireForExecution(any(), any());
+        verify(admission, atLeastOnce()).require(any(), eq("reservation"));
+        verify(admission, never()).requireConfigurationForExecution(any(), any(), any());
+        verify(admission, never()).requireConfiguration(any(), any(), any());
+        verify(verifier).initializeAndVerify(eq(scope), eq(service.initializationContract()), any(), eq("staging-update"));
+    }
+
+    @Test void firstConfigurationAndRetirementKeepOriginalAdmissionBoundary() throws Exception {
+        existingProductionInbox();
+        state.effectiveConfigurationRevision = -1;
+        when(admission.requireForExecution(any(), any())).thenThrow(new IllegalStateException("fresh admission required"));
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
+            .hasMessageContaining("fresh admission required");
+        state.effectiveConfigurationRevision = 0; graph.setStatus("RETIRING");
+        when(admission.require(any(), any())).thenThrow(new IllegalStateException("fresh admission required"));
+        assertThatThrownBy(() -> prerequisites.validateReservation(scope, "reservation")).hasMessageContaining("fresh admission required");
+        verify(admission, never()).requireConfigurationForExecution(any(), any(), any());
+        verify(admission, never()).requireConfiguration(any(), any(), any());
+        verifyNoInteractions(provisioning);
+    }
+
+    private void existingProductionInbox() throws Exception {
+        var inbox = ManagedDependencyFixtures.productionInbox();
+        configureSpecAndSecrets(new ManagedDependencySpec("managed-dependencies/v1", List.of(inbox)), Map.of());
+        var node = state.nodes.getFirst(); node.slot = "inbox"; node.databaseUuid = "database"; node.volumes.put("/app/data", "volume");
+        node.provisionedConfigurationRevision = 0;
+        state.effectiveConfigurationRevision = 0; state.configurationRevision = 1;
+        var release = releases.findById("release").orElseThrow();
+        release.setProvisioningStatus("ACTIVE"); release.setStatus("APPLIED_VERIFIED");
+        when(endpoints.connectorBaseUrl(release)).thenReturn("https://connector.example.test");
+        when(artifacts.findById(inbox.sourceArtifactId())).thenReturn(Optional.of(ManagedDependencyFixtures.ownedAiArtifact(inbox)));
+        var evidence = new ManagedDependencyAdmissionLedger.Evidence("reservation", "generation", 2,
+            AdmissionContracts.Intent.CUSTOMER_PRODUCTION, "manifest", "a".repeat(64), scope.bindingFingerprint(),
+            new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence", Instant.now().plusSeconds(60), true);
+        when(admission.requireConfigurationForExecution(any(), eq("reservation"), eq("release"))).thenReturn(evidence);
+        when(admission.requireConfiguration(any(), eq("reservation"), eq("release"))).thenReturn(evidence);
+        when(admission.reviewedIntent(any(), eq("reservation"))).thenReturn(AdmissionContracts.Intent.CUSTOMER_PRODUCTION);
+        clearInvocations(admission, provisioning);
+    }
+
     private void configureSpecAndSecrets(ManagedDependencySpec replacement,
                                         Map<RuntimeAuthorityPurpose, RuntimeAuthorityBinding.SecretRevision> secrets) throws Exception {
         spec = replacement;

@@ -178,6 +178,74 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(store.json(ready)).doesNotContain(keys.values().iterator().next(), "secretName");
     }
 
+    @Test void existingProductionEnrollmentAndRotationReuseFullGraphWithoutReplacingOwnerOrResources() {
+        var initial = ready("production");
+        String owner = initial.operators().getFirst().id();
+        var ownerKey = operators.deliver("dep-1", "production", owner,
+            new ManagedDependencyOperatorService.Mutation(1, "owner-delivery"), true).apiKey();
+        var graph = graphs.get(initial.graphId());
+        var before = store.state(graph).nodes.stream().map(node -> List.of(node.serviceRef,
+            node.applicationUuid, Objects.toString(node.databaseUuid, ""))).toList();
+        existingConfiguration(initial.graphId());
+        when(provider.reconcileExistingOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any())).thenAnswer(call -> {
+            var resources = call.getArgument(4, PlatformManagedProductProvisioningService.OwnedDependencyResources.class);
+            var service = call.getArgument(3, ManagedDependencySpec.Service.class);
+            call.getArgument(6, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
+            assertThat(resources.applicationUuid()).isNotBlank();
+            @SuppressWarnings("unchecked") var environment = (Function<String, List<CoolifyEnvVar>>) call.getArgument(5);
+            if ("inbox".equals(service.slot())) installedInboxOperators.put(initial.graphId(), environment.apply(resources.databaseUuid()).stream()
+                .filter(value -> "BASIC_INBOX_OPERATORS".equals(value.key())).findFirst().orElseThrow().value());
+            return new PlatformManagedProductProvisioningService.OwnedDependencyResult(resources.applicationUuid(), resources.databaseUuid(),
+                "https://" + call.getArgument(2) + ".example.test");
+        });
+        clearInvocations(provider, gate);
+
+        var enrolled = operators.enroll("dep-1", "production", new ManagedDependencyOperatorService.Enroll("inbox", "New Staff", "new-staff"));
+        assertThat(enrolled.status()).isEqualTo("READY");
+        String added = enrolled.operators().stream().filter(value -> !owner.equals(value.id())).findFirst().orElseThrow().id();
+        var firstKey = operators.deliver("dep-1", "production", added, new ManagedDependencyOperatorService.Mutation(1, "new-delivery"), true).apiKey();
+        var rotated = operators.rotate("dep-1", "production", added, new ManagedDependencyOperatorService.Mutation(1, "rotate-new"));
+        assertThat(rotated.status()).isEqualTo("READY");
+        var rotatedKey = operators.deliver("dep-1", "production", added, new ManagedDependencyOperatorService.Mutation(2, "rotated-delivery"), true).apiKey();
+        assertThat(rotatedKey).isNotEqualTo(firstKey);
+        assertThat(installedInboxOperators.get(initial.graphId())).contains(ownerKey, rotatedKey).doesNotContain(firstKey);
+        assertThat(keys.values()).contains(ownerKey).doesNotContain(firstKey);
+        assertThat(store.state(graph).nodes.stream().map(node -> List.of(node.serviceRef,
+            node.applicationUuid, Objects.toString(node.databaseUuid, ""))).toList()).isEqualTo(before);
+        verify(provider, times(6)).reconcileExistingOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(gate, times(6)).initializeAndVerify(any(), anyString(), any(), anyString());
+    }
+
+    @Test void configurationCheckpointCannotCreateOrReplaceResourcesAndNeverMakesCredentialDeliverable() {
+        var initial = ready("production");
+        var graph = graphs.get(initial.graphId()); var before = store.state(graph).nodes.getFirst().applicationUuid;
+        existingConfiguration(initial.graphId());
+        when(provider.reconcileExistingOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any())).thenAnswer(call -> {
+            var checkpoint = call.getArgument(6, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class);
+            assertThatThrownBy(() -> checkpoint.created("APPLICATION", "replacement")).hasMessageContaining("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
+            assertThatThrownBy(() -> checkpoint.volume("/new", "new-volume")).hasMessageContaining("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
+            checkpoint.creating("APPLICATION");
+            throw new AssertionError("Creation checkpoint must not return");
+        });
+        clearInvocations(provider);
+        var result = operators.enroll("dep-1", "production", new ManagedDependencyOperatorService.Enroll("inbox", "Blocked Staff", "blocked-staff"));
+        assertThat(result.status()).isEqualTo("BLOCKED");
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
+        String added = result.operators().stream().filter(value -> !initial.operators().getFirst().id().equals(value.id())).findFirst().orElseThrow().id();
+        assertThatThrownBy(() -> operators.deliver("dep-1", "production", added,
+            new ManagedDependencyOperatorService.Mutation(1, "blocked-delivery"), true)).hasMessageContaining("NOT_EFFECTIVE");
+        assertThat(store.state(graph).nodes.getFirst().applicationUuid).isEqualTo(before);
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+    }
+
+    private void existingConfiguration(String graphId) {
+        doAnswer(call -> new ManagedDependencyPrerequisites.Admission(
+            "reservation-" + graphId, call.getArgument(0, ManagedDependencyPrerequisites.Scope.class).bindingFingerprint(),
+            Map.of("inbox", "https://connector.example.test/inbox/callback"), List.of("https://app.example.test"), Map.of(),
+            Map.of("conversation-handover-callback-signing", "TARGET_CALLBACK_SECRET"), true)).when(gate).reserve(any(), any(), any());
+    }
+
     @Test void explicitResumeReusesProvisionedNodesAndRetainsInitializationKeys() {
         var ready = ready("staging"); var graph = graphs.get(ready.graphId()); graph.setReleaseId("release");
         var failedKeys = new ArrayList<String>();

@@ -20,7 +20,12 @@ public interface ManagedDependencyPrerequisites {
     }
     record Admission(String reservationRef, String bindingFingerprint,
                      Map<String, String> callbacks, List<String> origins,
-                     Map<String, String> targetValues, Map<String, String> targetSecretReferences) {}
+                     Map<String, String> targetValues, Map<String, String> targetSecretReferences, boolean existingConfiguration) {
+        public Admission(String reservationRef, String bindingFingerprint, Map<String, String> callbacks, List<String> origins,
+                         Map<String, String> targetValues, Map<String, String> targetSecretReferences) {
+            this(reservationRef, bindingFingerprint, callbacks, origins, targetValues, targetSecretReferences, false);
+        }
+    }
     record Binding(String slot, String serviceRef, String baseUrl, String accountId,
                    String bindingId, Map<String, String> secretReferences) {}
 

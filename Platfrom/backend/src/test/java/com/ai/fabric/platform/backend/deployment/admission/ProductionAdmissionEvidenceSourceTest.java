@@ -115,6 +115,39 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
         verify(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
     }
 
+    @Test void existingProductionConfigurationUsesActualPlacementAndGrantNotHistoricalMeasurementDeadlines() {
+        var old = context.policy();
+        var budget = new Budget(old.fleet().measured(), old.fleet().baseline(), old.fleet().headroom(),
+            "measurement-proof", NOW.minusSeconds(100), NOW.minusSeconds(1));
+        var policy = new FleetPolicy("historical", budget, Map.of(TARGET,
+            new TargetBudget(TARGET, Intent.CUSTOMER_PRODUCTION, STAGING, "profile-fingerprint", budget)),
+            old.lifecycle(), old.restoreEvidenceReference(), old.privacyEvidenceReference(), old.supportReference());
+        context = new AdmissionContext(context.customerId(), context.tenantId(), context.deploymentId(), policy,
+            context.grant(), context.manifest(), context.manifestFingerprint(), policy.targets().get(TARGET));
+        var actual = new CustomerPlacementEvidenceEntity("placement-evidence", TARGET, TargetIntent.CUSTOMER_PRODUCTION,
+            "profile-fingerprint", STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(), NOW, NOW.plusSeconds(300));
+        when(placement.requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_PRODUCTION))).thenReturn(actual);
+        when(placement.probeAndRecord(any(), eq(TargetIntent.CUSTOMER_PRODUCTION))).thenReturn(actual);
+        when(placement.requireEvidenceById(any(), eq(TargetIntent.CUSTOMER_PRODUCTION), eq(actual.getId()))).thenReturn(actual);
+        when(dependencyEvidence.resolveForProductionDeployment("customer", "tenant", "deployment1", "reviewed-topology", context.manifest().demand()))
+            .thenReturn(Optional.of(new ReviewedManagedDependencyEvidenceService.Evidence(
+                "template-version", "d".repeat(64), "managed-dependency-spec:" + "d".repeat(64))));
+        var source = source(properties(true, true));
+
+        assertThat(source.readExistingConfigurationForExecution(context).validUntil()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(source.readExistingConfiguration(context).validUntil()).isEqualTo(NOW.plusSeconds(60));
+        assertThatThrownBy(() -> source.readForExecution(context)).hasMessageContaining("ADMISSION_PREREQUISITE_EXPIRED");
+        version.setConfigHash("changed");
+        assertThatThrownBy(() -> source.readExistingConfigurationForExecution(context))
+            .hasMessageContaining("IMMUTABLE_VERSION_EVIDENCE_CHANGED");
+    }
+
+    @Test void existingConfigurationEvidenceCannotBeUsedForStaging() {
+        assertThatThrownBy(() -> source(properties(true, true)).readExistingConfigurationForExecution(context))
+            .hasMessageContaining("DEPENDENCY_ACTIVE_PRODUCTION_REQUIRED");
+        verify(placement, never()).probeAndRecord(any(), any());
+    }
+
     @Test void freshEvidenceAuthorizesHistoricalPolicyReferenceOnlyThroughExactContinuityAndPinsNewMeasurement() {
         var references = new java.util.HashSet<>(context.manifest().prerequisiteReferences()); references.add("policy:policy");
         var original = context.manifest();

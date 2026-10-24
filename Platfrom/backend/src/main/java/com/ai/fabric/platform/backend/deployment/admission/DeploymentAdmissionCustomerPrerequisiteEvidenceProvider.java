@@ -257,7 +257,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested,
         Reservation reservation, AdmissionContext current, Instant now, boolean requireFreshReadback, boolean activeProductionSource) {
         store.requireEffectivePolicy(reservation, current);
-        if (activeProductionSource) validateActiveProductionSourcePolicy(reservation, current);
+        if (activeProductionSource) historicalPolicy(reservation, current);
         else policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
@@ -280,31 +280,6 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
                 || !current.target().placement().equals(original.placement())) {
                 throw unavailable("CUSTOMER_PREREQUISITE_EVIDENCE_UNKNOWN");
             }
-        }
-    }
-
-    private void validateActiveProductionSourcePolicy(Reservation reservation, AdmissionContext current) {
-        // Effective-policy checks above verify immutable records and explicit continuity; no new capacity is admitted here.
-        FleetPolicy policy = current.policy();
-        String originalPolicyId = current.policyAuthority() == null ? policy.id() : current.policyAuthority().originalPolicyId();
-        if (!reservation.policyId().equals(originalPolicyId) || policy.targets() == null
-            || !Objects.equals(current.target(), policy.targets().get(reservation.targetProfileId()))) {
-            throw unavailable("CUSTOMER_ADMISSION_POLICY_IDENTITY_CHANGED");
-        }
-        required(policy.id(), 64);
-        lifecycle(policy.lifecycle());
-        required(policy.restoreEvidenceReference(), 255);
-        required(policy.privacyEvidenceReference(), 255);
-        required(policy.supportReference(), 255);
-        for (Budget budget : new Budget[] {policy.fleet(), current.target().budget()}) {
-            if (budget == null || budget.measuredAt() == null || budget.validUntil() == null
-                || !budget.validUntil().isAfter(budget.measuredAt())) throw unavailable("CUSTOMER_ADMISSION_POLICY_STRUCTURE_INVALID");
-            required(budget.measurementReference(), 255);
-            vector(budget.measured()); vector(budget.baseline()); vector(budget.headroom());
-            for (Dimension dimension : java.util.List.of(Dimension.CPU_MILLICORES, Dimension.MEMORY_BYTES, Dimension.DISK_BYTES)) {
-                if (budget.measured().amounts().get(dimension) == 0) throw unavailable("MEASURED_CPU_RAM_DISK_REQUIRED");
-            }
-            within(sum(java.util.List.of(budget.baseline(), budget.headroom())), budget.measured(), "INVALID_HEADROOM");
         }
     }
 

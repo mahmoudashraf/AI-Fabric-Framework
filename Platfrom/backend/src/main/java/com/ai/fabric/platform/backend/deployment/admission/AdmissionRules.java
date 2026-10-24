@@ -113,6 +113,29 @@ final class AdmissionRules {
         required(grant.ownerContactEvidenceReference(), 255); required(grant.payerReference(), 255);
         if (grant.keepStagingEntitlementReference() != null) required(grant.keepStagingEntitlementReference(), 255);
     }
+    // Held production configuration needs policy integrity, not a new capacity measurement.
+    static void historicalPolicy(Reservation reservation, AdmissionContext current) {
+        FleetPolicy policy = current.policy();
+        String originalPolicyId = current.policyAuthority() == null ? policy.id() : current.policyAuthority().originalPolicyId();
+        if (!reservation.policyId().equals(originalPolicyId) || policy.targets() == null
+            || !Objects.equals(current.target(), policy.targets().get(reservation.targetProfileId())))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_ADMISSION_POLICY_IDENTITY_CHANGED");
+        required(policy.id(), 64); lifecycle(policy.lifecycle());
+        required(policy.restoreEvidenceReference(), 255); required(policy.privacyEvidenceReference(), 255);
+        required(policy.supportReference(), 255);
+        for (Budget budget : new Budget[] {policy.fleet(), current.target().budget()}) {
+            if (budget == null || budget.measuredAt() == null || budget.validUntil() == null
+                || !budget.validUntil().isAfter(budget.measuredAt()))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_ADMISSION_POLICY_STRUCTURE_INVALID");
+            required(budget.measurementReference(), 255);
+            vector(budget.measured()); vector(budget.baseline()); vector(budget.headroom());
+            for (Dimension dimension : List.of(Dimension.CPU_MILLICORES, Dimension.MEMORY_BYTES, Dimension.DISK_BYTES)) {
+                if (budget.measured().amounts().get(dimension) == 0)
+                    throw new AdmissionFailure(PRECONDITION_FAILED, "MEASURED_CPU_RAM_DISK_REQUIRED");
+            }
+            within(sum(List.of(budget.baseline(), budget.headroom())), budget.measured(), "INVALID_HEADROOM");
+        }
+    }
     static void manifest(Manifest manifest) {
         if (manifest == null || manifest.prerequisiteReferences() == null || manifest.prerequisiteReferences().isEmpty()
             || manifest.prerequisiteReferences().size() > 64) throw new AdmissionFailure(PRECONDITION_FAILED, "REVIEWED_MANIFEST_REQUIRED");

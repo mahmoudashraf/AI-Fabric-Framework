@@ -227,6 +227,78 @@ class OwnedManagedDependencyProvisioningTest {
             inboxResources(), "binding", "one")).hasMessageContaining("OWNERSHIP_CONFLICT");
         verify(api, never()).createDockerImageApplication(any(), any()); verify(api, never()).createPostgresDatabase(any(), any());
     }
+    @Test void existingConfigurationReusesFullReconcilerWithoutAnyCreateCheckpointOrProviderCreate() {
+        var spec = ManagedDependencyFixtures.productionInbox();
+        var resources = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
+            "inbox-app", "db", true, true, Map.of("/app/data", "volume"));
+        stubExistingInbox(spec, resources);
+        when(api.start(connection, "inbox-app", true, true)).thenReturn(new CoolifyActionResponse("ok", "build", mapper.createObjectNode()));
+        when(api.getDeployment(connection, "build")).thenReturn(Optional.of(new CoolifyDeploymentSummary("build", "inbox-service", "inbox-app",
+            "finished", null, null, null, null, null, mapper.createObjectNode())));
+        var env = List.of(new CoolifyEnvVar("BASIC_INBOX_OPERATORS", "owner|Owner|original|binding;new|New|added|binding", false, true, false, false));
+        var result = service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
+            resources, ignored -> env, checkpoint);
+        assertThat(result.applicationUuid()).isEqualTo("inbox-app");
+        assertThat(result.databaseUuid()).isEqualTo("db");
+        verify(api).updateEnvironmentVariables(connection, "inbox-app", env);
+        verify(api).updateDockerImageApplication(eq(connection), eq("inbox-app"), any());
+        verify(api, never()).createDockerImageApplication(any(), any());
+        verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api, never()).reconcilePersistentVolumeStorage(any(), anyString(), anyString(), anyString());
+        verify(ownership.authority, never()).postVolume(any(), anyString(), anyString(), anyString());
+        verify(checkpoint, never()).creating(anyString());
+        verify(checkpoint, never()).created(anyString(), anyString());
+        verify(checkpoint, never()).volume(anyString(), anyString());
+    }
+
+    @Test void existingConfigurationRejectsMissingIdsLiveResourcesAndVolumesBeforeAnyMutation() {
+        var spec = inbox(); stubExistingInbox(spec);
+        assertThatThrownBy(() -> service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
+            empty(false), ignored -> List.of(), checkpoint)).hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+        ownership.appStorages.clear();
+        assertThatThrownBy(() -> service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
+            inboxResources(), ignored -> List.of(), checkpoint)).hasMessageContaining("CONFLICT");
+        when(api.getApplication(connection, "inbox-app")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
+            inboxResources(), ignored -> List.of(), checkpoint)).hasMessageContaining("OWNERSHIP_CONFLICT");
+        verify(api, never()).createDockerImageApplication(any(), any());
+        verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api, never()).updateEnvironmentVariables(any(), anyString(), anyList());
+        verify(api, never()).updateDockerImageApplication(any(), anyString(), any());
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void recordedVolumeDisappearingAfterProviderPreflightNeverFallsBackToCreation(boolean remote404) {
+        var spec = inbox(); stubExistingInbox(spec);
+        var disappeared = new java.util.concurrent.atomic.AtomicBoolean();
+        when(api.listApplicationStorages(connection, "inbox-app")).thenAnswer(call -> {
+            if (!disappeared.get()) return ownership.appStorages.get("inbox-app");
+            if (remote404) throw new CoolifyApiException("storage disappeared", 404, "/applications/inbox-app/storages");
+            return List.of();
+        });
+        doAnswer(call -> { disappeared.set(true); return null; }).when(checkpoint).guard();
+
+        var failure = catchThrowable(() -> service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
+            inboxResources(), ignored -> List.of(), checkpoint));
+
+        if (remote404) assertThat(failure).isInstanceOfSatisfying(CoolifyApiException.class, error -> assertThat(error.statusCode()).isEqualTo(404));
+        else assertThat(failure).hasMessageContaining("OWNERSHIP_CONFLICT");
+        assertThat(ownership.resources().volumes()).containsEntry("/app/data", "volume");
+        verify(ownership.authority).volume(any(), eq("inbox-app"), eq("/app/data"), eq("volume"));
+        verify(ownership.authority, never()).postVolume(any(), anyString(), anyString(), anyString());
+        verify(api, never()).reconcilePersistentVolumeStorage(any(), anyString(), anyString(), anyString());
+        verify(api, never()).createDockerImageApplication(any(), any());
+        verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api, never()).updateDockerImageApplication(any(), anyString(), any());
+        verify(api, never()).updateEnvironmentVariables(any(), anyString(), anyList());
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
+        verify(checkpoint, never()).creating(anyString());
+        verify(checkpoint, never()).created(anyString(), anyString());
+        verify(checkpoint, never()).volume(anyString(), anyString());
+    }
+
     private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service inbox() {
         return ManagedDependencyFixtures.topology().services().stream().filter(value -> value.slot().equals("inbox")).findFirst().orElseThrow();
     }
@@ -234,12 +306,22 @@ class OwnedManagedDependencyProvisioningTest {
         return new PlatformManagedProductProvisioningService.OwnedDependencyResources("inbox-app", null, true, false, Map.of("/app/data", "volume"));
     }
     private void stubExistingInbox(com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec) {
-        ownership.graph(spec, "inbox-service", inboxResources());
+        stubExistingInbox(spec, inboxResources());
+    }
+    private void stubExistingInbox(com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+                                   PlatformManagedProductProvisioningService.OwnedDependencyResources resources) {
+        ownership.graph(spec, "inbox-service", resources);
         ownership.applications.put("inbox-app", new CoolifyApplicationSummary("inbox-app", "inbox-service",
             "https://inbox-service.example.test", "running:healthy", "registry.example.test/dependency", "sha256-" + "a".repeat(64),
             raw("inbox-service", "ManagedDependency:graph:inbox")));
         ownership.appStorages.put("inbox-app", List.of(ownership.storage("volume",
             "inbox-app-inbox-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data")));
+        if (spec.database() != null) {
+            ownership.databases.put("db", new CoolifyDatabaseSummary("db", "inbox-service-db", "running:healthy", "postgresql",
+                "dependency", "dependency", raw("inbox-service-db", "ManagedDependency:graph:inbox")
+                    .put("image", spec.database().image()).put("is_public", false).put("limits_cpus", "0.250").put("limits_memory", "512M")));
+            ownership.dbStorages.put("db", List.of(ownership.storage("db-volume", "inbox-db-data", "/var/lib/postgresql/data")));
+        }
         ownership.receipts();
     }
     @Test void immutableImageAndCreationIntentArePassedThroughExistingProvider() {

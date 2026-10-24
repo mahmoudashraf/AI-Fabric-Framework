@@ -86,7 +86,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         validator.validate(spec);
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
         ownership.requireAllowed(spec);
-        var evidence = admission.requireForExecution(requirement(scope, spec), null);
+        var evidence = admission(scope, spec, true, phase == ProvisioningPhase.RUNTIME_BOUND, null);
         if (evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION) {
             validator.requireProductionInboxPersistence(spec);
         }
@@ -98,7 +98,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             phase == ProvisioningPhase.RUNTIME_BOUND);
         Map<String, String> targetSecrets = targetSecrets(spec, authority);
         return new Admission(evidence.reservationId(), evidence.bindingFingerprint(), callbacks,
-            authority.allowedOrigins(), targetValues, targetSecrets);
+            authority.allowedOrigins(), targetValues, targetSecrets, evidence.existingConfiguration());
     }
 
     @Override
@@ -107,7 +107,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         var graph = graph(scope);
         ManagedDependencySpec spec = graphs.spec(graph);
         ownership.requireAllowed(spec);
-        admission.require(requirement(scope, spec), required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
+        admission(scope, spec, false, true, required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
         authority(scope);
     }
 
@@ -117,7 +117,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         requireScope(scope);
         var graph = graph(scope); var spec = graphs.spec(graph);
         ownership.requireAllowed(spec);
-        admission.requireForExecution(requirement(scope, spec), required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
+        admission(scope, spec, true, true, required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
         authority(scope);
     }
 
@@ -127,7 +127,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         var artifact = artifacts.findById(required(service.sourceArtifactId(), "DEPENDENCY_ARTIFACT_REQUIRED"))
             .orElseThrow(() -> conflict("DEPENDENCY_ARTIFACT_MISSING"));
         String expectedImage = artifact.getImageRepository() + "@" + artifact.getImageDigest();
-        var evidence = admission.require(requirement(scope, graphs.spec(graph(scope))), graph(scope).getReservationRef());
+        var evidence = admission(scope, graphs.spec(graph(scope)), false, true, graph(scope).getReservationRef());
         boolean productionIntent = evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION;
         boolean acceptedChannel = "production".equals(artifact.getPromotionChannel())
             || !productionIntent && "staging".equals(artifact.getPromotionChannel());
@@ -149,7 +149,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
                                     String operationKey) {
         validateReservation(scope, graph(scope).getReservationRef());
         var graph = graph(scope);
-        var evidence = admission.require(requirement(scope, graphs.spec(graph)), graph.getReservationRef());
+        var evidence = admission(scope, graphs.spec(graph), false, true, graph.getReservationRef());
         if (evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION) {
             new ManagedDependencySpecValidator(mapper).requireProductionInboxPersistence(graphs.spec(graph));
         }
@@ -276,6 +276,51 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             databases, capacity.resources());
     }
 
+    private ManagedDependencyAdmissionLedger.Evidence admission(Scope scope, ManagedDependencySpec spec,
+            boolean execution, boolean allowExisting, String reservationRef) {
+        var graph = graph(scope);
+        var state = graphs.state(graph);
+        if (!scope.specFingerprint().equals(new ManagedDependencySpecValidator(mapper).fingerprint(spec)))
+            fail("DEPENDENCY_SPEC_DRIFT");
+        // Candidate/release transitions explicitly clear this durable proof of prior configuration.
+        boolean previouslyEffective = allowExisting && state.effectiveConfigurationRevision >= 0
+            && !graph.getStatus().startsWith("RETIR")
+            && spec.services().stream().anyMatch(service -> service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1);
+        var requirement = requirement(scope, spec);
+        boolean existingProduction = previouslyEffective && admission.reviewedIntent(requirement,
+            required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED")) == AdmissionContracts.Intent.CUSTOMER_PRODUCTION;
+        var evidence = existingProduction
+            ? execution ? admission.requireConfigurationForExecution(requirement,
+                required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED"), scope.releaseId())
+                : admission.requireConfiguration(requirement, required(graph.getReservationRef(), "DEPENDENCY_RESERVATION_REQUIRED"), scope.releaseId())
+            : execution ? admission.requireForExecution(requirement, reservationRef) : admission.require(requirement, reservationRef);
+        if (reservationRef != null && !reservationRef.equals(evidence.reservationId())) fail("DEPENDENCY_RESERVATION_DRIFT");
+        if (evidence.existingConfiguration()) {
+            authority(scope);
+            var release = releases.findById(scope.releaseId()).orElseThrow(() -> conflict("DEPENDENCY_RELEASE_BINDING_MISSING"));
+            if (!"ACTIVE".equals(release.getProvisioningStatus()) || !"APPLIED_VERIFIED".equals(release.getStatus())
+                || state.effectiveConfigurationRevision < 0 || state.configurationRevision < state.effectiveConfigurationRevision
+                || graph.getStatus().startsWith("RETIR") || state.nodes.size() != spec.services().size())
+                fail("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
+            for (var service : spec.services()) {
+                var matches = state.nodes.stream().filter(node -> service.slot().equals(node.slot)).toList();
+                if (matches.size() != 1) fail("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+                var node = matches.getFirst();
+                if (!node.initialized || node.disabled || node.applicationUuid == null || node.applicationUuid.isBlank()
+                    || node.baseUrl == null || node.baseUrl.isBlank() || node.serviceRef == null || node.serviceRef.isBlank()
+                    || node.accountId == null || node.accountId.isBlank() || node.bindingId == null || node.bindingId.isBlank()
+                    || (service.database() == null) != (node.databaseUuid == null || node.databaseUuid.isBlank())
+                    || !node.volumes.keySet().equals(service.volumes().stream().map(ManagedDependencySpec.Volume::mountPath)
+                        .collect(java.util.stream.Collectors.toSet()))
+                    || node.volumes.values().stream().anyMatch(value -> value == null || value.isBlank())
+                    || node.provisionedConfigurationRevision < state.effectiveConfigurationRevision
+                    || node.provisionedConfigurationRevision > state.configurationRevision)
+                    fail("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
+            }
+        }
+        return evidence;
+    }
+
     private RuntimeAuthorityBinding authority(Scope scope) {
         String releaseId = required(scope.releaseId(), "DEPENDENCY_RELEASE_BINDING_REQUIRED");
         var release = releases.findById(releaseId)
@@ -395,6 +440,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             || !scope.deploymentId().equals(graph.getDeploymentId())
             || !scope.targetProfileId().equals(graph.getTargetProfileId())
             || !scope.versionId().equals(graph.getVersionId())
+            || !Objects.equals(scope.releaseId(), graph.getReleaseId())
             || !scope.specFingerprint().equals(graph.getSpecFingerprint())
             || !scope.bindingFingerprint().equals(graph.getBindingFingerprint())) {
             fail("DEPENDENCY_SCOPE_CHANGED");
@@ -422,7 +468,8 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     }
 
     private String environment(Scope scope) {
-        return admission.require(requirement(scope, graphs.spec(graph(scope))), graph(scope).getReservationRef()).intent()
+        var graph = graph(scope);
+        return admission(scope, graphs.spec(graph), false, true, graph.getReservationRef()).intent()
             == AdmissionContracts.Intent.CUSTOMER_PRODUCTION ? "production" : "staging";
     }
 

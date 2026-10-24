@@ -515,6 +515,7 @@ public class ManagedDependencyLifecycleService {
                 store.mutate(graphId, token, (current, state) -> current.setStep("PROVISION:" + service.slot()));
                 var node = node(store.state(store.read(graphId)), service.slot());
                 if (node.disabled) {
+                    if (admission.existingConfiguration()) fail("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
                     gate.disableAndVerifyBinding(scope, binding(node));
                     provisioning.disableOwnedDependency(connection, graphId, node.serviceRef, service.slot(), node.applicationUuid,
                         checkpoint(graphId, token, service.slot()));
@@ -531,7 +532,11 @@ public class ManagedDependencyLifecycleService {
                 }
                 if (checkpointed && (node.provisionedConfigurationRevision != checkpointState.configurationRevision
                     || node.baseUrl == null)) fail("DEPENDENCY_CONTINUATION_CONFIGURATION_CHANGED");
-                var result = checkpointed
+                var result = admission.existingConfiguration()
+                    ? provisioning.reconcileExistingOwnedDependency(connection, graphId, node.serviceRef, service,
+                        resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid),
+                        checkpoint(graphId, token, service.slot(), true))
+                    : checkpointed
                     ? provisioning.verifyOwnedDependencyCheckpoint(connection, graphId, node.serviceRef, service,
                         resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid),
                         node.baseUrl, checkpoint(graphId, token, service.slot()))
@@ -672,9 +677,14 @@ public class ManagedDependencyLifecycleService {
         gate().validateExecutionReservation(scope(graph), graph.getReservationRef());
     }
     PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint checkpoint(String graphId, String token, String slot) {
+        return checkpoint(graphId, token, slot, false);
+    }
+    private PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint checkpoint(String graphId, String token, String slot,
+                                                                                          boolean existingOnly) {
         return new PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint() {
             public void guard() { ManagedDependencyLifecycleService.this.guard(graphId, token); }
             public void creating(String kind) {
+                if (existingOnly) fail("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
                 store.mutate(graphId, token, (graph, state) -> {
                     var node = node(state, slot);
                     if ("APPLICATION".equals(kind)) node.applicationCreateIntent = true;
@@ -682,6 +692,7 @@ public class ManagedDependencyLifecycleService {
                 });
             }
             public void created(String kind, String uuid) {
+                if (existingOnly) fail("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
                 required(uuid, 255);
                 store.mutate(graphId, token, (graph, state) -> {
                     var node = node(state, slot);
@@ -694,6 +705,7 @@ public class ManagedDependencyLifecycleService {
                 });
             }
             public void volume(String mountPath, String uuid) {
+                if (existingOnly) fail("DEPENDENCY_CONFIGURATION_CANNOT_CREATE");
                 store.mutate(graphId, token, (graph, state) -> {
                     String existing = node(state, slot).volumes.putIfAbsent(mountPath, uuid);
                     if (existing != null && !existing.equals(uuid)) fail("DEPENDENCY_VOLUME_GENERATION_CONFLICT");
