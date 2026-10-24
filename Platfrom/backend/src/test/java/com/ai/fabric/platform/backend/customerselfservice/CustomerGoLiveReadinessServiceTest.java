@@ -26,6 +26,8 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -163,8 +165,10 @@ class CustomerGoLiveReadinessServiceTest {
                 "workspace", "deployment", "production-release", "https://runtime.example", "assignment", List.of()));
     }
 
-    @Test
-    void derivesAnActivationReadyProjectionFromExactCandidateEvidence() {
+    @ParameterizedTest
+    @ValueSource(strings = {"POST_APPLY", "MANUAL_RERUN"})
+    void derivesAnActivationReadyProjectionFromExactCandidateEvidence(String verificationType) {
+        verifications.findById("verification").orElseThrow().setVerificationType(verificationType);
         var summary = service.project("offer", "deployment", "production-release", "workspace");
 
         assertThat(summary.activationReady()).isTrue();
@@ -178,6 +182,44 @@ class CustomerGoLiveReadinessServiceTest {
         var run = verifications.findById("verification").orElseThrow();
         assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
             .singleElement().extracting("expiresAt").isEqualTo(run.getCompletedAt().plusSeconds(3600));
+        verify(candidates).requireFreshVerification(deployment, version, release,
+            targets.findById("production").orElseThrow());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PRE_APPLY", "CONTROL_PLANE_READINESS", "UNKNOWN"})
+    void unrelatedVerificationTypesCannotAuthorizeActivation(String verificationType) {
+        verifications.findById("verification").orElseThrow().setVerificationType(verificationType);
+
+        var summary = service.project("offer", "deployment", "production-release", "workspace");
+
+        assertThat(summary.activationReady()).isFalse();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
+            .singleElement().satisfies(item -> {
+                assertThat(item.status()).isEqualTo(Status.BLOCKED);
+                assertThat(item.blocker()).contains("Exact verification run is unavailable");
+            });
+    }
+
+    @Test
+    void manualRecheckStillRequiresExactFreshPassingEvidence() {
+        var run = verifications.findById("verification").orElseThrow();
+        run.setVerificationType("MANUAL_RERUN");
+        run.setDeploymentId("foreign-deployment");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        run.setDeploymentId("deployment");
+        run.setReleaseId("foreign-release");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        run.setReleaseId("production-release");
+        run.setDeploymentVersionId("foreign-version");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        run.setDeploymentVersionId("version");
+        run.setStatus("FAILED");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+        run.setStatus("PASSED");
+        doThrow(new IllegalStateException("Verification is stale"))
+            .when(candidates).requireFreshVerification(eq(deployment), eq(version), eq(release), any());
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
     }
 
     @Test

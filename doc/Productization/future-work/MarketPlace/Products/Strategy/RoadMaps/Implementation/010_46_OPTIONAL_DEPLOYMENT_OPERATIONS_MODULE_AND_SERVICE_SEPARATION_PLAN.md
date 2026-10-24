@@ -562,6 +562,60 @@ and rechecking the same cold release remain required; no additional native cold
 apply or document re-index is needed. Production promotion and final proof cleanup
 are still open and are not counted as passed.
 
+**Cold replacement qualified:** Backend correction commit
+`dd4ce33820d26c9998892fa25fcba777cb3dc284` passed image CI `40138581256`
+and is deployed on both control planes at
+`sha256:b60dce80eaa1684f470e5febf0a4a3f247efd5a3d1d6ac8fd5b080664c9b1b4d`.
+Both public health and native image/JAR checks passed; schema V210, configuration,
+environment and original selected financial/assignment hashes remain unchanged.
+Normal customer UI recheck `vrf-f882130d` passed on the existing cold release
+`rel-0ccd4e0f`, and the same Engage app was explicitly switched to it. The exact
+AI-state PostgreSQL container/mounts and three active source IDs/versions were
+retained. After real Supabase sign-in, the actual history UI reopened prior
+conversation `chat-28088775-549f-49c3-9311-5a381467d578`, displayed its old
+messages and accepted one new read-only warranty query on that same conversation.
+Normal chat cited retained warranty source
+`doc-d43b9b5f9d2b9458ebd85745f5aaef44`; its answer matches the approved fictional
+90-day engine/gearbox cover and wear/accidental-damage exclusions. No re-index,
+native replacement retry or business write was performed for this qualification.
+
+An earlier anonymous-browser retention harness failed before sending any query:
+Playwright `storageState` omitted the widget's `sessionStorage`. Also, installer
+assignment revisions intentionally partition anonymous client state. That failed
+zero-send attempt is retained, not relabeled green. Anonymous browser continuity
+across assignment changes is not claimed; authenticated history continuity and
+target-owned server state are the qualified cold-path contract here. No widget
+identity boundary was weakened and no additional cold replacement was manufactured
+to repair a browser harness. Evidence is in private `target-state-proof/` files
+`cold-browser-after.actual.json` and `cold-history-after.actual.json` respectively.
+
+The corrected runtime artifact was subsequently promoted through its normal
+registry workflow to production. Customer UI promotion reviewed the same immutable
+configuration `ver-f1d566ef` and created production release `rel-ed561611`.
+Production apply, separately indexed production-prefix policies, same-app switch,
+workspace checks and owned-only cleanup remain open at this checkpoint.
+
+Production provisioning completed without either operations service. Its initial
+verification honestly stopped on missing policy registrations; all other applicable
+checks passed. Customer UI registration/indexing then made the three separate
+production-prefix sources active, and exact-release recheck `vrf-d39fc6ce` passed.
+Activation exposed a pre-existing duplicate-predicate mismatch: the normal customer
+verification button records `MANUAL_RERUN`, accepted by the existing fresh-passing
+promotion validator, but the go-live readiness projection separately accepted only
+`POST_APPLY`. The correction aligns that projection with the existing
+`POST_APPLY`/`MANUAL_RERUN` contract, preserving exact deployment/version/release,
+freshness, passed status, source evidence and customer authorization. It does not
+relabel the manual audit record, fabricate a pass or repeat provider apply. Focused
+regression qualification and deployment of this backend-only correction remain
+required before activation. A separate browser polling GET timeout and the
+disabled activation button sent no apply/activation command; both reports remain
+retained as unsuccessful monitoring attempts, not successful product operations.
+The three-suite focused readiness/promotion run passed 34 tests with zero
+failures/errors/skips (`/tmp/01046-manual-recheck-readiness.log`). Positive coverage
+accepts both genuine full verification types; negative coverage retains rejection
+of pre-apply/unknown types, foreign ownership/version, failed and stale evidence.
+No runtime or framework source change is included in this correction.
+
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.
 - [x] Manual-first scope, optional module boundary, provider-use modes and later service contract drafted.

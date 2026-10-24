@@ -259,7 +259,8 @@ public class CustomerGoLiveReadinessService {
                 .filter(value -> deployment.getId().equals(value.getDeploymentId())
                     && release.getId().equals(value.getReleaseId())
                     && version.getId().equals(value.getDeploymentVersionId())
-                    && "POST_APPLY".equals(value.getVerificationType()))
+                    && ("POST_APPLY".equals(value.getVerificationType())
+                        || "MANUAL_RERUN".equals(value.getVerificationType())))
                 .orElse(null);
             if (run == null) failures.add("Exact verification run is unavailable.");
         } catch (RuntimeException error) {
