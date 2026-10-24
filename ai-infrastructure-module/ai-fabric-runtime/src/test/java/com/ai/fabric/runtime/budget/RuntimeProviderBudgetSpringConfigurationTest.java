@@ -211,7 +211,7 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
                 "management.endpoint.health.group.readiness.include=readinessState")
             .run(context -> {
                 assertThat(context).hasNotFailed().hasSingleBean(RuntimeProviderBudgetAdminController.class);
-                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("21");
+                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("22");
                 AvailabilityChangeEvent.publish(context, LivenessState.CORRECT);
                 AvailabilityChangeEvent.publish(context, ReadinessState.ACCEPTING_TRAFFIC);
                 var health = context.getBean(HealthEndpoint.class);

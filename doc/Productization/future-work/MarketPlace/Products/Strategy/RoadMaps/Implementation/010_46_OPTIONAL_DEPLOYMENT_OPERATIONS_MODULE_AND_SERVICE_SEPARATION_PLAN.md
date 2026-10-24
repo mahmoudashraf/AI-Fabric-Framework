@@ -524,6 +524,18 @@ also passed after the Pinecone exact-integral numeric fix. These overlapping run
 are not summed. No framework dependency version changed. Hosted acceptance of the
 corrected immutable runtime image remains required.
 
+Runtime source commit `cde62f78c9a15ba9167e8684befb91b060816beb` reached CI
+run `40133696451`: 514 runtime tests executed with zero skips, but four assertions
+in three existing migration/admin suites still expected the prior latest schema
+version 21. Image publication was correctly skipped. Only those latest-version
+expectations and the overview's additional-migration count were corrected; no
+runtime behavior or financial invariant was weakened. The focused three-suite
+rerun passed 17 tests with zero failures/errors/skips, including actual PostgreSQL
+preservation checks. Its log is `/tmp/01046-runtime-target-state-v22-fixtures.log`;
+the 63-test document/search reports are archived under
+`/tmp/01046-runtime-target-state-cde62f78c/`. A successful immutable image build and
+the fresh hosted journey remain outstanding, not inferred from these local passes.
+
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.
 - [x] Manual-first scope, optional module boundary, provider-use modes and later service contract drafted.
