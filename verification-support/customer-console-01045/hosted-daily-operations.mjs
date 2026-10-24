@@ -108,9 +108,12 @@ try {
     operatorId = operator.id; report.operatorId = operatorId
     const row = page.getByRole('row').filter({ hasText: name })
     phase = 'deliver-once'
+    await row.getByRole('button', { name: 'Deliver once', exact: true }).click({ trial: true, timeout: 180000 })
     pending = waitCommand(`${targetPath}/managed-dependencies/operators/${operatorId}/credential-delivery`)
     await row.getByRole('button', { name: 'Deliver once', exact: true }).click()
-    response = await pending; assert.equal(response.status(), 200)
+    response = await pending
+    if (response.status() !== 200) report.rejection = await response.json()
+    assert.equal(response.status(), 200)
     data = await response.json(); assert.ok(data.apiKey?.length > 15)
     report.oneTimeCredentialReceived = true
     await page.getByRole('alert').filter({ hasText: 'One-time operator credential:' }).getByRole('button').click()
@@ -121,6 +124,14 @@ try {
     response = await pending; assert.equal(response.status(), 200)
     data = await response.json(); assert.equal(data.operators.find(item => item.id === operatorId)?.status, 'REVOKED')
     await row.getByText('REVOKED', { exact: true }).waitFor()
+    const deadline = Date.now() + 180000
+    do {
+      data = await get(`${targetPath}/managed-dependencies`)
+      if (data.operators.find(item => item.id === operatorId)?.effectiveAt && data.configurationRevision === data.effectiveConfigurationRevision) break
+      assert.ok(Date.now() < deadline, 'Operator revocation has not become effective')
+      assert.notEqual(data.status, 'BLOCKED', data.failureCode)
+      await page.waitForTimeout(5000)
+    } while (true)
     report.temporaryOperatorRevoked = true
   }
   const after = await get(appPath)

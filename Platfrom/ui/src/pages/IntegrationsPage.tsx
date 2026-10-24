@@ -354,6 +354,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
             ) : null}
             {dependencies.data ? (
               <>
+                {dependencies.data.failureCode ? <Alert severity="warning">Inbox configuration: {dependencies.data.failureCode}</Alert> : null}
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip label={dependencies.data.status} color={statusColor(dependencies.data.status)} />
                   <Chip label={`Configuration ${dependencies.data.effectiveConfigurationRevision}/${dependencies.data.configurationRevision}`} variant="outlined" />
@@ -389,7 +390,9 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
                           <TableCell>Revision {operator.credentialRevision} · {operator.delivered ? 'delivered' : 'not delivered'}</TableCell>
                           <TableCell align="right">
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
-                              <Button size="small" disabled={operator.status !== 'ENROLLED' || operator.delivered || deliverCredential.isPending}
+                              <Button size="small" disabled={operator.status !== 'ENROLLED' || operator.delivered || deliverCredential.isPending
+                                || dependencies.data.status !== 'READY' || !operator.effectiveAt
+                                || dependencies.data.configurationRevision !== dependencies.data.effectiveConfigurationRevision}
                                 onClick={() => deliverCredential.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision })}>Deliver once</Button>
                               <Button size="small" disabled={operator.status !== 'ENROLLED' || mutateOperator.isPending}
                                 onClick={() => mutateOperator.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision, command: 'rotate' })}>Rotate</Button>

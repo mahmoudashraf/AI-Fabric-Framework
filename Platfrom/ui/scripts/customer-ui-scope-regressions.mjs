@@ -68,7 +68,7 @@ const release = (deploymentId, targetProfileId, suffix) => ({
 const releases = id => [release(id, 'staging', 's1'), release(id, 'staging', 's2'), release(id, 'production', 'p1')]
 
 async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', placementBlocker = null,
-  failSelectionSave = false } = {}) {
+  failSelectionSave = false, dependencyBlocked = false } = {}) {
   const context = await browser.newContext()
   const page = await context.newPage()
   page.setDefaultTimeout(15_000)
@@ -150,10 +150,11 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
         connector: { reachable: true, status: { recentCallbacks: [] } },
       })
       if (operation.endsWith('/managed-dependencies')) return json(route, {
-        status: 'ACTIVE', configurationRevision: 1, effectiveConfigurationRevision: 1,
+        status: dependencyBlocked ? 'BLOCKED' : 'READY', configurationRevision: dependencyBlocked ? 2 : 1,
+        effectiveConfigurationRevision: 1, failureCode: dependencyBlocked ? 'DEPENDENCY_ADMISSION_INVALID' : null,
         services: [{ slot: 'support-inbox' }],
         operators: [{ id: 'operator-one', displayName: 'Fixture operator', slot: 'support-inbox', status: 'ENROLLED',
-          credentialRevision: 1, delivered: false }],
+          credentialRevision: 1, delivered: false, effectiveAt: '2026-10-18T00:00:00Z' }],
       })
       if (operation.endsWith('/operators/operator-one/credential-delivery')) {
         if (delayed) {
@@ -306,6 +307,16 @@ try {
       console.log(`Passed: ${blocker} can be reverified and refreshed before creation is enabled`)
     } finally { await placement.close() }
   }
+
+  const blockedInbox = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a', dependencyBlocked: true })
+  try {
+    await selectRelease(blockedInbox.page, 'deployment-a-s1')
+    await blockedInbox.page.getByRole('alert').filter({ hasText: 'Inbox configuration: DEPENDENCY_ADMISSION_INVALID' }).waitFor()
+    assert.equal(await blockedInbox.page.getByRole('button', { name: 'Deliver once', exact: true }).isDisabled(), true)
+    assert.equal(blockedInbox.calls.some(call => call.path.endsWith('/credential-delivery')), false)
+    passed += 1
+    console.log('Passed: ineffective inbox configuration warns and prevents credential delivery')
+  } finally { await blockedInbox.close() }
 
   for (const change of ['release', 'target', 'deployment', 'actor']) {
     const current = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
