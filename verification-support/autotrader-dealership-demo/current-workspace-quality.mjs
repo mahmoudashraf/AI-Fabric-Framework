@@ -53,6 +53,7 @@ function evidence(body) {
     documents: documents.map(document => ({ id: document.id, title: document.title, content: document.content,
       score: document.score, metadata: document.metadata })),
     sources: body.sources ?? [], compound,
+    compoundResults: Array.isArray(body.results) ? body.results : [],
     diagnostics: rows.flatMap(row => row.searchSourceDiagnostics ?? []),
     timing: rows.map(row => row.timing).find(Boolean),
   }
@@ -168,6 +169,14 @@ try {
       report.successfulWriteActions.push(...writes.map(action => ({ scenario: scenario.id, action: action.action })))
       assert.equal(writes.length, 0, 'A business write occurred; stop the diagnostic run')
       await page.waitForTimeout(1250)
+      if (body.type === 'COMPOUND_HANDLED' && Array.isArray(body.results)) {
+        for (const child of body.results) {
+          if (typeof child.answer === 'string' && child.answer.trim()) {
+            await page.getByText(child.answer, { exact: true }).last().waitFor()
+          }
+        }
+        report.results[report.results.length - 1].compoundResultsRendered = body.results.length
+      }
       const closeAuth = page.locator('#auth-close')
       if (await page.locator('#auth-dialog[open]').isVisible()) await closeAuth.click()
       await page.screenshot({ path: `${root}/${scenario.id}.png`, fullPage: true })

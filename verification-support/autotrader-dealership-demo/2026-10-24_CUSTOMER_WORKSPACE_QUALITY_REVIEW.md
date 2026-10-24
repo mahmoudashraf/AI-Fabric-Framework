@@ -2,6 +2,105 @@
 
 Date: 24 October 2026. Status: **NEEDS IMPROVEMENT**.
 
+## Latest: Projection Verified Live, Semantic Quality Still Unstable
+
+The staging source/digest/schema210 and protected configuration/assignment/
+funding hashes are verified after the asset rollout. The new first-party widget
+SRI is verified. The full browser suite completed at17:50:42 UTC: **8 PASS,
+2 PARTIAL,4 FAIL,6 SOURCE_GAP**, with no writes, browser errors or blocked
+requests. The new compound projection passed its actual DOM assertions and
+screenshot review: both clarification and successful-search child statuses are
+visible, with no raw child data or executable child actions exposed.
+
+That is a **presentation-contract pass, not an answer-quality pass**. The
+selected-vehicle question still did not receive its requested answer in the
+full run. Its successful child said only `Search completed.`; generation was
+deferred while a sibling needed clarification. A separate two-turn repeat did
+answer the selected price/mileage plus delivery/warranty correctly with four
+documents and two completed obligations. Preserve both outcomes: the semantic
+path is unstable, not permanently broken or consistently fixed.
+
+Inventory-plus-policy now passed both clause orders, and unsupported towing
+recommendations were avoided. However the full run again lost the lowest-
+mileage follow-up and standalone delivery requirements. Booking information
+still clarified its knowledge domain. More visible outcomes and faster turns
+must not be presented as an overall quality improvement over the earlier9-PASS
+run. The five-item evidence cap remains; the cheaper Morrow record was absent
+from one five-hit RAG alternative set, so the cheapest returned alternative is
+not proven globally closest.
+
+Median5.04s/p958.16s include failed clarification turns and are not useful-answer
+latency or a load benchmark. Exact reviewed evidence and hashes are in
+[the projection qualification](evidence/2026-10-24-compound-projection-quality.json).
+
+Main's Runtime/widget implementation and staging verification are complete.
+The bounded framework patch is **awaiting owner approval**, not separation work.
+No framework code/release, production control-plane asset rollout, original
+customer runtime/assignment or old financial records were changed by this fix.
+The successful-search/deferred-generation compound behavior is an additional
+focused upstream finding; do not assume the three proposed prompt/planner/item-
+budget changes alone repair partial synthesis.
+
+## Runtime And Widget Implementation Record
+
+This stream does not depend on the completed operations separation. Runtime
+commit `b724d8e4a` and generic-widget commit `473bccbed` preserve sanitized
+compound child status/answer/failure reason through the canonical API and the
+widget's existing compound renderer. This is display-only: no raw child data,
+executable child actions, automatic retry or semantic status rewriting.
+
+The46 focused Runtime tests (including6 new cases), widget contract smoke,
+typecheck/embedded build, action-presentation/semantic-boundary smokes and14
+Platform asset/controller/manifest tests pass. Exact build source is
+`473bccbed651d36726d21721244a2c70d5bfc9a7`. Runtime CI40115132788 and backend
+asset CI40115132702 passed; the latter completed after one same-source rerun
+following an overdue first attempt and repeated GitHub job/log HTTP502s. CI
+failures and cancellation are retained, not relabelled green.
+
+The internal runtime is source/digest verified and healthy on
+`sha256:0523d9e41359a90024decf5ba340f150360151972b29d4321e53cd361e9a554e`.
+Its normal framework mode now exposes the knowledge overview and requires an
+explicit source choice when retrieval is requested. This does not enable
+automatic fan-out, bypass an allowlist, or select sources by query text. Native
+funding/authorization and all other settings are preserved.
+
+A four-query live check confirms both flags in response metadata: stock,
+lowest-mileage follow-up, and inventory-first plus delivery all answered
+correctly; booking-information still clarified the domain. This is3 PASS/1 FAIL,
+not a substitute for the full20-case repeat. Private evidence is
+`compound-projection/source-catalogue-4/`, SHA256
+`1d75d1d9c4e7199ed3b0454db9f6362813341bda6442095dd9d2e317fd0230b5`.
+
+First-party widget delivery is being qualified on the **staging** control plane,
+image `sha256:141755246fda0095cdb76698b3dd25e5202b20045d7199610552406763c40a59`.
+Its Java/configuration source is identical to the accepted separation backend;
+only packaged widget assets change. Production control-plane source, original
+customer runtime/assignment and financial history remain unchanged. Browser
+verification of the new child presentation is still pending at this checkpoint.
+
+### Confirmed Framework Follow-Up Boundaries
+
+The managed templates match the0.8.41 release tag and packaged curated JAR
+(SHA256 `936d3d16b2b87e5738bdfb2d39c8828739dc64a416d8c830cb62087d32ec5eb2`).
+Read-planner source and its template also match the release tag. Three bounded
+changes have been proposed for owner approval, **not implemented or released**:
+
+- Align managed extraction rules/sample schema with required booleans,
+  compound obligation IDs and the effective source-recovery policy.
+- Supply the read planner with the authorized knowledge-source catalogue.
+  `planActions` currently supplies intent, eligible read actions and prior
+  evidence, but no source catalogue/allowlist; its suggestedVectorSpaces output
+  is optional. A planner may choose RAG after extraction selected no retrieval
+  source, leaving routing unable to proceed. The model, not runtime phrase
+  rules or unconditional fan-out, must make the source decision.
+- Make the bounded evidence-item limit configurable. `sanitizeValue` currently
+  uses a hard five-item list limit, so more character budget cannot make the
+  sixth stock record available in that generated evidence. Keep explicit
+  truncation diagnostics and finite limits.
+
+The pending framework decision does not prevent the already-approved
+Runtime/widget UI qualification from proceeding.
+
 ## Follow-Up: Explicit Guidance Trial Not Accepted
 
 After the owner requested a working-status update, a focused11-query test ran
