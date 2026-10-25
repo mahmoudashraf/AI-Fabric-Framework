@@ -3,6 +3,69 @@
 Started: 24 October 2026. Latest review: 25 October 2026.
 Status: **NEEDS IMPROVEMENT**.
 
+## 25 October: Approved Framework Patch Qualification
+
+The owner approved the three bounded generic fixes. Framework source
+`c21702acc3eb3226c892d4506b1f40fe38171607` is committed and tagged
+`ai-fabric-framework-v0.8.42`. The affected release-profile build passed
+896 tests with zero failures, errors or skips. Maven Central publication
+run40189305726 succeeded. A new empty-cache Central-only consumer build passed
+756 tests, zero failures/errors/skips. All20 packaged framework libraries are
+0.8.42; core, execution and curated-default bytes independently match Central.
+The GitHub release remains a prerelease; no broad framework-matrix claim is made.
+
+The fixes align managed extraction prompts with the existing output contract,
+provide the read planner with its authorized source catalogue, and make the
+evidence-item budget configurable. Existing retrieval authority is checked
+again after a planner promotes retrieval. No semantic keyword matching,
+automatic search-all, or general validator relaxation was introduced. The
+shared validation philosophy and always-applied guidance are pushed in
+Platform commit `d2c287566` and mirrored in the framework release.
+
+The consumer canary is deliberately isolated on its existing Runtime473
+source, branch `codex/framework-0842-quality`, with only five dependency and
+metadata files changed. Using current Platform HEAD instead would also apply
+unrelated document-ownership migrations and invalidate the quality comparison.
+The uncommitted version preparations on Platform HEAD were withdrawn without
+changing anyone else's work. A native read-only preflight confirms the canary
+and connector healthy, runtime schema21 unchanged, and its AI-state database
+backed up. Runtime image CI40190729313 succeeded; immutable source17b05496a and
+image16554a7065828133d7793f219b397b82c4ae0876dd568ed5622ba25610f12f9d
+were verified before cold replacement. Coolify jobd2xldeet4aaoe0s8f8zf7sre
+finished. Native source/digest, actual framework/admin/capability versions,
+all three health surfaces and unchanged schema21 were verified live. The
+original connector image was restarted only after runtime readiness.
+
+The same20 live UI questions completed at12:14:27UTC: **12 PASS,1 PARTIAL,
+1 FAIL,6 SOURCE_GAP** after manual source/answer review. All HTTP200, preserved
+conversation continuity, no browser errors, blocked requests or business
+writes. All20 extractions were model-origin, valid on their first response,
+without repair or semantic override. Effective item budget10 is visible in
+debug metadata; model, deployed custom prompts, allowlists, cooperation mode
+and original customer assignments were preserved. This is not Platform-managed
+release acceptance or a global upgrade: current Platform main remains0.8.41.
+
+Compared with the previous full20, complete all-stock, lowest-mileage follow-up,
+standalone delivery and selected-vehicle/policy synthesis now pass. Both mixed
+clause orders pass. Missing reservation/finance/complaint/opening/towing facts
+remain honest source gaps, not successful product answers. The partial case
+still chooses from five ranked alternatives, omitting a cheaper stock record;
+it does not establish a globally closest match. The remaining failure is booking
+information: extraction correctly names document but does not request retrieval;
+the read planner is not attempted. No hard validator blocks that turn.
+
+Exact evidence and all20 manual verdicts are in
+[the0.8.42 qualification](evidence/2026-10-25-framework-0842-quality.json).
+One sequential run is not a statistical reliability or load benchmark.
+Partial-compound synthesis under a clarifying sibling remains outside this
+patch; a successful selected-vehicle answer here does not prove that failure
+path fixed. The separately observed SUV-only filter issue is not qualified.
+
+Next recommendations, without implementation in this patch: inspect booking
+prompt/source/action-schema exposure; review bounded alternative completeness;
+enrich provider fixtures and approved documents where facts are genuinely
+missing. Do not replace these decisions with keyword routing or search-all.
+
 ## 25 October: Post-Separation Recheck
 
 The separation task reported its final hosted customer journey and cleanup
