@@ -45,6 +45,10 @@ public class ManagedResourceOwnershipService {
     }
     public record Receipt(String id, Scope scope, String provider, String kind, String parent,
                           String name, String state, String resourceId, String endpoint) { }
+    public record DeletionPreparation(Receipt resource, List<Receipt> volumes) {
+        public DeletionPreparation { volumes = List.copyOf(volumes); }
+        public boolean prepared() { return List.of("DELETE_PENDING", "DELETED").contains(resource.state()); }
+    }
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
@@ -164,6 +168,43 @@ public class ManagedResourceOwnershipService {
             if (!"DELETED".equals(r.state())) jdbc.update("UPDATE platform_managed_resource_ownership SET state='DELETE_PENDING',updated_at=? WHERE id=?",
                 Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MICROS)),r.id());
         });
+    }
+
+    /** Only the winner of this durable transition may issue the first native DELETE. */
+    public boolean prepareDeletion(DeletionPreparation expected, DeploymentProviderResourceHandleEntity deletingHandle,
+                                   Runnable guard) {
+        return Boolean.TRUE.equals(durable.execute(tx -> {
+            lock();
+            guard.run();
+            Receipt current = get(expected.resource().id());
+            requireDeletionIdentity(current, expected.resource());
+            if (!"OWNED".equals(current.state())) return false;
+            String excludedHandle = deletingHandle == null ? null : requireDeletingHandle(current, deletingHandle);
+            requireUnreferenced(current, excludedHandle);
+            if (expected.volumes().stream().map(Receipt::id).distinct().count() != expected.volumes().size())
+                throw denied("MANAGED_RESOURCE_OWNERSHIP_CHANGED");
+            for (Receipt volume : expected.volumes()) {
+                if (!current.scope().equals(volume.scope()) || !current.provider().equals(volume.provider())
+                    || !Objects.equals(current.endpoint(), volume.endpoint()) || current.id().equals(volume.id()))
+                    throw denied("MANAGED_RESOURCE_OWNERSHIP_CHANGED");
+                Receipt storedVolume = get(volume.id());
+                requireDeletionIdentity(storedVolume, volume);
+                if ("DELETED".equals(storedVolume.state())) throw denied("MANAGED_RESOURCE_OWNERSHIP_CHANGED");
+                requireUnreferenced(volume, null);
+            }
+            for (Receipt volume : expected.volumes()) jdbc.update(
+                "UPDATE platform_managed_resource_ownership SET state='DELETE_PENDING',updated_at=? WHERE id=? AND state='OWNED'",
+                Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MICROS)), volume.id());
+            return jdbc.update("UPDATE platform_managed_resource_ownership SET state='DELETE_PENDING',updated_at=? WHERE id=? AND state='OWNED'",
+                Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MICROS)), current.id()) == 1;
+        }));
+    }
+
+    private void requireDeletionIdentity(Receipt current, Receipt expected) {
+        if (!new Receipt(current.id(), current.scope(), current.provider(), current.kind(), current.parent(),
+            current.name(), expected.state(), current.resourceId(), current.endpoint()).equals(expected)
+            || !List.of("OWNED", "DELETE_PENDING", "DELETED").contains(current.state()))
+            throw denied("MANAGED_RESOURCE_OWNERSHIP_CHANGED");
     }
 
     public void deleted(String id) {

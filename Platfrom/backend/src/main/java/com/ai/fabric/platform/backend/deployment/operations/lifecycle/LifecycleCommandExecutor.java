@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment.operations.lifecycle;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -11,6 +13,7 @@ import static com.ai.fabric.platform.backend.deployment.operations.lifecycle.Lif
 /** Resumes only accepted native commands. It does not select or schedule operational policy. */
 @Service
 public class LifecycleCommandExecutor {
+    private static final Logger log = LoggerFactory.getLogger(LifecycleCommandExecutor.class);
     private final LifecycleCommandStore store;
     private final LifecycleEffects effects;
     private final Executor executor;
@@ -55,6 +58,11 @@ public class LifecycleCommandExecutor {
             if (code == null || !code.matches("[A-Z0-9_]{1,128}")) code = "NATIVE_EXECUTION_BLOCKED";
             store.finish(work, Status.BLOCKED, code, List.of(code));
         } catch (RuntimeException unknown) {
+            String location = java.util.Arrays.stream(unknown.getStackTrace())
+                .filter(frame -> frame.getClassName().startsWith("com.ai.fabric."))
+                .findFirst().map(StackTraceElement::toString).orElse("unavailable");
+            log.warn("Native lifecycle command unresolved operationId={} phase={} exceptionType={} source={}",
+                work.command().operationId(), work.command().phase(), unknown.getClass().getName(), location);
             store.finish(work, Status.UNKNOWN, "NATIVE_OUTCOME_UNKNOWN", List.of("NATIVE_OUTCOME_UNKNOWN"));
         }
     }

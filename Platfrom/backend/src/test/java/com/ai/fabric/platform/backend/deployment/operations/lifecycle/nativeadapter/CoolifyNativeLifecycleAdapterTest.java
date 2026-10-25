@@ -47,6 +47,7 @@ class CoolifyNativeLifecycleAdapterTest {
     final List<DeploymentProviderResourceHandleEntity> rows = new ArrayList<>();
     final Map<String, ObjectNode> nativeRows = new LinkedHashMap<>();
     final Map<String, List<CoolifyApplicationStorageSummary>> storages = new HashMap<>();
+    final Map<String, String> deletionStates = new HashMap<>();
     final Set<String> presentVolumes = new HashSet<>();
     final List<String> effects = new ArrayList<>();
     final DeploymentTargetProfileEntity target = new DeploymentTargetProfileEntity();
@@ -91,6 +92,16 @@ class CoolifyNativeLifecycleAdapterTest {
         });
         when(api.delete(eq(connection), anyString(), eq(true), eq(false), eq(false), eq(false))).thenAnswer(call -> deleted(call.getArgument(1)));
         when(api.deleteDatabase(eq(connection), anyString(), eq(true), eq(false), eq(false), eq(false))).thenAnswer(call -> deleted(call.getArgument(1)));
+        when(ownership.preflightRetirementDeletion(any())).thenAnswer(call -> {
+            var handle = call.getArgument(0, DeploymentProviderResourceHandleEntity.class);
+            return deletionPreparation(handle.getProviderResourceUuid(), handle.getResourceKind());
+        });
+        when(ownership.prepareRetirementDeletion(any(), any(), any())).thenAnswer(call -> prepareDeletion(
+            call.getArgument(1), call.getArgument(2)));
+        doAnswer(call -> {
+            deletionStates.put(call.getArgument(0, DeploymentProviderResourceHandleEntity.class).getProviderResourceUuid(), "DELETED");
+            return null;
+        }).when(ownership).finishRetirementDeletion(any());
         when(volumeService.reclaimAndVerify(any(), anyString(), anyString(), anyList())).thenAnswer(call -> {
             List<CoolifyHostVolumeReclamationService.Volume> values = call.getArgument(3);
             values.forEach(value -> presentVolumes.remove(value.name()));
@@ -367,6 +378,7 @@ class CoolifyNativeLifecycleAdapterTest {
         storages.put("runtime", List.of(first, second));
         var snapshot = freeze(); adapter.stop(snapshot, journal);
         journal.beforeEffect(deleteEffect(snapshot, "runtime"));
+        deletionStates.put("runtime", "DELETE_PENDING");
         storages.put("runtime", List.of(second));
         assertThat(adapter.delete(snapshot, true, journal).complete()).isFalse();
         assertThat(journal.complete).doesNotContain(deleteEffect(snapshot, "runtime"));
@@ -398,18 +410,102 @@ class CoolifyNativeLifecycleAdapterTest {
         verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
     }
 
-    @Test void aNewDeleteRevalidatesExactInventoryAfterIntentAndBeforeDispatch() {
+    @Test void allRemotePreflightsPrecedeIntentAndAtomicPreparationImmediatelyPrecedesDispatch() {
         add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
         var snapshot = freeze(); adapter.stop(snapshot, journal);
-        var changing = new Journal() {
+        int[] callsAtIntent = {-1}, callsAtPreparation = {-1};
+        var ordered = new Journal() {
             @Override public boolean beforeEffect(String id) {
-                boolean first = super.beforeEffect(id);
-                if (deleteEffect(snapshot, "runtime").equals(id)) storages.remove("runtime");
-                return first;
+                if (deleteEffect(snapshot, "runtime").equals(id) && !isKnown(id))
+                    callsAtIntent[0] = mockingDetails(api).getInvocations().size();
+                return super.beforeEffect(id);
             }
         };
-        assertThatThrownBy(() -> adapter.delete(snapshot, true, changing)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
-        assertThat(changing.intents).contains(deleteEffect(snapshot, "runtime"));
+        doAnswer(call -> {
+            callsAtPreparation[0] = mockingDetails(api).getInvocations().size();
+            assertThat(callsAtPreparation[0]).isEqualTo(callsAtIntent[0]);
+            return prepareDeletion(call.getArgument(1), call.getArgument(2));
+        }).when(ownership).prepareRetirementDeletion(any(), any(), any());
+        doAnswer(call -> {
+            assertThat(mockingDetails(api).getInvocations()).hasSize(callsAtPreparation[0] + 1);
+            assertThat(deletionStates.get("runtime")).isEqualTo("DELETE_PENDING");
+            return deleted("runtime");
+        }).when(api).delete(connection, "runtime", true, false, false, false);
+        assertThat(adapter.delete(snapshot, true, ordered).complete()).isTrue();
+        assertThat(callsAtIntent[0]).isGreaterThan(0);
+    }
+
+    @Test void acceptedButUnpreparedDeleteIntentCanMakeItsFirstCallAfterDeadlineWithoutNewIntent() {
+        add("db", "RUNTIME_POSTGRES_DATABASE"); var snapshot = freeze(); adapter.stop(snapshot, journal);
+        String effect = deleteEffect(snapshot, "db"); journal.beforeEffect(effect);
+        var accepted = new Journal() {
+            @Override public boolean beforeEffect(String id) {
+                if (isKnown(id)) return false;
+                throw new IllegalStateException("NEW_INTENT_DEADLINE_EXCEEDED");
+            }
+        };
+        accepted.intents.addAll(journal.intents); accepted.complete.addAll(journal.complete);
+        var originalIntents = Set.copyOf(accepted.intents);
+        assertThat(adapter.delete(snapshot, false, accepted).complete()).isTrue();
+        assertThat(accepted.intents).isEqualTo(originalIntents);
+        assertThat(accepted.complete).contains(effect);
+        verify(api, times(1)).deleteDatabase(connection, "db", true, false, false, false);
+        assertThat(adapter.delete(snapshot, false, accepted).complete()).isTrue();
+        verify(api, times(1)).deleteDatabase(connection, "db", true, false, false, false);
+    }
+
+    @Test void readFailureBeforePreparationLeavesAnUnsentIntentSafelyRetryable() {
+        add("db", "RUNTIME_POSTGRES_DATABASE"); volume("db", "state", "owned-db-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        String effect = deleteEffect(snapshot, "db"); journal.beforeEffect(effect);
+        when(api.listDatabases(connection)).thenThrow(new IllegalStateException("preflight unavailable"));
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("preflight unavailable");
+        assertThat(deletionStates).doesNotContainKey("db");
+        verify(ownership, never()).prepareRetirementDeletion(any(), any(), any());
+        verify(api, never()).deleteDatabase(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+        doReturn(List.of()).when(api).listDatabases(connection);
+        var resumed = persistedJournal(journal);
+        assertThat(adapter.delete(snapshot, true, resumed).complete()).isTrue();
+        assertThat(resumed.intents).contains(effect);
+        verify(api, times(1)).deleteDatabase(connection, "db", true, false, false, false);
+    }
+
+    @Test void newDeletePreflightFailureDoesNotPersistAnIntentOrPrepareOwnership() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        when(api.listApplications(connection)).thenThrow(new IllegalStateException("inventory unavailable"));
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("inventory unavailable");
+        assertThat(journal.intents).doesNotContain(deleteEffect(snapshot, "runtime"));
+        assertThat(deletionStates).doesNotContainKey("runtime");
+        verify(ownership, never()).prepareRetirementDeletion(any(), any(), any());
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void losingAtomicPreparationRaceNeverIssuesAnotherDelete() {
+        add("runtime", "APPLICATION"); var snapshot = freeze(); adapter.stop(snapshot, journal);
+        doAnswer(call -> {
+            call.getArgument(2, Runnable.class).run();
+            deletionStates.put("runtime", "DELETE_PENDING");
+            return false;
+        }).when(ownership).prepareRetirementDeletion(any(), any(), any());
+        assertThat(adapter.delete(snapshot, false, journal).blockers()).contains("NATIVE_DELETE_OUTCOME_UNKNOWN");
+        assertThat(adapter.delete(snapshot, false, journal).complete()).isFalse();
+        verify(ownership, times(1)).prepareRetirementDeletion(any(), any(), any());
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void knownButUnpreparedDeleteStillRequiresFullVolumeInventoryAndOriginalIdentity() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var original = storages.get("runtime");
+        var snapshot = freeze(); adapter.stop(snapshot, journal); journal.beforeEffect(deleteEffect(snapshot, "runtime"));
+        storages.remove("runtime");
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        volume("runtime", "new", "foreign-volume");
+        storages.put("runtime", List.of(original.getFirst(), storages.get("runtime").getFirst()));
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        storages.put("runtime", original); nativeRows.get("runtime").put("created_at", "reused");
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_RESOURCE_IDENTITY_CHANGED");
+        verify(ownership, never()).prepareRetirementDeletion(any(), any(), any());
         verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
     }
 
@@ -418,6 +514,7 @@ class CoolifyNativeLifecycleAdapterTest {
         add("runtime", "APPLICATION"); volume("runtime", "runtime-state", "owned-runtime-state");
         var snapshot = freeze(); adapter.stop(snapshot, journal); adapter.stop(snapshot, journal);
         journal.beforeEffect(deleteEffect(snapshot, "connector"));
+        deletionStates.put("connector", "DELETE_PENDING");
         storages.remove("connector"); storages.remove("runtime");
         assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
         verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
@@ -428,6 +525,7 @@ class CoolifyNativeLifecycleAdapterTest {
         var frozenStorage = storages.get("runtime");
         var snapshot = freeze(); adapter.stop(snapshot, journal);
         journal.beforeEffect(deleteEffect(snapshot, "runtime"));
+        deletionStates.put("runtime", "DELETE_PENDING");
         storages.remove("runtime"); nativeRows.get("runtime").put("created_at", "foreign-generation");
         assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_RESOURCE_IDENTITY_CHANGED");
 
@@ -485,6 +583,21 @@ class CoolifyNativeLifecycleAdapterTest {
         assertThat(adapter.verifyStopped(snapshot).complete()).isTrue();
     }
 
+    @Test void managedInboxUsesTheSameOneShotPreparedDeleteAndReadbackContract() {
+        add("runtime", "APPLICATION"); addManagedInbox("inbox", ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1);
+        var snapshot = freeze();
+        for (int index = 0; index < 3; index++) adapter.stop(snapshot, journal);
+        journal.beforeEffect(deleteEffect(snapshot, "graph:inbox:DEPENDENCY_APPLICATION"));
+        doReturn(new CoolifyActionResponse("queued", null, null)).when(api).delete(connection, "inbox", true, false, false, false);
+        assertThat(adapter.delete(snapshot, false, journal).complete()).isFalse();
+        assertThat(adapter.delete(snapshot, false, journal).blockers()).contains("NATIVE_DELETE_OUTCOME_UNKNOWN");
+        verify(api, times(1)).delete(connection, "inbox", true, false, false, false);
+        nativeRows.remove("inbox");
+        assertThat(adapter.delete(snapshot, false, journal).complete()).isTrue();
+        assertThat(effects).containsSubsequence("DELETE runtime", "DELETE inbox-db");
+        verify(dependencies, times(2)).prepareOwnedLifecycleDeletion(any(), any());
+    }
+
     void addManagedInbox(String slot, ManagedDependencySpec.Contract contract) {
         var graph = new ManagedDependencyGraphEntity(); graph.setId("graph"); graph.setDeploymentId("dep"); graph.setTargetProfileId("target");
         graph.setCustomerId("customer"); graph.setTenantId("tenant"); graph.setReleaseId("release"); graph.setVersionId("version");
@@ -503,8 +616,19 @@ class CoolifyNativeLifecycleAdapterTest {
         String marker = "ManagedDependency:graph:" + slot;
         nativeRows.put(slot, raw(slot, marker)); nativeRows.put(slot + "-db", raw(slot + "-db", marker));
         when(dependencies.inspectOwnedLifecycleResources(eq(connection), eq("graph"), eq(slot), eq(slot), any())).thenAnswer(call -> List.of(
-            new PlatformManagedProductProvisioningService.OwnedLifecycleResource("DEPENDENCY_APPLICATION", slot, slot, marker, nativeRows.get(slot).path("status").asText(), nativeRows.get(slot), List.of()),
-            new PlatformManagedProductProvisioningService.OwnedLifecycleResource("RUNTIME_POSTGRES_DATABASE", slot + "-db", slot + "-db", marker, nativeRows.get(slot + "-db").path("status").asText(), nativeRows.get(slot + "-db"), List.of())));
+            managedObservation("DEPENDENCY_APPLICATION", slot, marker), managedObservation("RUNTIME_POSTGRES_DATABASE", slot + "-db", marker)));
+        when(dependencies.inspectOwnedLifecycleResource(eq(connection), eq("graph"), eq(slot), eq(slot), any(), anyString()))
+            .thenAnswer(call -> managedObservation((slot + "-db").equals(call.getArgument(5))
+                ? "RUNTIME_POSTGRES_DATABASE" : "DEPENDENCY_APPLICATION", call.getArgument(5), marker));
+        when(dependencies.ownedLifecycleDeletionPreparation(eq(connection), eq("graph"), eq(slot), eq(slot), any(), anyString()))
+            .thenAnswer(call -> deletionPreparation(call.getArgument(5), (slot + "-db").equals(call.getArgument(5))
+                ? "RUNTIME_POSTGRES_DATABASE" : "DEPENDENCY_APPLICATION"));
+        when(dependencies.prepareOwnedLifecycleDeletion(any(), any())).thenAnswer(call -> prepareDeletion(
+            call.getArgument(0), call.getArgument(1)));
+        when(dependencies.readbackOwnedLifecycleDeletion(eq(connection), eq("graph"), eq(slot), eq(slot), any(), anyString()))
+            .thenAnswer(call -> nativeRows.get(call.getArgument(5)));
+        doAnswer(call -> { deletionStates.put(call.getArgument(5), "DELETED"); return null; })
+            .when(dependencies).finishOwnedLifecycleResource(eq(connection), eq("graph"), eq(slot), eq(slot), any(), anyString());
         when(dependencies.dispatchOwnedLifecycleResource(eq(connection), eq("graph"), eq(slot), eq(slot), any(), anyString(), eq("STOP"), eq(false)))
             .thenAnswer(call -> stopped(call.getArgument(5)));
     }
@@ -529,6 +653,24 @@ class CoolifyNativeLifecycleAdapterTest {
     CoolifyActionResponse stopped(String id) { effects.add("STOP " + id); nativeRows.get(id).put("status", "exited"); return new CoolifyActionResponse("queued", null, null); }
     CoolifyActionResponse started(String id) { effects.add("START " + id); nativeRows.get(id).put("status", "running:healthy"); return new CoolifyActionResponse("queued", "job-" + id, null); }
     CoolifyActionResponse deleted(String id) { effects.add("DELETE " + id); nativeRows.remove(id); return new CoolifyActionResponse("queued", null, null); }
+
+    PlatformManagedProductProvisioningService.OwnedLifecycleResource managedObservation(String kind, String uuid, String marker) {
+        var raw = nativeRows.get(uuid);
+        return new PlatformManagedProductProvisioningService.OwnedLifecycleResource(kind, uuid, uuid, marker,
+            raw == null ? "ABSENT" : raw.path("status").asText(), raw, List.of());
+    }
+
+    ManagedResourceOwnershipService.DeletionPreparation deletionPreparation(String uuid, String kind) {
+        var receipt = new ManagedResourceOwnershipService.Receipt("receipt-" + uuid,
+            new ManagedResourceOwnershipService.Scope("customer", "tenant", "dep", "target"), "coolify", kind,
+            "exact-parent", uuid, deletionStates.getOrDefault(uuid, "OWNED"), uuid, config.baseUrl());
+        return new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of());
+    }
+
+    boolean prepareDeletion(ManagedResourceOwnershipService.DeletionPreparation preparation, Runnable guard) {
+        guard.run();
+        return deletionStates.putIfAbsent(preparation.resource().resourceId(), "DELETE_PENDING") == null;
+    }
 
     String deleteEffect(NativeSnapshot snapshot, String resourceId) { return "native:" + snapshot.scopeHash() + ":DELETE:" + resourceId; }
 

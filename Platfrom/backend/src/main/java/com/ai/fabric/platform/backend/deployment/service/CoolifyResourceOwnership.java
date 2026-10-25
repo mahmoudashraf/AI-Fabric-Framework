@@ -126,6 +126,11 @@ public class CoolifyResourceOwnership {
         ownership.beginDeletion(receipt, handle);
     }
 
+    boolean prepareDeletion(ManagedResourceOwnershipService.DeletionPreparation preparation,
+                            DeploymentProviderResourceHandleEntity handle, Runnable guard) {
+        return ownership.prepareDeletion(preparation, handle, guard);
+    }
+
     void deleted(ManagedResourceOwnershipService.Receipt receipt) {
         ownership.deleted(receipt.id());
     }

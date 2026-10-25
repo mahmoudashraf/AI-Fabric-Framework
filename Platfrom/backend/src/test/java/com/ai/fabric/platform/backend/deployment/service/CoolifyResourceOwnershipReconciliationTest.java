@@ -657,6 +657,37 @@ class CoolifyResourceOwnershipReconciliationTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {APP, "CONNECTOR_APPLICATION", "VECTORIZATION_RUNNER_APPLICATION", DB})
+    void atomicRetirementPreparationHasNoProviderReadsAndNeverRearmsAConsumedReceipt(String kind) {
+        var receipt = own(kind, "owned");
+        var handle = handle(kind, "owned", receipt.id()); persist(handle); install(kind, "owned");
+        var preparation = provider.preflightRetirementDeletion(handle);
+        int readsBefore = client.reads;
+        assertThat(provider.prepareRetirementDeletion(handle, preparation, () -> { })).isTrue();
+        assertThat(client.reads).isEqualTo(readsBefore);
+        assertThat(receipts.ownership.receipt(receipt.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(provider.prepareRetirementDeletion(handle, preparation, () -> { })).isFalse();
+        assertThat(client.reads).isEqualTo(readsBefore);
+        assertThat(client.effects).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {APP, DB})
+    void atomicRetirementPreparationRechecksPersistedHandleAndWorkerClaim(String kind) {
+        var receipt = own(kind, "owned");
+        var handle = handle(kind, "owned", receipt.id()); persist(handle); install(kind, "owned");
+        var preparation = provider.preflightRetirementDeletion(handle);
+        assertThatThrownBy(() -> provider.prepareRetirementDeletion(handle, preparation, () -> {
+            throw new IllegalStateException("LIFECYCLE_WORKER_FENCED");
+        })).hasMessageContaining("LIFECYCLE_WORKER_FENCED");
+        assertThat(receipts.ownership.receipt(receipt.id()).state()).isEqualTo("OWNED");
+        receipts.jdbc.update("UPDATE deployment_provider_resource_handles SET provider_resource_uuid='foreign' WHERE id=?", handle.getId());
+        assertThatThrownBy(() -> provider.prepareRetirementDeletion(handle, preparation, () -> { })).hasMessageContaining("RECONCILIATION_REQUIRED");
+        assertThat(receipts.ownership.receipt(receipt.id()).state()).isEqualTo("OWNED");
+        assertThat(client.effects).isEmpty();
+    }
+
+    @ParameterizedTest
     @CsvSource({"APPLICATION,provider_resource_uuid", "APPLICATION,deployment_id", "APPLICATION,target_profile_id",
         "APPLICATION,provider_project_uuid", "APPLICATION,provider_environment_uuid", "APPLICATION,provider_server_uuid",
         "APPLICATION,provider_type", "APPLICATION,resource_kind", "APPLICATION,metadata_json", "APPLICATION,missing",

@@ -156,24 +156,55 @@ class CoolifyOwnershipDeletionPostgresTest {
         assertThat(client.deletes).isZero();
     }
 
+    @Test
+    void atomicRetirementPreparationDurablyCommitsOnceWithoutProviderIo() {
+        var preparation = provider.preflightRetirementDeletion(handle);
+        int reads = client.reads;
+        caller.executeWithoutResult(tx -> {
+            assertThat(provider.prepareRetirementDeletion(handle, preparation, () -> { })).isTrue();
+            tx.setRollbackOnly();
+        });
+        assertThat(journal.receipt(receipt.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(provider.prepareRetirementDeletion(handle, preparation, () -> { })).isFalse();
+        assertThat(client.reads).isEqualTo(reads);
+        assertThat(client.deletes).isZero();
+    }
+
+    @Test
+    void atomicRetirementPreparationRejectsFencingAndChangedPersistedHandle() {
+        var preparation = provider.preflightRetirementDeletion(handle);
+        assertThatThrownBy(() -> provider.prepareRetirementDeletion(handle, preparation, () -> {
+            throw new IllegalStateException("LIFECYCLE_WORKER_FENCED");
+        })).hasMessageContaining("LIFECYCLE_WORKER_FENCED");
+        assertThat(journal.receipt(receipt.id()).state()).isEqualTo("OWNED");
+        jdbc.update("UPDATE deployment_provider_resource_handles SET provider_resource_uuid='foreign' WHERE id=?", handle.getId());
+        assertThatThrownBy(() -> provider.prepareRetirementDeletion(handle, preparation, () -> { })).hasMessageContaining("RECONCILIATION_REQUIRED");
+        assertThat(journal.receipt(receipt.id()).state()).isEqualTo("OWNED");
+        assertThat(client.deletes).isZero();
+    }
+
     private class FakeCoolify extends CoolifyApiClient {
         boolean present = true;
         boolean failAfterDelete;
         int deletes;
+        int reads;
 
         FakeCoolify() { super(mapper); }
 
         @Override public Optional<CoolifyApplicationSummary> getApplication(CoolifyConnection ignored, String uuid) {
+            reads++;
             assertThat(uuid).isEqualTo("owned");
             var raw = mapper.createObjectNode().put("uuid", uuid).put("name", "runtime");
             raw.putObject("destination").put("uuid", "destination").putObject("server").put("uuid", "server");
             return present ? Optional.of(new CoolifyApplicationSummary(uuid, "runtime", null, "running", null, null, raw)) : Optional.empty();
         }
         @Override public List<CoolifyProjectSummary> listProjects(CoolifyConnection ignored) {
+            reads++;
             return List.of(new CoolifyProjectSummary("project", "synthetic", null,
                 mapper.createObjectNode().put("uuid", "project").put("id", 11)));
         }
         @Override public Optional<CoolifyEnvironmentSummary> getEnvironment(CoolifyConnection ignored, String project, String environment) {
+            reads++;
             assertThat(project).isEqualTo("project"); assertThat(environment).isEqualTo("environment");
             var raw = mapper.createObjectNode().put("uuid", environment).put("id", 22).put("project_id", 11);
             var members = raw.putArray("applications");
@@ -181,6 +212,7 @@ class CoolifyOwnershipDeletionPostgresTest {
             return Optional.of(new CoolifyEnvironmentSummary(environment, "staging", project, null, raw));
         }
         @Override public List<CoolifyApplicationStorageSummary> listApplicationStorages(CoolifyConnection ignored, String uuid) {
+            reads++;
             assertThat(uuid).isEqualTo("owned");
             return List.of();
         }

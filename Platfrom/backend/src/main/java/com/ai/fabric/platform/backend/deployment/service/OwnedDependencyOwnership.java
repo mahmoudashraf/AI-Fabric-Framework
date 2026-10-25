@@ -439,6 +439,50 @@ public class OwnedDependencyOwnership {
         ownership.beginDeletion(resourceReceipt(context, kind, uuid, true));
     }
 
+    ManagedResourceOwnershipService.DeletionPreparation lifecycleDeletionPreparation(Context context, String kind, String uuid) {
+        var node = node(context);
+        var resource = resourceReceipt(context, kind, uuid, true);
+        var volumes = new ArrayList<ManagedResourceOwnershipService.Receipt>();
+        if (DATABASE.equals(kind)) {
+            if (!uuid.equals(node.databaseUuid)) throw denied();
+            databaseVolumes(context, uuid, true);
+            volumes.add(locationReceipt(context, DB_STORAGE, parent(context), context.name(DATABASE), true));
+        } else {
+            if (!APPLICATION.equals(kind) || !uuid.equals(node.applicationUuid)) throw denied();
+            applicationVolumes(context, uuid, node.volumes, true);
+            for (String mount : node.volumes.keySet()) volumes.add(locationReceipt(context, APP_VOLUME,
+                volumeParent(context, uuid, mount), volumeName(context, mount), true));
+        }
+        return new ManagedResourceOwnershipService.DeletionPreparation(resource, volumes);
+    }
+
+    boolean prepareLifecycleDeletion(ManagedResourceOwnershipService.DeletionPreparation preparation, Runnable guard) {
+        return ownership.prepareDeletion(preparation, null, guard);
+    }
+
+    JsonNode lifecycleDeletionReadback(Context context, String kind, String uuid) {
+        var receipt = resourceReceipt(context, kind, uuid, true);
+        if (!List.of("DELETE_PENDING", "DELETED").contains(receipt.state())) throw denied();
+        JsonNode raw;
+        String name;
+        if (DATABASE.equals(kind)) {
+            var observed = api.getDatabase(context.connection(), uuid);
+            raw = observed.map(CoolifyDatabaseSummary::raw).orElse(null);
+            name = observed.map(CoolifyDatabaseSummary::name).orElse(null);
+        } else {
+            if (!APPLICATION.equals(kind)) throw denied();
+            var observed = api.getApplication(context.connection(), uuid);
+            raw = observed.map(CoolifyApplicationSummary::raw).orElse(null);
+            name = observed.map(CoolifyApplicationSummary::name).orElse(null);
+        }
+        if (raw == null) absent(context, kind, uuid, receipt, true);
+        else {
+            if ("DELETED".equals(receipt.state())) throw denied();
+            live(context, kind, uuid, raw.path("uuid").asText(null), name, raw);
+        }
+        return raw;
+    }
+
     void beginVolumeDeletion(Context context, String appUuid, Map<String, String> volumes, String dbUuid) {
         applicationVolumes(context, appUuid, volumes, true);
         for (String mount : volumes.keySet()) ownership.beginDeletion(locationReceipt(context, APP_VOLUME,

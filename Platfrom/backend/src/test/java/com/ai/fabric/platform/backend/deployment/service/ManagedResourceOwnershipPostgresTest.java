@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -144,6 +145,40 @@ class ManagedResourceOwnershipPostgresTest {
         }
         assertThat(effects).hasValue(1);
         assertThat(ownership.requireOwned(SCOPE, "railway", "SERVICE", "service", null).state()).isEqualTo("OWNED");
+    }
+
+    @Test
+    void atomicDeletionPreparationHasOnePostgresWinnerAndNeverRearmsPendingOrDeleted() throws Exception {
+        migrate("197");
+        ownership.create(SCOPE, "coolify", "DEPENDENCY_APPLICATION", "parent", "inbox", () -> "app",
+            value -> new ManagedResourceOwnershipService.Identity(value, "https://coolify.test"));
+        var receipt = ownership.requireOwned(SCOPE, "coolify", "DEPENDENCY_APPLICATION", "app", "https://coolify.test");
+        var preparation = new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of());
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> { start.await(); return ownership.prepareDeletion(preparation, null, () -> { }); });
+            var second = executor.submit(() -> { start.await(); return ownership.prepareDeletion(preparation, null, () -> { }); });
+            start.countDown();
+            assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(ownership.receipt(receipt.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(ownership.prepareDeletion(preparation, null, () -> { })).isFalse();
+        ownership.deleted(receipt.id());
+        assertThat(ownership.prepareDeletion(preparation, null, () -> { })).isFalse();
+    }
+
+    @Test
+    void atomicDeletionPreparationRollsBackOnFencedWorkerWithoutConsumingFirstDispatch() {
+        migrate("197");
+        ownership.create(SCOPE, "coolify", "DEPENDENCY_APPLICATION", "parent", "inbox", () -> "app",
+            value -> new ManagedResourceOwnershipService.Identity(value, "https://coolify.test"));
+        var receipt = ownership.requireOwned(SCOPE, "coolify", "DEPENDENCY_APPLICATION", "app", "https://coolify.test");
+        var preparation = new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of());
+        assertThatThrownBy(() -> ownership.prepareDeletion(preparation, null, () -> {
+            throw new IllegalStateException("LIFECYCLE_WORKER_FENCED");
+        })).hasMessageContaining("LIFECYCLE_WORKER_FENCED");
+        assertThat(ownership.receipt(receipt.id())).isEqualTo(receipt);
+        assertThat(ownership.prepareDeletion(preparation, null, () -> { })).isTrue();
     }
 
     private void migrate(String target) {

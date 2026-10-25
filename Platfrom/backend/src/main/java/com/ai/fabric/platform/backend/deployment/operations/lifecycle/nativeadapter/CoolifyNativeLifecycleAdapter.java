@@ -27,6 +27,7 @@ import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyRetirementOwnership;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
+import com.ai.fabric.platform.backend.deployment.service.ManagedResourceOwnershipService.DeletionPreparation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -304,16 +305,34 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
         for (var resource : ordered(snapshot, false)) {
             checkpoint.guard();
             String deleteEffect = effect(snapshot, resource, "DELETE");
-            var observed = observeResource(snapshot, resource, false, true, false, checkpoint.isKnown(deleteEffect));
+            var deletion = preflightDelete(snapshot, resource);
+            if (deletion.preparation().prepared() && !checkpoint.isKnown(deleteEffect))
+                return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_INTENT_UNPROVEN");
+            var observed = observeResource(snapshot, resource, false, true, false,
+                checkpoint.isKnown(deleteEffect) && deletion.preparation().prepared());
             if (observed.state() != State.ABSENT) {
-                if (!checkpoint.beforeEffect(deleteEffect)) return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_OUTCOME_UNKNOWN");
+                if (deletion.preparation().prepared() || checkpoint.isComplete(deleteEffect))
+                    return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_OUTCOME_UNKNOWN");
                 checkpoint.guard(); check(snapshot);
-                requireExclusiveVolumes(snapshot, connection(target(snapshot.targetProfileId())));
-                dispatch(snapshot, resource, "DELETE", reclaimOwnedData);
+                requireExclusiveVolumes(snapshot, deletion.connection());
+                var preflight = observeResource(snapshot, resource, true, false);
+                if (preflight.state() != State.STOPPED || !preflight.containersAbsent() || !preflight.blockers().isEmpty())
+                    return pendingDeletion(snapshot, checkpoint, "NATIVE_STOP_REQUIRED");
+                // All remote preflights precede INTENT, including retries of an accepted but unprepared intent.
+                checkpoint.beforeEffect(deleteEffect); // Existing accepted INTENT retains its original authority/deadline.
+                boolean fresh = resource.origin() == Origin.HANDLE
+                    ? ownership.prepareRetirementDeletion(deletion.handle(), deletion.preparation(), checkpoint::guard)
+                    : dependencies.prepareOwnedLifecycleDeletion(deletion.preparation(), checkpoint::guard);
+                if (!fresh) return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_OUTCOME_UNKNOWN");
+                // No further remote preflight can consume this one-shot preparation before dispatch.
+                if (resource.database()) api.deleteDatabase(deletion.connection(), resource.uuid(), true, false, false, false);
+                else api.delete(deletion.connection(), resource.uuid(), true, false, false, false);
                 observed = observeResource(snapshot, resource, false, true, false, true);
                 if (observed.state() != State.ABSENT || !observed.containersAbsent())
                     return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_READBACK_PENDING");
             }
+            if (!preflightDelete(snapshot, resource).preparation().prepared())
+                return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_PREPARATION_UNPROVEN");
             if (!observed.containersAbsent()) return pendingDeletion(snapshot, checkpoint, "NATIVE_CONTAINER_ABSENCE_UNPROVEN");
             if (!checkpoint.isComplete(deleteEffect)) {
                 checkpoint.beforeEffect(deleteEffect);
@@ -343,6 +362,22 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
         return withCompletion(result, complete, null);
     }
 
+    private record DeletePreflight(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle,
+                                   DeletionPreparation preparation) { }
+
+    private DeletePreflight preflightDelete(NativeSnapshot snapshot, NativeResource resource) {
+        var connection = connection(target(snapshot.targetProfileId()));
+        requireConnection(resource, connection);
+        if (resource.origin() == Origin.HANDLE) {
+            var handle = requireHandle(snapshot, resource);
+            return new DeletePreflight(connection, handle, ownership.preflightRetirementDeletion(handle));
+        }
+        var node = requireNode(snapshot, resource);
+        return new DeletePreflight(connection, null, dependencies.ownedLifecycleDeletionPreparation(connection,
+            resource.dependency().graphId(), resource.dependency().serviceRef(), resource.dependency().slot(),
+            ownedResources(node), resource.uuid()));
+    }
+
     private Observation observation(NativeSnapshot snapshot, boolean stoppedProof, boolean absenceProof) {
         return observation(snapshot, stoppedProof, absenceProof, null);
     }
@@ -350,7 +385,8 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
     private Observation observation(NativeSnapshot snapshot, boolean stoppedProof, boolean absenceProof, Checkpoint deletion) {
         check(snapshot);
         var observations = snapshot.resources().stream().map(resource -> observeResource(snapshot, resource, stoppedProof,
-            absenceProof, false, deletion != null && deletion.isKnown(effect(snapshot, resource, "DELETE")))).toList();
+            absenceProof, false, deletion != null && deletion.isKnown(effect(snapshot, resource, "DELETE"))
+                && preflightDelete(snapshot, resource).preparation().prepared())).toList();
         boolean stopped = observations.stream().allMatch(value -> (value.state() == State.STOPPED || value.state() == State.ABSENT)
             && (!stoppedProof || value.containersAbsent()));
         boolean absent = observations.stream().allMatch(value -> value.state() == State.ABSENT && value.containersAbsent());
@@ -381,10 +417,11 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
             raw = raw(connection, resource.kind(), resource.uuid());
         } else {
             var node = requireNode(snapshot, resource);
-            raw = dependencies.inspectOwnedLifecycleResources(connection, resource.dependency().graphId(),
-                resource.dependency().serviceRef(), resource.dependency().slot(), ownedResources(node)).stream()
-                .filter(value -> resource.uuid().equals(value.uuid()) && resource.kind().equals(value.kind()))
-                .findFirst().orElseThrow(() -> failure("NATIVE_DEPENDENCY_INVENTORY_CHANGED")).raw();
+            raw = deleteReadback
+                ? dependencies.readbackOwnedLifecycleDeletion(connection, resource.dependency().graphId(),
+                    resource.dependency().serviceRef(), resource.dependency().slot(), ownedResources(node), resource.uuid())
+                : dependencies.inspectOwnedLifecycleResource(connection, resource.dependency().graphId(),
+                    resource.dependency().serviceRef(), resource.dependency().slot(), ownedResources(node), resource.uuid()).raw();
         }
         var blockers = new ArrayList<String>();
         State state = raw == null ? State.ABSENT : state(raw.path("status").asText(null));
@@ -395,7 +432,7 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
             requireNativePlacement(resource, raw);
             var observedVolumes = storage(connection, resource.kind(), resource.uuid());
             // An exact persisted DELETE can remove storage rows before its resource disappears.
-            // This is observation only: dispatch() still requires equality, and no new/edited row is accepted.
+            // This is observation only: a fresh DELETE still requires equality, and no new/edited row is accepted.
             if (deleteReadback ? !resource.volumes().containsAll(observedVolumes) : !resource.volumes().equals(observedVolumes))
                 throw failure("NATIVE_VOLUME_INVENTORY_CHANGED");
         }
@@ -428,11 +465,6 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
         }
         var handle = requireHandle(snapshot, resource);
         ownership.requireRetirementOwnership(handle);
-        if ("DELETE".equals(action)) {
-            ownership.beginRetirementDeletion(handle);
-            return resource.database() ? api.deleteDatabase(connection, resource.uuid(), true, false, false, false)
-                : api.delete(connection, resource.uuid(), true, false, false, false);
-        }
         if ("STOP".equals(action)) return resource.database() ? api.stopDatabase(connection, resource.uuid())
             : api.stop(connection, resource.uuid(), false);
         return resource.database() ? api.startDatabase(connection, resource.uuid())

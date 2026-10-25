@@ -86,4 +86,37 @@ class PlatformManagedProductNativeLifecycleTest {
         assertThatThrownBy(() -> service.inspectOwnedLifecycleResources(connection, "graph", "inbox", "inbox", fixture.resources()))
             .hasMessageContaining("DEPENDENCY_PROVIDER_OWNERSHIP_CONFLICT");
     }
+
+    @Test void preparedDependencyDeleteIsOneShotAndPermitsOnlyItsPreparedReadbackPath() {
+        var preparation = service.ownedLifecycleDeletionPreparation(connection, "graph", "inbox", "inbox", fixture.resources(), "db");
+        assertThat(preparation.resource().state()).isEqualTo("OWNED");
+        assertThat(preparation.volumes()).hasSize(1);
+        assertThatThrownBy(() -> service.readbackOwnedLifecycleDeletion(connection, "graph", "inbox", "inbox", fixture.resources(), "db"))
+            .hasMessageContaining("DEPENDENCY_PROVIDER_OWNERSHIP_CONFLICT");
+        assertThat(service.prepareOwnedLifecycleDeletion(preparation, () -> { })).isTrue();
+        assertThat(service.prepareOwnedLifecycleDeletion(preparation, () -> { })).isFalse();
+        fixture.dbStorages.remove("db");
+        assertThat(service.readbackOwnedLifecycleDeletion(connection, "graph", "inbox", "inbox", fixture.resources(), "db"))
+            .isSameAs(fixture.databases.get("db").raw());
+        // Ordinary inspection still requires the full immutable storage inventory.
+        assertThatThrownBy(() -> service.inspectOwnedLifecycleResources(connection, "graph", "inbox", "inbox", fixture.resources()))
+            .hasMessageContaining("DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        // A sibling uses its own strict inventory; the prepared database does not weaken it or poison it.
+        assertThat(service.inspectOwnedLifecycleResource(connection, "graph", "inbox", "inbox", fixture.resources(), "app").raw())
+            .isSameAs(fixture.applications.get("app").raw());
+        assertThatThrownBy(() -> service.inspectOwnedLifecycleResource(connection, "graph", "inbox", "inbox", fixture.resources(), "db"))
+            .hasMessageContaining("DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        fixture.databases.remove("db");
+        assertThat(service.readbackOwnedLifecycleDeletion(connection, "graph", "inbox", "inbox", fixture.resources(), "db")).isNull();
+        verify(api, never()).deleteDatabase(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void preparedDependencyReadbackStillRejectsForeignReusedResource() {
+        var preparation = service.ownedLifecycleDeletionPreparation(connection, "graph", "inbox", "inbox", fixture.resources(), "app");
+        assertThat(service.prepareOwnedLifecycleDeletion(preparation, () -> { })).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.applications.get("app").raw()).put("description", "foreign");
+        assertThatThrownBy(() -> service.readbackOwnedLifecycleDeletion(connection, "graph", "inbox", "inbox", fixture.resources(), "app"))
+            .hasMessageContaining("DEPENDENCY_PROVIDER_OWNERSHIP_CONFLICT");
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
 }

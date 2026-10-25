@@ -125,4 +125,61 @@ class OwnedDependencyOwnershipPostgresTest {
         assertThatThrownBy(() -> fixture.authority.requireResources(fixture.context(), empty())).hasMessageContaining("CREATE_UNCERTAIN");
         assertThat(fixture.resources().applicationUuid()).isNull();
     }
+
+    @Test void atomicDeletionPreparationIncludesOwnedStorageAndReadbackSurvivesMetadataRemoval() {
+        fixture.graph(ManagedDependencyFixtures.http("state", false), "ai-state", empty());
+        var owner = fixture.context();
+        fixture.authority.createApplication(owner, () -> { fixture.applications.put("app", application()); return "app"; });
+        fixture.checkpoint.created("APPLICATION", "app");
+        var storage = fixture.authority.volume(owner, "app", "/app/data", null);
+        fixture.checkpoint.volume("/app/data", storage.uuid());
+        var preparation = fixture.authority.lifecycleDeletionPreparation(owner, OwnedDependencyOwnership.APPLICATION, "app");
+        assertThat(preparation.resource().state()).isEqualTo("OWNED");
+        assertThat(preparation.volumes()).hasSize(1);
+        assertThat(fixture.authority.prepareLifecycleDeletion(preparation, () -> { })).isTrue();
+        assertThat(fixture.authority.prepareLifecycleDeletion(preparation, () -> { })).isFalse();
+        assertThat(jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).containsOnly("DELETE_PENDING");
+        fixture.appStorages.clear();
+        assertThat(fixture.authority.lifecycleDeletionReadback(owner, OwnedDependencyOwnership.APPLICATION, "app"))
+            .isSameAs(fixture.applications.get("app").raw());
+        assertThatThrownBy(() -> fixture.authority.application(owner, "app", true)).hasMessageContaining("VOLUME_OWNERSHIP_CONFLICT");
+        fixture.applications.clear();
+        assertThat(fixture.authority.lifecycleDeletionReadback(owner, OwnedDependencyOwnership.APPLICATION, "app")).isNull();
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void atomicDeletionPreparationNeverConsumesOwnershipOnFencedWork() {
+        fixture.graph(ManagedDependencyFixtures.http("state", false), "ai-state", empty());
+        var owner = fixture.context();
+        fixture.authority.createApplication(owner, () -> { fixture.applications.put("app", application()); return "app"; });
+        fixture.checkpoint.created("APPLICATION", "app");
+        var preparation = fixture.authority.lifecycleDeletionPreparation(owner, OwnedDependencyOwnership.APPLICATION, "app");
+        assertThatThrownBy(() -> fixture.authority.prepareLifecycleDeletion(preparation, () -> {
+            throw new IllegalStateException("LIFECYCLE_WORKER_FENCED");
+        })).hasMessageContaining("LIFECYCLE_WORKER_FENCED");
+        assertThat(fixture.ledger.receipt(preparation.resource().id()).state()).isEqualTo("OWNED");
+        assertThat(fixture.authority.prepareLifecycleDeletion(preparation, () -> { })).isTrue();
+    }
+
+    @Test void atomicDeletionPreparationIncludesDatabaseStorageWithoutRequiringApplicationOwnership() {
+        fixture.graph(ManagedDependencyFixtures.http("state", true), "ai-state", empty());
+        var owner = fixture.context();
+        fixture.authority.createDatabase(owner, () -> {
+            fixture.databases.put("db", new CoolifyDatabaseSummary("db", "ai-state-db", "stopped", "postgresql", "dependency", "dependency",
+                fixture.raw("db", "ai-state-db", "ManagedDependency:graph:state")));
+            fixture.dbStorages.put("db", List.of(fixture.storage("db-volume", "owned-db", "/var/lib/postgresql/data")));
+            return "db";
+        });
+        fixture.checkpoint.created("DATABASE", "db");
+        var preparation = fixture.authority.lifecycleDeletionPreparation(owner, OwnedDependencyOwnership.DATABASE, "db");
+        assertThat(preparation.volumes()).extracting(ManagedResourceOwnershipService.Receipt::kind)
+            .containsExactly(OwnedDependencyOwnership.DB_STORAGE);
+        assertThat(fixture.authority.prepareLifecycleDeletion(preparation, () -> { })).isTrue();
+        assertThat(fixture.authority.prepareLifecycleDeletion(preparation, () -> { })).isFalse();
+        fixture.dbStorages.clear();
+        assertThat(fixture.authority.lifecycleDeletionReadback(owner, OwnedDependencyOwnership.DATABASE, "db"))
+            .isSameAs(fixture.databases.get("db").raw());
+        assertThat(jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).containsOnly("DELETE_PENDING");
+        verify(api, never()).deleteDatabase(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
 }

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -157,5 +158,68 @@ class ManagedResourceOwnershipServiceTest {
     @Test void endpointsCannotStoreCredentialsQueriesOrFragments() {
         for (String endpoint:new String[]{"https://user:secret@vector.example","https://vector.example?token=synthetic","https://vector.example#secret"})
             assertThatThrownBy(()->new ManagedResourceOwnershipService.Identity("id",endpoint)).hasMessageContaining("ENDPOINT_INVALID");
+    }
+
+    @Test void deletionPreparationAuthorizesOnlyOneConcurrentFirstCallAndNeverRearmsPendingOrDeleted() throws Exception {
+        var receipt = fixture.own("coolify", "DEPENDENCY_APPLICATION", "parent", "inbox", "inbox", "https://coolify.test");
+        var preparation = new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of());
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> { start.await(); return fixture.ownership.prepareDeletion(preparation, null, () -> { }); });
+            var second = executor.submit(() -> { start.await(); return fixture.ownership.prepareDeletion(preparation, null, () -> { }); });
+            start.countDown();
+            assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(fixture.ownership.receipt(receipt.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(fixture.ownership.prepareDeletion(preparation, null, () -> { })).isFalse();
+        fixture.ownership.deleted(receipt.id());
+        assertThat(fixture.ownership.prepareDeletion(preparation, null, () -> { })).isFalse();
+    }
+
+    @Test void preparationRechecksExactClaimAndRollsBackWithoutConsumingUnsentReceipt() {
+        var receipt = fixture.own("coolify", "DEPENDENCY_APPLICATION", "parent", "inbox", "inbox", "https://coolify.test");
+        var preparation = new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of());
+        assertThatThrownBy(() -> fixture.ownership.prepareDeletion(preparation, null, () -> {
+            throw new IllegalStateException("LIFECYCLE_WORKER_FENCED");
+        })).hasMessageContaining("LIFECYCLE_WORKER_FENCED");
+        assertThat(fixture.ownership.receipt(receipt.id())).isEqualTo(receipt);
+        assertThat(fixture.ownership.prepareDeletion(preparation, null, () -> { })).isTrue();
+    }
+
+    @Test void preparationRequiresExactImmutableReceiptAndStillRejectsForeignReferences() {
+        var receipt = fixture.own("coolify", "DEPENDENCY_APPLICATION", "parent", "inbox", "inbox", "https://coolify.test");
+        var reused = new ManagedResourceOwnershipService.Receipt(receipt.id(), receipt.scope(), receipt.provider(), receipt.kind(),
+            receipt.parent(), receipt.name(), receipt.state(), "foreign-generation", receipt.endpoint());
+        assertThatThrownBy(() -> fixture.ownership.prepareDeletion(
+            new ManagedResourceOwnershipService.DeletionPreparation(reused, List.of()), null, () -> { }))
+            .hasMessageContaining("OWNERSHIP_CHANGED");
+        fixture.jdbc.update("INSERT INTO deployment_provider_resource_handles(provider_resource_uuid,status,resource_kind) VALUES(?,?,?)",
+            "inbox", "ACTIVE", "EXTERNAL_DEPENDENCY");
+        assertThatThrownBy(() -> fixture.ownership.prepareDeletion(
+            new ManagedResourceOwnershipService.DeletionPreparation(receipt, List.of()), null, () -> { }))
+            .hasMessageContaining("REFERENCED");
+        assertThat(fixture.ownership.receipt(receipt.id())).isEqualTo(receipt);
+    }
+
+    @Test void dependencyStorageAndResourcePrepareAtomicallyWhileExternalStorageIsUntouched() {
+        var resource = fixture.own("coolify", "RUNTIME_POSTGRES_DATABASE", "parent", "inbox-db", "db", "https://coolify.test");
+        var volume = fixture.own("coolify", "DEPENDENCY_DATABASE_STORAGE", "parent", "inbox-db", "frozen-db-storage", "https://coolify.test");
+        var external = fixture.own("s3", "CUSTOMER_BUCKET", "customer", "policies", "bucket", "https://s3.example");
+        var preparation = new ManagedResourceOwnershipService.DeletionPreparation(resource, List.of(volume));
+        assertThat(fixture.ownership.prepareDeletion(preparation, null, () -> { })).isTrue();
+        assertThat(fixture.ownership.receipt(resource.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(fixture.ownership.receipt(volume.id()).state()).isEqualTo("DELETE_PENDING");
+        assertThat(fixture.ownership.receipt(external.id())).isEqualTo(external);
+    }
+
+    @Test void foreignStorageReceiptCannotBePreparedAlongsideAnOwnedResource() {
+        var resource = fixture.own("coolify", "RUNTIME_POSTGRES_DATABASE", "parent", "inbox-db", "db", "https://coolify.test");
+        var foreignScope = new ManagedResourceOwnershipService.Scope("foreign", "tenant", "dep-other", "target-other");
+        var volume = fixture.own(foreignScope, "coolify", "DEPENDENCY_DATABASE_STORAGE", "other", "db", "foreign-storage", "https://coolify.test");
+        assertThatThrownBy(() -> fixture.ownership.prepareDeletion(
+            new ManagedResourceOwnershipService.DeletionPreparation(resource, List.of(volume)), null, () -> { }))
+            .hasMessageContaining("OWNERSHIP_CHANGED");
+        assertThat(fixture.ownership.receipt(resource.id())).isEqualTo(resource);
+        assertThat(fixture.ownership.receipt(volume.id())).isEqualTo(volume);
     }
 }

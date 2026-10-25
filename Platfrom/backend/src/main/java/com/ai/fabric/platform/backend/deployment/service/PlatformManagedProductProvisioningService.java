@@ -1433,6 +1433,52 @@ public class PlatformManagedProductProvisioningService {
         return List.copyOf(result);
     }
 
+    public OwnedLifecycleResource inspectOwnedLifecycleResource(CoolifyConnection connection, String graphId,
+        String serviceRef, String slot, OwnedDependencyResources resources, String uuid) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        String kind = ownedLifecycleKind(resources, uuid);
+        if (OwnedDependencyOwnership.DATABASE.equals(kind)) {
+            var db = authority.database(owner, uuid, true);
+            return new OwnedLifecycleResource(kind, uuid, serviceRef + "-db", owner.marker(),
+                db.map(CoolifyDatabaseSummary::status).orElse("ABSENT"), db.map(CoolifyDatabaseSummary::raw).orElse(null),
+                db.isPresent() ? coolifyApiClient.listDatabaseStorages(connection, uuid) : List.of());
+        }
+        var app = authority.application(owner, uuid, true);
+        return new OwnedLifecycleResource(kind, uuid, serviceRef, owner.marker(),
+            app.map(CoolifyApplicationSummary::status).orElse("ABSENT"), app.map(CoolifyApplicationSummary::raw).orElse(null),
+            app.isPresent() ? coolifyApiClient.listApplicationStorages(connection, uuid) : List.of());
+    }
+
+    public ManagedResourceOwnershipService.DeletionPreparation ownedLifecycleDeletionPreparation(CoolifyConnection connection,
+        String graphId, String serviceRef, String slot, OwnedDependencyResources resources, String uuid) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        String kind = ownedLifecycleKind(resources, uuid);
+        return authority.lifecycleDeletionPreparation(owner, kind, uuid);
+    }
+
+    public boolean prepareOwnedLifecycleDeletion(ManagedResourceOwnershipService.DeletionPreparation preparation, Runnable guard) {
+        return requireOwnedDependencyAuthority().prepareLifecycleDeletion(preparation, guard);
+    }
+
+    public JsonNode readbackOwnedLifecycleDeletion(CoolifyConnection connection, String graphId, String serviceRef,
+        String slot, OwnedDependencyResources resources, String uuid) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        return authority.lifecycleDeletionReadback(owner, ownedLifecycleKind(resources, uuid), uuid);
+    }
+
+    private String ownedLifecycleKind(OwnedDependencyResources resources, String uuid) {
+        boolean database = uuid != null && uuid.equals(resources.databaseUuid());
+        boolean application = uuid != null && uuid.equals(resources.applicationUuid());
+        if (database == application) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_EFFECT_INVALID");
+        return database ? OwnedDependencyOwnership.DATABASE : OwnedDependencyOwnership.APPLICATION;
+    }
+
     /** Single dispatch only. The caller must have durably claimed its exact effect before entering. */
     public CoolifyActionResponse dispatchOwnedLifecycleResource(CoolifyConnection connection, String graphId, String serviceRef,
             String slot, OwnedDependencyResources resources, String uuid, String action, boolean reclaimOwnedData) {

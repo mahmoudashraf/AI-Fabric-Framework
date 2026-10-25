@@ -91,9 +91,10 @@ public class LifecycleCommandStore {
                 Integer.class, grant.id(), command.phase().name());
             if (!retry && other != null && other > 0) throw conflict("LIFECYCLE_PHASE_COMMAND_EXISTS");
             if (!"OPEN".equals(grant.state())) throw conflict("LIFECYCLE_GRANT_CLOSED");
+            if (mutatingPhase(job, command.phase()) && !Instant.now().isBefore(job.deadlineAt()))
+                throw conflict("LIFECYCLE_DEADLINE_EXCEEDED");
             if (command.phase() == Phase.CLAIM) {
                 if (Instant.now().isBefore(job.dueAt())) throw conflict("LIFECYCLE_NOT_DUE");
-                if (!Instant.now().isBefore(job.deadlineAt())) throw conflict("LIFECYCLE_DEADLINE_EXCEEDED");
                 Integer busy = jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_grants WHERE deployment_id=? "
                     + "AND target_profile_id=? AND claimed=TRUE AND grant_id<>?", Integer.class,
                     job.deploymentId(), job.targetProfileId(), grant.id());
@@ -198,8 +199,14 @@ public class LifecycleCommandStore {
             Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id=?",
                 Integer.class, work.command().commandId(), effect);
             if (count != null && count > 0) return false;
-            if (work.command().phase() != Phase.CANCEL && !Instant.now().isBefore(work.grant().scope().job().deadlineAt()))
-                throw conflict("LIFECYCLE_DEADLINE_EXCEEDED");
+            Instant deadline = work.grant().scope().job().deadlineAt();
+            if (work.command().phase() != Phase.CANCEL && !Instant.now().isBefore(deadline)) {
+                // Only this already-started command may finish its frozen sub-effects; no other phase can lend authority.
+                Boolean started = jdbc.queryForObject("SELECT COUNT(*)>0 FROM deployment_lifecycle_effects "
+                    + "WHERE command_id=? AND state IN ('INTENT','COMPLETE') AND created_at<?", Boolean.class,
+                    work.command().commandId(), timestamp(deadline));
+                if (!Boolean.TRUE.equals(started)) throw conflict("LIFECYCLE_DEADLINE_EXCEEDED");
+            }
             jdbc.update("INSERT INTO deployment_lifecycle_effects(command_id,effect_id,state,created_at,updated_at) VALUES(?,?,'INTENT',?,?)",
                 work.command().commandId(), effect, timestamp(Instant.now()), timestamp(Instant.now()));
             return true;
@@ -333,6 +340,14 @@ public class LifecycleCommandStore {
             }
             default -> { }
         }
+    }
+
+    private boolean mutatingPhase(JobRequest job, Phase phase) {
+        return switch (phase) {
+            case CLAIM, BEGIN_DRAIN, FENCE, STOP, DELETE, RECOVER -> true;
+            case VERIFY -> job.goal() == Goal.RECOVER;
+            default -> false;
+        };
     }
 
     private Grant lockedGrant(String id) {

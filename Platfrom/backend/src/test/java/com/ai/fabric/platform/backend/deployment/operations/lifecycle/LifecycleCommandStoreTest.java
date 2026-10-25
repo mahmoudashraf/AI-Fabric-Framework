@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -149,7 +151,7 @@ class LifecycleCommandStoreTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects", Integer.class)).isEqualTo(1);
     }
 
-    @Test void deadlinesPreventNewEffectsButDoNotPreventRecordingLateReadback() {
+    @Test void anEffectCreatedAfterDeadlineCannotAuthorizeMoreEffectsButItsReadbackCanFinish() {
         complete(Phase.CLAIM);
         store.accept(command(Phase.STOP)); var work = store.claim("operation-STOP");
         store.beforeEffect(work, "stop-runtime");
@@ -162,6 +164,121 @@ class LifecycleCommandStoreTest {
         store.completed(expiredWork, "stop-runtime");
         store.finish(expiredWork, Status.SUCCEEDED, "LATE_READBACK_CONFIRMED", List.of());
         assertThat(store.receipt("operation-STOP").status()).isEqualTo(Status.SUCCEEDED);
+    }
+
+    @Test void startedDeleteCanFinishReclamationLateWithoutRenewingImmutableAuthorityOrIntentDates() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var command = historicalCommand(historical, Phase.DELETE, Status.PENDING);
+        historicalEffect(command, "delete-db", historical.job().deadlineAt().minusSeconds(1));
+        var grantBefore = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_grants WHERE grant_id=?", command.grantId());
+        var commandBefore = jdbc.queryForMap("SELECT request_json,request_digest,created_at FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId());
+        var intentBefore = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id='delete-db'", command.commandId());
+        var work = store.claim(command.commandId());
+        assertThat(store.beforeEffect(work, "delete-db")).isFalse();
+        assertThat(store.beforeEffect(work, "reclaim-db-volume")).isTrue();
+        assertThat(store.beforeEffect(work, "reclaim-db-volume")).isFalse();
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id='delete-db'", command.commandId()))
+            .isEqualTo(intentBefore);
+        store.completed(work, "delete-db"); store.completed(work, "reclaim-db-volume");
+        store.finish(work, Status.SUCCEEDED, "EXACT_FROZEN_DELETE_COMPLETED", List.of());
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_grants WHERE grant_id=?", command.grantId())).isEqualTo(grantBefore);
+        assertThat(jdbc.queryForMap("SELECT request_json,request_digest,created_at FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId()))
+            .isEqualTo(commandBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id='delete-db'", command.commandId()).get("created_at"))
+            .isEqualTo(intentBefore.get("created_at"));
+        assertThat(store.require(command.grantId()).scope()).isEqualTo(historical);
+    }
+
+    @Test void acceptedButUnstartedPhaseCannotCreateItsFirstEffectAfterExpiry() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var command = historicalCommand(historical, Phase.DELETE, Status.PENDING);
+        var work = store.claim(command.commandId());
+        assertThat(store.accept(command).status()).isEqualTo(Status.PENDING);
+        assertThatThrownBy(() -> store.beforeEffect(work, "delete-db")).hasMessageContaining("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects WHERE command_id=?", Integer.class, command.commandId())).isZero();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Phase.class, names = {"CLAIM", "BEGIN_DRAIN", "FENCE", "STOP", "DELETE", "RECOVER", "VERIFY"})
+    void expiryRejectsNewAndBlockedRetryMutatingPhases(Phase phase) {
+        var historical = historicalScope("historical", "historical-grant",
+            phase == Phase.RECOVER || phase == Phase.VERIFY ? Goal.RECOVER : Goal.RETIRE);
+        var command = phaseCommand(historical, phase);
+        assertThatThrownBy(() -> store.accept(command)).hasMessageContaining("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_commands WHERE command_id=?", Integer.class, command.commandId())).isZero();
+        store.rejection(command, "LIFECYCLE_DEADLINE_EXCEEDED");
+        var rejectedBefore = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId());
+        assertThatThrownBy(() -> store.accept(command)).hasMessageContaining("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId())).isEqualTo(rejectedBefore);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects", Integer.class)).isZero();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Status.class, names = {"PENDING", "UNKNOWN"})
+    void existingPendingAndUnknownCommandsReplayReadOnlyAfterExpiry(Status status) {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var command = historicalCommand(historical, Phase.DELETE, status);
+        var receipt = store.receipt(command.commandId());
+        var before = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId());
+        assertThat(store.accept(command)).isEqualTo(receipt);
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId())).isEqualTo(before);
+    }
+
+    @Test void effectsInAnotherCommandOrGrantNeverAuthorizeLateSubEffects() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var earlier = historicalCommand(historical, Phase.STOP, Status.SUCCEEDED);
+        historicalEffect(earlier, "reclaim-volume", historical.job().deadlineAt().minusSeconds(1));
+        var command = historicalCommand(historical, Phase.DELETE, Status.PENDING);
+        var foreign = historicalScope("foreign", "foreign-grant", Goal.RETIRE);
+        var foreignCommand = historicalCommand(foreign, Phase.DELETE, Status.PENDING);
+        historicalEffect(foreignCommand, "reclaim-volume", foreign.job().deadlineAt().minusSeconds(1));
+        var work = store.claim(command.commandId());
+        assertThatThrownBy(() -> store.beforeEffect(work, "reclaim-volume")).hasMessageContaining("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects WHERE command_id=?", Integer.class, command.commandId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects", Integer.class)).isEqualTo(2);
+    }
+
+    @Test void anIntentExactlyAtTheDeadlineDoesNotAuthorizeLateSubEffects() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var command = historicalCommand(historical, Phase.DELETE, Status.PENDING);
+        historicalEffect(command, "delete-db", historical.job().deadlineAt());
+        var work = store.claim(command.commandId());
+        assertThatThrownBy(() -> store.beforeEffect(work, "reclaim-db-volume")).hasMessageContaining("DEADLINE_EXCEEDED");
+    }
+
+    @Test void startedLateCompletionStillRequiresTheCurrentLeaseAndOpenClaim() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RETIRE);
+        var command = historicalCommand(historical, Phase.DELETE, Status.PENDING);
+        historicalEffect(command, "delete-db", historical.job().deadlineAt().minusSeconds(1));
+        var work = store.claim(command.commandId());
+        jdbc.update("UPDATE deployment_lifecycle_commands SET lease_until=? WHERE command_id=?",
+            Instant.now().minusSeconds(1).atOffset(java.time.ZoneOffset.UTC), command.commandId());
+        assertThatThrownBy(() -> store.beforeEffect(work, "reclaim-db-volume")).hasMessageContaining("WORKER_FENCED");
+        var next = store.claim(command.commandId());
+        jdbc.update("UPDATE deployment_lifecycle_grants SET claimed=FALSE WHERE grant_id=?", command.grantId());
+        assertThatThrownBy(() -> store.beforeEffect(next, "reclaim-db-volume")).hasMessageContaining("WORKER_FENCED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects WHERE command_id=?", Integer.class, command.commandId())).isEqualTo(1);
+    }
+
+    @Test void explicitCancelRemainsPossibleWithoutAStartedEffectAfterExpiry() {
+        var historical = historicalScope("historical", "historical-grant", Goal.STOP);
+        jdbc.update("UPDATE deployment_lifecycle_grants SET claimed=FALSE WHERE grant_id=?", historical.job().grantId());
+        var command = phaseCommand(historical, Phase.CANCEL);
+        store.accept(command);
+        assertThat(store.beforeEffect(store.claim(command.commandId()), "runtime-CANCEL")).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Goal.class, names = {"STOP", "RETIRE"})
+    void readOnlyVerificationAndReleaseCanSettleExactSuccessfulPhasesAfterExpiry(Goal goal) {
+        var historical = historicalScope("historical", "historical-grant", goal);
+        historicalCommand(historical, Phase.CLAIM, Status.SUCCEEDED);
+        historicalCommand(historical, goal == Goal.STOP ? Phase.STOP : Phase.DELETE, Status.SUCCEEDED);
+        var verify = phaseCommand(historical, Phase.VERIFY);
+        assertThat(store.accept(verify).status()).isEqualTo(Status.PENDING);
+        store.finish(store.claim(verify.commandId()), Status.SUCCEEDED, "EXACT_READBACK_CONFIRMED", List.of());
+        assertThat(store.accept(phaseCommand(historical, Phase.RELEASE)).status()).isEqualTo(Status.PENDING);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects", Integer.class)).isZero();
     }
 
     @Test void futureScheduledGrantCannotClaimEarly() {
@@ -203,6 +320,33 @@ class LifecycleCommandStoreTest {
     private void complete(Phase phase) {
         store.accept(command(phase)); var work = store.claim("operation-" + phase);
         assertThat(work).isNotNull(); store.finish(work, Status.SUCCEEDED, "TEST_READBACK", List.of());
+    }
+    private LifecycleCommandStore.Scope historicalScope(String operation, String grant, Goal goal) {
+        Instant deadline = Instant.now().minusSeconds(300).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        var job = new JobRequest("1", operation, grant, "customer", "tenant", "deployment", "staging", "release", "c".repeat(64),
+            goal, Mode.GRACEFUL, "policy-v1", deadline.minusSeconds(300), deadline, deadline.minusSeconds(600));
+        var historical = new LifecycleCommandStore.Scope(job, "version", "e".repeat(64), "f".repeat(64), mapper.createObjectNode(), true);
+        store.create(historical, store.digest(historical), "owner");
+        jdbc.update("UPDATE deployment_lifecycle_grants SET claimed=TRUE WHERE grant_id=?", grant);
+        return historical;
+    }
+    private Command phaseCommand(LifecycleCommandStore.Scope historical, Phase phase) {
+        var job = historical.job();
+        return new Command("1", job.operationId() + "-" + phase, job.operationId(), job.grantId(), job.scopeHash(), phase);
+    }
+    private Command historicalCommand(LifecycleCommandStore.Scope historical, Phase phase, Status status) {
+        var command = phaseCommand(historical, phase);
+        Instant admitted = historical.job().deadlineAt().minusSeconds(30);
+        var receipt = new Receipt("1", command.commandId(), command.operationId(), command.grantId(), phase,
+            status, "HISTORICAL_ACCEPTED_PHASE", admitted, List.of());
+        jdbc.update("INSERT INTO deployment_lifecycle_commands(command_id,grant_id,operation_id,phase,request_digest,request_json,receipt_json,status,created_at,updated_at) "
+            + "VALUES(?,?,?,?,?,?,?,?,?,?)", command.commandId(), command.grantId(), command.operationId(), phase.name(),
+            store.digest(command), store.json(command), store.json(receipt), status.name(), admitted.atOffset(java.time.ZoneOffset.UTC), admitted.atOffset(java.time.ZoneOffset.UTC));
+        return command;
+    }
+    private void historicalEffect(Command command, String effect, Instant accepted) {
+        jdbc.update("INSERT INTO deployment_lifecycle_effects(command_id,effect_id,state,created_at,updated_at) VALUES(?,?,'INTENT',?,?)",
+            command.commandId(), effect, accepted.atOffset(java.time.ZoneOffset.UTC), accepted.atOffset(java.time.ZoneOffset.UTC));
     }
     private Command command(Phase phase) { return new Command("1", "operation-" + phase, "operation", "grant", "c".repeat(64), phase); }
     private LifecycleCommandStore.Scope scope(String operation, String grant, String target, Goal goal, Mode mode) {

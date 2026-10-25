@@ -1221,6 +1221,18 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     @Override
+    public ManagedResourceOwnershipService.DeletionPreparation preflightRetirementDeletion(DeploymentProviderResourceHandleEntity handle) {
+        return new ManagedResourceOwnershipService.DeletionPreparation(
+            requireOwnedHandle(connectionForHandle(handle), handle, true).receipt(), List.of());
+    }
+
+    @Override
+    public boolean prepareRetirementDeletion(DeploymentProviderResourceHandleEntity handle,
+        ManagedResourceOwnershipService.DeletionPreparation preparation, Runnable guard) {
+        return requireResourceOwnership().prepareDeletion(preparation, handle, guard);
+    }
+
+    @Override
     public void finishRetirementDeletion(DeploymentProviderResourceHandleEntity handle) {
         var authorization = requireOwnedHandle(connectionForHandle(handle), handle, true);
         if (authorization.present()) throw CoolifyResourceOwnership.reconciliationRequired();

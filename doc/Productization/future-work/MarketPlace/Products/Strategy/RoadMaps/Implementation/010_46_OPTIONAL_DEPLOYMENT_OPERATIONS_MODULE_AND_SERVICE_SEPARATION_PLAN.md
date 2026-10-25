@@ -1007,6 +1007,55 @@ adapter/bridge/journal tests passed with zero failures, errors or skips before
 image publication. The same journal suite then passed all 11 tests against real
 PostgreSQL 16 with no failures, errors or skips.
 
+The second automatic-expiry run exposed a separate dispatch-ordering gap before
+closure. Its connector and Runtime were deleted, but PostgreSQL DELETE INTENT
+had been recorded before remote preflight completed. The immutable resource's
+ownership receipt remained OWNED, proving that deletion preparation and native
+dispatch had not occurred. Later workers correctly refused a blind resend.
+Successful current GETs and a short private JVM trace do not establish the
+original one-off exception; no specific transport failure is asserted without
+evidence. The first 25-minute GET-only watcher timed out, while the durable job
+continued; restarting the watcher does not retry or reauthorize the job.
+
+The bounded correction completes remote preflight before new intent and uses a
+durable, guarded OWNED -> DELETE_PENDING transition. Only the winner may make the
+first DELETE request. An existing accepted intent can continue only when that
+authoritative transition proves dispatch never began. A DELETE_PENDING or DELETED
+receipt never authorizes another request; it permits readback only. Resource,
+tenant, placement, storage and lease checks remain mandatory. No journal reset,
+provider deletion outside core, manual SQL write, fabricated receipt, new grant
+or date extension is used to clear this canary.
+
+The deadline is a mutation-phase admission cutoff, not permission to leave an
+already-started phase half-finished. A new or explicitly retried mutating phase
+cannot be admitted after expiry. An accepted phase that durably recorded an
+authorized effect before expiry may complete its remaining frozen, bounded
+sub-effects, including owned-volume reclamation. An accepted-but-unstarted phase
+cannot create its first effect late; another command's intent is not evidence
+that this phase began. No scope, grant, timestamp or deadline is rewritten.
+The service may finish
+read-only STOP/RETIRE verification only after the exact required native phases
+succeed, and RELEASE only after its actual verification/observation predecessor
+succeeds. Unknown or mismatched receipts cannot release a claim or capacity.
+Recovery's new provider-verification work remains deadline-bound. Bounded core
+diagnostics record exception class and application source location, never raw
+exception messages, credentials or arbitrary upstream bodies. Qualification and
+the resumed hosted result are recorded below when complete.
+
+The late-settlement service correction passed all 320 tests, including PostgreSQL,
+and image workflow `40160938708`. Source
+`2627f78ecde26de5daef89bfd8c65887cfebb045` is verified on both environments at
+`ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:c06018b1fe4773cbd6651ebfe5fa40d0fc08b8ae03f821f003a7ea3da9a5a977`.
+The same durable production job remains intact across that service restart.
+
+The final core ownership/phase-admission correction passed 137 focused tests on
+Java 21 with no failures, errors or skips. This includes 28 H2 and 28 PostgreSQL
+command-journal cases, 40 native-adapter cases, atomic PostgreSQL ownership,
+resource/dependency deletion and credential-safe diagnostic cases. Selected
+ownership tests are deliberately scoped, not claimed as a complete unrelated
+provider/framework release matrix. Log:
+`/tmp/loomai-lifecycle-deadline-native-20261025-qualification.log`.
+
 The generic fixture deliberately does not configure the dealership's approved
 knowledge-source product. Its chat route accepted the preserved conversation but
 returned no retrieval sources. These checks prove lifecycle/state preservation,
@@ -1058,6 +1107,11 @@ uncovered human-review, scheduler or external worker boundaries; no evidence
 string can invent worker fencing. External business systems, customer documents
 and external vectors remain outside target-owned deletion authority. Shared or
 retained native mounts remain blockers, not permission to remove foreign data.
+Recovery does not silently reopen a release whose authority has been revoked by
+graceful fencing. Cancel a drain before fencing, or use a new ordinary cold
+release with its own ACTIVE gate while retaining target-owned AI data. PostgreSQL
+release-gate tests cover new releases after ACTIVE, DRAINING and AUTHORITY_REVOKED
+predecessors without modifying their old gates, permits or retained AI history.
 
 Notice/due events are durably recorded and outbox transport is tested against a
 real local HTTP endpoint. No external webhook/email destination was configured
