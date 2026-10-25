@@ -3,6 +3,45 @@
 Started: 24 October 2026. Latest review: 25 October 2026.
 Status: **NEEDS IMPROVEMENT**.
 
+## 25 October: Production Adoption Assessment, No New Fixes
+
+The owner requested checks and production adoption, explicitly without new
+fixes. Available evidence favors the optimized internal staging setup:
+historical actual production6PASS/3PARTIAL/5FAIL/6SOURCE_GAP versus qualified
+newer-model staging12PASS/1PARTIAL/1FAIL/6SOURCE_GAP. These are bounded diagnostic
+runs, not a reliability percentage or load benchmark.
+
+One additional20-question live-widget compatibility run kept the optimized
+runtime/framework0.8.42, prompts, sources, executor/landing and planning limits,
+but used production's currently permitted GPT-4o-mini. Result: **8 PASS,
+3 PARTIAL,3 FAIL,6 SOURCE_GAP**. It improves modestly, but incorrectly identifies
+the lowest-mileage vehicle, cannot complete comparison, and still fails booking
+information. The qualified GPT-5.4-mini configuration is the preferred candidate.
+All20HTTP200/continuity/no browser errors/blocked requests/business writes.
+Staging was restored to the qualified model/prompt/image; no new code or release.
+
+Production adoption is **not performed**. Actual stored offer
+`offer-dealership-01045-c2e886f80-20261024` pins the old runtime artifact
+`dsa-a5d7d25d`, not qualified artifact`dsa-ab74c3cb`. The offer/deployment link is
+immutable and no supported existing-offer artifact upgrade route was found.
+The existing allowance also permits only GPT-4o-mini and embeddings. Generic
+assignment APIs deliberately reject reviewed customer deployments. Do not
+rewrite these records, remove authorization or swap the image behind an
+unchanged release. A fresh production deployment/app using existing primitives
+was offered to the owner; that choice is pending, not approved or implemented.
+
+Separately, production's allowance validity was expired. The supported admin
+plan/execute/read workflow acknowledged`dealership-prod-validity-20261025`,
+extending effective validity to **26 October2026 15:08:10UTC** without changing
+limits/models or resetting counters. A single subsequent actual production
+widget query still returned`PROVIDER_BUDGET_INTERRUPTED`, budgetCode
+`LIMIT_EXCEEDED`. The runner stopped immediately; this is **not** restored AI
+availability or a quality pass. No claim that the prepaid provider balance ran
+out is supported. Original production code/version/assignment remain unchanged.
+
+Reviewed cases, hashes and exact boundaries:
+[production adoption assessment](evidence/2026-10-25-production-adoption-assessment.json).
+
 ## 25 October: Action-Information Prompt Canary
 
 The owner approved the next optimization focus. Source inspection confirms that
