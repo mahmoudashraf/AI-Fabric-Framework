@@ -140,7 +140,7 @@ public class LifecycleStore {
                 phase = Phase.CANCEL; work = work(operationId, phase).orElse(null);
             }
             if (work == null || "READY".equals(work.delivery())) {
-                if (!now.isBefore(job.request().deadlineAt()) && phase != Phase.CANCEL) {
+                if (!now.isBefore(job.request().deadlineAt()) && !lateCompletionAllowed(job, phase)) {
                     update(job, JobState.BLOCKED, job.step(), "DEADLINE_EXCEEDED");
                     if (!"DEADLINE_EXCEEDED".equals(job.code())) event(require(operationId), "DEADLINE_BLOCKED", phase, "DEADLINE_EXCEEDED");
                     return Optional.empty();
@@ -169,6 +169,14 @@ public class LifecycleStore {
             Job job = owned(lease); if (job == null) return false;
             if (job.cancelRequested() && lease.command().phase() != Phase.CANCEL) {
                 releaseLease(job); return false;
+            }
+            if (!clock.instant().isBefore(job.request().deadlineAt()) && lease.command().phase() != Phase.CANCEL
+                && (!"READY".equals(work(job.request().operationId(), lease.command().phase()).orElseThrow().delivery())
+                    || !lateCompletionAllowed(job, lease.command().phase()))) {
+                update(job, JobState.BLOCKED, job.step(), "DEADLINE_EXCEEDED");
+                if (!"DEADLINE_EXCEEDED".equals(job.code())) event(require(job.request().operationId()), "DEADLINE_BLOCKED",
+                    lease.command().phase(), "DEADLINE_EXCEEDED");
+                return false;
             }
             boolean irreversible = job.irreversible() || List.of(Phase.FENCE, Phase.STOP, Phase.DELETE, Phase.RECOVER).contains(lease.command().phase());
             jdbc.update("UPDATE deployment_lifecycle_command SET delivery='SENT',observation_pending=TRUE WHERE command_id=?", lease.command().commandId());
@@ -333,8 +341,24 @@ public class LifecycleStore {
     }
 
     private boolean succeeded(Job job, Phase phase) {
-        return work(job.request().operationId(), phase).filter(work -> !work.observationPending() && work.receipt() != null
-            && work.receipt().status() == Status.SUCCEEDED).isPresent();
+        return work(job.request().operationId(), phase).filter(work -> {
+            var command = work.command(); var receipt = work.receipt(); var request = job.request();
+            return "SENT".equals(work.delivery()) && !work.observationPending() && receipt != null && receipt.status() == Status.SUCCEEDED
+                && request.schemaVersion().equals(command.schemaVersion()) && request.operationId().equals(command.operationId())
+                && request.grantId().equals(command.grantId()) && request.scopeHash().equals(command.scopeHash()) && command.phase() == phase
+                && command.schemaVersion().equals(receipt.schemaVersion()) && command.commandId().equals(receipt.commandId())
+                && command.operationId().equals(receipt.operationId()) && command.grantId().equals(receipt.grantId()) && receipt.phase() == phase;
+        }).isPresent();
+    }
+
+    private boolean lateCompletionAllowed(Job job, Phase phase) {
+        return switch (phase) {
+            case CANCEL -> true;
+            case VERIFY -> (job.request().goal() == Goal.STOP || job.request().goal() == Goal.RETIRE)
+                && succeeded(job, Phase.STOP) && (job.request().goal() != Goal.RETIRE || succeeded(job, Phase.DELETE));
+            case RELEASE -> succeeded(job, job.request().goal() == Goal.RECONCILE ? Phase.OBSERVE : Phase.VERIFY);
+            default -> false;
+        };
     }
 
     private Phase phase(Job job) {

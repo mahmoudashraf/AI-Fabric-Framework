@@ -679,6 +679,149 @@ abstract class LifecycleEngineTests {
         assertThat(jdbc.queryForList("SELECT phase FROM deployment_lifecycle_command", String.class)).doesNotContain("DELETE", "CANCEL", "RELEASE");
     }
 
+    @ParameterizedTest @EnumSource(value = Goal.class, names = {"STOP", "RETIRE"})
+    void acceptedNativeCompletionAfterDeadlineAllowsOnlyMatchingVerificationAndRelease(Goal goal) {
+        var job = request("late-native", "target", goal, Mode.COLD); service.register(job);
+        Phase lastNative = goal == Goal.RETIRE ? Phase.DELETE : Phase.STOP;
+        advanceTo(job.operationId(), lastNative);
+        gateway.onSubmit = command -> gateway.result(command, Status.PENDING);
+        var pending = service.advance(job.operationId());
+        Command nativeCommand = pending.command(); int posts = gateway.posts();
+        clock.set(job.deadlineAt().plusSeconds(1));
+        gateway.onObserve = command -> {
+            assertThat(command).isEqualTo(nativeCommand);
+            return gateway.result(command, Status.SUCCEEDED);
+        };
+        assertThat(restart().advance(job.operationId()).phase()).isEqualTo(Phase.VERIFY);
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(gateway.polls).hasValue(1);
+        gateway.onSubmit = command -> {
+            assertThat(command.phase()).isIn(Phase.VERIFY, Phase.RELEASE);
+            assertThat(command.operationId()).isEqualTo(job.operationId());
+            assertThat(command.grantId()).isEqualTo(job.grantId());
+            assertThat(command.scopeHash()).isEqualTo(job.scopeHash());
+            return gateway.result(command, Status.SUCCEEDED);
+        };
+        assertThat(restart().advance(job.operationId()).phase()).isEqualTo(Phase.RELEASE);
+        assertThat(restart().advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+        assertThat(store.status(job.operationId()).request()).isEqualTo(job);
+        assertThat(gateway.posts()).isEqualTo(posts + 2);
+        assertThat(gateway.posts.get(nativeCommand.commandId())).hasValue(1);
+    }
+
+    @ParameterizedTest @EnumSource(value = Status.class, names = {"PENDING", "UNKNOWN"})
+    void unresolvedDeleteAfterDeadlineCannotPrepareVerificationOrSettleCapacity(Status status) {
+        var job = request("unresolved-delete", "target", Goal.RETIRE, Mode.COLD);
+        var assessment = capacityRequest(job, "capacity-unresolved"); activateCapacity(assessment);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        service.register(job); advanceTo(job.operationId(), Phase.DELETE);
+        gateway.onSubmit = command -> gateway.result(command, status);
+        var pending = service.advance(job.operationId()); int posts = gateway.posts();
+        clock.set(job.deadlineAt().plusSeconds(1));
+        for (int index = 0; index < 2; index++) {
+            assertThat(restart().advance(job.operationId()).command()).isEqualTo(pending.command());
+        }
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(gateway.polls).hasValue(2);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+        assertThat(jdbc.queryForList("SELECT phase FROM deployment_lifecycle_command WHERE operation_id=?", String.class, job.operationId()))
+            .doesNotContain("VERIFY", "RELEASE");
+    }
+
+    @ParameterizedTest @EnumSource(value = Phase.class, names = {"DELETE", "FENCE", "RECOVER"})
+    void newMutationsRemainBlockedAfterDeadline(Phase phase) {
+        var job = request("late-new-mutation", "target", phase == Phase.RECOVER ? Goal.RECOVER : phase == Phase.DELETE ? Goal.RETIRE : Goal.STOP,
+            phase == Phase.FENCE ? Mode.GRACEFUL : Mode.COLD);
+        service.register(job); advanceTo(job.operationId(), phase);
+        int posts = gateway.posts(); clock.set(job.deadlineAt());
+        assertThat(service.advance(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(restart().retry(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(jdbc.queryForList("SELECT phase FROM deployment_lifecycle_command WHERE operation_id=?", String.class, job.operationId()))
+            .doesNotContain(phase.name());
+        assertThat(store.status(job.operationId()).request()).isEqualTo(job);
+    }
+
+    @Test void preparedMutationCannotCrossTheDeadlineBetweenAcquisitionAndDispatch() {
+        var job = request("prepared-at-deadline", "target", Goal.RETIRE, Mode.COLD);
+        service.register(job); advanceTo(job.operationId(), Phase.DELETE);
+        clock.set(job.deadlineAt().minusSeconds(1));
+        var prepared = store.acquire(job.operationId(), false).orElseThrow();
+        assertThat(prepared.submit()).isTrue();
+        clock.set(job.deadlineAt());
+        assertThat(store.markSent(prepared)).isFalse();
+        assertThat(store.status(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForObject("SELECT delivery FROM deployment_lifecycle_command WHERE command_id=?", String.class,
+            prepared.command().commandId())).isEqualTo("READY");
+        assertThat(gateway.posts).doesNotContainKey(prepared.command().commandId());
+    }
+
+    @Test void newRecoveryVerificationRemainsBlockedAfterDeadline() {
+        var job = request("late-recovery-verification", "target", Goal.RECOVER, Mode.COLD);
+        service.register(job); advanceTo(job.operationId(), Phase.VERIFY);
+        int posts = gateway.posts(); clock.set(job.deadlineAt().plusSeconds(1));
+        assertThat(service.advance(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(jdbc.queryForList("SELECT phase FROM deployment_lifecycle_command WHERE operation_id=?", String.class, job.operationId()))
+            .doesNotContain("VERIFY", "RELEASE");
+    }
+
+    @ParameterizedTest @EnumSource(value = Goal.class, names = {"STOP", "RECONCILE"})
+    void lateReleaseRequiresMatchingVerifyOrObserveProofAndBlockedJobsStillNeedExplicitRetry(Goal goal) throws Exception {
+        var job = request("late-proof", "target", goal, Mode.COLD); service.register(job); advanceTo(job.operationId(), Phase.RELEASE);
+        Phase proofPhase = goal == Goal.RECONCILE ? Phase.OBSERVE : Phase.VERIFY;
+        String proof = jdbc.queryForObject("SELECT receipt_json FROM deployment_lifecycle_command WHERE operation_id=? AND phase=?",
+            String.class, job.operationId(), proofPhase.name());
+        ObjectNode foreign = (ObjectNode) mapper.readTree(proof); foreign.put("grantId", "foreign-grant");
+        jdbc.update("UPDATE deployment_lifecycle_command SET receipt_json=? WHERE operation_id=? AND phase=?",
+            mapper.writeValueAsString(foreign), job.operationId(), proofPhase.name());
+        int posts = gateway.posts(); clock.set(job.deadlineAt().plusSeconds(1));
+        assertThat(service.advance(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(gateway.posts()).isEqualTo(posts);
+        jdbc.update("UPDATE deployment_lifecycle_command SET receipt_json=? WHERE operation_id=? AND phase=?", proof, job.operationId(), proofPhase.name());
+        assertThat(restart().advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.BLOCKED);
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(restart().retry(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+        assertThat(gateway.posts()).isEqualTo(posts + 1);
+        assertThat(store.status(job.operationId()).request()).isEqualTo(job);
+    }
+
+    @Test void lateRetirementVerificationRejectsForeignScopeAndUnsettledDeleteProof() throws Exception {
+        var job = request("late-delete-proof", "target", Goal.RETIRE, Mode.COLD);
+        service.register(job); advanceTo(job.operationId(), Phase.VERIFY);
+        String command = jdbc.queryForObject("SELECT command_json FROM deployment_lifecycle_command WHERE operation_id=? AND phase='DELETE'",
+            String.class, job.operationId());
+        ObjectNode foreign = (ObjectNode) mapper.readTree(command); foreign.put("scopeHash", "f".repeat(64));
+        jdbc.update("UPDATE deployment_lifecycle_command SET command_json=? WHERE operation_id=? AND phase='DELETE'",
+            mapper.writeValueAsString(foreign), job.operationId());
+        int posts = gateway.posts(); clock.set(job.deadlineAt().plusSeconds(1));
+        assertThat(service.advance(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        jdbc.update("UPDATE deployment_lifecycle_command SET command_json=?,observation_pending=TRUE WHERE operation_id=? AND phase='DELETE'",
+            command, job.operationId());
+        assertThat(service.retry(job.operationId()).code()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(gateway.posts()).isEqualTo(posts);
+        jdbc.update("UPDATE deployment_lifecycle_command SET observation_pending=FALSE WHERE operation_id=? AND phase='DELETE'", job.operationId());
+        assertThat(service.retry(job.operationId()).phase()).isEqualTo(Phase.RELEASE);
+        assertThat(service.advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+    }
+
+    @ParameterizedTest @EnumSource(value = Phase.class, names = {"VERIFY", "RELEASE"})
+    void acceptedBlockedCompletionCommandsRemainGetOnlyAfterDeadline(Phase phase) {
+        var job = request("late-accepted-completion", "target", Goal.STOP, Mode.COLD);
+        service.register(job); advanceTo(job.operationId(), phase);
+        gateway.onSubmit = command -> gateway.result(command, Status.BLOCKED);
+        Command accepted = service.advance(job.operationId()).command(); int posts = gateway.posts();
+        clock.set(job.deadlineAt().plusSeconds(1));
+        gateway.onObserve = command -> gateway.result(command, Status.SUCCEEDED);
+        var result = restart().retry(job.operationId());
+        assertThat(result.phase()).isEqualTo(Phase.RELEASE);
+        assertThat(gateway.posts()).isEqualTo(posts);
+        assertThat(gateway.posts.get(accepted.commandId())).hasValue(1);
+        assertThat(gateway.polls).hasValue(1);
+        assertThat(result.request()).isEqualTo(job);
+    }
+
     @ParameterizedTest @EnumSource(value = Phase.class, names = {"FENCE", "DELETE", "RECOVER"})
     void unknownIrreversibleMutationsStillRejectCancellationAndOnlyPollTheirOriginalCommand(Phase phase) {
         String id = "irreversible-" + phase;

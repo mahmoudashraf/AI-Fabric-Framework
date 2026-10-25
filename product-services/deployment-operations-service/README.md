@@ -427,9 +427,17 @@ renamed, automatically resent, or interpreted as no effect. Stale worker receipt
 cannot overwrite a takeover. BLOCKED/FAILED do not auto-retry. A lost explicit
 BLOCKED replay response also returns to GET-only observation.
 
-No new phase is posted after deadline except CANCEL. Existing accepted commands
-can still be polled. A partially irreversible job may therefore remain blocked
-with its core claim retained; expiry is not cancellation, RELEASE, or absence.
+After deadline, CANCEL remains available. STOP/RETIRE may post read-only VERIFY
+only after the same job/grant/scope's stored STOP succeeded (and DELETE succeeded
+for RETIRE). RELEASE may be posted only after matching successful VERIFY, or
+OBSERVE for RECONCILE. Core independently enforces the required predecessors.
+No new CLAIM, mutation, OBSERVE/OBSERVE_DRAIN, or RECOVER VERIFY is authorized by
+expiry. Accepted non-CANCEL commands still use GET only after deadline, including explicit
+BLOCKED retries; they are not re-POSTed under this completion exception. Unknown
+or pending native work cannot enable settlement. Dates and grant authority never
+change, and an already BLOCKED job still requires explicit retry. A partially
+irreversible job may remain blocked with its core claim retained; expiry alone
+is not cancellation, RELEASE, absence, or capacity reclamation.
 SUCCEEDED is recorded only after successful RELEASE. Core must provide truthful
 unsupported/blocker receipts for missing graceful/provider capabilities and must
 not turn opaque strings into drain, deletion or reclamation proof.
