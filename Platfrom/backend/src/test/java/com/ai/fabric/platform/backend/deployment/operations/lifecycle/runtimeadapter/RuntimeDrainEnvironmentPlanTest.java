@@ -37,8 +37,31 @@ class RuntimeDrainEnvironmentPlanTest {
         for (String config : new String[]{null, "{}", "{\"operationalDrainEnabled\":false}", "{\"operationalDrainEnabled\":\"true\"}"}) {
             version.setProviderConfigJson(config);
             assertThat(planner.plan(deployment, version, release, Map.of(), false, false, false, null)).containsExactlyInAnyOrderEntriesOf(Map.of(
-                "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false", "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false"));
+                "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false", "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false",
+                "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON", "", "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", ""));
         }
+    }
+
+    @Test
+    void coldUpgradeClearsPreviousReleaseTopologyWithoutChangingOtherRuntimeSettings() {
+        var existing = new LinkedHashMap<>(environment());
+        existing.putAll(planner.plan(deployment, version, release, existing, true, true, false, artifactManifest()));
+        assertThat(existing.get("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON")).contains("rel-1");
+        Map<String, String> previous = Map.copyOf(existing);
+        release.setId("rel-2");
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":false}");
+
+        var update = planner.plan(deployment, version, release, existing, false, true, false, null);
+        assertThat(existing).containsExactlyInAnyOrderEntriesOf(previous);
+        existing.putAll(update);
+
+        assertThat(existing).containsEntry("LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false")
+            .containsEntry("LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false")
+            .containsEntry("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON", "")
+            .containsEntry("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", "");
+        previous.forEach((key, value) -> {
+            if (!update.containsKey(key)) assertThat(existing).containsEntry(key, value);
+        });
     }
 
     @Test

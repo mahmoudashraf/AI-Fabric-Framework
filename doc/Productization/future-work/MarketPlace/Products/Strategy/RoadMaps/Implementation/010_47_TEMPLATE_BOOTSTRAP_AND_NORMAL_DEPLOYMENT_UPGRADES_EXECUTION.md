@@ -123,3 +123,19 @@ previously authorized fresh-production route is paused by this owner decision.
   list, keeping origins and credential policy unchanged. Six focused real HTTP
   tests passed, including trusted-origin preflight, untrusted-origin denial,
   customer scope and direct operator apply without manual approval.
+- `53956e85c`: both control planes verified at schema 213, exact source/digest,
+  protected history and unchanged environments. Public browser preflight now
+  explicitly permits `Idempotency-Key` for the existing console origin.
+- The real customer then applied v2 directly to the existing production target:
+  `rel-1ee8fc8d` / `ver-fe6de5ea`. No approval request or replacement app.
+  Provisioning is in progress; verified assignment and live query remain
+  pending. The new release records the server-selected `TEAM_AUTHORIZED`
+  contract; historical grant/allocation row hashes remain unchanged.
+- The first actual replacement failed startup because provider environment
+  upserts retained the previous release's optional retirement topology while
+  setting the new release ID. Verification correctly refused activation.
+  Cold-upgrade environment planning now explicitly clears the stale topology
+  and digest when drain is disabled; it does not enable drain, relax identity
+  validation or change customer/provider settings. A focused opt-in -> cold
+  replacement regression checks the complete environment overlay; all 96
+  environment-plan, Coolify provider and Coolify API tests passed together.

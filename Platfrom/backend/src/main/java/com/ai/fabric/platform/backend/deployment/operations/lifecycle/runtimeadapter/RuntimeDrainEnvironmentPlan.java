@@ -41,7 +41,10 @@ public final class RuntimeDrainEnvironmentPlan {
         JsonNode configured = json(version.getProviderConfigJson()).path("operationalDrainEnabled");
         if (!configured.isBoolean() || !configured.booleanValue()) return Map.of(
             "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false",
-            "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false");
+            "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false",
+            // Provider environment updates are upserts: explicitly clear the previous release's topology.
+            "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON", "",
+            "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", "");
         JsonNode manifest = json(artifactManifestJson);
         if (!contains(manifest.path("capabilities"), "runtime-release-scoped-drain-v1")
             || !contains(manifest.path("migrationIds"), "runtime-release-scoped-retirement-v24")) {
