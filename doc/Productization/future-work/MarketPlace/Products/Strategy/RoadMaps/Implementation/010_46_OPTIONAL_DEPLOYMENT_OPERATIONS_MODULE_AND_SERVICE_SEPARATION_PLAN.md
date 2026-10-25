@@ -1,6 +1,6 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service delivery and Platform-core decoupling are implemented and verified on staging and production. The owner has now explicitly authorized the advanced operational machinery in the independent service. That additional delivery is in progress, not covered by the earlier core-decoupling closure. See section 11.
+**Status:** Direct-service delivery, Platform-core decoupling and the supported advanced operational workflows are implemented, published and verified live on staging and production. Final sources, hosted proofs, cleanup and explicit unsupported cases are recorded in section 11. This is not a universal provider-repair or fleet-adoption engine.
 **Date:** 24-25 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
@@ -790,8 +790,8 @@ Execution tracking:
 - [x] Implement Platform exact-target grants, command receipts, mutation safety and native readback adapters.
 - [x] Integrate optional Runtime graceful capabilities without making normal cold replacement depend on them.
 - [x] Verify duplicates, conflicts, unknown effects, restart, cancellation, deadlines, ownership and outage independence through focused tests and the scoped hosted proofs below. Not every failure permutation is claimed as a live test.
-- [ ] Build and qualify published images, then verify isolated hosted workflows without changing the main dealership canary.
-- [ ] Record actual supported/unsupported operations, hosted results and cleanup. Do not claim full closure before evidence exists.
+- [x] Build and qualify published images, then verify isolated hosted workflows without changing the main dealership canary.
+- [x] Record actual supported/unsupported operations, hosted results and cleanup. The closure below is bounded by those supported cases, not a claim of universal recovery.
 
 The main answer-quality canary `dep-011d7f62`, existing customer app assignments,
 funding/source configuration and financial history remain outside this task's
@@ -868,6 +868,9 @@ boundaries. These cases remain explicit blockers or operator-led new cold apply;
 they are not hidden success fallbacks or prerequisites of ordinary deployment.
 
 ### 11.2 Hosted Image Qualification
+
+This subsection preserves the rollout history. Final current images are listed
+in section 11.5; earlier candidates are not the current deployment.
 
 Source `8743b18238d4e3fdef49789d4583eddd26b8583c` passed the core and
 independent-service image workflows (`40150117967` and `40150117995`). The exact
@@ -1113,10 +1116,96 @@ release with its own ACTIVE gate while retaining target-owned AI data. PostgreSQ
 release-gate tests cover new releases after ACTIVE, DRAINING and AUTHORITY_REVOKED
 predecessors without modifying their old gates, permits or retained AI history.
 
+Separate deletion-approval integration remains explicit follow-up work. When
+`approvalRequiredForDelete=true`, job registration returns
+`EXPLICIT_RETIREMENT_APPROVAL_REQUIRED`; this API does not yet consume a separate
+approved-deletion token. Do not disable that customer guardrail as a workaround.
+The canaries are disposable, owner-authorized internal targets configured for
+direct authorized retirement. STOP/RECOVER and the ordinary product journey are
+not evidence that this separate approval-token integration exists.
+
 Notice/due events are durably recorded and outbox transport is tested against a
 real local HTTP endpoint. No external webhook/email destination was configured
 for this hosted canary, so live external notification delivery is not claimed.
 Service event pagination is supported; the current core convenience events proxy
 returns its default page only. Use the authenticated private service cursor for
 long histories until proxy pagination is added; current job/native status remains
-available independently. No new operator UI is required to use these APIs.
+available independently. Delivery is API-driven; no new lifecycle-job console
+was added in this work.
+
+### 11.5 Final Hosted Closure: 25 October 2026
+
+Final qualification passed at approximately 04:45 UTC. Both environments run the
+following qualified, source-pinned images:
+
+- Core source `c5386839f3a68f621d67ba59ef26fba7eea7f5c7`, image workflow
+  `40162027669`, image
+  `ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:a31e70f82fd157e54372190d509c3392b1f163d34393e632ec9fed7324d77a2d`.
+- Operations service source `2627f78ecde26de5daef89bfd8c65887cfebb045`, image
+  workflow `40160938708`, image
+  `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:c06018b1fe4773cbd6651ebfe5fa40d0fc08b8ae03f821f003a7ea3da9a5a977`.
+- Reviewed Runtime artifact `dsa-5fb141d1` uses source `42acbc2e...` and the
+  qualified `ea1d27f8...` image recorded above. Core/service/Runtime schemas are
+  V211/V3/V24. AI Fabric remains **0.8.41**; no framework source change or release
+  was made for these operational fixes.
+
+The image workflow results, OCI index, Linux/amd64 manifest, configuration digest
+and revision label were verified before native pull. Actual source labels,
+Docker identities, health, configuration preservation and absence of the removed
+legacy core packages were verified after each cutover. The service was updated
+before the final production core so the same pending job could settle safely
+after the original deadline.
+
+The final production job
+`ops-01046-production-automatic-expiry-repeat-20261025`, for `dep-4f413976` /
+`rel-3425246a`, automatically reached SUCCEEDED / RELEASE at approximately
+04:41 UTC. Core returned `NATIVE_OPERATION_VERIFIED_AND_RELEASED`. Its complete
+request still equals the original authorization: operation/grant/command IDs,
+scope, due date and deadline were not rewritten. No manual job advance/retry,
+re-enrollment, ownership fabrication, direct SQL state rewrite or native DELETE
+outside core was used. The atomic ownership transition proved the PostgreSQL
+request had never been prepared; the same admitted phase performed its first
+DELETE and remaining owned-volume reclamation, followed by actual read-only
+verification and release. Every final native command succeeded and the claim
+closed.
+
+This is a successful **resumed** automation proof after real defects were fixed,
+not a claim that the earlier attempts passed first time. The initial watcher
+timeout and the later HTTP 503 during the intentional service cutover remain
+failed observations. Final watching resumed through GET-only requests. An
+archive-check helper initially called an unsupported singular deployment route;
+it was corrected to the actual overview API without changing product access or
+authentication. These harness corrections are not counted as product fixes.
+
+Independent native/provider and physical-host readback verified all nine exact
+fixture resources returned 404, all associated containers were absent and all
+six originally captured physical volumes were gone. The three fixture
+deployments (`dep-f689cfc9`, `dep-a19834b6`, `dep-4f413976`) are archived through
+the supported API, with no outstanding native claims, capacity reservations or
+provider-use allocation placeholders. Audit, job and release history remain
+intentionally retained. Their PostgreSQL databases held AI state only, never
+dealership inventory; customer/external S3, vector and business services were not
+deleted.
+
+Final live checks on both environments confirmed:
+
+- Core and service healthy at the exact qualified revisions; private service
+  networking with no public FQDN or host port.
+- Unauthenticated service/gateway requests denied, lifecycle machine key rejected
+  by normal operator APIs, and a missing exact command returned 404.
+- Service-only database/user, no Platform-table SELECT privileges or superuser,
+  and no provider/SSH/Platform-administrator keys in the service environment.
+- Manual admission remains `DISABLED` / `TEAM_AUTHORIZED`; explicit lifecycle
+  gateway and enrolled-job scheduler are enabled. No legacy fleet was enrolled.
+- All nine recorded financial/consumer/app table hashes match the original
+  pre-rollout snapshots. The main dealership canary `dep-011d7f62`, existing
+  assignments, source configuration and financial history were not changed.
+
+Private final summary:
+`advanced-operational-machinery-20261025/final-qualification.actual.json` under
+the private evidence root above. It links the exact sources and records the
+unchanged request, private/isolation checks and cleanup. Existing STOP/RECOVER,
+graceful retirement, cold replacement during actual service outage, stale-expiry
+protection, cancellation and durable scheduler proofs remain separately retained.
+Shared firewall closure is still owned by the main session; this task did not
+close it.
