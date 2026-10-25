@@ -1,0 +1,10 @@
+---
+description: Trust boundaries and minimal AI execution contracts
+alwaysApply: true
+---
+
+Follow `AGENTS.md` and the mandatory AI validation rule in
+`Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md`.
+Hard authorization and side-effect boundaries do not mean hard rejection of
+every imperfect AI response. New validators must protect an identified boundary
+or necessary execution requirement; do not replace intelligence with text matching.

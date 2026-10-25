@@ -196,6 +196,32 @@ Good product operations are not only secure. They are legible.
 
 ## AI is a Capability, Not the Control Plane
 
+### Validation Must Protect A Boundary, Not Replace Intelligence
+
+Keep tenant/ownership isolation, authorization, trusted targets, declared write
+confirmation, and spending/execution limits hard. An AI quality target or a
+customer's willingness to accept an answer never waives those boundaries.
+
+Require only the structured fields needed to execute the requested operation
+safely. Align prompts and schemas before adding rejection rules; use explicitly
+allowed bounded LLM repair for incomplete output. Missing optional optimization
+hints should not automatically invalidate useful safe answers. Non-security
+confidence/provenance validation may warn under declared policy; security-owned
+IDs and provenance still require trust.
+
+Semantic mistakes are quality issues to measure and improve, not permission to
+add keyword/regex decisions, fabricate defaults, search every source, or hide a
+failed model decision. Configuration constrains execution; it does not infer
+the customer's meaning. READ actions need no vector space unless retrieval or
+their explicitly declared grounding contract requires one.
+
+Prefer useful authorized evidence with visible uncertainty and business-facing
+clarification. Do not routinely ask customers to select internal knowledge
+domains because orchestration context was incomplete. Before introducing a hard
+validator, name its trust or execution requirement; otherwise consider a warning
+or quality diagnostic. This is the same rule as the framework philosophy's
+"Strict Trust Boundaries, Minimal AI Contracts" section, not a separate policy.
+
 We are building an AI platform, but AI should not silently govern the control plane.
 
 LLMs are appropriate for:

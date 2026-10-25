@@ -14,6 +14,20 @@ Use it together with:
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
 
+## Mandatory AI Validation Rule
+
+Hard trust boundaries; minimal execution contracts; guided LLM decisions and
+visible uncertainty. Read "Strict Trust Boundaries, Minimal AI Contracts" in
+`AI_FABRIC_FRAMEWORK_PHILOSOPHY.md` and the matching Platform philosophy section.
+Do not equate fail-closed security with rejecting every imperfect AI response.
+Every new hard validator must identify the tenant/permission/side-effect/budget
+boundary or necessary execution field it protects. Optional optimization hints
+and semantic confidence are not automatically hard gates. Use explicitly allowed
+bounded LLM repair; never hide decisions with text matching or unapproved
+fallbacks. READ actions do not require indexed vector spaces unless their own
+declared contract or actual retrieval needs them. Measure semantic quality
+separately; acceptance tolerance never relaxes authorization or confirmation.
+
 ## 1. What We Are Building
 
 We are building two related but different things:
