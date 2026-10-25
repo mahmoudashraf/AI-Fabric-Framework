@@ -114,7 +114,7 @@ class RuntimeAdminOverviewControllerTest {
                 .locations("classpath:db/runtime-migration").load();
             v20.migrate(); v20.validate();
             beans.addBean("flyway", v20);
-            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("22");
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("24");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1")
@@ -122,7 +122,9 @@ class RuntimeAdminOverviewControllerTest {
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "provider-budget-validity-extensions-v1",
                 "version", "20", "description", "provider budget validity extensions", "state", "SUCCESS"));
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("document-storage-scope-v22");
-            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 3);
+            assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "release-scoped-retirement-v24",
+                "version", "24", "description", "release scoped retirement", "state", "SUCCESS"));
+            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 4);
         }
     }
 

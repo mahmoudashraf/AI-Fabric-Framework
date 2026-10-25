@@ -866,3 +866,41 @@ adoption, no automatic artifact repair to a guessed latest version, and no false
 graceful coverage for unsupported human-review/scheduler/external-provider
 boundaries. These cases remain explicit blockers or operator-led new cold apply;
 they are not hidden success fallbacks or prerequisites of ordinary deployment.
+
+### 11.2 Hosted Rollout In Progress
+
+Source `8743b18238d4e3fdef49789d4583eddd26b8583c` passed the core and
+independent-service image workflows (`40150117967` and `40150117995`). The exact
+OCI index, Linux/amd64 manifest, configuration and revision labels were checked
+before rollout; actual Docker identities were checked afterward. Docker 29's
+containerd store reports the OCI index as the native image ID, rather than the
+older configuration ID. This is recorded explicitly, not mistaken for a source
+change.
+
+Both staging and production now run:
+
+- Core: `ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:474a52416f8af0171b2e6924033109990011973cd4d19fc70beb23fb20c03bf0`, schema V211.
+- Service: `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:99d31b7bd3e3a934bd3052d8e6d021d9db7052b5b733630a27e29f8e175ad16d`, own schema V3.
+
+Native health, private service aliases, authenticated service access and the
+dedicated core gateway passed on both environments. Unauthenticated calls were
+denied; the lifecycle machine key could not enter operator APIs. The service's
+database role has no SELECT privilege on Platform tables and is not a superuser.
+Existing financial, consumer and app records matched the pre-rollout hashes.
+Normal deployment mode remains `DISABLED` / `TEAM_AUTHORIZED`; enabling the
+explicit lifecycle scheduler did not enroll any legacy target or job.
+
+Each physical host has a dedicated source-IP-restricted forced-command SSH
+identity. Its key and pinned host key remain in the core secret store only.
+The helper permits the narrow container/volume observations and approved owned
+volume removal required by the native adapter; it denies arbitrary shell,
+container execution, global pruning and forwarding. The operations service
+receives neither SSH nor provider credentials.
+
+Runtime image workflow `40150117977` failed four assertions expecting Flyway V22
+after the new V24 migration. Its 513-test run had four failures, not a passing
+qualification. The underlying accounting-preservation assertions remain in
+place; the version/overview expectations are being corrected and rerun before
+publishing the Runtime candidate. No framework source or version change is
+involved. Actual hosted stop/recovery/drain/expiry effects and owned fixture
+cleanup remain open; service health alone does not close this delivery.

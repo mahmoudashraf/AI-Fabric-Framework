@@ -52,7 +52,7 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var before = ledger.read(approval.id(), scope);
         var bindingBefore = service.readStore().binding();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("22");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("24");
         assertThat(ledger.read(approval.id(), scope)).isEqualTo(before);
         assertThat(service.readStore().binding()).isEqualTo(bindingBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM provider_budget_validity_extension", Long.class)).isZero();
@@ -107,7 +107,7 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var before = tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
         var upgraded = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema).locations("classpath:db/runtime-migration").load();
         upgraded.migrate(); upgraded.validate();
-        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("22");
+        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("24");
         // Compare every original column; migration adds only immutable original-limit copies and an empty receipt table.
         for (int i = 0; i < tables.size(); i++) {
             var after = jdbc.queryForList("SELECT * FROM " + tables.get(i));
