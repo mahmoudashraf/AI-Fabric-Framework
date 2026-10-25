@@ -89,6 +89,8 @@ class LifecycleCommandStoreTest {
         var resumed = store.claim("operation-STOP");
         assertThat(resumed).isNotNull();
         assertThatThrownBy(() -> store.beforeEffect(first, "delete-runtime")).hasMessageContaining("WORKER_FENCED");
+        assertThatThrownBy(() -> store.effectKnown(first, "stop-runtime")).hasMessageContaining("WORKER_FENCED");
+        assertThat(store.effectKnown(resumed, "stop-runtime")).isTrue();
         assertThat(store.beforeEffect(resumed, "stop-runtime")).isFalse();
         assertThat(store.effectComplete(resumed, "stop-runtime")).isFalse();
         store.completed(resumed, "stop-runtime");
@@ -109,6 +111,28 @@ class LifecycleCommandStoreTest {
         complete(Phase.VERIFY); complete(Phase.RELEASE);
         assertThat(store.require("grant").state()).isEqualTo("CLOSED");
         new LifecycleClaimGuard(jdbc).requireAvailable("deployment", "staging");
+    }
+
+    @Test void knownEffectLookupIsReadOnlyCommandScopedAndIncludesIntentWithoutProviderJob() {
+        var claim = command(Phase.CLAIM); store.accept(claim); var claimWork = store.claim(claim.commandId());
+        store.beforeEffect(claimWork, "delete-runtime"); store.completed(claimWork, "delete-runtime");
+        store.finish(claimWork, Status.SUCCEEDED, "CLAIMED", List.of());
+        store.accept(command(Phase.STOP)); var work = store.claim("operation-STOP");
+
+        assertThat(store.effectKnown(work, "delete-runtime")).isFalse();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_effects WHERE command_id=?",
+            Integer.class, work.command().commandId())).isZero();
+        store.beforeEffect(work, "delete-runtime");
+        var persisted = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id=?",
+            work.command().commandId(), "delete-runtime");
+        assertThat(store.providerOperation(work, "delete-runtime")).isNull();
+        assertThat(store.effectKnown(work, "delete-runtime")).isTrue();
+        assertThat(store.effectComplete(work, "delete-runtime")).isFalse();
+        assertThat(store.effectKnown(work, "different-resource")).isFalse();
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id=?",
+            work.command().commandId(), "delete-runtime")).isEqualTo(persisted);
+        store.completed(work, "delete-runtime");
+        assertThat(store.effectKnown(work, "delete-runtime")).isTrue();
     }
 
     @Test void explicitReobservationKeepsTheOriginalCommandAndEffectIntent() {

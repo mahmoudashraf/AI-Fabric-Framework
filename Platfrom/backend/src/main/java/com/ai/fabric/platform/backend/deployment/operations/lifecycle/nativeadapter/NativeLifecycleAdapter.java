@@ -25,6 +25,8 @@ public interface NativeLifecycleAdapter {
         /** Call only after the exact intended effect has been read back. */
         void completed(String effectId);
         boolean isComplete(String effectId);
+        /** Read-only lookup for this command's exact persisted INTENT or COMPLETE; never creates an intent. */
+        default boolean isKnown(String effectId) { return isComplete(effectId) || operationId(effectId) != null; }
         default void dispatched(String effectId, String providerOperationId) { }
         default String operationId(String effectId) { return null; }
         void guard();

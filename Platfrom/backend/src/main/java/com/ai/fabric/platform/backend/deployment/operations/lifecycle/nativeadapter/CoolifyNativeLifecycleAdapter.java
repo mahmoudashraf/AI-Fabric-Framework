@@ -299,22 +299,22 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
             throw failure("NATIVE_STORAGE_RECLAMATION_APPROVAL_REQUIRED");
         if (reclaimOwnedData && snapshot.resources().stream().flatMap(resource -> resource.volumes().stream()).anyMatch(Volume::retained))
             throw failure("NATIVE_EXTERNAL_MOUNT_MUST_BE_RETAINED");
-        var stopped = verifyStopped(snapshot);
+        var stopped = observation(snapshot, true, false, checkpoint);
         if (!stopped.complete()) return withCompletion(stopped, false, "NATIVE_STOP_REQUIRED");
         for (var resource : ordered(snapshot, false)) {
             checkpoint.guard();
             String deleteEffect = effect(snapshot, resource, "DELETE");
-            var observed = observeResource(snapshot, resource, false, true);
+            var observed = observeResource(snapshot, resource, false, true, false, checkpoint.isKnown(deleteEffect));
             if (observed.state() != State.ABSENT) {
-                if (!checkpoint.beforeEffect(deleteEffect)) return pending(snapshot, "NATIVE_DELETE_OUTCOME_UNKNOWN");
+                if (!checkpoint.beforeEffect(deleteEffect)) return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_OUTCOME_UNKNOWN");
                 checkpoint.guard(); check(snapshot);
                 requireExclusiveVolumes(snapshot, connection(target(snapshot.targetProfileId())));
                 dispatch(snapshot, resource, "DELETE", reclaimOwnedData);
-                observed = observeResource(snapshot, resource, false, true);
+                observed = observeResource(snapshot, resource, false, true, false, true);
                 if (observed.state() != State.ABSENT || !observed.containersAbsent())
-                    return pending(snapshot, "NATIVE_DELETE_READBACK_PENDING");
+                    return pendingDeletion(snapshot, checkpoint, "NATIVE_DELETE_READBACK_PENDING");
             }
-            if (!observed.containersAbsent()) return pending(snapshot, "NATIVE_CONTAINER_ABSENCE_UNPROVEN");
+            if (!observed.containersAbsent()) return pendingDeletion(snapshot, checkpoint, "NATIVE_CONTAINER_ABSENCE_UNPROVEN");
             if (!checkpoint.isComplete(deleteEffect)) {
                 checkpoint.beforeEffect(deleteEffect);
                 checkpoint.completed(deleteEffect);
@@ -322,13 +322,13 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
             String volumeEffect = effect(snapshot, resource, "RECLAIM");
             if (!resource.volumes().isEmpty() && !observed.volumesAbsent()) {
                 if (!reclaimOwnedData) throw failure("NATIVE_STORAGE_RECLAMATION_APPROVAL_REQUIRED");
-                if (!checkpoint.beforeEffect(volumeEffect)) return pending(snapshot, "NATIVE_RECLAMATION_OUTCOME_UNKNOWN");
+                if (!checkpoint.beforeEffect(volumeEffect)) return pendingDeletion(snapshot, checkpoint, "NATIVE_RECLAMATION_OUTCOME_UNKNOWN");
                 checkpoint.guard(); check(snapshot);
                 requireExclusiveVolumes(snapshot, connection(target(snapshot.targetProfileId())));
                 volumes.reclaimAndVerify(resource.placement().targetIntent(), resource.placement().serverUuid(),
                     snapshot.scopeHash() + ":" + resource.id(), resource.volumes().stream().map(volume ->
                         new CoolifyHostVolumeReclamationService.Volume(volume.uuid(), volume.name(), volume.hostPath(), volume.retained())).toList());
-                if (!volumesAbsent(resource)) return pending(snapshot, "NATIVE_VOLUME_ABSENCE_UNPROVEN");
+                if (!volumesAbsent(resource)) return pendingDeletion(snapshot, checkpoint, "NATIVE_VOLUME_ABSENCE_UNPROVEN");
             }
             if (!resource.volumes().isEmpty() && !checkpoint.isComplete(volumeEffect)) {
                 checkpoint.beforeEffect(volumeEffect);
@@ -344,8 +344,13 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
     }
 
     private Observation observation(NativeSnapshot snapshot, boolean stoppedProof, boolean absenceProof) {
+        return observation(snapshot, stoppedProof, absenceProof, null);
+    }
+
+    private Observation observation(NativeSnapshot snapshot, boolean stoppedProof, boolean absenceProof, Checkpoint deletion) {
         check(snapshot);
-        var observations = snapshot.resources().stream().map(resource -> observeResource(snapshot, resource, stoppedProof, absenceProof)).toList();
+        var observations = snapshot.resources().stream().map(resource -> observeResource(snapshot, resource, stoppedProof,
+            absenceProof, false, deletion != null && deletion.isKnown(effect(snapshot, resource, "DELETE")))).toList();
         boolean stopped = observations.stream().allMatch(value -> (value.state() == State.STOPPED || value.state() == State.ABSENT)
             && (!stoppedProof || value.containersAbsent()));
         boolean absent = observations.stream().allMatch(value -> value.state() == State.ABSENT && value.containersAbsent());
@@ -362,6 +367,11 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
 
     private ResourceObservation observeResource(NativeSnapshot snapshot, NativeResource resource, boolean stoppedProof,
             boolean absenceProof, boolean workerProof) {
+        return observeResource(snapshot, resource, stoppedProof, absenceProof, workerProof, false);
+    }
+
+    private ResourceObservation observeResource(NativeSnapshot snapshot, NativeResource resource, boolean stoppedProof,
+            boolean absenceProof, boolean workerProof, boolean deleteReadback) {
         var connection = connection(target(snapshot.targetProfileId()));
         requireConnection(resource, connection);
         JsonNode raw;
@@ -383,7 +393,10 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
             if (!resource.identityHash().equals(identity(raw, resource.name(), resource.marker())))
                 throw failure("NATIVE_RESOURCE_IDENTITY_CHANGED");
             requireNativePlacement(resource, raw);
-            if (!resource.volumes().equals(storage(connection, resource.kind(), resource.uuid())))
+            var observedVolumes = storage(connection, resource.kind(), resource.uuid());
+            // An exact persisted DELETE can remove storage rows before its resource disappears.
+            // This is observation only: dispatch() still requires equality, and no new/edited row is accepted.
+            if (deleteReadback ? !resource.volumes().containsAll(observedVolumes) : !resource.volumes().equals(observedVolumes))
                 throw failure("NATIVE_VOLUME_INVENTORY_CHANGED");
         }
         boolean containersAbsent = false;
@@ -728,6 +741,9 @@ public class CoolifyNativeLifecycleAdapter implements NativeLifecycleAdapter {
     }
 
     private Observation pending(NativeSnapshot snapshot, String code) { return withCompletion(observation(snapshot, false, false), false, code); }
+    private Observation pendingDeletion(NativeSnapshot snapshot, Checkpoint checkpoint, String code) {
+        return withCompletion(observation(snapshot, false, false, checkpoint), false, code);
+    }
     private Observation withCompletion(Observation value, boolean complete, String code) {
         var blockers = new ArrayList<>(value.blockers()); if (code != null && !blockers.contains(code)) blockers.add(code);
         return new Observation(value.scopeHash(), value.observedAt(), value.resources(), value.stopped(), value.absent(), value.ready(), value.dataReclaimed(), complete, blockers);

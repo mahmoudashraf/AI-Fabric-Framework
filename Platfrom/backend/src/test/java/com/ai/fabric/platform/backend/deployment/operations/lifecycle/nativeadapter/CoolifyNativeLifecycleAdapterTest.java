@@ -303,6 +303,142 @@ class CoolifyNativeLifecycleAdapterTest {
         assertThat(adapter.delete(snapshot, false, journal).complete()).isTrue();
     }
 
+    @Test void asynchronousDatabaseDeleteCanLoseStorageRowsBeforeItsResourceDisappears() {
+        add("runtime", "APPLICATION"); volume("runtime", "runtime-state", "owned-runtime-state");
+        add("db", "RUNTIME_POSTGRES_DATABASE"); volume("db", "db-state", "owned-db-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal); adapter.stop(snapshot, journal);
+        doAnswer(call -> {
+            effects.add("DELETE db"); storages.remove("db");
+            return new CoolifyActionResponse("queued", null, null);
+        }).when(api).deleteDatabase(connection, "db", true, false, false, false);
+
+        var pending = adapter.delete(snapshot, true, journal);
+        assertThat(pending.complete()).isFalse(); assertThat(pending.dataReclaimed()).isFalse();
+        assertThat(pending.blockers()).contains("NATIVE_DELETE_READBACK_PENDING");
+        assertThat(journal.complete).doesNotContain(deleteEffect(snapshot, "db"));
+        assertThat(presentVolumes).containsExactly("owned-db-state");
+        verify(volumeService, times(1)).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+        // Non-delete observations still require the entire original inventory.
+        assertThatThrownBy(() -> adapter.verifyStopped(snapshot)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+
+        var resumed = persistedJournal(journal);
+        assertThat(adapter.delete(snapshot, true, resumed).blockers()).contains("NATIVE_DELETE_OUTCOME_UNKNOWN");
+        nativeRows.remove("db");
+        var result = adapter.delete(snapshot, true, resumed);
+        assertThat(result.complete()).isTrue(); assertThat(result.dataReclaimed()).isTrue();
+        assertThat(presentVolumes).isEmpty();
+        verify(api, times(1)).delete(connection, "runtime", true, false, false, false);
+        verify(api, times(1)).deleteDatabase(connection, "db", true, false, false, false);
+        verify(volumeService, times(2)).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+    }
+
+    @Test void lostDeleteResponseResumesObservationFromItsExactPersistedIntentWithoutRedispatch() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        doAnswer(call -> {
+            storages.remove("runtime"); throw new IllegalStateException("socket lost");
+        }).when(api).delete(connection, "runtime", true, false, false, false);
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).isInstanceOf(IllegalStateException.class);
+        assertThat(journal.complete).doesNotContain(deleteEffect(snapshot, "runtime"));
+        assertThat(journal.jobs).isEmpty();
+
+        var resumed = persistedJournal(journal);
+        var pending = adapter.delete(snapshot, true, resumed);
+        assertThat(pending.complete()).isFalse();
+        assertThat(pending.blockers()).contains("NATIVE_DELETE_OUTCOME_UNKNOWN");
+        verify(volumeService, never()).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+        nativeRows.remove("runtime");
+        doThrow(new ProviderResourceVerificationFailure("remaining")).when(volumeService)
+            .verifyContainersAbsent(any(), anyString(), anyString(), anyString(), anyString());
+        assertThat(adapter.delete(snapshot, true, resumed).complete()).isFalse();
+        assertThat(resumed.complete).doesNotContain(deleteEffect(snapshot, "runtime"));
+        verify(volumeService, never()).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+        doReturn(new CoolifyHostVolumeReclamationService.ContainerReceipt("settled", Instant.now())).when(volumeService)
+            .verifyContainersAbsent(any(), anyString(), anyString(), anyString(), anyString());
+        assertThat(adapter.delete(snapshot, true, resumed).complete()).isTrue();
+        verify(api, times(1)).delete(connection, "runtime", true, false, false, false);
+    }
+
+    @Test void aKnownDeleteAcceptsOnlyUnchangedRemainingFrozenRows() {
+        add("runtime", "APPLICATION"); volume("runtime", "first", "owned-first");
+        var first = storages.get("runtime").getFirst();
+        volume("runtime", "second", "owned-second");
+        var second = storages.get("runtime").getFirst();
+        storages.put("runtime", List.of(first, second));
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        journal.beforeEffect(deleteEffect(snapshot, "runtime"));
+        storages.put("runtime", List.of(second));
+        assertThat(adapter.delete(snapshot, true, journal).complete()).isFalse();
+        assertThat(journal.complete).doesNotContain(deleteEffect(snapshot, "runtime"));
+
+        for (var changed : List.of(
+            new CoolifyApplicationStorageSummary("foreign", "persistent", "owned-second", "/app/data", null, false,
+                mapper.createObjectNode().put("uuid", "foreign").put("name", "owned-second").put("mount_path", "/app/data")),
+            new CoolifyApplicationStorageSummary("second", "persistent", "foreign-name", "/app/data", null, false,
+                mapper.createObjectNode().put("uuid", "second").put("name", "foreign-name").put("mount_path", "/app/data")),
+            new CoolifyApplicationStorageSummary("second", "persistent", "owned-second", "/foreign/mount", null, false,
+                mapper.createObjectNode().put("uuid", "second").put("name", "owned-second").put("mount_path", "/foreign/mount")),
+            new CoolifyApplicationStorageSummary("second", "persistent", "owned-second", "/app/data", "/foreign/path", false,
+                mapper.createObjectNode().put("uuid", "second").put("name", "owned-second").put("mount_path", "/app/data")))) {
+            storages.put("runtime", List.of(changed));
+            assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        }
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+        verify(volumeService, never()).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+    }
+
+    @Test void storageLossWithoutThisExactDeleteIntentFailsBeforeAnyDispatch() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        journal.beforeEffect("native:other-snapshot:DELETE:runtime");
+        journal.beforeEffect(deleteEffect(snapshot, "other-resource"));
+        storages.remove("runtime");
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        assertThat(journal.intents).doesNotContain(deleteEffect(snapshot, "runtime"));
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void aNewDeleteRevalidatesExactInventoryAfterIntentAndBeforeDispatch() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        var changing = new Journal() {
+            @Override public boolean beforeEffect(String id) {
+                boolean first = super.beforeEffect(id);
+                if (deleteEffect(snapshot, "runtime").equals(id)) storages.remove("runtime");
+                return first;
+            }
+        };
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, changing)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        assertThat(changing.intents).contains(deleteEffect(snapshot, "runtime"));
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void knownDeleteForOneResourceDoesNotExcuseStorageDriftOnAnother() {
+        add("connector", "CONNECTOR_APPLICATION"); volume("connector", "connector-state", "owned-connector-state");
+        add("runtime", "APPLICATION"); volume("runtime", "runtime-state", "owned-runtime-state");
+        var snapshot = freeze(); adapter.stop(snapshot, journal); adapter.stop(snapshot, journal);
+        journal.beforeEffect(deleteEffect(snapshot, "connector"));
+        storages.remove("connector"); storages.remove("runtime");
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_INVENTORY_CHANGED");
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void knownDeleteStillRejectsReusedResourcesAndForeignVolumeSharing() {
+        add("runtime", "APPLICATION"); volume("runtime", "state", "owned-state");
+        var frozenStorage = storages.get("runtime");
+        var snapshot = freeze(); adapter.stop(snapshot, journal);
+        journal.beforeEffect(deleteEffect(snapshot, "runtime"));
+        storages.remove("runtime"); nativeRows.get("runtime").put("created_at", "foreign-generation");
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_RESOURCE_IDENTITY_CHANGED");
+
+        nativeRows.remove("runtime");
+        when(api.listApplications(connection)).thenReturn(List.of(new CoolifyApplicationSummary("foreign", "foreign", null, "running", null, null, null)));
+        storages.put("foreign", frozenStorage);
+        assertThatThrownBy(() -> adapter.delete(snapshot, true, journal)).hasMessageContaining("NATIVE_VOLUME_SHARED");
+        verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+        verify(volumeService, never()).reclaimAndVerify(any(), anyString(), anyString(), anyList());
+    }
+
     @Test void noAbsenceClaimWhenHostContainersRemain() {
         add("runtime", "APPLICATION"); var snapshot = freeze(); adapter.stop(snapshot, journal);
         doThrow(new ProviderResourceVerificationFailure("remaining")).when(volumeService).verifyContainersAbsent(any(), anyString(), anyString(), anyString(), anyString());
@@ -394,11 +530,20 @@ class CoolifyNativeLifecycleAdapterTest {
     CoolifyActionResponse started(String id) { effects.add("START " + id); nativeRows.get(id).put("status", "running:healthy"); return new CoolifyActionResponse("queued", "job-" + id, null); }
     CoolifyActionResponse deleted(String id) { effects.add("DELETE " + id); nativeRows.remove(id); return new CoolifyActionResponse("queued", null, null); }
 
+    String deleteEffect(NativeSnapshot snapshot, String resourceId) { return "native:" + snapshot.scopeHash() + ":DELETE:" + resourceId; }
+
+    Journal persistedJournal(Journal original) {
+        var resumed = new Journal(); resumed.intents.addAll(original.intents);
+        resumed.complete.addAll(original.complete); resumed.jobs.putAll(original.jobs);
+        return resumed;
+    }
+
     static class Journal implements Checkpoint {
         final Set<String> intents = new HashSet<>(); final Set<String> complete = new HashSet<>(); final Map<String, String> jobs = new HashMap<>();
         public boolean beforeEffect(String id) { return intents.add(id); }
         public void completed(String id) { assertThat(intents).contains(id); complete.add(id); }
         public boolean isComplete(String id) { return complete.contains(id); }
+        public boolean isKnown(String id) { return intents.contains(id); }
         public void guard() { }
         public void dispatched(String id, String job) { jobs.put(id, job); }
         public String operationId(String id) { return jobs.get(id); }

@@ -342,7 +342,7 @@ Decoupling the existing funded-issuance path from R7 belongs to phase 2; it is n
 
 ### Phase 3: Optional Advanced Operations, Not A First-Delivery Blocker
 
-- [ ] Explicitly deferred: add graceful drain, expiry notifications or advanced recovery proposals only for a concrete operator need. This is not part of the completed delivery.
+- [x] Initially deferred from core decoupling. This deferral is superseded by the owner's subsequent explicit implementation instruction in section 11; advanced operations are now a separate delivery, not discarded functionality.
 - [x] Keep advanced policy machinery off the normal customer request path; core retains authorized provider effects.
 - [x] Document the existing difficult legacy cases below rather than rebuilding a universal workflow engine.
 
@@ -789,7 +789,7 @@ Execution tracking:
 - [x] Implement service-owned durable workflow API, scheduler, events and bounded gateway client.
 - [x] Implement Platform exact-target grants, command receipts, mutation safety and native readback adapters.
 - [x] Integrate optional Runtime graceful capabilities without making normal cold replacement depend on them.
-- [ ] Verify duplicates, conflicts, unknown effects, restart, cancellation, deadlines, ownership and outage independence.
+- [x] Verify duplicates, conflicts, unknown effects, restart, cancellation, deadlines, ownership and outage independence through focused tests and the scoped hosted proofs below. Not every failure permutation is claimed as a live test.
 - [ ] Build and qualify published images, then verify isolated hosted workflows without changing the main dealership canary.
 - [ ] Record actual supported/unsupported operations, hosted results and cleanup. Do not claim full closure before evidence exists.
 
@@ -867,7 +867,7 @@ graceful coverage for unsupported human-review/scheduler/external-provider
 boundaries. These cases remain explicit blockers or operator-led new cold apply;
 they are not hidden success fallbacks or prerequisites of ordinary deployment.
 
-### 11.2 Hosted Rollout In Progress
+### 11.2 Hosted Image Qualification
 
 Source `8743b18238d4e3fdef49789d4583eddd26b8583c` passed the core and
 independent-service image workflows (`40150117967` and `40150117995`). The exact
@@ -877,7 +877,7 @@ containerd store reports the OCI index as the native image ID, rather than the
 older configuration ID. This is recorded explicitly, not mistaken for a source
 change.
 
-Both staging and production now run:
+The initial staging and production cutover used:
 
 - Core: `ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:474a52416f8af0171b2e6924033109990011973cd4d19fc70beb23fb20c03bf0`, schema V211.
 - Service: `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:99d31b7bd3e3a934bd3052d8e6d021d9db7052b5b733630a27e29f8e175ad16d`, own schema V3.
@@ -900,10 +900,9 @@ receives neither SSH nor provider credentials.
 Runtime image workflow `40150117977` failed four assertions expecting Flyway V22
 after the new V24 migration. Its 513-test run had four failures, not a passing
 qualification. The underlying accounting-preservation assertions remain in
-place; the version/overview expectations are being corrected and rerun before
-publishing the Runtime candidate. No framework source or version change is
-involved. Actual hosted stop/recovery/drain/expiry effects and owned fixture
-cleanup remain open; service health alone does not close this delivery.
+place; the version/overview expectations were corrected before publishing the
+Runtime candidate below. No framework source or version change is involved.
+Service health alone does not close this delivery.
 
 The corrected Runtime source `42acbc2e1762815cd116801635e663dbe6be89b9`
 subsequently passed its complete image workflow `40151983048`, including the full
@@ -924,3 +923,146 @@ The older staff PoC chat/import routes still use global rather than target-froze
 credentials. This is a separately recorded integration limitation, not patched by
 restoring shared credentials. Operational canaries use explicitly reviewed
 deployment-local anonymous chat and trusted server-side indexing routes instead.
+
+Core source `6bab42193146515a7d7daaf7d2326107338defec` subsequently passed image
+workflow `40152591760` and replaced the initial core on both environments:
+`ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:a43b24eccd24fb6fbf308be1c284338a2571f5770af6a5a0f80b93b662015690`.
+It contains the two generation corrections above. The independent service remains
+at source `8743b18238d4e3fdef49789d4583eddd26b8583c`, schema V3. Runtime uses the
+qualified `42acbc2e...` image, schema V24, with AI Fabric **0.8.41 unchanged**.
+The registered Runtime artifact is `dsa-5fb141d1`; its staging and production
+promotion did not reassign any existing app.
+
+One rollout configuration error was caught before any stop effect: Coolify's
+local server identity reports `host.docker.internal`, not its public SSH address.
+`NATIVE_SERVER_PLACEMENT_CHANGED` rejected the first attempt with zero grants and
+effects. Correcting the trusted reported-address configuration retained the
+separate public SSH address, exact server UUID and pinned host key. No placement
+guard was disabled.
+
+### 11.3 Hosted Operational Proofs
+
+These are isolated internal AI-only fixtures, authorized through the real
+production Platform API, not the main dealership answer-quality canary. They use
+dedicated AI-state PostgreSQL and Lucene storage; no dealership inventory
+database, customer S3 bucket or external vector service is provisioned or deleted.
+
+- Staging fixture `dep-f689cfc9`, initial release `rel-eb8c7c73`: explicit COLD
+  STOP succeeded, retaining both native volumes. COLD RECOVER restarted the exact
+  known database, Runtime and connector, recorded actual native start-job
+  identities, and passed full `OPERATIONS_RECOVERY` release verification.
+- The same physical indexed maintenance-note vector, normalized content and
+  metadata survived STOP/RECOVER. The original anonymous session and conversation
+  remained accepted. Repeating the exact completed STOP returned the same job
+  without extra native commands; changing its payload returned HTTP 409.
+- A future STOP for that exact old staging release was enrolled, then the actual
+  production operations-service container was stopped. While it was absent,
+  staging cold replacement `rel-4675cacb` and fresh production deployment
+  `dep-a19834b6` / `rel-69222091` both applied and passed verification. Their
+  actual authorization was `DISABLED` / `TEAM_AUTHORIZED`, with no capacity or
+  financial placeholder allocations. The staging vector, session and conversation
+  survived cold replacement as well.
+- Restoring the service against its unchanged database preserved the future job.
+  When due, it was blocked at CLAIM with `LIFECYCLE_RELEASE_SUPERSEDED`, before
+  touching the replacement. Explicit cancellation completed and released its
+  unstarted authority. The new Runtime retained an independent ACTIVE release
+  gate; no old-work generation adoption was performed.
+- Observation-only production RECONCILE succeeded and closed its claim without
+  native mutation.
+- After the staging test conversation was explicitly closed through its API,
+  GRACEFUL RETIRE on `rel-4675cacb` succeeded through BEGIN_DRAIN, OBSERVE_DRAIN,
+  FENCE, STOP, DELETE, VERIFY and RELEASE. Saved Runtime observations reported
+  complete inventory and local worker fencing, zero in-flight/pending counts and
+  no blockers. The connector was separately stopped and verified; the actual
+  FENCE command returned `RUNTIME_AUTHORITY_REVOKED`. Enabled chat, indexing and
+  specialist workers were not disabled to obtain the pass.
+- Production scheduled expiry registered RETIRE in COLD mode. GET-only watching
+  proved that the scheduler emitted NOTICE_DUE/JOB_DUE and advanced STOP/DELETE
+  without manual phase advancement. Its first DELETE run exposed an asynchronous
+  Coolify metadata window: database storage rows disappeared before the resource
+  returned 404, producing `NATIVE_VOLUME_INVENTORY_CHANGED`. This is retained as
+  a failed first automatic run, not called a fully automatic pass. After actual
+  native deletion settled, one explicit retry of the **same** command completed
+  readback and reclaimed the exact remaining owned PostgreSQL volume. There was
+  no second deletion intent, guessed resource adoption or manual Docker removal.
+- Independent checks after both retirements confirmed all six exact native
+  resources returned 404, no corresponding containers remained, and all four
+  originally captured physical volumes were absent. Core grants were CLOSED and
+  unclaimed. Both original fixtures were then archived through the supported
+  API. Reapply `rel-49839bda` on the already-retired target was rejected with
+  `COOLIFY_MANAGED_RESOURCE_RECONCILIATION_REQUIRED`; no new native resource was
+  created. Reprovisioning a retired handle is recorded follow-up work, not
+  confused with recovery of stopped existing resources. A fresh isolated
+  deployment `dep-4f413976` / `rel-3425246a` is used for the automatic-expiry
+  repeat after the narrow asynchronous-readback correction.
+
+The readback correction accepts disappearing storage metadata only while
+observing this exact resource's persisted DELETE intent. New deletion dispatch
+still requires the full frozen inventory; newly attached, renamed or edited
+volumes, reused resource identities and foreign sharing still fail closed. It
+does not mark deletion/reclamation complete until independent resource,
+container and physical-volume absence is proved. The guarded command journal is
+queried directly, including INTENT without a provider job ID. Its 53 focused
+adapter/bridge/journal tests passed with zero failures, errors or skips before
+image publication. The same journal suite then passed all 11 tests against real
+PostgreSQL 16 with no failures, errors or skips.
+
+The generic fixture deliberately does not configure the dealership's approved
+knowledge-source product. Its chat route accepted the preserved conversation but
+returned no retrieval sources. These checks prove lifecycle/state preservation,
+not RAG answer quality; they are not substituted for the main dealership suite.
+The final fenced Runtime database could not be queried after its native stop;
+the successful core FENCE receipt and saved pre-stop drain observations are
+retained instead. No database was restarted solely to manufacture that receipt.
+
+Private credentials, tokens, original native inventories, OCI manifests and raw
+workflow receipts stay under
+`~/.codex/private/loomai-separation-01046/advanced-operational-machinery-20261025/`.
+Nothing from that credential-bearing evidence is copied into the repository.
+
+### 11.4 Operating Controls And Boundaries
+
+Four different controls must not be confused:
+
+1. Core `PLATFORM_DEPLOYMENT_OPERATIONS_MODE=DISABLED` bypasses optional capacity
+   admission policy for the authorized manual-team path. It does not authorize
+   foreign resources or erase an already accepted native effect.
+2. Core provider usage `TEAM_AUTHORIZED` selects the approved non-funded profile.
+   Existing funded records are preserved; this is not a capacity refund.
+3. Core `PLATFORM_DEPLOYMENT_LIFECYCLE_ENABLED=true` enables explicit scoped
+   lifecycle authorization and its private machine gateway.
+4. Service `DEPLOYMENT_LIFECYCLE_SCHEDULER_ENABLED=true` automatically advances
+   explicitly enrolled due jobs. It defaults false and never scans/adopts the
+   historical fleet or treats an expired admission hold as deletion authority.
+
+Authorize through `POST /api/deployment-operations/targets/{deploymentId}/{targetProfileId}/jobs`
+with an immutable operation ID, exact release, goal, mode, policy revision, due
+date, deadline and explicit `reclaimOwnedData` selection. Inspect
+`GET /api/deployment-operations/jobs/{operationId}` and `/events`; use `/native`
+for core authority/effect receipts. The same ID with a changed payload is a
+conflict. `/advance`, `/retry` and `/cancel` are explicit owner/admin commands.
+Unknown native effects require readback, not a new operation ID or blind replay.
+
+Stopping the optional service does not block ordinary unclaimed-target cold
+apply/promotion. Core continues readback for an accepted native command, and its
+authorized `/native/commands` route remains available to the owner during a
+service outage. An active destructive claim still prevents conflicting changes
+to that same target until actual outcome resolution; service unavailability is
+not permission to double-mutate it.
+
+Supported initial recovery is known-resource cold stop/start followed by actual
+release verification. Arbitrary partially created or missing resources, unknown
+provider-create outcomes, stale artifact repair and historical generation adoption
+are explicit operator/new-cold-apply cases. Graceful operation fails closed for
+uncovered human-review, scheduler or external worker boundaries; no evidence
+string can invent worker fencing. External business systems, customer documents
+and external vectors remain outside target-owned deletion authority. Shared or
+retained native mounts remain blockers, not permission to remove foreign data.
+
+Notice/due events are durably recorded and outbox transport is tested against a
+real local HTTP endpoint. No external webhook/email destination was configured
+for this hosted canary, so live external notification delivery is not claimed.
+Service event pagination is supported; the current core convenience events proxy
+returns its default page only. Use the authenticated private service cursor for
+long histories until proxy pagination is added; current job/native status remains
+available independently. No new operator UI is required to use these APIs.

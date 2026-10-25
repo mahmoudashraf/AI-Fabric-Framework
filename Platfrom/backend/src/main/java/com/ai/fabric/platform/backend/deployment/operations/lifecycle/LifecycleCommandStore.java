@@ -211,6 +211,13 @@ public class LifecycleCommandStore {
             + "WHERE command_id=? AND effect_id=? AND state='COMPLETE'", Boolean.class, work.command().commandId(), effect));
     }
 
+    public boolean effectKnown(Work work, String effect) {
+        guard(work);
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT COUNT(*)>0 FROM deployment_lifecycle_effects "
+            + "WHERE command_id=? AND effect_id=? AND state IN ('INTENT','COMPLETE')", Boolean.class,
+            work.command().commandId(), effect));
+    }
+
     public void completed(Work work, String effect) {
         transaction(() -> {
             guard(work);

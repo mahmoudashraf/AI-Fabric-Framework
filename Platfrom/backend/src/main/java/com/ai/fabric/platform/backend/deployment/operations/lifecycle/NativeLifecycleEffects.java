@@ -223,6 +223,7 @@ public class NativeLifecycleEffects implements LifecycleEffects {
             public boolean beforeEffect(String id) { requireUnchanged(work.grant().scope()); return store.beforeEffect(work, id); }
             public void completed(String id) { store.completed(work, id); }
             public boolean isComplete(String id) { return store.effectComplete(work, id); }
+            public boolean isKnown(String id) { return store.effectKnown(work, id); }
             public void dispatched(String id, String nativeId) { store.dispatched(work, id, nativeId); }
             public String operationId(String id) { return store.providerOperation(work, id); }
             public void guard() {

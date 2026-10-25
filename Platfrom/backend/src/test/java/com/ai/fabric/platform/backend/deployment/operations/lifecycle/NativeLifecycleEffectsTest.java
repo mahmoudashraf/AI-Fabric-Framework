@@ -62,6 +62,24 @@ class NativeLifecycleEffectsTest {
         assertThat(result.code()).isEqualTo("NATIVE_STORAGE_ABSENCE_UNPROVEN");
     }
 
+    @Test void deleteCheckpointUsesTheRealIntentJournalEvenWhenNoProviderJobWasRecorded() {
+        var work = work(Goal.RETIRE, Mode.COLD, Phase.DELETE);
+        String effect = "native:snapshot-hash:DELETE:runtime";
+        when(store.effectKnown(work, effect)).thenReturn(true);
+        when(nativeAdapter.delete(any(), eq(true), any())).thenAnswer(call -> {
+            NativeLifecycleAdapter.Checkpoint checkpoint = call.getArgument(2);
+            assertThat(checkpoint.isKnown(effect)).isTrue();
+            assertThat(checkpoint.isComplete(effect)).isFalse();
+            assertThat(checkpoint.isKnown("native:other-snapshot:DELETE:runtime")).isFalse();
+            return observation(false, false, false, false);
+        });
+        assertThat(effects.execute(work).status()).isEqualTo(Status.PENDING);
+        verify(store).effectKnown(work, effect);
+        verify(store, never()).providerOperation(any(), anyString());
+        verify(store, never()).beforeEffect(any(), anyString());
+        verify(store, never()).dispatched(any(), anyString(), anyString());
+    }
+
     @Test void unknownExternalWorkerCannotBeAuthorizedByAnEvidenceString() {
         var work = work(Goal.RETIRE, Mode.GRACEFUL, Phase.FENCE);
         when(runtime.execute(eq(Phase.OBSERVE_DRAIN), any(), any())).thenReturn(
