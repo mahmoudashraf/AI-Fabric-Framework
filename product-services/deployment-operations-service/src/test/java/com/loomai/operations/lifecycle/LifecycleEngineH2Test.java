@@ -13,12 +13,22 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loomai.operations.OperationsTestConfiguration;
 import com.loomai.operations.OperationsTestConfiguration.MutableClock;
 import com.loomai.operations.config.OperationsProperties;
+import com.loomai.operations.model.OperationsContracts;
+import com.loomai.operations.model.OperationsContracts.AllocationState;
+import com.loomai.operations.model.OperationsContracts.AssessmentRequest;
+import com.loomai.operations.model.OperationsContracts.OutcomeRequest;
+import com.loomai.operations.model.OperationsContracts.OutcomeStatus;
+import com.loomai.operations.model.OperationsContracts.ResourceDemand;
 import com.loomai.operations.persistence.OperationsRepository;
+import com.loomai.operations.service.DeploymentOperationsService;
 import com.loomai.operations.service.OperationsException;
 import jakarta.validation.Validator;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -92,6 +102,7 @@ abstract class LifecycleEngineTests {
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
     @Autowired OperationsRepository transactions;
+    @Autowired DeploymentOperationsService capacity;
     @Autowired ObjectMapper mapper;
 
     @TestConfiguration static class GatewayConfiguration {
@@ -132,6 +143,9 @@ abstract class LifecycleEngineTests {
         jdbc.update("DELETE FROM deployment_lifecycle_command");
         jdbc.update("DELETE FROM deployment_lifecycle_target");
         jdbc.update("DELETE FROM deployment_lifecycle_job");
+        jdbc.update("DELETE FROM deployment_operations_outcome");
+        jdbc.update("DELETE FROM deployment_operations_allocation");
+        jdbc.update("DELETE FROM deployment_operations_assessment");
         clock.set(NOW); gateway.reset();
     }
 
@@ -147,6 +161,215 @@ abstract class LifecycleEngineTests {
         assertThat(steps).isNotNegative();
         for (int index = 0; index < steps; index++) service.advance(operationId);
         assertThat(store.status(operationId).phase()).isEqualTo(phase);
+    }
+
+    AssessmentRequest capacityRequest(JobRequest job, String commandId) {
+        return new AssessmentRequest("1", commandId, job.customerId(), job.tenantId(), job.deploymentId(), job.targetProfileId(),
+            job.releaseId(), "version", "b".repeat(64), "APPLY", OperationsContracts.Mode.ENFORCE, "c".repeat(64),
+            new ResourceDemand(1000L, 1024L, 4096L, 1L, 1L, 1L, 1L, 1L), clock.instant());
+    }
+
+    void activateCapacity(AssessmentRequest request) {
+        capacity.assess(request);
+        capacity.outcome(new OutcomeRequest("1", request.commandId(), request.requestFingerprint(), OutcomeStatus.ACTIVE, clock.instant()));
+    }
+
+    void completeJob(JobRequest job) {
+        for (int index = 0; index < LifecycleStore.phases(job).size(); index++) service.advance(job.operationId());
+        assertThat(store.status(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+    }
+
+    Instant sqlInstant(String sql, String id) {
+        return jdbc.queryForObject(sql, (rs, row) -> rs.getObject(1, OffsetDateTime.class).toInstant(), id);
+    }
+
+    @Test void utcJdbcInstantsPreserveLondonDstOverlapLeasesSchedulesAndAssessmentDates() {
+        TimeZone original = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/London"));
+        try {
+            Instant overlap = Instant.parse("2026-10-25T01:05:00Z");
+            clock.set(overlap);
+            var job = new JobRequest("1", "dst", "grant-dst", "customer", "tenant", "deployment", "target", "release",
+                "a".repeat(64), Goal.STOP, Mode.COLD, "policy", overlap.plusSeconds(60), overlap.plusSeconds(3600), overlap);
+            service.register(job);
+            assertThat(store.status("dst").createdAt()).isEqualTo(overlap);
+            assertThat(store.events("dst", 0, 100).events().getFirst().occurredAt()).isEqualTo(overlap);
+            assertThat(sqlInstant("SELECT due_at FROM deployment_lifecycle_job WHERE operation_id=?", "dst")).isEqualTo(job.dueAt());
+            assertThat(sqlInstant("SELECT deadline_at FROM deployment_lifecycle_job WHERE operation_id=?", "dst")).isEqualTo(job.deadlineAt());
+            assertThat(store.eligible()).doesNotContain("dst");
+            assertThat(store.acquire("dst", false)).isEmpty();
+            clock.set(job.dueAt());
+            assertThat(store.eligible()).contains("dst");
+            var lease = store.acquire("dst", false).orElseThrow();
+            assertThat(sqlInstant("SELECT lease_until FROM deployment_lifecycle_job WHERE operation_id=?", "dst"))
+                .isEqualTo(clock.instant().plus(properties.workerLease()));
+            assertThat(store.acquire("dst", false)).isEmpty();
+            assertThat(store.markSent(lease)).isTrue();
+            store.received(lease, gateway.result(lease.command(), Status.SUCCEEDED));
+            assertThat(store.status("dst").phase()).isEqualTo(Phase.STOP);
+            assertThat(store.status("dst").updatedAt()).isEqualTo(job.dueAt());
+
+            var assessment = capacityRequest(job, "dst-capacity");
+            capacity.assess(assessment);
+            var held = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+            assertThat(held.updatedAt()).isEqualTo(clock.instant());
+            assertThat(held.holdExpiresAt()).isEqualTo(clock.instant().plus(bounds.holdTtl()));
+            assertThat(sqlInstant("SELECT observed_at FROM deployment_operations_assessment WHERE command_id=?", assessment.commandId()))
+                .isEqualTo(clock.instant());
+            assertThat(sqlInstant("SELECT expires_at FROM deployment_operations_assessment WHERE command_id=?", assessment.commandId()))
+                .isEqualTo(held.holdExpiresAt());
+            clock.set(clock.instant().plusSeconds(1));
+            capacity.outcome(new OutcomeRequest("1", assessment.commandId(), assessment.requestFingerprint(), OutcomeStatus.ACTIVE, clock.instant()));
+            var active = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+            assertThat(active.updatedAt()).isEqualTo(clock.instant()).isAfter(held.updatedAt());
+            assertThat(sqlInstant("SELECT observed_at FROM deployment_operations_outcome WHERE command_id=?", assessment.commandId()))
+                .isEqualTo(clock.instant());
+            transactions.expireHolds(held.holdExpiresAt());
+            assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow().state()).isEqualTo(AllocationState.ACTIVE);
+
+            var noticeProperties = new LifecycleProperties(false, "", "", false, Duration.ofSeconds(2), Duration.ofSeconds(30),
+                Duration.ofHours(24), "https://trusted.example/notices", "trusted-only-notice-key-0000000000000");
+            var noticeStore = new LifecycleStore(jdbc, transactions, mapper, noticeProperties, clock);
+            var noticeJob = new JobRequest("1", "dst-notice", "grant-dst-notice", "customer", "tenant", "deployment", "notice-target", "release",
+                "a".repeat(64), Goal.STOP, Mode.COLD, "policy", clock.instant(), job.deadlineAt(), clock.instant());
+            noticeStore.register(noticeJob, () -> { });
+            var delivery = noticeStore.claimDelivery().orElseThrow();
+            assertThat(delivery.event().occurredAt()).isEqualTo(clock.instant());
+            assertThat(sqlInstant("SELECT lease_until FROM deployment_lifecycle_event WHERE event_id=?", delivery.event().eventId()))
+                .isEqualTo(clock.instant().plus(noticeProperties.workerLease()));
+            assertThat(noticeStore.claimDelivery()).isEmpty();
+            noticeStore.delivered(delivery, true);
+            assertThat(jdbc.queryForObject("SELECT delivery FROM deployment_lifecycle_event WHERE event_id=?", String.class, delivery.event().eventId()))
+                .isEqualTo("DELIVERED");
+        } finally {
+            TimeZone.setDefault(original);
+        }
+    }
+
+    @ParameterizedTest @EnumSource(value = Goal.class, names = {"STOP", "RETIRE"})
+    void verifiedReleaseSettlesOnlyItsPinnedAllocationWithRetainedOrReclaimedDemandAndImmutableHistory(Goal goal) {
+        var job = request("settlement", "target", goal, Mode.COLD);
+        var assessment = capacityRequest(job, "capacity-original");
+        activateCapacity(assessment);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        var history = transactions.assessment(assessment.commandId()).orElseThrow();
+        service.register(job);
+        assertThat(jdbc.queryForObject("SELECT capacity_command_id FROM deployment_lifecycle_job WHERE operation_id=?", String.class, job.operationId()))
+            .isEqualTo(assessment.commandId());
+        advanceTo(job.operationId(), Phase.RELEASE);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        gateway.onSubmit = command -> {
+            gateway.receipts.put(command.commandId(), gateway.result(command, Status.SUCCEEDED));
+            throw new HttpLifecycleGateway.Unavailable();
+        };
+        var unknown = service.advance(job.operationId());
+        assertThat(unknown.state()).isEqualTo(LifecycleStore.JobState.UNKNOWN);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        assertThat(restart().advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+        var settled = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        assertThat(settled.state()).isEqualTo(AllocationState.STOPPED);
+        assertThat(settled.demand()).isEqualTo(goal == Goal.STOP ? before.demand().retainedAfterStop() : ResourceDemand.zero());
+        assertThat(settled.commandId()).isEqualTo(before.commandId());
+        assertThat(settled.holdExpiresAt()).isEqualTo(before.holdExpiresAt());
+        capacity.outcome(history.lastOutcome());
+        assertThatThrownBy(() -> capacity.outcome(new OutcomeRequest("1", assessment.commandId(), assessment.requestFingerprint(),
+            OutcomeStatus.ACTIVE, clock.instant().plusSeconds(1))))
+            .isInstanceOfSatisfying(OperationsException.class, error -> assertThat(error.code()).isEqualTo("OUTCOME_TERMINAL"));
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(settled);
+        assertThat(transactions.assessment(assessment.commandId())).contains(history);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_operations_outcome", Integer.class)).isEqualTo(1);
+        restart().register(job); restart().advance(job.operationId());
+        assertThat(store.events(job.operationId(), 0, 100).events()).filteredOn(event -> event.type().equals("CAPACITY_SETTLED"))
+            .singleElement().satisfies(event -> {
+                assertThat(event.state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+                assertThat(event.phase()).isEqualTo(Phase.RELEASE);
+                assertThat(event.code()).isEqualTo(goal == Goal.STOP ? "CAPACITY_STOPPED_RETAINED" : "CAPACITY_RETIRED_RECLAIMED");
+            });
+        assertThat(gateway.posts.get(unknown.command().commandId())).hasValue(1);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"customerId", "tenantId", "deploymentId", "targetProfileId", "releaseId"})
+    void lifecycleCompletionCannotSettleForeignCapacityOrADifferentRelease(String field) throws Exception {
+        var job = request("foreign-capacity", "target", Goal.RETIRE, Mode.COLD);
+        ObjectNode json = mapper.valueToTree(capacityRequest(job, "foreign-assessment"));
+        json.put(field, "foreign");
+        var assessment = mapper.treeToValue(json, AssessmentRequest.class);
+        activateCapacity(assessment);
+        var before = transactions.allocation(assessment.deploymentId(), assessment.targetProfileId()).orElseThrow();
+        service.register(job); completeJob(job);
+        assertThat(transactions.allocation(assessment.deploymentId(), assessment.targetProfileId())).contains(before);
+        assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"release", "new-release"})
+    void lifecycleCompletionNeverReducesASupersedingCapacityCommandEvenForTheSameRelease(String release) throws Exception {
+        var job = request("superseded-capacity", "target", Goal.RETIRE, Mode.COLD);
+        var original = capacityRequest(job, "capacity-original"); activateCapacity(original);
+        service.register(job);
+        ObjectNode json = mapper.valueToTree(capacityRequest(job, "capacity-superseding"));
+        json.put("releaseId", release);
+        var superseding = mapper.treeToValue(json, AssessmentRequest.class); activateCapacity(superseding);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        completeJob(job);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void missingOrLegacyCapacityCorrelationCannotBeBackfilledByJobReplay(boolean legacy) {
+        var job = request("uncorrelated-capacity", "target", Goal.RETIRE, Mode.COLD);
+        var assessment = capacityRequest(job, "uncorrelated-assessment");
+        if (legacy) activateCapacity(assessment);
+        service.register(job);
+        if (legacy) jdbc.update("UPDATE deployment_lifecycle_job SET capacity_command_id=NULL WHERE operation_id=?", job.operationId());
+        else activateCapacity(assessment);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        restart().register(job); completeJob(job);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+    }
+
+    @ParameterizedTest @EnumSource(value = Goal.class, names = {"RECOVER", "RECONCILE"})
+    void recoveryAndReconciliationCompletionNeverDecreaseCapacity(Goal goal) {
+        var job = request("nonreducing-capacity", "target", goal, Mode.COLD);
+        var assessment = capacityRequest(job, "capacity-original"); activateCapacity(assessment);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        service.register(job); completeJob(job);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+        assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+    }
+
+    @ParameterizedTest @EnumSource(value = Phase.class, names = {"STOP", "DELETE", "VERIFY", "RELEASE"})
+    void incompleteNativeWorkCannotGiveBackCapacity(Phase phase) {
+        for (Status status : List.of(Status.PENDING, Status.UNKNOWN, Status.BLOCKED, Status.FAILED)) {
+            String id = "incomplete-" + phase + "-" + status;
+            var job = request(id, id, Goal.RETIRE, Mode.COLD);
+            var assessment = capacityRequest(job, "capacity-" + id); activateCapacity(assessment);
+            var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+            service.register(job); advanceTo(id, phase);
+            gateway.onSubmit = command -> gateway.result(command, command.phase() == phase ? status : Status.SUCCEEDED);
+            service.advance(id);
+            assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+            assertThat(store.events(id, 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+        }
+    }
+
+    @Test void capacitySettlementAndItsEventCommitAtomicallyWithReleaseAndRetryTheSameReceiptAfterFailure() {
+        var job = request("atomic-settlement", "target", Goal.RETIRE, Mode.COLD);
+        var assessment = capacityRequest(job, "capacity-original"); activateCapacity(assessment);
+        var before = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow();
+        service.register(job); advanceTo(job.operationId(), Phase.RELEASE);
+        jdbc.execute("ALTER TABLE deployment_lifecycle_event ADD CONSTRAINT reject_capacity_settlement CHECK (event_type <> 'CAPACITY_SETTLED')");
+        try {
+            assertThat(service.advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.UNKNOWN);
+            assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId())).contains(before);
+            assertThat(store.events(job.operationId(), 0, 100).events()).noneMatch(event -> event.type().equals("CAPACITY_SETTLED"));
+        } finally {
+            jdbc.execute("ALTER TABLE deployment_lifecycle_event DROP CONSTRAINT reject_capacity_settlement");
+        }
+        assertThat(restart().advance(job.operationId()).state()).isEqualTo(LifecycleStore.JobState.SUCCEEDED);
+        assertThat(transactions.allocation(job.deploymentId(), job.targetProfileId()).orElseThrow().demand()).isEqualTo(ResourceDemand.zero());
+        assertThat(store.events(job.operationId(), 0, 100).events()).filteredOn(event -> event.type().equals("CAPACITY_SETTLED")).hasSize(1);
     }
 
     @ParameterizedTest @EnumSource(Goal.class)

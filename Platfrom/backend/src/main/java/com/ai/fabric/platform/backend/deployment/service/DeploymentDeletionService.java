@@ -39,6 +39,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentDeletionService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
@@ -78,6 +80,7 @@ public class DeploymentDeletionService {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        if (lifecycleClaims != null) lifecycleClaims.requireDeploymentAvailable(deploymentId);
 
         DeleteDeploymentRequest normalizedRequest = request == null
             ? new DeleteDeploymentRequest(false, null, null)

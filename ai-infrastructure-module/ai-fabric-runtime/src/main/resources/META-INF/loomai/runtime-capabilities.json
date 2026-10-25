@@ -43,7 +43,7 @@
     "deployment-local-provider-budget-v1",
     "deployment-local-provider-budget-validity-extension-v1",
     "deployment-local-provider-budget-top-up-v1",
-    "runtime-cold-maintenance-generation-adoption-v1",
+    "runtime-release-scoped-drain-v1",
     "milvus-token-authentication-v1",
     "document-ingestion-core",
     "document-source-connectors",
@@ -93,7 +93,7 @@
     ,"integration-operations"
     ,"provider-webhook-ingress"
     ,"provider-budget-administration"
-    ,"runtime-cold-maintenance-generation-adoption"
+    ,"runtime-release-scoped-drain"
   ],
   "migrationIds": [
     "ai-action-proposal-receipt-v1",
@@ -111,6 +111,7 @@
     ,"provider-budget-accounting-v1"
     ,"provider-budget-validity-extensions-v1"
     ,"provider-budget-top-ups-v1"
+    ,"runtime-release-scoped-retirement-v24"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",

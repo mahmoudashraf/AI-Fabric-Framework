@@ -3,13 +3,17 @@ package com.loomai.operations.lifecycle;
 import static com.loomai.operations.lifecycle.LifecycleContracts.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loomai.operations.model.OperationsContracts.Allocation;
+import com.loomai.operations.model.OperationsContracts.AllocationState;
+import com.loomai.operations.model.OperationsContracts.ResourceDemand;
 import com.loomai.operations.persistence.OperationsRepository;
 import com.loomai.operations.service.OperationsException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +30,7 @@ public class LifecycleStore {
     public record Event(long sequence, String eventId, String operationId, String type, JobState state,
                         Phase phase, String code, Instant occurredAt) { }
     public record EventPage(List<Event> events, Long nextCursor) { }
-    record Job(JobRequest request, JobState state, int step, boolean irreversible, boolean cancelRequested,
+    record Job(JobRequest request, String capacityCommandId, JobState state, int step, boolean irreversible, boolean cancelRequested,
                String code, String leaseToken, Instant leaseUntil, Instant createdAt, Instant updatedAt) { }
     record Work(Command command, String delivery, boolean observationPending, Receipt receipt) { }
     record Lease(Command command, JobRequest request, boolean submit, String token) { }
@@ -67,13 +71,15 @@ public class LifecycleStore {
                 if (target.get("operation_id") != null) throw conflict("LIFECYCLE_TARGET_BUSY");
             }
             Instant now = clock.instant();
+            Allocation capacity = matchingCapacity(request);
             jdbc.update("""
                 INSERT INTO deployment_lifecycle_job
                 (operation_id,grant_id,request_digest,request_json,customer_id,tenant_id,deployment_id,target_profile_id,
-                 state,step_index,code,due_at,deadline_at,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,'SCHEDULED',0,'JOB_REGISTERED',?,?,?,?)
+                 capacity_command_id,state,step_index,code,due_at,deadline_at,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,'SCHEDULED',0,'JOB_REGISTERED',?,?,?,?)
                 """, request.operationId(), request.grantId(), transactions.digest(request), write(request), request.customerId(), request.tenantId(),
-                request.deploymentId(), request.targetProfileId(), time(request.dueAt()), time(request.deadlineAt()), time(now), time(now));
+                request.deploymentId(), request.targetProfileId(), capacity == null ? null : capacity.commandId(),
+                time(request.dueAt()), time(request.deadlineAt()), time(now), time(now));
             if (targets.isEmpty()) jdbc.update("INSERT INTO deployment_lifecycle_target VALUES (?,?,?,?,?)",
                 request.deploymentId(), request.targetProfileId(), request.customerId(), request.tenantId(), request.operationId());
             else jdbc.update("UPDATE deployment_lifecycle_target SET operation_id=? WHERE deployment_id=? AND target_profile_id=?",
@@ -192,6 +198,7 @@ public class LifecycleStore {
             int step = receipt.status() == Status.SUCCEEDED && receipt.phase() != Phase.CANCEL ? job.step() + 1 : job.step();
             update(job, state, step, receipt.code());
             if (!receipt.equals(previous)) event(require(job.request().operationId()), "CORE_" + receipt.status(), receipt.phase(), receipt.code());
+            if (state == JobState.SUCCEEDED) settleCapacity(require(job.request().operationId()));
             if (state == JobState.SUCCEEDED || state == JobState.CANCELLED) {
                 jdbc.update("UPDATE deployment_lifecycle_target SET operation_id=NULL WHERE operation_id=?", job.request().operationId());
             }
@@ -301,6 +308,35 @@ public class LifecycleStore {
                 rs.getString(3) == null ? null : read(rs.getString(3), Receipt.class)), id, phase.name()).stream().findFirst();
     }
 
+    private Allocation matchingCapacity(JobRequest job) {
+        var current = transactions.allocation(job.deploymentId(), job.targetProfileId()).orElse(null);
+        if (current == null || !job.customerId().equals(current.customerId()) || !job.tenantId().equals(current.tenantId())) return null;
+        var assessment = transactions.assessment(current.commandId()).orElse(null);
+        if (assessment == null) return null;
+        var request = assessment.request();
+        return job.customerId().equals(request.customerId()) && job.tenantId().equals(request.tenantId())
+            && job.deploymentId().equals(request.deploymentId()) && job.targetProfileId().equals(request.targetProfileId())
+            && job.releaseId().equals(request.releaseId()) ? current : null;
+    }
+
+    private void settleCapacity(Job job) {
+        Goal goal = job.request().goal();
+        if (job.capacityCommandId() == null || goal != Goal.STOP && goal != Goal.RETIRE
+            || !succeeded(job, Phase.STOP) || !succeeded(job, Phase.VERIFY) || !succeeded(job, Phase.RELEASE)
+            || goal == Goal.RETIRE && !succeeded(job, Phase.DELETE)) return;
+        var current = matchingCapacity(job.request());
+        if (current == null || !job.capacityCommandId().equals(current.commandId())) return;
+        ResourceDemand demand = goal == Goal.STOP ? current.demand().retainedAfterStop() : ResourceDemand.zero();
+        transactions.saveAllocation(new Allocation(current.customerId(), current.tenantId(), current.deploymentId(),
+            current.targetProfileId(), current.commandId(), demand, AllocationState.STOPPED, current.holdExpiresAt(), clock.instant()));
+        event(job, "CAPACITY_SETTLED", Phase.RELEASE, goal == Goal.STOP ? "CAPACITY_STOPPED_RETAINED" : "CAPACITY_RETIRED_RECLAIMED");
+    }
+
+    private boolean succeeded(Job job, Phase phase) {
+        return work(job.request().operationId(), phase).filter(work -> !work.observationPending() && work.receipt() != null
+            && work.receipt().status() == Status.SUCCEEDED).isPresent();
+    }
+
     private Phase phase(Job job) {
         if (work(job.request().operationId(), Phase.CANCEL).isPresent()) return Phase.CANCEL;
         var phases = phases(job.request());
@@ -330,16 +366,18 @@ public class LifecycleStore {
     }
 
     private Job mapJob(ResultSet rs, int row) throws SQLException {
-        Timestamp until = rs.getTimestamp("lease_until");
-        return new Job(read(rs.getString("request_json"), JobRequest.class), JobState.valueOf(rs.getString("state")),
+        OffsetDateTime until = rs.getObject("lease_until", OffsetDateTime.class);
+        return new Job(read(rs.getString("request_json"), JobRequest.class), rs.getString("capacity_command_id"), JobState.valueOf(rs.getString("state")),
             rs.getInt("step_index"), rs.getBoolean("irreversible"), rs.getBoolean("cancel_requested"), rs.getString("code"),
-            rs.getString("lease_token"), until == null ? null : until.toInstant(), rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
+            rs.getString("lease_token"), until == null ? null : until.toInstant(), rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+            rs.getObject("updated_at", OffsetDateTime.class).toInstant());
     }
 
     private Event mapEvent(ResultSet rs, int row) throws SQLException {
         String phase = rs.getString("phase");
         return new Event(rs.getLong("sequence_id"), rs.getString("event_id"), rs.getString("operation_id"), rs.getString("event_type"),
-            JobState.valueOf(rs.getString("state")), phase == null ? null : Phase.valueOf(phase), rs.getString("code"), rs.getTimestamp("occurred_at").toInstant());
+            JobState.valueOf(rs.getString("state")), phase == null ? null : Phase.valueOf(phase), rs.getString("code"),
+            rs.getObject("occurred_at", OffsetDateTime.class).toInstant());
     }
 
     private void event(Job job, String type, Phase phase, String code) {
@@ -352,7 +390,7 @@ public class LifecycleStore {
     private boolean terminal(Job job) { return job.state() == JobState.SUCCEEDED || job.state() == JobState.CANCELLED; }
     private int size(int limit) { return Math.max(1, Math.min(limit, 100)); }
     private void bounds(long offset) { if (offset < 0 || offset > 10_000) throw invalid("LIFECYCLE_OFFSET_INVALID"); }
-    private Timestamp time(Instant value) { return Timestamp.from(value); }
+    private OffsetDateTime time(Instant value) { return value.atOffset(ZoneOffset.UTC); }
     private String write(Object value) {
         try { return mapper.writeValueAsString(value); }
         catch (Exception exception) { throw new IllegalStateException("Lifecycle record serialization failed."); }

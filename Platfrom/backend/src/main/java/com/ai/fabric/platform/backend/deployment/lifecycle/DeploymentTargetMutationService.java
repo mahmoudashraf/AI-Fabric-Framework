@@ -14,6 +14,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 /** Serializes target changes in core, without a reservation or retirement-policy ledger. */
 @Service
 public class DeploymentTargetMutationService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
     public static final Set<String> ACTIVE_RELEASE_STATUSES = Set.of(
         "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING");
     private final DeploymentRepository deployments;
@@ -35,6 +37,7 @@ public class DeploymentTargetMutationService {
             throw new ResponseStatusException(CONFLICT, "DEPLOYMENT_TARGET_REQUIRED");
         deployments.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        if (lifecycleClaims != null) lifecycleClaims.requireAvailable(deploymentId, targetProfileId);
         if (releases.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deploymentId, targetProfileId).stream()
             .anyMatch(release -> ACTIVE_RELEASE_STATUSES.contains(release.getStatus())))
             throw new ResponseStatusException(CONFLICT, "RELEASE_APPLY_IN_PROGRESS");

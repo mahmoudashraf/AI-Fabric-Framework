@@ -72,6 +72,8 @@ public class DeploymentRuntimeAuthorityService {
     private final ObjectMapper mapper;
     @Autowired
     private JdbcTemplate workerReadback;
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
 
     public DeploymentRuntimeAuthorityService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentReleaseRepository releases, DeploymentTargetProfileRepository targets, DeploymentAccessService access,
@@ -306,6 +308,24 @@ public class DeploymentRuntimeAuthorityService {
             documentRead ? RuntimePrivateAccessSupport.documentReadScopes() : RuntimePrivateAccessSupport.adminReadScopes(), Duration.ofMinutes(5));
     }
 
+    /** Exact native-operation authority, never arbitrary scopes or an impersonated browser operator. */
+    @Transactional
+    public Map<String, String> issueLifecycleHeaders(DeploymentEntity deployment, DeploymentReleaseEntity release,
+        String operationId, boolean write) {
+        if (deployment == null || release == null || workerReadback == null)
+            throw conflict("LIFECYCLE_SCOPE_REQUIRED");
+        Integer claims = workerReadback.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_grants "
+            + "WHERE operation_id=? AND deployment_id=? AND target_profile_id=? AND release_id=? AND claimed=TRUE AND state='OPEN'",
+            Integer.class, requiredIdentity(operationId), deployment.getId(), release.getTargetProfileId(), release.getId());
+        if (claims == null || claims != 1) throw conflict("LIFECYCLE_CLAIM_REQUIRED");
+        var checked = requireReleaseUnchangedForProvisioning(deployment,
+            versions.findById(required(release.getDeploymentVersionId())).orElseThrow(() -> conflict("LIFECYCLE_VERSION_MISSING")), release);
+        requireProvisioned(workerRelease(release.getId()));
+        return headers(checked.binding(), "platform-deployment-lifecycle", "SYSTEM_PROCESS", operationId, false,
+            write ? List.of("runtime:target-retirement:read", "runtime:target-retirement:write")
+                : List.of("runtime:target-retirement:read"), Duration.ofMinutes(2));
+    }
+
 
     @Transactional
     public Map<String, String> issuePlatformProxyHeaders(String deploymentId, String targetProfileId, String releaseId,
@@ -374,7 +394,10 @@ public class DeploymentRuntimeAuthorityService {
         required(deploymentId);
         required(targetProfileId);
         var deployment = deployments.findByIdForUpdate(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
-        if (requireOperatorAccess) access.requireDeploymentOperatorAccess(deployment);
+        if (requireOperatorAccess) {
+            access.requireDeploymentOperatorAccess(deployment);
+            if (lifecycleClaims != null) lifecycleClaims.requireAvailable(deploymentId, targetProfileId);
+        }
         required(deployment.getCustomerId());
         required(deployment.getTenantId());
         var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("Explicit target profile is unavailable."));
@@ -427,6 +450,18 @@ public class DeploymentRuntimeAuthorityService {
         for (var purpose : RuntimeAuthorityPurpose.values()) {
             String legacyName = purpose.legacyName(deployment.getId());
             if (legacyName != null && legacyNames.contains(legacyName)) result.add(purpose);
+        }
+        if (version.getProviderConfigJson() != null && !version.getProviderConfigJson().isBlank()) {
+            try {
+                var drain = mapper.readTree(version.getProviderConfigJson()).path("operationalDrainEnabled");
+                if (!drain.isMissingNode() && !drain.isBoolean()) throw conflict("Operational drain must be an explicit boolean.");
+                if (drain.asBoolean(false)) {
+                    // The existing async-execution slots are also needed for observed specialist attempts in ordinary chat.
+                    result.add(SMART_BRAIN_JOB_ENCRYPTION);
+                    result.add(SMART_BRAIN_JOB_FINGERPRINT);
+                }
+            } catch (ResponseStatusException invalid) { throw invalid; }
+            catch (Exception invalid) { throw conflict("Published runtime provider configuration is invalid."); }
         }
         if (result.contains(CONVERSATION_HANDOVER_ENCRYPTION)) result.add(CONVERSATION_HANDOVER_CALLBACK_SIGNING);
         return result;

@@ -9,8 +9,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -64,7 +65,7 @@ public class OperationsRepository {
             request.commandId(), request.requestFingerprint(), digest, response.assessmentId(), request.customerId(),
             request.tenantId(), request.deploymentId(), request.targetProfileId(), request.mode().name(),
             response.decision().name(), response.reason(), response.policyRevision(), write(request), write(response),
-            Timestamp.from(response.observedAt()), Timestamp.from(response.expiresAt()));
+            time(response.observedAt()), time(response.expiresAt()));
     }
 
     public Optional<Allocation> allocation(String deploymentId, String targetProfileId) {
@@ -88,7 +89,7 @@ public class OperationsRepository {
         jdbc.update("""
             UPDATE deployment_operations_allocation SET state = 'UNCONFIRMED', updated_at = ?
              WHERE state = 'HOLD' AND hold_expires_at <= ?
-            """, Timestamp.from(now), Timestamp.from(now));
+            """, time(now), time(now));
     }
 
     public void saveAllocation(Allocation allocation) {
@@ -97,7 +98,7 @@ public class OperationsRepository {
                SET command_id = ?, resource_demand_json = ?, state = ?, hold_expires_at = ?, updated_at = ?
              WHERE deployment_id = ? AND target_profile_id = ? AND customer_id = ? AND tenant_id = ?
             """, allocation.commandId(), write(allocation.demand()), allocation.state().name(),
-            Timestamp.from(allocation.holdExpiresAt()), Timestamp.from(allocation.updatedAt()),
+            time(allocation.holdExpiresAt()), time(allocation.updatedAt()),
             allocation.deploymentId(), allocation.targetProfileId(), allocation.customerId(), allocation.tenantId());
         if (updated == 0) {
             jdbc.update("""
@@ -107,7 +108,7 @@ public class OperationsRepository {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, allocation.deploymentId(), allocation.targetProfileId(), allocation.customerId(), allocation.tenantId(),
                 allocation.commandId(), write(allocation.demand()), allocation.state().name(),
-                Timestamp.from(allocation.holdExpiresAt()), Timestamp.from(allocation.updatedAt()));
+                time(allocation.holdExpiresAt()), time(allocation.updatedAt()));
         }
     }
 
@@ -123,7 +124,7 @@ public class OperationsRepository {
                 (outcome_id, command_id, payload_sha256, status, observed_at, outcome_json)
             VALUES (?, ?, ?, ?, ?, ?)
             """, outcomeId, outcome.commandId(), digest, outcome.status().name(),
-            Timestamp.from(outcome.observedAt()), write(outcome));
+            time(outcome.observedAt()), write(outcome));
         jdbc.update("UPDATE deployment_operations_assessment SET last_outcome_json = ? WHERE command_id = ?",
             write(outcome), outcome.commandId());
     }
@@ -143,9 +144,11 @@ public class OperationsRepository {
         if (state == AllocationState.STOPPED) demand = demand.retainedAfterStop();
         return new Allocation(rs.getString("customer_id"), rs.getString("tenant_id"), rs.getString("deployment_id"),
             rs.getString("target_profile_id"), rs.getString("command_id"),
-            demand, state, rs.getTimestamp("hold_expires_at").toInstant(),
-            rs.getTimestamp("updated_at").toInstant());
+            demand, state, rs.getObject("hold_expires_at", OffsetDateTime.class).toInstant(),
+            rs.getObject("updated_at", OffsetDateTime.class).toInstant());
     }
+
+    private OffsetDateTime time(Instant value) { return value.atOffset(ZoneOffset.UTC); }
 
     private String write(Object value) {
         try {

@@ -105,6 +105,9 @@ public class DeploymentOperationsService {
             if (!current.commandId().equals(outcome.commandId())) {
                 throw conflict("OUTCOME_SUPERSEDED", "Outcome belongs to a superseded assessment, not the current target operation.");
             }
+            if (current.state() == AllocationState.STOPPED) {
+                throw conflict("OUTCOME_TERMINAL", "A stopped command cannot be reactivated; use a new assessment command.");
+            }
             AllocationState state = switch (outcome.status()) {
                 case ACTIVE -> AllocationState.ACTIVE;
                 case FAILED -> AllocationState.UNCONFIRMED;

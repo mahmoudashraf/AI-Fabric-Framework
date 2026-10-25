@@ -12,32 +12,31 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HexFormat;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Release-local optional gates. Core's confirmed native stop owns cross-release single-writer replacement. */
 @Service
 public class RuntimeTargetRetirementService {
-    private static final String COLD_EVIDENCE_KIND = "PHYSICAL_STOP_COLD_MAINTENANCE_V1";
-    private static final String COLD_EXECUTION_ENUMERATION = "DRAIN_PROVIDER_UNSUPPORTED:ai_specialist_execution";
-    private static final Set<String> COLD_FENCING_BLOCKERS = Set.of(
-        "FRAMEWORK_EXECUTION_RECOVERY_TARGET_EPOCH_FENCE_UNSUPPORTED:SPECIALIST_EXECUTION",
-        "FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED");
+    private static final String SCOPE = "tenant_id = :tenant AND deployment_id = :deployment AND target_profile_id = :profile AND release_id = :release";
     private final RuntimeTargetRetirementIdentity identity;
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate scoped;
     private final RuntimeRetirementSchema schema;
     private final RuntimeTargetDrainInventory inventory;
     private final ObjectMapper mapper;
@@ -49,24 +48,25 @@ public class RuntimeTargetRetirementService {
         PlatformTransactionManager transactionManager) {
         this.identity = identity;
         this.jdbc = jdbc;
+        this.scoped = new NamedParameterJdbcTemplate(jdbc);
         this.schema = schema;
         this.inventory = inventory;
         this.mapper = mapper;
-        this.transaction = new TransactionTemplate(transactionManager);
-        this.independentTransaction = new TransactionTemplate(transactionManager);
-        this.independentTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transaction = new TransactionTemplate(transactionManager);
+        independentTransaction = new TransactionTemplate(transactionManager);
+        independentTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     public CommandResult command(Command command) {
         validateCommand(command);
         return transaction.execute(status -> {
             Readback current = locked();
-            List<String[]> receipts = jdbc.query(
-                "SELECT payload_digest, result_json FROM runtime_target_retirement_command WHERE fence_epoch = ?",
-                (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, command.binding().fenceEpoch());
-            String digest = digest(json(command));
+            var parameters = scope().addValue("epoch", command.binding().fenceEpoch());
+            List<String[]> receipts = scoped.query("SELECT payload_digest, result_json FROM runtime_release_retirement_command WHERE "
+                + SCOPE + " AND fence_epoch = :epoch", parameters, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)});
+            String payloadDigest = digest(json(command));
             if (!receipts.isEmpty()) {
-                if (!receipts.getFirst()[0].equals(digest)) throw conflict("RETIREMENT_COMMAND_REUSE");
+                if (!receipts.getFirst()[0].equals(payloadDigest)) throw conflict("RETIREMENT_COMMAND_REUSE");
                 return new CommandResult(read(receipts.getFirst()[1], Readback.class), current, true);
             }
             Binding binding = command.binding();
@@ -74,18 +74,14 @@ public class RuntimeTargetRetirementService {
                 throw conflict("STALE_RETIREMENT_FENCE");
             }
             if (current.state() != State.ACTIVE && (!Objects.equals(current.operationId(), binding.operationId())
-                || !Objects.equals(current.requestFingerprint(), binding.requestFingerprint()))) {
-                throw conflict("RETIREMENT_OPERATION_MISMATCH");
-            }
+                || !Objects.equals(current.requestFingerprint(), binding.requestFingerprint()))) throw conflict("RETIREMENT_OPERATION_MISMATCH");
             State next = current.state();
             boolean revoked = current.authorityRevoked();
             boolean reclaim = current.reclaimStarted();
             Instant deadline = current.drainDeadline();
             switch (command.type()) {
                 case BEGIN_DRAIN -> {
-                    if (revoked || reclaim || (next != State.ACTIVE && next != State.DRAINING)) {
-                        throw conflict("RETIREMENT_IRREVERSIBLE");
-                    }
+                    if (revoked || reclaim || next != State.ACTIVE && next != State.DRAINING) throw conflict("RETIREMENT_IRREVERSIBLE");
                     if (next == State.DRAINING && !Objects.equals(deadline, command.drainDeadline())) {
                         throw conflict("DRAIN_POLICY_CHANGE_REQUIRES_NEW_PLAN");
                     }
@@ -97,10 +93,9 @@ public class RuntimeTargetRetirementService {
                     next = State.ACTIVE;
                 }
                 case FENCE_AUTHORITY -> {
+                    if (next != State.DRAINING) throw conflict("DRAIN_NOT_PROVED_COMPLETE");
                     Snapshot snapshot = capture(current);
-                    if (next != State.DRAINING || !snapshot.localDrainComplete()) {
-                        throw conflict("DRAIN_NOT_PROVED_COMPLETE");
-                    }
+                    if (!snapshot.localDrainComplete()) throw conflict("DRAIN_NOT_PROVED_COMPLETE");
                     if (!snapshot.remoteObligations().isEmpty() && (command.externalEvidenceReference() == null
                         || command.externalEvidenceReference().isBlank() || command.externalEvidenceReference().length() > 1000)) {
                         throw conflict("AUTHORITATIVE_REMOTE_READBACK_REFERENCE_REQUIRED");
@@ -120,240 +115,38 @@ public class RuntimeTargetRetirementService {
                 }
             }
             Instant now = Instant.now();
-            jdbc.update("""
-                UPDATE runtime_target_retirement SET state = ?, fence_epoch = ?, operation_id = ?,
-                    request_fingerprint = ?, drain_deadline = ?, authority_revoked = ?, reclaim_started = ?, updated_at = ?
-                WHERE singleton_id = 1
-                """, next.name(), binding.fenceEpoch(), binding.operationId(), binding.requestFingerprint(),
-                timestamp(deadline), revoked, reclaim, timestamp(now));
+            if (command.type() != CommandType.CANCEL_DRAIN && (deadline == null || !now.isBefore(deadline))) {
+                throw conflict("RETIREMENT_DEADLINE_ELAPSED");
+            }
+            if (command.type() == CommandType.BEGIN_DRAIN && current.state() == State.ACTIVE) {
+                scoped.update("UPDATE runtime_release_retirement_gate SET drain_admission_epoch = :floor WHERE " + SCOPE,
+                    scope().addValue("floor", current.fenceEpoch()));
+            }
+            parameters.addValue("state", next.name()).addValue("operation", binding.operationId())
+                .addValue("fingerprint", binding.requestFingerprint()).addValue("deadline", timestamp(deadline))
+                .addValue("revoked", revoked).addValue("reclaim", reclaim).addValue("now", timestamp(now));
+            scoped.update("""
+                UPDATE runtime_release_retirement_gate SET state = :state, fence_epoch = :epoch, operation_id = :operation,
+                    request_fingerprint = :fingerprint, drain_deadline = :deadline, authority_revoked = :revoked,
+                    reclaim_started = :reclaim, updated_at = :now WHERE
+                """ + SCOPE, parameters);
             Readback applied = locked();
-            jdbc.update("""
-                INSERT INTO runtime_target_retirement_command
-                    (fence_epoch, operation_id, request_fingerprint, payload_digest, result_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, binding.fenceEpoch(), binding.operationId(), binding.requestFingerprint(), digest, json(applied), timestamp(now));
+            scoped.update("""
+                INSERT INTO runtime_release_retirement_command
+                    (tenant_id, deployment_id, target_profile_id, release_id, fence_epoch, operation_id,
+                     request_fingerprint, payload_digest, result_json, created_at)
+                VALUES (:tenant, :deployment, :profile, :release, :epoch, :operation, :fingerprint, :digest, :result, :now)
+                """, parameters.addValue("digest", payloadDigest).addValue("result", json(applied)));
             return new CommandResult(applied, applied, false);
         });
     }
 
-    /**
-     * Adopts a replacement release only after the previous runtime generation has
-     * completed its local drain, fenced its authority, and the control plane has
-     * recorded an authoritative provider stop/readback. No startup environment
-     * value can perform this transition implicitly.
-     */
     public GenerationTransitionResult transition(GenerationTransition command) {
-        validateTransition(command);
-        return transaction.execute(status -> {
-            if (!schema.supports("runtime_target_generation_transition", "operation_id", "payload_digest", "result_json")) {
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "RUNTIME_GENERATION_TRANSITION_MIGRATION_REQUIRED");
-            }
-            String payloadDigest = digest(json(command));
-            List<String[]> receipts = jdbc.query("""
-                SELECT payload_digest, result_json FROM runtime_target_generation_transition
-                WHERE operation_id = ?
-                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, command.operationId());
-            if (!receipts.isEmpty()) {
-                if (!receipts.getFirst()[0].equals(payloadDigest)) throw conflict("GENERATION_TRANSITION_COMMAND_REUSE");
-                GenerationTransitionResult persisted = read(receipts.getFirst()[1], GenerationTransitionResult.class);
-                return new GenerationTransitionResult(persisted.previous(), persisted.current(),
-                    persisted.providerStopEvidenceReference(), persisted.transitionedAt(), true);
-            }
-
-            Readback previous = persistedLocked();
-            String persistedTopology = jdbc.queryForObject(
-                "SELECT topology_fingerprint FROM runtime_target_retirement WHERE singleton_id = 1", String.class);
-            if (!command.previousTarget().equals(previous.target()) || !command.tenantId().equals(previous.tenantId())) {
-                throw conflict("GENERATION_TRANSITION_PREVIOUS_SCOPE_MISMATCH");
-            }
-            if (previous.fenceEpoch() != command.expectedFenceEpoch()) {
-                throw conflict("GENERATION_TRANSITION_STALE_FENCE");
-            }
-            if (previous.state() != State.AUTHORITY_REVOKED || !previous.authorityRevoked() || previous.reclaimStarted()) {
-                throw conflict("GENERATION_TRANSITION_PREVIOUS_GENERATION_NOT_FENCED");
-            }
-            if (!command.previousTopologyFingerprint().equals(persistedTopology)) {
-                throw conflict("GENERATION_TRANSITION_PREVIOUS_TOPOLOGY_MISMATCH");
-            }
-            String actualNextTopology = inventory.topologyFingerprint();
-            if (!command.nextTopologyFingerprint().equals(actualNextTopology)) {
-                throw conflict("GENERATION_TRANSITION_NEXT_TOPOLOGY_MISMATCH");
-            }
-            Long turns = jdbc.queryForObject("SELECT COUNT(*) FROM runtime_target_retirement_turn", Long.class);
-            if (turns == null || turns != 0) throw conflict("GENERATION_TRANSITION_IN_FLIGHT_WORK_REMAINS");
-            Snapshot drainEvidence = latestSnapshot(previous);
-            if (!drainEvidence.localDrainComplete() || !drainEvidence.inventoryComplete()
-                || !drainEvidence.workerFencingComplete()) {
-                throw conflict("GENERATION_TRANSITION_DRAIN_EVIDENCE_INCOMPLETE");
-            }
-
-            long nextFence = Math.addExact(previous.fenceEpoch(), 1L);
-            Instant now = Instant.now();
-            jdbc.update("""
-                UPDATE runtime_target_retirement SET deployment_id = ?, target_profile_id = ?, release_id = ?,
-                    tenant_id = ?, topology_fingerprint = ?, state = ?, fence_epoch = ?, operation_id = NULL,
-                    request_fingerprint = NULL, drain_deadline = NULL, authority_revoked = FALSE,
-                    reclaim_started = FALSE, updated_at = ? WHERE singleton_id = 1
-                """, command.nextTarget().deploymentId(), command.nextTarget().targetProfileId(),
-                command.nextTarget().releaseId(), command.tenantId(), command.nextTopologyFingerprint(),
-                State.ACTIVE.name(), nextFence, timestamp(now));
-            Readback current = persistedLocked();
-            GenerationTransitionResult result = new GenerationTransitionResult(previous, current,
-                command.providerStopEvidenceReference(), now, false);
-            jdbc.update("""
-                INSERT INTO runtime_target_generation_transition
-                    (operation_id, request_fingerprint, payload_digest, previous_deployment_id,
-                     previous_target_profile_id, previous_release_id, next_release_id,
-                     previous_fence_epoch, next_fence_epoch, previous_topology_fingerprint,
-                     next_topology_fingerprint, provider_stop_evidence_reference, result_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, command.operationId(), command.requestFingerprint(), payloadDigest,
-                command.previousTarget().deploymentId(), command.previousTarget().targetProfileId(),
-                command.previousTarget().releaseId(), command.nextTarget().releaseId(),
-                previous.fenceEpoch(), nextFence, command.previousTopologyFingerprint(),
-                command.nextTopologyFingerprint(), command.providerStopEvidenceReference(), json(result), timestamp(now));
-            return result;
-        });
+        throw retiredGenerationProtocol();
     }
 
-    /** Explicit physical-stop adoption; this is not a successful local drain or authority fence. */
     public ColdMaintenanceTransitionResult coldMaintenanceTransition(ColdMaintenanceTransition command) {
-        if (command == null) throw badRequest("COLD_MAINTENANCE_TRANSITION_REQUIRED");
-        GenerationTransition transition = command.transition();
-        validateTransition(transition);
-        if (!command.acceptInMemoryStateLoss() || command.approvalReference() == null
-            || command.approvalReference().isBlank() || command.approvalReference().length() > 1000
-            || !command.approvalReference().equals(command.approvalReference().trim())
-            || command.previousOperationId() == null || !command.previousOperationId().matches("[A-Za-z0-9._:-]{1,160}")
-            || !sha256(command.previousRequestFingerprint())) {
-            throw badRequest("COLD_MAINTENANCE_APPROVAL_AND_PREVIOUS_BINDING_REQUIRED");
-        }
-        return transaction.execute(status -> {
-            if (!schema.supports("runtime_target_generation_transition", "operation_id", "payload_digest", "result_json")) {
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "RUNTIME_GENERATION_TRANSITION_MIGRATION_REQUIRED");
-            }
-            Readback previous = persistedLocked();
-            String payloadDigest = digest(json(command));
-            List<String[]> receipts = jdbc.query("""
-                SELECT payload_digest, result_json FROM runtime_target_generation_transition WHERE operation_id = ?
-                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, transition.operationId());
-            if (!receipts.isEmpty()) {
-                if (!receipts.getFirst()[0].equals(payloadDigest)) throw conflict("GENERATION_TRANSITION_COMMAND_REUSE");
-                ColdMaintenanceTransitionResult persisted = read(receipts.getFirst()[1], ColdMaintenanceTransitionResult.class);
-                GenerationTransitionResult applied = persisted.transition();
-                return new ColdMaintenanceTransitionResult(new GenerationTransitionResult(applied.previous(), applied.current(),
-                    applied.providerStopEvidenceReference(), applied.transitionedAt(), true), persisted.observedInventory(),
-                    persisted.evidenceKind(), persisted.approvalReference(), persisted.inMemoryStateLossAcknowledged());
-            }
-            if (!transition.previousTarget().equals(previous.target()) || !transition.tenantId().equals(previous.tenantId())) {
-                throw conflict("GENERATION_TRANSITION_PREVIOUS_SCOPE_MISMATCH");
-            }
-            if (previous.fenceEpoch() != transition.expectedFenceEpoch()) throw conflict("GENERATION_TRANSITION_STALE_FENCE");
-            if (previous.state() != State.DRAINING || previous.authorityRevoked() || previous.reclaimStarted()) {
-                throw conflict("COLD_MAINTENANCE_PREVIOUS_GENERATION_NOT_DRAINING");
-            }
-            if (!command.previousOperationId().equals(previous.operationId())
-                || !command.previousRequestFingerprint().equals(previous.requestFingerprint())) {
-                throw conflict("COLD_MAINTENANCE_PREVIOUS_BINDING_MISMATCH");
-            }
-            String pinnedTopology = jdbc.queryForObject(
-                "SELECT topology_fingerprint FROM runtime_target_retirement WHERE singleton_id = 1", String.class);
-            if (!transition.previousTopologyFingerprint().equals(pinnedTopology)) {
-                throw conflict("GENERATION_TRANSITION_PREVIOUS_TOPOLOGY_MISMATCH");
-            }
-            if (!transition.nextTopologyFingerprint().equals(inventory.topologyFingerprint())) {
-                throw conflict("GENERATION_TRANSITION_NEXT_TOPOLOGY_MISMATCH");
-            }
-            Long turns = jdbc.queryForObject("SELECT COUNT(*) FROM runtime_target_retirement_turn", Long.class);
-            if (turns == null || turns != 0) throw conflict("GENERATION_TRANSITION_IN_FLIGHT_WORK_REMAINS");
-            // The running replacement owns this topology. Do not store it as an old-generation drain snapshot.
-            Snapshot observed = inventory.inspect(previous, turns);
-            requireColdInventory(observed, previous, transition.nextTopologyFingerprint());
-
-            long nextFence = Math.addExact(previous.fenceEpoch(), 1L);
-            Instant now = Instant.now();
-            jdbc.update("""
-                UPDATE runtime_target_retirement SET deployment_id = ?, target_profile_id = ?, release_id = ?,
-                    tenant_id = ?, topology_fingerprint = ?, state = ?, fence_epoch = ?, operation_id = NULL,
-                    request_fingerprint = NULL, drain_deadline = NULL, authority_revoked = FALSE,
-                    reclaim_started = FALSE, updated_at = ? WHERE singleton_id = 1
-                """, transition.nextTarget().deploymentId(), transition.nextTarget().targetProfileId(),
-                transition.nextTarget().releaseId(), transition.tenantId(), transition.nextTopologyFingerprint(),
-                State.ACTIVE.name(), nextFence, timestamp(now));
-            GenerationTransitionResult applied = new GenerationTransitionResult(previous, persistedLocked(),
-                transition.providerStopEvidenceReference(), now, false);
-            ColdMaintenanceTransitionResult result = new ColdMaintenanceTransitionResult(applied, observed,
-                COLD_EVIDENCE_KIND, command.approvalReference(), true);
-            jdbc.update("""
-                INSERT INTO runtime_target_generation_transition
-                    (operation_id, request_fingerprint, payload_digest, previous_deployment_id,
-                     previous_target_profile_id, previous_release_id, next_release_id,
-                     previous_fence_epoch, next_fence_epoch, previous_topology_fingerprint,
-                     next_topology_fingerprint, provider_stop_evidence_reference, result_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, transition.operationId(), transition.requestFingerprint(), payloadDigest,
-                transition.previousTarget().deploymentId(), transition.previousTarget().targetProfileId(),
-                transition.previousTarget().releaseId(), transition.nextTarget().releaseId(), previous.fenceEpoch(),
-                nextFence, transition.previousTopologyFingerprint(), transition.nextTopologyFingerprint(),
-                transition.providerStopEvidenceReference(), json(result), timestamp(now));
-            return result;
-        });
-    }
-
-    private void requireColdInventory(Snapshot snapshot, Readback previous, String topology) {
-        if (!identity.dedicatedStore() || snapshot == null || !previous.equals(snapshot.target())
-            || !topology.equals(snapshot.topologyFingerprint()) || snapshot.observedAt() == null
-            || snapshot.snapshotId() == null || snapshot.snapshotId().isBlank()
-            || snapshot.evidenceReference() == null || snapshot.evidenceReference().isBlank()
-            || snapshot.inFlightRequests() != 0 || snapshot.blockers() == null || snapshot.remoteObligations() == null) {
-            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-        }
-        requireColdZeroMetric(snapshot.openConversations(), false);
-        requireColdZeroMetric(snapshot.pendingConfirmations(), false);
-        requireColdZeroMetric(snapshot.humanWork(), false);
-        requireColdZeroMetric(snapshot.backgroundWork(), true);
-        Set<String> expectedBlockers = new HashSet<>();
-        snapshot.backgroundWork().observations().forEach(observation -> expectedBlockers.addAll(observation.blockers()));
-        for (String blocker : snapshot.blockers()) {
-            if (blocker == null) throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-            if (COLD_FENCING_BLOCKERS.contains(blocker)) expectedBlockers.add(blocker);
-            else if (!COLD_EXECUTION_ENUMERATION.equals(blocker)) throw conflict("COLD_MAINTENANCE_INVENTORY_INCOMPLETE");
-        }
-        boolean complete = snapshot.backgroundWork().complete();
-        boolean fenced = snapshot.blockers().stream().noneMatch(COLD_FENCING_BLOCKERS::contains);
-        if (!expectedBlockers.equals(new HashSet<>(snapshot.blockers()))
-            || snapshot.inventoryComplete() != complete || snapshot.workerFencingComplete() != fenced
-            || snapshot.localDrainComplete() != (complete && fenced)
-            || snapshot.reclaimable() != (snapshot.localDrainComplete() && snapshot.remoteObligations().isEmpty())) {
-            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-        }
-    }
-
-    private void requireColdZeroMetric(Metric metric, boolean allowExecutionEnumeration) {
-        if (metric == null || metric.observations() == null || metric.observations().isEmpty()) {
-            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-        }
-        Set<String> sources = new HashSet<>();
-        boolean complete = true;
-        for (Observation observation : metric.observations()) {
-            if (observation == null || observation.source() == null || observation.source().isBlank()
-                || !sources.add(observation.source()) || observation.observedCount() == null
-                || observation.observedCount() != 0 || observation.blockers() == null) {
-                throw conflict("COLD_MAINTENANCE_WORK_REMAINS_OR_UNOBSERVED");
-            }
-            if (!observation.complete()) {
-                if (!allowExecutionEnumeration || !"ai_specialist_execution".equals(observation.source())
-                    || !observation.blockers().equals(List.of(COLD_EXECUTION_ENUMERATION))) {
-                    throw conflict("COLD_MAINTENANCE_INVENTORY_INCOMPLETE");
-                }
-                complete = false;
-            } else if (!observation.blockers().isEmpty()) throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-        }
-        if (metric.complete() != complete || (complete ? !Long.valueOf(0).equals(metric.count()) : metric.count() != null)) {
-            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
-        }
+        throw retiredGenerationProtocol();
     }
 
     public Readback status(Target target) {
@@ -374,10 +167,10 @@ public class RuntimeTargetRetirementService {
         validateBinding(binding);
         return transaction.execute(status -> {
             requireCurrent(binding, locked());
-            List<String> saved = jdbc.query("""
-                SELECT snapshot_json FROM runtime_target_retirement_snapshot
-                WHERE snapshot_id = ? AND fence_epoch = ? AND operation_id = ? AND request_fingerprint = ?
-                """, (rs, row) -> rs.getString(1), snapshotId, binding.fenceEpoch(), binding.operationId(), binding.requestFingerprint());
+            List<String> saved = scoped.query("SELECT snapshot_json FROM runtime_release_retirement_snapshot WHERE " + SCOPE
+                + " AND snapshot_id = :snapshot AND fence_epoch = :epoch AND operation_id = :operation AND request_fingerprint = :fingerprint",
+                scope().addValue("snapshot", snapshotId).addValue("epoch", binding.fenceEpoch())
+                    .addValue("operation", binding.operationId()).addValue("fingerprint", binding.requestFingerprint()), (rs, row) -> rs.getString(1));
             if (saved.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "DRAIN_SNAPSHOT_NOT_FOUND");
             return read(saved.getFirst(), Snapshot.class);
         });
@@ -396,15 +189,10 @@ public class RuntimeTargetRetirementService {
         return independentTransaction.execute(status -> {
             Readback current = locked();
             requireAuthority(current);
-            if (current.state() == State.DRAINING && (transientTurn || !ownedOpenConversation(conversationId, caller.ownerId()))) {
+            if (current.state() == State.DRAINING && (transientTurn || !ownedConversation(conversationId, caller.ownerId(), true))) {
                 throw conflict("TARGET_NEW_CONVERSATIONS_BLOCKED");
             }
-            String id = UUID.randomUUID().toString();
-            jdbc.update("""
-                INSERT INTO runtime_target_retirement_turn (permit_id, fence_epoch, conversation_id, owner_id, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, id, current.fenceEpoch(), conversationId, caller.ownerId(), timestamp(Instant.now()));
-            return new TurnPermit(id, current.fenceEpoch());
+            return permit(current, conversationId, caller.ownerId());
         });
     }
 
@@ -414,40 +202,37 @@ public class RuntimeTargetRetirementService {
             Readback current = locked();
             requireAuthority(current);
             if (current.state() == State.DRAINING && !declaredContinuation) throw conflict("TARGET_NEW_WORK_BLOCKED");
-            String id = UUID.randomUUID().toString();
-            jdbc.update("""
-                INSERT INTO runtime_target_retirement_turn (permit_id, fence_epoch, conversation_id, owner_id, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, id, current.fenceEpoch(), route.substring(0, Math.min(route.length(), 160)), "runtime-ingress", timestamp(Instant.now()));
-            return new TurnPermit(id, current.fenceEpoch());
+            return permit(current, route.substring(0, Math.min(route.length(), 160)), "runtime-ingress");
         });
+    }
+
+    private TurnPermit permit(Readback current, String conversation, String owner) {
+        String id = UUID.randomUUID().toString();
+        scoped.update("""
+            INSERT INTO runtime_release_retirement_turn
+                (permit_id, tenant_id, deployment_id, target_profile_id, release_id, fence_epoch, conversation_id, owner_id, created_at)
+            VALUES (:permit, :tenant, :deployment, :profile, :release, :epoch, :conversation, :owner, :now)
+            """, scope().addValue("permit", id).addValue("epoch", current.fenceEpoch()).addValue("conversation", conversation)
+                .addValue("owner", owner).addValue("now", timestamp(Instant.now())));
+        return new TurnPermit(id, current.fenceEpoch());
     }
 
     public void finishTurn(TurnPermit permit) {
         if (permit == null) return;
-        independentTransaction.executeWithoutResult(status -> jdbc.update(
-            "DELETE FROM runtime_target_retirement_turn WHERE permit_id = ? AND fence_epoch = ?",
-            permit.permitId(), permit.fenceEpoch()));
+        independentTransaction.executeWithoutResult(status -> scoped.update("DELETE FROM runtime_release_retirement_turn WHERE " + SCOPE
+            + " AND permit_id = :permit AND fence_epoch = :epoch", scope().addValue("permit", permit.permitId()).addValue("epoch", permit.fenceEpoch())));
     }
 
     public OrchestrationTurnGuard guard(TurnPermit permit, OrchestrationTurnGuard delegate) {
         if (permit == null) return delegate;
         return new OrchestrationTurnGuard() {
-            public void verifyBeforeOrchestration() {
-                verifyTurn(permit);
-                if (delegate != null) delegate.verifyBeforeOrchestration();
-            }
+            public void verifyBeforeOrchestration() { verifyTurn(permit); if (delegate != null) delegate.verifyBeforeOrchestration(); }
             public void verifyBeforeAction(AIActionMetaData metadata, ActionContext context) {
-                verifyTurn(permit);
-                if (delegate != null) delegate.verifyBeforeAction(metadata, context);
+                verifyTurn(permit); if (delegate != null) delegate.verifyBeforeAction(metadata, context);
             }
-            public void verifyBeforeResultCommit() {
-                verifyTurn(permit);
-                if (delegate != null) delegate.verifyBeforeResultCommit();
-            }
+            public void verifyBeforeResultCommit() { verifyTurn(permit); if (delegate != null) delegate.verifyBeforeResultCommit(); }
             public void verifyBeforeResultCommit(OrchestrationResult result) {
-                verifyTurn(permit);
-                if (delegate != null) delegate.verifyBeforeResultCommit(result);
+                verifyTurn(permit); if (delegate != null) delegate.verifyBeforeResultCommit(result);
             }
         };
     }
@@ -456,28 +241,27 @@ public class RuntimeTargetRetirementService {
         independentTransaction.executeWithoutResult(status -> {
             Readback current = locked();
             requireAuthority(current);
-            Long count = jdbc.queryForObject("SELECT COUNT(*) FROM runtime_target_retirement_turn WHERE permit_id = ? AND fence_epoch = ?",
-                Long.class, permit.permitId(), permit.fenceEpoch());
-            if (current.fenceEpoch() != permit.fenceEpoch() || count == null || count != 1) throw conflict("STALE_RUNTIME_TURN");
+            Long count = scoped.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_turn WHERE " + SCOPE
+                + " AND permit_id = :permit AND fence_epoch = :epoch", scope().addValue("permit", permit.permitId()).addValue("epoch", permit.fenceEpoch()), Long.class);
+            Long floor = current.state() == State.DRAINING ? scoped.queryForObject(
+                "SELECT drain_admission_epoch FROM runtime_release_retirement_gate WHERE " + SCOPE, scope(), Long.class) : null;
+            boolean continuation = floor != null && permit.fenceEpoch() >= floor && permit.fenceEpoch() <= current.fenceEpoch();
+            if ((!continuation && current.fenceEpoch() != permit.fenceEpoch()) || count == null || count != 1) throw conflict("STALE_RUNTIME_TURN");
         });
     }
 
     public <T> T withConversationWrite(String conversationId, String ownerId, Supplier<T> action) {
         return withConversationAccess(conversationId, ownerId, true, action);
     }
-
     public <T> T withExistingConversation(String conversationId, String ownerId, Supplier<T> action) {
         return withConversationAccess(conversationId, ownerId, false, action);
     }
-
     private <T> T withConversationAccess(String conversationId, String ownerId, boolean openOnly, Supplier<T> action) {
         if (!identity.enabled()) return action.get();
         return transaction.execute(status -> {
             Readback current = locked();
             requireAuthority(current);
-            if (current.state() == State.DRAINING && !ownedConversation(conversationId, ownerId, openOnly)) {
-                throw conflict("TARGET_NEW_CONVERSATIONS_BLOCKED");
-            }
+            if (current.state() == State.DRAINING && !ownedConversation(conversationId, ownerId, openOnly)) throw conflict("TARGET_NEW_CONVERSATIONS_BLOCKED");
             return action.get();
         });
     }
@@ -486,11 +270,17 @@ public class RuntimeTargetRetirementService {
         if (!identity.enabled()) return action.get();
         return transaction.execute(status -> {
             Readback current = locked();
-            // The lock spans the actual effect. Authority fencing cannot overtake a late worker.
-            if (current.authorityRevoked() || current.reclaimStarted()
-                || (current.state() == State.DRAINING && !continuation)) return null;
+            if (current.authorityRevoked() || current.reclaimStarted() || current.state() == State.DRAINING && !continuation) return null;
             return action.get();
         });
+    }
+
+    /** Holds an attempt, not a database lock, until actual execution exits, including cancelled futures. */
+    public <T> T withObservedWorkerBoundary(String boundary, boolean continuation, Supplier<T> action) {
+        if (!identity.enabled()) return action.get();
+        TurnPermit permit = beginIngress("worker:" + boundary, continuation);
+        try { return action.get(); }
+        finally { finishTurn(permit); }
     }
 
     public void requireConversationScope(String deploymentId, String tenantId) {
@@ -498,102 +288,70 @@ public class RuntimeTargetRetirementService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "RUNTIME_CONVERSATION_SCOPE_MISMATCH");
         }
     }
-
     public boolean authorityFenced() {
         if (!identity.enabled()) return false;
-        return transaction.execute(status -> {
-            Readback current = locked();
-            return current.authorityRevoked() || current.reclaimStarted();
-        });
+        return transaction.execute(status -> { Readback current = locked(); return current.authorityRevoked() || current.reclaimStarted(); });
     }
-
     private void requireCaller(RuntimeResolvedIdentity caller) {
         if (caller == null || caller.getAuthContext() == null || caller.ownerId() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "RUNTIME_TURN_IDENTITY_REQUIRED");
         }
         requireConversationScope(caller.getAuthContext().getDeploymentId(), caller.getAuthContext().getTenantId());
     }
-
-    private boolean ownedOpenConversation(String conversationId, String ownerId) {
-        return ownedConversation(conversationId, ownerId, true);
-    }
-
     private boolean ownedConversation(String conversationId, String ownerId, boolean openOnly) {
         if (schema.supports("ai_conversation_control", "conversation_id", "owner_id", "control_state", "deployment_id", "tenant_id")) {
-            Long controls = jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_control WHERE conversation_id = ? AND owner_id = ?"
+            Long count = jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_control WHERE conversation_id = ? AND owner_id = ?"
                 + " AND deployment_id = ? AND tenant_id = ?" + (openOnly ? " AND control_state <> 'CLOSED'" : ""),
                 Long.class, conversationId, ownerId, identity.target().deploymentId(), identity.tenantId());
-            if (controls != null && controls > 0) return true;
+            if (count != null && count > 0) return true;
         }
         if (!identity.dedicatedStore() || !schema.supports("chat_sessions", "id", "owner_id", "status")) return false;
-        Long sessions = jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions WHERE id = ? AND owner_id = ?" + (openOnly ? " AND status = 'ACTIVE'" : ""),
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions WHERE id = ? AND owner_id = ?" + (openOnly ? " AND status = 'ACTIVE'" : ""),
             Long.class, conversationId, ownerId);
-        return sessions != null && sessions > 0;
+        return count != null && count > 0;
     }
 
     private Snapshot capture(Readback current) {
-        Long turns = jdbc.queryForObject("SELECT COUNT(*) FROM runtime_target_retirement_turn", Long.class);
+        Long turns = scoped.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_turn WHERE " + SCOPE, scope(), Long.class);
         if (turns == null) throw new IllegalStateException("Runtime turn count is unavailable.");
         Snapshot snapshot = inventory.inspect(current, turns);
-        jdbc.update("""
-            INSERT INTO runtime_target_retirement_snapshot
-                (snapshot_id, fence_epoch, operation_id, request_fingerprint, snapshot_json, observed_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """, snapshot.snapshotId(), current.fenceEpoch(), current.operationId(), current.requestFingerprint(),
-            json(snapshot), timestamp(snapshot.observedAt()));
+        scoped.update("""
+            INSERT INTO runtime_release_retirement_snapshot
+                (snapshot_id, tenant_id, deployment_id, target_profile_id, release_id, fence_epoch, operation_id,
+                 request_fingerprint, snapshot_json, observed_at)
+            VALUES (:snapshot, :tenant, :deployment, :profile, :release, :epoch, :operation, :fingerprint, :json, :now)
+            """, scope().addValue("snapshot", snapshot.snapshotId()).addValue("epoch", current.fenceEpoch())
+                .addValue("operation", current.operationId()).addValue("fingerprint", current.requestFingerprint())
+                .addValue("json", json(snapshot)).addValue("now", timestamp(snapshot.observedAt())));
         return snapshot;
     }
 
     private Readback locked() {
-        if (!schema.supports("runtime_target_retirement", "singleton_id", "release_id", "fence_epoch")) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "RUNTIME_RETIREMENT_MIGRATION_REQUIRED");
+        if (!schema.supports("runtime_release_retirement_gate", "tenant_id", "deployment_id", "target_profile_id", "release_id", "fence_epoch", "drain_admission_epoch")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "RUNTIME_RELEASE_RETIREMENT_MIGRATION_REQUIRED");
         }
-        Readback current = persistedLocked();
-        if (current == null) throw new IllegalStateException("Runtime retirement singleton is missing.");
-        if (current.target().deploymentId() == null) {
-            jdbc.update("""
-                UPDATE runtime_target_retirement SET deployment_id = ?, target_profile_id = ?, release_id = ?, tenant_id = ?, topology_fingerprint = ?
-                WHERE singleton_id = 1
-                """, identity.target().deploymentId(), identity.target().targetProfileId(), identity.target().releaseId(), identity.tenantId(), inventory.topologyFingerprint());
-            return jdbc.queryForObject("SELECT * FROM runtime_target_retirement WHERE singleton_id = 1", this::map);
-        }
-        if (!identity.target().equals(current.target()) || !identity.tenantId().equals(current.tenantId())) {
-            throw conflict("PERSISTED_RUNTIME_GENERATION_MISMATCH");
-        }
-        String pinned = jdbc.queryForObject("SELECT topology_fingerprint FROM runtime_target_retirement WHERE singleton_id = 1", String.class);
-        if (pinned == null) {
-            jdbc.update("UPDATE runtime_target_retirement SET topology_fingerprint = ? WHERE singleton_id = 1", inventory.topologyFingerprint());
-        } else if (!pinned.equals(inventory.topologyFingerprint())) {
-            throw conflict("PERSISTED_RUNTIME_TOPOLOGY_MISMATCH");
-        }
+        scoped.update("""
+            INSERT INTO runtime_release_retirement_gate
+                (tenant_id, deployment_id, target_profile_id, release_id, topology_fingerprint, state, fence_epoch,
+                 authority_revoked, reclaim_started, updated_at)
+            VALUES (:tenant, :deployment, :profile, :release, :topology, 'ACTIVE', 0, FALSE, FALSE, :now)
+            ON CONFLICT DO NOTHING
+            """, scope().addValue("topology", inventory.topologyFingerprint()).addValue("now", timestamp(Instant.now())));
+        Readback current = scoped.queryForObject("SELECT * FROM runtime_release_retirement_gate WHERE " + SCOPE + " FOR UPDATE", scope(), this::map);
+        String topology = scoped.queryForObject("SELECT topology_fingerprint FROM runtime_release_retirement_gate WHERE " + SCOPE, scope(), String.class);
+        if (!inventory.topologyFingerprint().equals(topology)) throw conflict("PERSISTED_RUNTIME_TOPOLOGY_MISMATCH");
         return current;
     }
-
-    private Readback persistedLocked() {
-        Readback current = jdbc.queryForObject(
-            "SELECT * FROM runtime_target_retirement WHERE singleton_id = 1 FOR UPDATE", this::map);
-        if (current == null) throw new IllegalStateException("Runtime retirement singleton is missing.");
-        return current;
+    private MapSqlParameterSource scope() {
+        return new MapSqlParameterSource().addValue("tenant", identity.tenantId()).addValue("deployment", identity.target().deploymentId())
+            .addValue("profile", identity.target().targetProfileId()).addValue("release", identity.target().releaseId());
     }
-
-    private Snapshot latestSnapshot(Readback previous) {
-        List<String> snapshots = jdbc.query("""
-            SELECT snapshot_json FROM runtime_target_retirement_snapshot
-            WHERE fence_epoch <= ? AND operation_id = ? AND request_fingerprint = ?
-            ORDER BY observed_at DESC
-            """, (rs, row) -> rs.getString(1), previous.fenceEpoch(), previous.operationId(),
-            previous.requestFingerprint());
-        if (snapshots.isEmpty()) throw conflict("GENERATION_TRANSITION_DRAIN_EVIDENCE_REQUIRED");
-        return read(snapshots.getFirst(), Snapshot.class);
-    }
-
     private Readback map(ResultSet rs, int row) throws SQLException {
         return new Readback(new Target(rs.getString("deployment_id"), rs.getString("target_profile_id"), rs.getString("release_id")),
-            rs.getString("tenant_id"), State.valueOf(rs.getString("state")), rs.getLong("fence_epoch"),
-            rs.getString("operation_id"), rs.getString("request_fingerprint"), instant(rs, "drain_deadline"),
-            rs.getBoolean("authority_revoked"), rs.getBoolean("reclaim_started"), instant(rs, "updated_at"));
+            rs.getString("tenant_id"), State.valueOf(rs.getString("state")), rs.getLong("fence_epoch"), rs.getString("operation_id"),
+            rs.getString("request_fingerprint"), instant(rs, "drain_deadline"), rs.getBoolean("authority_revoked"),
+            rs.getBoolean("reclaim_started"), instant(rs, "updated_at"));
     }
-
     private void validateCommand(Command command) {
         if (command == null || command.type() == null) throw badRequest("RETIREMENT_COMMAND_REQUIRED");
         validateBinding(command.binding());
@@ -601,9 +359,8 @@ public class RuntimeTargetRetirementService {
         if (command.type() == CommandType.BEGIN_DRAIN && command.drainDeadline() == null) throw badRequest("DRAIN_DEADLINE_REQUIRED");
         if ((command.type() == CommandType.RECORD_AUTHORITY_REVOCATION || command.type() == CommandType.RECORD_RECLAIM_STARTED)
             && (command.externalEvidenceReference() == null || command.externalEvidenceReference().isBlank()
-            || command.externalEvidenceReference().length() > 1000)) throw badRequest("EXTERNAL_EVIDENCE_REQUIRED");
+                || command.externalEvidenceReference().length() > 1000)) throw badRequest("EXTERNAL_EVIDENCE_REQUIRED");
     }
-
     private void validateBinding(Binding binding) {
         if (binding == null) throw badRequest("RETIREMENT_BINDING_REQUIRED");
         identity.requireTarget(binding.target());
@@ -612,32 +369,6 @@ public class RuntimeTargetRetirementService {
             throw badRequest("RETIREMENT_FENCE_OPERATION_FINGERPRINT_REQUIRED");
         }
     }
-
-    private void validateTransition(GenerationTransition command) {
-        if (command == null) throw badRequest("GENERATION_TRANSITION_REQUIRED");
-        identity.requireTarget(command.nextTarget());
-        if (command.previousTarget() == null
-            || !Objects.equals(command.previousTarget().deploymentId(), command.nextTarget().deploymentId())
-            || !Objects.equals(command.previousTarget().targetProfileId(), command.nextTarget().targetProfileId())
-            || Objects.equals(command.previousTarget().releaseId(), command.nextTarget().releaseId())
-            || !identity.tenantId().equals(command.tenantId())) {
-            throw badRequest("GENERATION_TRANSITION_SCOPE_INVALID");
-        }
-        if (command.expectedFenceEpoch() < 1
-            || !sha256(command.previousTopologyFingerprint()) || !sha256(command.nextTopologyFingerprint())
-            || command.operationId() == null || !command.operationId().matches("[A-Za-z0-9._:-]{1,160}")
-            || !sha256(command.requestFingerprint())
-            || command.providerStopEvidenceReference() == null
-            || command.providerStopEvidenceReference().isBlank()
-            || command.providerStopEvidenceReference().length() > 1000) {
-            throw badRequest("GENERATION_TRANSITION_EVIDENCE_REQUIRED");
-        }
-    }
-
-    private boolean sha256(String value) {
-        return value != null && value.matches("[a-fA-F0-9]{64}");
-    }
-
     private void requireCurrent(Binding binding, Readback current) {
         if (binding.fenceEpoch() != current.fenceEpoch() || !binding.operationId().equals(current.operationId())
             || !binding.requestFingerprint().equals(current.requestFingerprint())) throw conflict("STALE_RETIREMENT_READBACK");
@@ -645,23 +376,26 @@ public class RuntimeTargetRetirementService {
     private void requireAuthority(Readback current) {
         if (current.authorityRevoked() || current.reclaimStarted()) throw conflict("RUNTIME_TARGET_AUTHORITY_FENCED");
     }
+    private ResponseStatusException retiredGenerationProtocol() {
+        return new ResponseStatusException(HttpStatus.GONE, "RUNTIME_GENERATION_TRANSITION_RETIRED_RELEASE_SCOPED_GATES");
+    }
     private String json(Object value) {
         try { return mapper.writeValueAsString(value); }
-        catch (Exception exception) { throw new IllegalStateException("Retirement evidence serialization failed.", exception); }
+        catch (Exception failure) { throw new IllegalStateException("Retirement evidence serialization failed.", failure); }
     }
     private <T> T read(String value, Class<T> type) {
         try { return mapper.readValue(value, type); }
-        catch (Exception exception) { throw new IllegalStateException("Persisted retirement evidence is invalid.", exception); }
+        catch (Exception failure) { throw new IllegalStateException("Persisted retirement evidence is invalid.", failure); }
     }
     private String digest(String value) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
-        catch (Exception exception) { throw new IllegalStateException(exception); }
+        catch (Exception failure) { throw new IllegalStateException(failure); }
     }
     private Instant instant(ResultSet rs, String column) throws SQLException {
-        Timestamp value = rs.getTimestamp(column);
+        OffsetDateTime value = rs.getObject(column, OffsetDateTime.class);
         return value == null ? null : value.toInstant();
     }
-    private Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
+    private OffsetDateTime timestamp(Instant value) { return value == null ? null : value.atOffset(ZoneOffset.UTC); }
     private ResponseStatusException conflict(String code) { return new ResponseStatusException(HttpStatus.CONFLICT, code); }
     private ResponseStatusException badRequest(String code) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, code); }
 }

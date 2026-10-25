@@ -55,6 +55,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class PlatformCustomerConsumerService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
 
     private static final String ACTIVE = "ACTIVE";
     private static final String DISABLED = "DISABLED";
@@ -139,6 +141,7 @@ public class PlatformCustomerConsumerService {
         if (requestedDeploymentId != null) {
             reviewedBindingBoundary.requireGenericMutationAllowed(null, requestedDeploymentId);
             DeploymentEntity deployment = requireBindableDeployment(customer.getId(), requestedDeploymentId);
+            requireUnscopedBindingAvailable(deployment.getId());
             consumer.setBoundDeploymentId(deployment.getId());
             consumer.setLastBoundAt(now);
         }
@@ -601,6 +604,9 @@ public class PlatformCustomerConsumerService {
         if (changed && nextDeploymentId != null && StringUtils.hasText(nextTargetProfileId)) {
             targetMutations.requireAvailableForMutation(nextDeploymentId, nextTargetProfileId);
         }
+        if (changed && nextDeploymentId != null && !StringUtils.hasText(nextTargetProfileId)) {
+            requireUnscopedBindingAvailable(nextDeploymentId);
+        }
         if (changed && enforceWorkspaceGuard) aiWorkspaceBindingGuard.validateRebind(consumer, nextDeploymentId, nextReleaseId);
         String previousDeploymentId = consumer.getBoundDeploymentId();
         String previousReleaseId = consumer.getBoundReleaseId();
@@ -810,6 +816,12 @@ public class PlatformCustomerConsumerService {
         entry.setCreatedAt(createdAt);
         bindingHistoryRepository.save(entry);
         return entry;
+    }
+
+    private void requireUnscopedBindingAvailable(String deploymentId) {
+        if (lifecycleClaims == null) return;
+        deploymentRepository.findByIdForUpdate(deploymentId).orElseThrow();
+        lifecycleClaims.requireDeploymentAvailable(deploymentId);
     }
 
     private String bindingFingerprint(String deploymentId, String releaseId, String targetId, String reason, long revision) {

@@ -2545,8 +2545,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 && customerOfferDeploymentRepository.existsById(deployment.getId())) {
                 throw new IllegalStateException("Customer provider-usage accounting coordinator is required.");
             }
-            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "false");
-            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "false");
+            Map<String, String> runtimeEnvironment = new LinkedHashMap<>();
+            env.forEach((key, value) -> runtimeEnvironment.put(key, value.value()));
+            new com.ai.fabric.platform.backend.deployment.operations.lifecycle.runtimeadapter.RuntimeDrainEnvironmentPlan(objectMapper)
+                .plan(deployment, version, release, runtimeEnvironment, runtimeDatabaseBinding != null,
+                    source != null && source.connectorPlan() != null,
+                    source != null && source.vectorizationRunnerPlan() != null,
+                    source != null && source.sourceArtifact() != null ? source.sourceArtifact().getCapabilityManifestJson() : null)
+                .forEach((key, value) -> putEnv(env, key, value));
         }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
         return withPreviewEnvironment(new ArrayList<>(env.values()));

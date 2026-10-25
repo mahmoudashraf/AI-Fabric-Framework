@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.*;
     "platform.deployment-operations.api-key=private-test-service-key-never-expose",
     "platform.deployment-operations.provider-usage-mode=TEAM_AUTHORIZED",
     "platform.deployment-operations.team-authorized-targets=reviewed-staging",
+    "platform.deployment-lifecycle.enabled=true",
+    "platform.deployment-lifecycle.api-key=only-private-lifecycle-service-credential-123456",
     "platform.deployment.admission.lifecycle.worker-enabled=true",
     "platform.deployment.admission.release.worker-enabled=true",
     "platform.target-retirement.worker-enabled=true"
@@ -31,6 +33,21 @@ import static org.assertj.core.api.Assertions.*;
 class DeploymentOperationsApplicationIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private org.springframework.context.ApplicationContext context;
+
+    @Test void lifecycleCredentialIsRouteScopedAndCannotBecomeAnAdministrator() throws Exception {
+        String key = "Bearer only-private-lifecycle-service-credential-123456";
+        mvc.perform(get("/internal/v1/deployment-lifecycle/commands/missing")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/internal/v1/deployment-lifecycle/commands/missing").header("Authorization", key))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/deployment-operations/status").header("Authorization", key))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/v1/deployment-lifecycle/commands").header("Authorization", key)
+            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(post("/internal/v1/deployment-lifecycle/commands").header("Authorization", key)
+            .contentType(MediaType.APPLICATION_JSON).content("x".repeat(8193)))
+            .andExpect(status().isPayloadTooLarge());
+    }
 
     @Test void optionalServiceOutageDoesNotPreventStartupAndConfigurationIsAuthenticatedAndSafe() throws Exception {
         mvc.perform(get("/api/deployment-operations/status")).andExpect(status().isUnauthorized());

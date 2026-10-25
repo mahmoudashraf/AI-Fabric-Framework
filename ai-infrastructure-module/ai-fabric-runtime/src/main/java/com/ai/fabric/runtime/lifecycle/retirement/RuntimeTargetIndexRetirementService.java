@@ -10,8 +10,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,13 +71,14 @@ public class RuntimeTargetIndexRetirementService {
             IndexRetirementReadback concurrent = receipt(command.binding().operationId(), payloadDigest);
             if (concurrent != null) return withReplay(concurrent);
             jdbc.update("""
-                INSERT INTO runtime_target_index_retirement
-                    (operation_id, fence_epoch, request_fingerprint, topology_fingerprint,
+                INSERT INTO runtime_release_index_retirement
+                    (tenant_id, deployment_id, target_profile_id, release_id, operation_id, fence_epoch, request_fingerprint, topology_fingerprint,
                      payload_digest, result_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, command.binding().operationId(), command.binding().fenceEpoch(),
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, identity.tenantId(), identity.target().deploymentId(), identity.target().targetProfileId(), identity.target().releaseId(),
+                command.binding().operationId(), command.binding().fenceEpoch(),
                 command.binding().requestFingerprint(), topology.fingerprint(), payloadDigest,
-                json(result), Timestamp.from(now));
+                json(result), now.atOffset(ZoneOffset.UTC));
             return result;
         });
     }
@@ -153,9 +154,10 @@ public class RuntimeTargetIndexRetirementService {
         List<String[]> rows;
         try {
             rows = jdbc.query("""
-                SELECT payload_digest, result_json FROM runtime_target_index_retirement
-                WHERE operation_id = ?
-                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, operationId);
+                SELECT payload_digest, result_json FROM runtime_release_index_retirement
+                WHERE tenant_id = ? AND deployment_id = ? AND target_profile_id = ? AND release_id = ? AND operation_id = ?
+                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, identity.tenantId(),
+                identity.target().deploymentId(), identity.target().targetProfileId(), identity.target().releaseId(), operationId);
         } catch (RuntimeException error) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "TARGET_INDEX_RETIREMENT_MIGRATION_REQUIRED");
         }

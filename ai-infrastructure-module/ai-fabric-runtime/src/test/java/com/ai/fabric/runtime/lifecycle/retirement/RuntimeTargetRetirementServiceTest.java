@@ -3,79 +3,143 @@ package com.ai.fabric.runtime.lifecycle.retirement;
 import static com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementContracts.*;
 import static com.ai.fabric.runtime.lifecycle.retirement.RuntimeRetirementTestFixture.*;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.web.server.ResponseStatusException;
 
 class RuntimeTargetRetirementServiceTest {
     @Test
-    void explicitlyTransitionsAStoppedFencedGenerationAndPreservesRuntimeData() {
+    void targetMetadataAloneDoesNotEnableOptionalGatesOrAddColdDeploymentPrerequisites() {
+        var f = new RuntimeRetirementTestFixture();
+        var disabled = new RuntimeTargetRetirementIdentity(null, "dep-123", "staging", "release-1", "tenant-1", true);
+        var service = new RuntimeTargetRetirementService(disabled, f.jdbc, f.schema, f.inventory, f.mapper,
+            new org.springframework.jdbc.datasource.DataSourceTransactionManager(f.dataSource));
+        assertThat(disabled.enabled()).isFalse();
+        service.requireNewSessionAllowed();
+        assertThat(service.beginIngress("ordinary-cold-path", false)).isNull();
+        assertThat(service.withObservedWorkerBoundary("ordinary-worker", false, () -> "normal-work")).isEqualTo("normal-work");
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_gate", Long.class)).isZero();
+    }
+
+    @Test
+    void sameVersionColdReleaseStartsFreshForActiveDrainingAndFencedOldGatesWithoutClearingDataOrPermits() {
+        for (State state : java.util.List.of(State.ACTIVE, State.DRAINING, State.AUTHORITY_REVOKED)) {
+            var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+            f.session("retained", "alice", "CLOSED", "{}");
+            var oldPermit = f.service.beginIngress("old-unsettled-at-native-stop", false);
+            if (state != State.ACTIVE) f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+            if (state == State.AUTHORITY_REVOKED) f.service.command(f.command(2, 1, CommandType.RECORD_AUTHORITY_REVOCATION));
+            var oldGate = f.jdbc.queryForMap("SELECT * FROM runtime_release_retirement_gate WHERE release_id = 'release-1'");
+            var oldHistory = f.jdbc.queryForList("SELECT * FROM runtime_release_retirement_command WHERE release_id = 'release-1'");
+            var legacy = f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement");
+
+            // The provider already confirmed the old native writer stopped; the same artifact now has a new release ID.
+            var replacement = f.replacement("release-2");
+            var current = replacement.service().status(replacement.target());
+            assertThat(current.state()).isEqualTo(State.ACTIVE);
+            assertThat(current.fenceEpoch()).isZero();
+            replacement.service().requireNewSessionAllowed();
+            var accepted = replacement.service().beginIngress("new-release-work", false);
+            replacement.service().verifyTurn(accepted);
+            replacement.service().finishTurn(oldPermit);
+            assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_turn WHERE release_id='release-1'", Long.class)).isOne();
+            var binding = new Binding(replacement.target(), 1, "retirement-1", FINGERPRINT);
+            replacement.service().command(new Command(binding, 0, CommandType.BEGIN_DRAIN, Instant.parse("2030-01-01T00:00:00Z"), null));
+            assertThat(replacement.service().snapshot(binding).inFlightRequests()).isOne();
+            replacement.service().finishTurn(accepted);
+            assertThat(replacement.service().snapshot(binding).localDrainComplete()).isTrue();
+            replacement.service().command(new Command(new Binding(replacement.target(), 2, "retirement-1", FINGERPRINT),
+                1, CommandType.FENCE_AUTHORITY, null, null));
+
+            assertThat(f.jdbc.queryForMap("SELECT * FROM runtime_release_retirement_gate WHERE release_id = 'release-1'")).isEqualTo(oldGate);
+            assertThat(f.jdbc.queryForList("SELECT * FROM runtime_release_retirement_command WHERE release_id = 'release-1'")).isEqualTo(oldHistory);
+            assertThat(f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement")).isEqualTo(legacy);
+            assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions WHERE id = 'retained'", Long.class)).isOne();
+        }
+    }
+
+    @Test
+    void oldReleasePermitsAndSnapshotsCannotBeReadOrSettledByNewRelease() {
         var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
-        f.session("retained", "alice", "CLOSED", "{}");
-        f.service.status(TARGET);
+        var oldPermit = f.service.beginIngress("old-work", false);
         f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
-        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
-
+        var oldSnapshot = f.service.snapshot(f.binding(1));
         var replacement = f.replacement("release-2");
-        GenerationTransition transition = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
-            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
-            "b".repeat(64), "coolify-readback:deployment-2:old-container-stopped");
-        GenerationTransitionResult applied = replacement.service().transition(transition);
+        var binding = new Binding(replacement.target(), 1, "retirement-1", FINGERPRINT);
+        replacement.service().command(new Command(binding, 0, CommandType.BEGIN_DRAIN, Instant.parse("2030-01-01T00:00:00Z"), null));
+        assertThatThrownBy(() -> replacement.service().verifyTurn(oldPermit)).hasMessageContaining("STALE_RUNTIME_TURN");
+        assertThatThrownBy(() -> replacement.service().readSnapshot(oldSnapshot.snapshotId(), binding)).hasMessageContaining("DRAIN_SNAPSHOT_NOT_FOUND");
+        assertThatThrownBy(() -> replacement.service().readSnapshot(oldSnapshot.snapshotId(), f.binding(1))).hasMessageContaining("RUNTIME_TARGET_SCOPE_MISMATCH");
+        assertThat(replacement.service().snapshot(binding).inFlightRequests()).isZero();
+        assertThat(f.service.readSnapshot(oldSnapshot.snapshotId(), f.binding(1))).isEqualTo(oldSnapshot);
+    }
 
-        assertThat(applied.replay()).isFalse();
-        assertThat(applied.previous().state()).isEqualTo(State.AUTHORITY_REVOKED);
-        assertThat(applied.current().target()).isEqualTo(replacement.target());
-        assertThat(applied.current().state()).isEqualTo(State.ACTIVE);
-        assertThat(applied.current().fenceEpoch()).isEqualTo(3);
-        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions WHERE id = 'retained'", Long.class)).isOne();
-        assertThat(replacement.service().transition(transition).replay()).isTrue();
+    @Test
+    void migrationPreservesFullyIdentifiedSameReleaseLegacyFenceAndUnsettledPermits() {
+        String topology = new RuntimeRetirementTestFixture(true, true, java.util.List.of()).inventory.topologyFingerprint();
+        Instant deadline = Instant.parse("2030-01-01T00:00:00Z");
+        for (State state : java.util.List.of(State.DRAINING, State.AUTHORITY_REVOKED, State.RECLAIM_STARTED)) {
+            var source = new org.springframework.jdbc.datasource.DriverManagerDataSource("jdbc:h2:mem:" + java.util.UUID.randomUUID()
+                + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", "");
+            var f = new RuntimeRetirementTestFixture(source, true, true, java.util.List.of(), false, jdbc -> {
+                jdbc.update("""
+                    UPDATE runtime_target_retirement SET tenant_id = 'tenant-1', deployment_id = ?, target_profile_id = ?,
+                        release_id = ?, topology_fingerprint = ?, state = ?, fence_epoch = 3, operation_id = 'retirement-1',
+                        request_fingerprint = ?, drain_deadline = ?, authority_revoked = ?, reclaim_started = ?
+                    """, TARGET.deploymentId(), TARGET.targetProfileId(), TARGET.releaseId(), topology, state.name(), FINGERPRINT,
+                    deadline.atOffset(java.time.ZoneOffset.UTC), state != State.DRAINING, state == State.RECLAIM_STARTED);
+                jdbc.update("INSERT INTO runtime_target_retirement_turn VALUES ('legacy-unsettled', 0, 'old-work', 'alice', CURRENT_TIMESTAMP)");
+            });
+            var legacy = f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement");
+            var legacyTurns = f.jdbc.queryForList("SELECT * FROM runtime_target_retirement_turn");
+            var current = f.restart().status(TARGET);
+            assertThat(current.state()).isEqualTo(state);
+            assertThat(current.fenceEpoch()).isEqualTo(3);
+            assertThat(current.drainDeadline()).isEqualTo(deadline);
+            assertThatThrownBy(f.service::requireNewSessionAllowed).hasMessageContaining("TARGET_NEW_SESSIONS_BLOCKED");
+            assertThat(f.service.snapshot(f.binding(3)).inFlightRequests()).isOne();
+            var replacement = f.replacement("release-2");
+            assertThat(replacement.service().status(replacement.target()).state()).isEqualTo(State.ACTIVE);
+            assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_turn WHERE release_id = 'release-2'", Long.class)).isZero();
+            assertThat(f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement")).isEqualTo(legacy);
+            assertThat(f.jdbc.queryForList("SELECT * FROM runtime_target_retirement_turn")).isEqualTo(legacyTurns);
+        }
+    }
+
+    @Test
+    void fullyIdentifiedLegacyFenceWithMissingTopologyFailsClosedOnlyForSameRelease() {
+        var source = new org.springframework.jdbc.datasource.DriverManagerDataSource("jdbc:h2:mem:" + java.util.UUID.randomUUID()
+            + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", "");
+        var f = new RuntimeRetirementTestFixture(source, true, true, java.util.List.of(), false, jdbc -> jdbc.update("""
+            UPDATE runtime_target_retirement SET tenant_id = 'tenant-1', deployment_id = ?, target_profile_id = ?,
+                release_id = ?, state = 'AUTHORITY_REVOKED', fence_epoch = 2, authority_revoked = TRUE
+            """, TARGET.deploymentId(), TARGET.targetProfileId(), TARGET.releaseId()));
+        assertThat(f.jdbc.queryForObject("SELECT state FROM runtime_release_retirement_gate WHERE release_id = ?",
+            String.class, TARGET.releaseId())).isEqualTo("AUTHORITY_REVOKED");
+        assertThatThrownBy(() -> f.service.status(TARGET)).hasMessageContaining("PERSISTED_RUNTIME_TOPOLOGY_MISMATCH");
+        var replacement = f.replacement("release-2");
         assertThat(replacement.service().status(replacement.target()).state()).isEqualTo(State.ACTIVE);
-        assertThatThrownBy(() -> f.service.status(TARGET)).hasMessageContaining("PERSISTED_RUNTIME_GENERATION_MISMATCH");
+        assertThat(f.jdbc.queryForObject("SELECT topology_fingerprint FROM runtime_target_retirement", String.class)).isNull();
     }
 
     @Test
-    void generationTransitionFailsClosedWithoutDrainFenceOrExactEvidence() {
+    void obsoleteGenerationProtocolsReturnGoneWithoutReadingOrMutatingOldSingleton() {
         var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
-        f.service.status(TARGET);
-        var replacement = f.replacement("release-2");
-        GenerationTransition unfenced = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 0,
-            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
-            "b".repeat(64), "coolify-readback:old-container-stopped");
-        assertThatThrownBy(() -> replacement.service().transition(unfenced))
-            .hasMessageContaining("GENERATION_TRANSITION_EVIDENCE_REQUIRED");
-
-        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
-        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
-        GenerationTransition wrongTopology = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
-            f.inventory.topologyFingerprint(), "c".repeat(64), "generation-2",
-            "b".repeat(64), "coolify-readback:old-container-stopped");
-        assertThatThrownBy(() -> replacement.service().transition(wrongTopology))
-            .hasMessageContaining("GENERATION_TRANSITION_NEXT_TOPOLOGY_MISMATCH");
-    }
-
-    @Test
-    void transitionReplayRejectsChangedPayloadAndDoesNotAdoptEnvironmentAlone() {
-        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
-        f.service.status(TARGET);
-        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
-        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
-        var replacement = f.replacement("release-2");
-        GenerationTransition transition = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
-            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
-            "b".repeat(64), "coolify-readback:old-container-stopped");
-
-        assertThatThrownBy(() -> replacement.service().status(replacement.target()))
-            .hasMessageContaining("PERSISTED_RUNTIME_GENERATION_MISMATCH");
-        replacement.service().transition(transition);
-        GenerationTransition changed = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
-            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
-            "d".repeat(64), "coolify-readback:different");
-        assertThatThrownBy(() -> replacement.service().transition(changed))
-            .hasMessageContaining("GENERATION_TRANSITION_COMMAND_REUSE");
+        var legacy = f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement");
+        assertThatThrownBy(() -> f.service.transition(null)).isInstanceOfSatisfying(ResponseStatusException.class,
+            failure -> assertThat(failure.getStatusCode().value()).isEqualTo(410));
+        assertThatThrownBy(() -> f.service.coldMaintenanceTransition(null)).hasMessageContaining("RUNTIME_GENERATION_TRANSITION_RETIRED");
+        assertThat(f.jdbc.queryForMap("SELECT * FROM runtime_target_retirement")).isEqualTo(legacy);
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM runtime_release_retirement_gate", Long.class)).isZero();
     }
 
     @Test
@@ -91,6 +155,54 @@ class RuntimeTargetRetirementServiceTest {
     }
 
     @Test
+    @ResourceLock("java.util.TimeZone.default")
+    void repeatedLondonHourPreservesDeadlineAdmissionsAndGateOrderingAcrossRestart() {
+        TimeZone previous = TimeZone.getDefault();
+        Instant before = Instant.parse("2026-10-25T00:58:00Z");
+        Instant after = Instant.parse("2026-10-25T01:02:00Z");
+        Instant deadline = after.plusSeconds(300);
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/London"));
+        try (var clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            clock.when(Instant::now).thenReturn(before);
+            assertThat(after.atZone(ZoneId.systemDefault()).toLocalTime())
+                .isBefore(before.atZone(ZoneId.systemDefault()).toLocalTime());
+            var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+            assertThat(f.service.status(TARGET).drainDeadline()).isNull();
+            var first = f.service.beginIngress("first-hour", false);
+            var command = new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, deadline, null);
+            var draining = f.service.command(command).current();
+            assertThat(draining.drainDeadline()).isEqualTo(deadline);
+            assertThat(draining.updatedAt()).isEqualTo(before);
+            assertThat(f.jdbc.queryForObject("SELECT drain_deadline FROM runtime_release_retirement_gate WHERE release_id = ?",
+                OffsetDateTime.class, TARGET.releaseId()).toInstant()).isEqualTo(deadline);
+
+            clock.when(Instant::now).thenReturn(after);
+            var restarted = f.restart();
+            assertThat(restarted.status(TARGET)).isEqualTo(draining);
+            assertThat(restarted.command(command).replay()).isTrue();
+            var second = restarted.beginIngress("second-hour", true);
+            assertThat(f.jdbc.queryForObject("SELECT created_at FROM runtime_release_retirement_turn WHERE permit_id = ?",
+                OffsetDateTime.class, first.permitId()).toInstant()).isEqualTo(before);
+            assertThat(f.jdbc.queryForObject("SELECT created_at FROM runtime_release_retirement_turn WHERE permit_id = ?",
+                OffsetDateTime.class, second.permitId()).toInstant()).isEqualTo(after).isAfter(before);
+            var snapshot = restarted.snapshot(f.binding(1));
+            assertThat(snapshot.inFlightRequests()).isEqualTo(2);
+            assertThat(f.jdbc.queryForObject("SELECT observed_at FROM runtime_release_retirement_snapshot WHERE snapshot_id = ?",
+                OffsetDateTime.class, snapshot.snapshotId()).toInstant()).isEqualTo(after);
+            restarted.finishTurn(first);
+            restarted.finishTurn(second);
+            var fenced = restarted.command(new Command(f.binding(2), 1, CommandType.FENCE_AUTHORITY, null, null)).current();
+            assertThat(fenced.state()).isEqualTo(State.AUTHORITY_REVOKED);
+            assertThat(fenced.drainDeadline()).isEqualTo(deadline);
+            assertThat(fenced.updatedAt()).isEqualTo(after).isAfter(draining.updatedAt());
+            assertThat(f.jdbc.queryForList("SELECT created_at FROM runtime_release_retirement_command ORDER BY fence_epoch",
+                OffsetDateTime.class)).extracting(OffsetDateTime::toInstant).containsExactly(before, after);
+        } finally {
+            TimeZone.setDefault(previous);
+        }
+    }
+
+    @Test
     void rejectsChangedPayloadWrongTargetAndStaleFence() {
         var f = new RuntimeRetirementTestFixture();
         f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
@@ -100,10 +212,8 @@ class RuntimeTargetRetirementServiceTest {
             .hasMessageContaining("STALE_RETIREMENT_FENCE");
         assertThatThrownBy(() -> f.service.status(new Target("other", "staging", "release-1")))
             .hasMessageContaining("RUNTIME_TARGET_SCOPE_MISMATCH");
-        var wrongGeneration = new RuntimeTargetRetirementIdentity(true, "dep-123", "staging", "release-2", "tenant-1", true);
-        var replacement = new RuntimeTargetRetirementService(wrongGeneration, f.jdbc, f.schema, f.inventory, f.mapper,
-            new org.springframework.jdbc.datasource.DataSourceTransactionManager(f.dataSource));
-        assertThatThrownBy(() -> replacement.status(wrongGeneration.target())).hasMessageContaining("PERSISTED_RUNTIME_GENERATION_MISMATCH");
+        var replacement = f.replacement("release-2");
+        assertThatThrownBy(() -> replacement.service().status(TARGET)).hasMessageContaining("RUNTIME_TARGET_SCOPE_MISMATCH");
     }
 
     @Test
@@ -131,12 +241,43 @@ class RuntimeTargetRetirementServiceTest {
         f.session("owned", "alice", "ACTIVE", "{}");
         TurnPermit late = f.service.beginTurn(f.caller("alice"), "owned", false);
         f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
-        assertThatThrownBy(() -> f.service.guard(late, null).verifyBeforeAction(null, null)).hasMessageContaining("STALE_RUNTIME_TURN");
+        assertThatCode(() -> f.service.guard(late, null).verifyBeforeAction(null, null)).doesNotThrowAnyException();
         f.service.command(f.command(2, 1, CommandType.CANCEL_DRAIN));
         f.service.requireNewSessionAllowed();
         assertThatThrownBy(() -> f.service.verifyTurn(late)).hasMessageContaining("STALE_RUNTIME_TURN");
         assertThat(f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN)).current().state()).isEqualTo(State.ACTIVE);
         f.service.finishTurn(late);
+    }
+
+    @Test
+    void expiredCommandsCannotStartDrainOrFenceButCancellationRemainsAvailable() {
+        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+        assertThatThrownBy(() -> f.service.command(new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, Instant.EPOCH, null)))
+            .hasMessageContaining("RETIREMENT_DEADLINE_ELAPSED");
+        assertThat(f.service.status(TARGET).state()).isEqualTo(State.ACTIVE);
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        f.jdbc.update("UPDATE runtime_release_retirement_gate SET drain_deadline = ? WHERE release_id = 'release-1'",
+            Instant.EPOCH.atOffset(java.time.ZoneOffset.UTC));
+        assertThatThrownBy(() -> f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY)))
+            .hasMessageContaining("RETIREMENT_DEADLINE_ELAPSED");
+        assertThat(f.service.status(TARGET).fenceEpoch()).isEqualTo(1);
+        assertThat(f.service.command(f.command(2, 1, CommandType.CANCEL_DRAIN)).current().state()).isEqualTo(State.ACTIVE);
+    }
+
+    @Test
+    void aLaterDrainDoesNotReadmitPermitsInvalidatedByCancellation() {
+        var f = new RuntimeRetirementTestFixture();
+        f.session("owned", "alice", "ACTIVE", "{}");
+        var old = f.service.beginTurn(f.caller("alice"), "owned", false);
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        f.service.verifyTurn(old);
+        f.service.command(f.command(2, 1, CommandType.CANCEL_DRAIN));
+        var current = f.service.beginTurn(f.caller("alice"), "owned", false);
+        f.service.command(f.command(3, 2, CommandType.BEGIN_DRAIN));
+        assertThatThrownBy(() -> f.service.verifyTurn(old)).hasMessageContaining("STALE_RUNTIME_TURN");
+        f.service.verifyTurn(current);
+        f.service.finishTurn(old);
+        f.service.finishTurn(current);
     }
 
     @Test

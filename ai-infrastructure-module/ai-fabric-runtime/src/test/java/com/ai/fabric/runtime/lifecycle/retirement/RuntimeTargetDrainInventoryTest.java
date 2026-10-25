@@ -99,7 +99,8 @@ class RuntimeTargetDrainInventoryTest {
     void expiredDeadlineDoesNotCloseDeleteExpireOrDropOutstandingWork() {
         var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
         f.session("owned", "alice", "ACTIVE", "{\"confirmationStack\":[{\"action\":\"one\"}]}");
-        f.service.command(new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, java.time.Instant.EPOCH, null));
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        expireDrain(f);
         Snapshot snapshot = f.service.snapshot(f.binding(1));
         assertThat(snapshot.deadlineElapsed()).isTrue();
         assertThat(observed(snapshot.openConversations(), "chat_sessions+ai_conversation_control")).isEqualTo(1);
@@ -109,6 +110,12 @@ class RuntimeTargetDrainInventoryTest {
 
     private Long observed(Metric metric, String source) {
         return metric.observations().stream().filter(observation -> observation.source().equals(source)).findFirst().orElseThrow().observedCount();
+    }
+
+    private void expireDrain(RuntimeRetirementTestFixture f) {
+        // Simulate time passing after a valid admission, without dropping any accepted work.
+        f.jdbc.update("UPDATE runtime_release_retirement_gate SET drain_deadline = ? WHERE release_id = 'release-1'",
+            java.sql.Timestamp.from(java.time.Instant.EPOCH));
     }
 
     @Test
@@ -174,7 +181,8 @@ class RuntimeTargetDrainInventoryTest {
             {"confirmationStack":[{"action":"first"},{"action":"second"}],
              "actionDraft":{"action":"collect_contact","params":{"name":"Alice"}}}
             """);
-        f.service.command(new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, java.time.Instant.EPOCH, null));
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        expireDrain(f);
 
         Snapshot snapshot = f.service.snapshot(f.binding(1));
 

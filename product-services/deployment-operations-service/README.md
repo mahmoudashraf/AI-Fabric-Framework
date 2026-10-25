@@ -207,7 +207,8 @@ Unknown commands return 404. An enforced denial has no allocation to activate.
   counts remain counted. This is an observation, **not a request to stop or delete**.
   Existing STOPPED records are conservatively projected this way without rewriting
   their history. The v1 outcome contract has no reclamation certificate, so it
-  cannot release retained storage, even after a lifecycle job reports completion.
+  cannot release retained storage. Separately, exact verified lifecycle RETIRE
+  completion can settle its pinned service allocation to zero, as described below.
 
 Outcomes after hold expiry are accepted and remain auditable. A failed operation
 may later be observed active or stopped; the service never infers that transition.
@@ -432,6 +433,19 @@ with its core claim retained; expiry is not cancellation, RELEASE, or absence.
 SUCCEEDED is recorded only after successful RELEASE. Core must provide truthful
 unsupported/blocker receipts for missing graceful/provider capabilities and must
 not turn opaque strings into drain, deletion or reclamation proof.
+
+On registration, V3 pins the current capacity assessment command only when its
+stored release/customer/tenant/deployment/target exactly match the job. Successful
+STOP + VERIFY + RELEASE settles only that still-current allocation to STOPPED
+with disk and provisioned counts retained. RETIRE additionally requires successful
+DELETE and settles it to STOPPED with zero current demand. The allocation update
+and durable CAPACITY_SETTLED event share the RELEASE transaction. Assessments,
+original outcome history, command identity and financial records are not rewritten;
+late outcomes cannot reactivate a settled command without a new assessment.
+Superseding assessments (even for the same release), foreign or uncorrelated
+allocations, pending/unknown phases, cancellation, RECOVER and RECONCILE never
+reduce capacity. Jobs registered before V3 have no pinned command and are not
+backfilled or used to settle capacity retroactively.
 
 ## Lifecycle scheduling and notices
 

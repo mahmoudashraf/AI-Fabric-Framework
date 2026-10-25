@@ -149,6 +149,9 @@ platform:
     runtime-proxy-timeout-ms: ${PLATFORM_RUNTIME_PROXY_TIMEOUT_MS:60000}
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
+  deployment-lifecycle:
+    enabled: ${PLATFORM_DEPLOYMENT_LIFECYCLE_ENABLED:false}
+    api-key: ${PLATFORM_DEPLOYMENT_LIFECYCLE_API_KEY:}
   deployment-operations:
     mode: ${PLATFORM_DEPLOYMENT_OPERATIONS_MODE:DISABLED}
     service-url: ${PLATFORM_DEPLOYMENT_OPERATIONS_SERVICE_URL:}

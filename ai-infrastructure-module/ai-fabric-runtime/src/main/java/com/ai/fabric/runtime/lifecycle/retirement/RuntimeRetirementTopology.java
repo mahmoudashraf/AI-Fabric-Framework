@@ -88,6 +88,13 @@ public class RuntimeRetirementTopology {
             if (feature == Feature.DOCUMENTS && coverage.covers("DocumentKnowledgeService.cleanupRetentionScheduled", "DocumentKnowledgeService.reconcilePending")) continue;
             if (feature == Feature.ACTION_WEBHOOK && coverage.covers("RuntimeActionWebhookDeliveryWorker.dispatchReadyDeliveries")) continue;
             if (feature == Feature.SMART_BRAIN && coverage.covers("SmartBrainOperationWorker.process", "SmartBrainDeliveryWorker.deliver")) continue;
+            if ((feature == Feature.SPECIALIST_EXECUTION || feature == Feature.SPECIALIST_CHAINS)
+                && coverage.covers("runtime-ingress", "aiFabricExecutionTaskExecutor.attempts")) continue;
+            if (feature == Feature.INDEXING && coverage.covers("runtime-ingress", "IndexingQueueService.enqueue",
+                "IndexingQueueService.enqueueForSynchronousDispatch", "IndexingQueueService.lease", "IndexingQueueService.claimSynchronous",
+                "IndexingQueueService.markCompleted", "IndexingQueueService.markFailure", "IndexingQueueService.markSuperseded",
+                "IndexingWorkProcessor.process", "AsyncIndexingWorker.run", "BatchIndexingWorker.run", "SyncIndexingRetryWorker.run",
+                "IndexingCleanupScheduler.reclaimStuckEntries", "IndexingCleanupScheduler.purgeOldEntries")) continue;
             result.add(switch (feature) {
                 case CONVERSATION_HANDOVER -> "HANDOVER_LOCAL_EFFECT_FENCE_UNVERIFIED";
                 case HUMAN_REVIEW -> "FRAMEWORK_REVIEW_RECOVERY_TARGET_EPOCH_FENCE_UNSUPPORTED";

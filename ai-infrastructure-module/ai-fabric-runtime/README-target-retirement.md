@@ -1,150 +1,99 @@
-# Private Runtime Target Retirement
+# Optional Release-Scoped Runtime Drain
 
-App-owned R3 drain service; framework 0.8.35 retirement state remains read-only. V12
-owns target retirement and V13 owns explicit same-target generation transition.
+This LoomAI capability uses AI Fabric 0.8.41 without framework changes. It is
+disabled by default, including when target/release metadata is present. Normal
+cold apply does not require a drain, operations-service availability or generation
+adoption. Core's confirmed native stop is the cross-release single-writer boundary.
 
-## Configuration
-Provider injects exact `LOOMAI_RUNTIME_TARGET_PROFILE_ID`,
-`LOOMAI_RUNTIME_RELEASE_ID`, and existing `AI_FABRIC_RUNTIME_DEPLOYMENT_ID` /
-`AI_FABRIC_RUNTIME_TENANT_ID` (or configured auth-default properties). A supplied
-target/release enables retirement; partial identity fails startup.
-`LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED` is an optional legacy override, never
-a restore mechanism. `LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE=true`
-attests this datasource/schema is exclusive to the configured generation;
-otherwise observations remain visible but target totals are incomplete/null.
-The durable singleton rejects changed target/release/tenant or topology.
+## Enablement And Storage
 
-The packaged manifest proves support, not enabled-capability absence. Provider
-may supply a release-evidence-verified immutable certificate through
-`LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON` and its exact UTF-8 SHA-256 hex digest
-`LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256`:
+A reviewed immutable version may select `providerConfigJson.operationalDrainEnabled=true`.
+The Coolify renderer requires a pinned artifact advertising
+`runtime-release-scoped-drain-v1` and migration ID
+`runtime-release-scoped-retirement-v24`, exact frozen authority, and a dedicated
+target datasource/schema. It emits `LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED=true`,
+the exact deployment/tenant/target/release identity and an immutable
+`LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V2` contract plus its UTF-8 SHA-256 digest.
+Specialist execution uses JDBC state with existing frozen encryption/fingerprint
+secrets. Absent/false opt-in leaves ordinary cold configuration unchanged.
 
-```json
-{
-  "contractVersion": "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V1",
-  "target": {"deploymentId": "dep-123", "targetProfileId": "staging", "releaseId": "release-1"},
-  "tenantId": "tenant-1",
-  "features": {
-    "CHAT_SESSIONS": "PRESENT", "CONVERSATION_HANDOVER": "ABSENT",
-    "HUMAN_REVIEW": "ABSENT", "SPECIALIST_EXECUTION": "ABSENT",
-    "SPECIALIST_CHAINS": "ABSENT", "SMART_BRAIN": "ABSENT",
-    "ACTION_WEBHOOK": "ABSENT", "INDEXING": "ABSENT",
-    "DOCUMENTS": "ABSENT", "SCHEDULER": "ABSENT"
-  },
-  "remoteDependencies": ["CONNECTOR", "HUMAN_INBOX"]
-}
-```
+V24 creates release-scoped gate, command, snapshot, turn/worker-permit and index
+receipt tables. Every active lookup uses tenant + deployment + target + release.
+Each new release starts ACTIVE at epoch zero, even when the same artifact is
+cold-applied against retained AI storage after an older release was draining or
+fenced. Old gates, command history and unsettled permits remain intact but are
+not adopted, reset or counted as the new release's lifecycle attempts.
 
-All features and remote obligations must be explicitly certified upstream, not
-caller-authored. Target/tenant/digest are verified and the digest pinned. ABSENT
-must agree with explicit false enabled properties: `ai.chat.enabled`,
-`loomai.conversation-handover.enabled`, `ai.execution.reviews.enabled`,
-`ai.execution.enabled`, `ai.execution.specialist-chains.enabled`,
-`loomai.smart-brain.enabled` (also SCHEDULER), `ai.indexing.enabled`,
-`loomai.documents.enabled`. ACTION_WEBHOOK has no enable switch: upstream must
-prove absence from the release's action/post-policy contract. Existing stores
-are still inspected; residual rows or malformed schemas cannot become fake zero.
+During V24 only, a fully identified legacy singleton and its unsettled permits
+are copied to that exact release tuple. A same-release artifact restart retains
+its state, epoch and fence; incompatible topology fails closed. No legacy gate
+is copied into a different release, and the old tables remain unchanged.
 
-## Private API
-All routes are POST under `/api/private/runtime-target-retirement`:
-- `/status`: body `{deploymentId,targetProfileId,releaseId}`; current durable state/epoch.
-- `/commands`: command below; persisted `applied`, actual `current`, and `replay`.
-- `/snapshots`: body `binding`; fresh persisted counts/evidence reference.
-- `/snapshots/{snapshotId}/readback`: same binding; saved evidence only while current fence matches.
-- `/generation-transitions`: adopt an exact replacement release after the old
-  generation is locally drained, authority-fenced, and provider stop/readback
-  evidence has been recorded by the control plane.
+AI state remains target-owned. Existing conversations, document catalogs,
+manifests, indexing state and other data are not reset or moved. Actual outstanding
+target-owned work still blocks drain. Old singleton/generation tables remain
+audit history and are never read or written by the active gate implementation.
 
-```json
-{
-  "binding": {
-    "target": {"deploymentId": "dep-123", "targetProfileId": "staging", "releaseId": "release-1"},
-    "fenceEpoch": 1,
-    "operationId": "platform-retirement-operation-id",
-    "requestFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  },
-  "expectedFenceEpoch": 0,
-  "type": "BEGIN_DRAIN",
-  "drainDeadline": "2030-01-01T00:00:00Z",
-  "externalEvidenceReference": null
-}
-```
+## Private Protocol
 
-Types: BEGIN_DRAIN, CANCEL_DRAIN, FENCE_AUTHORITY,
-RECORD_AUTHORITY_REVOCATION, RECORD_RECLAIM_STARTED. Epoch must advance with
-expected-epoch CAS. Retry requires the entire same payload digest; operation and
-fingerprint cannot change mid-drain. Repeat drain cannot change deadline.
-Cancellation requires DRAINING and no durable revocation/reclaim flags.
-RECORD_* requires external audit reference and records an already-observed event,
-not permission to perform it. FENCE_AUTHORITY requires fresh local drain proof
-and parent R5 readback reference when remote obligations exist; it fences runtime
-ingress/workers, not provider secrets. Deadline expiry never resolves work.
+POST routes under `/api/private/runtime-target-retirement`:
 
-Use existing trusted API key plus signed private assertion:
-`X-AIFABRIC-RUNTIME-API-KEY` and
-`X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ...`. Required mode/caller are private
-backend-mediated/TRUSTED_BACKEND; subject is TRUSTED_BACKEND or SYSTEM_PROCESS.
-Require matching deployment/tenant and `runtime:target-retirement:read` or
-`runtime:target-retirement:write`; existing issuer/audience/expiry checks apply.
-Public tokens, bare keys, platform/end-user/contact identities and cross-scope
-commands fail. Responses are no-store.
+- `/status`: exact target; current release-local state and epoch.
+- `/commands`: binding, expected epoch, command, frozen deadline and optional core evidence reference.
+- `/snapshots`: binding; fresh persisted observations and remote obligations.
+- `/snapshots/{snapshotId}/readback`: same current binding and release; saved evidence.
+- `/index-retirements` and `/index-retirements/readback`: separately authorized, exact fenced index scope; never implicit cold/STOP cleanup.
 
-Generation transition is a separate write command. It binds the exact previous
-and next release on the same deployment/target/tenant, previous and next
-topology fingerprints, expected retirement fence, an idempotent operation and
-request fingerprint, and a bounded provider stop/readback reference. The old
-generation must already be `AUTHORITY_REVOKED`, with complete persisted local
-drain evidence and zero unsettled permits. The new runtime may expose only this
-private transition route while its environment identifies a not-yet-adopted
-release; every ordinary protected route continues to fail with
-`PERSISTED_RUNTIME_GENERATION_MISMATCH`. Successful adoption advances the
-fence, activates the new generation, retains runtime data and audit evidence,
-and causes old workers to fail on their next gate check. Exact retries replay
-the receipt; changed payloads, topology, target, tenant, operation or provider
-evidence fail closed. Startup variables alone never authorize adoption.
+`/generation-transitions` and `/cold-maintenance-generation-transitions` are
+retired. They still authenticate before returning HTTP 410; they cannot adopt or
+restore a generation. The manifest no longer advertises generation adoption.
 
-## Counts And Fencing
-Metrics expose real source observations; aggregate is null unless every local
-source/provider/isolation is verified. Open references union sessions/control;
-all stored confirmationStack entries count, including closed/expired-but-present
-sessions. Human observations cover handover/review/orphan control. Background
-covers interaction/outbox/review dispatch, specialist/chain, Smart Brain,
-webhook, indexing, document work/source/manifest and Quartz stores. Partial/dead
-work remains outstanding. Missing beans/tables alone never prove zero.
+Use the existing private API key and signed assertion. Deployment/tenant,
+issuer/audience/expiry, trusted backend caller and read/write scopes remain
+mandatory. Responses are no-store. Named errors are a sanitized `{ "code": ... }`;
+`DRAIN_NOT_PROVED_COMPLETE` means reobserve, not success.
 
-Drain defaults to blocking new API mutations: documents/indexing/data-sync,
-connector replay/reconcile, new agentic work and bootstrap. Exact continuation
-routes in RuntimeRetirementIngressConfiguration retain existing messages/control,
-anonymous renewal, review decisions, channel callbacks/dispatch completion and
-cancellation; existing resource/owner auth remains mandatory. Persisted ownership,
-not a caller-selected conversation ID, permits chat continuation. Store/control
-SPI writes serialize with drain. Durable request permits survive crashes without
-automatic expiry; unsettled requests block completion.
+BEGIN_DRAIN blocks new roots and allows existing owned continuations. Accepted
+turns remain valid during that drain; cancellation advances the fence and cannot
+restore old permits. Commands use exact payload replay and expected-epoch CAS.
+BEGIN/FENCE and other non-cancel mutations cannot execute after the frozen
+deadline. Expiry does not erase work, authorize disposal or silently select cold.
 
-Interactive turns use actual 0.8.35 OrchestrationTurnGuard action/result checkpoints.
-App-owned handover/document/Smart Brain/webhook worker effects hold the durable
-gate lock; scheduled registration uses fenced proxies. New scheduled retention
-cleanup stops during drain. Verified installed guards and certified absence
-compute workerFencingComplete. Enabled framework execution/chain recovery,
-review recovery, indexing processors and Quartz trigger creation lack the needed
-app target-epoch fencing in inspected 0.8.35 and retain specific named blockers.
-Custom/in-memory providers without complete enumeration also block.
+CANCEL is allowed only before irreversible authority/reclaim flags. Once
+AUTHORITY_REVOKED, restarting the same release does not restore authority. A new
+cold-applied release has its own gate; there is no same-release resume shortcut.
 
-## Parent R5 And Data
-`localDrainComplete` is independent of `remoteObligations` CONNECTOR/HUMAN_INBOX.
-Parent must merge target-generation/fence-bound authoritative connector unresolved
-sync/indexing scopes and inbox work/reference/worker-fence readbacks. Local proof
-alone is not reclaim permission. `reclaimable` also requires no remote obligations.
-The signed FENCE_AUTHORITY reference records the parent's R5 proof; runtime does
-not pretend it fetched/validated remote stores. Refresh counts after uncertain
-responses and explicitly read back status/snapshot.
+## Actual Worker Coverage
 
-V12 stores identity/topology/fence, command receipts, snapshots and unsettled
-permits. V13 stores immutable transition receipts and before/after fences. No
-deployment/resource/session/source deletion, replay/movement, contact auth
-change or TTL shortening. Production/shared resources are outside this slice.
+Runtime-owned ingress, store/control and worker adapters remain owner-safe.
+Indexing adapters cover queue dispatch/claim, synchronous after-commit processing,
+scheduled lease/process/ack and cleanup boundaries. The injected
+`aiFabricExecutionTaskExecutor` decorates actual specialist/parallel-chain tasks.
+Durable attempts remain visible until executing code exits, even when a framework
+row or future has already been cancelled/expired. They do not hold one exclusive
+database lock while a parent waits for parallel children.
 
-Tests: RuntimeTargetRetirementServiceTest, RuntimeTargetDrainInventoryTest,
-RuntimeRetirementSecurityAndIngressTest; shared RuntimeRetirementTestFixture.
-Isolated javac/JUnit verification writes only to /tmp. Maven remains reserved for
-the parent's sequential build; no commit/push, public framework edit or live action.
+Complete inventory and installed boundary coverage are both required. Unsupported
+custom/in-memory stores, enabled review recovery and Quartz scheduling retain
+explicit blockers. Missing tables or workers never become zero evidence. Crashed
+attempts are not silently expired into success.
+
+## Remote Obligations
+
+Local drain is not remote quiescence. Snapshots retain exact CONNECTOR,
+VECTORIZATION_RUNNER and HUMAN_INBOX obligations from the frozen topology.
+The core gateway exposes their actual kinds in `Result.remoteDependencies()`.
+It returns local readiness from OBSERVE_DRAIN, but FENCE cannot proceed without
+a real core-owned journal reference when obligations exist.
+
+The parent owns supported native worker/Inbox stop and authoritative host readback,
+with durable intent and exact ownership. Runtime FENCE captures a fresh snapshot
+and rechecks local work after that step. A journal reference is not supplied by
+the operations-service job. Unknown external providers remain blocked. Physical
+stop evidence must not be described as proof that remote in-flight work completed
+gracefully. No business-system, external vector service or customer S3 deletion is
+implicit in this protocol.
+
+The smallest fully local graceful canary uses Runtime-owned documents/indexing,
+JDBC specialists and no remote dependencies. Hosted qualification remains the
+parent's responsibility; capability advertisement is not a hosted success claim.

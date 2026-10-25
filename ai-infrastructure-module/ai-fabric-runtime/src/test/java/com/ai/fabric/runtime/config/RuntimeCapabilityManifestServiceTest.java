@@ -34,7 +34,7 @@ class RuntimeCapabilityManifestServiceTest {
             "conversation-event-stream"
             ,"deployment-local-provider-budget-v1"
             ,"deployment-local-provider-budget-validity-extension-v1"
-            ,"runtime-cold-maintenance-generation-adoption-v1"
+            ,"runtime-release-scoped-drain-v1"
         );
         assertThat(strings(manifest.path("migrationIds"))).contains(
             "ai-specialist-chain-execution-v1",
@@ -46,6 +46,7 @@ class RuntimeCapabilityManifestServiceTest {
             "loomai-conversation-orchestration-state-v1"
             ,"provider-budget-accounting-v1"
             ,"provider-budget-validity-extensions-v1"
+            ,"runtime-release-scoped-retirement-v24"
         );
         assertThat(strings(manifest.path("verificationPackIds"))).contains(
             "agentic-specialist-team-v1",
@@ -55,7 +56,9 @@ class RuntimeCapabilityManifestServiceTest {
             ,"provider-budget-hard-limit-v1"
             ,"provider-budget-validity-extension-v1"
         );
-        assertThat(strings(manifest.path("endpointClasses"))).contains("provider-budget-administration", "runtime-cold-maintenance-generation-adoption");
+        assertThat(strings(manifest.path("endpointClasses"))).contains("provider-budget-administration", "runtime-release-scoped-drain");
+        assertThat(strings(manifest.path("endpointClasses"))).doesNotContain("runtime-cold-maintenance-generation-adoption");
+        assertThat(strings(manifest.path("capabilities"))).doesNotContain("runtime-cold-maintenance-generation-adoption-v1");
         Map<String, Object> projection = service.manifestProjection();
         assertThat(projection).containsEntry("schemaVersion", "loomai-runtime-capabilities-v1");
         assertThat(projection).containsEntry("aiFabricVersion", "0.8.41");

@@ -1862,10 +1862,12 @@ public class DeploymentService {
         boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
         boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
         boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
+        boolean operationalDrainRequired = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled").asBoolean(false);
         if (!requirements.capabilityManifestRequired()
             && !documentKnowledgeRequired
             && !externalHttpIntegrationRequired
-            && !customerBackendIngestionRequired) {
+            && !customerBackendIngestionRequired
+            && !operationalDrainRequired) {
             if (!StringUtils.hasText(sourceArtifactId)) {
                 return;
             }
@@ -1895,7 +1897,7 @@ public class DeploymentService {
                 "Capability-attested behaviors require a Coolify IMAGE_SOURCE target so the selected immutable artifact is the build that gets deployed."
             );
         }
-        if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired || externalHttpIntegrationRequired)
+        if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired || externalHttpIntegrationRequired || operationalDrainRequired)
             && !DeploymentAiStateStorageSelection.durable(readJson(version.getProviderConfigJson()),
                 readJson(targetProfile.getResourceDefaultsJson()))) {
             throw new ResponseStatusException(
@@ -1938,6 +1940,9 @@ public class DeploymentService {
             manifest,
             requirements
         );
+        if (operationalDrainRequired) {
+            com.ai.fabric.platform.backend.deployment.operations.lifecycle.RuntimeDrainArtifactGate.require(manifest);
+        }
         if (documentKnowledgeRequired) {
             sourceCapabilityManifestService.requireDocumentKnowledgeSupport(manifest);
         }

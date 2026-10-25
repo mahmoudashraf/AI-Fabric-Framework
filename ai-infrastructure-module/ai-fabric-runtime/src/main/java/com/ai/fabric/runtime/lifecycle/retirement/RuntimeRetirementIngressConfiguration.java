@@ -14,11 +14,16 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration(proxyBeanMethods = false)
 public class RuntimeRetirementIngressConfiguration implements WebMvcConfigurer {
     private final RuntimeTargetRetirementService service;
-    public RuntimeRetirementIngressConfiguration(RuntimeTargetRetirementService service) { this.service = service; }
+    private final RuntimeRetirementFencingCoverage coverage;
+    public RuntimeRetirementIngressConfiguration(RuntimeTargetRetirementService service, RuntimeRetirementFencingCoverage coverage) {
+        this.service = service;
+        this.coverage = coverage;
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new DrainIngress(service)).addPathPatterns("/api/**");
+        coverage.installed("runtime-ingress");
     }
 
     public static final class DrainIngress implements HandlerInterceptor {

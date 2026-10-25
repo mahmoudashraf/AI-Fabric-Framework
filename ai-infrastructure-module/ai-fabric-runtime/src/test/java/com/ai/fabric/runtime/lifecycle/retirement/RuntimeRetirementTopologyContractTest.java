@@ -15,6 +15,38 @@ import org.springframework.mock.env.MockEnvironment;
 class RuntimeRetirementTopologyContractTest {
 
     @Test
+    void indexingAndSpecialistCapabilitiesRequireEveryInstalledBoundaryNotJustWorkerPresence() throws Exception {
+        var mapper = new ObjectMapper();
+        var identity = new RuntimeTargetRetirementIdentity(true, "dep-1", "target-1", "release-1", "tenant-1", true);
+        var features = new java.util.EnumMap<RuntimeRetirementTopology.Feature, RuntimeRetirementTopology.Presence>(RuntimeRetirementTopology.Feature.class);
+        for (var feature : RuntimeRetirementTopology.Feature.values()) features.put(feature, RuntimeRetirementTopology.Presence.ABSENT);
+        features.put(RuntimeRetirementTopology.Feature.CHAT_SESSIONS, RuntimeRetirementTopology.Presence.PRESENT);
+        features.put(RuntimeRetirementTopology.Feature.INDEXING, RuntimeRetirementTopology.Presence.PRESENT);
+        features.put(RuntimeRetirementTopology.Feature.SPECIALIST_EXECUTION, RuntimeRetirementTopology.Presence.PRESENT);
+        var contract = new RuntimeRetirementTopology.Contract(RuntimeRetirementTopology.VERSION, identity.target(), "tenant-1",
+            features, java.util.List.of(), new RuntimeRetirementTopology.VectorScope("pinecone", "NAMESPACE_PREFIX", "dep-1-target-1", java.util.List.of("document")));
+        String raw = mapper.writeValueAsString(contract);
+        var environment = new MockEnvironment().withProperty("loomai.runtime.target-retirement.topology-json", raw)
+            .withProperty("loomai.runtime.target-retirement.topology-sha256", HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8))));
+        for (String key : java.util.List.of("loomai.conversation-handover.enabled", "ai.execution.reviews.enabled",
+            "ai.execution.specialist-chains.enabled", "loomai.smart-brain.enabled", "loomai.documents.enabled")) environment.withProperty(key, "false");
+        var topology = new RuntimeRetirementTopology(environment, mapper, identity);
+        var coverage = new RuntimeRetirementFencingCoverage();
+        coverage.installed("runtime-ingress");
+        coverage.installed("AsyncIndexingWorker.run");
+        assertThat(topology.fencingBlockers(true, coverage)).contains(
+            "FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED",
+            "FRAMEWORK_EXECUTION_RECOVERY_TARGET_EPOCH_FENCE_UNSUPPORTED:SPECIALIST_EXECUTION");
+        for (String boundary : java.util.List.of("aiFabricExecutionTaskExecutor.attempts", "IndexingQueueService.enqueue",
+            "IndexingQueueService.enqueueForSynchronousDispatch", "IndexingQueueService.lease", "IndexingQueueService.claimSynchronous",
+            "IndexingQueueService.markCompleted", "IndexingQueueService.markFailure", "IndexingQueueService.markSuperseded",
+            "IndexingWorkProcessor.process", "BatchIndexingWorker.run", "SyncIndexingRetryWorker.run",
+            "IndexingCleanupScheduler.reclaimStuckEntries", "IndexingCleanupScheduler.purgeOldEntries")) coverage.installed(boundary);
+        assertThat(topology.fencingBlockers(true, coverage)).isEmpty();
+    }
+
+    @Test
     void canonicalConversationTopologyRequiresOrchestrationStateFenceCoverage() {
         var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of(), true);
         var coverage = new RuntimeRetirementFencingCoverage();

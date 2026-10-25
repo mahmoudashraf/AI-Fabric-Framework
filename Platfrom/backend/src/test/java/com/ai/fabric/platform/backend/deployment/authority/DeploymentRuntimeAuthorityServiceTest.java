@@ -88,6 +88,26 @@ class DeploymentRuntimeAuthorityServiceTest {
         order.verify(secrets, atLeastOnce()).save(any());
     }
 
+    @Test void conversationalDrainOptInGetsSeparateTargetOwnedAsyncSecretsWithoutEnablingSmartBrain() {
+        deployment.setBehaviorType("CONVERSATIONAL");
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":true}");
+        var staged = freeze("staging"); var production = freeze("production");
+        assertThat(staged.binding().secrets()).containsKeys(SMART_BRAIN_JOB_ENCRYPTION, SMART_BRAIN_JOB_FINGERPRINT);
+        assertThat(staged.binding().secrets()).doesNotContainKeys(SMART_BRAIN_ENCRYPTION, SMART_BRAIN_DELIVERY_SIGNING);
+        assertThat(key(staged, SMART_BRAIN_JOB_ENCRYPTION)).isNotEqualTo(key(production, SMART_BRAIN_JOB_ENCRYPTION));
+        var env = service.candidateEnvironmentPlan("dep-1", "staging", "version-1", staged.snapshotId(), staged.fingerprint());
+        assertThat(env.runtime()).containsKeys("AI_EXECUTION_ASYNC_ENCRYPTION_SECRET", "AI_EXECUTION_ASYNC_FINGERPRINT_SECRET");
+    }
+
+    @Test void lifecycleIssuingRequiresAnActualPersistedCommandClaimNotAnAmbientOperator() {
+        var frozen = release("staging", "release-lifecycle");
+        var release = releases.findById(frozen.releaseId()).orElseThrow();
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN);
+        assertThatThrownBy(() -> service.issueLifecycleHeaders(deployment, release, "operation", true))
+            .hasMessageContaining("LIFECYCLE_SCOPE_REQUIRED");
+        verify(audit, never()).record(eq("RUNTIME_TARGET_AUTHORITY_REVOKED"), anyString(), anyString(), anyMap());
+    }
+
     @org.junit.jupiter.api.AfterEach void clearPrincipal() {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }

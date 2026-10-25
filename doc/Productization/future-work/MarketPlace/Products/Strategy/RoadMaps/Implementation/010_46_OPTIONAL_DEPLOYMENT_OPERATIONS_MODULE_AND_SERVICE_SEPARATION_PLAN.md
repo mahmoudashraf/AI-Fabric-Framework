@@ -1,6 +1,6 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service delivery and full Platform-core decoupling are implemented, committed and verified on staging and production. The fresh customer journey, actual cold replacement, production promotion and owned-only cleanup are complete. Advanced automatic operations remain explicitly deferred, not active core prerequisites or claims of this delivery.
+**Status:** Direct-service delivery and Platform-core decoupling are implemented and verified on staging and production. The owner has now explicitly authorized the advanced operational machinery in the independent service. That additional delivery is in progress, not covered by the earlier core-decoupling closure. See section 11.
 **Date:** 24-25 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
@@ -750,3 +750,119 @@ Private execution receipts, scoped browser screenshots, native ownership/absence
 Use the service README for the independent build/process test and core mode configuration. Reproduce the customer proof with a new owned reviewed deployment, separately scoped staging/production external vectors and customer-owned S3 prefixes. Use the existing hosted document-indexing and workspace-journey runners against actual activation/source IDs; do not replay a prior confirmation or reuse an old receipt as a new pass.
 
 No framework release, semantic text-matching workaround, fabricated reservation/allowance, source-security waiver, customer business-system provisioning or hidden provider-error fallback was introduced. Real source setup was completed and reverified instead of converting the initial missing-document failure into a pass.
+
+## 11. Advanced Operational Machinery: Authorized Transfer
+
+**Owner authorization, 25 October 2026:** Implement advanced draining, retirement,
+expiry and recovery automation in the independent operations service. The earlier
+decision to defer these engines was an implementation scope assumption, not an
+owner instruction to discard them. Section 10 closes core decoupling only; it does
+not close this additional work.
+
+The service owns explicit jobs, policies, due dates, durable phase progress,
+notifications and restart continuation. Platform owns a narrow authenticated
+command gateway, exact release/resource authorization, native provider effects
+and local mutation exclusion. Runtime owns local ingress/worker fencing and
+truthful observations. No service access to Platform tables or provider/admin
+credentials is permitted. Normal cold apply, promotion and chat must still work
+without this service.
+
+Reuse the old implementation's exact-target ownership, durable effect intent and
+readback rules. Do not restore recovery during ordinary reads, mutable-latest
+release selection, guessed stale-work thresholds or blind native redispatch.
+An unknown effect remains unknown until actual readback settles it. Stopping
+compute while retaining storage is not reclamation. Missing worker coverage is
+not a successful graceful drain. A cold stop is explicitly distinct from drain.
+
+Initial workflow goals are STOP, RETIRE, RECOVER and observation-only RECONCILE.
+STOP/RETIRE may use explicit COLD or GRACEFUL mode. Expiry is an explicitly
+authorized scheduled job, not deletion authority inferred from a capacity hold.
+Policies default off and no historical legacy operation is adopted or replayed.
+Destructive grants freeze release/configuration/resource identity and must not
+follow a reused provider handle into a later cold replacement. External business
+systems, external vector services and customer S3 objects are never deleted by a
+target-retirement grant. Data disposition requires separate explicit approval.
+
+Execution tracking:
+
+- [x] Audit old engines, current service, native resource ownership and cold-replacement race.
+- [x] Implement service-owned durable workflow API, scheduler, events and bounded gateway client.
+- [x] Implement Platform exact-target grants, command receipts, mutation safety and native readback adapters.
+- [x] Integrate optional Runtime graceful capabilities without making normal cold replacement depend on them.
+- [ ] Verify duplicates, conflicts, unknown effects, restart, cancellation, deadlines, ownership and outage independence.
+- [ ] Build and qualify published images, then verify isolated hosted workflows without changing the main dealership canary.
+- [ ] Record actual supported/unsupported operations, hosted results and cleanup. Do not claim full closure before evidence exists.
+
+The main answer-quality canary `dep-011d7f62`, existing customer app assignments,
+funding/source configuration and financial history remain outside this task's
+mutation scope. Coordinate hosted changes with the main session. Shared firewall
+closure remains with that session.
+
+### 11.1 Source Implementation And Qualification
+
+The service now persists exact-grant STOP/RETIRE/RECOVER/RECONCILE jobs,
+per-phase command identities, leases, scheduled due dates, notices and a bounded
+authenticated webhook outbox. Cancellation waits for actual mutation outcomes,
+not for an indefinitely pending read-only drain observation. Renewal is explicit
+cancellation plus a newly authorized job, not mutation of an old expiry grant.
+Scheduling defaults off; enabling it does not discover or adopt historical jobs.
+Capacity settlement is pinned to the matching assessment: verified STOP retains
+storage/resource counts, verified RETIRE releases them, and a newer or foreign
+allocation cannot be reduced. Financial records remain outside that service.
+
+Core stores only exact-target authority and native-command/effect receipts.
+Provider and SSH credentials stay in core. A dedicated machine key cannot enter
+customer/operator APIs. Native work uses a separate bounded executor, so cleanup
+does not fill the release executor queue. Accepted commands can finish readback
+without the optional service; an authenticated owner can inspect/continue their
+existing authority through the native operator route. Disabling the machine
+gateway does not erase an accepted effect or pretend it has settled.
+
+Graceful fencing first proves local Runtime work, then stops and verifies owned
+connector/runner/Basic Inbox workers, then asks Runtime to independently recheck
+local work and fence authority. An unknown external human-provider worker cannot
+be authorized by an arbitrary evidence string. Native deletion separately proves
+owned container and volume absence. Recovery performs a confirmed stop/start of
+known existing resources and runs actual release verification; readable inventory
+or a healthy process alone cannot make that verification pass.
+
+Runtime gates, attempts, command receipts and snapshots are release-scoped. A
+normal confirmed cold replacement therefore creates its own gate while retaining
+target-owned AI state and old operational history. Fully scoped same-release
+legacy fences are preserved, not silently reopened. The unused cross-release
+generation-adoption protocol is explicitly retired. Opt-in drain requires a
+reviewed image advertising the new release-scoped capability and dedicated AI
+state. Old images cannot be opted in merely by changing an environment flag.
+The two async-execution secret slots are target-owned even for conversational
+deployments that opt in. This is not a Smart Brain feature activation.
+
+Qualification so far, before hosted mutation:
+
+- Independent service source commit `8633884b0` and its image workflow
+  `40148550950` passed. A subsequent focused correction adds UTC persistence,
+  verified capacity settlement and additional tests; the initial image is not
+  the final rollout candidate.
+- Final service qualification: 292 tests, including PostgreSQL, zero failures or
+  skips. Runtime's final focused release-gate/index/PostgreSQL batch: 24 tests,
+  zero failures or skips. Earlier focused Runtime worker tests also passed;
+  these overlapping batches are not summed into one distinct-test total.
+- Core final focused batch: 108 tests, including PostgreSQL command journals,
+  machine isolation, exact-target native ownership, remote worker proof, secret
+  ownership and honest recovery verification, zero failures or skips.
+- Full production migration-chain check preserved the financial-history fixture
+  and applied additive core V211 after V210. H2's test schema mirrors V211.
+- A real UK DST overlap exposed `Timestamp` conversion losing the UTC offset.
+  New lifecycle persistence now uses typed UTC `OffsetDateTime` reads/writes;
+  the failing lease/replacement cases and dedicated overlap regressions passed
+  afterward. The failed run is retained at
+  `/tmp/01046-lifecycle-final-core-tests.log`; it is not counted as a pass.
+- Final core log: `/tmp/01046-operational-final-qualification.log`. Host-entry
+  command validation and live-runner syntax checks passed locally. Hosted
+  rollout, actual workflow effects, source-image qualification and cleanup remain
+  open until separately recorded below.
+
+Boundaries: no blind resume of an unknown provider create, no historical resource
+adoption, no automatic artifact repair to a guessed latest version, and no false
+graceful coverage for unsupported human-review/scheduler/external-provider
+boundaries. These cases remain explicit blockers or operator-led new cold apply;
+they are not hidden success fallbacks or prerequisites of ordinary deployment.

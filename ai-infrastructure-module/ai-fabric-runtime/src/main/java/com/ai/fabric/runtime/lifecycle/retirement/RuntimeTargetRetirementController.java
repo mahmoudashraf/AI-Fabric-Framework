@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @RestController
 @RequestMapping("/api/private/runtime-target-retirement")
@@ -105,4 +106,12 @@ public class RuntimeTargetRetirementController {
         return caller;
     }
     private <T> ResponseEntity<T> response(T value) { return ResponseEntity.ok().header("Cache-Control", "no-store").body(value); }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<LifecycleError> lifecycleError(ResponseStatusException failure) {
+        String code = failure.getReason();
+        if (code == null || !code.matches("[A-Z][A-Z0-9_]{0,127}")) code = "RUNTIME_LIFECYCLE_REQUEST_REJECTED";
+        return ResponseEntity.status(failure.getStatusCode()).header("Cache-Control", "no-store").body(new LifecycleError(code));
+    }
+    public record LifecycleError(String code) { }
 }

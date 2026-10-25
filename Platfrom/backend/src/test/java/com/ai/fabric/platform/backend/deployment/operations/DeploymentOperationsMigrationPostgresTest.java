@@ -25,7 +25,7 @@ class DeploymentOperationsMigrationPostgresTest {
             }
             var current = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-            assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(current.migrate().migrationsExecuted).isEqualTo(2);
             current.validate();
             try (var connection = postgres.createConnection(""); var sql = connection.createStatement()) {
                 try (var result = sql.executeQuery("SELECT row_to_json(g)::text FROM provider_usage_grants g WHERE id='history-check'")) {

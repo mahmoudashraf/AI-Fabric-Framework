@@ -23,7 +23,7 @@ public class RuntimeTargetRetirementIdentity {
         @Value("${ai.fabric.runtime.auth.public-tokens.defaults.tenant-id:${AI_FABRIC_RUNTIME_TENANT_ID:}}") String tenantId,
         @Value("${loomai.runtime.target-retirement.dedicated-store:${LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE:false}}") boolean dedicatedStore
     ) {
-        this.enabled = enabled != null ? enabled : StringUtils.hasText(targetProfileId) || StringUtils.hasText(releaseId);
+        this.enabled = Boolean.TRUE.equals(enabled);
         this.target = new Target(deploymentId, targetProfileId, releaseId);
         this.tenantId = tenantId;
         this.dedicatedStore = dedicatedStore;

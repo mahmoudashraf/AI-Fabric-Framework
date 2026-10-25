@@ -78,7 +78,8 @@ public class PlatformSecurityConfiguration {
     }
 
     @Bean
-    public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http,
+        com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleGatewayProperties lifecycle) throws Exception {
         if (properties.enabled() && !apiKeyAuthAvailable() && !properties.sessionEnabled()) {
             throw new IllegalStateException("Platform auth is enabled but no authentication method is configured.");
         }
@@ -86,6 +87,8 @@ public class PlatformSecurityConfiguration {
         http.csrf(csrf -> csrf.disable());
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.cors(Customizer.withDefaults());
+        http.addFilterBefore(new com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter(lifecycle),
+            AnonymousAuthenticationFilter.class);
         http.addFilterBefore(
             new PlatformSessionAuthenticationFilter(properties, platformIdentityService),
             AnonymousAuthenticationFilter.class
@@ -116,6 +119,8 @@ public class PlatformSecurityConfiguration {
             );
         }
         http.authorizeHttpRequests(authorize -> {
+            authorize.requestMatchers("/internal/v1/deployment-lifecycle/**")
+                .hasAuthority(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter.AUTHORITY);
             authorize.requestMatchers(
                 "/actuator/health/**",
                 "/api/platform/auth/session",

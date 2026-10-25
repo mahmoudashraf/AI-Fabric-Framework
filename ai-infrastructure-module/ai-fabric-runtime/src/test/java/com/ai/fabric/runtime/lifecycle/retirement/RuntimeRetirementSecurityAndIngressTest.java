@@ -63,9 +63,10 @@ class RuntimeRetirementSecurityAndIngressTest {
     }
 
     @Test
-    void matchingConfigAutomaticallyEnablesFeatureAndRejectsPartialIdentity() {
-        assertThat(new RuntimeTargetRetirementIdentity(null, "dep-123", "staging", "release-1", "tenant-1", true).enabled()).isTrue();
-        assertThatThrownBy(() -> new RuntimeTargetRetirementIdentity(null, "dep-123", "staging", "", "tenant-1", true))
+    void onlyExplicitOptInEnablesFeatureAndEnabledPartialIdentityStillFailsClosed() {
+        assertThat(new RuntimeTargetRetirementIdentity(null, "dep-123", "staging", "release-1", "tenant-1", true).enabled()).isFalse();
+        assertThat(new RuntimeTargetRetirementIdentity(true, "dep-123", "staging", "release-1", "tenant-1", true).enabled()).isTrue();
+        assertThatThrownBy(() -> new RuntimeTargetRetirementIdentity(true, "dep-123", "staging", "", "tenant-1", true))
             .isInstanceOf(IllegalStateException.class);
     }
 
@@ -74,7 +75,8 @@ class RuntimeRetirementSecurityAndIngressTest {
         try (var context = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
             context.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("provider",
                 java.util.Map.of("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "dep-123", "AI_FABRIC_RUNTIME_TENANT_ID", "tenant-1",
-                    "LOOMAI_RUNTIME_TARGET_PROFILE_ID", "staging", "LOOMAI_RUNTIME_RELEASE_ID", "release-1")));
+                    "LOOMAI_RUNTIME_TARGET_PROFILE_ID", "staging", "LOOMAI_RUNTIME_RELEASE_ID", "release-1",
+                    "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "true")));
             context.register(RuntimeTargetRetirementIdentity.class);
             context.refresh();
             assertThat(context.getBean(RuntimeTargetRetirementIdentity.class).target()).isEqualTo(TARGET);

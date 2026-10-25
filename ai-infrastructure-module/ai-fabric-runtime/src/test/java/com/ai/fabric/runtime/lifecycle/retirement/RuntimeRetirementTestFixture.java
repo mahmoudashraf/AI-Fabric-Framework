@@ -49,11 +49,18 @@ final class RuntimeRetirementTestFixture {
     }
     RuntimeRetirementTestFixture(DriverManagerDataSource dataSource, boolean dedicated, boolean certified,
         List<RuntimeRetirementTopology.Dependency> dependencies, boolean canonical) {
+        this(dataSource, dedicated, certified, dependencies, canonical, ignored -> { });
+    }
+    RuntimeRetirementTestFixture(DriverManagerDataSource dataSource, boolean dedicated, boolean certified,
+        List<RuntimeRetirementTopology.Dependency> dependencies, boolean canonical,
+        java.util.function.Consumer<JdbcTemplate> beforeReleaseMigration) {
         this.dataSource = dataSource;
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V12__runtime_target_retirement.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V13__runtime_generation_transition.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V14__runtime_target_index_retirement.sql")).execute(dataSource);
         jdbc = new JdbcTemplate(dataSource);
+        beforeReleaseMigration.accept(jdbc);
+        new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V24__release_scoped_retirement.sql")).execute(dataSource);
         jdbc.execute("CREATE TABLE chat_sessions (id VARCHAR(160) PRIMARY KEY, owner_id VARCHAR(256), status VARCHAR(32), session_metadata TEXT)");
         jdbc.execute("CREATE TABLE ai_conversation_control (tenant_id VARCHAR(128), deployment_id VARCHAR(128), conversation_id VARCHAR(160), owner_id VARCHAR(256), control_state VARCHAR(32), active_handover_id VARCHAR(160), PRIMARY KEY (tenant_id, deployment_id, conversation_id))");
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V16__conversation_orchestration_state.sql")).execute(dataSource);

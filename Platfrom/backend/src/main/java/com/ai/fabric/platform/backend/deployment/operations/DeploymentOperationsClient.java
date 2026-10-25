@@ -48,6 +48,21 @@ public class DeploymentOperationsClient {
         catch (Exception exception) { throw new OperationsUnavailableException(); }
     }
 
+    /** Explicit operational commands are not optional-policy bypasses: unavailability is reported to their caller. */
+    public com.fasterxml.jackson.databind.JsonNode lifecycle(String route, Object payload, boolean read) {
+        if (!route.matches("(?:jobs|jobs/[A-Za-z0-9][A-Za-z0-9._-]{0,127}(?:/(?:advance|cancel|retry|events))?)"))
+            throw new IllegalArgumentException("Invalid lifecycle route.");
+        try {
+            if (!read) return mapper.readTree(post("lifecycle/" + route, payload));
+            long millis = timeoutMillis();
+            var request = HttpRequest.newBuilder(endpoint("lifecycle/" + route)).timeout(Duration.ofMillis(millis))
+                .header("Authorization", "Bearer " + properties.getApiKey()).GET().build();
+            var response = http.send(request, ignored -> new BoundedBodySubscriber());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) throw new OperationsUnavailableException();
+            return mapper.readTree(response.body());
+        } catch (Exception exception) { throw new OperationsUnavailableException(); }
+    }
+
     private byte[] post(String route, Object payload) throws Exception {
         long millis = timeoutMillis();
         var request = HttpRequest.newBuilder(endpoint(route)).timeout(Duration.ofMillis(millis))

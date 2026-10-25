@@ -1398,6 +1398,99 @@ public class PlatformManagedProductProvisioningService {
     }
     public record OwnedDependencyResult(String applicationUuid, String databaseUuid, String baseUrl) {}
 
+    public record OwnedLifecycleResource(String kind, String uuid, String name, String marker,
+                                         String status, JsonNode raw, List<CoolifyApplicationStorageSummary> storages) {
+        public OwnedLifecycleResource { storages = List.copyOf(storages); }
+    }
+
+    /** Creation receipts, graph identity and live parent placement are rechecked on every observation. */
+    public List<OwnedLifecycleResource> inspectOwnedLifecycleResources(CoolifyConnection connection, String graphId,
+            String serviceRef, String slot, OwnedDependencyResources resources) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        if (resources.applicationCreateIntent() && !hasText(resources.applicationUuid())
+            || resources.databaseCreateIntent() && !hasText(resources.databaseUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CREATE_UNCERTAIN_RECONCILE_REQUIRED");
+        }
+        var result = new ArrayList<OwnedLifecycleResource>();
+        if (hasText(resources.applicationUuid())) {
+            var app = authority.application(owner, resources.applicationUuid(), true);
+            authority.applicationVolumes(owner, resources.applicationUuid(), resources.volumes(), true);
+            result.add(new OwnedLifecycleResource(OwnedDependencyOwnership.APPLICATION, resources.applicationUuid(),
+                serviceRef, owner.marker(), app.map(CoolifyApplicationSummary::status).orElse("ABSENT"),
+                app.map(CoolifyApplicationSummary::raw).orElse(null), app.isPresent()
+                    ? coolifyApiClient.listApplicationStorages(connection, resources.applicationUuid()) : List.of()));
+        }
+        if (hasText(resources.databaseUuid())) {
+            var db = authority.database(owner, resources.databaseUuid(), true);
+            authority.databaseVolumes(owner, resources.databaseUuid(), true);
+            result.add(new OwnedLifecycleResource(OwnedDependencyOwnership.DATABASE, resources.databaseUuid(),
+                serviceRef + "-db", owner.marker(), db.map(CoolifyDatabaseSummary::status).orElse("ABSENT"),
+                db.map(CoolifyDatabaseSummary::raw).orElse(null), db.isPresent()
+                    ? coolifyApiClient.listDatabaseStorages(connection, resources.databaseUuid()) : List.of()));
+        }
+        return List.copyOf(result);
+    }
+
+    /** Single dispatch only. The caller must have durably claimed its exact effect before entering. */
+    public CoolifyActionResponse dispatchOwnedLifecycleResource(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, OwnedDependencyResources resources, String uuid, String action, boolean reclaimOwnedData) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        boolean database = uuid != null && uuid.equals(resources.databaseUuid());
+        boolean application = uuid != null && uuid.equals(resources.applicationUuid());
+        if (database == application || !Set.of("STOP", "START", "DELETE").contains(action))
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_EFFECT_INVALID");
+        String kind = database ? OwnedDependencyOwnership.DATABASE : OwnedDependencyOwnership.APPLICATION;
+        boolean present = database ? authority.database(owner, uuid, true).isPresent()
+            : authority.application(owner, uuid, true).isPresent();
+        if (!present) {
+            if ("DELETE".equals(action)) return new CoolifyActionResponse("Already absent", null, null);
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_RESOURCE_ABSENT");
+        }
+        if ("DELETE".equals(action)) {
+            if (reclaimOwnedData) authority.beginVolumeDeletion(owner, resources.applicationUuid(),
+                resources.volumes(), resources.databaseUuid());
+            authority.beginDeletion(owner, kind, uuid);
+            return database ? coolifyApiClient.deleteDatabase(connection, uuid, true, false, false, false)
+                : coolifyApiClient.delete(connection, uuid, true, false, false, false);
+        } else if ("STOP".equals(action)) {
+            return database ? coolifyApiClient.stopDatabase(connection, uuid)
+                : coolifyApiClient.stop(connection, uuid, false);
+        } else {
+            return database ? coolifyApiClient.startDatabase(connection, uuid)
+                : coolifyApiClient.start(connection, uuid, false, true);
+        }
+    }
+
+    /** Resource receipt finalization is separate from physical volume-reclamation evidence. */
+    public void finishOwnedLifecycleResource(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, OwnedDependencyResources resources, String uuid) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        boolean database = uuid != null && uuid.equals(resources.databaseUuid());
+        if (!database && (uuid == null || !uuid.equals(resources.applicationUuid())))
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_EFFECT_INVALID");
+        if (database ? authority.database(owner, uuid, true).isPresent() : authority.application(owner, uuid, true).isPresent())
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_ABSENCE_UNCONFIRMED");
+        authority.deleted(owner, database ? OwnedDependencyOwnership.DATABASE : OwnedDependencyOwnership.APPLICATION, uuid);
+    }
+
+    public void finishOwnedLifecycleVolumes(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, OwnedDependencyResources resources, String uuid) {
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, slot);
+        authority.requireResources(owner, resources);
+        if (uuid != null && uuid.equals(resources.databaseUuid())) {
+            authority.volumesDeleted(owner, null, Map.of(), uuid);
+        } else if (uuid != null && uuid.equals(resources.applicationUuid())) {
+            authority.volumesDeleted(owner, uuid, resources.volumes(), null);
+        } else throw new ResponseStatusException(CONFLICT, "DEPENDENCY_LIFECYCLE_EFFECT_INVALID");
+    }
+
     public CoolifyConnection ownedDependencyConnection(String targetProfileId, String environmentIntent) {
         ensureCoolifySupportAvailable();
         DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
