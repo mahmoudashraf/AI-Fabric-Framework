@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false, properties = {
-    "spring.flyway.target=120.26",
+    "spring.flyway.target=120.27",
     "spring.datasource.url=jdbc:h2:mem:r1-authority;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000",
     "spring.jpa.show-sql=false"
 })
@@ -56,6 +56,7 @@ class RuntimeAuthorityPersistenceIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @MockBean PlatformAuditService audit;
     @MockBean DeploymentAccessService access;
+    @MockBean com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
     private String deploymentId;
     private String versionId;
     private String targetId;

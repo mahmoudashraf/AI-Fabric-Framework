@@ -53,12 +53,14 @@ class DeploymentProviderSecretOverrideServiceTest {
     }
 
     @Test
-    void reviewedOfferRejectsGenericRebindingBeforeCredentialAccessOrMutation() {
+    void templateOriginDoesNotPreventBindingAnOwnedCredential() {
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
-
-        assertForbidden(() -> service.upsertBinding(deployment.getId(), request("OWN_OPENAI")));
-
-        verifyNoInteractions(secrets, bindings, resolution, audit);
+        PlatformSecretEntity own = secret("OWN_OPENAI", deployment.getId(), "OPENAI_API_KEY",
+            PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE);
+        when(secrets.findById(own.getName())).thenReturn(Optional.of(own));
+        assertThat(service.upsertBinding(deployment.getId(), request(own.getName())).secretName())
+            .isEqualTo(own.getName());
+        verify(bindings).save(any(DeploymentProviderSecretBindingEntity.class));
     }
 
     @Test
@@ -141,7 +143,7 @@ class DeploymentProviderSecretOverrideServiceTest {
     }
 
     @Test
-    void reviewedOfferCannotClearBindingAndRestoreStandardCredentialPrecedence() {
+    void templateOriginDoesNotPreventRemovingAnOwnedCredentialBinding() {
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
         DeploymentProviderSecretBindingEntity binding = new DeploymentProviderSecretBindingEntity();
         binding.setId("binding-reviewed");
@@ -152,9 +154,9 @@ class DeploymentProviderSecretOverrideServiceTest {
         when(bindings.findByDeploymentIdAndSecretPurpose(deployment.getId(), "OPENAI_API_KEY"))
             .thenReturn(Optional.of(binding));
 
-        assertForbidden(() -> service.clearBinding(deployment.getId(), "OPENAI_API_KEY"));
-
-        verifyNoInteractions(secrets, bindings, resolution, audit);
+        service.clearBinding(deployment.getId(), "OPENAI_API_KEY");
+        verify(bindings).delete(binding);
+        verifyNoInteractions(secrets, resolution);
         assertThat(binding.getSecretName()).isEqualTo("OWN_OPENAI");
         assertThat(binding.getBindingMode()).isEqualTo(DeploymentProviderSecretBindingMode.REQUIRE_OVERRIDE);
     }

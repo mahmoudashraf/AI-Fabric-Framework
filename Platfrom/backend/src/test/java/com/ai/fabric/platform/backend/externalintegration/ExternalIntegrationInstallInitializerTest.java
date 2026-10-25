@@ -19,9 +19,9 @@ class ExternalIntegrationInstallInitializerTest {
     @Test void configurationOnlyBootstrapEnablesReviewedAliasesThroughTheNormalInstaller() throws Exception {
         var f = new ExternalIntegrationFixture();
         var composition = new ExternalIntegrationCompositionService(f.associations, mock(CustomerOfferRepository.class),
-            f.policy, f.compiler, f.codec, f.mapper);
+            f.policy, f.compiler, f.codec, f.mapper, f.installs);
         composition = spy(composition);
-        doReturn(List.of(f.profile)).when(composition).profiles(f.deployment);
+        doReturn(List.of(f.profile)).when(composition).bootstrapProfiles(f.deployment);
         var installs = mock(DeploymentMarketplacePluginInstallRepository.class);
         var installation = mock(DeploymentMarketplaceInstallService.class);
         var install = new DeploymentMarketplacePluginInstallEntity();
@@ -43,7 +43,7 @@ class ExternalIntegrationInstallInitializerTest {
     @Test void absentOrIncompatibleInstallCannotBeEnabledByTheOffer() throws Exception {
         var f = new ExternalIntegrationFixture();
         var composition = mock(ExternalIntegrationCompositionService.class);
-        when(composition.profiles(f.deployment)).thenReturn(List.of(f.profile));
+        when(composition.bootstrapProfiles(f.deployment)).thenReturn(List.of(f.profile));
         var installs = mock(DeploymentMarketplacePluginInstallRepository.class);
         var installation = mock(DeploymentMarketplaceInstallService.class);
         when(installs.findByDeploymentIdOrderByUpdatedAtDesc(f.deployment.getId())).thenReturn(List.of());

@@ -91,31 +91,18 @@ class ManagedDependencyCoreReleaseAuthorization {
         TargetIntent intent;
         if (association != null) {
             offerGuard.requireActiveExecution(graph);
-            var offer = offers.findById(association.getOfferId())
-                .orElseThrow(() -> conflict("DEPENDENCY_OFFER_MISSING"));
-            var definition = codec.read(offer.getDefinitionJson(),
-                com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Definition.class);
-            if (!reviewed.getTemplateVersionId().equals(definition.template().versionId()))
-                fail("DEPENDENCY_SPEC_TEMPLATE_CHANGED");
-            composition.requireVersion(definition, version);
-            var permissions = definition.targets().stream()
-                .filter(value -> scope.targetProfileId().equals(value.targetProfileId())).toList();
-            if (permissions.size() != 1) fail("DEPENDENCY_TARGET_NOT_REVIEWED");
-            var permission = permissions.getFirst();
-            composition.requireProfile(target, permission);
-            placement.requireConfiguredPlacement(target, permission.intent());
-            intent = permission.intent();
-        } else {
-            var installs = codec.tree(version.getCompositionProvenanceJson()).path("marketplaceInstalls");
-            boolean reviewedTemplate = false;
-            for (var install : installs) {
-                if (reviewed.getTemplateVersionId().equals(install.path("pluginVersionId").asText())) reviewedTemplate = true;
-            }
-            if (!reviewedTemplate) fail("DEPENDENCY_SPEC_TEMPLATE_CHANGED");
-            if ("production".equals(target.getEnvironmentName())) intent = TargetIntent.CUSTOMER_PRODUCTION;
-            else if ("staging".equals(target.getEnvironmentName())) intent = TargetIntent.CUSTOMER_STAGING;
-            else throw conflict("DEPENDENCY_TARGET_ENVIRONMENT_UNSUPPORTED");
         }
+        var installs = codec.tree(version.getCompositionProvenanceJson()).path("marketplaceInstalls");
+        long templates = 0;
+        if (installs.isArray()) for (var install : installs) {
+            if ("TEMPLATE".equals(install.path("pluginType").asText())
+                && reviewed.getTemplateVersionId().equals(install.path("pluginVersionId").asText())) templates++;
+        }
+        if (templates != 1) fail("DEPENDENCY_SPEC_TEMPLATE_CHANGED");
+        if ("production".equals(target.getEnvironmentName())) intent = TargetIntent.CUSTOMER_PRODUCTION;
+        else if ("staging".equals(target.getEnvironmentName())) intent = TargetIntent.CUSTOMER_STAGING;
+        else throw conflict("DEPENDENCY_TARGET_ENVIRONMENT_UNSUPPORTED");
+        if (association != null) placement.requireConfiguredPlacement(target, intent);
         return Optional.of(new Proof(authorization.releaseId(), authorization.versionConfigHash(),
             intent == TargetIntent.CUSTOMER_PRODUCTION));
     }

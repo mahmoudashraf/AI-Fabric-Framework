@@ -39,6 +39,9 @@ public class ManagedDependencyOperatorService {
             String targetProfileId, String releaseId, Enroll request) {
         var graph = lifecycle.find(deploymentId, targetProfileId);
         if (releaseId == null || !releaseId.equals(graph.getReleaseId())) fail("DEPENDENCY_RELEASE_BINDING_CHANGED");
+        if (store.state(graph).operators.stream().anyMatch(operator -> request.slot().equals(operator.slot))) {
+            return lifecycle.summary(graph);
+        }
         return enrollInternal(deploymentId, targetProfileId, request, false);
     }
 

@@ -46,13 +46,14 @@ class ProviderUsageModeResolverTest {
         assertThat(resolver.resolve(deployment, "target")).isEqualTo("TEAM_AUTHORIZED");
     }
 
-    @Test void everyPriorAllocationPreservesTheFundedContractAtOnlyItsExactScope() {
+    @Test void historicalAllocationsDoNotOverrideTheServerAuthorizedModeForANewRelease() {
         properties.setProviderUsageMode("TEAM_AUTHORIZED"); properties.setTeamAuthorizedTargets(Set.of("target", "other"));
         jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
-        assertThat(resolver.resolve(deployment, "target")).isEqualTo("FUNDED");
+        assertThat(resolver.resolve(deployment, "target")).isEqualTo("TEAM_AUTHORIZED");
         assertThat(resolver.resolve(deployment, "other")).isEqualTo("TEAM_AUTHORIZED");
         properties.setProviderUsageMode("CUSTOMER_KEY");
-        assertThat(resolver.resolve(deployment, "target")).isEqualTo("FUNDED");
+        assertThatThrownBy(() -> resolver.resolve(deployment, "target")).hasMessageContaining("CUSTOMER_KEY_NOT_SUPPORTED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
 
     @Test void customerKeyWithoutProvenOwnedCredentialsIsExplicitlyUnsupported() {
@@ -80,11 +81,19 @@ class ProviderUsageModeResolverTest {
         assertThat(resolver.forRelease(deployment, release)).contains("FUNDED");
     }
 
-    @Test void nonfundedPinCannotHideAFundedAllocationCreatedAfterAuthorization() {
+    @Test void anAuthorizedTeamReleaseCanCoexistWithUnchangedHistoricalFunding() {
         ProviderUsageCoreReleaseTestSchema.authorize(jdbc, "deployment", "TEAM_AUTHORIZED");
         jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
-        assertThatThrownBy(() -> resolver.forRelease(deployment, release)).hasMessageContaining("FUNDED_MODE_REQUIRED");
+        assertThat(resolver.forRelease(deployment, release)).contains("TEAM_AUTHORIZED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void priorFundingDoesNotBypassTheTeamTargetAllowlist() {
+        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
+        properties.setProviderUsageMode("TEAM_AUTHORIZED");
+        properties.setTeamAuthorizedTargets(Set.of("another-target"));
+        assertThatThrownBy(() -> resolver.resolve(deployment, "target")).hasMessageContaining("TEAM_TARGET_NOT_AUTHORIZED");
+        assertThat(resolver.forRelease(deployment, release)).contains("FUNDED");
     }
 
     @Test void missingCoreRecordDoesNotApplyTheCurrentTeamDefaultToAnOldRelease() {

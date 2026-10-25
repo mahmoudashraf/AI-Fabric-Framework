@@ -65,7 +65,7 @@ test('publishing preserves stored mode and sends only the actual PublishRequest 
   try {
     await helper.publishStoredAiStateStorage({ draft: async () => structuredClone(d), publish: api.publishCustomerDeploymentVersion }, o, 'owner', deployment(), d, 'publish-key', () => true)
     assert.deepEqual(d, before)
-    assert.deepEqual(JSON.parse(calls[0].init.body), { targetProfileId: 'staging/one', expectedEntitlementRevision: 4, operationKey: 'publish-key' })
+    assert.deepEqual(JSON.parse(calls[0].init.body), { draftId: d.id, targetProfileId: 'staging/one', operationKey: 'publish-key' })
     assert.equal(calls[0].url, 'https://platform.test/api/customer-self-service/catalogue/offer%2Fone/deployments/deployment%2Fone/versions')
     assert.equal(calls[0].init.credentials, 'include')
   } finally { globalThis.fetch = original }

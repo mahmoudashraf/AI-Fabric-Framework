@@ -141,7 +141,7 @@ export function createAssignmentConfigurationIntents(options: {
   }
   return { read, async claim(snapshot, request, current) {
     if (request.consumerId !== snapshot.consumerId || request.expectedBindingRevision !== snapshot.bindingRevision
-      || request.expectedEntitlementRevision !== snapshot.entitlementRevision
+      || request.targetProfileId !== snapshot.targetProfileId
       || !equal(request.expectedDraftWorkspaces.map(({ installationEntityId, expectedRowVersion }) => ({ installationEntityId, expectedRowVersion })), snapshot.draftWorkspaces)) throw blocked()
     const requestSha256 = await requestDigest(request)
     await append(snapshot, current, state => {

@@ -277,6 +277,9 @@ public class DeploymentOperationApprovalService {
             throw new ResponseStatusException(BAD_REQUEST, "operationType is required.");
         }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (APPLY_VERSION.equals(normalized)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Version applies do not require operation approval.");
+        }
         if (!APPLY_VERSION.equals(normalized) && !DELETE_DEPLOYMENT.equals(normalized)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported operationType: " + value);
         }

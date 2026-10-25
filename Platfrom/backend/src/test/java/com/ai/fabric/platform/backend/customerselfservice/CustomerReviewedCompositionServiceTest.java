@@ -149,34 +149,91 @@ class CustomerReviewedCompositionServiceTest {
         assertCode(APPROVED_POLICY_REQUIRED);
     }
 
-    @Test void deploymentVersionMustContainExactlyTheReviewedTemplateAndPluginPins() {
+    @Test void publishedCandidateMayChangeTemplatePluginsAndProviderConfiguration() {
         var deploymentVersion = new DeploymentVersionEntity();
+        deploymentVersion.setId("version-v2"); deploymentVersion.setDeploymentId("owned-deployment");
         deploymentVersion.setStatus("PUBLISHED");
-        var pin = definition.template();
-        var install = Map.of("pluginId", pin.pluginId(), "pluginVersionId", pin.versionId(),
-            "manifestSha256", "sha256:" + pin.manifestSha256());
-        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
-            "marketplaceInstalls", List.of(install))));
+        deploymentVersion.setConfigHash("new-published-config-hash");
+        deploymentVersion.setActionsConfigJson("{}"); deploymentVersion.setRoutingConfigJson("{}");
+        deploymentVersion.setProviderConfigJson("{\"generation\":{\"model\":\"new-model\"}}");
+        deploymentVersion.setSecurityConfigJson("{}"); deploymentVersion.setPromptConfigJson("{}");
+        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", "changed-template",
+            "marketplaceInstalls", List.of(Map.of("pluginId", "new-plugin", "pluginVersionId", "new-plugin-v2",
+                "manifestSha256", "sha256:" + "b".repeat(64))))));
+        sealManifest(deploymentVersion);
         service.requireVersion(definition, deploymentVersion);
+        service.requireVersion(null, deploymentVersion);
 
-        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
-            "marketplaceInstalls", List.of(install, install))));
-        assertThatThrownBy(() -> service.requireVersion(definition, deploymentVersion))
-            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
-                error -> assertThat(error.code()).isEqualTo(REVIEWED_COMPOSITION_CHANGED));
-
-        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
-            "marketplaceInstalls", List.of(Map.of("pluginId", pin.pluginId(), "pluginVersionId", "unreviewed-version",
-                "manifestSha256", "sha256:" + pin.manifestSha256())))));
-        assertVersionDenied(deploymentVersion);
-
+        deploymentVersion.setProviderConfigJson("{\"generation\":{\"model\":\"tampered-model\"}}");
+        service.requireVersion(null, deploymentVersion);
+        sealManifest(deploymentVersion);
         deploymentVersion.setCompositionProvenanceJson("{}");
         assertVersionDenied(deploymentVersion);
-
-        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
-            "marketplaceInstalls", List.of(install))));
+        sealManifest(deploymentVersion);
+        service.requireVersion(null, deploymentVersion);
+        deploymentVersion.setId("foreign-manifest-version");
+        assertVersionDenied(deploymentVersion);
+        deploymentVersion.setId("version-v2");
+        deploymentVersion.setDeploymentId("foreign-manifest-deployment");
+        assertVersionDenied(deploymentVersion);
+        deploymentVersion.setDeploymentId("owned-deployment");
+        deploymentVersion.setConfigHash(null);
+        assertVersionDenied(deploymentVersion);
+        deploymentVersion.setConfigHash("new-published-config-hash");
+        deploymentVersion.setManifestJson("not-json");
+        assertVersionDenied(deploymentVersion);
+        sealManifest(deploymentVersion);
+        deploymentVersion.setCompositionProvenanceJson("{}");
         deploymentVersion.setStatus("DRAFT");
         assertVersionDenied(deploymentVersion);
+    }
+
+    @Test void acceptsRealCompilerDerivedRoutingWithoutComparingItToRawDraftRouting() throws Exception {
+        var deployment = new DeploymentEntity();
+        deployment.setId("deployment"); deployment.setName("Compiler fixture"); deployment.setEnvironmentName("staging");
+        deployment.setTemplateId("independent-template"); deployment.setBehaviorType("CONVERSATIONAL");
+        var draft = new DeploymentDraftEntity();
+        draft.setActionsConfigJson("""
+            {"actions":[{"name":"lookup_record","route":{"method":"GET","url":"https://records.example.test/records"}}]}
+            """);
+        draft.setEntityConfigJson("{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}");
+        draft.setRoutingConfigJson("{}"); draft.setProviderConfigJson("{\"llmProvider\":\"openai\",\"vectorStrategy\":\"lucene\"}");
+        draft.setSecurityConfigJson("{\"connectorApiKeyEnabled\":true}"); draft.setPromptConfigJson("{}");
+        draft.setKnowledgeSourceConfigJson("{}"); draft.setShellConfigJson("{}");
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var compiler = new com.ai.fabric.platform.backend.deployment.service.DeploymentConfigCompiler(mapper);
+        var compiled = compiler.compile(deployment, draft, "compiled-version", "v2", false);
+        var candidate = new DeploymentVersionEntity(); candidate.setId("compiled-version"); candidate.setDeploymentId("deployment");
+        candidate.setStatus("PUBLISHED"); candidate.setConfigHash(compiled.configHash());
+        candidate.setAiFabricFrameworkVersion(compiler.frameworkVersion());
+        candidate.setEntityConfigJson(draft.getEntityConfigJson()); candidate.setProviderConfigJson(draft.getProviderConfigJson());
+        candidate.setRoutingConfigJson(draft.getRoutingConfigJson()); candidate.setBehaviorConfigJson(draft.getBehaviorConfigJson());
+        candidate.setEntityArtifactYaml(compiled.entityArtifactYaml()); candidate.setManifestJson(compiled.manifestJson());
+        candidate.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
+        var manifest = mapper.readTree(compiled.manifestJson());
+        assertThat(manifest.path("routingConfig")).isNotEqualTo(mapper.readTree(candidate.getRoutingConfigJson()));
+        assertThat(manifest.path("routingConfig").path("actions").path("lookup_record").path("url").asText())
+            .isEqualTo("https://records.example.test/records");
+        compiler.requireRuntimeArtifactCompatible(candidate);
+        service.requireVersion(null, candidate);
+    }
+
+    private void sealManifest(DeploymentVersionEntity version) {
+        var manifest = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode()
+            .put("deploymentId", version.getDeploymentId()).put("versionId", version.getId())
+            .put("aiFabricFrameworkVersion", version.getAiFabricFrameworkVersion())
+            .put("entityConfigContractVersion", version.getEntityConfigContractVersion());
+        manifest.set("actionsConfig", codec.tree(version.getActionsConfigJson()));
+        manifest.set("routingConfig", codec.tree(version.getRoutingConfigJson()));
+        manifest.set("providerConfig", codec.tree(version.getProviderConfigJson()));
+        manifest.set("securityConfig", codec.tree(version.getSecurityConfigJson()));
+        manifest.set("promptConfig", codec.tree(version.getPromptConfigJson()));
+        manifest.set("knowledgeSourceConfig", codec.tree(version.getKnowledgeSourceConfigJson()));
+        manifest.set("shellConfig", codec.tree(version.getShellConfigJson()));
+        manifest.set("marketplaceDatasetConfig", codec.tree(version.getMarketplaceDatasetConfigJson()));
+        manifest.set("behaviorConfig", codec.tree(version.getBehaviorConfigJson()));
+        manifest.set("compositionProvenance", codec.tree(version.getCompositionProvenanceJson()));
+        version.setManifestJson(codec.write(manifest));
     }
 
     private void assertVersionDenied(DeploymentVersionEntity deploymentVersion) {

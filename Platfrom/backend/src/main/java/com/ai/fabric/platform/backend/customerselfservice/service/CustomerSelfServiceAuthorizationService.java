@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
@@ -74,7 +75,7 @@ public class CustomerSelfServiceAuthorizationService {
         return authorize(customerId, request, EvidenceMode.OPERATIONAL_READ);
     }
 
-    /** Pure target status/list reads require an existing owned deployment and its reviewed offer target. */
+    /** Pure target status/list reads require the actual owned deployment and active target. */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization authorizeOwnedTargetRead(String customerId, AuthorizationRequest request) {
         if (request == null || request.operation() != Operation.READ) throw deny(OPERATION_FORBIDDEN);
@@ -100,6 +101,105 @@ public class CustomerSelfServiceAuthorizationService {
     }
 
     private Authorization authorize(String customerId, AuthorizationRequest request, EvidenceMode evidenceMode) {
+        if (request == null || request.operation() == null
+            || (request.targetProfileId() != null && blank(request.targetProfileId()))) throw invalid();
+        if (!bootstrapOperation(request.operation())) return authorizeExisting(customerId, request, evidenceMode);
+        return authorizeBootstrap(customerId, request, evidenceMode);
+    }
+
+    private Authorization authorizeExisting(String customerId, AuthorizationRequest request, EvidenceMode evidenceMode) {
+        // A read authorization cannot carry a settings or binding mutation contract.
+        if (request.operation() == Operation.READ) {
+            if (!request.changedSettings().isEmpty()) throw deny(SETTING_FORBIDDEN);
+            if (request.bindingSlotId() != null || request.selectedProfileId() != null) throw deny(BINDING_SLOT_FORBIDDEN);
+        }
+        PermissionRow row = CustomerPermissionMatrix.row(request.operation());
+        if ((evidenceMode == EvidenceMode.ADMISSION_PREPARATION && !row.admissionEvidenceRequired())
+            || (evidenceMode == EvidenceMode.SOURCE_REFRESH && !isSourceOperation(request.operation()))) {
+            throw deny(OPERATION_FORBIDDEN);
+        }
+        var deployment = deployments.findById(request.deploymentId() == null ? "" : request.deploymentId())
+            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        requireExistingDeploymentAccess(deployment, request.operation());
+        if (!Objects.equals(customerId, deployment.getCustomerId())
+            || !Objects.equals(request.tenantId(), deployment.getTenantId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        if (request.targetProfileId() == null && (!Set.of(Operation.READ, Operation.DRAFT_EDIT, Operation.VERSION_PUBLISH,
+            Operation.APP_CONFIGURE, Operation.DOMAIN_CONFIGURE, Operation.AUTH_CONFIGURE).contains(request.operation())
+            || !blank(request.releaseId()))) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var profile = request.targetProfileId() == null ? null : profiles.findById(request.targetProfileId())
+            .filter(value -> value.isActive()).orElseThrow(() -> deny(UNENTITLED_TARGET));
+        TargetIntent intent = profile == null ? null : switch (profile.getEnvironmentName()) {
+            case "staging" -> TargetIntent.CUSTOMER_STAGING;
+            case "production" -> TargetIntent.CUSTOMER_PRODUCTION;
+            case null, default -> null;
+        };
+        if (profile != null && PlatformSecurityContext.currentPrincipal().role() == PlatformRole.CUSTOMER_ADMIN) {
+            if (intent == null || !row.targetIntents().contains(intent)) throw deny(UNENTITLED_TARGET);
+            placement.requireConfiguredPlacement(profile, intent);
+        }
+        if (!blank(request.releaseId())) {
+            var release = releases.findById(request.releaseId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+            if (!deployment.getId().equals(release.getDeploymentId())
+                || !profile.getId().equals(release.getTargetProfileId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+            var version = versions.findById(release.getDeploymentVersionId())
+                .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+            requirePublishedVersion(deployment.getId(), version);
+        } else if (request.operation() == Operation.ACTIVATE || request.operation() == Operation.ROLLBACK
+            || request.operation() == Operation.TARGET_RETIRE || request.operation() == Operation.VERIFY
+            || isSourceOperation(request.operation())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        if (request.operationKey() != null) entitlements.requireOperationKey(request.operationKey());
+        if ((request.operation() == Operation.SOURCE_INDEX || request.operation() == Operation.SOURCE_REFRESH)
+            && request.documentAudience() == null) throw deny(SETTING_FORBIDDEN);
+
+        // Bootstrap provenance is historical metadata, never the authority for a later operation.
+        var provenance = offerDeployments.findById(deployment.getId()).orElse(null);
+        AdmissionContext context = new AdmissionContext(customerId, deployment.getTenantId(), deployment.getId(),
+            request.releaseId(), profile == null ? null : profile.getId(), intent, provenance == null ? null : provenance.getOfferId(),
+            provenance == null ? null : provenance.getOfferFingerprint(),
+            provenance == null ? 0 : provenance.getAuthorizationEntitlementRevision(), null,
+            request.operation(), request.operationKey(), null, null);
+        if (isSourceOperation(request.operation())) requireCorePrerequisites(context, Set.of(Prerequisite.STORAGE));
+        return new Authorization(context, null);
+    }
+
+    void requireExistingDeploymentAccess(DeploymentEntity deployment, Operation operation) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            if (!entitlements.requireCustomerActor().customerId().equals(deployment.getCustomerId())) {
+                throw deny(RESOURCE_SCOPE_MISMATCH);
+            }
+        } else entitlements.requireActiveStaff(principal);
+        requireStaffDeploymentAccess(deployment, CustomerPermissionMatrix.row(operation));
+        if (deployment.getArchivedAt() != null || "ARCHIVED".equals(deployment.getStatus())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        if (principal.role() != PlatformRole.CUSTOMER_ADMIN && blank(deployment.getCustomerId()) && blank(deployment.getTenantId())) {
+            return;
+        }
+        entitlements.requireActiveCustomer(deployment.getCustomerId());
+        if (blank(deployment.getTenantId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        tenants.findById(deployment.getTenantId()).filter(tenant -> deployment.getCustomerId().equals(tenant.getCustomerId())
+            && "ACTIVE".equals(tenant.getStatus())).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+    }
+
+    Authorization authorizeUnboundConsumer(String consumerId, Operation operation, String operationKey) {
+        if (!Set.of(Operation.APP_CONFIGURE, Operation.DOMAIN_CONFIGURE, Operation.AUTH_CONFIGURE).contains(operation)) {
+            throw deny(OPERATION_FORBIDDEN);
+        }
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
+        var consumer = consumers.findById(consumerId).filter(value -> "ACTIVE".equals(value.getStatus())
+            && value.getBoundDeploymentId() == null && value.getBoundTargetProfileId() == null && value.getBoundReleaseId() == null)
+            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            if (!entitlements.requireCustomerActor().customerId().equals(consumer.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        } else entitlements.requireStaffAdmin();
+        entitlements.requireActiveCustomer(consumer.getCustomerId());
+        if (operationKey != null) entitlements.requireOperationKey(operationKey);
+        return new Authorization(new AdmissionContext(consumer.getCustomerId(), null, null, null, null, null,
+            null, null, 0, null, operation, operationKey, null, null), null);
+    }
+
+    private Authorization authorizeBootstrap(String customerId, AuthorizationRequest request, EvidenceMode evidenceMode) {
         if (request == null || request.operation() == null || blank(request.targetProfileId())
             || blank(request.offerId())) throw invalid();
         var principal = PlatformSecurityContext.currentPrincipal();
@@ -239,7 +339,7 @@ public class CustomerSelfServiceAuthorizationService {
         var version = versions.findById(release.getDeploymentVersionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         if (!context.deploymentId().equals(release.getDeploymentId())
             || !context.targetProfileId().equals(release.getTargetProfileId())
-            || !context.customerId().equals(deployment.getCustomerId()) || !context.tenantId().equals(deployment.getTenantId())
+            || !Objects.equals(context.customerId(), deployment.getCustomerId()) || !Objects.equals(context.tenantId(), deployment.getTenantId())
             || !deployment.getId().equals(version.getDeploymentId()) || !"PUBLISHED".equals(version.getStatus()))
             throw deny(RESOURCE_SCOPE_MISMATCH);
         if (required.contains(Prerequisite.STORAGE) && documentBindings.required(version))
@@ -249,6 +349,10 @@ public class CustomerSelfServiceAuthorizationService {
     /** Validate actual values, not just the caller's declaration of changed field names. */
     public void validateSettings(Authorization authorization, SettingsPatch patch) {
         if (authorization == null || patch == null || patch.values() == null) throw invalid();
+        if (!bootstrapOperation(authorization.context().operation())) {
+            if (patch.values().values().stream().anyMatch(value -> value == null || value.isNull())) throw invalid();
+            return;
+        }
         PermissionRow row = CustomerPermissionMatrix.row(authorization.context().operation());
         for (var entry : patch.values().entrySet()) {
             if (!row.settings().contains(entry.getKey())) throw deny(SETTING_FORBIDDEN);
@@ -262,6 +366,8 @@ public class CustomerSelfServiceAuthorizationService {
 
     public void requirePinnedComposition(Authorization authorization, String templateVersionId, Set<String> pluginVersionIds,
                                          Set<String> artifactIds) {
+        if (authorization == null || authorization.context() == null) throw invalid();
+        if (!bootstrapOperation(authorization.context().operation())) return;
         var definition = authorization.definition();
         if (!definition.template().versionId().equals(templateVersionId)
             || !definition.plugins().stream().map(PluginPin::versionId).collect(java.util.stream.Collectors.toSet()).equals(pluginVersionIds)
@@ -272,11 +378,26 @@ public class CustomerSelfServiceAuthorizationService {
 
     public void requireReviewedVersion(Authorization authorization,
                                        com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version) {
-        if (authorization == null || version == null
+        if (authorization == null || authorization.context() == null || version == null
             || !authorization.context().deploymentId().equals(version.getDeploymentId())) {
             throw deny(RESOURCE_SCOPE_MISMATCH);
         }
-        composition.requireVersion(authorization.definition(), version);
+        requirePublishedVersion(authorization.context().deploymentId(), version);
+    }
+
+    private void requirePublishedVersion(String deploymentId,
+        com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version) {
+        if (version == null || blank(version.getId()) || !Objects.equals(deploymentId, version.getDeploymentId())) {
+            throw deny(RESOURCE_SCOPE_MISMATCH);
+        }
+        if (!"PUBLISHED".equals(version.getStatus()) || blank(version.getConfigHash())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        versions.findById(version.getId()).filter(value -> deploymentId.equals(value.getDeploymentId())
+            && "PUBLISHED".equals(value.getStatus()) && !blank(value.getConfigHash())
+            && value.getConfigHash().equals(version.getConfigHash())
+            && Objects.equals(value.getManifestJson(), version.getManifestJson())
+            && Objects.equals(value.getEntityConfigJson(), version.getEntityConfigJson()))
+            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        composition.requireVersion(null, version);
     }
 
     public void requireOwnedConsumer(Authorization authorization, String consumerEntityId) {
@@ -334,6 +455,10 @@ public class CustomerSelfServiceAuthorizationService {
             case SOURCE_DISCOVER, SOURCE_PREVIEW, SOURCE_INDEX, SOURCE_REFRESH, SOURCE_REMOVE -> true;
             default -> false;
         };
+    }
+    static boolean bootstrapOperation(Operation operation) {
+        return operation == Operation.TEMPLATE_SELECT || operation == Operation.BOOTSTRAP_CONFIGURATION
+            || operation == Operation.BOOTSTRAP;
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
 }

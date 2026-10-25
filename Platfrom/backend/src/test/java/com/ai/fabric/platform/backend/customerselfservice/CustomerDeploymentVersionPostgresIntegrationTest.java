@@ -182,7 +182,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
 
         CustomerOfferTestFixtures.authenticate(entitlement.ownerEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
         assertThatThrownBy(() -> service.publish(entitlement.offerId(), deploymentId,
-            new PublishRequest("staging-target", 2, "reject-publish")))
+            new PublishRequest(setupDraft.id(), "staging-target", "reject-publish")))
             .isInstanceOf(CustomerSelfServiceException.class)
             .satisfies(error -> assertThat(((CustomerSelfServiceException) error).code()).isEqualTo(REVIEWED_COMPOSITION_CHANGED));
 
@@ -294,7 +294,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
         CustomerOfferTestFixtures.authenticate(fixture.ownerEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
 
         var published = service.publish(fixture.offerId(), fixture.deploymentId(),
-            new PublishRequest("staging-target", 2, "publish-identity"));
+            new PublishRequest(fixture.draftId(), "staging-target", "publish-identity"));
 
         var security = mapper.readTree(versions.findById(published.versionId()).orElseThrow().getSecurityConfigJson());
         assertThat(security.path("externalIdentityBrokerEnabled").asBoolean()).isTrue();
@@ -308,7 +308,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
     }
 
     @Test
-    void customerPublicationLocksDeploymentBeforeRealEntitlementAndAvoidsWorkspaceOrderDeadlock() throws Exception {
+    void customerPublicationDoesNotWaitForAnUnrelatedBootstrapInvitationLock() throws Exception {
         ProjectionFixture fixture = projectionFixture();
         var approved = new Authorization(new AdmissionContext(fixture.customerId(), fixture.tenantId(),
             fixture.deploymentId(), null, "staging-target", TargetIntent.CUSTOMER_STAGING, fixture.offerId(),
@@ -328,25 +328,15 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
                 CustomerOfferTestFixtures.authenticate(fixture.ownerEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
                 try {
                     return service.publish(fixture.offerId(), fixture.deploymentId(),
-                        new PublishRequest("staging-target", 2, "publish-lock-order"));
+                        new PublishRequest(fixture.draftId(), "staging-target", "publish-lock-order"));
                 } finally {
                     org.springframework.security.core.context.SecurityContextHolder.clearContext();
                 }
             });
-            awaitBlockedQuery("platform_customer_offer_entitlements");
-            var workspaceOrder = executor.submit(() -> transaction.executeWithoutResult(ignored -> {
-                var consumer = consumers.findById(fixture.consumerEntityId()).orElseThrow();
-                workspaceSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
-                entitlements.requireEntitlement(fixture.customerId(), fixture.offerId(), fixture.ownerId(), true);
-            }));
-            awaitBlockedQuery("platform_deployments");
-            assertThat(publication.isDone()).isFalse();
-            assertThat(workspaceOrder.isDone()).isFalse();
-
+            var published = publication.get(20, TimeUnit.SECONDS);
+            assertThat(holder.isDone()).isFalse();
             releaseEntitlement.countDown();
             holder.get(20, TimeUnit.SECONDS);
-            var published = publication.get(20, TimeUnit.SECONDS);
-            workspaceOrder.get(20, TimeUnit.SECONDS);
             assertThat(published.deploymentId()).isEqualTo(fixture.deploymentId());
             assertThat(versions.findById(published.versionId())).isPresent();
         } finally {
@@ -355,7 +345,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
     }
 
     @Test
-    void customerStorageBindingLocksDeploymentBeforeRealEntitlementAndAvoidsWorkspaceOrderDeadlock() throws Exception {
+    void customerStorageBindingDoesNotWaitForAnUnrelatedBootstrapInvitationLock() throws Exception {
         ProjectionFixture fixture = projectionFixture();
         var definition = CustomerOfferTestFixtures.definition();
         var approved = new Authorization(new AdmissionContext(fixture.customerId(), fixture.tenantId(),
@@ -388,20 +378,10 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
                     org.springframework.security.core.context.SecurityContextHolder.clearContext();
                 }
             });
-            awaitBlockedQuery("platform_customer_offer_entitlements");
-            var workspaceOrder = executor.submit(() -> transaction.executeWithoutResult(ignored -> {
-                var consumer = consumers.findById(fixture.consumerEntityId()).orElseThrow();
-                workspaceSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
-                entitlements.requireEntitlement(fixture.customerId(), fixture.offerId(), fixture.ownerId(), true);
-            }));
-            awaitBlockedQuery("platform_deployments");
-            assertThat(bindingOperation.isDone()).isFalse();
-            assertThat(workspaceOrder.isDone()).isFalse();
-
+            var result = bindingOperation.get(20, TimeUnit.SECONDS);
+            assertThat(holder.isDone()).isFalse();
             releaseEntitlement.countDown();
             holder.get(20, TimeUnit.SECONDS);
-            var result = bindingOperation.get(20, TimeUnit.SECONDS);
-            workspaceOrder.get(20, TimeUnit.SECONDS);
             assertThat(result.status()).isEqualTo("CONFIGURED");
             assertThat(result.binding()).isEqualTo(binding);
         } finally {

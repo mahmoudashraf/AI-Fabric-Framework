@@ -55,8 +55,15 @@ public class ExternalIntegrationCompilerResolver {
         return ((ObjectNode) input).deepCopy();
     }
     private void put(ObjectNode object, String field, String value) {
-        if (object.has(field) && (!object.path(field).isTextual() || !value.equals(object.path(field).textValue()))) {
-            throw ExternalIntegrationPolicy.conflict("MUTABLE_INSTALL_BINDING_FORBIDDEN");
+        if (object.has(field)) {
+            JsonNode previous = object.path(field);
+            // These are compiler-owned symbols, never resolved credentials or endpoint values.
+            // Recompile the symbol for the selected plugin version instead of pinning the bootstrap alias.
+            String aliasPattern = value.startsWith("${")
+                ? "\\$\\{MANAGED_EXTERNAL_INTEGRATION_[A-F0-9]{40}}" : "MANAGED_EXTERNAL_INTEGRATION_[A-F0-9]{40}";
+            if (!previous.isTextual() || (!value.equals(previous.textValue()) && !previous.textValue().matches(aliasPattern))) {
+                throw ExternalIntegrationPolicy.conflict("MUTABLE_INSTALL_BINDING_FORBIDDEN");
+            }
         }
         object.put(field, value);
     }

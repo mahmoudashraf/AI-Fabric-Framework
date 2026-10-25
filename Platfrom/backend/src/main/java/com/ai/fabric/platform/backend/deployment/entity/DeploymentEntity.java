@@ -39,6 +39,9 @@ public class DeploymentEntity {
 
     private String activeVersionId;
 
+    @Column(columnDefinition = "TEXT")
+    private String templateDefaultsJson;
+
     private String runtimeBaseUrl;
 
     private String connectorBaseUrl;
@@ -74,6 +77,14 @@ public class DeploymentEntity {
 
     public String getId() {
         return id;
+    }
+
+    public String getTemplateDefaultsJson() {
+        return templateDefaultsJson;
+    }
+
+    public void setTemplateDefaultsJson(String templateDefaultsJson) {
+        this.templateDefaultsJson = templateDefaultsJson;
     }
 
     public void setId(String id) {

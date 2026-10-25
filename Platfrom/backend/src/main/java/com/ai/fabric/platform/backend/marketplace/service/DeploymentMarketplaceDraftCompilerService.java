@@ -200,6 +200,18 @@ public class DeploymentMarketplaceDraftCompilerService {
         Set<String> unavailableBootstrapSources = tolerateBaselineErrors ? unavailableRequiredDataSources(installs) : Set.of();
         Set<String> deferredActionPlugins = new LinkedHashSet<>();
 
+        if (!tolerateBaselineErrors) {
+            Set<String> templateIds = java.util.stream.Stream.concat(
+                    installs.stream().map(DeploymentMarketplacePluginInstallEntity::getPluginId),
+                    java.util.stream.Stream.of(entityRoot, shellRoot)
+                        .flatMap(root -> root.findValuesAsText(MARKETPLACE_PLUGIN_ID_FIELD).stream()))
+                .distinct()
+                .filter(id -> "TEMPLATE".equals(marketplaceCatalogService.requirePluginEntity(id).getPluginType()))
+                .collect(java.util.stream.Collectors.toSet());
+            releaseTemplateOwnership(entityRoot, templateIds);
+            releaseTemplateOwnership(shellRoot, templateIds);
+        }
+
         stripMarketplaceManagedActions(actionsRoot);
         stripGreenfieldShopifyLegacyActions(actionsRoot, installs);
         stripMarketplaceManagedEntities(entityRoot);
@@ -264,6 +276,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                     existingKnowledgeSourceIds
                 );
                 case "TEMPLATE" -> {
+                    if (!tolerateBaselineErrors) break;
                     JsonNode template = parsed.manifest().path("contributions").path("template");
                     applyEntityContribution(
                         entityRoot,
@@ -319,7 +332,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
-        applyTemplateRequirements(behaviorRoot, installs);
+        if (tolerateBaselineErrors) applyTemplateRequirements(behaviorRoot, installs);
         if (!deferredActionPlugins.isEmpty()) {
             ObjectNode requirements = behaviorRoot.path(MARKETPLACE_REQUIREMENTS_FIELD) instanceof ObjectNode value
                 ? value : behaviorRoot.putObject(MARKETPLACE_REQUIREMENTS_FIELD);
@@ -328,12 +341,14 @@ public class DeploymentMarketplaceDraftCompilerService {
             unresolved.forEach(value -> existing.add(value.asText()));
             deferredActionPlugins.stream().filter(existing::add).forEach(unresolved::add);
         }
-        applyResolvedTemplateExecutionExtensionDefaults(
-            behaviorRoot,
-            installs,
-            activeConversationChannelPluginId != null,
-            installedControlActionBindings.containsKey("request_conversation_handover")
-        );
+        if (tolerateBaselineErrors) {
+            applyResolvedTemplateExecutionExtensionDefaults(
+                behaviorRoot,
+                installs,
+                activeConversationChannelPluginId != null,
+                installedControlActionBindings.containsKey("request_conversation_handover")
+            );
+        }
         validateConversationHandoverComposition(behaviorRoot, installedControlActionBindings);
 
         synchronizeEntityVectorDimensions(entityRoot, providerRoot);
@@ -1931,6 +1946,15 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
         return false;
+    }
+
+    private void releaseTemplateOwnership(JsonNode value, Set<String> templateIds) {
+        if (value instanceof ObjectNode object
+            && templateIds.contains(object.path(MARKETPLACE_PLUGIN_ID_FIELD).asText())) {
+            object.remove(List.of(MARKETPLACE_MANAGED_FIELD, MARKETPLACE_PLUGIN_ID_FIELD,
+                MARKETPLACE_INSTALL_ID_FIELD, MARKETPLACE_PLUGIN_VERSION_FIELD));
+        }
+        if (value.isContainerNode()) value.forEach(child -> releaseTemplateOwnership(child, templateIds));
     }
 
     private void stripMarketplaceManagedEntities(ObjectNode entityRoot) {

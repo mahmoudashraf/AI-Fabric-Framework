@@ -79,8 +79,8 @@ class CustomerSelfServiceControllerTest {
     @Test void reviewedVersionPublicationIsCustomerOnlyAndUsesTheDedicatedContract() throws Exception {
         when(versions.publish(eq("offer"), eq("deployment"), any())).thenReturn(
             new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishResult(
-                "deployment", "version", "v1", "config", "staging-target", 2));
-        String body = "{\"targetProfileId\":\"staging-target\",\"expectedEntitlementRevision\":2,\"operationKey\":\"publish-key\"}";
+                "deployment", "version", "v1", "config", "staging-target"));
+        String body = "{\"draftId\":\"draft\",\"targetProfileId\":\"staging-target\",\"operationKey\":\"publish-key\"}";
         mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments/deployment/versions")
             .contentType("application/json").content(body), PlatformRole.CUSTOMER_ADMIN))
             .andExpect(status().isOk()).andExpect(jsonPath("$.versionId").value("version"));
@@ -90,9 +90,9 @@ class CustomerSelfServiceControllerTest {
         verify(versions, times(1)).publish(eq("offer"), eq("deployment"), any());
     }
 
-    @Test void stagingApplyIsCustomerOnlyAndRejectsCallerSelectedTargetOrArtifact() throws Exception {
+    @Test void scopedApplyAcceptsExplicitTargetAndArtifactButNotCallerOwnedCustomerScope() throws Exception {
         String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/staging-releases";
-        String body = "{\"versionId\":\"version\",\"expectedEntitlementRevision\":2,\"operationKey\":\"apply-key\"}";
+        String body = "{\"versionId\":\"version\",\"targetProfileId\":\"production-target\",\"sourceArtifactId\":\"new-runtime\",\"operationKey\":\"apply-key\"}";
         mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.CUSTOMER_ADMIN))
             .andExpect(status().isOk());
         verify(applies).apply(eq("offer"), eq("deployment"), any());
@@ -102,8 +102,8 @@ class CustomerSelfServiceControllerTest {
         }
         clearInvocations(applies);
         mvc.perform(as(post(route).contentType("application/json").content(
-            "{\"versionId\":\"version\",\"expectedEntitlementRevision\":2,\"operationKey\":\"apply-key\","
-                + "\"targetProfileId\":\"foreign\",\"sourceArtifactId\":\"private\"}"), PlatformRole.CUSTOMER_ADMIN))
+            "{\"versionId\":\"version\",\"operationKey\":\"apply-key\","
+                + "\"targetProfileId\":\"production-target\",\"sourceArtifactId\":\"new-runtime\",\"customerId\":\"foreign\"}"), PlatformRole.CUSTOMER_ADMIN))
             .andExpect(status().isBadRequest());
         verifyNoInteractions(applies);
     }

@@ -77,7 +77,8 @@ class ExternalIntegrationResolverTest {
         for (String fault : new String[]{"compiler", "target", "version", "signature"}) {
             var f = new ExternalIntegrationFixture(); f.bind();
             switch (fault) {
-                case "compiler" -> f.version.setCompositionProvenanceJson("{}");
+                case "compiler" -> f.version.setCompositionProvenanceJson(f.version.getCompositionProvenanceJson()
+                    .replace("profileFingerprint", "invalidFingerprint"));
                 case "target" -> f.target.setEnvironmentName("changed-environment");
                 case "version" -> f.version.setConfigHash("changed-version-hash");
                 case "signature" -> f.bindings.replaceAll((key, row) -> new ExternalIntegrationStore.Row<>(row.value(), "0".repeat(64), row.status(), row.revision()));

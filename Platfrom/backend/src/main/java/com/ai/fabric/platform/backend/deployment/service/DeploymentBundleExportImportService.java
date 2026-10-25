@@ -1356,12 +1356,6 @@ public class DeploymentBundleExportImportService {
                                          JsonNode decryptedSecrets) {
         String targetDeploymentId = request == null ? null : request.targetDeploymentId();
         DeploymentEntity deployment = requireDeploymentAdmin(targetDeploymentId);
-        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
-            throw new ResponseStatusException(
-                FORBIDDEN,
-                "Reviewed-offer deployments must use the scoped customer self-service configuration and version routes."
-            );
-        }
         String bundledBehaviorType = bundle.path("manifest").path("deployment").path("behaviorType").asText();
         if (!deployment.getBehaviorType().equals(bundledBehaviorType)) {
             throw new ResponseStatusException(

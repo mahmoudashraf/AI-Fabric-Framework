@@ -55,6 +55,7 @@ class CustomerGoLiveReadinessServiceTest {
     private final DeploymentPromotionCandidateService candidates = mock(DeploymentPromotionCandidateService.class);
 
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
+    private final CustomerSelfServiceAuthorizationService authorization = mock(CustomerSelfServiceAuthorizationService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final ManagedDependencySpecRepository dependencySpecs = mock(ManagedDependencySpecRepository.class);
     private final ManagedDependencySpecValidator dependencyValidator = spy(new ManagedDependencySpecValidator(mapper));
@@ -65,7 +66,7 @@ class CustomerGoLiveReadinessServiceTest {
     private final CustomerGoLiveReadinessService service = new CustomerGoLiveReadinessService(
         entitlements, associations, deployments, releases, versions, targets, verifications, consumers,
         installations, workspaceReadiness, candidates, composition, dependencySpecs, dependencyValidator,
-        dependencyOwnership, releaseAuthorizations, operations, bindings, mapper);
+        dependencyOwnership, releaseAuthorizations, operations, bindings, mapper, authorization);
 
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
@@ -83,6 +84,9 @@ class CustomerGoLiveReadinessServiceTest {
 
         version = new DeploymentVersionEntity();
         version.setId("version"); version.setDeploymentId("deployment"); version.setStatus("PUBLISHED");
+        version.setConfigHash("actual-published-config");
+        version.setCompositionProvenanceJson("{\"marketplaceInstalls\":[{\"pluginType\":\"TEMPLATE\",\"pluginVersionId\":\"template-version\"}]}");
+        when(bindings.required(version)).thenReturn(true);
 
         release = new DeploymentReleaseEntity();
         release.setId("production-release"); release.setDeploymentId("deployment");
@@ -114,6 +118,10 @@ class CustomerGoLiveReadinessServiceTest {
         target.setProviderType(DeploymentProviderType.COOLIFY);
         target.setProviderConfigJson("{\"promotionEvidenceMaxAgeSeconds\":3600}");
         when(targets.findById("production")).thenReturn(Optional.of(target));
+        var candidate = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(release.getPromotionCandidateJson());
+        candidate.put("configHash", version.getConfigHash()).put("sourceArtifactId", release.getSourceArtifactId())
+            .put("productionTargetFingerprint", new CustomerOfferCodec(mapper).hash(target));
+        release.setPromotionCandidateJson(candidate.toString());
         when(candidates.promotionEvidenceMaxAgeSeconds(any())).thenReturn(3600L);
         when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer", "workspace"))
             .thenReturn(Optional.of(consumer));
@@ -237,8 +245,10 @@ class CustomerGoLiveReadinessServiceTest {
     }
 
     @Test
-    void missingRequiredWorkspaceBlocksProjectionAndActivationGuard() {
-        when(installations.findByConsumerEntityIdAndStatusIn(eq("consumer-entity"), any())).thenReturn(List.of());
+    void configuredButUnreadyWorkspaceBlocksProjectionAndActivationGuard() {
+        when(workspaceReadiness.evaluateAgainst(any(), eq(consumer), eq("deployment"), eq("production-release")))
+            .thenReturn(new AIWorkspaceReadinessSummary(false, "installation", "PUBLIC_RUNTIME_ANONYMOUS",
+                "workspace", "deployment", "production-release", "https://runtime.example", "assignment", List.of()));
 
         var summary = service.project("offer", "deployment", "production-release", "workspace");
 
@@ -325,7 +335,7 @@ class CustomerGoLiveReadinessServiceTest {
     }
 
     @Test
-    void missingDriftedOrUnownedRequiredDependenciesBlockReadiness() {
+    void driftedOrUnownedActualDependenciesBlockReadiness() {
         reviewedDependency.setFingerprint("changed");
         assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
         reviewedDependency.setFingerprint(dependencyValidator.fingerprint(
@@ -333,8 +343,25 @@ class CustomerGoLiveReadinessServiceTest {
         doThrow(new IllegalStateException("DEPENDENCY_ARTIFACT_OWNERSHIP_REQUIRED"))
             .when(dependencyOwnership).requireAllowed(any(ManagedDependencySpec.class));
         assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
-        when(dependencySpecs.findByTemplateVersionIdAndActiveTrue("template-version")).thenReturn(List.of());
-        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+    }
+
+    @Test
+    void normalVerifiedProductionUpgradeNeedsNoOriginalOfferPinInvitationOrStagingCandidate() {
+        release.setSourceArtifactId("new-compatible-runtime");
+        release.setPromotionCandidateJson(null); release.setPromotionCandidateFingerprint(null);
+        reviewedDependency.setTemplateVersionId("new-template-version");
+        version.setCompositionProvenanceJson("{\"marketplaceInstalls\":[{\"pluginType\":\"TEMPLATE\",\"pluginVersionId\":\"new-template-version\"}]}");
+        when(dependencySpecs.findByTemplateVersionIdAndActiveTrue("new-template-version")).thenReturn(List.of(reviewedDependency));
+        clearInvocations(entitlements, composition, dependencySpecs);
+
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isTrue();
+        service.requireActivationReady(deployment, release, consumer);
+
+        verifyNoInteractions(composition);
+        verify(entitlements, never()).requireOffer(anyString());
+        verify(entitlements, never()).requireEntitlement(anyString(), anyString(), any(), anyBoolean());
+        verify(dependencySpecs, times(2)).findByTemplateVersionIdAndActiveTrue("new-template-version");
+        verify(releaseAuthorizations, times(2)).require(deployment, version, release);
     }
 
     @Test

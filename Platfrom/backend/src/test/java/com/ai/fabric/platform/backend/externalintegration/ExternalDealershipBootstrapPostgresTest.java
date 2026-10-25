@@ -74,7 +74,7 @@ class ExternalDealershipBootstrapPostgresTest {
         properties.add("spring.datasource.password", POSTGRES::getPassword);
         properties.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         properties.add("spring.flyway.locations", () -> "classpath:db/migration");
-        properties.add("spring.flyway.target", () -> "200");
+        properties.add("spring.flyway.target", () -> "latest");
         for (String intent : List.of("CUSTOMER_STAGING", "CUSTOMER_PRODUCTION")) {
             String prefix = "platform.customer-self-service.trusted-servers." + intent + ".";
             boolean staging = "CUSTOMER_STAGING".equals(intent);
@@ -89,6 +89,7 @@ class ExternalDealershipBootstrapPostgresTest {
     @Autowired ExternalIntegrationInstallInitializer initializer;
     @Autowired ExternalIntegrationCompositionService composition;
     @Autowired DeploymentMarketplacePluginInstallRepository installs;
+    @Autowired com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService installService;
     @Autowired MarketplacePluginVersionRepository versions;
     @Autowired DeploymentRepository deployments;
     @Autowired DeploymentService deploymentService;
@@ -129,8 +130,8 @@ class ExternalDealershipBootstrapPostgresTest {
         var user = new PlatformUserEntity(); user.setId(userId); user.setEmail(email); user.setDisplayName("Synthetic owner");
         user.setPasswordHash("not-a-real-password"); user.setRole("CUSTOMER_ADMIN"); user.setStatus("ACTIVE");
         user.setCustomerId(customerId); user.setCreatedAt(now); user.setUpdatedAt(now); users.saveAndFlush(user);
-        var stage = target("stage-" + suffix, "external-test-stage");
-        var production = target("prod-" + suffix, "external-test-prod");
+        var stage = target("stage-" + suffix, "external-test-stage", "staging");
+        var production = target("prod-" + suffix, "external-test-prod", "production");
         for (var permission : List.of(new TargetPermission(stage.getId(), TargetIntent.CUSTOMER_STAGING, reviewed.profileFingerprint(stage)),
             new TargetPermission(production.getId(), TargetIntent.CUSTOMER_PRODUCTION, reviewed.profileFingerprint(production)))) {
             boolean staging = permission.intent() == TargetIntent.CUSTOMER_STAGING;
@@ -202,9 +203,15 @@ class ExternalDealershipBootstrapPostgresTest {
                 accepted.revision(), "bind-documents", stage.getId(), "document-storage", "synthetic-s3",
                 "https://storage.example.com", "test-region", "synthetic-documents", "approved/",
                 "synthetic-access-key", "synthetic-secret-key", null, true, false));
+        var knowledge = installs.findByDeploymentIdAndPluginId(deployment.getId(), "mkp-data-dealership-knowledge-v1").orElseThrow();
+        var knowledgeConfig = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(knowledge.getConfigJson()).deepCopy();
+        knowledgeConfig.put("documentStorageBindingRef", "slot:document-storage").put("publicContentApprovalConfirmed", true);
+        installService.updateInstall(deployment.getId(), knowledge.getId(),
+            new com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest(
+                null, "ENABLED", knowledgeConfig, codec.tree(knowledge.getSecretRefsJson())));
         var published = customerVersions.publish(offerId, deployment.getId(),
             new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishRequest(
-                stage.getId(), accepted.revision(), "publish"));
+                deployments.findById(deployment.getId()).orElseThrow().getActiveDraftId(), stage.getId(), "publish"));
         assertThatThrownBy(() -> externalResolver.resolveLocal(deployment.getId(), published.versionId(), stage.getId()))
             .hasMessageContaining("BINDING_REQUIRED");
         authenticate("synthetic-staff", PlatformRole.PLATFORM_ADMIN, "API_KEY");
@@ -220,10 +227,16 @@ class ExternalDealershipBootstrapPostgresTest {
             .hasMessageContaining("BINDING_REQUIRED");
         var candidate = customerVersions.publish(offerId, deployment.getId(),
             new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishRequest(
-                stage.getId(), accepted.revision(), "publish-candidate"));
+                deployments.findById(deployment.getId()).orElseThrow().getActiveDraftId(), stage.getId(), "publish-candidate"));
         assertThat(candidate.versionId()).isNotEqualTo(published.versionId());
-        assertThatThrownBy(() -> externalResolver.resolveLocal(deployment.getId(), candidate.versionId(), stage.getId()))
-            .hasMessageContaining("BINDING_REQUIRED");
+        assertThat(externalResolver.resolveLocal(deployment.getId(), candidate.versionId(), stage.getId()))
+            .hasSize(2).allSatisfy(projection -> {
+                assertThat(projection.scope().versionId()).isEqualTo(candidate.versionId());
+                assertThat(projection.scope().targetProfileId()).isEqualTo(stage.getId());
+                var previous = projections.stream().filter(value -> value.scope().bindingSlotId()
+                    .equals(projection.scope().bindingSlotId())).findFirst().orElseThrow();
+                assertThat(projection.secretEnvironment()).isEqualTo(previous.secretEnvironment());
+            });
         var candidateStage = bindConnections(offerId, deployment.getId(), candidate.versionId(), stage.getId(), profiles, email, accepted.revision(), "candidate");
         var candidateProduction = bindConnections(offerId, deployment.getId(), candidate.versionId(), production.getId(), profiles, email, accepted.revision(), "production");
         assertThat(externalResolver.resolveLocal(deployment.getId(), published.versionId(), stage.getId())).isEqualTo(projections);
@@ -263,9 +276,9 @@ class ExternalDealershipBootstrapPostgresTest {
         return externalResolver.resolveLocal(deploymentId, versionId, targetId);
     }
 
-    private DeploymentTargetProfileEntity target(String id, String serverId) {
+    private DeploymentTargetProfileEntity target(String id, String serverId, String environment) {
         var target = new DeploymentTargetProfileEntity(); target.setId(id); target.setName(id); target.setActive(true);
-        target.setProviderType(DeploymentProviderType.COOLIFY); target.setSourceStrategy("IMAGE_SOURCE"); target.setEnvironmentName("test");
+        target.setProviderType(DeploymentProviderType.COOLIFY); target.setSourceStrategy("IMAGE_SOURCE"); target.setEnvironmentName(environment);
         target.setProviderConfigJson("{\"serverUuid\":\"" + serverId + "\",\"destinationUuid\":\"destination\"}");
         target.setResourceDefaultsJson("{}"); target.setNetworkPolicyJson("{}");
         target.setCreatedAt(Instant.now()); target.setUpdatedAt(Instant.now()); return targets.saveAndFlush(target);

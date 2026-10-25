@@ -32,7 +32,7 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
 
 /**
- * Binds customer-owned object storage through the reviewed offer contract. The command never
+ * Binds customer-owned object storage through the normal target binding service. The command never
  * returns credentials and deliberately supports only read-only S3 bindings.
  */
 @Service
@@ -72,29 +72,18 @@ public class CustomerDocumentStorageBindingService {
         entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
         var deployment = lockOwnedDeployment(deploymentId, actor.customerId());
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        String fingerprint = codec.hash(Map.of("command", BIND_COMMAND, "offerId", offerId,
-            "deploymentId", deploymentId, "request", request, "customerId", actor.customerId(), "actor", actorId));
-        Result replay = replay(grant.getId(), request.operationKey(), BIND_COMMAND, fingerprint, actorId);
-        if (replay != null) return replay;
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
-
-        var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
+        authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REPLACE,
             request.operationKey(), Set.of(), request.bindingSlotId(), request.selectedProfileId(), null));
-        BindingSlot slot = requireS3Slot(approved, request.bindingSlotId());
-        requireMappedInstall(deploymentId, slot);
+        requireS3Slot(request.bindingSlotId());
 
         var binding = bindings.upsert(deploymentId, new UpsertDocumentStorageBindingRequest(
             request.targetProfileId(), DeploymentDocumentStorageBindingService.S3_CONNECTOR,
             request.endpoint(), request.region(), request.bucket(), request.prefix(), request.accessKey(),
             request.secretKey(), request.sessionToken(), request.pathStyleAccess(),
             request.objectVersioningAvailable(), false, null), request.operationKey(), request.bindingSlotId(), request.selectedProfileId());
-        applyBindingToMappedInstall(deployment, slot);
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             request.selectedProfileId(), "CONFIGURED", binding);
-        persist(grant.getId(), request.operationKey(), fingerprint, BIND_COMMAND, actorId, result);
         audit.record("CUSTOMER_DOCUMENT_STORAGE_BOUND", "DEPLOYMENT", deploymentId,
             Map.of("offerId", offerId, "targetProfileId", request.targetProfileId(),
                 "bindingSlotId", request.bindingSlotId(), "bindingRef", binding.bindingRef()));
@@ -107,43 +96,24 @@ public class CustomerDocumentStorageBindingService {
         entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
         var deployment = lockOwnedDeployment(deploymentId, actor.customerId());
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        String fingerprint = codec.hash(Map.of("command", REVOKE_COMMAND, "offerId", offerId,
-            "deploymentId", deploymentId, "request", request, "customerId", actor.customerId(), "actor", actorId));
-        Result replay = replay(grant.getId(), request.operationKey(), REVOKE_COMMAND, fingerprint, actorId);
-        if (replay != null) return replay;
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
-
-        var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
+        authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REVOKE,
             request.operationKey(), Set.of(), request.bindingSlotId(), null, null));
-        BindingSlot slot = requireS3Slot(approved, request.bindingSlotId());
-        requireMappedInstall(deploymentId, slot);
+        requireS3Slot(request.bindingSlotId());
         var matches = bindings.list(deploymentId).stream()
             .filter(value -> request.targetProfileId().equals(value.targetProfileId())).toList();
         if (matches.size() != 1) throw conflict(STORAGE_REQUIRED);
         bindings.remove(deploymentId, matches.getFirst().bindingRef(), request.operationKey(), request.bindingSlotId());
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             null, "REVOKED", null);
-        persist(grant.getId(), request.operationKey(), fingerprint, REVOKE_COMMAND, actorId, result);
         audit.record("CUSTOMER_DOCUMENT_STORAGE_REVOKED", "DEPLOYMENT", deploymentId,
             Map.of("offerId", offerId, "targetProfileId", request.targetProfileId(),
                 "bindingSlotId", request.bindingSlotId(), "sourceObjectsDeleted", false));
         return result;
     }
 
-    private BindingSlot requireS3Slot(
-        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization approved,
-        String slotId
-    ) {
-        var slot = approved.definition().bindingSlots().stream().filter(value -> value.id().equals(slotId))
-            .findFirst().orElseThrow(() -> deny(BINDING_SLOT_FORBIDDEN));
-        if (slot.kind() != BindingKind.CUSTOMER_S3) throw deny(BINDING_SLOT_FORBIDDEN);
-        if (slot.pluginId() != null && !DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT.equals("slot:" + slot.id())) {
-            throw deny(BINDING_SLOT_FORBIDDEN);
-        }
-        return slot;
+    private void requireS3Slot(String slotId) {
+        if (!DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT.equals("slot:" + slotId)) throw deny(BINDING_SLOT_FORBIDDEN);
     }
 
     private DeploymentEntity lockOwnedDeployment(String deploymentId, String customerId) {
@@ -152,46 +122,4 @@ public class CustomerDocumentStorageBindingService {
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
     }
 
-    private void requireMappedInstall(String deploymentId, BindingSlot slot) {
-        if (slot.pluginId() == null) return;
-        installs.findByDeploymentIdAndPluginId(deploymentId, slot.pluginId())
-            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
-    }
-
-    private void applyBindingToMappedInstall(DeploymentEntity deployment, BindingSlot slot) {
-        if (slot.pluginId() == null) return;
-        var install = installs.findByDeploymentIdAndPluginId(deployment.getId(), slot.pluginId())
-            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
-        ObjectNode config = requireObjectConfig(install.getConfigJson());
-        String reference = DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT;
-        if ("ENABLED".equals(install.getStatus()) && reference.equals(config.path(slot.installConfigField()).asText())) return;
-        config.put(slot.installConfigField(), reference);
-        installService.updateInstallForTrustedCaller(
-            deployment,
-            install.getId(),
-            new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", config, null)
-        );
-    }
-
-    private ObjectNode requireObjectConfig(String configJson) {
-        var config = codec.tree(configJson);
-        if (!(config instanceof ObjectNode object)) {
-            throw conflict(REVIEWED_COMPOSITION_CHANGED);
-        }
-        return object.deepCopy();
-    }
-
-    private Result replay(String entitlementId, String operationKey, String command, String fingerprint, String actorId) {
-        var previous = commands.findByEntitlementIdAndOperationKey(entitlementId, operationKey).orElse(null);
-        if (previous == null) return null;
-        if (!command.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())
-            || !actorId.equals(previous.getActorId())) throw conflict(OPERATION_KEY_CONFLICT);
-        return codec.read(previous.getResultJson(), Result.class);
-    }
-
-    private void persist(String entitlementId, String operationKey, String fingerprint, String command,
-                         String actorId, Result result) {
-        commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), entitlementId,
-            operationKey, fingerprint, command, actorId, codec.write(result), Instant.now()));
-    }
 }

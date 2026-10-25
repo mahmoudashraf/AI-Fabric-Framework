@@ -630,7 +630,7 @@ class ManagedDependencyLifecycleServiceTest {
         var rebound = lifecycle.submitForRelease("dep-1", "staging",
             new ManagedDependencyLifecycleService.Request("spec1", "v2", "release-2", "d".repeat(64), "submit-2"));
         operators.enrollInitialOwnerForRelease("dep-1", "staging", "release-2",
-            new ManagedDependencyOperatorService.Enroll("inbox", "owner@example.test", "owner-2"));
+            new ManagedDependencyOperatorService.Enroll("inbox", "different-admin@example.test", "owner-2"));
 
         assertThat(rebound.configurationRevision()).isGreaterThan(firstRevision);
         assertThat(rebound.versionId()).isEqualTo("v2");
@@ -643,5 +643,25 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(store.state(graphs.get(first.graphId())).operators)
             .filteredOn(operator -> "ENROLLED".equals(operator.status))
             .hasSize(1);
+        assertThat(store.state(graphs.get(first.graphId())).operators.getFirst().displayName).isEqualTo("owner@example.test");
+    }
+
+    @Test void newerTemplateMaySelectAnEquivalentDependencySpecWithoutRecreatingResources() {
+        var first = ready("staging");
+        var graph = graphs.get(first.graphId());
+        var before = store.state(graph).nodes.stream().map(node -> List.of(node.serviceRef, node.applicationUuid,
+            Objects.toString(node.databaseUuid, ""))).toList();
+        var nextSpec = new ManagedDependencySpecEntity();
+        org.springframework.beans.BeanUtils.copyProperties(specRepository.findById("spec1").orElseThrow(), nextSpec);
+        nextSpec.setId("spec2"); nextSpec.setTemplateVersionId("template-version-two");
+        when(specRepository.findById("spec2")).thenReturn(Optional.of(nextSpec));
+
+        lifecycle.submitForRelease("dep-1", "staging", new ManagedDependencyLifecycleService.Request(
+            "spec2", "v2", "release-two", "d".repeat(64), "equivalent-template-upgrade"));
+
+        assertThat(graph.getSpecRef()).isEqualTo("spec2");
+        assertThat(graph.getVersionId()).isEqualTo("v2");
+        assertThat(store.state(graph).nodes.stream().map(node -> List.of(node.serviceRef, node.applicationUuid,
+            Objects.toString(node.databaseUuid, "")))).containsExactlyElementsOf(before);
     }
 }

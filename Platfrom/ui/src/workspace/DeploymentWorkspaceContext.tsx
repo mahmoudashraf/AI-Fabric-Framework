@@ -32,6 +32,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/verification',
   '/vectorization',
   '/revisions',
+  '/plugins',
   '/diagnostics',
   '/users',
 ] as const

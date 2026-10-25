@@ -45,7 +45,6 @@ const deployments = ['dep-a', 'dep-b'].map(id => ({ deploymentId: id, name: id, 
   tenantId: `tenant-${id}`, offerId: offer.id, offerFingerprint: offer.fingerprint, activeVersionId: null,
   bootstrapTargetProfileId: id === 'dep-a' ? 'staging-a' : 'staging-b', authorizationEntitlementRevision: 4, createdAt: fixtureTime }))
 const button = page => page.getByRole('button', { name: 'Configure existing assignment', exact: true })
-const settings = (page, suffix) => page.getByRole('combobox', { name: `Settings for ${app(suffix, 0).id}`, exact: true })
 const configurationCalls = f => f.state.calls.filter(call => call.path.endsWith('/staging-consumer-configurations'))
 async function until(check, label) {
   const end = Date.now() + 10_000
@@ -62,7 +61,7 @@ async function fixture(name) {
   page.setDefaultTimeout(10_000)
   const state = { name, calls: [], errors: [], escaped: [], holdRead: false, holdConfigure: false, pendingRead: [], pendingConfigure: [],
     apps: [app(2, 3), app(1, 0), { ...app(9, 4), consumerId: 'another-app', status: 'ACTIVE' }],
-    expectedProfiles: {}, denyConfigure: false,
+    denyConfigure: false,
     consumers: [consumer('existing-app'), consumer('spare-app'), consumer('foreign-app', { customerId: 'foreign' }),
       consumer('disabled-app', { status: 'DISABLED' }), consumer('other-bound', { boundDeploymentId: 'dep-other' })], versions: [] }
   journals.push(state)
@@ -76,6 +75,8 @@ async function fixture(name) {
       const body = rawBody ? route.request().postDataJSON() : null
       state.calls.push({ path, method, body, rawBody })
       const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
+      if (path === '/api/deployment-operations/status') return json({ mode: 'DISABLED', manualDeploymentsAllowed: true,
+        serviceConfigured: false, providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'CONFIGURATION' })
       if (path === '/api/platform/auth/session') return json({ authenticated: true, actorId: await page.evaluate(() => window.__actorValue),
         role: 'CUSTOMER_ADMIN', customerId: 'customer', authenticationMode: 'SESSION' })
       if (path === '/api/customer-self-service/catalogue') return json([offer])
@@ -94,12 +95,12 @@ async function fixture(name) {
       if (/^\/api\/deployments\/dep-[ab]\/versions$/.test(path)) return json(state.versions)
       if (/^\/api\/deployments\/dep-[ab]\/releases$/.test(path) || /\/(admission-reservations|retirements)$/.test(path)) return json([])
       if (path.endsWith('/staging-consumer-configurations') && method === 'POST') {
-        assert.deepEqual(Object.keys(body).sort(), ['consumerId', 'expectedBindingRevision', 'expectedDraftWorkspaces', 'expectedEntitlementRevision', 'operationKey'])
+        assert.deepEqual(Object.keys(body).sort(), ['consumerId', 'expectedBindingRevision', 'expectedDraftWorkspaces', 'operationKey', 'targetProfileId'])
         assert.equal(body.consumerId, 'existing-app'); assert.equal(body.expectedBindingRevision, 2)
-        assert.equal(body.expectedEntitlementRevision, 4); assert.match(body.operationKey, /^[A-Za-z0-9._:-]{1,128}$/)
+        assert.equal(body.targetProfileId, path.includes('/dep-a/') ? 'staging-a' : 'staging-b')
+        assert.match(body.operationKey, /^[A-Za-z0-9._:-]{1,128}$/)
         assert.deepEqual(body.expectedDraftWorkspaces, state.apps.filter(item => item.consumerId === body.consumerId)
-          .map(item => ({ installationEntityId: item.id, expectedRowVersion: item.rowVersion,
-            ...(Object.hasOwn(state.expectedProfiles, item.id) ? { selectedWorkspaceProfileId: state.expectedProfiles[item.id] } : {}) }))
+          .map(item => ({ installationEntityId: item.id, expectedRowVersion: item.rowVersion }))
           .sort((a, b) => a.installationEntityId < b.installationEntityId ? -1 : 1))
         if (state.denyConfigure) return json({ success: false, errorCode: 'SETTING_FORBIDDEN', message: 'SETTING_FORBIDDEN' }, 403)
         const deploymentId = path.includes('/dep-a/') ? 'dep-a' : 'dep-b'
@@ -109,7 +110,7 @@ async function fixture(name) {
             Object.assign(current, { boundDeploymentId: deploymentId, boundTargetProfileId: deploymentId === 'dep-a' ? 'staging-a' : 'staging-b',
               boundReleaseId: null, bindingRevision: 3 })
             state.apps = state.apps.map(item => item.consumerId === body.consumerId ? { ...item, deploymentId,
-              rowVersion: item.rowVersion + 1 + (state.expectedProfiles[item.id] ? 1 : 0) } : item)
+              rowVersion: item.rowVersion + 1 } : item)
           }
           if (lost) return route.abort('connectionreset')
           return json(current)
@@ -184,15 +185,8 @@ try {
 
   await scenario('explicit-pre-v1-complete-draft-fence', async f => {
     await f.page.getByText('DRAFT workspaces retained: 2', { exact: true }).waitFor()
-    for (const suffix of [1, 2]) assert.equal(await settings(f.page, suffix).innerText(), 'Keep current settings')
-    await settings(f.page, 1).click()
-    await f.page.getByRole('option', { name: 'Reviewed workspace settings', exact: true }).click()
-    await settings(f.page, 2).click()
-    await f.page.getByRole('option', { name: 'Reviewed workspace settings', exact: true }).click()
-    await settings(f.page, 2).click()
-    await f.page.getByRole('option', { name: 'Keep current settings', exact: true }).click()
-    f.state.expectedProfiles = { [app(1, 0).id]: 'reviewed-workspace-profile', [app(2, 0).id]: null }
-    assert.equal(configurationCalls(f).length, 0, 'profile choices must not submit automatically')
+    assert.equal(await f.page.getByRole('combobox', { name: /^Settings for / }).count(), 0,
+      'setup must not offer unsupported profile changes')
     const preserved = rows => rows.map(({ displayName, appSlug, deliveryMode, allowedOrigins, customDomains, status, activatedAt }) =>
       ({ displayName, appSlug, deliveryMode, allowedOrigins, customDomains, status, activatedAt }))
     const before = preserved(structuredClone(f.state.apps))
@@ -210,7 +204,7 @@ try {
     assert.equal(await button(f.page).count(), 0)
     assert.equal(f.state.consumers[0].boundReleaseId, null)
     assert.deepEqual(preserved(f.state.apps), before)
-    assert.equal(f.state.apps.find(item => item.id === app(1, 0).id).rowVersion, 2, 'mock adoption and binding may each advance app rowVersion')
+    assert.equal(f.state.apps.find(item => item.id === app(1, 0).id).rowVersion, 1, 'only binding advances the mock app rowVersion')
     assert.equal(f.state.calls.some(call => /\/(staging-consumer-activations|staging-consumer-assignments)$/.test(call.path)), false)
   })
   await scenario('changed-owned-draft-list-no-post', async f => {
@@ -247,9 +241,6 @@ try {
     assert.ok(configurationCalls(f)[0].path.includes('/dep-a/'))
   })
   await scenario('double-click-lost-response-hold', async f => {
-    await settings(f.page, 1).click()
-    await f.page.getByRole('option', { name: 'Reviewed workspace settings', exact: true }).click()
-    f.state.expectedProfiles = { [app(1, 0).id]: 'reviewed-workspace-profile' }
     f.state.holdConfigure = true
     await button(f.page).dblclick({ delay: 40 })
     await until(() => f.state.pendingConfigure.length === 1, 'one configuration dispatch')
@@ -257,11 +248,8 @@ try {
     await f.state.pendingConfigure.shift()(true, false)
     await f.page.getByText('Assignment configuration response is unconfirmed. Reconcile its binding; do not resubmit.', { exact: true }).waitFor()
     assert.equal(await button(f.page).isDisabled(), true)
-    assert.equal(await settings(f.page, 1).isDisabled(), true)
     await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
     assert.equal(await button(f.page).isDisabled(), true)
-    assert.equal(await settings(f.page, 1).innerText(), 'Keep current settings', 'new target does not inherit the old profile choice')
-    assert.equal(await settings(f.page, 1).isDisabled(), true, 'changing target or profile choice cannot bypass the held row fence')
     await f.page.reload({ waitUntil: 'networkidle' })
     await button(f.page).waitFor()
     assert.equal(await button(f.page).isDisabled(), true)
@@ -285,7 +273,6 @@ try {
     assert.deepEqual(configurationCalls(f)[0].body.expectedDraftWorkspaces,
       [app(1, 0), app(2, 3)].map(item => ({ installationEntityId: item.id, expectedRowVersion: item.rowVersion })))
     assert.equal(await button(f.page).isDisabled(), true)
-    for (const suffix of [1, 2]) assert.equal(await settings(f.page, suffix).innerText(), 'Keep current settings')
     assert.deepEqual({ apps: f.state.apps, consumers: f.state.consumers }, before)
     assert.equal(await f.page.getByText('Existing assignment configured. No release was activated.', { exact: true }).count(), 0)
     await f.page.reload({ waitUntil: 'networkidle' })
@@ -299,9 +286,6 @@ try {
     assert.equal(configurationCalls(f).length, 1, 'confirmation is local/read-only, not a retry')
     assert.deepEqual({ apps: f.state.apps, consumers: f.state.consumers }, before)
     await until(async () => await button(f.page).isEnabled(), 'explicit new intent enabled')
-    await settings(f.page, 1).click()
-    await f.page.getByRole('option', { name: 'Reviewed workspace settings', exact: true }).click()
-    f.state.expectedProfiles = { [app(1, 0).id]: 'reviewed-workspace-profile' }
     f.state.denyConfigure = false
     await button(f.page).click()
     await f.page.getByText('Existing assignment configured. No release was activated.', { exact: true }).waitFor()

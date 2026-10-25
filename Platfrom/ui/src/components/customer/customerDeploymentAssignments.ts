@@ -49,21 +49,8 @@ export function canConfigureExistingCustomerAssignment(scope: CustomerAssignment
     && ['DRAFT', 'MODIFIED'].includes(scope.draft.status) && Boolean(scope.draft.id)
 }
 
-export type CustomerAssignmentWorkspaceProfileChoices = Readonly<Record<string, string | null>>
-
-export function customerAssignmentReviewedWorkspaceProfiles(scope: CustomerAssignmentConfigurationScope) {
-  const profiles = scope.offer.workspaceProfiles ?? []
-  if (!Array.isArray(profiles) || profiles.some((profile) => !profile || typeof profile.id !== 'string'
-    || !profile.id.trim() || profile.id !== profile.id.trim() || profile.id.length > 100 || /[\x00-\x1f\x7f-\x9f]/.test(profile.id)
-    || typeof profile.label !== 'string' || !profile.label.trim())
-    || new Set(profiles.map((profile) => profile.id)).size !== profiles.length) {
-    throw new Error('Reviewed workspace profile choices are unavailable. Refresh the current offer.')
-  }
-  return profiles.map(({ id, label }) => ({ id, label }))
-}
-
 export function customerAssignmentDraftExpectations(scope: CustomerAssignmentConfigurationScope,
-  installations: AIWorkspaceInstallationSummary[], selectedProfiles: CustomerAssignmentWorkspaceProfileChoices = {})
+  installations: AIWorkspaceInstallationSummary[])
   : CustomerStagingConsumerConfigurationRequest['expectedDraftWorkspaces'] {
   if (!canConfigureExistingCustomerAssignment(scope, [], [])) {
     throw new Error('An owned, active, fully unassigned app and unused customer-staging configuration are required.')
@@ -76,29 +63,17 @@ export function customerAssignmentDraftExpectations(scope: CustomerAssignmentCon
     || !safeRevision(item.rowVersion)) || new Set(linked.map((item) => item.id)).size !== linked.length) {
     throw new Error('All linked workspaces must be current owned, never-activated DRAFTs with complete row versions.')
   }
-  const choices = Object.entries(selectedProfiles)
-  if (choices.some(([id]) => !linked.some((item) => item.id === id))) {
-    throw new Error('Workspace profile choices no longer match the complete DRAFT app list.')
-  }
-  const reviewedProfiles = choices.some(([, profile]) => profile !== null)
-    ? customerAssignmentReviewedWorkspaceProfiles(scope) : []
-  if (choices.some(([, profile]) => profile !== null
-    && (typeof profile !== 'string' || !reviewedProfiles.some((item) => item.id === profile)))) {
-    throw new Error('Choose only a workspace profile from this reviewed offer, or keep current settings.')
-  }
-  return linked.map((item) => ({ installationEntityId: item.id, expectedRowVersion: item.rowVersion,
-    ...(Object.prototype.hasOwnProperty.call(selectedProfiles, item.id) ? { selectedWorkspaceProfileId: selectedProfiles[item.id] } : {}) }))
+  return linked.map((item) => ({ installationEntityId: item.id, expectedRowVersion: item.rowVersion }))
     .sort((left, right) => left.installationEntityId < right.installationEntityId ? -1
       : left.installationEntityId > right.installationEntityId ? 1 : 0)
 }
 
 export function customerAssignmentConfigurationRequest(scope: CustomerAssignmentConfigurationScope,
-  installations: AIWorkspaceInstallationSummary[], operationKey: string,
-  selectedProfiles: CustomerAssignmentWorkspaceProfileChoices = {}): CustomerStagingConsumerConfigurationRequest {
+  installations: AIWorkspaceInstallationSummary[], operationKey: string): CustomerStagingConsumerConfigurationRequest {
   if (!/^[A-Za-z0-9._:-]{1,128}$/.test(operationKey)) throw new Error('A stable configuration operation key is required.')
   return { consumerId: scope.consumer.consumerId, expectedBindingRevision: scope.consumer.bindingRevision,
-    expectedEntitlementRevision: scope.offer.entitlement.revision, operationKey,
-    expectedDraftWorkspaces: customerAssignmentDraftExpectations(scope, installations, selectedProfiles) }
+    targetProfileId: scope.deployment.bootstrapTargetProfileId, operationKey,
+    expectedDraftWorkspaces: customerAssignmentDraftExpectations(scope, installations) }
 }
 
 export function assignmentConfigurationClaimKey(scope: CustomerAssignmentConfigurationScope,
@@ -179,10 +154,7 @@ export async function configureExistingCustomerAssignment(api: ConfigurationApi,
   if (!['EMPTY', 'REVIEWED', 'COMPLETED'].includes(intent.status)) throw new Error('Assignment intent is held. Reconcile the original command before any further action.')
   if (!stillCurrent()) throw new Error('Assignment scope changed. Review its current configuration.')
   const fresh = await freshAssignmentConfiguration(api, scope, stillCurrent)
-  const selectedProfiles = Object.fromEntries(command.expectedDraftWorkspaces
-    .filter((item) => Object.prototype.hasOwnProperty.call(item, 'selectedWorkspaceProfileId'))
-    .map((item) => [item.installationEntityId, item.selectedWorkspaceProfileId])) as CustomerAssignmentWorkspaceProfileChoices
-  if (JSON.stringify(customerAssignmentConfigurationRequest(fresh.scope, fresh.installations, command.operationKey, selectedProfiles)) !== JSON.stringify(command)
+  if (JSON.stringify(customerAssignmentConfigurationRequest(fresh.scope, fresh.installations, command.operationKey)) !== JSON.stringify(command)
     || !stillCurrent()) throw new Error('Assignment or workspace configuration changed. Refresh and review before configuring.')
   const snapshot = assignmentConfigurationSnapshot(fresh.scope, command.expectedDraftWorkspaces)
   await intents.claim(snapshot, command, stillCurrent)

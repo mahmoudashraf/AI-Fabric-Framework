@@ -82,7 +82,7 @@ class DeploymentOperationApprovalIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    void operatorMustUseApprovedRequestForProtectedApply() throws Exception {
+    void authorizedOperatorAppliesDirectlyWithoutManualApproval() throws Exception {
         authenticateAdmin();
         DeploymentSummary deployment;
         DeploymentDraftResponse draft;
@@ -117,35 +117,10 @@ class DeploymentOperationApprovalIntegrationTest {
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.approvalRequiredForApply", is(true)))
+            .andExpect(jsonPath("$.approvalRequiredForApply", is(false)))
             .andExpect(jsonPath("$.approvalRequiredForDelete", is(false)));
 
         mockMvc.perform(post("/api/deployments/{deploymentId}/apply/{versionId}", deployment.id(), version.id())
-                .cookie(operatorSession))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.message", is("This deployment action is protected. Request and approve an operation approval first.")));
-
-        String approvalId = createApprovalRequest(
-            deployment.id(),
-            operatorSession,
-            """
-                {
-                  "operationType": "APPLY_VERSION",
-                  "targetVersionId": "%s",
-                  "reason": "Need to promote the verified version for operator validation."
-                }
-                """.formatted(version.id())
-        );
-
-        mockMvc.perform(post("/api/deployment-approvals/{approvalId}/approve", approvalId)
-                .cookie(adminSession)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"note\":\"Approved for controlled operator rollout.\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status", is("APPROVED")));
-
-        mockMvc.perform(post("/api/deployments/{deploymentId}/apply/{versionId}?approvalId={approvalId}",
-                    deployment.id(), version.id(), approvalId)
                 .cookie(operatorSession))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status", is("APPLY_REQUESTED")));
@@ -153,7 +128,7 @@ class DeploymentOperationApprovalIntegrationTest {
         mockMvc.perform(get("/api/deployments/{deploymentId}/approvals", deployment.id())
                 .cookie(operatorSession))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='%s')].status".formatted(approvalId), hasItem("CONSUMED")));
+            .andExpect(jsonPath("$.length()", is(0)));
     }
 
     @Test

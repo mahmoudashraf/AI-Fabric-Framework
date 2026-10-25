@@ -139,7 +139,6 @@ public class PlatformCustomerConsumerService {
 
         String requestedDeploymentId = normalizeOptionalId(request.deploymentId());
         if (requestedDeploymentId != null) {
-            reviewedBindingBoundary.requireGenericMutationAllowed(null, requestedDeploymentId);
             DeploymentEntity deployment = requireBindableDeployment(customer.getId(), requestedDeploymentId);
             requireUnscopedBindingAvailable(deployment.getId());
             consumer.setBoundDeploymentId(deployment.getId());
@@ -580,9 +579,6 @@ public class PlatformCustomerConsumerService {
         }
         if (consumer.getBindingRevision() != expectedBindingRevision) {
             throw new ResponseStatusException(CONFLICT, "Consumer binding revision changed; read the current assignment before retrying.");
-        }
-        if (enforceReviewedOfferBoundary) {
-            reviewedBindingBoundary.requireGenericMutationAllowed(consumer.getBoundDeploymentId(), nextDeploymentId);
         }
         if (nextDeploymentId == null && (nextReleaseId != null || requestedTargetProfileId != null)) {
             throw new ResponseStatusException(BAD_REQUEST, "deploymentId is required when binding a release or target profile.");

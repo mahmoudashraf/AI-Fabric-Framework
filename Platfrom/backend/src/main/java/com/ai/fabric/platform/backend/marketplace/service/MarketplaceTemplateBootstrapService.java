@@ -170,6 +170,7 @@ public class MarketplaceTemplateBootstrapService {
             );
         }
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraftForTrustedTemplateBootstrap(deployment.id());
+        deploymentService.captureTemplateDefaultsForTrustedBootstrap(deployment.id());
         platformAuditService.record(
             "MARKETPLACE_TEMPLATE_BOOTSTRAPPED",
             "DEPLOYMENT",

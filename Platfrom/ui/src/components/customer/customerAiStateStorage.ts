@@ -55,7 +55,7 @@ export function customerStorageBootstrapRequest(offer: CustomerOfferSummary, cus
 
 export async function publishStoredAiStateStorage<T>(
   api: { draft: (id: string) => Promise<DeploymentDraftResponse>; publish: (offerId: string, deploymentId: string,
-    body: { targetProfileId: string; expectedEntitlementRevision: number; operationKey: string }) => Promise<T> },
+    body: { draftId: string; targetProfileId: string; operationKey: string }) => Promise<T> },
   offer: CustomerOfferSummary, customerId: string, deployment: CustomerDeploymentSummary,
   expectedDraft: DeploymentDraftResponse, operationKey: string, stillCurrent: () => boolean,
 ) {
@@ -70,8 +70,8 @@ export async function publishStoredAiStateStorage<T>(
     throw new Error('Configuration changed. Refresh before publishing.')
   }
   // PublishRequest freezes the stored draft; its server contract has no storage-mode override.
-  return api.publish(offer.id, deployment.deploymentId, { targetProfileId: deployment.bootstrapTargetProfileId,
-    expectedEntitlementRevision: offer.entitlement.revision, operationKey })
+  return api.publish(offer.id, deployment.deploymentId, { draftId: current.id,
+    targetProfileId: deployment.bootstrapTargetProfileId, operationKey })
 }
 
 export function customerAiStateSlot(offer: CustomerOfferSummary) {

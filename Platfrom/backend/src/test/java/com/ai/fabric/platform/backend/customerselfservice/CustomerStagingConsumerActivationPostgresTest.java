@@ -215,7 +215,7 @@ class CustomerStagingConsumerActivationPostgresTest {
         if (factory != null) factory.destroy();
     }
 
-    @Test void applyServicePersistsReceiptAgainstMigratedCommandConstraint() {
+    @Test void existingApplyDelegatesNormalReleaseIdempotencyWithoutBootstrapReceipts() {
         var definition = CustomerOfferTestFixtures.definition();
         var offer = new CustomerOfferEntity("offer", codec.write(definition), "fingerprint", "review", ACTOR, Instant.now());
         doReturn(offer).when(entitlements).requireOffer("offer");
@@ -226,7 +226,7 @@ class CustomerStagingConsumerActivationPostgresTest {
         var result = new DeploymentReleaseSummary("apply-release", "deployment", "version", "APPLY_REQUESTED", "PENDING",
             "QUEUED", "coolify", "staging", null, "runtime-artifact", null, "queue_release",
             "Queued", null, null, null, Instant.now(), null, Instant.now());
-        when(deploymentService.applyVersionForTrustedCaller("deployment", "version", "staging", "runtime-artifact"))
+        when(deploymentService.applyVersion("deployment", "version", null, "staging-target", "runtime-artifact", "apply-staging"))
             .thenReturn(result);
         var apply = new CustomerDeploymentApplyService(entitlements, associations, deployments, versions, authorization,
             mock(CustomerSelfServiceOperationBoundary.class), composition, commands, deploymentService, codec,
@@ -234,15 +234,11 @@ class CustomerStagingConsumerActivationPostgresTest {
 
         var applied = transaction.execute(ignored -> apply.apply("offer", "deployment",
             new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentApplyContracts.Request(
-                "version", 7, "apply-staging")));
+                "version", "staging-target", "runtime-artifact", "apply-staging")));
         assertThat(applied).isEqualTo(result);
 
-        var receipt = commands.findByEntitlementIdAndOperationKey("grant", "apply-staging").orElseThrow();
-        assertThat(receipt.getCommandType()).isEqualTo("APPLY_STAGING_VERSION");
-        DeploymentReleaseSummary persistedResult = codec.read(receipt.getResultJson(), DeploymentReleaseSummary.class);
-        // A nullable JsonNode reads back as NullNode; the persisted contract is the complete JSON payload.
-        assertThat(codec.write(persistedResult)).isEqualTo(codec.write(result));
-        assertThat(commands.count()).isEqualTo(1);
+        assertThat(commands.findByEntitlementIdAndOperationKey("grant", "apply-staging")).isEmpty();
+        verify(deploymentService).applyVersion("deployment", "version", null, "staging-target", "runtime-artifact", "apply-staging");
     }
 
     @ParameterizedTest @ValueSource(strings = {"INVITE", "ACCEPT", "REVOKE", "BOOTSTRAP_CONFIG", "BIND_S3",

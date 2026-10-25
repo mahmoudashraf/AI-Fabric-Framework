@@ -13,6 +13,7 @@ import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerProductHome } from './CustomerProductHome'
 import { CustomerProductTasks } from './CustomerProductTasks'
+import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -63,6 +64,12 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   }
   const title = props.mode === 'home' ? 'Your workspace' : props.mode === 'apps' ? 'Engage apps' : 'Deployments'
   const openConfiguration = (section: CustomerEditorSection = 'configuration') => {
+    if (selected?.kind === 'deployment' && !offer) {
+      navigate({ pathname: '/revisions', search: new URLSearchParams({ deploymentId: selected.id,
+        ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
+      }).toString() })
+      return
+    }
     const next = new URLSearchParams(location.search); next.set('editor', 'configuration')
     next.set('editorSection', section)
     if (selected?.deploymentId) next.set('deploymentId', selected.deploymentId)
@@ -91,6 +98,9 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {resourceNotices}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>
+        {selected.kind === 'deployment' ? <Button component={RouterLink} variant="outlined" to={`/revisions?${new URLSearchParams({
+          deploymentId: selected.id, ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
+        })}`}>Versions & updates</Button> : null}
         {selected.kind === 'app' && safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}
       </Stack>
       <CustomerDetailSections key={`${selected.kind}:${selected.id}`} preferenceKey={selected.kind}
@@ -109,6 +119,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         </Stack>}
         configuration={<Stack spacing={2.5}><ResourceFacts facts={selected.configurationFacts} /><Button variant="outlined" onClick={() => openConfiguration()}>Edit configuration</Button></Stack>}
         advanced={<Stack spacing={2.5}><ResourceFacts facts={selected.advancedFacts} />
+          {selected.kind === 'deployment' ? <CustomerDeploymentAdvancedLinks deploymentId={selected.id} targetProfileId={selectedRelease?.targetProfileId} /> : null}
           <Box><Typography fontWeight={600}>Release references</Typography>{visibleReleases.map(release => <Typography key={release.id} variant="caption" color="text.secondary" display="block" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{releaseEnvironment(release, offer)} / {release.id}</Typography>)}</Box>
           <Button variant="outlined" onClick={() => openConfiguration('advanced')}>Open advanced settings</Button>
         </Stack>} />

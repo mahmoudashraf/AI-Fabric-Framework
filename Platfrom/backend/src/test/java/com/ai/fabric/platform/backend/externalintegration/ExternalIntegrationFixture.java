@@ -16,6 +16,8 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestSer
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.*;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Validation;
@@ -36,6 +38,10 @@ class ExternalIntegrationFixture {
     final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     final CustomerOfferCodec codec = new CustomerOfferCodec(mapper);
     final CustomerOfferEntitlementService entitlements = mock(CustomerOfferEntitlementService.class);
+    final CustomerOfferEntitlementRepository ownerRepository = mock(CustomerOfferEntitlementRepository.class);
+    final PlatformTenantRepository tenants = mock(PlatformTenantRepository.class);
+    final ExternalIntegrationOwnerEligibility owners = new ExternalIntegrationOwnerEligibility(ownerRepository, entitlements, tenants);
+    final DeploymentMarketplacePluginInstallRepository installs = mock(DeploymentMarketplacePluginInstallRepository.class);
     final CustomerSelfServiceAuthorizationService authorization = mock(CustomerSelfServiceAuthorizationService.class);
     final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
     final CustomerEntitlementCommandRepository commands = mock(CustomerEntitlementCommandRepository.class);
@@ -113,9 +119,19 @@ class ExternalIntegrationFixture {
         definitionTree.put("identityPolicyRef", "review"); definitionTree.put("storagePolicyRef", "review");
         definition = mapper.treeToValue(definitionTree, Definition.class);
         deployment.setId("dep-generic"); deployment.setCustomerId("customer-generic"); deployment.setTenantId("tenant-generic"); deployment.setStatus("DRAFT");
+        var tenant = new PlatformTenantEntity(); tenant.setId(deployment.getTenantId());
+        tenant.setCustomerId(deployment.getCustomerId()); tenant.setStatus("ACTIVE");
+        when(tenants.findById(tenant.getId())).thenReturn(Optional.of(tenant));
         version.setId("version-generic"); version.setDeploymentId(deployment.getId()); version.setStatus("PUBLISHED"); version.setConfigHash("config-hash");
         var provenance = mapper.createObjectNode(); provenance.putArray("externalIntegrationProfiles").add(compiler.compilerEvidence(profile));
+        provenance.putArray("marketplaceInstalls").addObject().put("pluginId", profile.pluginId())
+            .put("pluginVersionId", profile.pluginVersionId()).put("pluginType", "ACTION")
+            .put("manifestSha256", "sha256:" + profile.manifestSha256());
         version.setCompositionProvenanceJson(provenance.toString());
+        var installed = new DeploymentMarketplacePluginInstallEntity(); installed.setId("install");
+        installed.setDeploymentId(deployment.getId()); installed.setPluginId(profile.pluginId());
+        installed.setPluginVersionId(profile.pluginVersionId()); installed.setStatus("ENABLED");
+        when(installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of(installed));
         when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
         when(versions.findById(version.getId())).thenReturn(Optional.of(version));
@@ -123,7 +139,10 @@ class ExternalIntegrationFixture {
         var offer = new CustomerOfferEntity("offer-generic", codec.write(definition), "offer-fingerprint", "review", "staff", Instant.now());
         when(entitlements.requireOffer(offer.getId())).thenReturn(offer); when(entitlements.definition(offer)).thenReturn(definition);
         when(entitlements.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor(deployment.getCustomerId(), "owner"));
-        grant.setId("entitlement-generic"); grant.setRevision(3);
+        grant.setId("entitlement-generic"); grant.setRevision(3); grant.setOwnerUserId("owner");
+        grant.setCustomerId(deployment.getCustomerId()); grant.setOfferId(offer.getId());
+        when(ownerRepository.findByCustomerIdAndOfferId(deployment.getCustomerId(), offer.getId())).thenReturn(Optional.of(grant));
+        when(ownerRepository.findForUpdate(deployment.getCustomerId(), offer.getId())).thenReturn(Optional.of(grant));
         when(entitlements.requireEntitlement(anyString(), anyString(), nullable(String.class), anyBoolean())).thenReturn(grant);
         when(authorization.authorize(eq(deployment.getCustomerId()), any())).thenReturn(new Authorization(null, definition));
         when(associations.findById(deployment.getId())).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(deployment.getId(),
@@ -135,6 +154,10 @@ class ExternalIntegrationFixture {
             new ExternalIntegrationStore.Row<>(approval, call.getArgument(1), "APPROVED", 0)); return null; }).when(store).insertApproval(any(), anyString());
         when(store.binding(anyString(), anyString(), anyString(), anyString())).thenAnswer(call -> Optional.ofNullable(bindings.get(
             key(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3)))));
+        when(store.latestBinding(anyString(), anyString(), anyString())).thenAnswer(call -> bindings.values().stream()
+            .filter(row -> row.value().scope().deploymentId().equals(call.getArgument(0))
+                && row.value().scope().targetProfileId().equals(call.getArgument(1))
+                && row.value().scope().bindingSlotId().equals(call.getArgument(2))).reduce((first, second) -> second));
         doAnswer(call -> { Binding binding = call.getArgument(0); bindings.put(key(binding.scope()),
             new ExternalIntegrationStore.Row<>(binding, call.getArgument(1), "CONFIGURED", 0)); return null; }).when(store).insertBinding(any(), anyString());
         doAnswer(call -> { bindings.replaceAll((key, row) -> row.value().id().equals(call.getArgument(0))
@@ -151,9 +174,9 @@ class ExternalIntegrationFixture {
         doAnswer(call -> { ReleaseSnapshot snapshot = call.getArgument(0); snapshots.put(snapshot.releaseId(),
             new ExternalIntegrationStore.Row<>(snapshot, call.getArgument(2), "FROZEN", 0)); return null; }).when(store).insertSnapshot(any(), any(), anyString());
         service = new ExternalIntegrationService(entitlements, authorization, composition, commands, deployments, versions, targets,
-            policy, integrity, store, vault, secrets, codec, mapper, audit, Validation.buildDefaultValidatorFactory().getValidator());
+            policy, integrity, store, vault, secrets, codec, mapper, audit, Validation.buildDefaultValidatorFactory().getValidator(), owners);
         resolver = new ExternalIntegrationResolver(deployments, versions, targets, releases, associations, entitlements, composition,
-            authority, store, policy, integrity, endpoints, compiler, codec, mapper);
+            authority, store, policy, integrity, endpoints, compiler, codec, mapper, owners);
         customer();
     }
     ApprovalRequest approvalRequest() { return new ApprovalRequest(version.getId(), target.getId(), profile.bindingSlotId(), profile.id(),

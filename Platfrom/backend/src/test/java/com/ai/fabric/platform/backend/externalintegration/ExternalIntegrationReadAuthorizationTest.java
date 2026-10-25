@@ -75,7 +75,7 @@ class ExternalIntegrationReadAuthorizationTest {
         assertThat(request.getValue().operation()).isEqualTo(Operation.READ);
         assertThat(request.getValue().bindingSlotId()).isNull();
         assertThat(request.getValue().selectedProfileId()).isNull();
-        verify(r.composition).requireVersion(any(Definition.class), same(r.f.version));
+        verify(r.composition, never()).requireVersion(any(), any());
         verify(r.placement).requireConfiguredPlacement(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
         verify(r.placement, never()).requireFreshEvidence(any(), any());
         r.assertNoEffects();
@@ -92,16 +92,12 @@ class ExternalIntegrationReadAuthorizationTest {
         r.assertNoEffects();
     }
 
-    @Test void approvalOptionsKeepOwnerEntitlementPlacementAndReviewedSelectionGates() throws Exception {
-        for (String fault : List.of("owner", "customer", "tenant", "offer", "revoked", "expired", "placement", "version", "target", "slot", "profile")) {
+    @Test void approvalOptionsKeepAccountPlacementAndActualSelectionGates() throws Exception {
+        for (String fault : List.of("customer", "tenant", "placement", "version", "target", "slot", "profile")) {
             var r = new ReadFixture(false);
             switch (fault) {
-                case "owner" -> r.f.grant.setOwnerUserId("another-owner");
                 case "customer" -> r.f.deployment.setCustomerId("another-customer");
                 case "tenant" -> r.f.deployment.setTenantId("another-tenant");
-                case "offer" -> when(r.f.associations.findById(r.f.deployment.getId())).thenReturn(Optional.empty());
-                case "revoked" -> r.f.grant.setStatus(EntitlementStatus.REVOKED);
-                case "expired" -> r.f.grant.setExpiresAt(Instant.now().minusSeconds(1));
                 case "placement" -> doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict(
                     com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_DENIED))
                     .when(r.placement).requireConfiguredPlacement(any(), any());
@@ -118,7 +114,7 @@ class ExternalIntegrationReadAuthorizationTest {
     }
 
     @Test void approvalOptionsRejectTamperedOrStaleRowsInsteadOfReturningPartialResults() throws Exception {
-        for (String fault : List.of("integrity", "offer", "version", "target", "profile", "config")) {
+        for (String fault : List.of("integrity", "version", "target", "profile", "config")) {
             var r = new ReadFixture(false);
             var original = r.approvalOption();
             var changed = new Approval(original.id(), original.scope(),
@@ -181,8 +177,8 @@ class ExternalIntegrationReadAuthorizationTest {
         assertThat(request.getValue().deploymentId()).isEqualTo(r.f.deployment.getId());
         assertThat(request.getValue().tenantId()).isEqualTo(r.tenant.getId());
         assertThat(request.getValue().targetProfileId()).isEqualTo(r.f.target.getId());
-        verify(r.composition).requireVersion(any(Definition.class), same(r.f.version));
-        verify(r.composition).requireProfile(same(r.f.target), any(TargetPermission.class));
+        verify(r.composition, never()).requireVersion(any(), any());
+        verify(r.composition, never()).requireProfile(any(), any());
         verify(r.placement).requireConfiguredPlacement(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
         verify(r.placement, never()).requireFreshEvidence(any(), any());
         r.assertNoEffects();
@@ -218,17 +214,17 @@ class ExternalIntegrationReadAuthorizationTest {
         r.assertNoEffects();
     }
 
-    @Test void sharedReadAuthorizationStillRejectsBindingSelectionInsteadOfGainingAGlobalException() throws Exception {
+    @Test void sharedReadAuthorizesTheDeploymentAndLeavesSelectionValidationToTheOwningService() throws Exception {
         var r = new ReadFixture(true);
         var request = new AuthorizationRequest("offer-generic", r.f.target.getId(), r.f.deployment.getId(), r.tenant.getId(), null,
-            Operation.READ, "read-operation", Set.of(), r.f.profile.bindingSlotId(), r.f.profile.id(), null);
-        assertThatThrownBy(() -> r.authorization.authorize(r.customer.getId(), request)).hasMessageContaining("BINDING_SLOT_FORBIDDEN");
+            Operation.READ, "read-operation", Set.of(), null, null, null);
+        assertThat(r.authorization.authorize(r.customer.getId(), request).definition()).isNull();
         assertThat(r.read().status()).isEqualTo("CONFIGURED");
         r.assertNoEffects();
     }
 
-    @Test void customerSessionActiveUserAndExactEntitledOwnerRemainRequired() throws Exception {
-        for (String fault : List.of("anonymous", "staff", "operator", "public-api", "customer-api-key", "inactive-user", "inactive-customer", "other-owner")) {
+    @Test void customerSessionAndActiveUserAccountRemainRequired() throws Exception {
+        for (String fault : List.of("anonymous", "staff", "operator", "public-api", "customer-api-key", "inactive-user", "inactive-customer")) {
             var r = new ReadFixture(true);
             switch (fault) {
                 case "anonymous" -> SecurityContextHolder.clearContext();
@@ -238,53 +234,34 @@ class ExternalIntegrationReadAuthorizationTest {
                 case "customer-api-key" -> r.authenticate(PlatformRole.CUSTOMER_ADMIN, "API_KEY");
                 case "inactive-user" -> r.owner.setStatus("DISABLED");
                 case "inactive-customer" -> r.customer.setStatus("DISABLED");
-                case "other-owner" -> {
-                    var other = new PlatformUserEntity(); other.setId("other-owner"); other.setEmail("other@test.invalid");
-                    other.setCustomerId(r.customer.getId()); other.setRole("CUSTOMER_ADMIN"); other.setStatus("ACTIVE");
-                    when(r.users.findByEmailIgnoreCase(r.owner.getEmail())).thenReturn(Optional.of(other));
-                }
             }
-            assertThatThrownBy(r::read).hasMessageContaining(fault.equals("other-owner") ? "INVITE_OWNER_MISMATCH" : "ACTIVE_CUSTOMER_SCOPE_REQUIRED");
+            assertThatThrownBy(r::read).hasMessageContaining("ACTIVE_CUSTOMER_SCOPE_REQUIRED");
             verify(r.f.store, never()).binding(anyString(), anyString(), anyString(), anyString());
             r.assertNoEffects();
         }
     }
 
-    @Test void foreignCustomerTenantOfferEntitlementAndPlacementRemainDeniedBeforeBindingLookup() throws Exception {
-        for (String fault : List.of("customer", "tenant", "inactive-tenant", "offer", "offer-integrity", "association", "revoked", "expired", "invited", "placement", "target", "read-not-offered")) {
+    @Test void foreignAccountTenantTamperedDefaultsAndPlacementRemainDeniedBeforeBindingLookup() throws Exception {
+        for (String fault : List.of("customer", "tenant", "inactive-tenant", "offer-integrity", "placement", "target")) {
             var r = new ReadFixture(true);
             switch (fault) {
                 case "customer" -> r.f.deployment.setCustomerId("foreign-customer");
                 case "tenant" -> r.f.deployment.setTenantId("foreign-tenant");
                 case "inactive-tenant" -> r.tenant.setStatus("DISABLED");
-                case "offer" -> r.publish(r.f.definition, false, "other-offer");
                 case "offer-integrity" -> when(r.offers.findById("offer-generic")).thenReturn(Optional.of(new CustomerOfferEntity(
                     "offer-generic", r.f.codec.write(r.f.definition), "0".repeat(64), "review", "staff", Instant.now())));
-                case "association" -> when(r.f.associations.findById(r.f.deployment.getId())).thenReturn(Optional.empty());
-                case "revoked" -> r.f.grant.setStatus(EntitlementStatus.REVOKED);
-                case "expired" -> r.f.grant.setExpiresAt(Instant.now().minusSeconds(1));
-                case "invited" -> r.f.grant.setStatus(EntitlementStatus.INVITED);
                 case "placement" -> doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict(
                     com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_DENIED))
                     .when(r.placement).requireConfiguredPlacement(any(), any());
                 case "target" -> r.f.target.setEnvironmentName("foreign-environment");
-                case "read-not-offered" -> {
-                    var tree = (com.fasterxml.jackson.databind.node.ObjectNode) r.f.mapper.valueToTree(r.f.definition);
-                    tree.set("operations", r.f.mapper.valueToTree(Set.of(Operation.BINDING_REPLACE)));
-                    r.publish(r.f.mapper.treeToValue(tree, Definition.class), true);
-                }
             }
-            String offerId = fault.equals("offer") ? "other-offer" : "offer-generic";
             String denial = switch (fault) {
-                case "association", "invited" -> "ENTITLEMENT_REQUIRED";
-                case "revoked" -> "ENTITLEMENT_REVOKED";
-                case "expired" -> "ENTITLEMENT_EXPIRED";
                 case "placement" -> "PLACEMENT_DENIED";
-                case "target", "offer-integrity" -> "REVIEWED_COMPOSITION_CHANGED";
-                case "read-not-offered" -> "OPERATION_FORBIDDEN";
+                case "target" -> "UNENTITLED_TARGET";
+                case "offer-integrity" -> "REVIEWED_COMPOSITION_CHANGED";
                 default -> "RESOURCE_SCOPE_MISMATCH";
             };
-            assertThatThrownBy(() -> r.service.read(offerId, r.f.deployment.getId(), r.f.version.getId(), r.f.target.getId(),
+            assertThatThrownBy(() -> r.service.read("offer-generic", r.f.deployment.getId(), r.f.version.getId(), r.f.target.getId(),
                 r.f.profile.bindingSlotId(), r.f.profile.id())).hasMessageContaining(denial);
             verify(r.f.store, never()).binding(anyString(), anyString(), anyString(), anyString());
             r.assertNoEffects();
@@ -326,7 +303,8 @@ class ExternalIntegrationReadAuthorizationTest {
             }
             String denial = switch (fault) {
                 case "version-owner", "draft", "version-hash" -> "VERSION_SCOPE_MISMATCH";
-                case "compiler-profile", "compiler-install" -> "REVIEWED_COMPOSITION_CHANGED";
+                case "compiler-profile" -> "PROFILE_SCOPE_MISMATCH";
+                case "compiler-install" -> "COMPILER_PROFILE_MISMATCH";
                 default -> "PLUGIN_PIN_MISMATCH";
             };
             assertThatThrownBy(r::read).hasMessageContaining(denial);
@@ -335,7 +313,7 @@ class ExternalIntegrationReadAuthorizationTest {
         }
     }
 
-    @Test void livePublishedExternalSlotContractAndTargetMembershipAreStillCheckedForRead() throws Exception {
+    @Test void bootstrapSlotChangesDoNotVetoThePublishedContractButActualProfileChangesDo() throws Exception {
         for (String fault : List.of("kind", "plugin", "supported-profile", "mutable-config-field", "profile-target")) {
             var r = new ReadFixture(true);
             var tree = (com.fasterxml.jackson.databind.node.ObjectNode) r.f.mapper.valueToTree(r.f.definition);
@@ -349,10 +327,23 @@ class ExternalIntegrationReadAuthorizationTest {
                     .putArray("targetProfileIds").add("target-production");
             }
             r.publish(r.f.mapper.treeToValue(tree, Definition.class), true);
-            assertThatThrownBy(r::read).hasMessageContaining(fault.equals("profile-target") ? "PROFILE_SCOPE_MISMATCH" : "SLOT_PROFILE_MISMATCH");
-            verify(r.f.store, never()).binding(anyString(), anyString(), anyString(), anyString());
+            if (fault.equals("profile-target")) {
+                assertThatThrownBy(r::read).hasMessageContaining("COMPILER_PROFILE_MISMATCH");
+                verify(r.f.store, never()).binding(anyString(), anyString(), anyString(), anyString());
+            } else assertThat(r.read().status()).isEqualTo("CONFIGURED");
             r.assertNoEffects();
         }
+    }
+
+    @Test void bootstrapInvitationExpiryRevisionAndOperationListDoNotRevokeOwnedIntegrationReads() throws Exception {
+        var r = new ReadFixture(true);
+        r.f.grant.setStatus(EntitlementStatus.REVOKED); r.f.grant.setExpiresAt(Instant.EPOCH);
+        r.f.grant.setRevision(99);
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) r.f.mapper.valueToTree(r.f.definition);
+        tree.putArray("operations");
+        r.publish(r.f.mapper.treeToValue(tree, Definition.class), true);
+        assertThat(r.read().status()).isEqualTo("CONFIGURED");
+        r.assertNoEffects();
     }
 
     @Test void httpReadRequiresEveryExplicitScopeQueryParameter() throws Exception {
@@ -442,7 +433,8 @@ class ExternalIntegrationReadAuthorizationTest {
             provenance.putArray("externalIntegrationProfiles").add(f.compiler.compilerEvidence(f.profile));
             var installs = provenance.putArray("marketplaceInstalls");
             for (PluginPin pin : List.of(f.definition.template(), f.definition.plugins().getFirst())) installs.addObject()
-                .put("pluginId", pin.pluginId()).put("pluginVersionId", pin.versionId()).put("manifestSha256", "sha256:" + pin.manifestSha256());
+                .put("pluginId", pin.pluginId()).put("pluginVersionId", pin.versionId()).put("manifestSha256", "sha256:" + pin.manifestSha256())
+                .put("pluginType", pin.pluginId().equals(f.definition.template().pluginId()) ? "TEMPLATE" : "ACTION");
             f.version.setCompositionProvenanceJson(provenance.toString());
             var customerAccess = new PlatformCustomerAccessService(users, customers);
             var entitlements = new CustomerOfferEntitlementService(offers, grants, f.commands, customerAccess, customers, users,
@@ -453,7 +445,8 @@ class ExternalIntegrationReadAuthorizationTest {
                 mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class)));
             publish(f.definition, true);
             service = new ExternalIntegrationService(entitlements, authorization, composition, f.commands, f.deployments, f.versions, f.targets,
-                f.policy, f.integrity, f.store, f.vault, f.secrets, f.codec, f.mapper, f.audit, validator);
+                f.policy, f.integrity, f.store, f.vault, f.secrets, f.codec, f.mapper, f.audit, validator,
+                new ExternalIntegrationOwnerEligibility(grants, entitlements, tenants));
             mvc = MockMvcBuilders.standaloneSetup(new ExternalIntegrationController(service))
                 .setControllerAdvice(new CustomerSelfServiceExceptionHandler(), new PlatformApiExceptionHandler()).build();
             authenticate(PlatformRole.CUSTOMER_ADMIN, "SESSION");

@@ -56,7 +56,7 @@ public class CustomerAiStateStorageBindingService {
 
     @Transactional
     public Result bind(String offerId, String deploymentId, Request request) {
-        if (request == null || request.expectedEntitlementRevision() < 0 || request.connection() == null
+        if (request == null || request.connection() == null
             || blank(request.targetProfileId()) || blank(request.bindingSlotId())
             || blank(request.connection().versionId()) || request.connection().approvalReference() != null) throw invalid();
         entitlements.requireOperationKey(request.operationKey());
@@ -64,30 +64,34 @@ public class CustomerAiStateStorageBindingService {
         var deployment = deployments.findByIdForUpdate(deploymentId)
             .filter(value -> actor.customerId().equals(value.getCustomerId()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REPLACE,
             request.operationKey(), Set.of(), request.bindingSlotId(), PROFILE, null));
-        requireSlot(approved, request.bindingSlotId());
         requireVersion(approved, deploymentId, request.connection().versionId());
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        var previous = commands.findByEntitlementIdAndOperationKey(grant.getId(), request.operationKey()).orElse(null);
-        if (previous == null && grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
-        String fingerprint = fingerprint(offerId, deploymentId, actor.customerId(), actorId, request);
-        if (previous != null) {
-            if (!COMMAND.equals(previous.getCommandType()) || !actorId.equals(previous.getActorId())
-                || !fingerprint.equals(previous.getRequestFingerprint())) throw conflict(OPERATION_KEY_CONFLICT);
-            return codec.read(previous.getResultJson(), Result.class);
+        var namespace = entitlements.findCommandNamespaceForUpdate(actor.customerId(), offerId).orElse(null);
+        String fingerprint = null;
+        if (namespace != null) {
+            fingerprint = fingerprint(offerId, deploymentId, actor.customerId(), request);
+            var previous = commands.findByEntitlementIdAndOperationKey(namespace.getId(), request.operationKey()).orElse(null);
+            if (previous != null) {
+                if (!COMMAND.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())) {
+                    throw conflict(OPERATION_KEY_CONFLICT);
+                }
+                return codec.read(previous.getResultJson(), Result.class);
+            }
         }
         var input = request.connection();
-        String approval = "customer-ai-state:" + codec.hash(Map.of("offerId", offerId, "customerId", actor.customerId(),
+        String approval = "customer-ai-state:" + codec.hash(Map.of("customerId", actor.customerId(),
             "deploymentId", deploymentId, "targetProfileId", request.targetProfileId(), "versionId", input.versionId()));
         var bound = bindings.bind(deploymentId, request.targetProfileId(), new DeploymentAiStateStorageContracts.Request(
             input.versionId(), input.host(), input.port(), input.databaseName(), input.runtimeSchema(), input.connectorSchema(),
             input.username(), input.password(), input.migrationAuthorized(), approval));
         var result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(), bound);
-        commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), grant.getId(),
-            request.operationKey(), fingerprint, COMMAND, actorId, codec.write(result), Instant.now()));
+        if (namespace != null) {
+            commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), namespace.getId(),
+                request.operationKey(), fingerprint, COMMAND, PlatformSecurityContext.currentPrincipal().actorId(),
+                codec.write(result), Instant.now()));
+        }
         audit.record("CUSTOMER_AI_STATE_STORAGE_BOUND", "DEPLOYMENT", deploymentId,
             Map.of("offerId", offerId, "targetProfileId", request.targetProfileId(), "bindingId", bound.bindingId(),
                 "mode", PROFILE, "externalResourceOwned", false));
@@ -101,11 +105,9 @@ public class CustomerAiStateStorageBindingService {
         var actor = entitlements.requireCustomerActor();
         var deployment = deployments.findById(deploymentId).filter(value -> actor.customerId().equals(value.getCustomerId()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), false);
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId, targetId,
             deploymentId, deployment.getTenantId(), null, Operation.READ, "read-ai-state-binding", Set.of(),
             null, null, null));
-        requireSlot(approved, bindingSlotId);
         requireVersion(approved, deploymentId, versionId);
         return bindings.get(deploymentId, targetId, versionId);
     }
@@ -114,16 +116,11 @@ public class CustomerAiStateStorageBindingService {
         var version = versions.findById(versionId).filter(value -> deploymentId.equals(value.getDeploymentId()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         authorization.requireReviewedVersion(approved, version);
+        if (!com.ai.fabric.platform.backend.deployment.service.DeploymentAiStateStorageSelection.external(
+            codec.tree(version.getProviderConfigJson()))) throw deny(BINDING_SLOT_FORBIDDEN);
     }
 
-    private void requireSlot(Authorization approved, String slotId) {
-        if (approved.definition().bindingSlots().stream().noneMatch(slot -> slot.id().equals(slotId)
-            && slot.kind() == BindingKind.CUSTOMER_AI_STATE && slot.supportedProfileIds().contains(PROFILE))) {
-            throw deny(BINDING_SLOT_FORBIDDEN);
-        }
-    }
-
-    private String fingerprint(String offerId, String deploymentId, String customerId, String actorId, Request request) {
+    private String fingerprint(String offerId, String deploymentId, String customerId, Request request) {
         String name = "MANAGED_AI_STATE_REQUEST_SIGNING_" + codec.hash(Map.of("deploymentId", deploymentId))
             .toUpperCase(java.util.Locale.ROOT);
         String key = secrets.resolveSecret(name);
@@ -133,18 +130,16 @@ public class CustomerAiStateStorageBindingService {
             secrets.upsertManagedSecret(name, key, Map.of("deploymentId", deploymentId,
                 "customerId", customerId, "purpose", "AI_STATE_REQUEST_FINGERPRINT"));
         }
-        // Write-only DTO properties are deliberately included only in this private HMAC input.
+        // Secret inputs are fingerprinted privately; bootstrap revision and actor identity do not restrict replay.
         var connection = request.connection();
         Map<String, Object> material = new LinkedHashMap<>();
         material.put("command", COMMAND); material.put("offerId", offerId); material.put("deploymentId", deploymentId);
-        material.put("customerId", customerId); material.put("actorId", actorId);
-        material.put("targetProfileId", request.targetProfileId()); material.put("bindingSlotId", request.bindingSlotId());
-        material.put("expectedEntitlementRevision", request.expectedEntitlementRevision());
-        material.put("versionId", connection.versionId()); material.put("host", connection.host());
-        material.put("port", connection.port()); material.put("databaseName", connection.databaseName());
-        material.put("runtimeSchema", connection.runtimeSchema()); material.put("connectorSchema", connection.connectorSchema());
-        material.put("username", connection.username()); material.put("password", connection.password());
-        material.put("migrationAuthorized", connection.migrationAuthorized());
+        material.put("customerId", customerId); material.put("targetProfileId", request.targetProfileId());
+        material.put("bindingSlotId", request.bindingSlotId()); material.put("versionId", connection.versionId());
+        material.put("host", connection.host()); material.put("port", connection.port());
+        material.put("databaseName", connection.databaseName()); material.put("runtimeSchema", connection.runtimeSchema());
+        material.put("connectorSchema", connection.connectorSchema()); material.put("username", connection.username());
+        material.put("password", connection.password()); material.put("migrationAuthorized", connection.migrationAuthorized());
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(Base64.getDecoder().decode(key), "HmacSHA256"));

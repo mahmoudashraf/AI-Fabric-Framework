@@ -8,10 +8,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerGoLiveRe
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerGoLiveReadinessContracts.Phase;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerGoLiveReadinessContracts.Status;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerGoLiveReadinessContracts.Summary;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Definition;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
@@ -78,6 +75,7 @@ public class CustomerGoLiveReadinessService {
     private final DeploymentOperationsService deploymentOperations;
     private final DeploymentDocumentBindingResolver documentBindings;
     private final ObjectMapper mapper;
+    private final CustomerSelfServiceAuthorizationService authorization;
 
     public CustomerGoLiveReadinessService(CustomerOfferEntitlementService entitlements,
                                           CustomerOfferDeploymentRepository associations,
@@ -97,7 +95,8 @@ public class CustomerGoLiveReadinessService {
                                           CoreReleaseAuthorizationStore releaseAuthorizations,
                                           DeploymentOperationsService deploymentOperations,
                                           DeploymentDocumentBindingResolver documentBindings,
-                                          ObjectMapper mapper) {
+                                          ObjectMapper mapper,
+                                          CustomerSelfServiceAuthorizationService authorization) {
         this.entitlements = entitlements;
         this.associations = associations;
         this.deployments = deployments;
@@ -117,6 +116,7 @@ public class CustomerGoLiveReadinessService {
         this.deploymentOperations = deploymentOperations;
         this.documentBindings = documentBindings;
         this.mapper = mapper;
+        this.authorization = authorization;
     }
 
     @Transactional(readOnly = true)
@@ -130,11 +130,7 @@ public class CustomerGoLiveReadinessService {
             .filter(value -> actor.customerId().equals(value.getCustomerId()))
             .orElseThrow(this::notFound);
         var association = requireAssociation(offerId, deployment, actor.customerId());
-        var entitlement = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), false);
-        if (entitlement.getRevision() < association.getAuthorizationEntitlementRevision()) throw notFound();
-        var offer = entitlements.requireOffer(offerId);
-        if (!offer.getFingerprint().equals(association.getOfferFingerprint())) throw notFound();
-        var definition = entitlements.definition(offer);
+        authorization.requireExistingDeploymentAccess(deployment, Operation.READ);
         var release = releases.findById(releaseId)
             .filter(value -> deploymentId.equals(value.getDeploymentId()))
             .orElseThrow(this::notFound);
@@ -143,8 +139,8 @@ public class CustomerGoLiveReadinessService {
             .orElseThrow(this::notFound);
         var consumer = consumers.findByCustomerIdAndConsumerIdIgnoreCase(actor.customerId(), consumerId)
             .orElseThrow(this::notFound);
-        var target = requireProductionTarget(definition, release);
-        return build(association, definition, deployment, version, release, target, consumer, Instant.now());
+        var target = requireProductionTarget(release);
+        return build(association, deployment, version, release, target, consumer, Instant.now());
     }
 
     /** Staff and customer activation share this fail-closed guard for reviewed self-service offers. */
@@ -153,39 +149,36 @@ public class CustomerGoLiveReadinessService {
                                        PlatformConsumerEntity consumer) {
         CustomerOfferDeploymentEntity association = associations.findById(deployment.getId()).orElse(null);
         if (association == null) return;
-        var offer = entitlements.requireOffer(association.getOfferId());
         if (!deployment.getCustomerId().equals(association.getCustomerId())
-            || !deployment.getTenantId().equals(association.getTenantId())
-            || !offer.getFingerprint().equals(association.getOfferFingerprint())) {
+            || !deployment.getTenantId().equals(association.getTenantId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Reviewed customer deployment association changed.");
         }
-        entitlements.requireEntitlement(deployment.getCustomerId(), association.getOfferId(), null, false);
-        Definition definition = entitlements.definition(offer);
+        authorization.requireExistingDeploymentAccess(deployment, Operation.ACTIVATE);
         DeploymentVersionEntity version = versions.findById(release.getDeploymentVersionId())
             .filter(value -> deployment.getId().equals(value.getDeploymentId()))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Production candidate version is unavailable."));
-        DeploymentTargetProfileEntity target = requireProductionTarget(definition, release);
-        Summary summary = build(association, definition, deployment, version, release, target, consumer, Instant.now());
+        DeploymentTargetProfileEntity target = requireProductionTarget(release);
+        Summary summary = build(association, deployment, version, release, target, consumer, Instant.now());
         if (!summary.activationReady()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Production activation is blocked by candidate readiness: " + String.join("; ", summary.blockers()));
         }
     }
 
-    private Summary build(CustomerOfferDeploymentEntity association, Definition definition,
+    private Summary build(CustomerOfferDeploymentEntity association,
                           DeploymentEntity deployment, DeploymentVersionEntity version,
                           DeploymentReleaseEntity release, DeploymentTargetProfileEntity target,
                           PlatformConsumerEntity consumer, Instant now) {
         List<Item> items = new ArrayList<>();
-        CandidateEvidence candidate = candidateEvidence(definition, deployment, version, release, target, consumer, now);
+        CandidateEvidence candidate = candidateEvidence(deployment, version, release, target, consumer, now);
         items.add(candidate.composition());
 
         items.add(coreConnectionItem(deployment, version, release, candidate, now));
-        items.add(knowledgeItem(definition, candidate.run(), now));
-        items.add(workspaceItem(definition, deployment, release, consumer, now));
+        items.add(knowledgeItem(version, candidate.run(), now));
+        items.add(workspaceItem(deployment, release, consumer, now));
         items.add(securityItem(candidate, now));
         items.add(externalOperationsItem(release, now));
-        items.add(integrationItem(definition, release, now));
+        items.add(integrationItem(release, now));
         items.add(postActivationItem(release, now));
 
         List<String> blockers = items.stream()
@@ -203,29 +196,27 @@ public class CustomerGoLiveReadinessService {
             candidate.expectedBindingRevision(), blockers.isEmpty(), postComplete, blockers, items, now);
     }
 
-    private CandidateEvidence candidateEvidence(Definition definition, DeploymentEntity deployment,
+    private CandidateEvidence candidateEvidence(DeploymentEntity deployment,
                                                 DeploymentVersionEntity version, DeploymentReleaseEntity release,
                                                 DeploymentTargetProfileEntity target, PlatformConsumerEntity consumer,
                                                 Instant now) {
         List<String> failures = new ArrayList<>();
         ObjectNode node = null;
-        long expectedRevision = -1;
+        long expectedRevision = consumer.getBindingRevision();
         if (!"APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
             || !"PASSED".equalsIgnoreCase(release.getVerificationStatus())) {
             failures.add("Production release has not completed verified apply.");
         }
-        try { composition.requireVersion(definition, version); }
-        catch (RuntimeException error) { failures.add("Published version no longer matches the reviewed composition."); }
-        try { requireProductionDependencies(definition); }
-        catch (RuntimeException error) { failures.add("Managed production dependency persistence is not supported or proven."); }
-        try { composition.requireProfile(target, definition.targets().stream()
-            .filter(value -> value.targetProfileId().equals(target.getId()))
-            .findFirst().orElseThrow()); }
-        catch (RuntimeException error) { failures.add("Production target no longer matches its reviewed profile."); }
-        if (definition.artifacts().stream().noneMatch(pin -> pin.artifactId().equals(release.getSourceArtifactId()))) {
-            failures.add("Production image is not pinned by the reviewed offer.");
+        if (!"PUBLISHED".equals(version.getStatus()) || !StringUtils.hasText(version.getConfigHash())
+            || !deployment.getId().equals(release.getDeploymentId())
+            || !version.getId().equals(release.getDeploymentVersionId())
+            || !deployment.getCustomerId().equals(consumer.getCustomerId())) {
+            failures.add("Published version, release or customer ownership is inconsistent.");
         }
-        try {
+        try { requireProductionDependencies(version); }
+        catch (Exception error) { failures.add("Managed production dependency persistence is not supported or proven."); }
+        // Promotion remains optional. A normal verified production apply needs no staging candidate.
+        if (StringUtils.hasText(release.getPromotionCandidateJson())) try {
             JsonNode parsed = mapper.readTree(release.getPromotionCandidateJson());
             if (!parsed.isObject()) throw new IllegalArgumentException("candidate");
             node = (ObjectNode) parsed;
@@ -237,7 +228,10 @@ public class CustomerGoLiveReadinessService {
             exact(node, "customerId", deployment.getCustomerId(), failures);
             exact(node, "consumerId", consumer.getConsumerId(), failures);
             exact(node, "versionId", version.getId(), failures);
+            exact(node, "configHash", version.getConfigHash(), failures);
+            exact(node, "sourceArtifactId", release.getSourceArtifactId(), failures);
             exact(node, "productionTargetProfileId", target.getId(), failures);
+            exact(node, "productionTargetFingerprint", new CustomerOfferCodec(mapper).hash(target), failures);
             if (node.path("promotionEvidenceMaxAgeSeconds").asLong(-1)
                 != candidates.promotionEvidenceMaxAgeSeconds(target)) {
                 failures.add("Approved promotion evidence policy changed after candidate review.");
@@ -275,18 +269,24 @@ public class CustomerGoLiveReadinessService {
         return new CandidateEvidence(node, expectedRevision, run, item);
     }
 
-    private void requireProductionDependencies(Definition definition) {
-        var matches = dependencySpecs.findByTemplateVersionIdAndActiveTrue(definition.template().versionId());
-        if (definition.topology().dependencies() == 0) {
-            if (!matches.isEmpty()) throw new IllegalStateException("UNEXPECTED_REVIEWED_DEPENDENCY_SPEC");
-            return;
+    private void requireProductionDependencies(DeploymentVersionEntity version) throws Exception {
+        List<String> templates = new ArrayList<>();
+        JsonNode installs = mapper.readTree(version.getCompositionProvenanceJson()).path("marketplaceInstalls");
+        if (!installs.isArray()) throw new IllegalStateException("DEPENDENCY_TEMPLATE_EVIDENCE_REQUIRED");
+        for (JsonNode install : installs) {
+            if ("TEMPLATE".equals(install.path("pluginType").asText())) templates.add(install.path("pluginVersionId").asText());
         }
+        if (templates.size() > 1) throw new IllegalStateException("DEPENDENCY_TEMPLATE_EVIDENCE_AMBIGUOUS");
+        if (templates.isEmpty()) return;
+        String templateVersion = templates.getFirst();
+        var matches = dependencySpecs.findByTemplateVersionIdAndActiveTrue(templateVersion);
+        if (matches.isEmpty()) return;
         if (matches.size() != 1) throw new IllegalStateException("REVIEWED_DEPENDENCY_SPEC_MISSING_OR_AMBIGUOUS");
         var reviewed = matches.getFirst();
         try {
             var spec = mapper.readValue(reviewed.getSpecJson(), ManagedDependencySpec.class);
             dependencyValidator.validate(spec);
-            if (!definition.template().versionId().equals(reviewed.getTemplateVersionId())
+            if (!templateVersion.equals(reviewed.getTemplateVersionId())
                 || !reviewed.isActive() || reviewed.getReviewedAt() == null
                 || !StringUtils.hasText(reviewed.getReviewedBy()) || !StringUtils.hasText(reviewed.getReviewReference())
                 || !dependencyValidator.fingerprint(spec).equals(reviewed.getFingerprint())) {
@@ -325,9 +325,8 @@ public class CustomerGoLiveReadinessService {
             "Capacity, expiry, graceful drain and advanced recovery are optional; actual release verification remains required.");
     }
 
-    private Item knowledgeItem(Definition definition, DeploymentVerificationRunEntity run, Instant now) {
-        boolean required = !definition.documentAudiences().isEmpty() || definition.bindingSlots().stream()
-            .anyMatch(slot -> slot.kind() == BindingKind.CUSTOMER_S3);
+    private Item knowledgeItem(DeploymentVersionEntity version, DeploymentVerificationRunEntity run, Instant now) {
+        boolean required = documentBindings.required(version);
         Map<String, JsonNode> checks = checks(run);
         List<String> failures = new ArrayList<>();
         int passed = 0;
@@ -350,16 +349,15 @@ public class CustomerGoLiveReadinessService {
             "Synchronize, index, and prove retrieval against the exact production release.");
     }
 
-    private Item workspaceItem(Definition definition, DeploymentEntity deployment, DeploymentReleaseEntity release,
+    private Item workspaceItem(DeploymentEntity deployment, DeploymentReleaseEntity release,
                                PlatformConsumerEntity consumer, Instant now) {
-        boolean required = definition.operations().contains(Operation.APP_CONFIGURE);
-        if (!required) {
+        var active = installations.findByConsumerEntityIdAndStatusIn(consumer.getId(),
+            List.of(AIWorkspaceInstallationStatus.ACTIVE));
+        if (active.isEmpty()) {
             return item("experience_delivery", "Experience", "AI Workspace delivery",
                 Phase.ACTIVATION, Status.NOT_APPLICABLE, false, "Customer app owner", null,
                 now, null, List.of(), null);
         }
-        var active = installations.findByConsumerEntityIdAndStatusIn(consumer.getId(),
-            List.of(AIWorkspaceInstallationStatus.ACTIVE));
         var evaluated = active.stream().map(installation -> new WorkspaceEvidence(installation,
                 workspaceReadiness.evaluateAgainst(installation, consumer, deployment.getId(), release.getId())))
             .toList();
@@ -392,18 +390,13 @@ public class CustomerGoLiveReadinessService {
             "Run exact-release security, behavior, and runtime verification again.");
     }
 
-    private Item integrationItem(Definition definition, DeploymentReleaseEntity release, Instant now) {
+    private Item integrationItem(DeploymentReleaseEntity release, Instant now) {
         List<String> failures = new ArrayList<>();
-        if (!StringUtils.hasText(definition.approvedPolicyRef())
-            || !StringUtils.hasText(definition.operatingPolicyRef())) failures.add("Reviewed integration policy is incomplete.");
-        if (definition.artifacts().stream().noneMatch(pin -> pin.artifactId().equals(release.getSourceArtifactId()))) {
-            failures.add("Runtime artifact is not an approved integration artifact.");
-        }
-        return item("integration_truth", "Integration", "Reviewed integration contract",
+        if (!StringUtils.hasText(release.getSourceArtifactId())) failures.add("Release runtime artifact is missing.");
+        return item("integration_truth", "Integration", "Versioned integration contract",
             Phase.ACTIVATION, failures.isEmpty() ? Status.PASSED : Status.BLOCKED, true,
-            "Offer reviewer", failures.isEmpty() ? definition.approvedPolicyRef() + " | "
-                + definition.operatingPolicyRef() : null, release.getUpdatedAt(), null, failures,
-            "Review and republish the integration and operating policy contract.");
+            "Deployment owner", reference("artifact", release.getSourceArtifactId()), release.getUpdatedAt(), null, failures,
+            "Select a compatible runtime artifact and verify the release.");
     }
 
     private Item postActivationItem(DeploymentReleaseEntity release, Instant now) {
@@ -420,12 +413,8 @@ public class CustomerGoLiveReadinessService {
         return association;
     }
 
-    private DeploymentTargetProfileEntity requireProductionTarget(Definition definition, DeploymentReleaseEntity release) {
-        var permission = definition.targets().stream()
-            .filter(value -> value.targetProfileId().equals(release.getTargetProfileId()))
-            .filter(value -> value.intent() == TargetIntent.CUSTOMER_PRODUCTION)
-            .findFirst().orElseThrow(this::notFound);
-        return targets.findById(permission.targetProfileId())
+    private DeploymentTargetProfileEntity requireProductionTarget(DeploymentReleaseEntity release) {
+        return targets.findById(release.getTargetProfileId())
             .filter(value -> value.isActive() && "production".equalsIgnoreCase(value.getEnvironmentName()))
             .orElseThrow(this::notFound);
     }

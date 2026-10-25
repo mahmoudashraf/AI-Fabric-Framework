@@ -187,27 +187,28 @@ public class CustomerReviewedCompositionService {
         return runtimeArtifacts.getFirst().artifactId();
     }
 
-    /** Require an immutable deployment version to contain exactly the reviewed template and plugin pins. */
+    /** Validate the published candidate itself, never equality with its bootstrap offer. */
     public void requireVersion(Definition definition, DeploymentVersionEntity version) {
-        if (definition == null || version == null) throw deny(REVIEWED_COMPOSITION_CHANGED);
-        var provenance = codec.tree(version.getCompositionProvenanceJson());
-        try { externalIntegrations.requireCompilerEvidence(definition, provenance); }
-        catch (RuntimeException error) { throw deny(REVIEWED_COMPOSITION_CHANGED); }
-        var expected = new HashSet<>(definition.plugins());
-        expected.add(definition.template());
-        var actual = new HashSet<PluginPin>();
-        var installs = provenance.path("marketplaceInstalls");
-        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())
-            || !definition.templateId().equals(provenance.path("templateId").asText()) || !installs.isArray()) {
+        if (version == null || version.getId() == null || version.getId().isBlank()
+            || version.getDeploymentId() == null || version.getDeploymentId().isBlank()
+            || !"PUBLISHED".equals(version.getStatus())
+            || version.getConfigHash() == null || version.getConfigHash().isBlank()) {
             throw deny(REVIEWED_COMPOSITION_CHANGED);
         }
-        for (var install : installs) {
-            var match = expected.stream().filter(pin -> pin.pluginId().equals(install.path("pluginId").asText())
-                && pin.versionId().equals(install.path("pluginVersionId").asText())
-                && ("sha256:" + pin.manifestSha256()).equals(install.path("manifestSha256").asText())).findFirst();
-            if (match.isEmpty() || !actual.add(match.get())) throw deny(REVIEWED_COMPOSITION_CHANGED);
+        try {
+            var manifest = codec.tree(version.getManifestJson());
+            if (!manifest.isObject() || !version.getId().equals(manifest.path("versionId").asText())
+                || !version.getDeploymentId().equals(manifest.path("deploymentId").asText())
+                || !version.getAiFabricFrameworkVersion().equals(manifest.path("aiFabricFrameworkVersion").asText())
+                || !version.getEntityConfigContractVersion().equals(manifest.path("entityConfigContractVersion").asText())) {
+                throw deny(REVIEWED_COMPOSITION_CHANGED);
+            }
+            if (!codec.tree(version.getCompositionProvenanceJson()).equals(manifest.path("compositionProvenance"))) {
+                throw deny(REVIEWED_COMPOSITION_CHANGED);
+            }
+        } catch (RuntimeException error) {
+            throw deny(REVIEWED_COMPOSITION_CHANGED);
         }
-        if (!expected.equals(actual)) throw deny(REVIEWED_COMPOSITION_CHANGED);
     }
 
     private MarketplacePluginVersionEntity requirePlugin(PluginPin pin) {

@@ -22,12 +22,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 class DeploymentMarketplaceInstallOfferBoundaryTest {
 
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final DeploymentAccessService access = mock(DeploymentAccessService.class);
     private final CustomerOfferDeploymentRepository offerDeployments = mock(CustomerOfferDeploymentRepository.class);
+    private final MarketplaceCatalogService catalog = mock(MarketplaceCatalogService.class);
+    private final DeploymentMarketplacePluginInstallRepository installs = mock(DeploymentMarketplacePluginInstallRepository.class);
     private DeploymentMarketplaceInstallService service;
 
     @BeforeEach
@@ -43,8 +46,8 @@ class DeploymentMarketplaceInstallOfferBoundaryTest {
             mock(DeploymentVersionRepository.class),
             access,
             offerDeployments,
-            mock(DeploymentMarketplacePluginInstallRepository.class),
-            mock(MarketplaceCatalogService.class),
+            installs,
+            catalog,
             mock(MarketplaceManifestService.class),
             mock(MarketplacePluginDatasetDefinitionService.class),
             mock(DeploymentMarketplaceDraftCompilerService.class),
@@ -55,18 +58,21 @@ class DeploymentMarketplaceInstallOfferBoundaryTest {
     }
 
     @Test
-    void publicInstallMutationsRejectReviewedOfferDeployments() {
-        assertForbidden(() -> service.createInstall("dep-reviewed",
+    void templateOriginUsesNormalInstallValidationInsteadOfAnOfferVeto() {
+        when(catalog.requirePluginEntity("plugin"))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown plugin"));
+        assertNotFound(() -> service.createInstall("dep-reviewed",
             new CreateDeploymentMarketplaceInstallRequest("plugin", "1.0.0", null, null)));
-        assertForbidden(() -> service.updateInstall("dep-reviewed", "install",
+        assertNotFound(() -> service.updateInstall("dep-reviewed", "install",
             new UpdateDeploymentMarketplaceInstallRequest(null, null, null, null)));
-        assertForbidden(() -> service.deleteInstall("dep-reviewed", "install"));
+        assertNotFound(() -> service.deleteInstall("dep-reviewed", "install"));
+        verify(catalog).requirePluginEntity("plugin");
     }
 
-    private void assertForbidden(org.assertj.core.api.ThrowableAssert.ThrowingCallable operation) {
+    private void assertNotFound(org.assertj.core.api.ThrowableAssert.ThrowingCallable operation) {
         assertThatThrownBy(operation)
             .isInstanceOf(ResponseStatusException.class)
             .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN));
+                .isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

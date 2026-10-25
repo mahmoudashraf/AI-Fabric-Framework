@@ -14,17 +14,28 @@ class CustomerReviewedBindingBoundaryTest {
     private final CustomerOfferDeploymentRepository deployments = mock(CustomerOfferDeploymentRepository.class);
     private final CustomerReviewedBindingBoundary boundary = new CustomerReviewedBindingBoundary(deployments);
 
-    @Test void genericBindingCannotEnterOrLeaveAReviewedOfferDeployment() {
+    @Test void templateOriginStillRequiresAnExplicitVerifiedRelease() {
         when(deployments.existsById("reviewed")).thenReturn(true);
-
-        assertThatThrownBy(() -> boundary.requireGenericMutationAllowed(null, "reviewed"))
-            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Reviewed customer deployments");
-        assertThatThrownBy(() -> boundary.requireGenericMutationAllowed("reviewed", null))
-            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Reviewed customer deployments");
+        assertThatThrownBy(() -> boundary.requireExplicitRuntimeAssignment("reviewed", "production", null))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("verified release and target");
     }
 
-    @Test void genericDeploymentsKeepTheirExistingBindingPath() {
-        assertThatCode(() -> boundary.requireGenericMutationAllowed("plain-a", "plain-b"))
+    @Test void updatedVerifiedReleaseIsNotRestrictedToTheOriginalOfferArtifact() {
+        when(deployments.existsById("reviewed")).thenReturn(true);
+        var release = new com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity();
+        release.setDeploymentId("reviewed"); release.setTargetProfileId("production");
+        release.setSourceArtifactId("new-runtime-image");
+        release.setStatus("APPLIED_VERIFIED"); release.setVerificationStatus("PASSED");
+        assertThatCode(() -> boundary.requireExplicitRuntimeAssignment("reviewed", "production", release))
             .doesNotThrowAnyException();
+    }
+
+    @Test void aForeignReleaseIsNeverAssignable() {
+        when(deployments.existsById("reviewed")).thenReturn(true);
+        var release = new com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity();
+        release.setDeploymentId("another-deployment"); release.setTargetProfileId("production");
+        release.setStatus("APPLIED_VERIFIED"); release.setVerificationStatus("PASSED");
+        assertThatThrownBy(() -> boundary.requireExplicitRuntimeAssignment("reviewed", "production", release))
+            .isInstanceOf(ResponseStatusException.class);
     }
 }

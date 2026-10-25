@@ -1639,7 +1639,7 @@ function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary):
   return null
 }
 
-export function ProvidersPage() {
+export function ProvidersPage({ configurationOnly = false }: { configurationOnly?: boolean }) {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<ProviderFormState>(DEFAULT_PROVIDER_FORM_STATE)
@@ -2116,7 +2116,7 @@ export function ProvidersPage() {
         </CardContent>
       </Card>
 
-      {selectedDeploymentId ? (
+      {selectedDeploymentId && !configurationOnly ? (
         <DeploymentProviderOperationsPanel deploymentId={selectedDeploymentId} />
       ) : null}
 

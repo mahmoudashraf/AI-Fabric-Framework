@@ -51,6 +51,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/verification': 'Verification',
   '/vectorization': 'Vectorization',
   '/revisions': 'Versions',
+  '/plugins': 'Plugins',
   '/diagnostics': 'Diagnostics',
   '/users': 'User Access',
 }

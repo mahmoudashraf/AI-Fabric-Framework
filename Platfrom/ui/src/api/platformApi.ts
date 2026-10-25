@@ -6872,6 +6872,12 @@ export function updateDeploymentDraft(draftId: string, payload: UpdateDeployment
   })
 }
 
+export function resetDeploymentToTemplate(deploymentId: string) {
+  return request<DeploymentDraftResponse>(`/api/deployments/${encodeURIComponent(deploymentId)}/template-reset`, {
+    method: 'POST',
+  })
+}
+
 export function previewDeploymentEntityConfigMigration(draftId: string) {
   return request<DeploymentEntityConfigMigrationSummary>(
     `/api/deployment-drafts/${draftId}/entity-config-migration/preview`,
@@ -7703,7 +7709,8 @@ export type CustomerAiStateStorageBindResult = {
 
 export type CustomerDeploymentApplyRequest = {
   versionId: string
-  expectedEntitlementRevision: number
+  targetProfileId: string
+  sourceArtifactId?: string
   operationKey: string
 }
 
@@ -7725,8 +7732,8 @@ export type CustomerStagingConsumerCreateRequest = {
 }
 
 export type CustomerDeploymentVersionPublishRequest = {
+  draftId: string
   targetProfileId: string
-  expectedEntitlementRevision: number
   operationKey: string
 }
 
@@ -7736,7 +7743,6 @@ export type CustomerDeploymentVersionPublishResult = {
   versionLabel: string
   configHash: string
   targetProfileId: string
-  entitlementRevision: number
 }
 
 export type CustomerGoLiveReadinessItem = {
@@ -8454,14 +8460,12 @@ export function settleCustomerKnownNoEffectReservation(
   )
 }
 
-export type CustomerStagingConsumerDraftWorkspaceExpectation = CustomerUnusedDraftWorkspaceExpectation & {
-  selectedWorkspaceProfileId?: string | null
-}
+export type CustomerStagingConsumerDraftWorkspaceExpectation = CustomerUnusedDraftWorkspaceExpectation
 
 export type CustomerStagingConsumerConfigurationRequest = {
   consumerId: string
   expectedBindingRevision: number
-  expectedEntitlementRevision: number
+  targetProfileId: string
   operationKey: string
   expectedDraftWorkspaces: CustomerStagingConsumerDraftWorkspaceExpectation[]
 }

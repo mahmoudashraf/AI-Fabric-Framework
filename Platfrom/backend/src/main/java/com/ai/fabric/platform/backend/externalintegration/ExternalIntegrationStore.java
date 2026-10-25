@@ -53,6 +53,14 @@ public class ExternalIntegrationStore {
             (rs, n) -> new Row<>(codec.read(rs.getString(1), Binding.class), rs.getString(2), rs.getString(3), rs.getLong(4)),
             deploymentId, versionId, targetId, slotId));
     }
+    public Optional<Row<Binding>> latestBinding(String deploymentId, String targetId, String slotId) {
+        // Include revoked rows: a newer revocation must never resurrect an older credential binding.
+        return one(jdbc.query("""
+            select evidence_json,integrity_mac,status,revision from deployment_external_integration_bindings
+             where deployment_id=? and target_profile_id=? and slot_id=? order by created_at desc,id desc limit 1
+            """, (rs, n) -> new Row<>(codec.read(rs.getString(1), Binding.class), rs.getString(2), rs.getString(3), rs.getLong(4)),
+            deploymentId, targetId, slotId));
+    }
     public void insertBinding(Binding binding, String mac) {
         jdbc.update("insert into deployment_external_integration_bindings(id,approval_id,deployment_id,version_id,target_profile_id,slot_id,evidence_json,integrity_mac,status,revision) values (?,?,?,?,?,?,?,?,'CONFIGURED',0)",
             binding.id(), binding.approvalId(), binding.scope().deploymentId(), binding.scope().versionId(),

@@ -7,6 +7,7 @@ import { CustomerResourcesPage } from './pages/CustomerResourcesPage'
 import { CustomerKnowledgeConnectionsPage } from './pages/CustomerKnowledgeConnectionsPage'
 import { CustomerActionReviewsPage } from './pages/CustomerActionReviewsPage'
 import { CustomerAccountPage } from './pages/CustomerAccountPage'
+import { CustomerDeploymentAdvanced } from './components/customer/CustomerDeploymentAdvanced'
 import { ActionsPage } from './pages/ActionsPage'
 import { AIWorkspacesPage } from './pages/AIWorkspacesPage'
 import { BehaviorPage } from './pages/BehaviorPage'
@@ -110,6 +111,11 @@ export default function App() {
               <Route path="/integrations" element={<CustomerKnowledgeConnectionsPage mode="connections" />} />
               <Route path="/human-support" element={<CustomerKnowledgeConnectionsPage mode="human" />} />
               <Route path="/human-review" element={<CustomerActionReviewsPage />} />
+              <Route path="/revisions" element={<CustomerDeploymentAdvanced><RevisionsPage /></CustomerDeploymentAdvanced>} />
+              <Route path="/actions" element={<CustomerDeploymentAdvanced><ActionsPage /></CustomerDeploymentAdvanced>} />
+              <Route path="/prompts" element={<CustomerDeploymentAdvanced><PromptsPage /></CustomerDeploymentAdvanced>} />
+              <Route path="/providers" element={<CustomerDeploymentAdvanced><ProvidersPage configurationOnly /></CustomerDeploymentAdvanced>} />
+              <Route path="/plugins" element={<CustomerDeploymentAdvanced><MarketplacePage deploymentScoped /></CustomerDeploymentAdvanced>} />
               <Route path="/behavior" element={<Alert severity="warning">Behaviour management is not available under the customer console contract. Staff-only configuration is not exposed.</Alert>} />
               <Route path="/behavior-operations" element={<Alert severity="warning">Behaviour operations are not available under the customer console contract. No staff operation was requested.</Alert>} />
               <Route path="/notifications" element={<NotificationsPage />} />

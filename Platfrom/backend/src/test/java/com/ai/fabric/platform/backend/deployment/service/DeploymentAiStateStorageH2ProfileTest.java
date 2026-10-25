@@ -24,9 +24,9 @@ class DeploymentAiStateStorageH2ProfileTest {
     @Autowired private DeploymentAiStateStorageBindingService binding;
 
     @Test void configuredProfileAppliesTheGenerationMirrorAndValidatesTheFullEntitySchema() {
-        assertThat(environment.getProperty("spring.flyway.target")).isEqualTo("120.26");
+        assertThat(environment.getProperty("spring.flyway.target")).isEqualTo("120.27");
         assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("120.26");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("120.27");
         assertThat(jdbc.queryForObject("select count(*) from deployment_ai_state_storage_credential_generations", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("""
             select count(*) from information_schema.columns where table_name='platform_deployment_releases'

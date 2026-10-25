@@ -658,6 +658,11 @@ public class DeploymentController {
         return deploymentService.publishDraft(draftId);
     }
 
+    @PostMapping("/deployments/{deploymentId}/template-reset")
+    public DeploymentDraftResponse resetTemplateSettings(@PathVariable String deploymentId) {
+        return deploymentService.resetTemplateSettings(deploymentId);
+    }
+
     @GetMapping("/deployments/{deploymentId}/versions")
     public List<DeploymentVersionSummary> listVersions(@PathVariable String deploymentId) {
         return deploymentService.listVersions(deploymentId);

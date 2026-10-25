@@ -13,6 +13,8 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfSe
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -33,9 +35,15 @@ class ManagedDependencyCustomerOfferGuardTest {
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final CustomerSelfServiceAuthorizationService authorization = mock(CustomerSelfServiceAuthorizationService.class);
     private final CustomerOfferEntitlementService entitlementEligibility = mock(CustomerOfferEntitlementService.class);
+    private final PlatformTenantRepository tenants = mock(PlatformTenantRepository.class);
     private final ManagedDependencyCustomerOfferGuard guard = new ManagedDependencyCustomerOfferGuard(
         associations, offers, entitlements, releases, authorization, entitlementEligibility,
-        Clock.fixed(NOW, ZoneOffset.UTC));
+        Clock.fixed(NOW, ZoneOffset.UTC), tenants);
+
+    @org.junit.jupiter.api.BeforeEach void activeTenant() {
+        var tenant = new PlatformTenantEntity(); tenant.setId("tenant-1"); tenant.setCustomerId("customer-1"); tenant.setStatus("ACTIVE");
+        when(tenants.findById("tenant-1")).thenReturn(Optional.of(tenant));
+    }
 
     @Test void customerGrantIsBoundToExactOfferGraphReleaseAndInboxSlot() {
         var graph = graph(); var association = association(); var release = release();
@@ -57,7 +65,7 @@ class ManagedDependencyCustomerOfferGuardTest {
         });
     }
 
-    @Test void inactiveEntitlementBlocksWorkerExecution() {
+    @Test void invitationRevocationExpiryAndRevisionDoNotExpireAnOwnedDeployment() {
         var graph = graph();
         when(associations.findById("dep-1")).thenReturn(Optional.of(association()));
         when(releases.findById("rel-1")).thenReturn(Optional.of(release()));
@@ -66,14 +74,18 @@ class ManagedDependencyCustomerOfferGuardTest {
         var entitlement = new CustomerOfferEntitlementEntity();
         entitlement.setCustomerId("customer-1"); entitlement.setOfferId("offer-1");
         entitlement.setStatus(EntitlementStatus.REVOKED); entitlement.setExpiresAt(NOW.plusSeconds(60));
+        entitlement.setOwnerUserId("owner-1"); entitlement.setRevision(100);
+        entitlement.setExpiresAt(Instant.EPOCH);
         when(entitlements.findForUpdate("customer-1", "offer-1"))
             .thenReturn(Optional.of(entitlement));
 
-        assertThatThrownBy(() -> guard.requireActiveExecution(graph))
-            .hasMessageContaining("DEPENDENCY_ENTITLEMENT_INACTIVE");
+        guard.requireActiveExecution(graph);
+        verify(entitlementEligibility).requireActiveCustomer("customer-1");
+        verify(entitlementEligibility, never()).requireCurrentOwnerEligibility(anyString(), anyString());
+        verifyNoInteractions(offers, entitlements);
     }
 
-    @Test void ineligibleCurrentEntitlementOwnerBlocksWorkerExecution() {
+    @Test void inactiveCurrentCustomerAccountBlocksWorkerExecution() {
         var graph = graph();
         when(associations.findById("dep-1")).thenReturn(Optional.of(association()));
         when(releases.findById("rel-1")).thenReturn(Optional.of(release()));
@@ -85,7 +97,7 @@ class ManagedDependencyCustomerOfferGuardTest {
         entitlement.setStatus(EntitlementStatus.ACTIVE); entitlement.setExpiresAt(NOW.plusSeconds(60));
         when(entitlements.findForUpdate("customer-1", "offer-1")).thenReturn(Optional.of(entitlement));
         doThrow(new IllegalStateException("owner suspended")).when(entitlementEligibility)
-            .requireCurrentOwnerEligibility("owner-1", "customer-1");
+            .requireActiveCustomer("customer-1");
 
         assertThatThrownBy(() -> guard.requireActiveExecution(graph))
             .hasMessageContaining("owner suspended");

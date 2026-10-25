@@ -24,7 +24,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import {
   applyDeploymentVersion,
   fetchDeploymentConfigDiffCenter,
@@ -64,6 +64,8 @@ import {
   integrationModeLabel,
 } from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { DeploymentTemplateResetButton } from '../components/DeploymentTemplateResetButton'
+import { CustomerVerifiedReleaseAssignments } from '../components/customer/CustomerVerifiedReleaseAssignments'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -469,17 +471,20 @@ function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
 
 export function RevisionsPage() {
   const auth = usePlatformAuth()
-  const navigate = useNavigate()
+  const location = useLocation()
+  const isCustomerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
+  const requestedApplyTarget = new URLSearchParams(location.search).get('targetProfileId') ?? ''
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [templateResetPending, setTemplateResetPending] = useState(false)
   const [sourceRepositoryInput, setSourceRepositoryInput] = useState('')
   const [sourceBranchInput, setSourceBranchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [versionStatusFilter, setVersionStatusFilter] = useState('ALL')
   const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
   const [reindexFilter, setReindexFilter] = useState('ALL')
-  const [applyTargetProfileId, setApplyTargetProfileId] = useState('')
+  const [applyTargetProfileId, setApplyTargetProfileId] = useState(requestedApplyTarget)
   const [applySourceArtifactId, setApplySourceArtifactId] = useState('')
   const [bundleExportMode, setBundleExportMode] = useState<DeploymentBundleExportMode>('CONFIG_ONLY')
   const [bundleExportReason, setBundleExportReason] = useState('')
@@ -494,6 +499,11 @@ export function RevisionsPage() {
   const [bundleImportResult, setBundleImportResult] = useState<DeploymentBundleImportExecutionSummary | null>(null)
   const viewInitializedRef = useRef(false)
   const viewHydrationRef = useRef(false)
+
+  useEffect(() => {
+    setApplyTargetProfileId(requestedApplyTarget)
+    setApplySourceArtifactId('')
+  }, [selectedDeploymentId, requestedApplyTarget])
 
   const selectedDeployment = useMemo(
     () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
@@ -557,8 +567,8 @@ export function RevisionsPage() {
     [activeTargetProfiles],
   )
   const sourceArtifacts = sourceArtifactsQuery.data ?? []
-  const behaviorRequiresSourceArtifact = selectedVersionForApply?.sourceCapabilityManifestRequired
-    ?? selectedDeployment?.behaviorType !== 'CONVERSATIONAL'
+  const behaviorRequiresSourceArtifact = isCustomerWorkspace || (selectedVersionForApply?.sourceCapabilityManifestRequired
+    ?? selectedDeployment?.behaviorType !== 'CONVERSATIONAL')
   const compatibleSourceArtifacts = sourceArtifacts
   const selectedSourceArtifact = useMemo(
     () => sourceArtifacts.find((artifact) => artifact.id === applySourceArtifactId) ?? null,
@@ -885,10 +895,12 @@ export function RevisionsPage() {
   })
 
   const draftSummary = summarizeDraft(draftQuery.data)
-  const isPlatformAdmin = auth.session?.role === 'PLATFORM_ADMIN'
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
   const canAdmin = workspace?.access.canAdmin ?? false
+  const customerApplySelectionReady = Boolean(selectedApplyTargetProfile && selectedSourceArtifact
+    && targetProfilesQuery.isSuccess && !targetProfilesQuery.isFetching
+    && sourceArtifactsQuery.isSuccess && !sourceArtifactsQuery.isFetching)
 
   const selectedVersion = useMemo(
     () => filteredVersions.find((version) => version.id === selectedVersionId) ?? null,
@@ -992,6 +1004,7 @@ export function RevisionsPage() {
                 <Chip label={selectedDeployment.name} variant="outlined" />
                 <Chip label={selectedDeployment.environment} variant="outlined" />
                 <Chip label={selectedDeployment.status} color="primary" />
+                <Chip label="Direct apply" variant="outlined" />
                 <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
                 <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 <Chip label={`Source: ${selectedDeployment.source.branch}`} variant="outlined" />
@@ -1009,7 +1022,7 @@ export function RevisionsPage() {
         </CardContent>
       </Card>
 
-      {canAdmin && selectedDeployment ? (
+      {canAdmin && !isCustomerWorkspace && selectedDeployment ? (
         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
           <CardContent>
             <Stack spacing={3}>
@@ -1303,7 +1316,7 @@ export function RevisionsPage() {
 
       {selectedDeployment ? (
         <>
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          {!isCustomerWorkspace ? <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={2}>
                 <Box>
@@ -1398,7 +1411,7 @@ export function RevisionsPage() {
                 ) : null}
               </Stack>
             </CardContent>
-          </Card>
+          </Card> : null}
 
           <Grid container spacing={2.5}>
             <Grid item xs={12} lg={4}>
@@ -1435,11 +1448,13 @@ export function RevisionsPage() {
                         <Button
                           variant="contained"
                           startIcon={<PublishRoundedIcon />}
-                          disabled={publishMutation.isPending || !canEdit}
+                          disabled={publishMutation.isPending || templateResetPending || !canEdit}
                           onClick={() => publishMutation.mutate(draftQuery.data!.id)}
                         >
                           {publishMutation.isPending ? 'Publishing...' : 'Publish draft'}
                         </Button>
+                        <DeploymentTemplateResetButton deploymentId={selectedDeploymentId}
+                          disabled={!canEdit || publishMutation.isPending} onPendingChange={setTemplateResetPending} />
                         {publishMutation.isError ? (
                           <Alert severity="error">
                             {publishMutation.error instanceof Error
@@ -1693,14 +1708,14 @@ export function RevisionsPage() {
                           helperText={
                             selectedApplyTargetProfile
                               ? `Explicit target: ${targetProfileLabel(selectedApplyTargetProfile)}`
-                              : defaultRuntimeTargetProfile
+                              : isCustomerWorkspace ? 'Choose the existing environment to upgrade.' : defaultRuntimeTargetProfile
                                 ? `Runtime default: ${targetProfileLabel(defaultRuntimeTargetProfile)}`
                                 : 'Runtime default will be resolved by the platform.'
                           }
                           disabled={targetProfilesQuery.isLoading}
                         >
                           <MenuItem value="">
-                            Runtime default{defaultRuntimeTargetProfile ? ` (${defaultRuntimeTargetProfile.name})` : ''}
+                            {isCustomerWorkspace ? 'Select an environment' : `Runtime default${defaultRuntimeTargetProfile ? ` (${defaultRuntimeTargetProfile.name})` : ''}`}
                           </MenuItem>
                           {activeTargetProfiles.map((profile) => (
                             <MenuItem key={profile.id} value={profile.id}>
@@ -1717,12 +1732,12 @@ export function RevisionsPage() {
                           value={applySourceArtifactId}
                           onChange={(event) => setApplySourceArtifactId(event.target.value)}
                           helperText={behaviorRequiresSourceArtifact
-                            ? 'Required. Only artifacts that declare this behavior are shown.'
+                            ? 'Required. Select a compatible runtime image for this version.'
                             : 'Optional for the hosted Conversational source line.'}
                           disabled={sourceArtifactsQuery.isLoading}
                         >
                           <MenuItem value="">
-                            {behaviorRequiresSourceArtifact ? 'Select reviewed artifact' : 'Use promoted channel default'}
+                            {behaviorRequiresSourceArtifact ? 'Select compatible image' : 'Use promoted channel default'}
                           </MenuItem>
                           {compatibleSourceArtifacts.map((artifact) => (
                             <MenuItem key={artifact.id} value={artifact.id}>
@@ -1735,11 +1750,11 @@ export function RevisionsPage() {
                         <Alert severity={selectedApplyTargetProfile ? 'info' : 'success'}>
                           {selectedApplyTargetProfile
                             ? `Apply will explicitly target ${selectedApplyTargetProfile.id}.`
-                            : 'Apply will use the active runtime default target profile.'}
+                            : isCustomerWorkspace ? 'Select the environment to upgrade.' : 'Apply will use the active runtime default target profile.'}
                           {selectedSourceArtifact
                             ? ` Runtime source is fixed to ${selectedSourceArtifact.id}.`
                             : behaviorRequiresSourceArtifact
-                              ? ' Select a reviewed runtime artifact before apply.'
+                              ? ' Select a compatible runtime image before apply.'
                               : ' Runtime source follows the promoted channel default.'}
                         </Alert>
                       </Grid>
@@ -1884,15 +1899,10 @@ export function RevisionsPage() {
                                 || applyMutation.isPending
                                 || Boolean(inProgressRelease)
                                 || (behaviorRequiresSourceArtifact && !applySourceArtifactId)
+                                || (isCustomerWorkspace && (!customerApplySelectionReady || version.id !== selectedVersionId))
                               }
                               onClick={(event) => {
                                 event.stopPropagation()
-                                if (!isPlatformAdmin && selectedDeployment.approvalRequiredForApply) {
-                                  navigate(
-                                    `/approvals?deploymentId=${encodeURIComponent(selectedDeployment.id)}&action=APPLY_VERSION&versionId=${encodeURIComponent(version.id)}`,
-                                  )
-                                  return
-                                }
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
@@ -1904,9 +1914,7 @@ export function RevisionsPage() {
                             >
                               {inProgressRelease
                                 ? 'Release running'
-                                : !isPlatformAdmin && selectedDeployment.approvalRequiredForApply
-                                  ? 'Request approval'
-                                  : 'Apply'}
+                                : 'Apply'}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1925,15 +1933,10 @@ export function RevisionsPage() {
                       : 'Failed to apply version'}
                   </Alert>
                 ) : null}
-                {!isPlatformAdmin && selectedDeployment?.approvalRequiredForApply ? (
-                  <Alert severity="warning">
-                    This deployment requires approval before operators can apply versions. Use the request flow from
-                    the apply button or from the Approvals section.
-                  </Alert>
-                ) : null}
-                {applyMutation.isSuccess ? (
+                {applyMutation.isSuccess && applyMutation.data.deploymentId === selectedDeploymentId ? (
                   <Alert severity="info">
-                    Apply queued: {applyMutation.data.currentStepDescription ?? applyMutation.data.status}
+                    Release {applyMutation.data.id}: {applyMutation.data.currentStepDescription ?? applyMutation.data.status}
+                    {isCustomerWorkspace ? ' Updating the existing deployment; the Engage app address is unchanged.' : ''}
                   </Alert>
                 ) : null}
                 {inProgressRelease ? (
@@ -1944,6 +1947,12 @@ export function RevisionsPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          {isCustomerWorkspace && auth.session?.customerId ? <Card variant="outlined"><CardContent>
+            <CustomerVerifiedReleaseAssignments key={`${selectedDeploymentId}:${applyTargetProfileId}`}
+              customerId={auth.session.customerId} deploymentId={selectedDeploymentId} targetProfileId={applyTargetProfileId}
+              release={releaseHistory.find(release => release.targetProfileId === applyTargetProfileId) ?? null} />
+          </CardContent></Card> : null}
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>

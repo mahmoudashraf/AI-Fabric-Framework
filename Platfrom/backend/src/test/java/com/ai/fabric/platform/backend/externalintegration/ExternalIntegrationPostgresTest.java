@@ -69,6 +69,32 @@ import static org.mockito.Mockito.*;
 class ExternalIntegrationPostgresTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
+    @Test void versionUpgradeReusesPersistedOwnedBindingWithoutApprovalOrCredentialRewriteAndHonorsRevocation() throws Exception {
+        try (var fixture = new DatabaseFixture()) {
+            var f = fixture.f;
+            var binding = fixture.bind();
+            var upgraded = new com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity();
+            org.springframework.beans.BeanUtils.copyProperties(f.version, upgraded);
+            upgraded.setId("upgraded-version"); upgraded.setConfigHash("upgraded-config-hash");
+            when(f.versions.findById(upgraded.getId())).thenReturn(Optional.of(upgraded));
+
+            var resolved = fixture.resolver.resolveLocal(f.deployment.getId(), upgraded.getId(), f.target.getId());
+
+            assertThat(resolved).hasSize(1);
+            assertThat(resolved.getFirst().bindingId()).isEqualTo(binding.id());
+            assertThat(resolved.getFirst().scope().versionId()).isEqualTo(upgraded.getId());
+            assertThat(fixture.count("deployment_external_integration_bindings")).isEqualTo(1);
+            assertThat(fixture.count("deployment_external_integration_approvals")).isEqualTo(1);
+            assertThat(fixture.count("platform_secrets")).isEqualTo(1);
+
+            fixture.service.revoke("offer-generic", f.deployment.getId(), f.revokeRequest(binding.id()));
+            assertThat(fixture.store.latestBinding(f.deployment.getId(), f.target.getId(), f.profile.bindingSlotId())
+                .orElseThrow().status()).isEqualTo("REVOKED");
+            assertThatThrownBy(() -> fixture.resolver.resolveLocal(f.deployment.getId(), upgraded.getId(), f.target.getId()))
+                .hasMessageContaining("BINDING_STALE_OR_FOREIGN");
+        }
+    }
+
     @Test void approvalOptionsQueryUsesExactScopeAndReadStillVerifiesStoredIntegrity() throws Exception {
         try (var fixture = new DatabaseFixture()) {
             var f = fixture.f;
@@ -586,12 +612,12 @@ class ExternalIntegrationPostgresTest {
             });
             var target = new ExternalIntegrationService(f.entitlements, f.authorization, f.composition, commandRepository, f.deployments,
                 f.versions, f.targets, f.policy, integrity, store, vault, secretRepository, f.codec, f.mapper, f.audit,
-                Validation.buildDefaultValidatorFactory().getValidator());
+                Validation.buildDefaultValidatorFactory().getValidator(), f.owners);
             var proxy = new ProxyFactory(target); proxy.setProxyTargetClass(true);
             proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
             service = (ExternalIntegrationService) proxy.getProxy();
             var resolution = new ExternalIntegrationResolver(f.deployments, f.versions, f.targets, f.releases, f.associations,
-                f.entitlements, f.composition, f.authority, store, f.policy, integrity, f.endpoints, f.compiler, f.codec, f.mapper);
+                f.entitlements, f.composition, f.authority, store, f.policy, integrity, f.endpoints, f.compiler, f.codec, f.mapper, f.owners);
             var resolutionProxy = new ProxyFactory(resolution); resolutionProxy.setProxyTargetClass(true);
             resolutionProxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
             resolver = (ExternalIntegrationResolver) resolutionProxy.getProxy();
@@ -639,8 +665,14 @@ class ExternalIntegrationPostgresTest {
             bind();
             jdbc.update("insert into platform_customer_offer_deployments(deployment_id,customer_id,offer_id) values (?,?,?)",
                 f.deployment.getId(), caller.getCustomerId(), caller.getOfferId());
-            when(f.entitlements.requireEntitlement(f.deployment.getCustomerId(), "offer-generic", null, true)).thenAnswer(call ->
-                entitlementService.requireEntitlement(f.deployment.getCustomerId(), "offer-generic", null, true));
+            when(f.ownerRepository.findForUpdate(f.deployment.getCustomerId(), "offer-generic"))
+                .thenAnswer(call -> grants.findForUpdate(f.deployment.getCustomerId(), "offer-generic"));
+            when(f.ownerRepository.findByCustomerIdAndOfferId(f.deployment.getCustomerId(), "offer-generic"))
+                .thenAnswer(call -> grants.findByCustomerIdAndOfferId(f.deployment.getCustomerId(), "offer-generic"));
+            doAnswer(call -> {
+                entitlementService.requireCurrentOwnerEligibility(call.getArgument(0), call.getArgument(1));
+                return null;
+            }).when(f.entitlements).requireCurrentOwnerEligibility(anyString(), anyString());
         }
 
         CustomerOfferEntitlementEntity seedGrant(String id, String customerId, String offerId, String ownerId) {

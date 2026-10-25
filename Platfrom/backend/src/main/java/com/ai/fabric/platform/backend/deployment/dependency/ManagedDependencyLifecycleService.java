@@ -107,19 +107,20 @@ public class ManagedDependencyLifecycleService {
             if (existing != null) {
                 var graph = repository.lockById(existing.getId()).orElseThrow();
                 var state = store.state(graph);
-                if (!reviewed.getFingerprint().equals(graph.getSpecFingerprint())
-                    || !reviewed.getId().equals(graph.getSpecRef()) || "RETIRED".equals(graph.getStatus())) {
+                if (!reviewed.getFingerprint().equals(graph.getSpecFingerprint()) || "RETIRED".equals(graph.getStatus())) {
                     fail("DEPENDENCY_IMMUTABLE_GRAPH_CONFLICT");
                 }
                 boolean releaseTransition = !request.versionId().equals(graph.getVersionId())
                     || !request.bindingFingerprint().equals(graph.getBindingFingerprint())
-                    || !Objects.equals(request.releaseId(), graph.getReleaseId());
+                    || !Objects.equals(request.releaseId(), graph.getReleaseId())
+                    || !reviewed.getId().equals(graph.getSpecRef());
                 if (releaseTransition) {
                     if (request.releaseId() == null) fail("DEPENDENCY_IMMUTABLE_GRAPH_CONFLICT");
                     if (graph.getWorkerToken() != null || graph.getStatus().startsWith("RETIR")) {
                         fail("DEPENDENCY_OPERATION_IN_PROGRESS");
                     }
                     graph.setVersionId(request.versionId());
+                    graph.setSpecRef(reviewed.getId());
                     graph.setReleaseId(request.releaseId());
                     graph.setBindingFingerprint(request.bindingFingerprint());
                     graph.setReservationRef(null);

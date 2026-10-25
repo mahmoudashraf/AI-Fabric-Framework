@@ -95,6 +95,32 @@ Templates are not a compromise. They are a product feature.
 
 Managed deployment templates, verification presets, rollout profiles, and curated prompt/config bundles exist because operators should not have to rediscover a safe system shape every time they create a deployment.
 
+### Templates Bootstrap; They Do Not Restrict Deployment Evolution
+
+Owner decision, 2026-10-25: a template or self-service offer supplies initial
+defaults, not permanent runtime, model, plugin, setting or upgrade restrictions.
+An existing customer deployment uses the same draft -> publish -> apply ->
+verify lifecycle as any other deployment, including direct production upgrades,
+without a separate human approval or mandatory staging round trip. Keep its
+identity and Engage app URL; creating a replacement app is not an upgrade path.
+
+Published versions remain immutable snapshots for history and rollback. That
+immutability must not bind a deployment to its first offer or framework image
+forever. Offer invitations authorize bootstrap, not lifetime ownership of an
+already-created deployment. Later operations use active customer/tenant
+ownership and assigned staff permissions against the actual configuration.
+
+Customers can explicitly reset the original recorded template settings into
+their editable draft. Reset does not apply a release, uninstall plugins,
+replace credentials/external bindings, erase indexed/business data or change
+app identity. Validate, publish and apply remain explicit operations.
+
+Keep real technical and trust boundaries: compatible executable artifacts,
+owned credentials and storage, tenant isolation, declared action confirmation,
+usage accounting and finite funding contracts. They are not reasons to impose
+the original template's choices on future releases. Never silently change a
+funding contract or reset usage history to make an upgrade pass.
+
 We prefer:
 
 - explicit templates over free-form creation

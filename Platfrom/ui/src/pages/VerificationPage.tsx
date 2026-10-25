@@ -129,7 +129,7 @@ function verificationStatusColor(status: string): 'success' | 'warning' | 'error
   if (status === 'RUNNING') {
     return 'info'
   }
-  if (status === 'WARNING' || status === 'REQUIRED') {
+  if (status === 'WARNING') {
     return 'warning'
   }
   if (status === 'FAILED' || status === 'BLOCKED') {
@@ -209,7 +209,6 @@ function buildGateSummary(args: {
   hasPublishedVersion: boolean
   preflightReady: boolean
   applyRunning: boolean
-  approvalRequired: boolean
 }): GateCheckSummary[] {
   const gateChecks: GateCheckSummary[] = [
     {
@@ -247,12 +246,10 @@ function buildGateSummary(args: {
   ]
 
   gateChecks.push({
-    key: 'approval_guardrail',
-    label: 'Approval guardrail',
-    status: args.approvalRequired ? 'REQUIRED' : 'PASSED',
-    message: args.approvalRequired
-      ? 'Apply is protected and needs an approved operation request.'
-      : 'This deployment can apply without a separate approval.',
+    key: 'direct_apply',
+    label: 'Direct apply',
+    status: 'PASSED',
+    message: 'Authorized users can apply published versions without a separate approval.',
   })
 
   return gateChecks
@@ -269,12 +266,6 @@ function summarizeApplyGate(gates: GateCheckSummary[]): { status: string; messag
     return {
       status: 'WARNING',
       message: 'Release apply is temporarily waiting because another rollout is still running.',
-    }
-  }
-  if (gates.some((gate) => gate.status === 'REQUIRED')) {
-    return {
-      status: 'REQUIRED',
-      message: 'Release apply is ready once an approved operation request exists.',
     }
   }
   return {
@@ -479,13 +470,11 @@ export function VerificationPage() {
       hasPublishedVersion: workspace?.lifecycle.hasPublishedVersion ?? false,
       preflightReady: providerPreflightReady,
       applyRunning: latestRelease ? isReleaseInProgress(latestRelease) : false,
-      approvalRequired: workspace?.deployment.approvalRequiredForApply ?? false,
     }),
     [
       latestRelease,
       providerPreflightReady,
       validationQuery.data?.publishReady,
-      workspace?.deployment.approvalRequiredForApply,
       workspace?.lifecycle.hasPublishedVersion,
     ],
   )
@@ -553,9 +542,7 @@ export function VerificationPage() {
                 <Chip label={selectedDeployment.status} color="primary" />
                 <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
                 {draftQuery.data ? <Chip label={`Draft ${draftQuery.data.revisionNumber}`} variant="outlined" /> : null}
-                {workspace?.deployment.approvalRequiredForApply ? (
-                  <Chip label="Apply approval required" color="warning" variant="outlined" />
-                ) : null}
+                <Chip label="Direct apply" variant="outlined" />
               </Stack>
             ) : (
               <Alert severity="info">Create a deployment first to evaluate release readiness.</Alert>

@@ -20,6 +20,7 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerReposito
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
@@ -68,6 +69,12 @@ class AIWorkspaceInstallationServiceTest {
     private final AIWorkspaceDeploymentSecurityProjectionService deploymentSecurityProjection =
         mock(AIWorkspaceDeploymentSecurityProjectionService.class);
     private final AIWorkspaceCreateReceiptService createReceipts = mock(AIWorkspaceCreateReceiptService.class);
+
+    @BeforeEach
+    void authorizeOwnedWorkspaceConfiguration() {
+        when(offerBoundary.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+    }
 
     @ParameterizedTest
     @EnumSource(value = Operation.class, names = {"APP_CONFIGURE", "AUTH_CONFIGURE", "DOMAIN_CONFIGURE"})

@@ -263,7 +263,7 @@ export function ApprovalsPage() {
               <CardContent>
                 <Typography variant="overline" color="text.secondary">Apply guardrail</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  {workspace.deployment.approvalRequiredForApply ? 'Required' : 'Direct apply'}
+                  Direct apply
                 </Typography>
               </CardContent>
             </Card>

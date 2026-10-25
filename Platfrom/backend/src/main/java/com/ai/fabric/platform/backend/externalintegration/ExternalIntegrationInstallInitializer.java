@@ -26,7 +26,7 @@ public class ExternalIntegrationInstallInitializer {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void initialize(DeploymentEntity deployment) {
-        var profiles = composition.profiles(deployment);
+        var profiles = composition.bootstrapProfiles(deployment);
         var current = installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
         for (var profile : profiles) {
             var matches = current.stream().filter(install -> profile.pluginId().equals(install.getPluginId())).toList();

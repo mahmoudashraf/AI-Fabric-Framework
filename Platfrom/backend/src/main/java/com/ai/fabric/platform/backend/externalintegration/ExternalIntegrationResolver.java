@@ -50,15 +50,18 @@ public class ExternalIntegrationResolver {
     private final ExternalIntegrationCompilerResolver compiler;
     private final CustomerOfferCodec codec;
     private final ObjectMapper mapper;
+    private final ExternalIntegrationOwnerEligibility owners;
 
     public ExternalIntegrationResolver(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository targets, DeploymentReleaseRepository releases, CustomerOfferDeploymentRepository associations,
         CustomerOfferEntitlementService entitlements, CustomerReviewedCompositionService composition, DeploymentRuntimeAuthorityService authority,
         ExternalIntegrationStore store, ExternalIntegrationPolicy policy, ExternalIntegrationIntegrity integrity,
-        ExternalIntegrationEndpointPolicy endpoints, ExternalIntegrationCompilerResolver compiler, CustomerOfferCodec codec, ObjectMapper mapper) {
+        ExternalIntegrationEndpointPolicy endpoints, ExternalIntegrationCompilerResolver compiler, CustomerOfferCodec codec, ObjectMapper mapper,
+        ExternalIntegrationOwnerEligibility owners) {
         this.deployments = deployments; this.versions = versions; this.targets = targets; this.releases = releases; this.associations = associations;
         this.entitlements = entitlements; this.composition = composition; this.authority = authority; this.store = store; this.policy = policy;
         this.integrity = integrity; this.endpoints = endpoints; this.compiler = compiler; this.codec = codec; this.mapper = mapper;
+        this.owners = owners;
     }
 
     @Transactional(readOnly = true)
@@ -158,45 +161,50 @@ public class ExternalIntegrationResolver {
             && !"ARCHIVED".equals(value.getStatus())).orElseThrow(() -> conflict("DEPLOYMENT_REQUIRED"));
         var version = versions.findById(versionId).filter(value -> deploymentId.equals(value.getDeploymentId()) && "PUBLISHED".equals(value.getStatus())
             && value.getConfigHash() != null && !value.getConfigHash().isBlank()).orElseThrow(() -> conflict("VERSION_SCOPE_MISMATCH"));
+        if (!ExternalIntegrationRequirement.required(codec.tree(version.getCompositionProvenanceJson()))) {
+            return new Context(deployment, version, targetId, List.of(), null, null);
+        }
         var associationRow = associations.findById(deploymentId);
         if (associationRow.isEmpty()) {
-            JsonNode compilerEvidence = codec.tree(version.getCompositionProvenanceJson()).path("externalIntegrationProfiles");
-            if (!compilerEvidence.isMissingNode() && (!compilerEvidence.isArray() || !compilerEvidence.isEmpty())) throw conflict("OFFER_SCOPE_REQUIRED");
-            return new Context(deployment, version, targetId, null, null, null, null);
+            throw conflict("OFFER_SCOPE_REQUIRED");
         }
         var association = associationRow.filter(value -> value.getCustomerId().equals(deployment.getCustomerId())
             && value.getTenantId().equals(deployment.getTenantId())).orElseThrow(() -> conflict("OFFER_SCOPE_REQUIRED"));
         var offer = entitlements.requireOffer(association.getOfferId());
-        if (!offer.getFingerprint().equals(association.getOfferFingerprint())) throw conflict("OFFER_CHANGED");
-        entitlements.requireEntitlement(deployment.getCustomerId(), offer.getId(), null, false);
+        owners.requireAccount(deployment);
         Definition definition = entitlements.definition(offer);
-        policy.validateDefinition(definition); composition.requireVersion(definition, version);
-        policy.requireCompilerEvidence(definition, codec.tree(version.getCompositionProvenanceJson()));
+        var profiles = policy.profilesForVersion(definition, codec.tree(version.getCompositionProvenanceJson()));
         var target = targets.findById(targetId).filter(value -> value.isActive()).orElseThrow(() -> conflict("TARGET_REQUIRED"));
-        var permission = definition.targets().stream().filter(value -> targetId.equals(value.targetProfileId())).findFirst()
-            .orElseThrow(() -> conflict("TARGET_NOT_REVIEWED"));
-        composition.requireProfile(target, permission);
-        return new Context(deployment, version, targetId, definition, offer.getId(), offer.getFingerprint(),
+        return new Context(deployment, version, targetId, profiles, offer.getId(),
             DeploymentTargetProfileIdentity.fingerprint(mapper, target));
     }
 
     private List<Projection> resolve(Context context, boolean forEffects) {
         if (!required(context)) return List.of();
-        var profiles = context.definition().externalIntegrationProfiles();
+        var profiles = context.profiles();
         List<Projection> result = new ArrayList<>();
         for (Profile profile : profiles) {
             if (!profile.targetProfileIds().contains(context.targetId())) throw conflict("COMPILER_PROFILE_MISMATCH");
             var row = store.binding(context.deployment().getId(), context.version().getId(), context.targetId(), profile.bindingSlotId())
+                .or(() -> store.latestBinding(context.deployment().getId(), context.targetId(), profile.bindingSlotId()))
                 .orElseThrow(() -> conflict("BINDING_REQUIRED"));
             Binding binding = row.value();
             integrity.require(bindingEvidence(binding, row.status(), row.revision()), row.integrity());
             Scope expected = new Scope(context.offerId(), context.deployment().getCustomerId(), context.deployment().getTenantId(),
                 context.deployment().getId(), context.version().getId(), context.targetId(), profile.bindingSlotId(), profile.id());
-            if (!"CONFIGURED".equals(row.status()) || !expected.equals(binding.scope())) throw conflict("BINDING_STALE_OR_FOREIGN");
+            if (!"CONFIGURED".equals(row.status()) || !sameOwnerAndTarget(expected, binding.scope())) throw conflict("BINDING_STALE_OR_FOREIGN");
             var approvalRow = store.approval(binding.approvalId()).orElseThrow(() -> conflict("APPROVAL_REQUIRED"));
             Approval approval = approvalRow.value(); integrity.require(approval, approvalRow.integrity());
-            if (!expected.equals(approval.scope()) || !profile.equals(approval.profile()) || !context.offerFingerprint().equals(approval.offerFingerprint())
-                || !context.version().getConfigHash().equals(approval.versionConfigHash()) || !context.targetFingerprint().equals(approval.targetFingerprint())) {
+            var approvedVersion = versions.findById(binding.scope().versionId()).filter(value ->
+                context.deployment().getId().equals(value.getDeploymentId()) && "PUBLISHED".equals(value.getStatus()))
+                .orElseThrow(() -> conflict("VERSION_SCOPE_MISMATCH"));
+            if (!binding.scope().equals(approval.scope()) || !sameContract(profile, approval.profile())
+                || !approvedVersion.getConfigHash().equals(approval.versionConfigHash())
+                || !context.targetFingerprint().equals(approval.targetFingerprint())) {
+                throw conflict("APPROVAL_STALE_OR_FOREIGN");
+            }
+            var defaults = entitlements.definition(entitlements.requireOffer(context.offerId()));
+            if (!policy.profilesForVersion(defaults, codec.tree(approvedVersion.getCompositionProvenanceJson())).contains(approval.profile())) {
                 throw conflict("APPROVAL_STALE_OR_FOREIGN");
             }
             policy.validateConfig(profile, approval.config(), approval.accountScope());
@@ -206,24 +214,40 @@ public class ExternalIntegrationResolver {
             Map<String, String> config = new LinkedHashMap<>(), secrets = new LinkedHashMap<>();
             approval.config().forEach((field, value) -> config.put(ExternalIntegrationCompilerResolver.alias(profile, field), value));
             for (String field : profile.secretFields()) {
-                String expectedName = ExternalIntegrationCompilerResolver.secretName(binding.id(), expected, field);
+                String expectedName = ExternalIntegrationCompilerResolver.secretName(binding.id(), binding.scope(), field);
                 if (!expectedName.equals(binding.secretReferences().get(field)) || !requireSecret(store, expected, expectedName).revision()
                     .equals(binding.secretRevisions().get(field))) throw conflict("CREDENTIAL_CHANGED_OR_FOREIGN");
                 secrets.put(ExternalIntegrationCompilerResolver.alias(profile, field), expectedName);
             }
             if (forEffects) endpoints.requirePublicDns(profile.allowedHosts());
             result.add(new Projection(binding.id(), approval.id(), expected,
-                integrity.seal(Map.of("approval", approval, "binding", bindingEvidence(binding, row.status(), row.revision()))), config, secrets));
+                integrity.seal(Map.of("approval", approval, "binding", bindingEvidence(binding, row.status(), row.revision()),
+                    "scope", expected, "profile", profile)), config, secrets));
         }
         return List.copyOf(result);
     }
 
     private boolean required(Context context) {
-        return context.definition() != null && !context.definition().externalIntegrationProfiles().isEmpty();
+        return !context.profiles().isEmpty();
     }
 
     private void fenceEntitlement(Context context) {
-        entitlements.requireEntitlement(context.deployment().getCustomerId(), context.offerId(), null, true);
+        owners.fenceCommands(context.offerId(), context.deployment());
+    }
+
+    private boolean sameOwnerAndTarget(Scope expected, Scope bound) {
+        return expected.offerId().equals(bound.offerId()) && expected.customerId().equals(bound.customerId())
+            && expected.tenantId().equals(bound.tenantId()) && expected.deploymentId().equals(bound.deploymentId())
+            && expected.targetProfileId().equals(bound.targetProfileId()) && expected.bindingSlotId().equals(bound.bindingSlotId())
+            && expected.profileId().equals(bound.profileId());
+    }
+
+    private boolean sameContract(Profile current, Profile approved) {
+        return current.id().equals(approved.id()) && current.bindingSlotId().equals(approved.bindingSlotId())
+            && current.pluginId().equals(approved.pluginId()) && current.targetProfileIds().equals(approved.targetProfileIds())
+            && current.configFields().equals(approved.configFields()) && current.secretFields().equals(approved.secretFields())
+            && current.endpointFields().equals(approved.endpointFields()) && current.accountScopeFields().equals(approved.accountScopeFields())
+            && current.allowedHosts().equals(approved.allowedHosts());
     }
 
     private void requireRelease(Context context, String releaseId, String expectedFingerprint) {
@@ -247,5 +271,5 @@ public class ExternalIntegrationResolver {
         if (values.putIfAbsent(key, value) != null) throw conflict("ENVIRONMENT_ALIAS_COLLISION");
     }
     private record Context(DeploymentEntity deployment, DeploymentVersionEntity version, String targetId,
-                           Definition definition, String offerId, String offerFingerprint, String targetFingerprint) { }
+                           List<Profile> profiles, String offerId, String targetFingerprint) { }
 }

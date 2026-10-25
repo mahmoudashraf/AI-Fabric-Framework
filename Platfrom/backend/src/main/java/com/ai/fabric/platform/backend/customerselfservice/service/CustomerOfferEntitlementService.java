@@ -223,6 +223,13 @@ public class CustomerOfferEntitlementService {
         return entity;
     }
 
+    /** Optional receipt namespace only; callers must authorize the actual deployment before using it. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public java.util.Optional<CustomerOfferEntitlementEntity> findCommandNamespaceForUpdate(String customerId, String offerId) {
+        if (offerId == null || offerId.isBlank()) return java.util.Optional.empty();
+        return entitlements.findForUpdate(customerId, offerId);
+    }
+
     public CustomerOfferEntity requireOffer(String id) {
         if (blank(id, 64)) throw invalid();
         return offers.findById(id).orElseThrow(() -> deny(ENTITLEMENT_REQUIRED));

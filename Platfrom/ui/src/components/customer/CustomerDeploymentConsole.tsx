@@ -44,7 +44,7 @@ import {
   createCustomerDeploymentStagingConsumer,
   configureCustomerDeploymentStagingConsumer,
   activateDeploymentPracticalProductionConsumer,
-  applyCustomerDeploymentStagingVersion,
+  applyDeploymentVersion,
   bootstrapCustomerDeployment,
   fetchCustomerDeploymentPortfolio,
   fetchCustomerDeploymentGoLiveReadiness,
@@ -54,13 +54,14 @@ import {
   fetchCustomerSelfServiceInvitations,
   fetchDeploymentReleases,
   fetchDeploymentVersions,
+  fetchCompatibleDeploymentSourceArtifacts,
   fetchDeploymentDraft,
   fetchDeploymentOperationsStatus,
   fetchPlatformConsumers,
   fetchAIWorkspaceInstallations,
   fetchPlatformUserPreferences,
   planDeploymentPracticalPromotion,
-  publishCustomerDeploymentVersion,
+  publishDeploymentDraft,
   planCustomerPreparedFailureRecovery,
   recoverCustomerPreparedFailure,
   planCustomerFailedApplyRetry,
@@ -98,16 +99,16 @@ import { createPostProvisionResumeHolds } from './postProvisionResumeHolds'
 import { selectableCustomerAssignments, canReviewCustomerAssignment, canConfigureExistingCustomerAssignment, customerAssignmentDraftExpectations,
   customerAssignmentConfigurationRequest, configureExistingCustomerAssignment, assignmentConfigurationSnapshot,
   prepareKnownAssignmentReconciliation, confirmKnownAssignmentReconciliation,
-  customerAssignmentReviewedWorkspaceProfiles,
-  type CustomerAssignmentConfigurationScope, type CustomerAssignmentWorkspaceProfileChoices, type KnownAssignmentReconciliation } from './customerDeploymentAssignments'
+  type CustomerAssignmentConfigurationScope, type KnownAssignmentReconciliation } from './customerDeploymentAssignments'
 import { createAssignmentConfigurationIntents, canStartAssignmentIntent, type AssignmentConfigurationIntent } from './customerAssignmentConfigurationIntents'
 import { useDeploymentWorkspace } from '../../workspace/DeploymentWorkspaceContext'
 import { useScopedOneTimeValue } from '../../hooks/useScopedOneTimeValue'
 import { CustomerAiStateStorageBinding } from './CustomerAiStateStorageBinding'
 import { CustomerExternalIntegrationBindings } from './CustomerExternalIntegrationBindings'
 import { aiStateStorageLabels, aiStateStorageModes, customerStorageBootstrapRequest,
-  publishStoredAiStateStorage, storedAiStateStorageMode } from './customerAiStateStorage'
+  storedAiStateStorageMode } from './customerAiStateStorage'
 import { CustomerAdvancedSection, useCustomerEditorSection } from './CustomerDetailSections'
+import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 
 type Notice = { severity: 'success' | 'info' | 'warning' | 'error'; message: string }
 type ConfigureAssignmentInput = { scope: CustomerAssignmentConfigurationScope
@@ -298,7 +299,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const storageDraft = useQuery({
     queryKey: ['customer-storage-draft', customerId, selectedDeploymentId],
     queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
-    enabled: requiresStorageChoice && Boolean(selectedDeploymentId),
+    enabled: Boolean(selectedDeploymentId),
   })
   let savedStorageMode: ReturnType<typeof storedAiStateStorageMode> = undefined
   let storedStorageError: string | null = null
@@ -309,8 +310,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     }
   } catch (error) { storedStorageError = errorText(error) }
   const publishGuard = useScopedOneTimeValue<boolean>(JSON.stringify([session.actorId, session.authenticationMode, customerId, selectedDeploymentId,
-    selectedOffer?.id, selectedOffer?.fingerprint, selectedOffer?.entitlement.revision,
-    selectedDeployment?.bootstrapTargetProfileId, storageDraft.data?.id, storageDraft.data?.updatedAt]))
+    storageDraft.data?.id, storageDraft.data?.updatedAt]))
 
   useEffect(() => {
     if (!selectedOfferId && !requestedOfferId && offers.length > 0) setSelectedOfferId(offers[0].id)
@@ -376,6 +376,13 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const versions = versionsQuery.data ?? []
   const releases = releasesQuery.data ?? []
   const latestVersion = versions[0] ?? null
+  const stagingArtifacts = useQuery({
+    queryKey: ['compatible-deployment-source-artifacts', selectedDeploymentId, latestVersion?.id],
+    queryFn: () => fetchCompatibleDeploymentSourceArtifacts(selectedDeploymentId, latestVersion!.id),
+    enabled: Boolean(selectedDeploymentId && latestVersion?.id), retry: false,
+  })
+  const stagingImage = useScopedOneTimeValue<string>(JSON.stringify([session.actorId, customerId, selectedDeploymentId, latestVersion?.id]))
+  const selectedStagingImage = (stagingArtifacts.data ?? []).find(artifact => artifact.id === stagingImage.value)
   const stagingRelease = releases.find((release) => release.targetProfileId === stagingTargetProfileId) ?? null
   const productionRelease = releases.find((release) => release.targetProfileId === selectedProductionTargetProfileId) ?? null
   const deploymentConsumers = selectableCustomerAssignments(consumers, customerId, selectedDeploymentId)
@@ -411,30 +418,16 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   })
   let configurationDrafts: ReturnType<typeof customerAssignmentDraftExpectations> | null = null
   let configurationDraftError: string | null = null
-  let configurationProfiles: ReturnType<typeof customerAssignmentReviewedWorkspaceProfiles> = []
   try {
     if (configurationEligible && configurationScope && assignmentWorkspaces.data) {
       configurationDrafts = customerAssignmentDraftExpectations(configurationScope, assignmentWorkspaces.data)
-      configurationProfiles = customerAssignmentReviewedWorkspaceProfiles(configurationScope)
-    }
-  } catch (error) { configurationDraftError = errorText(error) }
-  const profileChoiceGuard = useScopedOneTimeValue<CustomerAssignmentWorkspaceProfileChoices>(JSON.stringify([
-    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
-    selectedOffer?.entitlement.revision, selectedOffer?.workspaceProfiles, selectedDeploymentId, stagingTargetProfileId,
-    selectedConsumer?.consumerId, selectedConsumer?.bindingRevision, configurationDrafts,
-  ]))
-  const configurationProfileChoices = profileChoiceGuard.value ?? {}
-  let configurationReviewedDrafts = configurationDrafts
-  try {
-    if (configurationScope && assignmentWorkspaces.data && configurationDrafts) {
-      configurationReviewedDrafts = customerAssignmentDraftExpectations(configurationScope, assignmentWorkspaces.data, configurationProfileChoices)
     }
   } catch (error) { configurationDraftError = errorText(error) }
   const configurationGuard = useScopedOneTimeValue<boolean>(JSON.stringify([session.actorId, session.authenticationMode,
     customerId, selectedOffer?.id, selectedOffer?.fingerprint, selectedOffer?.entitlement.revision, selectedDeploymentId,
     stagingTargetProfileId, selectedDeployment?.status, selectedDeployment?.activeVersionId, selectedConsumer,
     versions.map((value) => value.id), releases.map((value) => value.id), assignmentDraft.data?.id,
-    assignmentDraft.data?.revisionNumber, assignmentDraft.data?.updatedAt, configurationReviewedDrafts, selectedOffer?.workspaceProfiles]))
+    assignmentDraft.data?.revisionNumber, assignmentDraft.data?.updatedAt, configurationDrafts]))
   let configurationProtectionError: string | null = null
   let configurationIntent: AssignmentConfigurationIntent | null = null
   let configurationHeld = false
@@ -526,21 +519,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const publish = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
-      if (!operationsReady || !selectedOffer || !selectedDeployment?.bootstrapTargetProfileId || !publishGuard.publish(token, true)) {
-        throw new Error('Select the current reviewed deployment before publishing.')
+      if (!selectedDeployment || !storageDraft.data || !publishGuard.publish(token, true)) {
+        throw new Error('Read the current deployment draft before publishing.')
       }
-      const identity = { deploymentId: selectedDeployment!.deploymentId,
-        targetProfileId: selectedDeployment!.bootstrapTargetProfileId,
-        revision: selectedOffer!.entitlement.revision, draftId: storageDraft.data?.id,
-        draftRevision: storageDraft.data?.revisionNumber, storageMode: savedStorageMode }
-      const key = operationKey('publish-version', identity)
-      const result = requiresStorageChoice
-        ? await publishStoredAiStateStorage({ draft: fetchDeploymentDraft, publish: publishCustomerDeploymentVersion },
-          selectedOffer!, customerId, selectedDeployment!, storageDraft.data!, key, () => publishGuard.publish(token, true))
-        : await publishCustomerDeploymentVersion(selectedOffer!.id, selectedDeployment!.deploymentId, {
-          targetProfileId: selectedDeployment!.bootstrapTargetProfileId,
-          expectedEntitlementRevision: selectedOffer!.entitlement.revision, operationKey: key,
-        })
+      const current = await fetchDeploymentDraft(selectedDeployment.deploymentId)
+      if (current.deploymentId !== selectedDeployment.deploymentId || current.id !== storageDraft.data.id
+        || current.revisionNumber !== storageDraft.data.revisionNumber || current.updatedAt !== storageDraft.data.updatedAt
+        || !publishGuard.publish(token, true)) throw new Error('The draft changed. Refresh before publishing.')
+      const result = await publishDeploymentDraft(current.id)
       return { result, token }
     },
     onSuccess: async ({ result, token }) => {
@@ -553,25 +539,16 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const stagingApply = useMutation({
     mutationFn: async () => {
-      if (!operationsReady || !selectedDeployment || !selectedOffer || !latestVersion || !selectedDeployment.bootstrapTargetProfileId) {
-        throw new Error('A published version and entitled customer-staging target are required.')
+      if (!selectedDeployment || !latestVersion || !selectedDeployment.bootstrapTargetProfileId || !selectedStagingImage
+        || stagingArtifacts.isFetching || !stagingArtifacts.isSuccess) {
+        throw new Error('Select a published version, staging target and compatible runtime image.')
       }
       const targetProfileId = selectedDeployment.bootstrapTargetProfileId
       const key = operationKey('stage-apply', {
         deploymentId: selectedDeployment.deploymentId, targetProfileId, versionId: latestVersion.id,
-        revision: selectedOffer.entitlement.revision,
+        sourceArtifactId: selectedStagingImage.id,
       })
-      await admissionCommands.current.authorize(selectedOffer.id, selectedDeployment.deploymentId, {
-        targetProfileId,
-        versionId: latestVersion.id,
-        operation: 'APPLY',
-        operationKey: key,
-      })
-      return applyCustomerDeploymentStagingVersion(selectedOffer.id, selectedDeployment.deploymentId, {
-        versionId: latestVersion.id,
-        expectedEntitlementRevision: selectedOffer.entitlement.revision,
-        operationKey: key,
-      })
+      return applyDeploymentVersion(selectedDeployment.deploymentId, latestVersion.id, targetProfileId, selectedStagingImage.id, key)
     },
     onSuccess: async (release) => {
       completeOperation('stage-apply')
@@ -646,7 +623,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       if (configurationGuard.publish(input.token, true)) {
         completeOperation('configure-existing-assignment')
         setReviewedRejection(null); setRejectionConfirmed(null)
-        profileChoiceGuard.publish(profileChoiceGuard.capture(), {})
         setNotice({ severity: 'info', message: 'Known rejection reconciled. No assignment binding was changed.' })
       }
     },
@@ -1057,6 +1033,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         ))}
       </Grid>
 
+      {selectedDeployment ? <CustomerDeploymentAdvancedLinks deploymentId={selectedDeploymentId}
+        targetProfileId={productionRelease?.targetProfileId ?? selectedProductionTargetProfileId} /> : null}
       {selectedDeployment && selectedOffer ? (
         <Paper variant="outlined" sx={{ p: guided ? 0 : 2.5, border: guided ? 0 : undefined, bgcolor: guided ? 'transparent' : undefined, display: guided && step === 'template' ? 'none' : undefined }}>
           <Stack spacing={3}>
@@ -1184,17 +1162,26 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   </Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button variant="outlined" startIcon={<PublishedWithChangesRoundedIcon />}
-                      disabled={!operationsReady || publish.isPending || !selectedDeployment.bootstrapTargetProfileId || (requiresStorageChoice
-                        && (storageDraft.isFetching || !storageDraft.data || Boolean(storageDraft.error || storedStorageError) || !savedStorageMode))}
+                      disabled={publish.isPending || storageDraft.isFetching || !storageDraft.data || Boolean(storageDraft.error)}
                       onClick={() => publish.mutate({ token: publishGuard.capture() })}>
                       Publish current configuration
                     </Button>
                     <Button variant="contained" startIcon={<RocketLaunchRoundedIcon />}
-                      disabled={!operationsReady || !canApplyReviewedVersion(latestVersion?.id, stagingRelease) || stagingApply.isPending}
+                      disabled={!latestVersion || releaseNeedsProgressPolling(stagingRelease?.status ?? '') || stagingApply.isPending
+                        || !selectedStagingImage || stagingArtifacts.isFetching || !stagingArtifacts.isSuccess}
                       onClick={() => stagingApply.mutate()}>
                       Deploy to customer staging
                     </Button>
                   </Stack>
+                  <TextField select label="Staging runtime image" value={selectedStagingImage?.id ?? ''}
+                    disabled={!latestVersion || stagingArtifacts.isFetching || stagingApply.isPending}
+                    onChange={event => stagingImage.publish(stagingImage.capture(), event.target.value)}>
+                    <MenuItem value="">Select compatible image</MenuItem>
+                    {(stagingArtifacts.data ?? []).map(artifact => <MenuItem key={artifact.id} value={artifact.id}>
+                      {artifact.serviceName} / {artifact.imageTag} / {artifact.id}
+                    </MenuItem>)}
+                  </TextField>
+                  {stagingArtifacts.isError ? <Alert severity="error">{errorText(stagingArtifacts.error)}</Alert> : null}
                   {savedStorageMode === 'CUSTOMER_POSTGRES' && latestVersion ? <CustomerAiStateStorageBinding
                     key={JSON.stringify([session.actorId, customerId, selectedOffer.id, selectedOffer.fingerprint,
                       selectedOffer.entitlement.revision, selectedDeploymentId, latestVersion.id])}
@@ -1273,19 +1260,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                             <Typography variant="caption">
                               {draft.installationEntityId} &middot; row version {draft.expectedRowVersion}
                             </Typography>
-                            <TextField select fullWidth size="small" label="App settings"
-                              InputLabelProps={{ shrink: true }}
-                              SelectProps={{ displayEmpty: true, SelectDisplayProps: {
-                                'aria-label': `Settings for ${draft.installationEntityId}`, 'aria-labelledby': undefined,
-                              } }}
-                              value={configurationProfileChoices[draft.installationEntityId] ?? ''}
-                              disabled={configureAssignment.isPending || reconcileRejectedAssignment.isPending || configurationHeld || Boolean(configurationDraftError || configurationProtectionError)}
-                              onChange={(event) => profileChoiceGuard.publish(profileChoiceGuard.capture(), {
-                                ...configurationProfileChoices, [draft.installationEntityId]: event.target.value || null,
-                              })}>
-                              <MenuItem value="">Keep current settings</MenuItem>
-                              {configurationProfiles.map((profile) => <MenuItem key={profile.id} value={profile.id}>{profile.label}</MenuItem>)}
-                            </TextField>
                           </Stack>)}
                         </Stack> : null}
                         {configurationHeld ? <Alert severity="warning">
@@ -1322,9 +1296,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                             if (!configurationScope || !assignmentWorkspaces.data || configurationBusy.current || configurationHeld) return
                             try {
                               const key = operationKey('configure-existing-assignment', { scope: configurationScope,
-                                expectedDraftWorkspaces: configurationReviewedDrafts })
-                              const request = customerAssignmentConfigurationRequest(configurationScope, assignmentWorkspaces.data, key,
-                                configurationProfileChoices)
+                                expectedDraftWorkspaces: configurationDrafts })
+                              const request = customerAssignmentConfigurationRequest(configurationScope, assignmentWorkspaces.data, key)
                               const input = { scope: structuredClone(configurationScope), request, token: configurationGuard.capture() }
                               configurationBusy.current = true
                               configureAssignment.mutate(input)

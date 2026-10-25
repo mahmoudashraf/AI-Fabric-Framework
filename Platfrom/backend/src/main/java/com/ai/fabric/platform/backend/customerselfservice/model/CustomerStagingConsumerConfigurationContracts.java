@@ -15,21 +15,20 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 public final class CustomerStagingConsumerConfigurationContracts {
     private CustomerStagingConsumerConfigurationContracts() { }
 
-    public record DraftWorkspaceExpectation(String installationEntityId, long expectedRowVersion,
-            @JsonInclude(JsonInclude.Include.NON_NULL) String selectedWorkspaceProfileId) {
+    public record DraftWorkspaceExpectation(String installationEntityId, long expectedRowVersion) {
         public DraftWorkspaceExpectation {
             text(installationEntityId, 64);
             if (expectedRowVersion < 0) throw invalid();
-            if (selectedWorkspaceProfileId != null) text(selectedWorkspaceProfileId, 100);
         }
     }
 
-    public record Request(String consumerId, long expectedBindingRevision, long expectedEntitlementRevision,
+    public record Request(String consumerId, long expectedBindingRevision, String targetProfileId,
                           String operationKey, List<DraftWorkspaceExpectation> expectedDraftWorkspaces) {
         public Request {
             text(consumerId, 128); text(operationKey, 128);
+            text(targetProfileId, 64);
             if (!operationKey.matches("[A-Za-z0-9._:-]{1,128}") || expectedBindingRevision < 0
-                || expectedBindingRevision == Long.MAX_VALUE || expectedEntitlementRevision < 0
+                || expectedBindingRevision == Long.MAX_VALUE
                 || expectedDraftWorkspaces == null || expectedDraftWorkspaces.size() > 100
                 || expectedDraftWorkspaces.stream().anyMatch(java.util.Objects::isNull)
                 || expectedDraftWorkspaces.stream().map(DraftWorkspaceExpectation::installationEntityId).distinct().count()
@@ -40,23 +39,22 @@ public final class CustomerStagingConsumerConfigurationContracts {
 
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
         public static Request fromJson(JsonNode value) {
-            fields(value, Set.of("consumerId", "expectedBindingRevision", "expectedEntitlementRevision",
+            fields(value, Set.of("consumerId", "expectedBindingRevision", "targetProfileId",
                 "operationKey", "expectedDraftWorkspaces"));
             var workspaces = value.get("expectedDraftWorkspaces");
             if (workspaces == null || !workspaces.isArray() || workspaces.size() > 100) throw invalid();
             var expectations = new ArrayList<DraftWorkspaceExpectation>();
             for (var workspace : workspaces) {
-                if (workspace == null || !workspace.isObject() || workspace.size() < 2 || workspace.size() > 3
+                if (workspace == null || !workspace.isObject() || workspace.size() != 2
                     || !workspace.has("installationEntityId") || !workspace.has("expectedRowVersion")) throw invalid();
                 workspace.fieldNames().forEachRemaining(name -> {
-                    if (!Set.of("installationEntityId", "expectedRowVersion", "selectedWorkspaceProfileId").contains(name)) throw invalid();
+                    if (!Set.of("installationEntityId", "expectedRowVersion").contains(name)) throw invalid();
                 });
                 expectations.add(new DraftWorkspaceExpectation(string(workspace, "installationEntityId"),
-                    revision(workspace, "expectedRowVersion"), workspace.hasNonNull("selectedWorkspaceProfileId")
-                        ? string(workspace, "selectedWorkspaceProfileId") : null));
+                    revision(workspace, "expectedRowVersion")));
             }
             return new Request(string(value, "consumerId"), revision(value, "expectedBindingRevision"),
-                revision(value, "expectedEntitlementRevision"), string(value, "operationKey"), expectations);
+                string(value, "targetProfileId"), string(value, "operationKey"), expectations);
         }
     }
 

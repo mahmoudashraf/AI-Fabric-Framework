@@ -97,7 +97,7 @@ import static org.mockito.Mockito.*;
 
 /** Real production migrations, repositories and service proxies; only remote PostgreSQL probing is mocked. */
 @DataJpaTest(properties = {
-    "spring.flyway.enabled=true", "spring.flyway.locations=classpath:db/migration", "spring.flyway.target=200",
+    "spring.flyway.enabled=true", "spring.flyway.locations=classpath:db/migration", "spring.flyway.target=latest",
     "spring.jpa.hibernate.ddl-auto=none", "spring.datasource.hikari.maximum-pool-size=6"
 }, showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -161,6 +161,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     @SpyBean PlatformSecretService secrets;
     @SpyBean DeploymentAiStateStorageBindingService binder;
     @MockBean DeploymentAiStateStorageProbe probe;
+    @MockBean com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
 
     private String customerId, tenantId, ownerId, email, offerId, grantId, deploymentId;
     private String targetId, productionTargetId, credentialId, pluginId, pluginVersionId, versionId, unreviewedVersionId;
@@ -202,7 +203,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     void getOpensARealWritableTransactionAndReadsTheCommittedRetainedBinding() {
         assertThat(jdbc.queryForObject("select version()", String.class)).startsWith("PostgreSQL");
         assertThat(jdbc.queryForObject("select version from flyway_schema_history where success order by installed_rank desc limit 1", String.class))
-            .isEqualTo("200");
+            .isEqualTo("213");
         assertThat(AopUtils.isAopProxy(service)).isTrue();
         var result = service.bind(offerId, deploymentId, request("bind-and-get", PASSWORD));
         assertCommittedBinding(result, "bind-and-get");
@@ -226,20 +227,21 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     }
 
     @Test
-    void publishedButUnreviewedVersionIsRejectedBeforeVaultBinderAndProbeForPostAndGet() {
+    void unpublishedVersionIsRejectedBeforeVaultBinderAndProbeForPostAndGet() {
+        inSetupTransaction(() -> jdbc.update("update platform_deployment_versions set status=\'DRAFT\' where id=?", unreviewedVersionId));
         var before = persistedState();
         var request = request("bad-version", PASSWORD);
         var invalid = new Request(2, request.operationKey(), targetId, SLOT, connection(unreviewedVersionId, PASSWORD));
 
-        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> service.bind(offerId, deploymentId, invalid));
-        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> service.get(offerId, deploymentId, targetId, SLOT, unreviewedVersionId));
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.bind(offerId, deploymentId, invalid));
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.get(offerId, deploymentId, targetId, SLOT, unreviewedVersionId));
 
         verifyNoInteractions(secrets, binder, probe);
         assertThat(persistedState()).isEqualTo(before);
     }
 
     @Test
-    void reviewedVersionIsRecheckedBeforeReplayingAnExistingCommand() {
+    void actualPublishedProvenanceIsRecheckedBeforeReplayingAnExistingCommand() {
         service.bind(offerId, deploymentId, request("reviewed-replay", PASSWORD));
         inSetupTransaction(() -> jdbc.update("update platform_deployment_versions set composition_provenance_json=? where id=?",
             provenance(false), versionId));
@@ -282,7 +284,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     }
 
     @Test
-    void reviewedCandidateGetsANewCredentialGenerationWithoutChangingTheActiveVersionOrItsCommand() throws Exception {
+    void ownedPublishedCandidateGetsANewCredentialGenerationWithoutChangingTheActiveVersionOrItsCommand() throws Exception {
         Result original = service.bind(offerId, deploymentId, request("original-generation", PASSWORD));
         String candidateId = persistSyntheticActiveReleaseAndReviewedCandidate();
         var before = persistedState();
@@ -386,12 +388,40 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
         var before = persistedState();
         clearInvocations(secrets, binder, probe);
 
-        assertCode(code, () -> service.bind(offerId, deploymentId, request("existing", PASSWORD)));
-        assertCode(code, () -> service.bind(offerId, deploymentId, request("new", PASSWORD)));
-        assertCode(code, () -> service.get(offerId, deploymentId, targetId, SLOT, versionId));
+        if (code != null) {
+            assertCode(code, () -> service.bind(offerId, deploymentId, request("existing", PASSWORD)));
+            assertCode(code, () -> service.bind(offerId, deploymentId, request("new", PASSWORD)));
+            assertCode(code, () -> service.get(offerId, deploymentId, targetId, SLOT, versionId));
+            verifyNoInteractions(secrets, binder, probe);
+            assertThat(persistedState()).isEqualTo(before);
+        } else {
+            var replay = new Request(987, "existing", targetId, SLOT, connection(versionId, PASSWORD));
+            assertThat(service.bind(offerId, deploymentId, replay).binding().versionId()).isEqualTo(versionId);
+            verifyNoInteractions(binder, probe);
+            var newCommand = service.bind(offerId, deploymentId, request("new", PASSWORD));
+            assertThat(service.get(offerId, deploymentId, targetId, SLOT, versionId)).isEqualTo(newCommand.binding());
+            verify(probe, times(1)).verify(any());
+            verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+            assertThat(persistedState().get("vault")).isEqualTo(before.get("vault"));
+            assertThat(ownedRows("platform_customer_entitlement_commands", "entitlement_id", grantId)).hasSize(2);
+        }
+    }
 
-        verifyNoInteractions(secrets, binder, probe);
-        assertThat(persistedState()).isEqualTo(before);
+    @Test
+    void noHistoricalNamespaceDelegatesNormalBindingWithoutRequiringAnOfferAssociation() {
+        inSetupTransaction(() -> {
+            associations.deleteById(deploymentId);
+            grants.deleteById(grantId);
+        });
+        var result = service.bind(offerId, deploymentId, request("generic-binding", PASSWORD));
+        assertThat(result.binding().customerId()).isEqualTo(customerId);
+        assertThat(result.binding().tenantId()).isEqualTo(tenantId);
+        assertThat(result.binding().versionId()).isEqualTo(versionId);
+        assertThat(rowCount("platform_customer_entitlement_commands", "entitlement_id", grantId)).isZero();
+        assertThat(rowCount("platform_secrets", "deployment_id", deploymentId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from platform_secrets where name=?", Long.class, signingSecretName)).isZero();
+        verify(probe, times(1)).verify(any());
+        assertThat(service.get(offerId, deploymentId, targetId, SLOT, versionId)).isEqualTo(result.binding());
     }
 
     @Test
@@ -504,8 +534,8 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
         credential.setProviderType(com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY);
         credential.setSecretRef("UNUSED_SYNTHETIC_PROVIDER_SECRET"); credential.setStatus("ACTIVE");
         credential.setCreatedAt(now); credential.setUpdatedAt(now); providerCredentials.saveAndFlush(credential);
-        var staging = persistProfile(targetId, "state-stage-server");
-        var production = persistProfile(productionTargetId, "state-prod-server");
+        var staging = persistProfile(targetId, "state-stage-server", "staging");
+        var production = persistProfile(productionTargetId, "state-prod-server", "production");
         var topology = new ReviewedTopology(1, 500, 512, 0, 0, 1, 0, 1);
         definition = new Definition("1", "AI-state persistence offer", TEMPLATE,
             new PluginPin(pluginId, pluginVersionId, codec.hash(codec.tree(pluginVersion.getManifestJson()))), List.of(),
@@ -544,8 +574,8 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
             offerFingerprint, 2, "synthetic-bootstrap", now));
     }
 
-    private DeploymentTargetProfileEntity persistProfile(String id, String server) {
-        var profile = CustomerOfferTestFixtures.profile(id, server); profile.setName(id);
+    private DeploymentTargetProfileEntity persistProfile(String id, String server, String environment) {
+        var profile = CustomerOfferTestFixtures.profile(id, server); profile.setName(id); profile.setEnvironmentName(environment);
         profile.setCredentialRefId(credentialId);
         profile.setNetworkPolicyJson("{\"aiStateStorageAllowedHosts\":[\"" + HOST + "\"]}");
         profile.setCreatedAt(Instant.now()); profile.setUpdatedAt(Instant.now());
@@ -560,7 +590,11 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
         version.setPromptConfigJson("{}"); version.setProviderConfigJson("{\"aiStateStorageMode\":\"CUSTOMER_POSTGRES\"}");
         version.setCompositionProvenanceJson(provenance(reviewed)); version.setActionsArtifactYaml("actions: []");
         version.setEntityArtifactYaml("entities: []"); version.setRoutingArtifactYaml("routes: []");
-        version.setManifestJson("{}"); version.setPublishedAt(Instant.now()); versions.saveAndFlush(version);
+        ObjectNode manifest = new ObjectMapper().createObjectNode().put("deploymentId", deploymentId).put("versionId", id)
+            .put("aiFabricFrameworkVersion", version.getAiFabricFrameworkVersion())
+            .put("entityConfigContractVersion", version.getEntityConfigContractVersion());
+        manifest.set("compositionProvenance", codec.tree(version.getCompositionProvenanceJson()));
+        version.setManifestJson(codec.write(manifest)); version.setPublishedAt(Instant.now()); versions.saveAndFlush(version);
     }
 
     private String persistSyntheticActiveReleaseAndReviewedCandidate() {
@@ -616,7 +650,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
                 else grant.setExpiresAt(Instant.now().minusSeconds(1));
                 grants.saveAndFlush(grant);
             });
-            return "revoked".equals(reason) ? ENTITLEMENT_REVOKED : ENTITLEMENT_EXPIRED;
+            return null;
         }
         if ("api-key".equals(reason)) {
             CustomerOfferTestFixtures.authenticate(email, PlatformRole.CUSTOMER_ADMIN, "API_KEY");
@@ -630,7 +664,7 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
             persistOwner(otherId, otherEmail, otherCustomer);
         });
         CustomerOfferTestFixtures.authenticate(otherEmail, PlatformRole.CUSTOMER_ADMIN, "SESSION");
-        return "foreign-customer".equals(reason) ? RESOURCE_SCOPE_MISMATCH : INVITE_OWNER_MISMATCH;
+        return "foreign-customer".equals(reason) ? RESOURCE_SCOPE_MISMATCH : null;
     }
 
     private void assertCommittedBinding(Result result, String operationKey) {
@@ -701,8 +735,8 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
         var connection = input.connection();
         Map<String, Object> material = new LinkedHashMap<>();
         material.put("command", "BIND_AI_STATE"); material.put("offerId", offerId); material.put("deploymentId", deploymentId);
-        material.put("customerId", customerId); material.put("actorId", email); material.put("targetProfileId", targetId);
-        material.put("bindingSlotId", SLOT); material.put("expectedEntitlementRevision", input.expectedEntitlementRevision());
+        material.put("customerId", customerId); material.put("targetProfileId", targetId);
+        material.put("bindingSlotId", SLOT);
         material.put("versionId", connection.versionId()); material.put("host", connection.host()); material.put("port", connection.port());
         material.put("databaseName", connection.databaseName()); material.put("runtimeSchema", connection.runtimeSchema());
         material.put("connectorSchema", connection.connectorSchema()); material.put("username", connection.username());

@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOff
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferCodec;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.springframework.stereotype.Service;
@@ -24,14 +25,26 @@ public class ExternalIntegrationCompositionService {
     private final ExternalIntegrationCompilerResolver compiler;
     private final CustomerOfferCodec codec;
     private final ObjectMapper mapper;
+    private final DeploymentMarketplacePluginInstallRepository installs;
 
     public ExternalIntegrationCompositionService(CustomerOfferDeploymentRepository associations, CustomerOfferRepository offers,
-        ExternalIntegrationPolicy policy, ExternalIntegrationCompilerResolver compiler, CustomerOfferCodec codec, ObjectMapper mapper) {
+        ExternalIntegrationPolicy policy, ExternalIntegrationCompilerResolver compiler, CustomerOfferCodec codec, ObjectMapper mapper,
+        DeploymentMarketplacePluginInstallRepository installs) {
         this.associations = associations; this.offers = offers; this.policy = policy;
         this.compiler = compiler; this.codec = codec; this.mapper = mapper;
+        this.installs = installs;
     }
 
     public List<Profile> profiles(DeploymentEntity deployment) {
+        var defaults = bootstrapProfiles(deployment);
+        var current = installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
+        return defaults.stream().flatMap(profile -> current.stream()
+            .filter(install -> profile.pluginId().equals(install.getPluginId())
+                && java.util.Set.of("ENABLED", "BOOTSTRAPPED").contains(install.getStatus()))
+            .map(install -> policy.forPluginVersion(profile, install.getPluginVersionId()))).toList();
+    }
+
+    public List<Profile> bootstrapProfiles(DeploymentEntity deployment) {
         var association = associations.findById(deployment.getId());
         if (association.isEmpty()) return List.of();
         var owned = association.filter(value -> deployment.getCustomerId().equals(value.getCustomerId())
@@ -40,7 +53,6 @@ public class ExternalIntegrationCompositionService {
             .orElseThrow(() -> conflict("OFFER_CHANGED"));
         Definition definition = codec.read(offer.getDefinitionJson(), Definition.class);
         if (!offer.getFingerprint().equals(codec.hash(definition))) throw conflict("OFFER_CHANGED");
-        policy.validateDefinition(definition);
         return definition.externalIntegrationProfiles();
     }
 

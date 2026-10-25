@@ -60,13 +60,14 @@ test('customer productization API contracts preserve command scope and transport
     await suite.test('configuration and admission carry server contract fields without header substitution', async () => {
       const bootstrap = { targetProfileId: target, name: 'My workspace', expectedEntitlementRevision: 2, operationKey: 'bootstrap-key' }
       await expectRequest(() => api.bootstrapCustomerDeployment(offer, bootstrap), `${offerPath}/deployments`, 'POST', bootstrap)
-      const publish = { targetProfileId: target, expectedEntitlementRevision: 2, operationKey: 'publish-key' }
+      const publish = { draftId: 'draft-one', targetProfileId: target, operationKey: 'publish-key' }
       await expectRequest(() => api.publishCustomerDeploymentVersion(offer, deployment, publish), `${deploymentPath}/versions`, 'POST', publish)
-      const apply = { versionId: 'version', expectedEntitlementRevision: 2, operationKey: 'apply-key' }
+      const apply = { versionId: 'version', targetProfileId: target, sourceArtifactId: 'image-current', operationKey: 'apply-key' }
       const applyCall = await expectRequest(() => api.applyCustomerDeploymentStagingVersion(offer, deployment, apply),
         `${deploymentPath}/staging-releases`, 'POST', apply)
-      assert.equal('targetProfileId' in applyCall.body, false)
-      assert.equal('sourceArtifactId' in applyCall.body, false)
+      assert.equal(applyCall.body.targetProfileId, target)
+      assert.equal(applyCall.body.sourceArtifactId, 'image-current')
+      assert.equal('expectedEntitlementRevision' in applyCall.body, false)
       const activation = { consumerId: 'customer-app', releaseId: 'release', expectedBindingRevision: 0,
         expectedEntitlementRevision: 2, operationKey: 'activate-staging-key' }
       const activationCall = await expectRequest(

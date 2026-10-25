@@ -81,8 +81,11 @@ try {
       await json(route, { message: 'Legacy placement/admission must not be called' }, 500)
       return
     }
-    if (lifecycle && path === `${deploymentPath}/staging-releases`) {
-      requireCommand(request, 'APPLY')
+    if (lifecycle && path === '/api/deployments/deployment-one/apply/version-one') {
+      assert.ok(request.headers()['idempotency-key'])
+      assert.equal(new URL(request.url()).searchParams.get('targetProfileId'), 'staging-target')
+      assert.equal(new URL(request.url()).searchParams.get('sourceArtifactId'), 'runtime-current')
+      lifecycleCalls.push('APPLY')
       releases.push(release('staging-release', 'staging-target'))
       await json(route, releases[0])
       return
@@ -177,6 +180,10 @@ try {
     }
     if (lifecycle && path === '/api/deployments/deployment-one/versions') {
       await json(route, [version])
+      return
+    }
+    if (path === '/api/deployments/deployment-one/versions/version-one/compatible-source-artifacts') {
+      await json(route, [{ id: 'runtime-current', serviceName: 'Runtime', imageTag: 'current' }])
       return
     }
     if (path === '/api/customer-self-service/catalogue') {
@@ -284,7 +291,7 @@ try {
     await json(route, [])
   })
 
-  await page.goto(`${uiBaseUrl}/${customerLayout ? 'providers' : 'deployments'}`, { waitUntil: 'networkidle' })
+  await page.goto(`${uiBaseUrl}/${customerLayout ? 'runtime-artifacts' : 'deployments'}`, { waitUntil: 'networkidle' })
   await page.waitForURL(url => url.pathname === '/deployments')
   await page.goto(`${uiBaseUrl}/deployments?view=manage`, { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: 'My deployments' }).waitFor()
@@ -349,6 +356,8 @@ try {
   await page.getByRole('button', { name: 'Create staging assignment', exact: true }).click()
   await page.getByText('App assignment configured. Its staging release is awaiting activation.').waitFor()
   assert.equal(releases.length, 0, 'The first app assignment must be configurable without a deployed runtime')
+  await page.getByRole('combobox', { name: 'Staging runtime image', exact: true }).click()
+  await page.getByRole('option', { name: 'Runtime / current / runtime-current', exact: true }).click()
   await page.getByRole('button', { name: 'Deploy to customer staging', exact: true }).click()
   await page.getByText(/Staging release staging-release is queued/).waitFor()
   await page.getByRole('button', { name: 'Use latest verified staging release', exact: true }).click()

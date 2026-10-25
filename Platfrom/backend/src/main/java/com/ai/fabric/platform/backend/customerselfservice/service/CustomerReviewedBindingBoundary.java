@@ -8,20 +8,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Keeps generic assignment APIs outside reviewed customer-offer lifecycle control. */
+/** Requires an explicit verified runtime assignment; template provenance grants no authority. */
 @Service
 public class CustomerReviewedBindingBoundary {
     private final CustomerOfferDeploymentRepository deployments;
 
     public CustomerReviewedBindingBoundary(CustomerOfferDeploymentRepository deployments) {
         this.deployments = deployments;
-    }
-
-    public void requireGenericMutationAllowed(String currentDeploymentId, String nextDeploymentId) {
-        if (reviewed(currentDeploymentId) || reviewed(nextDeploymentId)) {
-            throw new ResponseStatusException(CONFLICT,
-                "Reviewed customer deployments must be assigned through staging activation, production promotion, rollback, or retirement.");
-        }
     }
 
     public void requireExplicitRuntimeAssignment(String deploymentId, String targetProfileId, DeploymentReleaseEntity release) {

@@ -30,7 +30,6 @@ public class ProviderUsageModeResolver {
     public String resolve(DeploymentEntity deployment, String targetProfileId) {
         if (deployment == null) throw invalid();
         text(deployment.getId(), 64); text(targetProfileId, 64);
-        if (hasAllocation(deployment.getId(), targetProfileId)) return Mode.FUNDED.name();
         var selected = mode(properties.getProviderUsageMode());
         if (selected == Mode.TEAM_AUTHORIZED && !properties.getTeamAuthorizedTargets().contains(targetProfileId))
             throw denied("PROVIDER_USAGE_TEAM_TARGET_NOT_AUTHORIZED");
@@ -46,8 +45,6 @@ public class ProviderUsageModeResolver {
         record.requireScope(deployment, release);
         var pinned = mode(record.providerUsageMode());
         requireSupported(pinned);
-        if (pinned != Mode.FUNDED && hasAllocation(deployment.getId(), release.getTargetProfileId()))
-            throw conflict("PROVIDER_USAGE_FUNDED_MODE_REQUIRED");
         return Optional.of(pinned.name());
     }
 

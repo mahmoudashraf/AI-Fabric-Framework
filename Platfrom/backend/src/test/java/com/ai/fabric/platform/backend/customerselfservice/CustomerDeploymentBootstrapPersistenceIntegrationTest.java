@@ -97,6 +97,7 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
     @MockBean com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService compiler;
     @MockBean com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationInstallInitializer externalInstalls;
     @MockBean CustomerWorkspaceProfileValidator workspaceProfiles;
+    @MockBean com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindings;
     private String customerId;
     private String ownerId;
     private String email;

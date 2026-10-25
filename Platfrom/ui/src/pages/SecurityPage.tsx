@@ -61,7 +61,6 @@ type SecurityFormState = {
 }
 
 type GuardrailFormState = {
-  approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
 }
 
@@ -248,7 +247,6 @@ export function SecurityPage() {
     corsAllowCredentials: false,
   })
   const [guardrailState, setGuardrailState] = useState<GuardrailFormState>({
-    approvalRequiredForApply: false,
     approvalRequiredForDelete: false,
   })
   const [overrideSecretForm, setOverrideSecretForm] = useState<OverrideSecretFormState>({
@@ -277,7 +275,6 @@ export function SecurityPage() {
       return
     }
     setGuardrailState({
-      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
       approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
     })
   }, [workspace])
@@ -308,10 +305,7 @@ export function SecurityPage() {
   const isPlatformAdmin = auth.session?.enabled ? auth.session.role === 'PLATFORM_ADMIN' : true
   const canManageGuardrails = canAdmin
   const guardrailsDirty = workspace != null
-    && (
-      guardrailState.approvalRequiredForApply !== workspace.deployment.approvalRequiredForApply
-      || guardrailState.approvalRequiredForDelete !== workspace.deployment.approvalRequiredForDelete
-    )
+    && guardrailState.approvalRequiredForDelete !== workspace.deployment.approvalRequiredForDelete
 
   const platformSecretsQuery = useQuery({
     queryKey: ['platform-secrets'],
@@ -555,7 +549,7 @@ export function SecurityPage() {
   })
 
   const guardrailMutation = useMutation({
-    mutationFn: () => updateDeploymentGuardrails(selectedDeploymentId, guardrailState),
+    mutationFn: () => updateDeploymentGuardrails(selectedDeploymentId, { ...guardrailState, approvalRequiredForApply: false }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -802,7 +796,7 @@ export function SecurityPage() {
                                 <ListItem disableGutters>
                                   <ListItemText
                                     primary="Operational guardrails"
-                                    secondary="Deployment admins control immediate apply and delete approval policy."
+                                    secondary="Version upgrades use direct apply. Deployment admins control delete approval policy."
                                   />
                                 </ListItem>
                               </List>
@@ -1423,7 +1417,7 @@ export function SecurityPage() {
             <Box>
               <Typography variant="h6">Operational guardrails</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                These guardrails protect platform-side operations such as apply and permanent delete. They take effect
+                These guardrails protect permanent deletion. Version upgrades use direct apply. Changes take effect
                 immediately after save and do not require publish or apply.
               </Typography>
             </Box>
@@ -1435,7 +1429,7 @@ export function SecurityPage() {
 
             <Alert severity={guardrailsDirty ? 'warning' : 'info'}>
               {guardrailsDirty
-                ? 'Guardrail changes are pending. Save them to protect future apply and delete operations immediately.'
+                ? 'Guardrail changes are pending. Save them to update delete approval policy immediately.'
                 : 'Guardrails are already enforcing the current deployment operation policy.'}
             </Alert>
 
@@ -1446,23 +1440,6 @@ export function SecurityPage() {
             ) : null}
 
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={guardrailState.approvalRequiredForApply}
-                      disabled={!canManageGuardrails}
-                      onChange={(event) =>
-                        setGuardrailState((previous) => ({
-                          ...previous,
-                          approvalRequiredForApply: event.target.checked,
-                        }))
-                      }
-                    />
-                  }
-                  label="Require approval before operators can apply versions"
-                />
-              </Grid>
               <Grid item xs={12} md={6}>
                 <FormControlLabel
                   control={
@@ -1507,7 +1484,6 @@ export function SecurityPage() {
                 onClick={() => {
                   if (workspace) {
                     setGuardrailState({
-                      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
                       approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
                     })
                   }

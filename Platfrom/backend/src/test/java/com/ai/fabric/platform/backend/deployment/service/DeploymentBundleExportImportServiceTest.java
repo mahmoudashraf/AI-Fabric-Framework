@@ -330,7 +330,7 @@ class DeploymentBundleExportImportServiceTest {
     }
 
     @Test
-    void reviewedOfferRestoreIsRejectedBeforeCatalogDraftInstallOrSecretMutation() throws Exception {
+    void unauthorizedRestoreIsRejectedBeforeCatalogDraftInstallOrSecretMutation() throws Exception {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity deployment = deployment();
         DeploymentDraftEntity draft = draft(deployment.getId());
@@ -347,6 +347,8 @@ class DeploymentBundleExportImportServiceTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.path("integrity"))
             .put("manifestHash", sealingService.sha256(bundle.path("manifest")));
         when(customerOfferDeploymentRepository.existsById(deployment.getId())).thenReturn(true);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN))
+            .when(deploymentAccessService).requireDeploymentAdminAccess(deployment);
         clearInvocations(draftRepository, versionRepository, marketplacePluginInstallRepository, marketplacePluginRepository,
             marketplacePluginVersionRepository, marketplacePluginDatasetRepository, secretBindingRepository,
             platformSecretRepository, vectorizationPlanRepository, vectorizationSourceConnectionRepository,
@@ -376,6 +378,7 @@ class DeploymentBundleExportImportServiceTest {
         DeploymentDraftEntity draft = draft(deployment.getId());
         PlatformSecretEntity secret = deploymentSecret("MANAGED_DEPLOYMENT_SECRET", "super-secret-value", deployment.getId());
         stubExportState(deployment, draft, secret);
+        when(customerOfferDeploymentRepository.existsById(deployment.getId())).thenReturn(true);
         KeyPair keyPair = rsaKeyPair();
         var export = service.exportDeployment(
             deployment.getId(),

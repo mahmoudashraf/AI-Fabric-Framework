@@ -24,7 +24,7 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.invalid;
 
-/** Publishes only the exact reviewed Marketplace composition owned by an accepted customer offer. */
+/** Customer-owned adapter to the normal draft publication engine. */
 @Service
 public class CustomerDeploymentVersionService {
     private static final String COMMAND = "PUBLISH_VERSION";
@@ -67,38 +67,33 @@ public class CustomerDeploymentVersionService {
         var deployment = deployments.findByIdForUpdate(deploymentId)
             .filter(candidate -> actor.customerId().equals(candidate.getCustomerId()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        String fingerprint = codec.hash(Map.of("command", COMMAND, "offerId", offerId,
-            "deploymentId", deploymentId, "request", request, "customerId", actor.customerId(),
-            "ownerId", actor.userId(), "actor", actorId));
-        var previous = commands.findByEntitlementIdAndOperationKey(grant.getId(), request.operationKey()).orElse(null);
-        if (previous != null) {
-            if (!COMMAND.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())
-                || !actorId.equals(previous.getActorId())) throw conflict(OPERATION_KEY_CONFLICT);
-            return codec.read(previous.getResultJson(), PublishResult.class);
-        }
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.VERSION_PUBLISH,
             request.operationKey(), Set.of(), null, null, null));
+        var previous = versions.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .filter(value -> request.draftId().equals(value.getSourceDraftId())).toList();
+        if (previous.size() > 1) throw conflict(REVISION_CONFLICT);
+        if (!previous.isEmpty()) {
+            var version = previous.getFirst();
+            offerBoundary.requireVersion(approved, version);
+            return new PublishResult(deploymentId, version.getId(), version.getVersionLabel(), version.getConfigHash(), request.targetProfileId());
+        }
         var draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId);
+        if (!request.draftId().equals(draft.id())) throw conflict(REVISION_CONFLICT);
         var published = deploymentService.publishDraftForTrustedCaller(draft.id());
         var version = versions.findById(published.id()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         offerBoundary.requireVersion(approved, version);
         var result = new PublishResult(deploymentId, published.id(), published.versionLabel(), published.configHash(),
-            request.targetProfileId(), grant.getRevision());
-        commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), grant.getId(),
-            request.operationKey(), fingerprint, COMMAND, actorId, codec.write(result), Instant.now()));
-        audit.record("CUSTOMER_OFFER_VERSION_PUBLISHED", "DEPLOYMENT_VERSION", published.id(),
-            Map.of("deploymentId", deploymentId, "offerId", offerId,
+            request.targetProfileId());
+        audit.record("CUSTOMER_VERSION_PUBLISHED", "DEPLOYMENT_VERSION", published.id(),
+            Map.of("deploymentId", deploymentId,
                 "targetProfileId", request.targetProfileId(), "operationKey", request.operationKey()));
         return result;
     }
 
     private void validate(String offerId, String deploymentId, PublishRequest request) {
-        if (blank(offerId, 64) || blank(deploymentId, 64) || request == null
-            || blank(request.targetProfileId(), 64) || request.expectedEntitlementRevision() < 0
+        if (blank(deploymentId, 64) || request == null || blank(request.draftId(), 64)
+            || blank(request.targetProfileId(), 64)
             || blank(request.operationKey(), 128)) throw invalid();
     }
 

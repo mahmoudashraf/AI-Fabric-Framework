@@ -1,5 +1,14 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+Lifecycle correction, 25 October: [010.47 normal deployment upgrades](010_47_TEMPLATE_BOOTSTRAP_AND_NORMAL_DEPLOYMENT_UPGRADES_EXECUTION.md)
+supersedes the original offer-pinned post-bootstrap restrictions in this plan.
+Templates/offers provide startup defaults, not lifetime runtime, plugin, model
+or settings restrictions. Customers use normal draft/publish/apply/verify,
+including direct production upgrades without manual approval or a mandatory
+staging promotion. Preserve the existing deployment/app identity. Original
+settings can be restored into the draft without deploying or changing external
+credentials/bindings. Earlier pinned-offer evidence below remains historical.
+
 Customer UI design amendment, 23 October: the next customer-only visual direction
 is the [010.45 progressive resource console](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md),
 with Railway/Coolify-inspired resource views, warning-first sliding inspectors

@@ -130,7 +130,6 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        requireScopedOfferMutationPath(deployment);
         return createInstallForDeployment(deployment, request, false, true, false);
     }
 
@@ -247,7 +246,6 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        requireScopedOfferMutationPath(deployment);
         return updateInstallForDeployment(deployment, installId, request, false, true);
     }
 
@@ -397,7 +395,6 @@ public class DeploymentMarketplaceInstallService {
     @Transactional
     public void deleteInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        requireScopedOfferMutationPath(deployment);
         deleteInstallForDeployment(deployment, installId, false);
     }
 
@@ -743,15 +740,6 @@ public class DeploymentMarketplaceInstallService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentEditorAccess(deployment);
-    }
-
-    private void requireScopedOfferMutationPath(DeploymentEntity deployment) {
-        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
-            throw new ResponseStatusException(
-                FORBIDDEN,
-                "Reviewed-offer deployments must use the scoped customer self-service configuration routes."
-            );
-        }
     }
 
     private JsonNode normalizeObject(JsonNode node, String fieldName) {

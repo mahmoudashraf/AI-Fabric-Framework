@@ -342,7 +342,7 @@ function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): st
   return `${detail.plugin.displayName} Deployment`
 }
 
-export function MarketplacePage() {
+export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped?: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -381,8 +381,9 @@ export function MarketplacePage() {
 
   const requestedTargetDeploymentId = useMemo(() => {
     const searchParams = new URLSearchParams(location.search)
-    return searchParams.get('targetDeploymentId') ?? searchParams.get('deploymentId') ?? ''
-  }, [location.search])
+    return deploymentScoped ? searchParams.get('deploymentId') ?? ''
+      : searchParams.get('targetDeploymentId') ?? searchParams.get('deploymentId') ?? ''
+  }, [location.search, deploymentScoped])
 
   const pluginsQuery = useQuery({
     queryKey: ['marketplace-plugins'],
@@ -395,14 +396,17 @@ export function MarketplacePage() {
   const publishersQuery = useQuery({
     queryKey: ['marketplace-publishers'],
     queryFn: fetchMarketplacePublishers,
+    enabled: !deploymentScoped,
   })
   const inferenceServicesQuery = useQuery({
     queryKey: ['marketplace-inference-services'],
     queryFn: fetchMarketplaceInferenceServices,
+    enabled: !deploymentScoped,
   })
   const deploymentTemplatesQuery = useQuery({
     queryKey: ['deployment-templates'],
     queryFn: fetchDeploymentTemplates,
+    enabled: !deploymentScoped,
   })
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -438,7 +442,7 @@ export function MarketplacePage() {
   const publisherDetailQuery = useQuery({
     queryKey: ['marketplace-publisher', selectedPublisherId],
     queryFn: () => fetchMarketplacePublisher(selectedPublisherId),
-    enabled: selectedPublisherId.length > 0,
+    enabled: !deploymentScoped && selectedPublisherId.length > 0,
   })
   const reconcileInferenceServiceMutation = useMutation({
     mutationFn: (serviceRef: string) => reconcileMarketplaceInferenceService(serviceRef),
@@ -465,6 +469,7 @@ export function MarketplacePage() {
   const filteredPlugins = useMemo(() => {
     const needle = normalizeText(searchText)
     return (pluginsQuery.data ?? []).filter((plugin) => {
+      if (deploymentScoped && plugin.pluginType === 'TEMPLATE') return false
       if (selectedType !== 'ALL' && plugin.pluginType !== selectedType) {
         return false
       }
@@ -479,7 +484,7 @@ export function MarketplacePage() {
       ].map(normalizeText).join(' ')
       return haystack.includes(needle)
     })
-  }, [pluginsQuery.data, searchText, selectedType])
+  }, [pluginsQuery.data, searchText, selectedType, deploymentScoped])
 
   useEffect(() => {
     if (filteredPlugins.length === 0) {
@@ -900,7 +905,8 @@ export function MarketplacePage() {
             Marketplace
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 900 }}>
-            Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action, data, or inference-profile plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.
+            {deploymentScoped ? 'Manage plugins in this deployment draft. Publish and apply the draft to update the runtime.'
+              : 'Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action, data, or inference-profile plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.'}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -934,13 +940,15 @@ export function MarketplacePage() {
                   Target deployment
                 </Typography>
                 <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                  Marketplace installs and entitlement changes are assigned to a deployment you select here. This page no longer inherits the deployment workspace selection.
+                  {deploymentScoped ? 'Plugin changes belong to the selected deployment draft.'
+                    : 'Marketplace installs and entitlement changes are assigned to a deployment you select here. This page no longer inherits the deployment workspace selection.'}
                 </Typography>
               </Box>
               {targetDeploymentId ? (
                 <Button
                   variant="outlined"
-                  onClick={() => navigate(`/overview?deploymentId=${encodeURIComponent(targetDeploymentId)}`)}
+                  onClick={() => navigate(deploymentScoped ? `/revisions?deploymentId=${encodeURIComponent(targetDeploymentId)}`
+                    : `/overview?deploymentId=${encodeURIComponent(targetDeploymentId)}`)}
                 >
                   Open target workspace
                 </Button>
@@ -954,7 +962,7 @@ export function MarketplacePage() {
                   label="Target deployment"
                   value={targetDeploymentId}
                   onChange={(event) => setTargetDeploymentId(event.target.value)}
-                  disabled={deploymentsQuery.isLoading || (deploymentsQuery.data ?? []).length === 0}
+                  disabled={deploymentScoped || deploymentsQuery.isLoading || (deploymentsQuery.data ?? []).length === 0}
                   helperText={targetWorkspace
                     ? `${targetWorkspace.deployment.name} · ${targetWorkspace.access.assignmentRole}`
                     : 'Select the deployment that should receive installs and subscriptions.'}
@@ -985,7 +993,7 @@ export function MarketplacePage() {
         </CardContent>
       </Card>
 
-      <Card>
+      {!deploymentScoped ? <Card>
         <CardContent>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
@@ -1097,7 +1105,7 @@ export function MarketplacePage() {
             )}
           </Stack>
         </CardContent>
-      </Card>
+      </Card> : null}
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
@@ -1498,7 +1506,7 @@ export function MarketplacePage() {
               </CardContent>
             </Card>
 
-            {selectedPlugin?.pluginType === 'TEMPLATE' ? (
+            {selectedPlugin?.pluginType === 'TEMPLATE' && !deploymentScoped ? (
               <Card>
                 <CardContent>
                   <Stack spacing={2}>
@@ -1830,7 +1838,7 @@ export function MarketplacePage() {
                         </>
                       ) : null}
                     </Stack>
-                    {selectedInstall?.entitlement.requiresEntitlement ? (
+                    {selectedInstall?.entitlement.requiresEntitlement && !deploymentScoped ? (
                       <Card variant="outlined">
                         <CardContent>
                           <Stack spacing={2}>
@@ -2091,7 +2099,7 @@ export function MarketplacePage() {
         </Grid>
       </Grid>
 
-      <Grid container spacing={3}>
+      {!deploymentScoped ? <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
@@ -2440,7 +2448,7 @@ export function MarketplacePage() {
             ) : null}
           </Stack>
         </Grid>
-      </Grid>
+      </Grid> : null}
     </Stack>
   )
 }

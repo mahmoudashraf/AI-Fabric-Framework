@@ -30,18 +30,8 @@ public class CustomerSelfServicePromotionBoundary {
     public void require(DeploymentEntity deployment, String targetProfileId, String releaseId,
                         String artifactId, CustomerOfferContracts.Operation operation, String operationKey) {
         var association = associations.findById(deployment.getId());
-        var principal = PlatformSecurityContext.currentPrincipal();
-        if (association.isEmpty()) {
-            if (principal != null && principal.role() == PlatformRole.CUSTOMER_ADMIN) {
-                throw new ResponseStatusException(FORBIDDEN, "Customer promotion requires an accepted reviewed offer.");
-            }
-            return;
-        }
-        var approved = authorization.authorize(deployment.getCustomerId(), new CustomerOfferContracts.AuthorizationRequest(
-            association.get().getOfferId(), targetProfileId, deployment.getId(), deployment.getTenantId(), releaseId,
+        authorization.authorize(deployment.getCustomerId(), new CustomerOfferContracts.AuthorizationRequest(
+            association.map(value -> value.getOfferId()).orElse(null), targetProfileId, deployment.getId(), deployment.getTenantId(), releaseId,
             operation, operationKey, Set.of(), null, null, null));
-        if (artifactId == null || approved.definition().artifacts().stream().noneMatch(pin -> artifactId.equals(pin.artifactId()))) {
-            throw new ResponseStatusException(CONFLICT, "Promotion source artifact is not pinned by the reviewed offer.");
-        }
     }
 }

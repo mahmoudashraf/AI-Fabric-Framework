@@ -64,7 +64,7 @@ class ExternalIntegrationServiceTest {
     }
 
     @Test void staleVersionTargetOfferOrOwnerReviewBlocksBeforeAnyVaultWrite() throws Exception {
-        for (String fault : new String[]{"version", "target", "customer", "profile", "signature", "revision"}) {
+        for (String fault : new String[]{"version", "target", "customer", "profile", "signature"}) {
             var f = new ExternalIntegrationFixture(); String approvalId = f.approve().approvalId();
             var request = f.bindRequest(approvalId);
             switch (fault) {
@@ -80,11 +80,21 @@ class ExternalIntegrationServiceTest {
                     f.approvals.put(approvalId, new ExternalIntegrationStore.Row<>(changed, f.integrity.seal(changed), "APPROVED", 0));
                 }
                 case "signature" -> f.approvals.put(approvalId, new ExternalIntegrationStore.Row<>(f.approvals.get(approvalId).value(), "0".repeat(64), "APPROVED", 0));
-                case "revision" -> f.grant.setRevision(4);
             }
             assertThatThrownBy(() -> f.service.bind("offer-generic", f.deployment.getId(), request));
             verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
         }
+    }
+
+    @Test void invitationRevisionDoesNotVetoCredentialBindingByTheCurrentEligibleOwner() throws Exception {
+        var f = new ExternalIntegrationFixture(); String approvalId = f.approve().approvalId();
+        f.grant.setRevision(99); f.grant.setExpiresAt(java.time.Instant.EPOCH);
+        f.grant.setStatus(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.EntitlementStatus.REVOKED);
+        assertThat(f.service.bind("offer-generic", f.deployment.getId(), f.bindRequest(approvalId)).status())
+            .isEqualTo("CONFIGURED_LOCAL_CREDENTIALS");
+        verify(f.entitlements).requireActiveCustomer(f.deployment.getCustomerId());
+        verify(f.entitlements, never()).requireCurrentOwnerEligibility(anyString(), anyString());
+        verify(f.entitlements, never()).requireEntitlement(anyString(), anyString(), any(), anyBoolean());
     }
 
     @Test void revokeRetainsSecretsAndExternalDataButBlocksFutureResolutionAndReplaysExactly() throws Exception {

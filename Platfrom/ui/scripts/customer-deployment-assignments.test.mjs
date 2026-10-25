@@ -13,7 +13,7 @@ new Function('exports', 'require', compiled.outputText)(loaded.exports, name => 
   assert.equal(name, './customerAssignmentConfigurationIntents'); return journal
 })
 const { selectableCustomerAssignments, canConfigureExistingCustomerAssignment, customerAssignmentConfigurationRequest,
-  customerAssignmentDraftExpectations, customerAssignmentReviewedWorkspaceProfiles,
+  customerAssignmentDraftExpectations,
   configureExistingCustomerAssignment, assignmentConfigurationClaimKey, prepareKnownAssignmentReconciliation,
   confirmKnownAssignmentReconciliation } = loaded.exports
 const consumer = (overrides = {}) => ({ consumerId: 'existing', customerId: 'customer', status: 'ACTIVE',
@@ -72,7 +72,7 @@ test('configuration sends the complete sorted internal-ID DRAFT fence and exact 
   const captured = scope(), apps = workspaces(), before = structuredClone(apps)
   apps.push({ ...apps[0], id: 'unrelated', consumerId: 'another', status: 'ACTIVE' })
   assert.deepEqual(customerAssignmentConfigurationRequest(captured, apps, 'stable-key'), {
-    consumerId: 'existing', expectedBindingRevision: 2, expectedEntitlementRevision: 4, operationKey: 'stable-key',
+    consumerId: 'existing', expectedBindingRevision: 2, targetProfileId: 'staging', operationKey: 'stable-key',
     expectedDraftWorkspaces: [{ installationEntityId: 'awi-a', expectedRowVersion: 0 }, { installationEntityId: 'awi-b', expectedRowVersion: 3 }],
   })
   assert.deepEqual(apps.slice(0, 2), before)
@@ -166,6 +166,10 @@ test('actual configuration API posts only the normal scoped contract without cha
     assert.equal(calls[0].url, 'https://configuration.invalid/api/customer-self-service/catalogue/offer%2Fone/deployments/deployment%2Fone/staging-consumer-configurations')
     assert.equal(calls[0].init.method, 'POST'); assert.equal(calls[0].init.credentials, 'include')
     assert.equal(calls[0].init.body, JSON.stringify(f.request))
+    const body = JSON.parse(calls[0].init.body)
+    assert.deepEqual(Object.keys(body).sort(), ['consumerId', 'expectedBindingRevision', 'expectedDraftWorkspaces', 'operationKey', 'targetProfileId'])
+    assert.equal(body.targetProfileId, f.captured.deployment.bootstrapTargetProfileId)
+    assert.ok(body.expectedDraftWorkspaces.every(item => Object.keys(item).sort().join(',') === 'expectedRowVersion,installationEntityId'))
     assert.equal(calls[0].init.headers['Idempotency-Key'], undefined)
     const activation = { consumerId: 'existing', releaseId: 'verified', expectedBindingRevision: 3, expectedEntitlementRevision: 4, operationKey: 'activate' }
     await api.activateCustomerDeploymentStagingConsumer('offer/one', 'deployment/one', activation)
@@ -178,9 +182,8 @@ test('actual configuration API posts only the normal scoped contract without cha
   }
 })
 
-test('structured setting denial requires explicit fresh-owner review before a new profile intent without any app edit', async () => {
+test('structured setting denial requires explicit fresh-owner review before a new setup intent without any app edit', async () => {
   const f = fixture()
-  f.captured.offer.workspaceProfiles = [{ id: 'reviewed', label: 'Reviewed' }]
   f.api.configure = async (...args) => { f.calls.push(args); throw Object.assign(new Error('Not a semantic signal'),
     { status: 403, errorCode: 'SETTING_FORBIDDEN', responseRejected: true }) }
   const originalApps = structuredClone(f.apps)
@@ -189,7 +192,7 @@ test('structured setting denial requires explicit fresh-owner review before a ne
   const prepared = await prepareKnownAssignmentReconciliation(f.api, f.captured, () => true, f.intents)
   assert.equal(f.intent().status, 'REJECTED', 'read-only preview never releases the intent')
   await confirmKnownAssignmentReconciliation(f.api, f.captured, prepared, () => true, f.intents)
-  const reviewed = customerAssignmentConfigurationRequest(f.captured, f.apps, 'new-explicit-reviewed-fence', { 'awi-a': 'reviewed' })
+  const reviewed = customerAssignmentConfigurationRequest(f.captured, f.apps, 'new-explicit-reviewed-fence')
   f.api.configure = async (...args) => { f.calls.push(args); return f.result }
   await configureExistingCustomerAssignment(f.api, f.captured, reviewed, () => true, f.freshIntents())
   assert.deepEqual(f.apps, originalApps, 'no impossible unbound-app update or rowVersion increment workaround')
@@ -272,54 +275,32 @@ test('legacy digest-only holds and corrupted outcome journals fail closed withou
   assert.equal(f.records.get(storedKey), corrupt)
 })
 
-test('reviewed profile adoption is explicit per DRAFT; omitted and null preserve saved settings', async () => {
+test('existing-app setup retains saved app settings and sends only target and row fences', async () => {
   const f = fixture()
   f.captured.offer.workspaceProfiles = [{ id: 'reviewed-profile', label: 'Reviewed app settings',
     interaction: { serverReviewed: true }, theme: null, authentication: { serverReviewed: true } }]
-  assert.deepEqual(customerAssignmentReviewedWorkspaceProfiles(f.captured), [{ id: 'reviewed-profile', label: 'Reviewed app settings' }])
-  const keep = customerAssignmentConfigurationRequest(f.captured, f.apps, 'keep-original')
-  assert.ok(keep.expectedDraftWorkspaces.every(item => !Object.hasOwn(item, 'selectedWorkspaceProfileId')))
-  const chosen = customerAssignmentConfigurationRequest(f.captured, f.apps, 'explicit-reviewed-adoption', {
-    'awi-a': 'reviewed-profile', 'awi-b': null,
-  })
-  assert.deepEqual(chosen.expectedDraftWorkspaces, [
-    { installationEntityId: 'awi-a', expectedRowVersion: 0, selectedWorkspaceProfileId: 'reviewed-profile' },
-    { installationEntityId: 'awi-b', expectedRowVersion: 3, selectedWorkspaceProfileId: null },
+  f.apps[0].interaction = { layout: 'MAX_MODE' }
+  f.apps[0].theme = { brand: 'Customer branding' }
+  const request = customerAssignmentConfigurationRequest(f.captured, f.apps, 'keep-original')
+  assert.deepEqual(request.expectedDraftWorkspaces, [
+    { installationEntityId: 'awi-a', expectedRowVersion: 0 },
+    { installationEntityId: 'awi-b', expectedRowVersion: 3 },
   ])
+  assert.equal(request.targetProfileId, 'staging')
+  assert.equal(Object.hasOwn(request, 'expectedEntitlementRevision'), false)
   const before = structuredClone(f.apps)
-  await configureExistingCustomerAssignment(f.api, f.captured, chosen, () => true, f.intents)
-  assert.deepEqual(f.calls[0][2], chosen)
+  await configureExistingCustomerAssignment(f.api, f.captured, request, () => true, f.intents)
+  assert.deepEqual(f.calls[0][2], request)
   assert.deepEqual(f.apps, before, 'the client never rewrites app names, slugs, origins or profile bodies')
 })
 
-test('changing a reviewed profile cannot bypass an unknown same-row-fence intent after remount', async () => {
-  const f = fixture()
-  f.captured.offer.workspaceProfiles = [{ id: 'reviewed-one', label: 'One' }, { id: 'reviewed-two', label: 'Two' }]
-  const first = customerAssignmentConfigurationRequest(f.captured, f.apps, 'original-key', { 'awi-a': 'reviewed-one' })
-  f.api.configure = async (...args) => { f.calls.push(args); throw new TypeError('Response lost') }
-  await assert.rejects(configureExistingCustomerAssignment(f.api, f.captured, first, () => true, f.intents), /unconfirmed/)
-  for (const profiles of [{}, { 'awi-a': null }, { 'awi-a': 'reviewed-two' }]) {
-    const changed = customerAssignmentConfigurationRequest(f.captured, f.apps, 'never-dispatched-new-key', profiles)
-    assert.equal(assignmentConfigurationClaimKey(f.captured, changed.expectedDraftWorkspaces),
-      assignmentConfigurationClaimKey(f.captured, first.expectedDraftWorkspaces))
-    await assert.rejects(configureExistingCustomerAssignment(f.api, f.captured, changed, () => true, f.freshIntents()), /held/)
-  }
-  assert.equal(f.calls.length, 1)
-})
-
-test('profile choice drift or non-offer identifiers deny without automatic selection or POST', async () => {
-  const f = fixture()
-  f.captured.offer.workspaceProfiles = [{ id: 'reviewed', label: 'Reviewed profile' }]
-  for (const choice of [{ 'awi-a': 'foreign' }, { 'not-in-full-draft-list': 'reviewed' }]) {
-    assert.throws(() => customerAssignmentConfigurationRequest(f.captured, f.apps, 'explicit-key', choice), /reviewed offer|complete DRAFT/)
-  }
-  const request = customerAssignmentConfigurationRequest(f.captured, f.apps, 'explicit-key', { 'awi-a': 'reviewed' })
-  f.captured.offer.workspaceProfiles = []
-  await assert.rejects(configureExistingCustomerAssignment(f.api, f.captured, request, () => true, f.intents), /reviewed offer/)
-  assert.equal(f.calls.length, 0)
-  assert.equal(f.intent().status, 'EMPTY')
-  for (const id of ['x'.repeat(101), 'profile\u0085', ' profile']) {
-    const invalid = scope(); invalid.offer.workspaceProfiles = [{ id, label: 'Invalid identifier' }]
-    assert.throws(() => customerAssignmentReviewedWorkspaceProfiles(invalid), /unavailable/)
+test('obsolete request fields or a different target never reach the setup API', async () => {
+  for (const edit of [request => { request.expectedEntitlementRevision = 4 },
+    request => { request.expectedDraftWorkspaces[0].selectedWorkspaceProfileId = 'old-profile' },
+    request => { request.targetProfileId = 'other-target' }]) {
+    const f = fixture(); edit(f.request)
+    await assert.rejects(configureExistingCustomerAssignment(f.api, f.captured, f.request, () => true, f.intents), /changed/)
+    assert.equal(f.calls.length, 0)
+    assert.equal(f.intent().status, 'EMPTY')
   }
 })

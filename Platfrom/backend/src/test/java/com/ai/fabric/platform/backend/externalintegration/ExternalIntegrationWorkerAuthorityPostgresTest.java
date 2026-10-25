@@ -17,6 +17,6 @@ class ExternalIntegrationWorkerAuthorityPostgresTest extends ExternalIntegration
         properties.add("spring.datasource.password", POSTGRES::getPassword);
         properties.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         properties.add("spring.flyway.locations", () -> "classpath:db/migration");
-        properties.add("spring.flyway.target", () -> "206");
+        properties.add("spring.flyway.target", () -> "latest");
     }
 }

@@ -66,7 +66,7 @@ public class CustomerStagingConsumerConfigurationService {
     @Transactional
     @PreAuthorize("hasRole('CUSTOMER_ADMIN')")
     public PlatformConsumerSummary configure(String offerId, String deploymentId, Request request) {
-        if (blank(offerId, 64) || blank(deploymentId, 64) || request == null) throw invalid();
+        if (blank(deploymentId, 64) || request == null) throw invalid();
         var actor = entitlements.requireCustomerActor();
         // Same order as workspace configuration and existing staging activation: consumer -> D -> entitlement.
         var consumer = consumers.findBindingForUpdate(actor.customerId(), request.consumerId())
@@ -77,57 +77,35 @@ public class CustomerStagingConsumerConfigurationService {
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         entityManager.refresh(deployment);
         if (!actor.customerId().equals(deployment.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var association = associations.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        entityManager.refresh(association);
-        if (!actor.customerId().equals(association.getCustomerId()) || !offerId.equals(association.getOfferId())
-            || !deployment.getTenantId().equals(association.getTenantId())
-            || blank(association.getBootstrapTargetProfileId(), 64)) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var entitlement = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
-        entityManager.refresh(entitlement);
-        // Revalidate owner/status/expiry after refreshing a potentially Open-In-View-cached entitlement.
-        entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
-            association.getBootstrapTargetProfileId(), deploymentId, deployment.getTenantId(), null,
+            request.targetProfileId(), deploymentId, deployment.getTenantId(), null,
             Operation.APP_CONFIGURE, request.operationKey(), Set.of(), null, null, null));
-        if (approved.context().intent() != TargetIntent.CUSTOMER_STAGING
-            || !association.getBootstrapTargetProfileId().equals(approved.context().targetProfileId())) throw deny(UNENTITLED_TARGET);
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        String fingerprint = codec.hash(Map.of("kind", KIND, "offerId", offerId, "deploymentId", deploymentId,
-            "customerId", actor.customerId(), "ownerId", actor.userId(), "actorId", actorId, "request", request));
-        var previous = commands.findByEntitlementIdAndOperationKey(entitlement.getId(), request.operationKey()).orElse(null);
-        if (previous != null) {
-            if (!COMMAND_TYPE.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())
-                || !actorId.equals(previous.getActorId())) throw conflict(OPERATION_KEY_CONFLICT);
-            var receipt = codec.read(previous.getResultJson(), ConfigurationReceipt.class);
-            if (!KIND.equals(receipt.kind()) || !consumer.getId().equals(receipt.consumerEntityId())
-                || !actor.userId().equals(receipt.ownerUserId()) || !request.equals(receipt.request())
-                || !deployment.getTenantId().equals(receipt.tenantId())) throw conflict(OPERATION_KEY_CONFLICT);
-            requireResult(receipt.result(), consumer.getConsumerId(), actor.customerId(), deploymentId,
-                association.getBootstrapTargetProfileId(), request.expectedBindingRevision());
-            return receipt.result();
+        if (approved == null || approved.context() == null || approved.context().intent() != TargetIntent.CUSTOMER_STAGING) {
+            throw deny(UNENTITLED_TARGET);
         }
-        if (entitlement.getRevision() != request.expectedEntitlementRevision()
-            || consumer.getBindingRevision() != request.expectedBindingRevision()) throw conflict(REVISION_CONFLICT);
+        if (deploymentId.equals(consumer.getBoundDeploymentId())
+            && request.targetProfileId().equals(consumer.getBoundTargetProfileId()) && consumer.getBoundReleaseId() == null) {
+            return consumerService.updateBindingForTrustedPromotion(actor.customerId(), consumer.getConsumerId(),
+                deploymentId, null, request.targetProfileId(), "Customer configured an existing unbound staging consumer.",
+                request.expectedBindingRevision(), request.operationKey());
+        }
+        if (consumer.getBindingRevision() != request.expectedBindingRevision()) throw conflict(REVISION_CONFLICT);
         if (!"ACTIVE".equals(consumer.getStatus()) || consumer.getBoundDeploymentId() != null
             || consumer.getBoundReleaseId() != null || consumer.getBoundTargetProfileId() != null) throw conflict(RESOURCE_SCOPE_MISMATCH);
         requireUnusedDraft(deployment);
         requireDraftWorkspaces(actor.customerId(), consumer, deployment, offerId,
-            association.getBootstrapTargetProfileId(), request, approved.definition());
+            request.targetProfileId(), request);
         var result = consumerService.updateBindingForTrustedPromotion(actor.customerId(), consumer.getConsumerId(),
-            deploymentId, null, association.getBootstrapTargetProfileId(),
+            deploymentId, null, request.targetProfileId(),
             "Customer configured an existing unbound staging consumer.", request.expectedBindingRevision(), request.operationKey());
         requireResult(result, consumer.getConsumerId(), actor.customerId(), deploymentId,
-            association.getBootstrapTargetProfileId(), request.expectedBindingRevision());
-        var receipt = new ConfigurationReceipt(KIND, actor.userId(), consumer.getId(), deployment.getTenantId(), request, result);
-        commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), entitlement.getId(),
-            request.operationKey(), fingerprint, COMMAND_TYPE, actorId, codec.write(receipt), Instant.now()));
+            request.targetProfileId(), request.expectedBindingRevision());
         return result;
     }
 
     private void requireDraftWorkspaces(String customerId,
             com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity consumer,
-            DeploymentEntity deployment, String offerId, String targetId, Request request,
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Definition definition) {
+            DeploymentEntity deployment, String offerId, String targetId, Request request) {
         String consumerEntityId = consumer.getId();
         var applications = entityManager.createNativeQuery(
             "SELECT * FROM ai_workspace_installations WHERE consumer_entity_id=?1 ORDER BY id FOR UPDATE NOWAIT",
@@ -146,18 +124,8 @@ public class CustomerStagingConsumerConfigurationService {
         if (!actual.equals(expected)) throw conflict(REVISION_CONFLICT);
         for (Object value : applications) {
             var app = (AIWorkspaceInstallationEntity) value;
-            var expectation = request.expectedDraftWorkspaces().stream()
-                .filter(item -> item.installationEntityId().equals(app.getId())).findFirst().orElseThrow();
-            if (expectation.selectedWorkspaceProfileId() == null) {
-                workspaces.authorizeDraftConfigurationForDestination(app, consumer,
-                    deployment, offerId, targetId, request.operationKey());
-            } else {
-                var profiles = definition.workspaceProfiles().stream()
-                    .filter(profile -> profile.id().equals(expectation.selectedWorkspaceProfileId())).toList();
-                if (profiles.size() != 1) throw deny(SETTING_FORBIDDEN);
-                workspaces.adoptReviewedDraftConfigurationForDestination(app, consumer, deployment,
-                    offerId, targetId, request.operationKey(), profiles.getFirst());
-            }
+            workspaces.authorizeDraftConfigurationForDestination(app, consumer,
+                deployment, offerId, targetId, request.operationKey());
         }
     }
 

@@ -81,10 +81,15 @@ class CustomerSelfServiceAuthorizationServiceTest {
         when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
         when(associations.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity("deployment",
             "customer", "tenant", "offer", "staging-target", offer.getFingerprint(), 2, "bootstrap", Instant.now())));
-        when(profiles.findById("staging-target")).thenReturn(Optional.of(CustomerOfferTestFixtures.profile("staging-target", "stage-server")));
-        when(profiles.findById("production-target")).thenReturn(Optional.of(CustomerOfferTestFixtures.profile("production-target", "prod-server")));
+        var staging = CustomerOfferTestFixtures.profile("staging-target", "stage-server");
+        staging.setEnvironmentName("staging");
+        var production = CustomerOfferTestFixtures.profile("production-target", "prod-server");
+        production.setEnvironmentName("production");
+        when(profiles.findById("staging-target")).thenReturn(Optional.of(staging));
+        when(profiles.findById("production-target")).thenReturn(Optional.of(production));
         var reviewedVersion = new DeploymentVersionEntity();
         reviewedVersion.setId("version"); reviewedVersion.setDeploymentId("deployment"); reviewedVersion.setStatus("PUBLISHED");
+        reviewedVersion.setConfigHash("published-config-hash");
         when(versions.findById("version")).thenReturn(Optional.of(reviewedVersion));
         var customerAccess = new PlatformCustomerAccessService(users, customers);
         entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
@@ -97,10 +102,12 @@ class CustomerSelfServiceAuthorizationServiceTest {
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
-    @Test void activeOwnerCanApplyOnlyTheReviewedOwnedComposition() {
+    @Test void activeOwnerCanUpgradeWithoutBootstrapPinComparisons() {
         var authorization = service.authorize("customer", request(Operation.APPLY));
         assertThat(authorization.context().entitlementRevision()).isEqualTo(2);
-        service.requirePinnedComposition(authorization, "template-v1", Set.of(), Set.of("runtime-artifact"));
+        assertThat(authorization.definition()).isNull();
+        service.requirePinnedComposition(authorization, "template-v2", Set.of("new-plugin-v2"), Set.of("new-runtime"));
+        verifyNoInteractions(composition, grants, offers);
         verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         verify(placement, never()).probeAndRecord(any(), any());
     }
@@ -112,7 +119,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verify(placement, never()).requireFreshEvidence(any(), any());
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("other-customer", request(Operation.APPLY)));
         grant.setStatus(EntitlementStatus.REVOKED);
-        assertCode(ENTITLEMENT_REVOKED, () -> service.authorize("customer", request(Operation.APPLY)));
+        service.authorize("customer", request(Operation.APPLY));
     }
 
     @Test void sourceAccessStillRequiresTheFrozenOwnedStorageBindingWithoutCapacityRecords() {
@@ -129,7 +136,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertThatThrownBy(() -> service.authorize("customer", source)).hasMessage("STORAGE_BINDING_CHANGED");
     }
 
-    @Test void authorityCandidatePreflightRechecksOfferTargetEntitlementAndPlacementWithoutAdmissionEvidence() {
+    @Test void authorityCandidatePreflightChecksOwnedActiveTargetNotOriginalOfferOrInvitation() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
 
         var approved = boundary.prepareAdmission(
@@ -145,56 +152,137 @@ class CustomerSelfServiceAuthorizationServiceTest {
             deployment, "other-target", Operation.APPLY, "runtime-authority-preflight"
         ));
         doThrow(conflict(REVIEWED_COMPOSITION_CHANGED)).when(composition).requireProfile(any(), any());
-        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.prepareAdmission(
-            deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight"
-        ));
-        reset(composition);
+        boundary.prepareAdmission(deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight");
         grant.setStatus(EntitlementStatus.REVOKED);
-        assertCode(ENTITLEMENT_REVOKED, () -> boundary.prepareAdmission(
-            deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight"
-        ));
+        boundary.prepareAdmission(deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight");
+        verifyNoInteractions(composition, grants, offers);
     }
 
-    @Test void owningBoundaryRejectsOutOfOfferTargetsArtifactsAndActualSettings() {
+    @Test void owningBoundaryAllowsNewArtifactsAndSettingsWithoutAnOfferReview() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
         var approved = boundary.require(deployment, "staging-target", null, Operation.APPLY, "apply-key", Map.of(), null, null, null);
         boundary.requireArtifact(approved, "runtime-artifact");
-        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireArtifact(approved, "foreign-artifact"));
+        boundary.requireArtifact(approved, "new-runtime-artifact");
+        assertCode(ARTIFACT_REQUIRED, () -> boundary.requireArtifact(approved, " "));
+        assertCode(INVALID_CONTRACT, () -> boundary.requireArtifact(null, "runtime-artifact"));
         assertCode(UNENTITLED_TARGET, () -> boundary.require(deployment, "other-target", null, Operation.APPLY,
             "apply-key", Map.of(), null, null, null));
         var value = com.fasterxml.jackson.databind.node.TextNode.valueOf("unreviewed-auth");
-        assertCode(SETTING_FORBIDDEN, () -> boundary.require(deployment, "staging-target", null, Operation.AUTH_CONFIGURE,
-            "auth-key", Map.of(Setting.AUTH_PROFILE_ID, value), null, null, null));
+        boundary.require(deployment, "staging-target", null, Operation.AUTH_CONFIGURE,
+            "auth-key", Map.of(Setting.AUTH_PROFILE_ID, value), null, null, null);
     }
 
-    @Test void genericApplyDelegatesExactVersionValidationToTheReviewedCompositionBoundary() {
+    @Test void genericApplyRequiresTheActualOwnedPublishedVersionNotOfferComposition() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
         var approved = boundary.require(deployment, "staging-target", null, Operation.APPLY, "apply-key", Map.of(), null, null, null);
-        var version = new DeploymentVersionEntity();
-        version.setDeploymentId(deployment.getId());
-        version.setStatus("PUBLISHED");
+        var version = versions.findById("version").orElseThrow();
         boundary.requireVersion(approved, version);
-        verify(composition).requireVersion(definition, version);
+        verify(composition).requireVersion(null, version);
 
         version.setDeploymentId("foreign-deployment");
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireVersion(approved, version));
     }
 
-    @Test void owningBoundaryCannotSubstituteCustomerOwnershipForAnAcceptedOffer() {
+    @Test void genericExistingDeploymentUsesRealAuthorizationWithoutAnyOfferAssociation() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
         when(associations.findById("deployment")).thenReturn(Optional.empty());
-        assertCode(ENTITLEMENT_REQUIRED, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
-            "app-key", Map.of(), null, null, null));
+        var customerAuthorization = boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+            "app-key", Map.of(), null, null, null);
+        assertThat(customerAuthorization).isNotNull();
+        assertThat(customerAuthorization.context().offerId()).isNull();
+        assertThat(customerAuthorization.definition()).isNull();
         CustomerOfferTestFixtures.authenticate("platform-admin", PlatformRole.PLATFORM_ADMIN, "API_KEY");
         assertThat(boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
-            null, Map.of(), null, null, null)).isNull();
+            "staff-app-key", Map.of(), null, null, null)).isNotNull();
     }
 
-    @Test void owningBoundaryRechecksRevokedEntitlementsAndExcludedOperationsForStaffAndCustomers() {
+    @Test void changedTemplateAndNewActiveTargetRemainOwnedOperations() {
+        deployment.setTemplateId("customer-customized-template");
+        var target = CustomerOfferTestFixtures.profile("new-production-target", "prod-server");
+        target.setEnvironmentName("production");
+        when(profiles.findById(target.getId())).thenReturn(Optional.of(target));
+        grant.setExpiresAt(Instant.now().minusSeconds(1));
+        var request = new AuthorizationRequest("offer", target.getId(), "deployment", "tenant", null,
+            Operation.APPLY, "upgrade-new-target", Set.of(), null, null, null);
+        assertThat(service.authorize("customer", request).context().intent()).isEqualTo(TargetIntent.CUSTOMER_PRODUCTION);
+        target.setActive(false);
+        assertCode(UNENTITLED_TARGET, () -> service.authorize("customer", request));
+        verifyNoInteractions(offers, grants, composition);
+    }
+
+    @Test void publishedVersionMustExistAndKeepItsActualStoredIdentity() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
+        var authorization = service.authorize("customer", request(Operation.APPLY));
+        var candidate = new DeploymentVersionEntity();
+        candidate.setId("version"); candidate.setDeploymentId("deployment"); candidate.setStatus("PUBLISHED");
+        candidate.setConfigHash("published-config-hash");
+        boundary.requireVersion(authorization, candidate);
+        candidate.setConfigHash("forged-hash");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireVersion(authorization, candidate));
+        candidate.setConfigHash("published-config-hash"); candidate.setStatus("DRAFT");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireVersion(authorization, candidate));
+        candidate.setStatus("PUBLISHED"); candidate.setManifestJson("changed-manifest");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireVersion(authorization, candidate));
+        candidate.setManifestJson(null); candidate.setId("missing-version");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireVersion(authorization, candidate));
+        assertCode(INVALID_CONTRACT, () -> boundary.requireVersion(null, candidate));
+    }
+
+    @Test void bootstrapStillRequiresExactCompositionAndAllowedDefaults() {
+        var authorization = service.authorize("customer", request(Operation.BOOTSTRAP));
+        service.requirePinnedComposition(authorization, "template-v1", Set.of(), Set.of("runtime-artifact"));
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> service.requirePinnedComposition(authorization,
+            "template-v2", Set.of(), Set.of("runtime-artifact")));
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> service.requirePinnedComposition(authorization,
+            "template-v1", Set.of("new-plugin"), Set.of("runtime-artifact")));
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> service.requirePinnedComposition(authorization,
+            "template-v1", Set.of(), Set.of("new-runtime")));
+        assertCode(SETTING_FORBIDDEN, () -> service.validateSettings(authorization, new SettingsPatch(
+            Map.of(Setting.AUTH_PROFILE_ID, com.fasterxml.jackson.databind.node.TextNode.valueOf("new-auth")))));
+        deployment.setTemplateId("not-the-selected-template");
+        assertDenied(RESOURCE_SCOPE_MISMATCH, Operation.BOOTSTRAP);
+    }
+
+    @Test void anotherActiveCustomerAdminForTheSameCustomerDoesNotNeedOriginalInviteOwnership() {
+        owner.setId("another-customer-admin");
+        when(users.findById("another-customer-admin")).thenReturn(Optional.of(owner));
+        assertThat(service.authorize("customer", request(Operation.APPLY))).isNotNull();
+        verifyNoInteractions(grants, offers);
+    }
+
+    @Test void foreignTenantOrReleaseVersionCannotEnterExistingOperation() {
+        var foreignTenant = new AuthorizationRequest("offer", "staging-target", "deployment", "foreign-tenant", null,
+            Operation.APPLY, "operation", Set.of(), null, null, null);
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("customer", foreignTenant));
+        var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
+        release.setTargetProfileId("staging-target"); release.setDeploymentVersionId("foreign-version");
+        when(releases.findById("release")).thenReturn(Optional.of(release));
+        var version = new DeploymentVersionEntity(); version.setId("foreign-version"); version.setDeploymentId("foreign-deployment");
+        version.setStatus("PUBLISHED"); version.setConfigHash("hash");
+        when(versions.findById("foreign-version")).thenReturn(Optional.of(version));
+        var request = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", "release",
+            Operation.ACTIVATE, "activate", Set.of(), null, null, null);
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("customer", request));
+    }
+
+    @Test void staffViewerCannotApplyOrEditEvenWhenTheDeploymentIsGeneric() {
+        when(associations.findById("deployment")).thenReturn(Optional.empty());
+        var operator = new PlatformUserEntity(); operator.setId("operator"); operator.setRole("PLATFORM_OPERATOR");
+        operator.setStatus("ACTIVE");
+        when(users.findByEmailIgnoreCase("operator@test.invalid")).thenReturn(Optional.of(operator));
+        var assignment = new DeploymentAssignmentEntity(); assignment.setAssignmentRole("DEPLOYMENT_VIEWER");
+        when(assignments.findByUserIdAndDeploymentId("operator", "deployment")).thenReturn(Optional.of(assignment));
+        CustomerOfferTestFixtures.authenticate("operator@test.invalid", PlatformRole.PLATFORM_OPERATOR, "SESSION");
+        service.authorize("customer", request(Operation.READ));
+        assertDenied(OPERATION_FORBIDDEN, Operation.APPLY);
+        assertDenied(OPERATION_FORBIDDEN, Operation.DRAFT_EDIT);
+    }
+
+    @Test void bootstrapInvitationAndOperationAllowlistDoNotGovernExistingStaffOrCustomerOperations() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
         grant.setStatus(EntitlementStatus.REVOKED);
-        assertCode(ENTITLEMENT_REVOKED, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
-            "app-key", Map.of(), null, null, null));
+        boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+            "app-key", Map.of(), null, null, null);
         grant.setStatus(EntitlementStatus.ACTIVE);
         var limited = new Definition(definition.schemaVersion(), definition.name(), definition.templateId(), definition.template(),
             definition.plugins(), definition.artifacts(), definition.targets(), Set.of(Operation.READ), definition.settings(),
@@ -202,10 +290,13 @@ class CustomerSelfServiceAuthorizationServiceTest {
             definition.approvedPolicyRef(), definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
         offer = new CustomerOfferEntity("offer", codec.write(limited), codec.hash(limited), "review", "admin", Instant.now());
         when(offers.findById("offer")).thenReturn(Optional.of(offer));
+        var staff = new PlatformUserEntity(); staff.setId("staff-admin");
+        staff.setRole("PLATFORM_ADMIN"); staff.setStatus("ACTIVE");
+        when(users.findByEmailIgnoreCase("platform-admin")).thenReturn(Optional.of(staff));
         for (var role : List.of(PlatformRole.CUSTOMER_ADMIN, PlatformRole.PLATFORM_ADMIN)) {
             CustomerOfferTestFixtures.authenticate(role == PlatformRole.CUSTOMER_ADMIN ? owner.getEmail() : "platform-admin", role, "SESSION");
-            assertCode(OPERATION_FORBIDDEN, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
-                "app-key", Map.of(), null, null, null));
+            boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+                "app-key", Map.of(), null, null, null);
         }
     }
 
@@ -214,6 +305,13 @@ class CustomerSelfServiceAuthorizationServiceTest {
         var consumer = new PlatformConsumerEntity();
         consumer.setId("consumer"); consumer.setCustomerId("customer"); consumer.setStatus("ACTIVE");
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of()));
+        when(consumers.findById("consumer")).thenReturn(Optional.of(consumer));
+        var draftAuthorization = boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "draft-app", Map.of());
+        assertThat(draftAuthorization).isNotNull();
+        assertThat(draftAuthorization.context().customerId()).isEqualTo("customer");
+        consumer.setCustomerId("foreign-customer");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of()));
+        consumer.setCustomerId("customer");
         consumer.setBoundDeploymentId("deployment"); consumer.setBoundTargetProfileId("staging-target");
         when(consumers.findById("consumer")).thenReturn(Optional.of(consumer));
         boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of(Setting.APP_TITLE,
@@ -231,25 +329,80 @@ class CustomerSelfServiceAuthorizationServiceTest {
             .isNotEqualTo(boundary.profileId("workspace", Map.of("a", 2, "b", 2)));
     }
 
-    @Test void reviewedS3PermissionCannotAuthorizeAMountedSourceOrAnUnrelatedSlot() {
+    @Test void bootstrapS3PermissionCannotAuthorizeAMountedSourceOrAnUnrelatedSlot() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
-        var approved = boundary.require(deployment, "staging-target", null, Operation.BINDING_REPLACE, "bind",
-            Map.of(), "document-storage", "reviewed-s3", null);
+        var approved = service.authorize("customer", request(Operation.BOOTSTRAP));
         boundary.requireS3(approved, "document-storage", "S3_COMPATIBLE_OBJECT_STORAGE");
         assertCode(BINDING_SLOT_FORBIDDEN, () -> boundary.requireS3(approved, "document-storage", "MOUNTED_FOLDER"));
         assertCode(BINDING_SLOT_FORBIDDEN, () -> boundary.requireS3(approved, "foreign-slot", "S3_COMPATIBLE_OBJECT_STORAGE"));
     }
 
-    @Test void reviewedMetadataResolvesAudienceAndSoleOwnedBindingWithoutCallerSuppliedScope() {
+    @Test void assignedStaffCanUseActiveDevelopmentTargetsWithoutCustomerPlacementRestrictions() {
+        when(associations.findById("deployment")).thenReturn(Optional.empty());
+        var target = CustomerOfferTestFixtures.profile("dev-target", "dev-server");
+        target.setEnvironmentName("dev");
+        when(profiles.findById("dev-target")).thenReturn(Optional.of(target));
+        var staff = new PlatformUserEntity(); staff.setId("operator"); staff.setStatus("ACTIVE");
+        staff.setRole("PLATFORM_OPERATOR");
+        when(users.findByEmailIgnoreCase("operator@test.invalid")).thenReturn(Optional.of(staff));
+        var assignment = new DeploymentAssignmentEntity(); assignment.setAssignmentRole("DEPLOYMENT_OPERATOR");
+        when(assignments.findByUserIdAndDeploymentId("operator", "deployment")).thenReturn(Optional.of(assignment));
+        CustomerOfferTestFixtures.authenticate("operator@test.invalid", PlatformRole.PLATFORM_OPERATOR, "SESSION");
+
+        var approved = service.authorize("customer", new AuthorizationRequest(null, "dev-target", "deployment",
+            "tenant", null, Operation.APPLY, "apply-dev", Set.of(), null, null, null));
+
+        assertThat(approved.context().intent()).isNull();
+        assertThat(approved.context().targetProfileId()).isEqualTo("dev-target");
+        assertThat(approved.definition()).isNull();
+        verifyNoInteractions(placement, composition, grants, offers);
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
+        boundary.requireS3(approved, "custom-slot", "MOUNTED_FOLDER");
+        deployment.setCustomerId(null);
+        deployment.setTenantId(null);
+        var internal = service.authorize(null, new AuthorizationRequest(null, "dev-target", "deployment",
+            null, null, Operation.APPLY, null, Set.of(), null, null, null));
+        assertThat(internal.context().customerId()).isNull();
+        assertThat(internal.context().tenantId()).isNull();
+        assertThat(internal.context().targetProfileId()).isEqualTo("dev-target");
+    }
+
+    @Test void existingGenericApplyAllowsNoOptionalKeyButValidatesAnySuppliedKey() {
+        when(associations.findById("deployment")).thenReturn(Optional.empty());
+        var approved = service.authorize("customer", new AuthorizationRequest(null, "staging-target", "deployment",
+            "tenant", null, Operation.APPLY, null, Set.of(), null, null, null));
+        assertThat(approved.context().operationKey()).isNull();
+        assertCode(INVALID_CONTRACT, () -> service.authorize("customer", new AuthorizationRequest(null,
+            "staging-target", "deployment", "tenant", null, Operation.APPLY, " key-not-trimmed", Set.of(), null, null, null)));
+        assertCode(INVALID_CONTRACT, () -> service.authorize("customer", new AuthorizationRequest(null,
+            "staging-target", "deployment", "tenant", null, Operation.APPLY, "", Set.of(), null, null, null)));
+    }
+
+    @Test void targetlessAppConfigurationUsesOwnedDeploymentScopeWithoutChoosingATarget() {
+        var consumer = new PlatformConsumerEntity(); consumer.setId("consumer"); consumer.setCustomerId("customer");
+        consumer.setStatus("ACTIVE"); consumer.setBoundDeploymentId("deployment");
+        when(consumers.findById("consumer")).thenReturn(Optional.of(consumer));
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
+        var approved = boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, null, Map.of());
+        assertThat(approved.context().deploymentId()).isEqualTo("deployment");
+        assertThat(approved.context().targetProfileId()).isNull();
+        verifyNoInteractions(profiles, placement);
+        consumer.setBoundReleaseId("release-without-target");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, null, Map.of()));
+        consumer.setBoundReleaseId(null);
+        consumer.setCustomerId("foreign");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, null, Map.of()));
+    }
+
+    @Test void bootstrapAudiencesAndSlotsDoNotRestrictActualOwnedReleaseBindings() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, entitlements, codec);
 
-        assertThat(boundary.reviewedDocumentAudiences(deployment)).containsExactly(DocumentAudience.PUBLIC);
+        assertThat(boundary.reviewedDocumentAudiences(deployment)).isEmpty();
         var approved = boundary.requireBindingKind(deployment, "staging-target", null,
             Operation.BINDING_REVOKE, "binding-key", BindingKind.CUSTOMER_S3);
 
         assertThat(approved.context().operation()).isEqualTo(Operation.BINDING_REVOKE);
-        assertThat(approved.definition().bindingSlots()).singleElement()
-            .extracting(BindingSlot::id).isEqualTo("document-storage");
+        assertThat(approved.definition()).isNull();
     }
 
     @Test void missingAuthenticationNeverBecomesGlobalStaff() {
@@ -280,48 +433,49 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertDenied(OPERATION_FORBIDDEN, Operation.APPLY);
     }
 
-    @Test void foreignDeploymentAndMissingDurableAssociationDeny() {
+    @Test void foreignDeploymentDeniesButMissingBootstrapAssociationDoesNot() {
         deployment.setCustomerId("other"); assertDenied(RESOURCE_SCOPE_MISMATCH, Operation.APPLY);
         deployment.setCustomerId("customer"); when(associations.findById("deployment")).thenReturn(Optional.empty());
-        assertDenied(ENTITLEMENT_REQUIRED, Operation.APPLY);
+        assertThat(service.authorize("customer", request(Operation.APPLY))).isNotNull();
     }
 
     @Test void missingInvitedExpiredRevokedAndForeignOwnerGrantsDeny() {
-        when(grants.findForUpdate("customer", "offer")).thenReturn(Optional.empty()); assertDenied(ENTITLEMENT_REQUIRED, Operation.APPLY);
+        when(grants.findForUpdate("customer", "offer")).thenReturn(Optional.empty()); assertDenied(ENTITLEMENT_REQUIRED, Operation.BOOTSTRAP);
         when(grants.findForUpdate("customer", "offer")).thenReturn(Optional.of(grant));
-        grant.setStatus(EntitlementStatus.INVITED); assertDenied(ENTITLEMENT_REQUIRED, Operation.APPLY);
-        grant.setStatus(EntitlementStatus.REVOKED); assertDenied(ENTITLEMENT_REVOKED, Operation.APPLY);
-        grant.setStatus(EntitlementStatus.ACTIVE); grant.setExpiresAt(Instant.now().minusSeconds(1)); assertDenied(ENTITLEMENT_EXPIRED, Operation.APPLY);
-        grant.setExpiresAt(Instant.now().plusSeconds(100)); grant.setOwnerUserId("other-owner"); assertDenied(INVITE_OWNER_MISMATCH, Operation.APPLY);
+        grant.setStatus(EntitlementStatus.INVITED); assertDenied(ENTITLEMENT_REQUIRED, Operation.BOOTSTRAP);
+        grant.setStatus(EntitlementStatus.REVOKED); assertDenied(ENTITLEMENT_REVOKED, Operation.BOOTSTRAP);
+        grant.setStatus(EntitlementStatus.ACTIVE); grant.setExpiresAt(Instant.now().minusSeconds(1)); assertDenied(ENTITLEMENT_EXPIRED, Operation.BOOTSTRAP);
+        grant.setExpiresAt(Instant.now().plusSeconds(100)); grant.setOwnerUserId("other-owner"); assertDenied(INVITE_OWNER_MISMATCH, Operation.BOOTSTRAP);
     }
 
-    @Test void arbitrarySourceOverrideAndUnentitledTargetDeny() {
-        deployment.setSourceRepositoryOverride("https://arbitrary.invalid/repo"); assertDenied(RESOURCE_SCOPE_MISMATCH, Operation.APPLY);
+    @Test void sourceChangesAreNotBootstrapLockedButAnUnknownTargetStillDenies() {
+        deployment.setSourceRepositoryOverride("https://changed-source.invalid/repo"); service.authorize("customer", request(Operation.APPLY));
         deployment.setSourceRepositoryOverride(null);
         var request = new AuthorizationRequest("offer", "guessed-profile", "deployment", "tenant", null,
             Operation.APPLY, "operation", Set.of(), null, null, null);
         assertCode(UNENTITLED_TARGET, () -> service.authorize("customer", request));
     }
 
-    @Test void unsupportedFieldsAndValuesCannotWidenSettings() {
+    @Test void changedDeploymentAndProviderProfilesDoNotRequireNewBootstrapSettingsApproval() {
         var request = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", null,
             Operation.DRAFT_EDIT, "operation", Set.of(Setting.AUTH_PROFILE_ID), null, null, null);
-        assertCode(SETTING_FORBIDDEN, () -> service.authorize("customer", request));
+        service.authorize("customer", request);
         var auth = service.authorize("customer", request(Operation.AUTH_CONFIGURE));
         var value = new com.fasterxml.jackson.databind.ObjectMapper().getNodeFactory().textNode("unreviewed-auth");
-        assertCode(SETTING_FORBIDDEN, () -> service.validateSettings(auth, new SettingsPatch(Map.of(Setting.AUTH_PROFILE_ID, value))));
+        service.validateSettings(auth, new SettingsPatch(Map.of(Setting.AUTH_PROFILE_ID, value)));
         var allowed = new com.fasterxml.jackson.databind.ObjectMapper().getNodeFactory().textNode("reviewed-mixed-auth");
         service.validateSettings(auth, new SettingsPatch(Map.of(Setting.AUTH_PROFILE_ID, allowed)));
         assertCode(INVALID_CONTRACT, () -> codec.read("{\"values\":{\"SOURCE_REPOSITORY\":\"x\"}}", SettingsPatch.class));
     }
 
-    @Test void bindingSlotRequiresReviewedProfileAndNeverAcceptsVaultNames() {
+    @Test void bindingAuthorizationDoesNotResolveOrGrantAccessToCallerSuppliedCredentialNames() {
         var valid = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", null,
             Operation.BINDING_REPLACE, "operation", Set.of(), "document-storage", "reviewed-s3", null);
         service.authorize("customer", valid);
         var invalid = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", null,
             Operation.BINDING_REPLACE, "operation", Set.of(), "GLOBAL_VAULT", "reviewed-s3", null);
-        assertCode(BINDING_SLOT_FORBIDDEN, () -> service.authorize("customer", invalid));
+        service.authorize("customer", invalid);
+        verifyNoInteractions(composition, grants, offers, bindings);
     }
 
     @Test void capacityAndNotificationPolicyDoNotBecomeSecurityPrerequisites() {
@@ -347,7 +501,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
             () -> service.prepareAdmission("customer", request(Operation.DRAFT_EDIT)));
     }
 
-    @Test void sourceRefreshPreparationRequiresExactEntitlementAndReleaseBeforeCollectingEvidence() {
+    @Test void sourceRefreshPreparationRequiresExactReleaseNotAnUnexpiredBootstrapInvitation() {
         var release = new DeploymentReleaseEntity();
         release.setId("release"); release.setDeploymentId("deployment"); release.setTargetProfileId("staging-target");
         release.setSourceArtifactId("runtime-artifact"); release.setDeploymentVersionId("version");
@@ -361,7 +515,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertThat(prepared.context().placementEvidenceId()).isNull();
         verify(placement).requireConfiguredPlacement(any(), eq(TargetIntent.CUSTOMER_STAGING));
         grant.setStatus(EntitlementStatus.REVOKED);
-        assertCode(ENTITLEMENT_REVOKED, () -> service.prepareSourcePrerequisiteRefresh("customer", request));
+        service.prepareSourcePrerequisiteRefresh("customer", request);
         grant.setStatus(EntitlementStatus.ACTIVE);
         release.setDeploymentId("foreign");
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.prepareSourcePrerequisiteRefresh("customer", request));
@@ -419,7 +573,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         assertDenied(OPERATION_FORBIDDEN, Operation.STAGING_RETAIN);
     }
 
-    @Test void activationRequiresExplicitOwnedReleaseAndPinnedArtifact() {
+    @Test void activationRequiresExplicitOwnedReleaseNotTheOriginalPinnedArtifact() {
         assertDenied(RESOURCE_SCOPE_MISMATCH, Operation.ACTIVATE);
         var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
         release.setTargetProfileId("staging-target"); release.setSourceArtifactId("runtime-artifact"); release.setDeploymentVersionId("version");
@@ -428,7 +582,9 @@ class CustomerSelfServiceAuthorizationServiceTest {
             Operation.ACTIVATE, "operation", Set.of(), null, null, null);
         service.authorize("customer", request);
         var reviewedVersion = versions.findById("version").orElseThrow();
-        verify(composition).requireVersion(eq(definition), same(reviewedVersion));
+        verify(composition).requireVersion(isNull(), same(reviewedVersion));
+        release.setSourceArtifactId("new-runtime-artifact");
+        service.authorize("customer", request);
         release.setDeploymentId("other"); assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.authorize("customer", request));
     }
 

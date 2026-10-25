@@ -536,7 +536,7 @@ export function OverviewPage() {
                   {roleSummary(workspace.access.assignmentRole)}
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip label={workspace.deployment.approvalRequiredForApply ? 'Apply approval required' : 'Apply approval optional'} variant="outlined" />
+                  <Chip label="Direct apply" variant="outlined" />
                   <Chip label={workspace.deployment.approvalRequiredForDelete ? 'Delete approval required' : 'Delete approval optional'} variant="outlined" />
                 </Stack>
               </Stack>

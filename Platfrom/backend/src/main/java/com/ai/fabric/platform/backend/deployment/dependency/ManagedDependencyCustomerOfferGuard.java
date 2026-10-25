@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.dependency;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AuthorizationRequest;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.EntitlementStatus;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferEntitlementRepository;
@@ -9,6 +8,7 @@ import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOff
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceAuthorizationService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,21 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Keeps customer-offer authority attached to managed dependency credential grants. */
+/** Checks current account ownership and the exact release before dependency access grants. */
 @Service
 class ManagedDependencyCustomerOfferGuard {
     private final CustomerOfferDeploymentRepository offerDeployments;
-    private final CustomerOfferRepository offers;
     private final CustomerOfferEntitlementRepository entitlements;
     private final DeploymentReleaseRepository releases;
     private final CustomerSelfServiceAuthorizationService authorization;
     private final CustomerOfferEntitlementService entitlementEligibility;
-    private final Clock clock;
+    private final PlatformTenantRepository tenants;
 
     @Autowired
     ManagedDependencyCustomerOfferGuard(CustomerOfferDeploymentRepository offerDeployments,
@@ -38,9 +36,10 @@ class ManagedDependencyCustomerOfferGuard {
                                         CustomerOfferEntitlementRepository entitlements,
                                         DeploymentReleaseRepository releases,
                                         CustomerSelfServiceAuthorizationService authorization,
-                                        CustomerOfferEntitlementService entitlementEligibility) {
+                                        CustomerOfferEntitlementService entitlementEligibility,
+                                        PlatformTenantRepository tenants) {
         this(offerDeployments, offers, entitlements, releases, authorization, entitlementEligibility,
-            Clock.systemUTC());
+            Clock.systemUTC(), tenants);
     }
 
     ManagedDependencyCustomerOfferGuard(CustomerOfferDeploymentRepository offerDeployments,
@@ -49,14 +48,13 @@ class ManagedDependencyCustomerOfferGuard {
                                         DeploymentReleaseRepository releases,
                                         CustomerSelfServiceAuthorizationService authorization,
                                         CustomerOfferEntitlementService entitlementEligibility,
-                                        Clock clock) {
+                                        Clock clock, PlatformTenantRepository tenants) {
         this.offerDeployments = offerDeployments;
-        this.offers = offers;
         this.entitlements = entitlements;
         this.releases = releases;
         this.authorization = authorization;
         this.entitlementEligibility = entitlementEligibility;
-        this.clock = clock;
+        this.tenants = tenants;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -78,21 +76,10 @@ class ManagedDependencyCustomerOfferGuard {
         if (association == null) return;
         requireScope(graph, association.getCustomerId(), association.getTenantId());
         requireRelease(graph);
-        var offer = offers.findById(association.getOfferId())
-            .orElseThrow(() -> failure("DEPENDENCY_OFFER_MISSING"));
-        if (!association.getOfferFingerprint().equals(offer.getFingerprint())) {
-            throw failure("DEPENDENCY_OFFER_CHANGED");
-        }
-        Instant now = clock.instant();
-        var entitlement = entitlements.findForUpdate(association.getCustomerId(), association.getOfferId())
-            .filter(value -> value.getStatus() == EntitlementStatus.ACTIVE)
-            .filter(value -> value.getExpiresAt() != null && value.getExpiresAt().isAfter(now))
-            .orElseThrow(() -> failure("DEPENDENCY_ENTITLEMENT_INACTIVE"));
-        entitlementEligibility.requireCurrentOwnerEligibility(
-            entitlement.getOwnerUserId(), association.getCustomerId());
-        if (entitlement.getRevision() != association.getAuthorizationEntitlementRevision()) {
-            throw failure("DEPENDENCY_ENTITLEMENT_CHANGED");
-        }
+        entitlementEligibility.requireActiveCustomer(graph.getCustomerId());
+        tenants.findById(graph.getTenantId()).filter(value -> "ACTIVE".equals(value.getStatus())
+            && graph.getCustomerId().equals(value.getCustomerId()))
+            .orElseThrow(() -> failure("DEPENDENCY_CUSTOMER_SCOPE_CHANGED"));
     }
 
     private void requireRelease(ManagedDependencyGraphEntity graph) {

@@ -51,15 +51,18 @@ public class ExternalIntegrationService {
     private final ObjectMapper mapper;
     private final PlatformAuditService audit;
     private final Validator validator;
+    private final ExternalIntegrationOwnerEligibility owners;
 
     public ExternalIntegrationService(CustomerOfferEntitlementService entitlements, CustomerSelfServiceAuthorizationService authorization,
         CustomerReviewedCompositionService composition, CustomerEntitlementCommandRepository commands, DeploymentRepository deployments,
         DeploymentVersionRepository versions, DeploymentTargetProfileRepository targets, ExternalIntegrationPolicy policy,
         ExternalIntegrationIntegrity integrity, ExternalIntegrationStore store, PlatformSecretService vault,
-        PlatformSecretRepository secrets, CustomerOfferCodec codec, ObjectMapper mapper, PlatformAuditService audit, Validator validator) {
+        PlatformSecretRepository secrets, CustomerOfferCodec codec, ObjectMapper mapper, PlatformAuditService audit, Validator validator,
+        ExternalIntegrationOwnerEligibility owners) {
         this.entitlements = entitlements; this.authorization = authorization; this.composition = composition; this.commands = commands;
         this.deployments = deployments; this.versions = versions; this.targets = targets; this.policy = policy; this.integrity = integrity;
         this.store = store; this.vault = vault; this.secrets = secrets; this.codec = codec; this.mapper = mapper; this.audit = audit; this.validator = validator;
+        this.owners = owners;
     }
 
     @Transactional
@@ -93,7 +96,7 @@ public class ExternalIntegrationService {
         validate(request); entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
         var deployment = lock(deploymentId, actor.customerId());
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
+        var grant = owners.require(offerId, deployment, actor.userId(), true);
         var context = context(offerId, deployment, request.versionId(), request.targetProfileId(), request.bindingSlotId(),
             request.selectedProfileId(), request.operationKey(), Operation.BINDING_REPLACE);
         var credentials = policy.textualObject(request.credentials(), 16384);
@@ -104,7 +107,6 @@ public class ExternalIntegrationService {
             "revision", request.expectedEntitlementRevision(), "credentials", credentials, "actor", actorId()));
         Summary replay = replay(grant.getId(), request.operationKey(), BIND, fingerprint);
         if (replay != null) return replay;
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict("ENTITLEMENT_REVISION_CONFLICT");
         var approvalRow = store.approval(request.approvalId()).orElseThrow(() -> conflict("APPROVAL_REQUIRED"));
         integrity.require(approvalRow.value(), approvalRow.integrity());
         var approval = approvalRow.value(); requireApproval(context, approval);
@@ -135,13 +137,12 @@ public class ExternalIntegrationService {
     public Summary revoke(String offerId, String deploymentId, RevokeRequest request) {
         validate(request); entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor(); var deployment = lock(deploymentId, actor.customerId());
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
+        var grant = owners.require(offerId, deployment, actor.userId(), true);
         var context = context(offerId, deployment, request.versionId(), request.targetProfileId(), request.bindingSlotId(),
             request.selectedProfileId(), request.operationKey(), Operation.BINDING_REVOKE);
         String fingerprint = integrity.seal(Map.of("command", REVOKE, "scope", context.scope(), "request", request, "actor", actorId()));
         Summary replay = replay(grant.getId(), request.operationKey(), REVOKE, fingerprint);
         if (replay != null) return replay;
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict("ENTITLEMENT_REVISION_CONFLICT");
         var row = store.binding(deploymentId, request.versionId(), request.targetProfileId(), request.bindingSlotId())
             .orElseThrow(() -> conflict("BINDING_REQUIRED"));
         integrity.require(bindingEvidence(row.value(), row.status(), row.revision()), row.integrity());
@@ -189,21 +190,24 @@ public class ExternalIntegrationService {
                             String slotId, String profileId, String operationKey, Operation operation) {
         // READ authorizes deployment/target; the exact external selection is still policy-validated below.
         boolean read = operation == Operation.READ;
-        var approved = authorization.authorize(deployment.getCustomerId(), new AuthorizationRequest(offerId, targetId, deployment.getId(),
+        authorization.authorize(deployment.getCustomerId(), new AuthorizationRequest(offerId, targetId, deployment.getId(),
             deployment.getTenantId(), null, operation, operationKey, Set.of(), read ? null : slotId, read ? null : profileId, null));
-        var profile = policy.requireProfile(approved.definition(), slotId, profileId, targetId);
         var version = versions.findById(versionId).filter(value -> deployment.getId().equals(value.getDeploymentId())
             && "PUBLISHED".equals(value.getStatus()) && value.getConfigHash() != null && !value.getConfigHash().isBlank())
             .orElseThrow(() -> conflict("VERSION_SCOPE_MISMATCH"));
-        composition.requireVersion(approved.definition(), version);
-        var target = targets.findById(targetId).filter(value -> value.isActive()).orElseThrow(() -> conflict("TARGET_REQUIRED"));
         var offer = entitlements.requireOffer(offerId);
+        var profiles = policy.profilesForVersion(entitlements.definition(offer), codec.tree(version.getCompositionProvenanceJson()));
+        var selected = profiles.stream().filter(value -> slotId.equals(value.bindingSlotId()) && profileId.equals(value.id())
+            && value.targetProfileIds().contains(targetId)).toList();
+        if (selected.size() != 1) throw conflict("PROFILE_SCOPE_MISMATCH");
+        var profile = selected.getFirst();
+        var target = targets.findById(targetId).filter(value -> value.isActive()).orElseThrow(() -> conflict("TARGET_REQUIRED"));
         return new Context(new Scope(offerId, deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), versionId,
             targetId, slotId, profileId), profile, version, offer.getFingerprint(), DeploymentTargetProfileIdentity.fingerprint(mapper, target));
     }
     private void requireApproval(Context context, Approval approval) {
         if (!context.scope().equals(approval.scope()) || !context.profile().equals(approval.profile())
-            || !context.offerFingerprint().equals(approval.offerFingerprint()) || !context.version().getConfigHash().equals(approval.versionConfigHash())
+            || !context.version().getConfigHash().equals(approval.versionConfigHash())
             || !context.targetFingerprint().equals(approval.targetFingerprint())) throw conflict("APPROVAL_STALE_OR_FOREIGN");
         policy.validateConfig(approval.profile(), approval.config(), approval.accountScope());
     }

@@ -23,7 +23,7 @@ import java.util.UUID;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
 
-/** Applies an entitled customer-staging version using only server-owned target and artifact pins. */
+/** Scoped API adapter to normal version application, not a separate offer lifecycle. */
 @Service
 public class CustomerDeploymentApplyService {
     private static final String COMMAND = "APPLY_STAGING_VERSION";
@@ -72,50 +72,27 @@ public class CustomerDeploymentApplyService {
         var deployment = deployments.findByIdForUpdate(deploymentId)
             .filter(candidate -> actor.customerId().equals(candidate.getCustomerId()))
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        var association = associations.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        if (!actor.customerId().equals(association.getCustomerId())
-            || !deployment.getTenantId().equals(association.getTenantId())
-            || !offerId.equals(association.getOfferId())) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
-        if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
-
-        String actorId = PlatformSecurityContext.currentPrincipal().actorId();
-        String fingerprint = codec.hash(Map.of("command", COMMAND, "offerId", offerId,
-            "deploymentId", deploymentId, "request", request, "customerId", actor.customerId(), "actor", actorId));
-        var previous = commands.findByEntitlementIdAndOperationKey(grant.getId(), request.operationKey()).orElse(null);
-        if (previous != null) {
-            if (!COMMAND.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())
-                || !actorId.equals(previous.getActorId())) throw conflict(OPERATION_KEY_CONFLICT);
-            return codec.read(previous.getResultJson(), DeploymentReleaseSummary.class);
-        }
-
-        var offer = entitlements.requireOffer(offerId);
-        if (!association.getOfferFingerprint().equals(offer.getFingerprint())) throw conflict(REVIEWED_COMPOSITION_CHANGED);
-        var definition = entitlements.definition(offer);
-        String targetProfileId = association.getBootstrapTargetProfileId();
-        String sourceArtifactId = composition.runtimeArtifactId(definition);
         var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         if (!deploymentId.equals(version.getDeploymentId()) || !"PUBLISHED".equals(version.getStatus())) {
             throw deny(RESOURCE_SCOPE_MISMATCH);
         }
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
-            targetProfileId, deploymentId, deployment.getTenantId(), null, Operation.APPLY,
+            request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.APPLY,
             request.operationKey(), Set.of(), null, null, null));
-        offerBoundary.requireArtifact(approved, sourceArtifactId);
+        if (request.sourceArtifactId() != null) offerBoundary.requireArtifact(approved, request.sourceArtifactId());
         offerBoundary.requireVersion(approved, version);
-        var result = deploymentService.applyVersionForTrustedCaller(
-            deploymentId, request.versionId(), targetProfileId, sourceArtifactId);
-        commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), grant.getId(),
-            request.operationKey(), fingerprint, COMMAND, actorId, codec.write(result), Instant.now()));
-        audit.record("CUSTOMER_OFFER_STAGING_VERSION_APPLIED", "DEPLOYMENT_RELEASE", result.id(),
-            Map.of("deploymentId", deploymentId, "offerId", offerId, "targetProfileId", targetProfileId,
+        var result = deploymentService.applyVersion(deploymentId, request.versionId(), null,
+            request.targetProfileId(), request.sourceArtifactId(), request.operationKey());
+        audit.record("CUSTOMER_VERSION_APPLIED", "DEPLOYMENT_RELEASE", result.id(),
+            Map.of("deploymentId", deploymentId, "targetProfileId", request.targetProfileId(),
                 "operationKey", request.operationKey()));
         return result;
     }
 
     private void validate(String offerId, String deploymentId, Request request) {
-        if (blank(offerId, 64) || blank(deploymentId, 64) || request == null
-            || blank(request.versionId(), 64) || request.expectedEntitlementRevision() < 0
+        if (blank(deploymentId, 64) || request == null
+            || blank(request.versionId(), 64) || blank(request.targetProfileId(), 64)
+            || (request.sourceArtifactId() != null && blank(request.sourceArtifactId(), 64))
             || blank(request.operationKey(), 128)) throw invalid();
     }
 

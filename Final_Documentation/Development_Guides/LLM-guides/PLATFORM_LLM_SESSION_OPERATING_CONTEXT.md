@@ -5,6 +5,20 @@ Use this document to orient the next LLM session to how this codebase is develop
 This is not a task handoff.
 This is the baseline operating context for platform work.
 
+## Template And Upgrade Contract (2026-10-25)
+
+Templates/offers are bootstrap defaults, not permanent deployment restrictions.
+Existing deployments use normal versioning and direct production apply without
+manual upgrade approval or an obligatory staging promotion. Preserve deployment
+and app identity. A customer can reset recorded original template settings to
+the draft; reset never deploys, deletes data or replaces credentials/bindings.
+Published release history remains immutable, but the original offer's runtime,
+model, plugin and setting pins do not govern later operations. Active customer
+ownership, staff roles, actual credentials/compatibility, action safety and real
+funding/accounting remain enforced. This owner decision supersedes older
+reviewed-offer lifecycle restrictions in 010.36 and historical handoff entries.
+Track implementation and evidence in 010.47, not by rewriting historical proof.
+
 Use it together with:
 
 - `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md`

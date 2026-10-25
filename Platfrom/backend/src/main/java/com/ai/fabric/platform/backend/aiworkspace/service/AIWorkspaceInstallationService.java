@@ -398,7 +398,7 @@ public class AIWorkspaceInstallationService {
         entity.setUpdatedAt(Instant.now());
         repository.saveAndFlush(entity);
         audit("AI_WORKSPACE_REVIEWED_PROFILE_ADOPTED", entity,
-            Map.of("deploymentId", destination.getId(), "offerId", offerId, "profileId", profile.id(), "operationKey", operationKey));
+            Map.of("deploymentId", destination.getId(), "profileId", profile.id(), "operationKey", operationKey));
     }
 
     private String profileText(ObjectNode node, String field) {
@@ -429,17 +429,12 @@ public class AIWorkspaceInstallationService {
         authorizeConfiguration(input, (operation, settings) -> {
             var approved = offerBoundary.require(destination, targetProfileId, null, operation, operationKey,
                 settings, null, null, null);
-            if (approved == null || !java.util.Objects.equals(offerId, approved.context().offerId())
-                || !destination.getId().equals(approved.context().deploymentId())
+            if (approved == null || approved.context() == null || !destination.getId().equals(approved.context().deploymentId())
                 || !destination.getCustomerId().equals(approved.context().customerId())
                 || !destination.getTenantId().equals(approved.context().tenantId())
                 || !java.util.Objects.equals(targetProfileId, approved.context().targetProfileId())) {
                 throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
                     com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH);
-            }
-            if (selectedProfile != null && !approved.definition().workspaceProfiles().contains(selectedProfile)) {
-                throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
-                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
             }
             return approved;
         });
@@ -461,7 +456,7 @@ public class AIWorkspaceInstallationService {
         settings.put(Setting.INTERACTION_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("workspace", interaction)));
         settings.put(Setting.THEME_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("theme", theme)));
         var approved = boundary.apply(Operation.APP_CONFIGURE, settings);
-        if (approved == null) return;
+        if (approved == null) throw new ResponseStatusException(CONFLICT, "Workspace configuration authorization is required.");
         var authentication = objectMapper.createObjectNode();
         authentication.put("profileCode", input.authProfileCode()).put("profileVersion", input.authProfileVersion())
             .put("interactionPolicy", input.interactionPolicy().name());

@@ -84,7 +84,7 @@ class ManagedDependencyCoreReleaseAuthorizationTest {
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
         version.setId("version"); version.setDeploymentId("deployment"); version.setStatus("PUBLISHED");
         version.setConfigHash("a".repeat(64));
-        version.setCompositionProvenanceJson("{\"marketplaceInstalls\":[{\"pluginVersionId\":\"template-version\"}]}");
+        version.setCompositionProvenanceJson("{\"marketplaceInstalls\":[{\"pluginType\":\"TEMPLATE\",\"pluginVersionId\":\"template-version\"}]}");
         release.setId("release"); release.setDeploymentId("deployment"); release.setDeploymentVersionId("version");
         release.setTargetProfileId("target"); release.setSourceArtifactId("runtime-artifact");
         target.setId("target"); target.setActive(true); target.setProviderType(DeploymentProviderType.COOLIFY);
@@ -117,22 +117,23 @@ class ManagedDependencyCoreReleaseAuthorizationTest {
     }
 
     @Test
-    void customerProductionIntentComesFromReviewedTargetNotItsDisplayEnvironment() {
+    void customerProductionUsesActualTargetAndPublishedTemplateNotBootstrapPins() {
         customer(TargetIntent.CUSTOMER_PRODUCTION);
+        target.setEnvironmentName("production");
+        reviewed.setTemplateVersionId("upgraded-template");
+        version.setCompositionProvenanceJson("{\"marketplaceInstalls\":[{\"pluginType\":\"TEMPLATE\",\"pluginVersionId\":\"upgraded-template\"}]}");
         save("OBSERVE", "OBSERVED");
 
         assertThat(service.find(scope, graph, spec).orElseThrow().production()).isTrue();
 
         verify(guard).requireActiveExecution(graph);
-        verify(composition).requireVersion(definition, version);
-        verify(composition).requireProfile(target, definition.targets().getFirst());
+        verifyNoInteractions(offers, composition);
         verify(placement).requireConfiguredPlacement(target, TargetIntent.CUSTOMER_PRODUCTION);
     }
 
     @Test
     void customerStagingKeepsCorePlacementButDoesNotRequireAPlacementLease() {
         customer(TargetIntent.CUSTOMER_STAGING);
-        target.setEnvironmentName("production");
         save("ENFORCE", "ALLOWED");
 
         assertThat(service.find(scope, graph, spec).orElseThrow().production()).isFalse();
@@ -141,22 +142,23 @@ class ManagedDependencyCoreReleaseAuthorizationTest {
     }
 
     @Test
-    void withdrawnEntitlementOrChangedCompositionStillBlocksRequiredDependencies() {
+    void ineligibleCurrentOwnerOrChangedPublishedTemplateStillBlocksRequiredDependencies() {
         customer(TargetIntent.CUSTOMER_STAGING);
         save("DISABLED", "BYPASSED");
-        doThrow(new IllegalStateException("DEPENDENCY_ENTITLEMENT_INACTIVE")).when(guard).requireActiveExecution(graph);
-        assertThatThrownBy(() -> service.find(scope, graph, spec)).hasMessageContaining("DEPENDENCY_ENTITLEMENT_INACTIVE");
+        doThrow(new IllegalStateException("OWNER_INACTIVE")).when(guard).requireActiveExecution(graph);
+        assertThatThrownBy(() -> service.find(scope, graph, spec)).hasMessageContaining("OWNER_INACTIVE");
         verifyNoInteractions(composition, placement);
 
         reset(guard);
-        doThrow(new IllegalStateException("REVIEWED_COMPOSITION_CHANGED")).when(composition).requireVersion(definition, version);
-        assertThatThrownBy(() -> service.find(scope, graph, spec)).hasMessageContaining("REVIEWED_COMPOSITION_CHANGED");
+        reviewed.setTemplateVersionId("not-in-published-version");
+        assertThatThrownBy(() -> service.find(scope, graph, spec)).hasMessageContaining("DEPENDENCY_SPEC_TEMPLATE_CHANGED");
         verifyNoInteractions(placement);
     }
 
     @Test
     void rejectedConfiguredPlacementCannotBeReplacedWithAdmissionEvidence() {
         customer(TargetIntent.CUSTOMER_PRODUCTION);
+        target.setEnvironmentName("production");
         save("DISABLED", "BYPASSED");
         doThrow(new IllegalStateException("PLACEMENT_DENIED")).when(placement)
             .requireConfiguredPlacement(target, TargetIntent.CUSTOMER_PRODUCTION);

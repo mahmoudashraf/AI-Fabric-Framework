@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -71,6 +73,20 @@ public class ExternalIntegrationPolicy {
     }
 
     public void validateProfile(Definition definition, Profile profile) {
+        validateProfile(profile);
+        if (profile.targetProfileIds().stream().anyMatch(id -> definition.targets().stream().noneMatch(target -> id.equals(target.targetProfileId())))) {
+            throw conflict("PROFILE_TARGET_NOT_REVIEWED");
+        }
+        var slot = definition.bindingSlots().stream().filter(value -> profile.bindingSlotId().equals(value.id())).findFirst()
+            .orElseThrow(() -> conflict("SLOT_REQUIRED"));
+        if (!"EXTERNAL_SERVICE".equals(slot.kind().name()) || !profile.pluginId().equals(slot.pluginId())
+            || slot.installConfigField() != null || !slot.supportedProfileIds().contains(profile.id())) throw conflict("SLOT_PROFILE_MISMATCH");
+        if (definition.plugins().stream().noneMatch(pin -> profile.pluginId().equals(pin.pluginId())
+            && profile.pluginVersionId().equals(pin.versionId()) && profile.manifestSha256().equals(pin.manifestSha256()))) throw conflict("PLUGIN_PIN_MISMATCH");
+    }
+
+    /** Validate the selected integration itself, not the template's unrelated bootstrap plugins. */
+    public void validateProfile(Profile profile) {
         if (profile == null || !PROFILE_SCHEMA.equals(profile.schemaVersion()) || !identifier(profile.id())
             || !identifier(profile.bindingSlotId()) || !identifier(profile.pluginId()) || !identifier(profile.pluginVersionId())
             || profile.manifestSha256() == null || !profile.manifestSha256().matches("[a-f0-9]{64}")
@@ -81,15 +97,6 @@ public class ExternalIntegrationPolicy {
             || !profile.configFields().containsAll(profile.endpointFields()) || !profile.configFields().containsAll(profile.accountScopeFields())
             || profile.configFields().stream().anyMatch(field -> !identifier(field) || profile.secretFields().contains(field))
             || profile.secretFields().stream().anyMatch(field -> !identifier(field))) throw conflict("PROFILE_INVALID");
-        if (profile.targetProfileIds().stream().anyMatch(id -> definition.targets().stream().noneMatch(target -> id.equals(target.targetProfileId())))) {
-            throw conflict("PROFILE_TARGET_NOT_REVIEWED");
-        }
-        var slot = definition.bindingSlots().stream().filter(value -> profile.bindingSlotId().equals(value.id())).findFirst()
-            .orElseThrow(() -> conflict("SLOT_REQUIRED"));
-        if (!"EXTERNAL_SERVICE".equals(slot.kind().name()) || !profile.pluginId().equals(slot.pluginId())
-            || slot.installConfigField() != null || !slot.supportedProfileIds().contains(profile.id())) throw conflict("SLOT_PROFILE_MISMATCH");
-        if (definition.plugins().stream().noneMatch(pin -> profile.pluginId().equals(pin.pluginId())
-            && profile.pluginVersionId().equals(pin.versionId()) && profile.manifestSha256().equals(pin.manifestSha256()))) throw conflict("PLUGIN_PIN_MISMATCH");
         var parsed = manifest(profile);
         Set<String> config = new HashSet<>(), secrets = new HashSet<>(), urls = new HashSet<>();
         for (var field : parsed.installForm()) {
@@ -138,6 +145,43 @@ public class ExternalIntegrationPolicy {
         }
     }
 
+    public Profile forPluginVersion(Profile defaults, String versionId) {
+        var version = versions.findById(versionId).filter(value -> defaults.pluginId().equals(value.getPluginId()))
+            .orElseThrow(() -> conflict("PLUGIN_REQUIRED"));
+        Profile profile = new Profile(defaults.schemaVersion(), defaults.id(), defaults.bindingSlotId(), defaults.pluginId(),
+            versionId, codec.hash(codec.tree(version.getManifestJson())), defaults.targetProfileIds(), defaults.configFields(),
+            defaults.secretFields(), defaults.endpointFields(), defaults.accountScopeFields(), defaults.allowedHosts());
+        validateProfile(profile);
+        return profile;
+    }
+
+    public List<Profile> profilesForVersion(Definition defaults, JsonNode provenance) {
+        if (!ExternalIntegrationRequirement.required(provenance)) return List.of();
+        List<Profile> result = new ArrayList<>();
+        Set<String> slots = new HashSet<>();
+        JsonNode installs = provenance.path("marketplaceInstalls");
+        if (!installs.isArray()) throw conflict("COMPILER_EVIDENCE_REQUIRED");
+        for (JsonNode evidence : provenance.path("externalIntegrationProfiles")) {
+            var candidates = defaults.externalIntegrationProfiles().stream().filter(profile ->
+                profile.id().equals(evidence.path("profileId").asText())
+                    && profile.bindingSlotId().equals(evidence.path("bindingSlotId").asText())
+                    && profile.pluginId().equals(evidence.path("pluginId").asText())).toList();
+            if (candidates.size() != 1 || !slots.add(evidence.path("bindingSlotId").asText())) throw conflict("COMPILER_PROFILE_MISMATCH");
+            Profile profile = forPluginVersion(candidates.getFirst(), evidence.path("pluginVersionId").asText());
+            String pluginType = plugins.findById(profile.pluginId()).orElseThrow(() -> conflict("PLUGIN_REQUIRED")).getPluginType();
+            JsonNode expected = codec.tree(codec.write(ExternalIntegrationCompilerResolver.evidenceFields(profile, codec)));
+            if (!expected.equals(evidence)) throw conflict("COMPILER_PROFILE_MISMATCH");
+            long matchingInstalls = java.util.stream.StreamSupport.stream(installs.spliterator(), false).filter(install ->
+                profile.pluginId().equals(install.path("pluginId").asText())
+                    && profile.pluginVersionId().equals(install.path("pluginVersionId").asText())
+                    && ("sha256:" + profile.manifestSha256()).equals(install.path("manifestSha256").asText())
+                    && pluginType.equals(install.path("pluginType").asText())).count();
+            if (matchingInstalls != 1) throw conflict("COMPILER_PROFILE_MISMATCH");
+            result.add(profile);
+        }
+        return List.copyOf(result);
+    }
+
     public void validateConfig(Profile profile, Map<String, String> config, Map<String, String> accountScope) {
         if (!profile.configFields().equals(config.keySet()) || accountScope.isEmpty() || accountScope.size() > 8
             || accountScope.entrySet().stream().anyMatch(entry -> !identifier(entry.getKey()) || !literal(entry.getValue()))) {
@@ -174,7 +218,8 @@ public class ExternalIntegrationPolicy {
         if (!Set.of("DATA", "ACTION").contains(plugin.getPluginType()) || !"ACTIVE".equals(plugin.getStatus())
             || !"PUBLISHED".equals(version.getStatus()) || !profile.pluginId().equals(version.getPluginId())
             || !profile.manifestSha256().equals(codec.hash(codec.tree(version.getManifestJson())))) throw conflict("PLUGIN_PIN_MISMATCH");
-        return manifests.parseAndValidate(plugin, version);
+        try { return manifests.parseAndValidate(plugin, version); }
+        catch (RuntimeException invalid) { throw conflict("PLUGIN_PIN_MISMATCH"); }
     }
     public static boolean identifier(String value) { return value != null && value.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}"); }
     private boolean literal(String value) { return value != null && !value.isBlank() && value.length() <= 2048

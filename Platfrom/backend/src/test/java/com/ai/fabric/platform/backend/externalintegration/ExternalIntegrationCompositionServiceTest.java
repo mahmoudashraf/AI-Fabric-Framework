@@ -77,6 +77,28 @@ class ExternalIntegrationCompositionServiceTest {
         }
     }
 
+    @Test void actualInstalledPluginVersionDrivesCompilationWithoutAnOfferPinOrStoredAliasMutation() throws Exception {
+        var f = new ExternalIntegrationFixture();
+        var service = service(f, associatedOffer(f));
+        var upgraded = new com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity();
+        org.springframework.beans.BeanUtils.copyProperties(f.pluginVersions.findById(f.profile.pluginVersionId()).orElseThrow(), upgraded);
+        upgraded.setId("plugin-version-two"); upgraded.setVersion("2.0.0");
+        upgraded.setManifestJson(upgraded.getManifestJson().replace("1.0.0", "2.0.0"));
+        when(f.pluginVersions.findById(upgraded.getId())).thenReturn(Optional.of(upgraded));
+        var install = f.installs.findByDeploymentIdOrderByUpdatedAtDesc(f.deployment.getId()).getFirst();
+        var symbolic = f.compiler.installInputs(f.profile, f.mapper.createObjectNode(), f.mapper.createObjectNode());
+        install.setConfigJson(f.codec.write(symbolic.config())); install.setSecretRefsJson(f.codec.write(symbolic.secretRefs()));
+        install.setPluginVersionId(upgraded.getId());
+
+        var profiles = service.profiles(f.deployment);
+        var compiled = service.compileInput(profiles, install);
+
+        assertThat(profiles).singleElement().extracting(ExternalIntegrationContracts.Profile::pluginVersionId).isEqualTo(upgraded.getId());
+        assertThat(compiled.getConfigJson()).contains(ExternalIntegrationCompilerResolver.alias(profiles.getFirst(), "endpointUrl"));
+        assertThat(install.getConfigJson()).isEqualTo(f.codec.write(symbolic.config()));
+        assertThat(service.evidence(f.deployment)).containsExactly(f.compiler.compilerEvidence(profiles.getFirst()));
+    }
+
     private CustomerOfferRepository associatedOffer(ExternalIntegrationFixture f) {
         var offers = mock(CustomerOfferRepository.class);
         String hash = f.codec.hash(f.definition);
@@ -89,6 +111,6 @@ class ExternalIntegrationCompositionServiceTest {
     }
 
     private ExternalIntegrationCompositionService service(ExternalIntegrationFixture f, CustomerOfferRepository offers) {
-        return new ExternalIntegrationCompositionService(f.associations, offers, f.policy, f.compiler, f.codec, f.mapper);
+        return new ExternalIntegrationCompositionService(f.associations, offers, f.policy, f.compiler, f.codec, f.mapper, f.installs);
     }
 }

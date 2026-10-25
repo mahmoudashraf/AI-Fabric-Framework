@@ -184,6 +184,11 @@ class ExternalIntegrationWorkerAuthorityJpaTest {
         var f = new ExternalIntegrationFixture();
         String suffix = UUID.randomUUID().toString(); Instant now = Instant.now();
         f.deployment.setTenantId("worker-tenant-" + suffix);
+        var ownerTenant = new com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity();
+        ownerTenant.setId(f.deployment.getTenantId());
+        ownerTenant.setCustomerId(f.deployment.getCustomerId());
+        ownerTenant.setStatus("ACTIVE");
+        when(f.tenants.findById(ownerTenant.getId())).thenReturn(Optional.of(ownerTenant));
         for (String customer : List.of("customer-generic", "foreign-customer")) {
             if (jdbc.queryForObject("select count(*) from platform_customers where id=?", Long.class, customer) == 0)
                 jdbc.update("insert into platform_customers(id,name,slug,status,platform_managed,created_at,updated_at) values (?,?,?,'ACTIVE',false,current_timestamp,current_timestamp)", customer, customer, customer);
@@ -221,7 +226,7 @@ class ExternalIntegrationWorkerAuthorityJpaTest {
         var frozen = authority.freezeReleaseForAuthorizedApply(f.deployment.getId(), f.target.getId(), release.getId(), candidate.snapshotId(), candidate.fingerprint());
         release.setRuntimeAuthoritySnapshotId(frozen.snapshotId()); release.setRuntimeAuthorityFingerprint(frozen.fingerprint()); releases.saveAndFlush(release);
         var resolver = new ExternalIntegrationResolver(deployments, versions, targets, releases, f.associations, f.entitlements, f.composition,
-            authority, f.store, f.policy, f.integrity, f.endpoints, f.compiler, f.codec, f.mapper);
+            authority, f.store, f.policy, f.integrity, f.endpoints, f.compiler, f.codec, f.mapper, f.owners);
         // Only synchronous fixture publication uses an authenticated staff principal. It is not carried to the executor.
         f.staff();
         transaction(() -> resolver.freezeRelease(f.deployment.getId(), f.version.getId(), f.target.getId(), release.getId(), frozen.fingerprint()));

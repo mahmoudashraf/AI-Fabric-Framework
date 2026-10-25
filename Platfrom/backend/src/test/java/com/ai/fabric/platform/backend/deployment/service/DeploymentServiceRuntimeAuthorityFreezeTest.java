@@ -201,10 +201,15 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     }
 
     @Test
-    void reviewedOfferDeploymentRejectsGenericDraftMutationAndPublicationRoutes() {
+    void templateOriginDoesNotBlockEditingTheNormalDeploymentDraft() {
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
+        draft.setActionsConfigJson("{}"); draft.setEntityConfigJson("{}"); draft.setRoutingConfigJson("{}");
+        draft.setSecurityConfigJson("{}"); draft.setProviderConfigJson("{}"); draft.setPromptConfigJson("{}");
         draft.setId("draft-1");
         draft.setDeploymentId(deployment.getId());
+        draft.setStatus("DRAFT");
+        draft.setRevisionNumber(2);
+        deployment.setActiveDraftId(draft.getId());
         when(drafts.findById(draft.getId())).thenReturn(Optional.of(draft));
         when(drafts.findDeploymentIdById(draft.getId())).thenReturn(Optional.of(deployment.getId()));
         when(drafts.findByIdForUpdate(draft.getId())).thenReturn(Optional.of(draft));
@@ -212,24 +217,56 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         when(access.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
 
-        assertThatThrownBy(() -> service.updateDraft(draft.getId(), new UpdateDeploymentDraftRequest(
-            null, null, null, null, null, null, null, null, null, null
-        ))).isInstanceOf(ResponseStatusException.class)
-            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN));
-        assertThatThrownBy(() -> service.publishDraft(draft.getId()))
-            .isInstanceOf(ResponseStatusException.class)
-            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN));
-        assertThatThrownBy(() -> service.restorePromptRevision(deployment.getId(), "revision-1"))
-            .isInstanceOf(ResponseStatusException.class)
-            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN));
-        assertThatThrownBy(() -> service.applyCuratedModuleToDraft(
-            deployment.getId(), new UpdateDeploymentCuratedModuleRequest("curated-module")))
-            .isInstanceOf(ResponseStatusException.class)
-            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN));
+        var updated = service.updateDraft(draft.getId(), new UpdateDeploymentDraftRequest(
+            null, null, null, mapper.createObjectNode().put("openaiModel", "customer-selected-model"),
+            null, mapper.createObjectNode().put("instructions", "Customer instructions"), null, null, null, null));
+        assertThat(updated.providerConfig().path("openaiModel").asText()).isEqualTo("customer-selected-model");
+        assertThat(updated.promptConfig().path("instructions").asText()).isEqualTo("Customer instructions");
+        verify(access).requireDeploymentEditorAccess(deployment);
+        verify(drafts).save(draft);
+        verifyNoInteractions(execution, authorities, operations);
+    }
+
+    @Test
+    void templateResetRestoresDraftSettingsWithoutChangingTheLiveVersionOrDeploymentIdentity() {
+        DeploymentDraftEntity draft = new DeploymentDraftEntity();
+        draft.setActionsConfigJson("{}"); draft.setEntityConfigJson("{}"); draft.setRoutingConfigJson("{}");
+        draft.setSecurityConfigJson("{}");
+        draft.setId("draft-2"); draft.setDeploymentId(deployment.getId());
+        draft.setRevisionNumber(2); draft.setStatus("DRAFT");
+        draft.setProviderConfigJson("{\"openaiModel\":\"custom\"}");
+        draft.setPromptConfigJson("{\"instructions\":\"custom\"}");
+        deployment.setActiveDraftId(draft.getId());
+        deployment.setActiveVersionId("running-production-version");
+        deployment.setRuntimeBaseUrl("https://existing-runtime.example.com");
+        deployment.setTemplateDefaultsJson("""
+            {"providerConfig":{"openaiModel":"original-model"},"promptConfig":{"instructions":"Original instructions"}}
+            """);
+        when(drafts.findByIdForUpdate(draft.getId())).thenReturn(Optional.of(draft));
+        when(drafts.findById(draft.getId())).thenReturn(Optional.of(draft));
+        when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(access.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
+
+        var result = service.resetTemplateSettings(deployment.getId());
+
+        assertThat(result.providerConfig().path("openaiModel").asText()).isEqualTo("original-model");
+        assertThat(result.promptConfig().path("instructions").asText()).isEqualTo("Original instructions");
+        assertThat(result.status()).isEqualTo("MODIFIED");
+        assertThat(deployment.getActiveVersionId()).isEqualTo("running-production-version");
+        assertThat(deployment.getRuntimeBaseUrl()).isEqualTo("https://existing-runtime.example.com");
+        assertThat(deployment.getCustomerId()).isEqualTo("customer-1");
+        verifyNoInteractions(execution, authorities, operations, releases);
+        verify(versions, never()).save(any());
+    }
+
+    @Test
+    void templateResetCannotModifyAnotherCustomersDeployment() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND))
+            .when(access).requireDeploymentEditorAccess(deployment);
+        assertThatThrownBy(() -> service.resetTemplateSettings(deployment.getId()))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(drafts, releases, versions, execution, authorities);
+        verify(deployments, never()).save(any());
     }
 
     @Test

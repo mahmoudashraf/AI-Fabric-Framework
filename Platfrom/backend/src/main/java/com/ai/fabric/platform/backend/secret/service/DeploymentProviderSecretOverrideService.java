@@ -147,7 +147,6 @@ public class DeploymentProviderSecretOverrideService {
     public DeploymentProviderSecretBindingSummary upsertBinding(String deploymentId,
                                                                 UpsertDeploymentProviderSecretBindingRequest request) {
         DeploymentEntity deployment = requireDeploymentForAdmin(deploymentId);
-        requireGenericBindingMutationAllowed(deployment);
         DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition =
             purposeCatalog.requireDefinition(request.secretPurpose());
         DeploymentProviderSecretBindingMode bindingMode = resolveBindingMode(request.bindingMode());
@@ -201,7 +200,6 @@ public class DeploymentProviderSecretOverrideService {
     @Transactional
     public void clearBinding(String deploymentId, String secretPurpose) {
         DeploymentEntity deployment = requireDeploymentForAdmin(deploymentId);
-        requireGenericBindingMutationAllowed(deployment);
         DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition = purposeCatalog.requireDefinition(secretPurpose);
         DeploymentProviderSecretBindingEntity entity = bindingRepository.findByDeploymentIdAndSecretPurpose(deployment.getId(), definition.purpose())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment override binding not found for purpose: " + definition.purpose()));
@@ -388,15 +386,6 @@ public class DeploymentProviderSecretOverrideService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentAdminAccess(deployment);
-    }
-
-    private void requireGenericBindingMutationAllowed(DeploymentEntity deployment) {
-        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
-            throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Reviewed-offer deployments must use the scoped customer self-service credential binding routes."
-            );
-        }
     }
 
     private String trimToNull(String value) {

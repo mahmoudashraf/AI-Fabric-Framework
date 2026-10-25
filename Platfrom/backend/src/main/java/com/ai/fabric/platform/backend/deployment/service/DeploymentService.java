@@ -849,6 +849,7 @@ public class DeploymentService {
             now
         );
         deployment.setActiveDraftId(draft.getId());
+        deployment.setTemplateDefaultsJson(writeJson(objectMapper.valueToTree(templateSettings(draft))));
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
         if (seedVectorizationPlan) {
@@ -1138,7 +1139,6 @@ public class DeploymentService {
     public DeploymentDraftResponse restorePromptRevision(String deploymentId, String revisionId) {
         DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "restore prompt revision");
-        assertReviewedOfferUsesDedicatedDraftPath(deployment, false);
         DeploymentPromptRevisionEntity revision = promptRevisionRepository.findById(revisionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Prompt revision not found: " + revisionId));
         if (!deployment.getId().equals(revision.getDeploymentId())) {
@@ -1174,7 +1174,7 @@ public class DeploymentService {
     public DeploymentOverviewSummary updateDeploymentGuardrails(String deploymentId,
                                                                UpdateDeploymentGuardrailsRequest request) {
         DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
-        deployment.setApprovalRequiredForApply(request.approvalRequiredForApply());
+        deployment.setApprovalRequiredForApply(false);
         deployment.setApprovalRequiredForDelete(request.approvalRequiredForDelete());
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
@@ -1183,7 +1183,7 @@ public class DeploymentService {
             "DEPLOYMENT",
             deployment.getId(),
             java.util.Map.of(
-                "approvalRequiredForApply", request.approvalRequiredForApply(),
+                "approvalRequiredForApply", false,
                 "approvalRequiredForDelete", request.approvalRequiredForDelete()
             )
         );
@@ -1193,6 +1193,51 @@ public class DeploymentService {
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         return updateDraftInternal(draftId, request, false);
+    }
+
+    /** Capture composed bootstrap defaults before any version is published. Never changes a live release. */
+    @Transactional
+    public void captureTemplateDefaultsForTrustedBootstrap(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (versionRepository.countByDeploymentId(deploymentId) != 0) {
+            throw new ResponseStatusException(CONFLICT, "Template defaults are captured only during initial bootstrap.");
+        }
+        deployment.setTemplateDefaultsJson(writeJson(objectMapper.valueToTree(templateSettings(resolveActiveDraft(deployment)))));
+        deploymentRepository.save(deployment);
+    }
+
+    @Transactional
+    public DeploymentDraftResponse resetTemplateSettings(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        deploymentAccessService.requireDeploymentEditorAccess(deployment);
+        assertDeletionNotPending(deployment, "reset template settings on");
+        assertNotArchived(deployment, "reset template settings");
+        if (!StringUtils.hasText(deployment.getTemplateDefaultsJson())) {
+            throw new ResponseStatusException(CONFLICT, "Original template settings are not recorded for this deployment.");
+        }
+        DeploymentDraftEntity draft = draftRepository.findByIdForUpdate(deployment.getActiveDraftId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Active draft not found."));
+        assertActiveEditableDraft(deployment, draft, "be reset");
+        UpdateDeploymentDraftRequest defaults;
+        try {
+            defaults = objectMapper.readValue(deployment.getTemplateDefaultsJson(), UpdateDeploymentDraftRequest.class);
+        } catch (Exception error) {
+            throw new IllegalStateException("Recorded template settings are invalid.", error);
+        }
+        DeploymentDraftResponse result = updateDraft(draft.getId(), defaults);
+        platformAuditService.record("DEPLOYMENT_TEMPLATE_SETTINGS_RESET", "DEPLOYMENT", deploymentId,
+            Map.of("draftId", draft.getId(), "templateId", deployment.getTemplateId()));
+        return result;
+    }
+
+    private UpdateDeploymentDraftRequest templateSettings(DeploymentDraftEntity draft) {
+        return new UpdateDeploymentDraftRequest(readJson(draft.getActionsConfigJson()), readJson(draft.getEntityConfigJson()),
+            readJson(draft.getRoutingConfigJson()), readJson(draft.getProviderConfigJson()),
+            readJson(draft.getSecurityConfigJson()), readJson(draft.getPromptConfigJson()),
+            readJson(draft.getKnowledgeSourceConfigJson()), readJson(draft.getShellConfigJson()),
+            readJson(draft.getMarketplaceDatasetConfigJson()), readJson(draft.getBehaviorConfigJson()));
     }
 
     /**
@@ -1218,7 +1263,6 @@ public class DeploymentService {
             ? deploymentRepository.findById(draft.getDeploymentId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
-        assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "update draft");
         assertActiveEditableDraft(deployment, draft, "be updated");
 
@@ -1388,7 +1432,6 @@ public class DeploymentService {
         }
         DeploymentDraftEntity draft = draftRepository.findByIdForUpdate(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "publish draft");
         assertActiveEditableDraft(deployment, draft, "be published");
         workspaceSecurityProjection.synchronizeBeforePublication(deploymentId);
@@ -1555,7 +1598,6 @@ public class DeploymentService {
                                                              UpdateDeploymentCuratedModuleRequest request) {
         DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "apply curated module to draft");
-        assertReviewedOfferUsesDedicatedDraftPath(deployment, false);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
             request.curatedModuleId()
@@ -1689,10 +1731,12 @@ public class DeploymentService {
         DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
         if (!skipAccessCheck) {
             if (offerBoundary == null) throw new IllegalStateException("Reviewed offer authorization boundary is required.");
-            var approved = offerBoundary.require(deployment, targetProfileId, null,
+            var approved = offerBoundary.require(deployment, targetProfile.getId(), null,
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
                 operationKey, java.util.Map.of(), null, null, null);
-            offerBoundary.requireArtifact(approved, sourceArtifactId);
+            if (StringUtils.hasText(sourceArtifactId) || "IMAGE_SOURCE".equals(targetProfile.getSourceStrategy())) {
+                offerBoundary.requireArtifact(approved, sourceArtifactId);
+            }
             offerBoundary.requireVersion(approved, version);
         }
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
@@ -1716,13 +1760,6 @@ public class DeploymentService {
             if (milvusTokenArtifacts == null) throw new IllegalStateException("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
             milvusTokenArtifacts.require(version, reviewedProviderConfig, sourceArtifactId);
         }
-        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
-            deployment,
-            DeploymentOperationApprovalService.APPLY_VERSION,
-            versionId,
-            deployment.isApprovalRequiredForApply(),
-            approvalId
-        );
 
         Instant now = Instant.now();
 
@@ -2186,15 +2223,6 @@ public class DeploymentService {
         deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
         assertDeletionNotPending(deployment, "administer");
         return deployment;
-    }
-
-    private void assertReviewedOfferUsesDedicatedDraftPath(DeploymentEntity deployment, boolean trustedCaller) {
-        if (!trustedCaller && customerOfferDeploymentRepository.existsById(deployment.getId())) {
-            throw new ResponseStatusException(
-                FORBIDDEN,
-                "Reviewed-offer deployments must use the scoped customer self-service configuration and version routes."
-            );
-        }
     }
 
     private void requirePlatformAdminForExplicitBindingRequest(String customerId, String tenantId) {

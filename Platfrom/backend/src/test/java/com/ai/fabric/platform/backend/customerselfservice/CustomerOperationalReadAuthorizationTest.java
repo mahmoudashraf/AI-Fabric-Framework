@@ -80,7 +80,9 @@ class CustomerOperationalReadAuthorizationTest {
         doNothing().when(composition).requireVersion(any(), any());
         var placement = new CustomerTargetPlacementService(properties, resolver, client, composition, codec, evidence);
         var staging = CustomerOfferTestFixtures.profile("staging-target", "stage-server");
+        staging.setEnvironmentName("staging");
         var production = CustomerOfferTestFixtures.profile("production-target", "prod-server");
+        production.setEnvironmentName("production");
         when(profiles.findById(staging.getId())).thenReturn(Optional.of(staging));
         when(profiles.findById(production.getId())).thenReturn(Optional.of(production));
         ObjectNode tree = mapper.valueToTree(CustomerOfferTestFixtures.definition());
@@ -113,7 +115,7 @@ class CustomerOperationalReadAuthorizationTest {
         release.setTargetProfileId(staging.getId()); release.setSourceArtifactId("runtime-artifact"); release.setDeploymentVersionId("version");
         when(releases.findById(release.getId())).thenReturn(Optional.of(release));
         var version = new DeploymentVersionEntity(); version.setId("version"); version.setDeploymentId(deployment.getId());
-        version.setStatus("PUBLISHED");
+        version.setStatus("PUBLISHED"); version.setConfigHash("persisted-compiled-config-hash");
         when(versions.findById(version.getId())).thenReturn(Optional.of(version));
         var customerAccess = new PlatformCustomerAccessService(users, customers);
         entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
@@ -141,14 +143,15 @@ class CustomerOperationalReadAuthorizationTest {
         assertThat(approved.context().entitlementRevision()).isEqualTo(2);
         assertThat(approved.context().placementEvidenceId()).isNull();
         var version = versions.findById("version").orElseThrow();
-        verify(composition).requireVersion(eq(definition), same(version));
+        verify(composition).requireVersion(isNull(), same(version));
+        assertThat(approved.definition()).isNull();
         verifyNoInteractions(resolver, client);
         verify(evidence, never()).saveAndFlush(any());
         assertThat(stagingProof.getExpiresAt()).isBefore(Instant.now());
     }
 
     @ParameterizedTest @EnumSource(TargetIntent.class)
-    void expiredPlacementAllowsAnOwnedReviewedTargetReadWithoutAReleaseOrProbe(TargetIntent intent) {
+    void expiredPlacementAllowsAnOwnedActiveTargetReadWithoutAReleaseOrProbe(TargetIntent intent) {
         String target = intent == TargetIntent.CUSTOMER_STAGING ? "staging-target" : "production-target";
         Instant checkedAt = stagingProof.getCheckedAt();
         Instant expiresAt = stagingProof.getExpiresAt();
@@ -162,7 +165,8 @@ class CustomerOperationalReadAuthorizationTest {
         assertThat(approved.context().releaseId()).isNull();
         assertThat(approved.context().entitlementRevision()).isEqualTo(2);
         assertThat(approved.context().placementEvidenceId()).isNull();
-        verify(composition).validate(definition);
+        verify(composition, never()).validate(any());
+        assertThat(approved.definition()).isNull();
         verifyNoInteractions(releases, versions, resolver, client);
         verify(evidence, never()).saveAndFlush(any());
         assertThat(stagingProof.getCheckedAt()).isEqualTo(checkedAt);
@@ -197,7 +201,7 @@ class CustomerOperationalReadAuthorizationTest {
     }
 
     @ParameterizedTest @MethodSource("staleReadFaults")
-    void staleReadStillDeniesCurrentAuthorityScopeAndIdentityFailures(boolean targetRead, String fault) throws Exception {
+    void staleReadsEnforceCurrentAuthorityNotHistoricalBootstrapPins(boolean targetRead, String fault) throws Exception {
         var expected = switch (fault) {
             case "anonymous" -> { SecurityContextHolder.clearContext(); yield ACTIVE_CUSTOMER_SCOPE_REQUIRED; }
             case "api-key" -> {
@@ -207,34 +211,37 @@ class CustomerOperationalReadAuthorizationTest {
             case "disabled-owner" -> { owner.setStatus("DISABLED"); yield ACTIVE_CUSTOMER_SCOPE_REQUIRED; }
             case "foreign-owner" -> {
                 var other = new PlatformUserEntity(); other.setId("other"); other.setEmail("other@test.invalid");
-                other.setRole("CUSTOMER_ADMIN"); other.setStatus("ACTIVE"); other.setCustomerId("customer");
-                when(users.findByEmailIgnoreCase(owner.getEmail())).thenReturn(Optional.of(other));
-                yield INVITE_OWNER_MISMATCH;
+                other.setRole("CUSTOMER_ADMIN"); other.setStatus("ACTIVE"); other.setCustomerId("foreign-customer");
+                when(users.findByEmailIgnoreCase(other.getEmail())).thenReturn(Optional.of(other));
+                var foreign = new PlatformCustomerEntity(); foreign.setId("foreign-customer"); foreign.setStatus("ACTIVE");
+                when(customers.findById(foreign.getId())).thenReturn(Optional.of(foreign));
+                CustomerOfferTestFixtures.authenticate(other.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+                yield RESOURCE_SCOPE_MISMATCH;
             }
             case "foreign-customer" -> { deployment.setCustomerId("foreign"); yield RESOURCE_SCOPE_MISMATCH; }
             case "missing-deployment" -> { when(deployments.findById("deployment")).thenReturn(Optional.empty()); yield RESOURCE_SCOPE_MISMATCH; }
             case "archived-deployment" -> { deployment.setStatus("ARCHIVED"); yield RESOURCE_SCOPE_MISMATCH; }
-            case "unreviewed-template" -> { deployment.setTemplateId("unreviewed"); yield RESOURCE_SCOPE_MISMATCH; }
-            case "source-override" -> { deployment.setSourceRepositoryOverride("unreviewed"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "unreviewed-template" -> { deployment.setTemplateId("customer-selected-template"); yield null; }
+            case "source-override" -> { deployment.setSourceRepositoryOverride("customer-selected-source"); yield null; }
             case "unentitled-target" -> {
                 ObjectNode tree = mapper.valueToTree(definition); tree.set("targets", mapper.valueToTree(List.of(definition.targets().get(1))));
                 var changed = mapper.treeToValue(tree, Definition.class);
                 when(offers.findById("offer")).thenReturn(Optional.of(new CustomerOfferEntity("offer", codec.write(changed),
                     codec.hash(changed), "review", "admin", Instant.now())));
-                yield UNENTITLED_TARGET;
+                yield null;
             }
             case "foreign-tenant" -> { tenant.setCustomerId("foreign"); yield RESOURCE_SCOPE_MISMATCH; }
             case "disabled-tenant" -> { tenant.setStatus("DISABLED"); yield RESOURCE_SCOPE_MISMATCH; }
-            case "revoked" -> { grant.setStatus(EntitlementStatus.REVOKED); yield ENTITLEMENT_REVOKED; }
-            case "expired" -> { grant.setExpiresAt(Instant.now().minusSeconds(1)); yield ENTITLEMENT_EXPIRED; }
-            case "missing-association" -> { when(associations.findById("deployment")).thenReturn(Optional.empty()); yield ENTITLEMENT_REQUIRED; }
-            case "offer-fingerprint" -> { associate("old-fingerprint"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "revoked" -> { grant.setStatus(EntitlementStatus.REVOKED); yield null; }
+            case "expired" -> { grant.setExpiresAt(Instant.now().minusSeconds(1)); yield null; }
+            case "missing-association" -> { when(associations.findById("deployment")).thenReturn(Optional.empty()); yield null; }
+            case "offer-fingerprint" -> { associate("old-fingerprint"); yield null; }
             case "read-not-offered" -> {
                 ObjectNode tree = mapper.valueToTree(definition); tree.set("operations", mapper.valueToTree(Set.of(Operation.APPLY)));
                 var changed = mapper.treeToValue(tree, Definition.class);
                 when(offers.findById("offer")).thenReturn(Optional.of(new CustomerOfferEntity("offer", codec.write(changed),
                     codec.hash(changed), "review", "admin", Instant.now())));
-                yield OPERATION_FORBIDDEN;
+                yield null;
             }
             case "foreign-release" -> { release.setDeploymentId("foreign"); yield RESOURCE_SCOPE_MISMATCH; }
             case "wrong-target" -> { release.setTargetProfileId("production-target"); yield RESOURCE_SCOPE_MISMATCH; }
@@ -245,17 +252,28 @@ class CustomerOperationalReadAuthorizationTest {
             }
             case "unreviewed-composition" -> {
                 doThrow(CustomerSelfServiceException.conflict(REVIEWED_COMPOSITION_CHANGED)).when(composition).validate(any());
-                yield REVIEWED_COMPOSITION_CHANGED;
+                yield null;
             }
-            case "profile-drift" -> { profiles.findById("staging-target").orElseThrow().setCredentialRefId("changed"); yield REVIEWED_COMPOSITION_CHANGED; }
-            case "inactive-profile" -> { profiles.findById("staging-target").orElseThrow().setActive(false); yield REVIEWED_COMPOSITION_CHANGED; }
+            case "profile-drift" -> { profiles.findById("staging-target").orElseThrow().setCredentialRefId("changed"); yield null; }
+            case "inactive-profile" -> { profiles.findById("staging-target").orElseThrow().setActive(false); yield UNENTITLED_TARGET; }
             default -> throw new IllegalArgumentException(fault);
         };
 
-        assertCode(expected, () -> {
-            if (targetRead) authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"));
-            else boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.PUBLIC);
-        });
+        if (expected != null) {
+            assertCode(expected, () -> {
+                if (targetRead) authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"));
+                else boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.PUBLIC);
+            });
+        } else {
+            var approved = targetRead ? authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"))
+                : boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.PUBLIC);
+            assertThat(approved.definition()).isNull();
+            assertThat(approved.context().customerId()).isEqualTo("customer");
+            assertThat(approved.context().tenantId()).isEqualTo("tenant");
+            assertThat(approved.context().deploymentId()).isEqualTo("deployment");
+            assertThat(approved.context().targetProfileId()).isEqualTo("staging-target");
+            assertThat(approved.context().releaseId()).isEqualTo(targetRead ? null : "release");
+        }
         verifyNoInteractions(resolver, client);
         verify(evidence, never()).saveAndFlush(any());
     }
@@ -284,23 +302,56 @@ class CustomerOperationalReadAuthorizationTest {
         verifyNoInteractions(evidence, resolver, client);
     }
 
-    @Test void ownedTargetReadCannotWidenSettingsBindingsOrAudience() {
+    @Test void ownedTargetReadCannotAuthorizeSettingsOrBindingMutation() {
         assertCode(OPERATION_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", null));
         assertCode(SETTING_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
             "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(Setting.APP_TITLE), null, null, null)));
         assertCode(BINDING_SLOT_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
             "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(), "document-storage", "reviewed-s3", null)));
-        assertCode(SETTING_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
-            "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(), null, null, DocumentAudience.AUTHENTICATED)));
     }
 
-    @Test void operationalReadRequiresExplicitReleaseAndCannotWidenSettingsBindingsOrAudience() {
+    @Test void operationalReadRequiresExplicitReleaseAndCannotAuthorizeSettingsOrBindingMutation() {
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireOperationalRead(deployment, "staging-target", null, DocumentAudience.PUBLIC));
-        assertCode(SETTING_FORBIDDEN, () -> boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.AUTHENTICATED));
         assertCode(SETTING_FORBIDDEN, () -> authorization.authorizeOperationalRead("customer", new AuthorizationRequest(
             "offer", "staging-target", "deployment", "tenant", "release", Operation.READ, null, Set.of(Setting.APP_TITLE), null, null, null)));
         assertCode(BINDING_SLOT_FORBIDDEN, () -> authorization.authorizeOperationalRead("customer", new AuthorizationRequest(
             "offer", "staging-target", "deployment", "tenant", "release", Operation.READ, null, Set.of(), "document-storage", "reviewed-s3", null)));
+    }
+
+    @Test void readAudienceMetadataDoesNotAcquireAuthorityFromTheOriginalOffer() {
+        var publicRead = read();
+        var authenticatedRead = boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.AUTHENTICATED);
+        assertThat(authenticatedRead.context()).isEqualTo(publicRead.context());
+        assertThat(authenticatedRead.definition()).isNull();
+        verifyNoInteractions(grants, offers, resolver, client);
+        verify(evidence, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void currentTargetIdentityStillRejectsMissingTargetsAndUntrustedPlacement(boolean targetRead) {
+        profiles.findById("staging-target").orElseThrow().setProviderConfigJson("{\"serverUuid\":\"foreign-server\",\"destinationUuid\":\"destination\"}");
+        assertCode(PLACEMENT_DENIED, () -> {
+            if (targetRead) authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"));
+            else read();
+        });
+        when(profiles.findById("staging-target")).thenReturn(Optional.empty());
+        assertCode(UNENTITLED_TARGET, () -> {
+            if (targetRead) authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"));
+            else read();
+        });
+        verifyNoInteractions(resolver, client);
+        verify(evidence, never()).saveAndFlush(any());
+    }
+
+    @Test void anotherActiveAdminOfTheOwningCustomerMayReadTheDeployment() {
+        var other = new PlatformUserEntity(); other.setId("other"); other.setEmail("other@test.invalid");
+        other.setRole("CUSTOMER_ADMIN"); other.setStatus("ACTIVE"); other.setCustomerId("customer");
+        when(users.findByEmailIgnoreCase(other.getEmail())).thenReturn(Optional.of(other));
+        CustomerOfferTestFixtures.authenticate(other.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+        assertThat(read().context().customerId()).isEqualTo("customer");
+        assertThat(authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target")).context().deploymentId())
+            .isEqualTo("deployment");
+        verifyNoInteractions(grants, offers, resolver, client);
     }
 
     private Authorization read() {
