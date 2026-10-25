@@ -1586,6 +1586,10 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     nextConfig.zillizCloudCuSize = ''
     nextConfig.zillizCloudClusterNameOverride = ''
   }
+  // Unset optional fields must be absent, not malformed numeric/string overrides.
+  for (const [key, value] of Object.entries(nextConfig)) {
+    if (typeof value === 'string' && !value.trim()) delete nextConfig[key]
+  }
   return nextConfig
 }
 

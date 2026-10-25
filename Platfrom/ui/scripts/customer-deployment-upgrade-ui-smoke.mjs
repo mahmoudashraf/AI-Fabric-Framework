@@ -36,7 +36,8 @@ const apps = [{ installationId: 'existing-app', customerId: 'customer-one', cons
   connectionMode: 'ANONYMOUS', interactionPolicy: 'PUBLIC', releaseId: 'release-old' }]
 const draft = () => ({ id: 'draft-one', deploymentId: deployment.id, revisionNumber: draftRevision,
   status: 'DRAFT', updatedAt: observedAt, actionsConfig: { actions: [] }, entityConfig: { 'ai-entities': {} },
-  routingConfig: { actions: {} }, providerConfig: {}, promptConfig: {}, securityConfig: {},
+  routingConfig: { actions: {} }, providerConfig: { milvusExternalBindingRequired: true,
+    aiStateStorageMode: 'MANAGED_POSTGRES', openaiTemperature: '0' }, promptConfig: {}, securityConfig: {},
   marketplaceDatasetConfig: { datasets: [] }, knowledgeSourceConfig: {} })
 const installs = []
 const pricing = { pricingModel: 'FREE', requiresEntitlement: false }
@@ -244,7 +245,13 @@ try {
       await page.getByRole('textbox', { name: 'Orchestration model override', exact: true }).fill('quality-model')
       await page.getByRole('button', { name: 'Save provider config', exact: true }).click()
       await page.getByRole('alert').filter({ hasText: 'Provider config draft saved.' }).waitFor()
-      assert.ok(JSON.parse(mutations().at(-1).body).providerConfig)
+      const savedProvider = JSON.parse(mutations().at(-1).body).providerConfig
+      assert.equal(savedProvider.orchestrationModel, 'quality-model')
+      assert.equal(savedProvider.openaiTemperature, '0', 'Zero is a configured value, not an unset field')
+      assert.equal(savedProvider.enableFallback, false)
+      assert.equal(savedProvider.milvusExternalBindingRequired, true)
+      assert.equal(savedProvider.aiStateStorageMode, 'MANAGED_POSTGRES')
+      assert.equal(Object.values(savedProvider).some(value => typeof value === 'string' && !value.trim()), false)
     }
     if (label === 'Actions') {
       await page.getByRole('button', { name: 'Save actions config', exact: true }).click()

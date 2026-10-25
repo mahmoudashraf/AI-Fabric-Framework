@@ -103,3 +103,9 @@ previously authorized fresh-production route is paused by this owner decision.
   unchanged. Internal provisioning-environment previews remain staff-only in
   the UI. Focused backend 5 tests, customer browser smoke and UI build passed.
 - Customer publish/apply/verified assignment live proof remains in progress.
+- Live provider editing exposed an existing serializer bug: empty optional
+  numeric fields were sent as configured overrides, causing 26 validation
+  errors after saving a model change. The generic provider serializer now omits
+  unset strings, preserves zero/false values and server-owned binding metadata.
+  Browser regression and production UI build passed; numeric validation remains
+  unchanged. This is form serialization, not an LLM policy or fallback change.
