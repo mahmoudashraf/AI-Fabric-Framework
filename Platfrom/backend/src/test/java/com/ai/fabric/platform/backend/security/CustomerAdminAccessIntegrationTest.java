@@ -173,9 +173,19 @@ class CustomerAdminAccessIntegrationTest {
                     """.formatted(customerB)))
             .andExpect(status().isForbidden());
 
-        mockMvc.perform(get("/api/deployments").cookie(sessionCookie))
+        String ownedList = mockMvc.perform(get("/api/deployments").cookie(sessionCookie))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[*].binding.customerId", everyItem(is(customerA))));
+            .andExpect(jsonPath("$[*].binding.customerId", everyItem(is(customerA))))
+            .andReturn().getResponse().getContentAsString();
+        String ownedDeploymentId = JsonPath.read(ownedList, "$[0].id");
+        // Unavailable seeded targets are excluded in independent authorization transactions.
+        mockMvc.perform(get("/api/deployments/{id}/target-profiles", ownedDeploymentId).cookie(sessionCookie))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+        mockMvc.perform(get("/api/deployment-provider/target-profiles").cookie(sessionCookie))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/deployments/{id}/target-profiles", ownedDeploymentId))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -10,7 +10,6 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,7 +34,6 @@ public class DeploymentTargetOptionsController {
     }
 
     @GetMapping("/api/deployments/{deploymentId}/target-profiles")
-    @Transactional
     public List<DeploymentTargetProfileSummary> list(@PathVariable String deploymentId) {
         var deployment = deployments.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

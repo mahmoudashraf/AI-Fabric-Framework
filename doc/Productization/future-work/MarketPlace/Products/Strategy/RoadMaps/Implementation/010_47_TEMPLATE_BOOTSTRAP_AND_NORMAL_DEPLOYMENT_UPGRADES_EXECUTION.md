@@ -109,3 +109,12 @@ previously authorized fresh-production route is paused by this owner decision.
   unset strings, preserves zero/false values and server-owned binding metadata.
   Browser regression and production UI build passed; numeric validation remains
   unchanged. This is form serialization, not an LLM policy or fallback change.
+- Existing customer's model draft now validates with zero errors and published
+  as `ver-fe6de5ea` / v2. This version still records framework 0.8.41; it is not
+  evidence of adopting the separately qualified 0.8.42 canary.
+- Target listing's outer transaction caused an excluded target's authorization
+  denial to mark the entire list rollback-only. Removed the outer transaction;
+  each existing authorization boundary completes its own short transaction.
+  Real customer-session HTTP tests now verify scoped listing, continued denial
+  of the global staff target API and rejection of anonymous access. All six
+  focused tests passed. No authorization check was removed.
