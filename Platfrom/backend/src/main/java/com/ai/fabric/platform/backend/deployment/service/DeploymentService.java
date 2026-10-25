@@ -1812,12 +1812,14 @@ public class DeploymentService {
     ) {
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         boolean productized = customerOfferDeploymentRepository.existsById(deployment.getId());
-        boolean authorityRequired = productized || ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        boolean publicRuntimeRequested = ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        JsonNode drain = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled");
+        boolean authorityRequired = productized || publicRuntimeRequested || drain.isBoolean() && drain.booleanValue();
         if (!authorityRequired) {
             return null;
         }
 
-        List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version);
+        List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version, productized || publicRuntimeRequested);
         return runtimeAuthorityService.freezeCandidateForAuthorizedApply(
             deployment.getId(),
             targetProfile.getId(),
@@ -1828,13 +1830,13 @@ public class DeploymentService {
 
 
 
-    private List<String> reviewedRuntimeAuthorityOrigins(DeploymentVersionEntity version) {
+    private List<String> reviewedRuntimeAuthorityOrigins(DeploymentVersionEntity version, boolean required) {
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         List<String> reviewedOrigins = Arrays.stream(securityConfig.path("corsAllowedOrigins").asText("").split(","))
             .map(String::trim)
             .filter(StringUtils::hasText)
             .toList();
-        if (reviewedOrigins.isEmpty()) {
+        if (required && reviewedOrigins.isEmpty()) {
             throw new ResponseStatusException(
                 CONFLICT,
                 "Runtime authority requires reviewed exact HTTPS origins in published security corsAllowedOrigins."

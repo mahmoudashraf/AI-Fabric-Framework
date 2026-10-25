@@ -17,16 +17,18 @@ import java.util.TreeSet;
 
 /** Optional immutable-version opt-in. It never changes ordinary cold deployment prerequisites. */
 public final class RuntimeDrainEnvironmentPlan {
-    private static final Map<String, String> FEATURES = Map.ofEntries(
-        Map.entry("CHAT_SESSIONS", "AI_CHAT_ENABLED"),
-        Map.entry("CONVERSATION_HANDOVER", "LOOMAI_CONVERSATION_HANDOVER_ENABLED"),
-        Map.entry("HUMAN_REVIEW", "AI_EXECUTION_REVIEWS_ENABLED"),
-        Map.entry("SPECIALIST_EXECUTION", "AI_EXECUTION_ENABLED"),
-        Map.entry("SPECIALIST_CHAINS", "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED"),
-        Map.entry("SMART_BRAIN", "LOOMAI_SMART_BRAIN_ENABLED"),
-        Map.entry("INDEXING", "AI_INDEXING_ENABLED"),
-        Map.entry("DOCUMENTS", "LOOMAI_DOCUMENTS_ENABLED"),
-        Map.entry("SCHEDULER", "LOOMAI_SMART_BRAIN_ENABLED"));
+    // Defaults match the pinned Runtime application.yml with AI Fabric 0.8.41.
+    // RuntimeRetirementTopology independently verifies every ABSENT claim against its actual environment.
+    private static final Map<String, FeatureFlag> FEATURES = Map.ofEntries(
+        Map.entry("CHAT_SESSIONS", new FeatureFlag("AI_CHAT_ENABLED", true)),
+        Map.entry("CONVERSATION_HANDOVER", new FeatureFlag("LOOMAI_CONVERSATION_HANDOVER_ENABLED", false)),
+        Map.entry("HUMAN_REVIEW", new FeatureFlag("AI_EXECUTION_REVIEWS_ENABLED", false)),
+        Map.entry("SPECIALIST_EXECUTION", new FeatureFlag("AI_EXECUTION_ENABLED", true)),
+        Map.entry("SPECIALIST_CHAINS", new FeatureFlag("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", false)),
+        Map.entry("SMART_BRAIN", new FeatureFlag("LOOMAI_SMART_BRAIN_ENABLED", false)),
+        Map.entry("INDEXING", new FeatureFlag("AI_INDEXING_ENABLED", true)),
+        Map.entry("DOCUMENTS", new FeatureFlag("LOOMAI_DOCUMENTS_ENABLED", false)),
+        Map.entry("SCHEDULER", new FeatureFlag("LOOMAI_SMART_BRAIN_ENABLED", false)));
     private final ObjectMapper mapper;
 
     public RuntimeDrainEnvironmentPlan(ObjectMapper mapper) {
@@ -52,8 +54,7 @@ public final class RuntimeDrainEnvironmentPlan {
             throw new IllegalStateException("Operational drain requires exact frozen authority and dedicated target storage.");
         }
         var features = new java.util.TreeMap<String, String>();
-        FEATURES.forEach((feature, key) -> features.put(feature,
-            "false".equalsIgnoreCase(environment.get(key)) ? "ABSENT" : "PRESENT"));
+        FEATURES.forEach((feature, flag) -> features.put(feature, flag.enabled(environment) ? "PRESENT" : "ABSENT"));
         features.put("ACTION_WEBHOOK", "PRESENT");
         var output = new LinkedHashMap<String, String>();
         if ("PRESENT".equals(features.get("SPECIALIST_EXECUTION"))) {
@@ -87,6 +88,14 @@ public final class RuntimeDrainEnvironmentPlan {
         output.put("LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", "true");
         output.put("LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", "true");
         return Map.copyOf(output);
+    }
+
+    private record FeatureFlag(String environmentKey, boolean defaultEnabled) {
+        boolean enabled(Map<String, String> environment) {
+            String configured = environment.get(environmentKey);
+            // Unknown configured values must not become proof of absence.
+            return configured == null ? defaultEnabled : !"false".equalsIgnoreCase(configured);
+        }
     }
 
     private Map<String, Object> vectorScope(DeploymentVersionEntity version, Map<String, String> environment) {

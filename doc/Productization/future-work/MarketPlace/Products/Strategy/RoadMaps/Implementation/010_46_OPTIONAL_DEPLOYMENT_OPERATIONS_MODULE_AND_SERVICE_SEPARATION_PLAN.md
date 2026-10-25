@@ -904,3 +904,23 @@ place; the version/overview expectations are being corrected and rerun before
 publishing the Runtime candidate. No framework source or version change is
 involved. Actual hosted stop/recovery/drain/expiry effects and owned fixture
 cleanup remain open; service health alone does not close this delivery.
+
+The corrected Runtime source `42acbc2e1762815cd116801635e663dbe6be89b9`
+subsequently passed its complete image workflow `40151983048`, including the full
+Runtime and private-provider-accounting checks. Its qualified image is
+`ghcr.io/mahmoudashraf/ai-fabric-runtime@sha256:ea1d27f8aad972a01862417f0deb32639f8c344749ff12a2d379f8bc5afaeb64`.
+
+Pre-canary review also found two narrow core-generation defects. Missing document
+feature switches had been reported as PRESENT even though Runtime defaults them
+off; the generated topology now uses the pinned Runtime defaults and still lets
+Runtime independently reject an untrue ABSENT claim. Explicitly enabled features
+are not disabled to get a drain pass. A private-only deployment opting into drain
+also needed frozen target credentials even without public bootstrap. That opt-in
+now requests exact target authority; public/productized origin checks are
+unchanged and private drain does not silently enable anonymous access. The two
+focused suites passed 29 tests with no failures or skips before publication.
+
+The older staff PoC chat/import routes still use global rather than target-frozen
+credentials. This is a separately recorded integration limitation, not patched by
+restoring shared credentials. Operational canaries use explicitly reviewed
+deployment-local anonymous chat and trusted server-side indexing routes instead.

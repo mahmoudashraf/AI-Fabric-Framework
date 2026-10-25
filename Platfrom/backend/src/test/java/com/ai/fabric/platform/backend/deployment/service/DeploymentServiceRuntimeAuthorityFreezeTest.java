@@ -291,6 +291,48 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     }
 
     @Test
+    void privateOperationalDrainFreezesTargetCredentialsWithoutEnablingPublicBootstrap() {
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":true}");
+        version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\",\"publicRuntimeBootstrapEnabled\":false}");
+        RuntimeAuthorityBinding.Snapshot candidate = new RuntimeAuthorityBinding.Snapshot(
+            "private-drain-candidate", null, "private-drain-fingerprint", null);
+        when(authorities.freezeCandidateForAuthorizedApply(
+            deployment.getId(), target.getId(), version.getId(), List.of())).thenReturn(candidate);
+
+        RuntimeAuthorityBinding.Snapshot result = ReflectionTestUtils.invokeMethod(
+            service, "freezeRuntimeAuthorityCandidateIfRequired", deployment, version, target);
+
+        assertThat(result).isEqualTo(candidate);
+        verify(authorities).freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of());
+        assertThat(version.getSecurityConfigJson()).doesNotContain("\"publicRuntimeBootstrapEnabled\":true");
+        verifyNoInteractions(releases, execution);
+    }
+
+    @Test
+    void aTextualDrainFlagDoesNotEnableTargetAuthority() {
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":\"true\"}");
+        version.setSecurityConfigJson("{\"publicRuntimeBootstrapEnabled\":false}");
+
+        Object result = ReflectionTestUtils.invokeMethod(
+            service, "freezeRuntimeAuthorityCandidateIfRequired", deployment, version, target);
+
+        assertThat(result).isNull();
+        verifyNoInteractions(authorities, releases, execution);
+    }
+
+    @Test
+    void privateDrainDoesNotWeakenReviewedProductOriginRequirements() {
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":true}");
+        version.setSecurityConfigJson("{\"publicRuntimeBootstrapEnabled\":false}");
+        when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+            service, "freezeRuntimeAuthorityCandidateIfRequired", deployment, version, target))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("reviewed exact HTTPS origins");
+        verifyNoInteractions(authorities, releases, execution);
+    }
+
+    @Test
     void legacyReleaseWithoutProductAssociationOrPublicRuntimeHasNoAuthorityEvidence() {
         version.setSecurityConfigJson("{\"authzMode\":\"DENY_ALL\",\"publicRuntimeBootstrapEnabled\":false}");
         when(offerDeployments.existsById(deployment.getId())).thenReturn(false);
