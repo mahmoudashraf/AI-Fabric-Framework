@@ -41,14 +41,26 @@ public class ProviderUsageValidityRuntimeAccess {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Access resolve(AllocationScope scope, String releaseId, boolean write) {
+        return resolve(scope, releaseId, write, false);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Access resolveForValidityExtension(AllocationScope scope, String releaseId, boolean write) {
+        return resolve(scope, releaseId, write, true);
+    }
+
+    private Access resolve(AllocationScope scope, String releaseId, boolean write, boolean validityMaintenance) {
         var principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() != PlatformRole.PLATFORM_ADMIN) throw denied("PROVIDER_USAGE_ADMIN_REVIEW_REQUIRED");
         var release = releases.findById(releaseId).orElseThrow(() -> missing("PROVIDER_USAGE_RELEASE_REQUIRED"));
         if (!scope.deploymentId().equals(release.getDeploymentId()) || !scope.targetProfileId().equals(release.getTargetProfileId())
             || !Set.of("FAILED", "PROVISIONING", "VERIFYING", "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED").contains(release.getStatus()))
             throw conflict("PROVIDER_USAGE_EXTENSION_RELEASE_CHANGED");
-        var snapshot = authority.requireReleaseUnchanged(scope.deploymentId(), scope.targetProfileId(), releaseId,
-            release.getRuntimeAuthorityFingerprint());
+        var snapshot = validityMaintenance
+            ? authority.requireReleaseUnchangedForValidityMaintenance(scope.deploymentId(), scope.targetProfileId(), releaseId,
+                release.getRuntimeAuthorityFingerprint())
+            : authority.requireReleaseUnchanged(scope.deploymentId(), scope.targetProfileId(), releaseId,
+                release.getRuntimeAuthorityFingerprint());
         var binding = snapshot.binding();
         if (!scope.customerId().equals(binding.customerId()) || !scope.deploymentId().equals(binding.deploymentId())
             || !scope.targetProfileId().equals(binding.targetProfileId())) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");

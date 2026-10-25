@@ -30,6 +30,7 @@ class LifecycleCommandStoreTest {
         jdbc.execute("CREATE TABLE platform_deployment_releases(id VARCHAR(64) PRIMARY KEY,deployment_id VARCHAR(64),target_profile_id VARCHAR(64),status VARCHAR(64),created_at TIMESTAMP WITH TIME ZONE)");
         try (var connection = source.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V211__scoped_lifecycle_commands.sql"));
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V212__explicit_recovery_verification_retry.sql"));
         }
         jdbc.update("INSERT INTO platform_deployments VALUES ('deployment')");
         jdbc.update("INSERT INTO deployment_target_profiles VALUES ('staging'),('production')");
@@ -315,6 +316,127 @@ class LifecycleCommandStoreTest {
         assertThat(store.accept(claim).status()).isEqualTo(Status.PENDING);
         assertThat(store.require("grant").claimed()).isTrue();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_commands", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void onlyExplicitBlockedRecoveryVerificationRetryAdvancesAndPreservesEveryFailedAttempt() {
+        var first = recoveryVerificationWork();
+        String legacy = store.recoveryVerificationEffect(first);
+        assertThat(legacy).isEqualTo("actual-release-verification");
+        store.beforeEffect(first, legacy); store.dispatched(first, legacy, "failed-run-0"); store.completed(first, legacy);
+        store.finish(first, Status.BLOCKED, "RECOVERY_RELEASE_VERIFICATION_FAILED", List.of("FAILED_0"));
+        var failed0 = store.receipt(first.command().commandId());
+        var originalEffect = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id=?", first.command().commandId(), legacy);
+        var originalCommand = jdbc.queryForMap("SELECT request_json,request_digest,created_at FROM deployment_lifecycle_commands WHERE command_id=?", first.command().commandId());
+        var originalAuthority = store.require(first.command().grantId()).scope();
+        assertThat(store.claim(first.command().commandId())).isNull();
+        assertThatThrownBy(() -> store.recoveryVerificationEffect(first)).hasMessageContaining("WORKER_FENCED");
+
+        var accepted = store.accept(first.command());
+        assertThat(store.accept(first.command())).isEqualTo(accepted);
+        var second = store.claim(first.command().commandId());
+        String retry1 = store.recoveryVerificationEffect(second);
+        assertThat(retry1).isEqualTo("actual-release-verification:retry:1");
+        assertThat(store.recoveryVerificationEffect(second)).isEqualTo(retry1);
+        assertThat(store.parse(jdbc.queryForObject("SELECT receipt_json FROM deployment_lifecycle_verification_retry_receipts WHERE command_id=? AND verification_retry_revision=0",
+            String.class, first.command().commandId()), Receipt.class)).isEqualTo(failed0);
+        store.beforeEffect(second, retry1); store.dispatched(second, retry1, "failed-run-1"); store.completed(second, retry1);
+        store.finish(second, Status.BLOCKED, "RECOVERY_RELEASE_VERIFICATION_FAILED", List.of("FAILED_1"));
+        var failed1 = store.receipt(first.command().commandId());
+        store.accept(first.command());
+        var third = store.claim(first.command().commandId());
+        assertThat(store.recoveryVerificationEffect(third)).isEqualTo("actual-release-verification:retry:2");
+        assertThat(store.parse(jdbc.queryForObject("SELECT receipt_json FROM deployment_lifecycle_verification_retry_receipts WHERE command_id=? AND verification_retry_revision=1",
+            String.class, first.command().commandId()), Receipt.class)).isEqualTo(failed1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_verification_retry_receipts", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_effects WHERE command_id=? AND effect_id=?", first.command().commandId(), legacy)).isEqualTo(originalEffect);
+        assertThat(store.providerOperation(third, retry1)).isEqualTo("failed-run-1");
+        assertThat(jdbc.queryForMap("SELECT request_json,request_digest,created_at FROM deployment_lifecycle_commands WHERE command_id=?", first.command().commandId())).isEqualTo(originalCommand);
+        assertThat(store.require(first.command().grantId()).scope()).isEqualTo(originalAuthority);
+    }
+
+    @Test void unknownVerificationContinuationCannotMintAnotherRevisionOrRedispatchItsIntent() {
+        var first = recoveryVerificationWork();
+        store.finish(first, Status.BLOCKED, "RECOVERY_RELEASE_VERIFICATION_FAILED", List.of());
+        store.accept(first.command());
+        var retry = store.claim(first.command().commandId());
+        String effect = store.recoveryVerificationEffect(retry);
+        assertThat(store.beforeEffect(retry, effect)).isTrue();
+        store.finish(retry, Status.UNKNOWN, "RECOVERY_VERIFICATION_OUTCOME_UNKNOWN", List.of());
+        var unknown = store.receipt(first.command().commandId());
+        assertThat(store.accept(first.command())).isEqualTo(unknown);
+        var continued = store.claim(first.command().commandId());
+        assertThat(store.recoveryVerificationEffect(continued)).isEqualTo(effect);
+        assertThat(store.beforeEffect(continued, effect)).isFalse();
+        assertThat(store.providerOperation(continued, effect)).isNull();
+        assertThat(jdbc.queryForObject("SELECT verification_retry_revision FROM deployment_lifecycle_commands WHERE command_id=?", Integer.class, first.command().commandId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_verification_retry_receipts", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void concurrentExplicitRetriesAdvanceTheRevisionOnlyOnce() throws Exception {
+        var first = recoveryVerificationWork();
+        store.finish(first, Status.BLOCKED, "RECOVERY_RELEASE_VERIFICATION_FAILED", List.of());
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var one = executor.submit(() -> { start.await(); return store.accept(first.command()); });
+            var two = executor.submit(() -> { start.await(); return store.accept(first.command()); });
+            start.countDown();
+            assertThat(one.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(two.get(5, java.util.concurrent.TimeUnit.SECONDS));
+        }
+        assertThat(store.recoveryVerificationEffect(store.claim(first.command().commandId()))).endsWith(":retry:1");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_verification_retry_receipts", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void otherBlockedPhaseRetriesDoNotCreateVerificationRevisions() {
+        complete(Phase.CLAIM);
+        store.accept(command(Phase.STOP)); var stopped = store.claim("operation-STOP");
+        store.finish(stopped, Status.BLOCKED, "NATIVE_STATE_CONFLICT", List.of());
+        store.accept(stopped.command()); var retry = store.claim(stopped.command().commandId());
+        assertThatThrownBy(() -> store.recoveryVerificationEffect(retry)).hasMessageContaining("RECOVERY_VERIFICATION_PHASE_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT verification_retry_revision FROM deployment_lifecycle_commands WHERE command_id=?", Integer.class, retry.command().commandId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_verification_retry_receipts", Integer.class)).isZero();
+    }
+
+    @Test void expiredExplicitVerificationRetryCannotAdvanceOrArchiveHistory() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RECOVER);
+        historicalCommand(historical, Phase.CLAIM, Status.SUCCEEDED);
+        historicalCommand(historical, Phase.RECOVER, Status.SUCCEEDED);
+        var command = historicalCommand(historical, Phase.VERIFY, Status.BLOCKED);
+        historicalEffect(command, "actual-release-verification", historical.job().deadlineAt().minusSeconds(1));
+        var before = jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId());
+        assertThatThrownBy(() -> store.accept(command)).hasMessageContaining("DEADLINE_EXCEEDED");
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_lifecycle_commands WHERE command_id=?", command.commandId())).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_lifecycle_verification_retry_receipts", Integer.class)).isZero();
+    }
+
+    @Test void freshRetryCannotBorrowAnOldAttemptsIntentToStartAfterExpiry() {
+        var historical = historicalScope("historical", "historical-grant", Goal.RECOVER);
+        var command = historicalCommand(historical, Phase.VERIFY, Status.PENDING);
+        historicalEffect(command, "actual-release-verification", historical.job().deadlineAt().minusSeconds(1));
+        jdbc.update("UPDATE deployment_lifecycle_commands SET verification_retry_revision=1 WHERE command_id=?", command.commandId());
+        var work = store.claim(command.commandId());
+        assertThatThrownBy(() -> store.recoveryVerificationEffect(work)).hasMessageContaining("DEADLINE_EXCEEDED");
+        historicalEffect(command, "actual-release-verification:retry:1", historical.job().deadlineAt().minusSeconds(1));
+        assertThat(store.recoveryVerificationEffect(work)).isEqualTo("actual-release-verification:retry:1");
+    }
+
+    @Test void verificationEffectGetterRejectsAnExpiredOrReplacedWorkerLease() {
+        var work = recoveryVerificationWork();
+        jdbc.update("UPDATE deployment_lifecycle_commands SET lease_until=? WHERE command_id=?",
+            Instant.now().minusSeconds(1).atOffset(java.time.ZoneOffset.UTC), work.command().commandId());
+        var next = store.claim(work.command().commandId());
+        assertThatThrownBy(() -> store.recoveryVerificationEffect(work)).hasMessageContaining("WORKER_FENCED");
+        assertThat(store.recoveryVerificationEffect(next)).isEqualTo("actual-release-verification");
+    }
+
+    private LifecycleCommandStore.Work recoveryVerificationWork() {
+        var recovery = scope("recovery", "recovery-grant", "staging", Goal.RECOVER, Mode.COLD);
+        store.create(recovery, store.digest(recovery), "owner");
+        for (var phase : List.of(Phase.CLAIM, Phase.RECOVER)) {
+            var command = phaseCommand(recovery, phase); store.accept(command);
+            store.finish(store.claim(command.commandId()), Status.SUCCEEDED, "EXACT_NATIVE_READBACK", List.of());
+        }
+        var verify = phaseCommand(recovery, Phase.VERIFY); store.accept(verify);
+        return store.claim(verify.commandId());
     }
 
     private void complete(Phase phase) {

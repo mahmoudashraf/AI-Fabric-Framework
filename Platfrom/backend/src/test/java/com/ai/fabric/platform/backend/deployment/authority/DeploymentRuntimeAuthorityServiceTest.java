@@ -108,6 +108,30 @@ class DeploymentRuntimeAuthorityServiceTest {
         verify(audit, never()).record(eq("RUNTIME_TARGET_AUTHORITY_REVOKED"), anyString(), anyString(), anyMap());
     }
 
+    @Test void staffValidityMaintenanceUsesExactFrozenAuthorityWithoutUnlockingOtherOperations() {
+        var frozen = release("staging", "release-validity");
+        var guard = mock(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "lifecycleClaims", guard);
+        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "TARGET_NATIVE_OPERATION_IN_PROGRESS"))
+            .when(guard).requireAvailable("dep-1", "staging");
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN);
+        var maintained = service.requireReleaseUnchangedForValidityMaintenance("dep-1", "staging", "release-validity", frozen.fingerprint());
+        assertThat(maintained).isEqualTo(frozen);
+        verify(guard).requireValidityMaintenanceAvailable("dep-1", "staging", "release-validity");
+        verify(access).requireDeploymentAdminAccess(deployment);
+        assertThatThrownBy(() -> service.requireReleaseUnchanged("dep-1", "staging", "release-validity", frozen.fingerprint()))
+            .hasMessageContaining("TARGET_NATIVE_OPERATION_IN_PROGRESS");
+        assertThatThrownBy(() -> service.requireReleaseUnchangedForValidityMaintenance("dep-1", "staging", "release-validity", "b".repeat(64)))
+            .hasMessageContaining("fingerprint changed");
+    }
+
+    @Test void customerCannotSelectTheStaffValidityMaintenanceBoundary() {
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);
+        assertThatThrownBy(() -> service.requireReleaseUnchangedForValidityMaintenance("dep-1", "staging", "release", "a".repeat(64)))
+            .hasMessageContaining("PROVIDER_USAGE_ADMIN_REVIEW_REQUIRED");
+        verifyNoInteractions(deployments, versions, releases, authorities, snapshots, secrets);
+    }
+
     @org.junit.jupiter.api.AfterEach void clearPrincipal() {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }

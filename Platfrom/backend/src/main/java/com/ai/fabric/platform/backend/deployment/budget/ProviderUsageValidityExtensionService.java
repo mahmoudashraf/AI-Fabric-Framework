@@ -51,7 +51,7 @@ public class ProviderUsageValidityExtensionService {
     public Plan plan(ReviewRequest request) {
         staff(); if (request == null) throw invalid();
         var allocation = allocation(request);
-        var resolved = access.resolve(request.scope(), request.releaseId(), false);
+        var resolved = access.resolveForValidityExtension(request.scope(), request.releaseId(), false);
         String capabilityHash = capabilities.require(request.scope(), request.releaseId(), resolved);
         var observed = runtime.read(resolved.baseUrl(), resolved.headers());
         verifyReadback(observed, allocation, true);
@@ -78,7 +78,7 @@ public class ProviderUsageValidityExtensionService {
         if (command == null || command.review() == null || !id.equals(command.review().extensionId())) throw invalid();
         var allocation = allocation(command.review());
         var review = required(id); exact(review, command);
-        var resolved = access.resolve(command.review().scope(), command.review().releaseId(), false);
+        var resolved = access.resolveForValidityExtension(command.review().scope(), command.review().releaseId(), false);
         exactAccess(command, resolved);
         // Historical ACK and an uncertain intent never issue another POST, even on explicit replay.
         var previous = store.locked(allocation, () -> resultIfAttempted(review, allocation));
@@ -87,7 +87,7 @@ public class ProviderUsageValidityExtensionService {
             throw conflict("PROVIDER_USAGE_VALIDITY_CAPABILITY_CHANGED");
         validWindow(command.review());
         verifyReadback(runtime.read(resolved.baseUrl(), resolved.headers()), allocation, true);
-        var write = access.resolve(command.review().scope(), command.review().releaseId(), true);
+        var write = access.resolveForValidityExtension(command.review().scope(), command.review().releaseId(), true);
         exactAccess(command, write);
         boolean claimed = store.locked(allocation, () -> {
             if (store.event(review, "INTENT") != null) return false;
@@ -121,7 +121,7 @@ public class ProviderUsageValidityExtensionService {
         staff(); var review = required(identifier(id)); var command = review.command(); var allocation = allocation(command.review());
         var previous = store.locked(allocation, () -> result(review, allocation));
         if (previous.status() != Status.UNKNOWN) return previous;
-        var resolved = access.resolve(command.review().scope(), command.review().releaseId(), false); exactAccess(command, resolved);
+        var resolved = access.resolveForValidityExtension(command.review().scope(), command.review().releaseId(), false); exactAccess(command, resolved);
         try {
             var receipt = runtime.readValidityExtension(resolved.baseUrl(), id, resolved.headers());
             return acknowledge(review, allocation, receipt);

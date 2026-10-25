@@ -43,7 +43,7 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         active = service.markActiveForAuthorizedRelease("release-deployment", store, first.runtimeAllocationFingerprint());
         time = NOW.plusSeconds(3601); runtimeEffective = active.expiresAt();
         extensions = extensionService(time);
-        when(access.resolve(any(), anyString(), anyBoolean())).thenAnswer(call -> {
+        when(access.resolveForValidityExtension(any(), anyString(), anyBoolean())).thenAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return new ProviderUsageValidityRuntimeAccess.Access(URL, "d".repeat(64), Map.of("X-Synthetic", "not-a-credential"));
         });

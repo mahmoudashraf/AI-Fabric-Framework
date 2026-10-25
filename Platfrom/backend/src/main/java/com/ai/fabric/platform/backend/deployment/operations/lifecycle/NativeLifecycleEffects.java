@@ -166,7 +166,7 @@ public class NativeLifecycleEffects implements LifecycleEffects {
         var nativeReady = nativeAdapter.observe(frozen(scope).resources());
         if (!nativeReady.complete() || !nativeReady.ready()) return new Result(Status.PENDING,
             "RECOVERY_NATIVE_READINESS_PENDING", List.of("RECOVERY_NATIVE_READINESS_PENDING"));
-        String effect = "actual-release-verification";
+        String effect = store.recoveryVerificationEffect(work);
         String recordedId = store.providerOperation(work, effect);
         if (recordedId != null) {
             var run = verificationRuns.findById(recordedId).orElseThrow(() -> conflict("RECOVERY_VERIFICATION_RECORD_MISSING"));

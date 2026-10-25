@@ -97,6 +97,21 @@ class ProviderUsageValidityRuntimeAccessTest {
         verifyNoInteractions(signer);
     }
 
+    @Test void onlyValidityExtensionSelectsTheScopedRecoveryMaintenanceBoundary() {
+        when(authority.requireReleaseUnchangedForValidityMaintenance("deployment", "target", "release", release.getRuntimeAuthorityFingerprint()))
+            .thenReturn(new RuntimeAuthorityBinding.Snapshot("snapshot", "release", release.getRuntimeAuthorityFingerprint(), binding));
+        when(authority.requireReleaseUnchanged(anyString(), anyString(), anyString(), anyString()))
+            .thenThrow(new IllegalStateException("TARGET_NATIVE_OPERATION_IN_PROGRESS"));
+        adapter.resolveForValidityExtension(scope, "release", true);
+        var claims = ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
+        verify(signer).issueAssertionWithSigningKey(claims.capture(), eq("synthetic-target-signing"));
+        assertThat(claims.getValue().grantedScopes()).containsExactly("runtime:admin:provider-budget:write");
+        verify(authority).requireReleaseUnchangedForValidityMaintenance("deployment", "target", "release", release.getRuntimeAuthorityFingerprint());
+        clearInvocations(signer);
+        assertThatThrownBy(() -> adapter.resolve(scope, "release", true)).hasMessageContaining("TARGET_NATIVE_OPERATION_IN_PROGRESS");
+        verifyNoInteractions(signer);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CREATED", "ACTIVE", "RUNNING_HEALTHY"})
     void normalOwnedRuntimeHandleCanResolveReadAndWriteAuthority(String status) {

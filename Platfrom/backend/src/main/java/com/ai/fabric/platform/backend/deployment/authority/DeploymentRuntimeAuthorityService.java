@@ -198,6 +198,23 @@ public class DeploymentRuntimeAuthorityService {
         return checkedSnapshot(deployment, authority(deployment, targetProfileId), snapshot, expectedFingerprint);
     }
 
+    /** Staff validity renewal is not permission to rotate keys, change config or mutate an active native operation. */
+    @Transactional
+    public Snapshot requireReleaseUnchangedForValidityMaintenance(String deploymentId, String targetProfileId,
+                                                                 String releaseId, String expectedFingerprint) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN)
+            throw new ResponseStatusException(FORBIDDEN, "PROVIDER_USAGE_ADMIN_REVIEW_REQUIRED");
+        DeploymentEntity deployment = lock(deploymentId, targetProfileId, true, false);
+        access.requireDeploymentAdminAccess(deployment);
+        if (lifecycleClaims == null) throw conflict("LIFECYCLE_SCOPE_REQUIRED");
+        lifecycleClaims.requireValidityMaintenanceAvailable(deploymentId, targetProfileId, releaseId);
+        var release = release(deployment, targetProfileId, releaseId);
+        if (!Objects.equals(expectedFingerprint, release.getRuntimeAuthorityFingerprint()))
+            throw conflict("Frozen release authority fingerprint changed.");
+        return requireReleaseUnchangedForProvisioning(deployment, version(deployment, release.getDeploymentVersionId()), release);
+    }
+
     @Transactional
     public EnvironmentPlan candidateEnvironmentPlan(String deploymentId, String targetProfileId, String versionId,
                                                      String snapshotId, String expectedFingerprint) {

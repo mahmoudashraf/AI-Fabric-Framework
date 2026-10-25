@@ -113,8 +113,17 @@ public class LifecycleCommandStore {
             }
             requirePredecessors(grant, command.phase());
             Receipt receipt = receipt(command, Status.PENDING, retry ? "EXPLICIT_REOBSERVATION_ACCEPTED" : "COMMAND_ACCEPTED", List.of());
-            if (retry) jdbc.update("UPDATE deployment_lifecycle_commands SET receipt_json=?,status='PENDING',updated_at=? WHERE command_id=?",
-                json(receipt), timestamp(receipt.observedAt()), command.commandId());
+            if (retry) {
+                if (command.phase() == Phase.VERIFY && job.goal() == Goal.RECOVER) {
+                    jdbc.update("INSERT INTO deployment_lifecycle_verification_retry_receipts(command_id,verification_retry_revision,receipt_json,archived_at) "
+                        + "SELECT command_id,verification_retry_revision,receipt_json,? FROM deployment_lifecycle_commands WHERE command_id=?",
+                        timestamp(receipt.observedAt()), command.commandId());
+                    jdbc.update("UPDATE deployment_lifecycle_commands SET verification_retry_revision=verification_retry_revision+1 WHERE command_id=?",
+                        command.commandId());
+                }
+                jdbc.update("UPDATE deployment_lifecycle_commands SET receipt_json=?,status='PENDING',updated_at=? WHERE command_id=?",
+                    json(receipt), timestamp(receipt.observedAt()), command.commandId());
+            }
             else jdbc.update("INSERT INTO deployment_lifecycle_commands(command_id,grant_id,operation_id,phase,request_digest,request_json,"
                 + "receipt_json,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)", command.commandId(), grant.id(),
                 command.operationId(), command.phase().name(), digest(command), json(command), json(receipt),
@@ -223,6 +232,24 @@ public class LifecycleCommandStore {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT COUNT(*)>0 FROM deployment_lifecycle_effects "
             + "WHERE command_id=? AND effect_id=? AND state IN ('INTENT','COMPLETE')", Boolean.class,
             work.command().commandId(), effect));
+    }
+
+    public String recoveryVerificationEffect(Work work) {
+        return transaction(() -> {
+            jdbc.queryForObject("SELECT command_id FROM deployment_lifecycle_commands WHERE command_id=? FOR UPDATE",
+                String.class, work.command().commandId());
+            guard(work);
+            if (work.command().phase() != Phase.VERIFY || work.grant().scope().job().goal() != Goal.RECOVER)
+                throw conflict("RECOVERY_VERIFICATION_PHASE_REQUIRED");
+            Integer revision = jdbc.queryForObject("SELECT verification_retry_revision FROM deployment_lifecycle_commands WHERE command_id=? AND worker_token=?",
+                Integer.class, work.command().commandId(), work.token());
+            if (revision == null || revision < 0) throw conflict("RECOVERY_VERIFICATION_REVISION_INVALID");
+            String effect = revision == 0 ? "actual-release-verification" : "actual-release-verification:retry:" + revision;
+            // An older failed attempt cannot authorize the first verification call of a fresh retry after expiry.
+            if (revision > 0 && !Instant.now().isBefore(work.grant().scope().job().deadlineAt()) && !effectKnown(work, effect))
+                throw conflict("LIFECYCLE_DEADLINE_EXCEEDED");
+            return effect;
+        });
     }
 
     public void completed(Work work, String effect) {
