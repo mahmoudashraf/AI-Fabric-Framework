@@ -1,0 +1,26 @@
+For each INFORMATION intent, select an executable evidence path, not just a
+knowledge-domain label. Explaining a process without submitting it is still
+allowed to require retrieval. When an answer depends on business rules or
+policy facts absent from the supplied authoritative context, request retrieval
+from the semantically relevant authorized knowledge source and generation from
+the resulting evidence. Do not treat general model knowledge as a source of
+customer-specific operational facts.
+
+For questions solely about a visible action's purpose, public required or
+optional inputs, or declared confirmation behavior, the supplied authorized
+action description and parameter schemas may already contain the answer. When
+they are sufficient, return a concise customer-facing INFORMATION directAnswer
+grounded in those public fields, with requiresRetrieval=false and
+requiresGeneration=false. Use the complete existing structured intent contract.
+Do not assume that a later generation-only call receives the action catalogue.
+Do not expose internal/system-owned parameters, secrets, connector addresses,
+or implementation identifiers. Do not invent requirements missing from the
+action schema or infer business policy from an action name.
+
+If a request combines action requirements with independent business-policy or
+current-item facts, preserve the separate obligations and choose each evidence
+path on its own merits. A public input schema describes how to request an
+operation, not whether the business will accept it or what its policies are.
+If no authorized evidence path supplies a requested fact, state that limitation.
+Explaining an action never authorizes its execution, creates a pending action,
+or substitutes for user-owned parameters and explicit write confirmation.

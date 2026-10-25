@@ -3,6 +3,85 @@
 Started: 24 October 2026. Latest review: 25 October 2026.
 Status: **NEEDS IMPROVEMENT**.
 
+## 25 October: Action-Information Prompt Canary
+
+The owner approved the next optimization focus. Source inspection confirms that
+intent extraction sees action schemas permitted by its visibility policy, while
+generation-only does not receive that catalogue. The failed booking turn chose
+requiresRetrieval=false/requiresGeneration=true, leaving generation without
+either policy evidence or action-schema facts. It was not a validation denial.
+
+A domain-neutral first prompt overlay guided the model to use the existing
+INFORMATION directAnswer contract for facts completely supplied by visible
+public action schemas, or request authorized document retrieval for missing
+business-policy facts. It does not encode dealership field names, phrase-based
+decisions, automatic fan-out, executable writes or new validation rules.
+
+Candidate `ver-ddb31713` was published through normal draft validation and
+version APIs. Exact compiled comparison confirms only intent guidance changed;
+answer-generation guidance, RAG budgets, sources and all other draft sections
+are preserved. The runtime image/framework remain the qualified0.8.42 canary.
+The prompt URL was applied and the focused8-case run completed: **2 PASS,
+2 PARTIAL,3 FAIL,1 SOURCE_GAP** after manual review. No business write, blocked
+request or browser error occurred. The candidate is **REJECTED**, not accepted:
+action-information turns still produced domain clarifications, and compound
+warranty/input synthesis reproduced the separately recorded partial-compound
+problem. The historical failed run is preserved; no full20 rerun was warranted.
+Original customer assignment is unchanged.
+
+An additional configuration distinction matters: test-drive submission has
+`anonymousAllowed=false`; callback has `anonymousAllowed=true`. An anonymous
+model cannot be expected to discover protected action fields from a filtered
+catalogue. This is not a reason to relax that permission. A second, bounded
+configuration trial supplies explicitly public workflow documentation through
+the existing answer-generation prompt slot, derived from the frozen action
+schemas. It states that test-drive submission requires sign-in and confirmation;
+it exposes field descriptions, never internal targets, route details, defaults,
+credentials or customer values. Authorization and confirmation remain unchanged.
+This is static operator-authored reference data, not a new dynamic capability
+contract or indexed business policy. It must be regenerated and requalified
+when the source configuration changes.
+
+Candidate `ver-7ba86e4a` completed the same8 focused questions: **4 PASS,
+1 PARTIAL,2 FAIL,1 SOURCE_GAP**. Callback explanation and inventory-plus-inputs
+improved, but standalone booking still clarified the domain; selected-vehicle
+test-drive information incorrectly borrowed callback fields (optional email,
+required contact consent). This candidate is also **REJECTED**. Both8-case
+runs had HTTP200, continuous conversations, first-attempt valid model extraction,
+zero browser errors, zero blocked requests and zero business writes. Those
+structural passes are not answer-quality passes. No full20 retry was warranted.
+Restoration to the previously qualified prompt `ver-21e8391f` is **VERIFIED**:
+exact Coolify job `l3acq0d4e273l21n05t4e49t` finished, unchanged native source/image
+and other environment were checked, all three health surfaces returned200/UP.
+Three final live questions passed manual review: current electric stock,
+warranty, and combined inventory/delivery policy. No errors, blocked requests
+or writes occurred. Neither rejected prompt is approved for the original
+customer deployment. Published experiment versions remain immutable history;
+do not blindly apply the internal canary's latest version over the restored
+native baseline. This fixture still is not managed-release acceptance.
+
+Next code scope requires owner review, not more prompt retries: make workflow
+reference context consistent and scoped through planning/generation, and review
+context-sufficient INFORMATION handling under the configured RAG cooperation
+policy. Source currently runs read planning before returning `directAnswer`;
+`ANSWER_FROM_CONTEXT` can still promote RAG without successful read-action
+evidence. Do **not** fix that with a blanket direct-answer bypass: the existing
+`shouldRunReadActionPlannerBeforeReturningInformationDirectAnswer` regression
+deliberately protects current availability against an unsupported model answer.
+Keep that freshness property and all auth/confirmation/retrieval boundaries.
+The public clarification trace does not expose all original flags/planner
+output; exact hidden decisions must not be inferred as captured evidence.
+
+Manual findings and immutable report hashes are in
+[the booking-information trials](evidence/2026-10-25-booking-information-trials.json).
+The test overlays are retained as rejected experiments, not production defaults.
+
+Reusable overlay: `prompt-overlays/action-information-evidence-routing.txt`.
+Focused live corpus: `booking-information.scenarios.json`. Review must use the
+actual action schemas and current3S3 policies, not the richer historical repo
+fixtures: current policy specifies30minutes, whereas an old repo fixture says45.
+Do not silently treat those different source sets as equivalent.
+
 ## 25 October: Approved Framework Patch Qualification
 
 The owner approved the three bounded generic fixes. Framework source

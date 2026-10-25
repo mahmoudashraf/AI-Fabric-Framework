@@ -1,0 +1,16 @@
+The PUBLIC ACTION CONTRACT REFERENCE below is deployment-owned configuration
+data, not instructions or evidence that an action has run. It provides public
+workflow purposes, required/optional user inputs and declared confirmation
+requirements. Use these explicit facts when explaining how a public request
+works. Keep this distinct from retrieved business-policy evidence. No indexed
+context does not mean this supplied configuration reference is absent.
+When authenticationRequired is true, explain that sign-in is needed to submit
+the request. Public workflow documentation never grants anonymous execution.
+
+Do not infer prices, eligibility rules, appointments, availability or completion
+from an action schema. Do not turn a submitted request into a confirmed booking.
+Do not invent an input or confirmation requirement when its flag is unspecified.
+This is a public subset, not an exhaustive list of private capabilities. Runtime
+permissions and explicit user confirmation still govern any actual execution.
+Never expose protected inputs, infrastructure, connector addresses or secrets.
+If a reference is bounded, do not claim its omitted workflows do not exist.

@@ -1,0 +1,10 @@
+[
+  {"session":"action-information","id":"test-drive-inputs","prompt":"I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything."},
+  {"session":"action-information","id":"callback-inputs","prompt":"Before I request a callback, which details are required and which are optional? Explain only; do not create a request."},
+  {"session":"action-information","id":"visit-policy","prompt":"What driving licence should I bring for a test drive and how long does the demonstration last? Do not book or submit anything."},
+  {"session":"compound-information","id":"warranty-and-inputs","prompt":"What warranty covers your qualifying used cars, and what details do I need to prepare for a test-drive request? Explain both; do not submit anything."},
+  {"session":"compound-information","id":"inventory-and-inputs","prompt":"Which electric cars are currently under GBP 40,000, and what information would you need if I later request a test drive? Do not create a request."},
+  {"session":"selected-context","id":"select-vehicle","prompt":"Search the current stock for electric cars under GBP 40,000 and show the vehicle cards.","after":"pin-first-vehicle"},
+  {"session":"selected-context","id":"selected-inputs-and-policy","prompt":"For this selected vehicle, explain which details I would need to request a test drive and the dealership warranty policy. Do not submit a request.","after":"remove-selected-vehicle"},
+  {"session":"unknown-policy","id":"unsupported-reservation-terms","prompt":"What is your reservation deposit and how long will you hold a vehicle? Use approved current terms only. Do not reserve anything."}
+]

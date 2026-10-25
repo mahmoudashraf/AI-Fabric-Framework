@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "loomai-current-workspace-quality-review-v1",
+  "status": "PROMPT_TRIALS_REJECTED_QUALIFIED_BASELINE_RESTORED",
+  "deploymentId": "dep-011d7f62",
+  "hostContract": "MANUAL_HOST_PUBLISHED_ASSETS_LIVE_RUNTIME_NOT_PLATFORM_ASSIGNMENT_ACCEPTANCE",
+  "frameworkVersion": "0.8.42",
+  "consumerSource": "17b05496a0ba53aea9ee58bb4bed6323b7e24b4c",
+  "model": "gpt-5.4-mini-2026-03-17",
+  "mode": "executor",
+  "position": "landing",
+  "preserved": {
+    "runtimeImage": true,
+    "actionsAndExecutionPermissions": true,
+    "confirmation": true,
+    "sourcesAndRetrievalLimits": true,
+    "originalProductionDeploymentAndAssignment": true,
+    "fundingAndFinancialHistory": true,
+    "frameworkAndPlatformProductCode": true,
+    "automaticSearchAllEnabled": false,
+    "semanticTextMatchingIntroduced": false
+  },
+  "trials": [
+    {
+      "versionId": "ver-ddb31713",
+      "change": "Extraction guidance for existing directAnswer contract",
+      "decision": "REJECT",
+      "completedAt": "2026-10-25T13:08:30.354Z",
+      "verdictCounts": {"PASS":2,"PARTIAL":2,"FAIL":3,"SOURCE_GAP":1},
+      "rawReportSha256": "dd8b5760992190acc7d6f1b6782938bd6cef8ef785f18bafe7d380e714dce67c",
+      "privateEvidenceRelativeRoot": "quality-20261025/booking-guidance/focused-8",
+      "findings": [
+        "Standalone test-drive and callback information asked for a knowledge domain.",
+        "Warranty plus request inputs reproduced partial-compound handling: successful search child and clarifying child, without the requested synthesis.",
+        "Inventory and selected-vehicle policy facts were useful but required request inputs remained missing.",
+        "Policy-only licence/duration and actual vehicle-card selection passed; absent reservation terms remained an honest source gap."
+      ]
+    },
+    {
+      "versionId": "ver-7ba86e4a",
+      "change": "Original extraction restored; answer-generation guidance plus bounded public workflow reference",
+      "publicReferenceCharacters": 4316,
+      "explicitlyDocumentedAuthenticatedWorkflow": "dealership_request_test_drive",
+      "decision": "REJECT",
+      "completedAt": "2026-10-25T13:34:09.850Z",
+      "verdictCounts": {"PASS":4,"PARTIAL":1,"FAIL":2,"SOURCE_GAP":1},
+      "rawReportSha256": "be270e4d71c3a7164f4349f315406d99a5295fa87b246c7e488a20d54f59a6ba",
+      "privateEvidenceRelativeRoot": "quality-20261025/booking-guidance/public-contract-reference/focused-8",
+      "cases": [
+        {"id":"test-drive-inputs","verdict":"FAIL","finding":"Still asks which knowledge domain to search instead of explaining the public workflow."},
+        {"id":"callback-inputs","verdict":"PASS","finding":"Correct required name/phone/contact consent; optional email/message; confirmation required and no sign-in requirement."},
+        {"id":"visit-policy","verdict":"PASS","finding":"Correct valid licence and30-minute duration from actual current S3 policy."},
+        {"id":"warranty-and-inputs","verdict":"PARTIAL","finding":"Warranty and visit policy correct; required contact fields omitted despite explicit public workflow reference."},
+        {"id":"inventory-and-inputs","verdict":"PASS","finding":"Correct three electric cars, required name/email/phone, optional preferredDate/message, sign-in and confirmation. Policy licence/availability conditions distinguished from input schema."},
+        {"id":"select-vehicle","verdict":"PASS","finding":"Three current vehicle cards and actual Keep in context selection work."},
+        {"id":"selected-inputs-and-policy","verdict":"FAIL","finding":"Correct policy facts but callback requirements were incorrectly attributed to test drive: email made optional and contact-consent requirement substituted."},
+        {"id":"unsupported-reservation-terms","verdict":"SOURCE_GAP","finding":"No supplied deposit/hold-period facts; no invented terms."}
+      ]
+    }
+  ],
+  "structuralChecks": {
+    "totalLiveQueries": 16,
+    "allHttp200": true,
+    "allExtractionDecisionsFirstAttemptValidModelOrigin": true,
+    "allConversationContinuityPreserved": true,
+    "browserErrors": 0,
+    "blockedRequests": 0,
+    "successfulBusinessWrites": 0,
+    "publicReferenceUnitTestsPassed": 6,
+    "semanticGrading": "Manual source/schema comparison, not lexical assertions",
+    "full20Rerun": false
+  },
+  "restoration": {
+    "status": "VERIFIED",
+    "qualifiedPromptVersionId": "ver-21e8391f",
+    "coolifyDeploymentId": "l3acq0d4e273l21n05t4e49t",
+    "exactDeploymentFinished": true,
+    "nativeVerifiedAt": "2026-10-25T13:42:49.279Z",
+    "nativeSourceImageAndOtherEnvironmentPreserved": true,
+    "allThreeHealthSurfaces": "HTTP200_UP",
+    "smokeCompletedAt": "2026-10-25T13:43:49.503Z",
+    "smokeQueries": 3,
+    "smokeManualPasses": 3,
+    "smokeCases": ["structured-current-stock-action", "approved-warranty-policy", "compound-inventory-policy-forward"],
+    "smokeReportSha256": "210928f90b0103ea1b81845b97023be8b8896beeae9e46d11cc6d33c78aaae4b",
+    "smokeErrorsBlockedRequestsOrWrites": 0,
+    "privateEvidenceRelativeRoot": "quality-20261025/booking-guidance/restore-baseline",
+    "managedReleaseOrCustomerAssignmentChanged": false,
+    "warning": "Rejected published experiment versions remain immutable history in the internal canary control plane. Do not apply latest blindly; native prompt is restored to ver-21e8391f."
+  },
+  "recommendedNextScopeNotImplemented": [
+    "Review self-sufficient INFORMATION handling and the meaning of ANSWER_FROM_CONTEXT under RAG_IF_ACTIONS_INSUFFICIENT. Preserve pending-confirmation, live-fact freshness and actual retrieval authority checks; do not blindly bypass planning whenever directAnswer is present.",
+    "Treat public workflow documentation and execution permission as separate concerns; never make authenticated actions anonymous merely to expose explanatory fields.",
+    "Prefer a single scoped, provenance-preserving workflow reference through the relevant model stages over duplicated unstructured schema text. Exact implementation needs review before code changes.",
+    "Keep partial-compound synthesis, global alternative completeness and source enrichment separate; do not silently add them to a framework release."
+  ],
+  "sourceInspection": {
+    "IntentHandlingStep": "Calls read resolution before returning directAnswer; an attempted resolution may promote the turn to retrieval/generation.",
+    "ReadActionResolutionService.shouldUseRag": "Under the configured cooperation policy, ANSWER_FROM_CONTEXT can still request RAG when no successful read-action evidence exists.",
+    "existingFreshnessRegression": "shouldRunReadActionPlannerBeforeReturningInformationDirectAnswer deliberately protects live availability against an unsupported extraction-time answer. Any correction must retain that safety property.",
+    "generation": "Existing answer-generation prompt can carry explicit configuration facts, but this experiment did not give all model stages a single scoped typed workflow reference.",
+    "traceLimit": "Clarification responses do not expose every original extraction flag or full read-planner decision. Source confirms a possible promotion path; do not claim exact hidden decisions were captured for every failed turn."
+  },
+  "limitations": "Two bounded sequential prompt experiments, not statistical reliability, load testing, managed customer acceptance or production rollout. Failed results retained; no further prompt retry or unapproved code fix."
+}
