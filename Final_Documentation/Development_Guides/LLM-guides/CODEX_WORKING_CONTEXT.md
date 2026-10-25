@@ -8,7 +8,122 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
-## 2026-10-25 Checks Only And Production Adoption Request
+## 2026-10-25 Normal Production Upgrades And Bootstrap-Only Templates (Verified)
+
+- 20:08UTC CURRENT: Platform fix committed/pushed through26baf9cdf and verified
+  BOTH CPs source/digest/schema213; UI1b6ff87e3 both. Existing customer UI
+  model edit/zero-error validation/publishv2, direct production Apply and Use
+  verified release COMPLETE. Finalrel-ccf9fb9d/ver-fe6de5ea APPLIED_VERIFIED,
+  recheckvrf-b532167e29PASS/0FAIL/4not-applicableSKIP. Same installation
+  awi_pub_d33c69a074da480628c2f81358a03144/consumer northfield-console-live-20261024,
+  bindingrev4/same https://northfield-console-live.apps.loomai.pro. Existing
+  runtimeod7/connectoro8u/AIstatePG retained, healthy; no new app/businessDB.
+  New authority TEAM_AUTHORIZED/DISABLED, historical grant/allocation row hashes
+  unchanged. Real anonymous UI queries deliverypolicy(25miles/3workingdays/ID)
+  and electricstock<35000(Aster31950/Morrow22750) PASS, zero business writes.
+  Screenshot/evidence folder verification-support/normal-upgrades-01047.
+  Important caveat: retained c2 runtime/framework41 uses release-scoped document
+  registrations; first27/1/5verification FAILED docs. Explicit standard API
+  re-registration+index of SAME3approved fictionalS3files made new sources ACTIVE;
+  old registrations/indexentries retained, files untouched. This is a LEGACY
+  operational refresh, NOT seamless document-continuity qualification or new
+  framework fix. Qualified42/current-runtime adoption remains separate, NOTDONE.
+  Native global OpenAI model5.4mini snapshot; no separate orchestration override.
+  Private root normal-upgrades-01047-stale-topology finalreadbackPASS. ALL apply,
+  register/index/recheck/assignment/rollout effects consumed; do NOT repeat.
+  No main query/build/deploy exec process remains. Close-out evidence is tracked
+  alongside this checkpoint; no further live effects are required for 010.47.
+  OwnedSSH rules remain open under overall-task owner instruction.
+- 19:25UTC CURRENT: rel1ee FAILED honestly on runtime startup; no activation.
+  Actual native env proves previous rel572 retirement topology survived an
+  upsert alongside new rel1ee runtime identity, despite drain now disabled.
+  NOT a missing worker-fencing proof or reason to redesign recovery. Backend
+  RuntimeDrainEnvironmentPlan now explicitly clears topology JSON+SHA in its
+  disabled/cold plan; runtime identity validation unchanged. 96 focused plan/
+  Coolify provider/API tests PASS; commit26baf9cdf pushed, CI40226015621 running.
+  Fresh private root normal-upgrades-01047-stale-topology has both CP preflights;
+  NO rollout consumed there yet. Reusable cors rollout/collector now support
+  explicit ROLLOUT_PROOF_ROOT, default roots unchanged. Old failed release/job
+  retained. Need qualify+deploy backend, normal customer Apply new attempt,
+  verify+same-app assignment+real query. Do not manually patch runtime env or
+  mark failed release green. Original app assignment stillrel572; cold deploy
+  downtime is owner-accepted. Current backend53956/UI1b/schema213 on bothCPs.
+- 19:16UTC CURRENT: 53956e85c CORS fix CI40223616046 SUCCESS; both CPs
+  verified native source/digest/schema213 with protected pre-rollout history
+  and env preserved. UI remains1b6ff87e3 both environments. Actual public
+  OPTIONS permits content-type + idempotency-key for console origin; origin
+  and credential policies unchanged. Customer UI retried Apply ONCE after
+  reload/compatible artifact selection: rel-1ee8fc8d/ver-fe6de5ea accepted
+  directly for existing dep3c4/production, no approval or new app. Worker now
+  wait_for_coolify_runtime after normal cold replacement. New release's
+  recorded authority TEAM_AUTHORIZED/DISABLED, original grants+allocations
+  full-row hashes unchanged. No manual native patch/release status override.
+  Still need APPLIED_VERIFIED, existing-app Use verified release and actual
+  live query. This v2 is framework0.8.41/model5.4mini, NOT0.8.42 adoption.
+  CORS root consumed both deployments; do not repeat deploy/verify writes.
+- 18:44UTC CURRENT: main continues hosted same-deployment proof. Initial fix
+  4b8367166 deployed/verified both CP/UI and schema213. Follow-ups:
+  1680e3ea7 redacted customer-owned target options (global target API stays
+  staff-only); 1b6ff87e3 provider form omits unset optional strings while
+  preserving zero/false/binding metadata. Both live; UI1b both environments.
+  Live target list exposed outer transaction rollback-only on an excluded
+  target, NOT a credential/auth failure. 0b406d0eb removes list outer tx;
+  six unit/real customer HTTP tests PASS. CI40221956678 SUCCESS, backend
+  image2c1c23f3. Staging0b verified; production jobbkp92ybhwb1orhp8e7gi38lg
+  IN PROGRESS. Receipt root normal-upgrades-01047-target-tx; do not repeat
+  consumed effects. Latest native production CP before this job is1680.
+  Customer UI reset succeeded and original draft was restored. Customer then
+  saved GPT5.4-mini-2026-03-17 with orchestration/generation2048, validation
+  zero errors, and published normal v2/ver-fe6de5ea (framework0.8.41).
+  Runtime/app assignment STILL rel572/v1, NOT applied/activated yet. No fresh
+  app. Next: verify prod CP job, reload customer Revisions, choose production
+  target and compatible image, direct Apply, verify, Use verified release for
+  existing app, real query. Qualified0.8.42 adoption is NOT yet claimed.
+  All coding agents closed, no framework changes, ownedSSH rules remain open.
+- 17:57UTC: owned fix committed/pushed as `4b83671664b60958f37ef073f9f46ea56eba3b94`.
+  Backend/UI image CI40218562364 SUCCESS; registry/source proof saved privately
+  in normal-upgrades-01047/image-proof.actual.json. Backend index0becc193,
+  UI e9de2960. Staging jobs backendgjxpkvdj5404ac399hsz87vm and
+  UIgqap56il5j0xumuo81i0falh queued/in progress; do not issue duplicate deploys.
+  Production CP/UI/customer runtime/app assignment are NOT upgraded yet.
+  Combined affected run882:881PASS/one old read fixture; corrected actual
+  read shape and focused19/19PASS. UI45contracts, direct-upgrade browser,
+  final assignment helper19unit+6browser and production build PASS. Added7
+  compiler sync/uninstall regressions caught/fixed template ownership deletion.
+  All parallel coding agents finished/closed. No framework changes.
+  Existing production draft drf0478/rev2 backed up privately before any reset.
+  Customer browser signed in as existing canary owner, no deployment mutation.
+- NEW owner decision supersedes the earlier no-fixes/fresh-app route: fix the
+  fundamental lifecycle so existing deployments use normal versioning and
+  production apply without original-offer pins or manual upgrade approval.
+  Templates are bootstrap defaults; customers may reset original recorded
+  settings into the draft. Same deployment/app identity. Fresh-production
+  creation is PAUSED; no replacement resources have been created.
+- Work in progress on Platform-V11, tracked in 010.47. Main removes shared
+  draft/Marketplace/credential/bundle/assignment vetoes, apply approval and
+  repeated template requirements; adds template-default capture, V213 reset
+  migration and draft-only reset API. Ramanujan owns customer shared-editor,
+  normal upgrade/verified assignment/reset UI. Boole owns customer ownership
+  authorization and scoped wrappers/storage contract integration. Goodall owns
+  current-version dependency/integration/readiness authorization. Existing
+  operations now have non-null Authorization with null bootstrap definition;
+  callers must not keep treating historical offer metadata as runtime policy.
+- No framework edits, no live CP/runtime/config/app/assignment/funding mutation
+  yet. Combined tests are not yet green: initial fixture-null failures fixed;
+  agent contract/test updates were still in flight at 16:58UTC. Do not claim
+  deployed or verified from source changes. Shared-validation rule, actual
+  customer/tenant/credential boundaries and financial history remain intact.
+- Private operator helper operations.mjs still works. Both CPs ef690/schema212;
+  UIs2317ecf7019d2d667b3705b487af759f01129139. UI apps stage
+  u67gepsowf7oo90dwjdx018r/prod a6fz2ncuzzulg6lrzzwrjshu. New private work
+  root ~/.codex/private/loomai-m4/normal-upgrades-01047, no consumed live effects.
+  Current firewall3 owned exactSSH22 rules remain open per owner overall task
+  instruction. Current production AI allowance LIMIT_EXCEEDED remains separate;
+  do not silently bypass/reset its immutable history while removing template
+  restrictions. Original production dep3c4/app and qualified staging dep011
+  remain as the prior dated evidence records them.
+
+## 2026-10-25 Checks Only And Production Adoption Request (Superseded Scope)
 
 - NEW owner instruction: NO new fixes. Continue relevant checks; adopt optimized staging in production if generally better. No framework/product implementation change or new release authorized/performed. Historicalactualprod6PASS/3PARTIAL/5FAIL/6SOURCE_GAP vsqualified42/5.4mini staging12/1/1/6 favors staging. Additional20realUIqueries on SAME42/image16554a/promptver21/limits/sources butproduction-permittedgpt4omini=8PASS/3PARTIAL/3FAIL/6SOURCE_GAP. Incorrectlowestmileage, trustedcontextcomparisonclarification, bookingdomainclarification remain. All20HTTP200/continuity/noerrors/blocked/writes;18first-attemptVALID/2configuredrecovery; median8533.5/p9514378 notload/reliabilityproof. RawSHA291637bdbf40856af485c83bd87a1677c43407fc15c58d45977320834f43ad66. Preferredcandidate remainsqualified5.4mini, notthisoldmodeltrial.
 - Staging canary RESTORED to5.4mini/ver21/source17b/image16554a, exactjoblfyiuj40yzg1dww20okdjxqt FINISHED/verified15:26:38UTC. Final15:29:07native preservation PASS all3customerprod/customerstage/canary source/images/entireCoolifyenvprojection, healthy; originalprodrelease rel572/ver26d unchanged, original2allocationrows identical. No newapps/DB/source writes/assignmentchanges. Published rejectedbookingversions remainhistory, do NOT applylatest. Private root `~/.codex/private/loomai-m4/quality-20261025/production-adoption/`; all modelcanary andrestore effects CONSUMED; no runningquery/deploy/monitor.

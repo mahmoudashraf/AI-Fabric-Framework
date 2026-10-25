@@ -33,10 +33,12 @@ customer or expose operator secrets.
   never implicitly deploy, replace credentials, delete data or change app URLs.
 - [verified locally] Expose normal upgrades/reset in the customer console using existing
   configuration and version APIs, without duplicating staff editors.
-- [pending] Verify changed runtime/plugin/model configuration, direct production
-  apply, reset and unchanged app identity; retain negative ownership tests.
-- [pending] Commit, deploy and verify the resulting customer lifecycle. Record
-  any external blockers explicitly rather than creating a substitute app.
+- [verified] Changed composition/plugin/model paths covered by focused tests;
+  real customer model edit, direct production apply, reset and unchanged app
+  identity verified live. Runtime-image replacement was not exercised by this
+  hosted config-version proof; the existing compatible image was retained.
+- [verified] Commit, deploy and verify the resulting customer lifecycle on
+  staging/production Platform. No substitute app or manual apply approval.
 
 ## Boundaries
 
@@ -58,8 +60,8 @@ previously authorized fresh-production route is paused by this owner decision.
 - PostgreSQL V213 migration passed: adds recorded defaults, clears only the
   obsolete apply-approval flag, preserves current draft and delete controls.
 - Customer UI browser fixture covers changed composition, direct apply, reset,
-  explicit verified-release assignment and unchanged app URL. Hosted proof is
-  still outstanding; fixture success is not a live deployment claim.
+  explicit verified-release assignment and unchanged app URL. Hosted evidence
+  below separately identifies the actual customer operations tested.
 - Combined affected-service run: 882 scenarios, 881 passed and one read fixture
   still used the former binding-selection request. Corrected that fixture to
   match the real read caller; all 19 tests in its suite passed on rerun.
@@ -102,7 +104,8 @@ previously authorized fresh-production route is paused by this owner decision.
   configuration. Customer UI uses that projection; staff target management is
   unchanged. Internal provisioning-environment previews remain staff-only in
   the UI. Focused backend 5 tests, customer browser smoke and UI build passed.
-- Customer publish/apply/verified assignment live proof remains in progress.
+- Customer publish/apply/verified assignment live proof completed; see the
+  exact version/release/app records below.
 - Live provider editing exposed an existing serializer bug: empty optional
   numeric fields were sent as configured overrides, causing 26 validation
   errors after saving a model change. The generic provider serializer now omits
@@ -128,8 +131,8 @@ previously authorized fresh-production route is paused by this owner decision.
   explicitly permits `Idempotency-Key` for the existing console origin.
 - The real customer then applied v2 directly to the existing production target:
   `rel-1ee8fc8d` / `ver-fe6de5ea`. No approval request or replacement app.
-  Provisioning is in progress; verified assignment and live query remain
-  pending. The new release records the server-selected `TEAM_AUTHORIZED`
+  This first attempt failed and remains in history; it was not activated.
+  The new release records the server-selected `TEAM_AUTHORIZED`
   contract; historical grant/allocation row hashes remain unchanged.
 - The first actual replacement failed startup because provider environment
   upserts retained the previous release's optional retirement topology while
@@ -139,3 +142,36 @@ previously authorized fresh-production route is paused by this owner decision.
   validation or change customer/provider settings. A focused opt-in -> cold
   replacement regression checks the complete environment overlay; all 96
   environment-plan, Coolify provider and Coolify API tests passed together.
+- `26baf9cdf` deployed and verified on both control planes (schema 213, exact
+  source/digest, unchanged environments and protected history). Normal customer
+  Apply created `rel-ccf9fb9d`, using existing runtime/connector/database and v2.
+- Initial post-apply verification: 27 passed, one failed, five skipped. The
+  retained older `c2e886f804` runtime scopes document registrations to a release,
+  so the new release could not list the prior release's three active policies.
+  Explicitly registered/indexed the same three approved fictional S3 objects
+  through normal document APIs; source objects were not modified. This is an
+  operational refresh for that legacy image, not a document-continuity fix or
+  evidence that every runtime image upgrades without document setup. Historical
+  registrations/index entries were retained, not migrated or silently adopted.
+- Verification recheck `vrf-b532167e`: **29 passed, zero failed, four not-applicable
+  skips**. `rel-ccf9fb9d` is `APPLIED_VERIFIED` / `PASSED`.
+- Real customer selected **Use verified release**. Existing installation
+  `awi_pub_d33c69a074da480628c2f81358a03144` and consumer
+  `northfield-console-live-20261024` now reference this release at binding
+  revision 4. Address unchanged: `https://northfield-console-live.apps.loomai.pro`.
+  Runtime and connector native health/version/model readback passed; historical
+  grant/allocation full-row hashes are unchanged. No business database created.
+- This proof uses framework **0.8.41** and configured OpenAI model
+  `gpt-5.4-mini-2026-03-17`, not the separately qualified 0.8.42 image/settings.
+  Full optimized-runtime adoption and its document-continuity qualification
+  remain separate work; no new framework source or release was introduced.
+- Live anonymous UI smoke after assignment passed both queries in the same
+  conversation: delivery policy (25 miles, three working days, photo ID) and
+  electric stock below GBP 35,000 (Aster E1 GBP 31,950, Morrow C2 GBP 22,750).
+  The first used indexed policy evidence attributed to the new release; the
+  second used the live read action and rendered two vehicle cards with images.
+  No business write was requested or executed. This two-query smoke is not a
+  rerun or replacement of the wider answer-quality corpus.
+- Screenshots and compact non-secret evidence are in
+  `verification-support/normal-upgrades-01047/`; raw intent/readback records
+  remain in the private operator directory, not Git.

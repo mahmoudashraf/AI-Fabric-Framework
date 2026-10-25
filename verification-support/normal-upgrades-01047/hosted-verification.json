@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-25",
+  "scope": "Bootstrap-only templates and normal existing-deployment configuration upgrades",
+  "platformBackendSource": "26baf9cdfeca3cf34cdcf269e22f791e85e8cfa5",
+  "platformUiSource": "1b6ff87e3927bd806696660fb476ee9b74b4a25c",
+  "platformSchema": "213",
+  "platformEnvironmentsVerified": ["staging", "production"],
+  "deploymentId": "dep-3c4dbe4f",
+  "targetProfileId": "dtp-coolify-production-behavior",
+  "versionId": "ver-fe6de5ea",
+  "releaseId": "rel-ccf9fb9d",
+  "releaseStatus": "APPLIED_VERIFIED",
+  "verificationRunId": "vrf-b532167e",
+  "verification": {"passed": 29, "failed": 0, "notApplicableSkipped": 4},
+  "installationId": "awi_pub_d33c69a074da480628c2f81358a03144",
+  "appUrl": "https://northfield-console-live.apps.loomai.pro",
+  "bindingRevision": 4,
+  "customerUiVerified": [
+    "Draft-only reset and original draft restoration",
+    "Model edit and zero-error validation",
+    "Publish version 2",
+    "Direct production apply without manual approval",
+    "Use verified release on the existing app"
+  ],
+  "runtimeImageChanged": false,
+  "newAppsCreated": 0,
+  "newBusinessDatabasesCreated": 0,
+  "historicalProviderGrantAndAllocationRowsUnchanged": true,
+  "providerUsageModeForNewRelease": "TEAM_AUTHORIZED",
+  "frameworkVersion": "0.8.41",
+  "openAiModel": "gpt-5.4-mini-2026-03-17",
+  "liveAnonymousUiSmoke": [
+    {"query": "What is the dealership delivery policy?", "status": "PASS", "evidence": "New-release indexed policy: 25 miles, three working days, photo ID."},
+    {"query": "Show me electric vehicles under GBP 35,000 that are currently in stock.", "status": "PASS", "evidence": "Live inventory read: Aster E1 GBP 31,950 and Morrow C2 GBP 22,750; vehicle cards and images rendered."}
+  ],
+  "businessWritesExecuted": 0,
+  "limitations": [
+    "The retained older c2 runtime has release-scoped document registration. The same three approved fictional policies were explicitly registered/indexed through normal APIs for the new release. Historical registrations/index entries were retained; S3 files were unchanged. This is not a document-continuity fix.",
+    "The qualified 0.8.42 optimized runtime/settings have not been adopted by this configuration-version proof.",
+    "This is a two-query live smoke, not the wider quality corpus or a load test.",
+    "Existing deployments reset to their earliest retained draft baseline; new bootstraps record composed initial settings. Reset changes the draft, not credentials, plugin installations, live releases or customer data."
+  ]
+}
