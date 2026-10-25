@@ -87,3 +87,19 @@ previously authorized fresh-production route is paused by this owner decision.
    production upgrade.
 5. **Reset to template** restores recorded initial settings to the editable
    draft only. Review, publish and apply remain explicit separate actions.
+
+## Hosted Progress
+
+- `4b8367166`: backend and UI deployed and verified on staging and production;
+  schema 213, exact OCI/source identity, protected history and environments
+  preserved. No customer app or runtime replaced by that Platform rollout.
+- Customer session live reset succeeded on the existing production deployment's
+  draft. Saved pre-test draft restored using the normal draft API; live release
+  `rel-572ceb27` and app assignment stayed unchanged.
+- Live UI found the shared editor still requested the staff-only global target
+  list. Follow-up adds an owned-deployment target projection using the existing
+  authorization boundary, without credentials/provider/network/resource
+  configuration. Customer UI uses that projection; staff target management is
+  unchanged. Internal provisioning-environment previews remain staff-only in
+  the UI. Focused backend 5 tests, customer browser smoke and UI build passed.
+- Customer publish/apply/verified assignment live proof remains in progress.

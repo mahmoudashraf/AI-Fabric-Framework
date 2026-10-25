@@ -88,7 +88,7 @@ try {
       return json(consumers[0])
     }
     if (path === '/api/deployments') return json([deployment])
-    if (path === '/api/deployment-provider/target-profiles') return json([
+    if (path === '/api/deployments/deployment-one/target-profiles') return json([
       { id: 'production-target', name: 'Current production', active: true, providerType: 'COOLIFY', environmentName: 'production' },
       { id: 'staging-target', name: 'Customer staging', active: true, providerType: 'COOLIFY', environmentName: 'staging' },
     ])

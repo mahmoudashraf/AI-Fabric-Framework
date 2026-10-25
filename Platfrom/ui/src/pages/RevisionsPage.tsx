@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   applyDeploymentVersion,
+  fetchDeploymentTargetOptions,
   fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
   fetchDeploymentIntegrationSummary,
@@ -532,8 +533,8 @@ export function RevisionsPage() {
     enabled: selectedDeploymentId.length > 0,
   })
   const targetProfilesQuery = useQuery({
-    queryKey: ['deployment-target-profiles'],
-    queryFn: () => fetchDeploymentTargetProfiles(),
+    queryKey: ['deployment-target-profiles', isCustomerWorkspace ? selectedDeploymentId : 'staff'],
+    queryFn: () => isCustomerWorkspace ? fetchDeploymentTargetOptions(selectedDeploymentId) : fetchDeploymentTargetProfiles(),
     enabled: selectedDeploymentId.length > 0,
   })
   const preferencesQuery = useQuery({
@@ -700,7 +701,7 @@ export function RevisionsPage() {
   const provisioningPlanQuery = useQuery({
     queryKey: ['deployment-provisioning-plan', selectedDeploymentId, selectedVersionId],
     queryFn: () => fetchDeploymentProvisioningPlan(selectedDeploymentId, selectedVersionId),
-    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
+    enabled: !isCustomerWorkspace && selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
   })
   const integrationSummaryQuery = useQuery({
     queryKey: ['deployment-integration-summary', selectedDeploymentId],
@@ -712,7 +713,7 @@ export function RevisionsPage() {
   const liveProvisioningPlanQuery = useQuery({
     queryKey: ['deployment-provisioning-plan', selectedDeploymentId, liveVersionId],
     queryFn: () => fetchDeploymentProvisioningPlan(selectedDeploymentId, liveVersionId),
-    enabled: selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
+    enabled: !isCustomerWorkspace && selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
   })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
@@ -2097,7 +2098,7 @@ export function RevisionsPage() {
             </CardContent>
           </Card>
 
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          {!isCustomerWorkspace ? <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={2}>
                 <Box>
@@ -2426,7 +2427,7 @@ export function RevisionsPage() {
                 ) : null}
               </Stack>
             </CardContent>
-          </Card>
+          </Card> : null}
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
