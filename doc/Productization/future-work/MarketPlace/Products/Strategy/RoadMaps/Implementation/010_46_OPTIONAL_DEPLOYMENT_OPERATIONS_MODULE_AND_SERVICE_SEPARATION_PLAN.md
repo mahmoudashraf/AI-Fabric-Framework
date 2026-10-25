@@ -1,6 +1,6 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service delivery, Platform-core decoupling and the supported advanced operational workflows are implemented, published and verified live on staging and production. Final sources, hosted proofs, cleanup and explicit unsupported cases are recorded in section 11. This is not a universal provider-repair or fleet-adoption engine.
+**Status:** Direct-service delivery, Platform-core decoupling and the supported advanced operational workflows are implemented, published and verified live on staging and production. Real Northfield customer-staging cold stop/recovery and retained product functionality are additionally verified in section 11.6, including two subsequent Core integration fixes. That older dealership Runtime still needs a reviewed artifact upgrade before current version-replacement/graceful-drain qualification. Final sources, hosted proofs, cleanup and unsupported cases are recorded in section 11. This is not a universal provider-repair or fleet-adoption engine.
 **Date:** 24-25 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
@@ -1209,3 +1209,205 @@ graceful retirement, cold replacement during actual service outage, stale-expiry
 protection, cancellation and durable scheduler proofs remain separately retained.
 Shared firewall closure is still owned by the main session; this task did not
 close it.
+
+### 11.6 Real Dealership Lifecycle Verification
+
+The owner subsequently requested live operational verification using the actual
+dealership, rather than another generic fixture. This is an additional product
+qualification, not a claim that the generic tests already covered Northfield.
+
+The actual scope was Northfield Customer Workspace `dep-3c4dbe4f`, customer-staging
+target `dtp-coolify-staging-behavior`, release `rel-10ad02d0`, immutable version
+`ver-26d678f3`. The existing production app remains bound to `rel-572ceb27`;
+the independent answer-quality canary `dep-011d7f62` is excluded from mutation.
+No dealership retirement, source-system deletion, financial-history rewrite or
+guardrail waiver was used.
+
+- [x] Capture the actual native resources, managed Inbox, indexed stock/policies,
+      AI-state storage and existing app/funding baseline.
+- [x] Run owner-authorized COLD STOP/RECOVER on the existing customer-staging
+      target through the separated service and real native adapters.
+- [x] Verify retained indexed evidence, source reconciliation, live read action,
+      policy citations, and real operator UI reply/return-to-AI on one resumed
+      post-recovery conversation. Do not claim pre-stop expired-token continuity.
+- [x] Record actual Runtime graceful-drain/replacement capabilities without
+      bypassing them; leave the dealership running and preserve the
+      production assignment and independent quality canary.
+- [ ] Separately upgrade the reviewed dealership Runtime artifact before testing
+      current same-version cold replacement and release-scoped graceful drain
+      on this particular old deployment. This test did not mutate its artifact.
+
+Private intents and actual receipts are retained under
+`~/.codex/private/loomai-separation-01046/dealership-lifecycle-20261025/`.
+The final read-only audit contains 33 passing checks in
+`final-read-only-audit.private.json`; the original failures and intermediate
+observations remain alongside it.
+
+#### 11.6.1 Actual Stop, Recovery And Expiry Finding
+
+The actual preflight found an expired test entitlement and an expired funded
+allowance, both originally expiring at 00:00 UTC on 25 October. The native
+containers were healthy but aggregate Runtime health returned 503. Private
+readback confirmed six vehicle vectors and three approved policy vectors; the
+allowance had used 16 of 50 chat attempts and about USD 0.027 of its USD 3 cap.
+This was time expiry, not depleted credits or a missing vector provider.
+The unchanged reviewed offer was renewed through staff invitation and the real
+owner's acceptance, revision 2 to 4. No SQL authorization rewrite was used.
+
+`ops-01046-dealership-cold-stop-20261025` succeeded through the real service,
+including native stop/readback of Runtime, connector, Basic Inbox, and both
+AI-state PostgreSQL databases. The claim closed with all commands SUCCEEDED;
+there was no manual phase advancement, retry or direct provider stop. Transient
+Coolify API exceptions did not justify a resend; existing native readback
+resolved the accepted work. Both physical AI-state volumes remained present.
+
+`ops-01046-dealership-cold-recover-20261025` successfully restarted those same
+five native resources, but its initial verification `vrf-0fbd6703` failed:
+27 checks passed, aggregate health failed with 503, and document retrieval
+failed while the embedding allowance was expired. The failed result and claim
+were retained; this original attempt is not called a pass. All nine indexed
+vectors were still present after the restart. The supported validity-extension
+plan was correctly rejected while the release was STOPPED, then exposed an
+integration deadlock: the active recovery claim also blocked the extension
+after resources returned. No extension or financial mutation occurred in
+either rejected plan.
+
+#### 11.6.2 Two Bounded Core Corrections
+
+Two corrections were implemented, tested, committed and deployed for the real
+case:
+
+- Staff-only time extension may use unchanged exact release authority while its
+  sole OPEN native claim has a SUCCEEDED RECOVER phase. STOP/RETIRE, incomplete
+  or foreign recovery, ordinary deployment/configuration changes, key rotation
+  and ordinary top-up access do not gain this exception. Credit caps, original
+  approval and usage remain immutable.
+- An explicit retry of failed RECOVER verification receives a durable attempt
+  revision and runs fresh actual verification. The previous failed report and
+  receipt remain retained. A restart or PENDING/UNKNOWN replay stays on the same
+  attempt; it cannot manufacture another verification, repeat provider effects
+  or extend the original deadline.
+
+The authority exception is used only by time-validity maintenance; normal
+release mutations and ordinary top-up resolution retain their existing guards.
+The verification journal now stores its retry revision and archives previous
+failed receipts through Core migration V212. Seven new journal regressions
+exercise the behavior with real PostgreSQL and H2, alongside guarded native
+effect, authorization and validity-extension coverage.
+
+Qualification: **279 focused tests, zero failures/errors/skips, nine suites**.
+The 196-test parent batch covered claim guards, release authority, validity
+access, real-PostgreSQL validity and existing top-up/validity services. The
+83-test disjoint journal/effects batch covered 35 real-PostgreSQL tests,
+35 H2 tests and 13 native-effect tests. No framework-wide matrix or AI Fabric
+release was used for these narrow Core corrections.
+
+Published Core source is `ef6903002947bd4c1dbf7c933cc405da561f05da`, workflow
+`40174898064` passed. The qualified backend OCI index is
+`sha256:29e95ea331747647a23dbd7dcb9513db6c779a7abb049b13504d8798eef63275`.
+Staging native deployment `nbx9ncdibi0b7qocccqny5c2` and production native
+deployment `gyw86mb9qqc0qrt9m57kqu4d` finished and independently passed actual
+image/source, health, V212, configuration and financial-preservation checks.
+Both Core environments are healthy at this source; both operations services
+remain healthy at `2627f78ecde26de5daef89bfd8c65887cfebb045`.
+This supersedes only the earlier Core revision in section 11.5, not its
+historical fixture results.
+
+These are Platform-core corrections only. The dealership stays on artifact
+`dsa-a5d7d25d`, source `c2e886f804b473d5efc20d52beb8f15df7423228` and AI Fabric
+0.8.41. Its Runtime image, model, prompts, source bindings and immutable version
+were not changed.
+
+#### 11.6.3 Actual Recovery Closure And Product Checks
+
+The exact Runtime handle had a stale `SUPERSEDED` control-plane status even
+though the existing staged release and native resource were current. The
+supported exact-handle status GET refreshed its real provider observation to
+`RUNNING_HEALTHY`; no SQL status override, global resource refresh or ownership
+substitution was performed. This stale projection remains a recorded finding,
+not a claim that the new validity exception refreshes it automatically.
+
+Supported validity extension `01046-northfield-staging-validity-20261025`
+acknowledged at 08:12:59 UTC, extending operating time to
+25 October 19:32:33.603 UTC. The original approval, store UUID, fingerprint,
+expiry, usage history and caps of 50 chat attempts, 1,000,000 tokens and USD 3
+remain unchanged. Only the explicit new validity review and events were added.
+No credit top-up or new funded grant was created.
+
+The first explicit verification retry, `vrf-a04a73e2`, still failed before
+that extension completed. A second explicit retry produced `vrf-19b2539e`:
+**PASSED, 29 passed / 4 skipped / 0 failed**. The four skipped checks concern
+the separate marketplace dataset/managed-vectorization-runner context; they
+are not counted as passes or substituted for direct stock/document proof.
+The real service reached SUCCEEDED / RELEASE with all native receipts
+SUCCEEDED and the Core claim CLOSED. The final receipt was observed at
+08:13:28 UTC, before the original 08:13:38.751 UTC deadline.
+
+The original operation/grant/scope/due/deadline match the initial authorization.
+The journal retains both failed verification receipts and all three exact
+verification IDs. Verification retries did not redispatch native stop/start
+effects. There was no manual phase advancement, provider command replay,
+deadline extension or direct SQL state change.
+
+Actual product checks after recovery:
+
+- Aggregate Runtime health is HTTP 200 / UP. Runtime, connector, Basic Inbox
+  and both AI-state PostgreSQL containers are healthy, with the same native
+  resource IDs and retained physical database volumes.
+- Immediately after recovery, the full contents and metadata of all nine
+  indexed records exactly matched the pre-stop snapshot: six vehicles and
+  three policies. The three original document source IDs remain ACTIVE at
+  version 1. Later normal stock sync changed stock metadata/update timestamps;
+  stock IDs/content and all three complete policy records remained retained.
+- The first public stock query exposed `SOURCE_PROJECTION_STALE`. Its action
+  failed and configured RAG cooperation answered from indexed evidence. That
+  was not counted as a successful live read action.
+- Normal scheduled connector reconciliation subsequently completed at
+  08:25:39 UTC: six source records, six indexed, zero failed. No manual resync,
+  source rewrite, reseeding or freshness-limit relaxation was needed. The
+  subsequent public query executed `dealership_search_inventory` successfully
+  with current source synchronization metadata and returned images/data.
+- Public human handover accepted a user message without calling AI. An
+  operator used the real Basic Inbox UI to claim, reply and return the same
+  conversation to AI. The operator reply appeared through the public
+  conversation API. The UI harness passed all five checks without unexpected
+  commands or browser errors; its screenshot and receipts are retained.
+- After that explicit return, the same conversation answered the warranty
+  coverage/exclusions question and cited the existing approved S3 policy.
+  The original pre-stop anonymous token had expired during the long test;
+  the harness explicitly opened a fresh functional session, not a silent
+  fallback or a claimed proof of expired-token continuity.
+- Every preexisting row hash in all nine recorded financial/consumer/app
+  tables matches its baseline after excluding only the exact newly approved
+  validity-extension rows. Existing apps/production assignments, the
+  independent `dep-011d7f62` container/source/environment and external storage
+  bindings remain unchanged. No external service or customer S3 object was deleted.
+
+One harness ordering mistake is retained: a policy request was accidentally
+started concurrently with handover and correctly received HTTP 202 while the
+human controlled the conversation. It is not counted as an AI-policy pass.
+The later serial post-return policy request above passed.
+
+#### 11.6.4 Honest Limits And Follow-Ups
+
+- This proves real dealership **customer-staging cold stop/recovery**, not
+  dealership production retirement, current cold version replacement or
+  graceful draining. No actual dealership resource or customer data was deleted.
+- Its old artifact advertises singleton generation adoption, but lacks the
+  current `runtime-release-scoped-drain-v1` capability and
+  `runtime-release-scoped-retirement-v24` migration. Current Core does not
+  restore legacy singleton adoption. Qualify a separately reviewed Runtime
+  product artifact before exercising replacement/graceful drain here; do not
+  patch native images behind immutable source pins or invent a drain receipt.
+- Lifecycle/source transport acceptance is not a green answer-quality suite:
+  the successful live stock action's SUV-only query returned three electric
+  vehicles, including a Hatchback and a Crossover, and the generated answer
+  did not honor the full body-style restriction. Preserve the exact response
+  for the independent dealership optimization stream; no text matching,
+  prompt rewrite or framework change was used to mask it.
+- Historical indexing dead letters remain 204; pending/processing/commit-pending
+  work is zero after the successful scheduled sync. Those earlier failed work
+  records were not purged or reset to manufacture a clean dashboard.
+- This test did not add production customer traffic to the staged target or
+  reassign the production Engage app. Shared Hetzner firewall closure remains
+  owned by the main session.
