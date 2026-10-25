@@ -57,3 +57,14 @@ loomai:
     max-request-age: ${DEPLOYMENT_OPERATIONS_MAX_REQUEST_AGE:5m}
     max-clock-skew: ${DEPLOYMENT_OPERATIONS_MAX_CLOCK_SKEW:30s}
     max-body-bytes: ${DEPLOYMENT_OPERATIONS_MAX_BODY_BYTES:16384}
+    lifecycle:
+      scheduler-enabled: ${DEPLOYMENT_LIFECYCLE_SCHEDULER_ENABLED:false}
+      scheduler-interval: ${DEPLOYMENT_LIFECYCLE_SCHEDULER_INTERVAL:PT5S}
+      gateway-base-url: ${DEPLOYMENT_LIFECYCLE_GATEWAY_BASE_URL:}
+      gateway-key: ${DEPLOYMENT_LIFECYCLE_GATEWAY_KEY:}
+      allow-insecure-http: ${DEPLOYMENT_LIFECYCLE_ALLOW_INSECURE_HTTP:false}
+      http-timeout: ${DEPLOYMENT_LIFECYCLE_HTTP_TIMEOUT:2s}
+      worker-lease: ${DEPLOYMENT_LIFECYCLE_WORKER_LEASE:30s}
+      notice-lead: ${DEPLOYMENT_LIFECYCLE_NOTICE_LEAD:24h}
+      webhook-url: ${DEPLOYMENT_LIFECYCLE_WEBHOOK_URL:}
+      webhook-key: ${DEPLOYMENT_LIFECYCLE_WEBHOOK_KEY:}

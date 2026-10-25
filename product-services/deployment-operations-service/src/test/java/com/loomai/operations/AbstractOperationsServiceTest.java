@@ -130,6 +130,18 @@ abstract class AbstractOperationsServiceTest {
     }
 
     @Test
+    void stoppedComputeRetainsDiskAndProvisionedResourceCountsRatherThanClaimingReclamation() {
+        AssessmentRequest original = withDemand(request("cmd-disk", "dep-1"),
+            new ResourceDemand(1000L, 1024L, 4096L, 1L, 1L, 1L, 1L, 1L));
+        service.assess(original);
+        service.outcome(outcome(original, OutcomeStatus.STOPPED, NOW.plusSeconds(1)));
+        assertThat(repository.allocation("dep-1", "stage").orElseThrow().demand())
+            .isEqualTo(original.resourceDemand().retainedAfterStop());
+        assertThat(service.assess(request("cmd-other", "dep-2")).decision()).isEqualTo(Decision.DENY);
+        assertThat(repository.allocations("stage")).hasSize(1);
+    }
+
+    @Test
     void confirmedActiveColdReplacementProjectsExactDesiredDemandAndFreesDownsizedCapacity() {
         AssessmentRequest original = withDemand(request("cmd-large", "dep-1"),
             new ResourceDemand(2000L, 2048L, 4096L, 2L, 2L, 2L, 2L, 1L));

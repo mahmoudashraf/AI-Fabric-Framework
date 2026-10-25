@@ -49,7 +49,7 @@ public class DeploymentOperationsService {
             }
             Allocation current = repository.allocation(request.deploymentId(), request.targetProfileId()).orElse(null);
             requireScope(current, request);
-            ResourceDemand replacement = current == null || current.state() == AllocationState.STOPPED
+            ResourceDemand replacement = current == null
                 ? request.resourceDemand() : current.demand().max(request.resourceDemand());
             ResourceDemand total = replacement;
             for (Allocation allocation : repository.allocations(request.targetProfileId())) {
@@ -110,8 +110,11 @@ public class DeploymentOperationsService {
                 case FAILED -> AllocationState.UNCONFIRMED;
                 case STOPPED -> AllocationState.STOPPED;
             };
-            ResourceDemand demand = outcome.status() == OutcomeStatus.ACTIVE
-                ? assessment.request().resourceDemand().withoutApplySlot() : current.demand();
+            ResourceDemand demand = switch (outcome.status()) {
+                case ACTIVE -> assessment.request().resourceDemand().withoutApplySlot();
+                case STOPPED -> current.demand().retainedAfterStop();
+                case FAILED -> current.demand();
+            };
             repository.saveAllocation(new Allocation(current.customerId(), current.tenantId(), current.deploymentId(),
                 current.targetProfileId(), current.commandId(), demand, state, current.holdExpiresAt(), now));
             repository.saveOutcome(outcome, digest, "outcome-" + UUID.randomUUID());

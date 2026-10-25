@@ -88,6 +88,10 @@ public final class OperationsContracts {
             return new ResourceDemand(cpuMillis, memoryMiB, diskMiB, databases, indexes, dependencies, replicas, 0L);
         }
 
+        public ResourceDemand retainedAfterStop() {
+            return new ResourceDemand(0L, 0L, diskMiB, databases, indexes, dependencies, 0L, 0L);
+        }
+
         public boolean fits(ResourceDemand capacity) {
             return cpuMillis <= capacity.cpuMillis && memoryMiB <= capacity.memoryMiB
                 && diskMiB <= capacity.diskMiB && databases <= capacity.databases

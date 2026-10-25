@@ -75,7 +75,7 @@ public class OperationsRepository {
 
     public List<Allocation> allocations(String targetProfileId) {
         return jdbc.query("""
-            SELECT * FROM deployment_operations_allocation WHERE target_profile_id = ? AND state <> 'STOPPED'
+            SELECT * FROM deployment_operations_allocation WHERE target_profile_id = ?
             """, this::mapAllocation, targetProfileId);
     }
 
@@ -138,10 +138,12 @@ public class OperationsRepository {
     }
 
     private Allocation mapAllocation(ResultSet rs, int row) throws SQLException {
+        AllocationState state = AllocationState.valueOf(rs.getString("state"));
+        ResourceDemand demand = read(rs.getString("resource_demand_json"), ResourceDemand.class);
+        if (state == AllocationState.STOPPED) demand = demand.retainedAfterStop();
         return new Allocation(rs.getString("customer_id"), rs.getString("tenant_id"), rs.getString("deployment_id"),
             rs.getString("target_profile_id"), rs.getString("command_id"),
-            read(rs.getString("resource_demand_json"), ResourceDemand.class),
-            AllocationState.valueOf(rs.getString("state")), rs.getTimestamp("hold_expires_at").toInstant(),
+            demand, state, rs.getTimestamp("hold_expires_at").toInstant(),
             rs.getTimestamp("updated_at").toInstant());
     }
 

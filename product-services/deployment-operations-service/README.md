@@ -1,6 +1,6 @@
 # LoomAI Deployment Operations Service
 
-Optional server-to-server deployment capacity policy. This service owns its own
+Optional server-to-server deployment capacity policy and explicit lifecycle jobs. This service owns its own
 JDBC/Flyway/PostgreSQL data, with no dependency on Platform backend, runtime,
 AI Fabric, provider SDKs, browser authentication, or the Platform database.
 Java 21 and Spring Boot 3.2.12 are used as requested for this service.
@@ -10,7 +10,9 @@ Java 21 and Spring Boot 3.2.12 are used as requested for this service.
 - Assess a trusted Platform command against server-owned target limits.
 - Persist the original decision and exact command/fingerprint correlation.
 - Track short-lived admission holds and trusted `ACTIVE`, `FAILED`, `STOPPED`
-  observations. No provider operation is executed here.
+  observations. Stopped compute does not imply reclaimed storage.
+- Persist and advance explicitly authorized STOP, RETIRE, RECOVER and RECONCILE
+  jobs through core's authenticated lifecycle gateway. No provider operation is executed here.
 - Return `UNAVAILABLE` for an unconfigured target. A storage failure produces
   HTTP 503, never a fabricated `ALLOW` or a lost financial record.
 
@@ -22,10 +24,11 @@ The mode is selected by trusted core configuration, never by browser input.
 Authorization, tenant ownership, credentials, provider verification and existing
 funded usage ledgers remain core responsibilities and are not bypassed here.
 
-This is an admission/limits service, **not parity with every legacy operations
-feature**. Drain fencing, recovery execution, retirement orchestration, provider
-budgeting, automatic stop/delete, billing and autonomous remediation are absent.
-Future drain/recovery proposals can be optional policies, not a workflow engine.
+Lifecycle scheduling is disabled by default and never runs from capacity hold
+expiry. The bounded lifecycle workflows below use core-issued grants and core
+ownership/effect receipts, not admission decisions. There is no generic workflow
+language, historical recovery adoption, provider SDK, financial refund, or direct
+access to the Platform database.
 
 ## Run
 
@@ -58,7 +61,7 @@ mvn -f product-services/deployment-operations-service/pom.xml clean verify
 java -jar product-services/deployment-operations-service/target/deployment-operations-service-0.1.0.jar
 ```
 
-Flyway creates only this service's four tables in its database. Do not point this
+Flyway creates only this service's tables in its database. Do not point this
 service at the Platform database. The database account needs migration rights for
 this database only. Back up the volume/database: losing observations means the
 service no longer knows already-running resources. Do not enable enforcement on
@@ -199,9 +202,12 @@ Unknown commands return 404. An enforced denial has no allocation to activate.
 - `FAILED`: record uncertainty, **retain capacity demand**. Failure does not
   establish no provider side effects, release a financial cap, refund usage,
   delete infrastructure or perform recovery.
-- `STOPPED`: trusted core has verified the entire tracked deployment/target
-  allocation is absent. Only then remove its demand from capacity accounting.
-  This is an observation, **not a request for this service to stop anything**.
+- `STOPPED`: trusted core has verified stopped compute. CPU, memory, replicas and
+  concurrent-apply demand become zero; disk and provisioned database/index/dependency
+  counts remain counted. This is an observation, **not a request to stop or delete**.
+  Existing STOPPED records are conservatively projected this way without rewriting
+  their history. The v1 outcome contract has no reclamation certificate, so it
+  cannot release retained storage, even after a lifecycle job reports completion.
 
 Outcomes after hold expiry are accepted and remain auditable. A failed operation
 may later be observed active or stopped; the service never infers that transition.
@@ -216,6 +222,7 @@ overlapping runtimes, core must report combined demand or a separate identity.
 Different targets count independently. During `HOLD`/`UNCONFIRMED`, shrinks do
 not prove old resources gone: the maximum remains counted. A verified `ACTIVE`
 cold-replacement observation projects exact desired demand, including downsizing.
+Stopped allocations still contribute retained disk and provisioned resource counts.
 A superseded outcome cannot clear a newer operation's hold.
 
 An expired hold becomes `UNCONFIRMED` when another assessment is processed and
@@ -227,7 +234,7 @@ silent reset, automatic lease-based refund or automatic deletion of audit rows.
 A short database row lock serializes assessments/outcomes across service replicas,
 preventing concurrent oversubscription. Transactions have a five-second timeout;
 there are no network/provider calls inside them. This is intentionally a
-low-volume control-plane implementation, not a distributed scheduler. Policy
+low-volume control-plane implementation. Policy
 changes/replicas must be coordinated by the operator.
 
 ## Tests and build
@@ -327,6 +334,134 @@ Both services were explicitly stopped for the fresh customer-journey proof;
 both control planes remained healthy. The canonical 010.46 plan records the
 exact journey results and cleanup, separately from the local enforce/outage
 wire tests. Existing financial terms and customer assignments were preserved.
-Advanced legacy drain/recovery/expiry automation is deliberately dormant, not
-claimed as reimplemented in this service. Manual cold replacement and actual
-provider verification remain Platform responsibilities.
+Legacy operational histories are not imported or replayed. Actual ownership,
+provider verification and native effects remain Platform responsibilities.
+
+## Lifecycle gateway contract
+
+The frozen wire source is `com.loomai.operations.lifecycle.LifecycleContracts`.
+Core mirrors these records, not the executable service artifact:
+
+- `JobRequest(schemaVersion, operationId, grantId, customerId, tenantId,
+  deploymentId, targetProfileId, releaseId, scopeHash, goal, mode, policyRevision,
+  dueAt, deadlineAt, requestedAt)`.
+- `Command(schemaVersion, commandId, operationId, grantId, scopeHash, phase)`.
+- `Receipt(schemaVersion, commandId, operationId, grantId, phase, status, code,
+  observedAt, blockers)`.
+
+Schema version is the string `1`. Timestamps are ISO-8601 Instants. All scope
+fields are required; identifiers use the existing 1-128 character ID pattern,
+and scopeHash is exactly 64 hex characters. Receipt codes are bounded uppercase
+identifiers; blockers have at most 32 nonblank strings of at most 256 characters.
+Goals are `STOP`, `RETIRE`, `RECOVER`, `RECONCILE`; modes are `COLD`, `GRACEFUL`.
+Receipt statuses are `PENDING`, `SUCCEEDED`, `BLOCKED`, `UNKNOWN`, `FAILED`.
+The service checks every receipt's schema, command, operation, grant and phase.
+The core grant must independently bind exact scope, goal, mode, policy, dates and
+retention/reclamation authority. Request fields and a capacity ALLOW do not grant
+permission. Core must reject phases outside the grant or a stale target claim.
+
+New requests use the existing max-request-age/clock-skew window. dueAt may be at
+most 366 days after requestedAt, and no earlier than requestedAt minus max-request-age.
+deadlineAt must be strictly after dueAt and at most seven days later. Exact replay
+is checked before freshness, so retries never renew dates or broaden authority.
+
+The gateway uses only server-configured base URL/key, never a request URI:
+
+- POST `<gateway-base>/internal/v1/deployment-lifecycle/commands` sends Command.
+- GET the same path plus `/{commandId}` polls Receipt.
+
+Core must persist its exact command before effects, deduplicate by grant/phase,
+serialize target claims with cold apply, and treat UNKNOWN readback as observation,
+not a fresh provider dispatch. Explicit replay of a BLOCKED command may re-observe
+after a configuration fix; core must still enforce grant dates and identity.
+
+## Lifecycle service API
+
+All routes use the existing service-only bearer authentication and body limits.
+Platform proxies these only after owner authorization and core grant creation.
+The service returns its own JobView JSON; it does not claim to have revalidated
+core grants at registration. Only a matching successful CLAIM receipt advances work.
+
+Base: `/internal/v1/deployment-operations/lifecycle`:
+
+- POST `/jobs`: JobRequest; returns HTTP 202 and the durable job. Same operation
+  plus identical payload returns that job; any changed field returns 409.
+- GET `/jobs?offset=0&limit=50`: jobs plus nextOffset; limit capped at 100 and
+  offset bounded to 10000. GET `/jobs/{operationId}` returns status, current stable
+  command, last core receipt, immutable request and cancellation/irreversibility state.
+- POST `/jobs/{operationId}/advance`: advances or observes one phase. Future dueAt
+  jobs stay scheduled. Empty action requests use JSON `{}` with Content-Type application/json.
+- POST `/jobs/{operationId}/retry`: explicit retry of BLOCKED uses POST of the
+  **same command ID and payload**, allowing core re-observation. UNKNOWN, PENDING,
+  crashed dispatches and failed/expired command observations use GET only.
+- POST `/jobs/{operationId}/cancel`: requests cancellation, allowed only before
+  FENCE/STOP/DELETE/RECOVER dispatch. Unresolved CLAIM/OBSERVE_DRAIN/OBSERVE
+  commands do not delay CANCEL; uncertain native mutations are polled first.
+  Core must atomically close the grant against late CLAIM and acknowledge any Runtime drain cancellation.
+  Only a successful core CANCEL receipt marks CANCELLED and frees the service slot.
+- GET `/jobs/{operationId}/events?after=0&limit=50`: immutable events and nextCursor;
+  limit capped at 100. POST `/notices/dispatch` explicitly dispatches bounded outbox work.
+
+One unfinished job occupies a deployment/target slot. Different targets advance
+independently, and recorded target customer/tenant ownership cannot be reassigned.
+Renewal is deliberately cancel/resubmit: acknowledge core CANCEL, then submit a
+new operation ID and newly authorized grant. A grant cannot be recycled into a
+different job, even after cancellation/completion. No in-place deadline or grant edits.
+
+Fixed phase order:
+
+```text
+STOP/RETIRE: CLAIM -> [BEGIN_DRAIN -> OBSERVE_DRAIN -> FENCE if GRACEFUL]
+             -> STOP -> [DELETE if RETIRE] -> VERIFY -> RELEASE
+RECOVER:     CLAIM -> RECOVER -> VERIFY -> RELEASE
+RECONCILE:   CLAIM -> OBSERVE -> RELEASE
+```
+
+Each command is committed READY with a deterministic ID before IO, then its SENT
+intent commits before POST. All network IO is outside database transactions.
+Worker leases bound ownership, not effects. After restart/lease takeover, SENT
+always resumes with GET, including a 404 or loss between SENT commit and POST.
+Such a command may require explicit core reconciliation; it is never discarded,
+renamed, automatically resent, or interpreted as no effect. Stale worker receipts
+cannot overwrite a takeover. BLOCKED/FAILED do not auto-retry. A lost explicit
+BLOCKED replay response also returns to GET-only observation.
+
+No new phase is posted after deadline except CANCEL. Existing accepted commands
+can still be polled. A partially irreversible job may therefore remain blocked
+with its core claim retained; expiry is not cancellation, RELEASE, or absence.
+SUCCEEDED is recorded only after successful RELEASE. Core must provide truthful
+unsupported/blocker receipts for missing graceful/provider capabilities and must
+not turn opaque strings into drain, deletion or reclamation proof.
+
+## Lifecycle scheduling and notices
+
+- `DEPLOYMENT_LIFECYCLE_SCHEDULER_ENABLED`: false by default; explicit advance,
+  retry and cancellation still work. When enabled, only registered due jobs are
+  advanced, at most ten per tick. No fleet discovery or legacy job adoption.
+- `DEPLOYMENT_LIFECYCLE_SCHEDULER_INTERVAL`: PT5S by default.
+- `DEPLOYMENT_LIFECYCLE_GATEWAY_BASE_URL` / `DEPLOYMENT_LIFECYCLE_GATEWAY_KEY`:
+  required to advance work; scheduler startup fails without them.
+- `DEPLOYMENT_LIFECYCLE_ALLOW_INSECURE_HTTP`: false; only explicit trusted local
+  test/private-network use should enable it. Redirects and URI credentials/query/
+  fragment are rejected. Keys are 32-512 printable non-space ASCII characters.
+- `DEPLOYMENT_LIFECYCLE_HTTP_TIMEOUT`: 2s; 50ms-10s total response deadline and
+  64 KiB response cap. There are no inline retries.
+- `DEPLOYMENT_LIFECYCLE_WORKER_LEASE`: 30s; at least five seconds and twice HTTP timeout, and at
+  most five minutes. Lease expiry never clears a job or a core claim.
+- `DEPLOYMENT_LIFECYCLE_NOTICE_LEAD`: 24h; bounded from zero to 30 days.
+- `DEPLOYMENT_LIFECYCLE_WEBHOOK_URL` / `DEPLOYMENT_LIFECYCLE_WEBHOOK_KEY`: optional
+  trusted destination and separate bearer key, never job fields.
+
+Notice/due events are durable and emitted once per operation. Event insertion and
+outbox creation share the job transaction. Delivery is at-least-once with stable
+eventId and Idempotency-Key, bounded backoff and eight attempts, including abandoned
+delivery leases. Receivers must deduplicate that ID. No webhook is called unless
+configured; no callback API accepts lifecycle authority. Automatic delivery requires
+scheduling enabled, or use the explicit authenticated notices/dispatch endpoint.
+Events created without a webhook stay auditable and are not retroactively delivered.
+
+Lifecycle tests share H2/PostgreSQL scenarios for workflows, frozen requests,
+per-target concurrency, crash/lease takeover, unknown effect polling, deadlines,
+acknowledged cancellation and notice replay. Local HTTP tests verify actual wire
+authentication, no redirects/retries, total deadlines, response caps and trusted
+webhook IDs. These tests use fake core receipts, not real provider effects.
