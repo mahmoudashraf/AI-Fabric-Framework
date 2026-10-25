@@ -118,3 +118,8 @@ previously authorized fresh-production route is paused by this owner decision.
   Real customer-session HTTP tests now verify scoped listing, continued denial
   of the global staff target API and rejection of anonymous access. All six
   focused tests passed. No authorization check was removed.
+- The first real browser Apply preflight rejected `Idempotency-Key`, so no
+  release was created. Added this standard header to the explicit CORS header
+  list, keeping origins and credential policy unchanged. Six focused real HTTP
+  tests passed, including trusted-origin preflight, untrusted-origin denial,
+  customer scope and direct operator apply without manual approval.

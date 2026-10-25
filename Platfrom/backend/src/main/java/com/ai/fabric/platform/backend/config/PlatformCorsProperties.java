@@ -14,6 +14,7 @@ public class PlatformCorsProperties {
         "Accept",
         "Authorization",
         "Content-Type",
+        "Idempotency-Key",
         "Origin",
         "X-Bridge-API-KEY",
         "X-MCP-GATEWAY-API-KEY",

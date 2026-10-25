@@ -13,10 +13,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -24,7 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "platform.auth.header-name=X-PLATFORM-API-KEY",
     "platform.auth.operator-api-key=operator-test-key",
     "platform.auth.admin-api-key=admin-test-key",
-    "platform.bootstrap.sample-enabled=false"
+    "platform.bootstrap.sample-enabled=false",
+    "platform.cors.allowed-origins[0]=https://console.loomai.pro",
+    "platform.cors.allow-credentials=true"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -32,6 +37,22 @@ class CustomerAdminAccessIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test void normalApplyCorsAllowsItsIdempotencyHeaderOnlyForConfiguredOrigins() throws Exception {
+        mockMvc.perform(options("/api/deployments/owned/apply/version")
+                .header("Origin", "https://console.loomai.pro")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type,idempotency-key"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Origin", "https://console.loomai.pro"))
+            .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+            .andExpect(header().string("Access-Control-Allow-Headers", containsStringIgnoringCase("idempotency-key")));
+        mockMvc.perform(options("/api/deployments/owned/apply/version")
+                .header("Origin", "https://untrusted.example.com")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "idempotency-key"))
+            .andExpect(status().isForbidden());
+    }
 
     @Test
     void customerAdminSessionAndCustomerManagementStayScoped() throws Exception {
