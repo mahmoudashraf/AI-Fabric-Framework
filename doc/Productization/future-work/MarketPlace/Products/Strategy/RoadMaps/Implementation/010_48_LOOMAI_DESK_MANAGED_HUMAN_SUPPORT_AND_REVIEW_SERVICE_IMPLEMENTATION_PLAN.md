@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 20:35 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. The existing-deployment target-selector regression is corrected and deployed to both Consoles, with real customer UI readback; a redacted live customer/agent recording is delivered. An additional live outage check exposed a hard-coded five-attempt delivery window. The owner has now approved its narrow configuration correction; source and focused tests pass, but the new hosted outage proof is not yet complete. The same public app remains on its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
+- **Status:** Hosted dealership core and bounded restart recovery qualified; full closure open (2026-10-26, 22:06 UTC). Shared Desk, customer linking, owner SSO, scoped agent assignments, AI/human journeys and genuine Action Review passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. Fresh real outage proofs now pass on both targets, including exactly-once queued-message delivery and preserved human authority. The same app is back on verified production through the corrected customer assignment UI. The approved neutral second-customer proof is in progress, followed by exact cleanup. Native email and branded Desk DNS remain external open gates; see the execution record.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -410,7 +410,7 @@ Each phase should be a focused implementation commit with its own verification e
 - [x] Run the full dealership journey with a customer owner and a different registered agent/reviewer on staging, then the current production deployment.
 - [ ] Enable Desk on one compatible domain-neutral deployment through the same customer control, without dealership branches.
 - [ ] Verify cross-customer, staging/production target and support/reviewer isolation through the actual APIs, not only hidden UI elements.
-- [ ] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority.
+- [x] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority (fresh staging and production proofs after the bounded retry correction, including exactly-once queued-message delivery).
 - [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (shared-directory PostgreSQL tests and actual two-target provisioning; a second hosted customer journey is not claimed).
 - [x] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below (three scoped pairs, containers and owned volumes verified absent; archived demo history retained privately).
 - [x] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording (redacted live production technical clip delivered; known answer-quality caveat retained).
@@ -419,9 +419,9 @@ Guides, Desk-ready template defaults and cleanup ownership are updated. The
 redacted live customer/agent technical demonstration is delivered in
 `Final_Documentation/Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4`.
 The unchecked isolation gate still needs a known second hosted customer. The
-additional active-human outage case preserved authority but failed queued-message
-recovery; existing offline and ordinary-AI outage proofs do not substitute for
-that result.
+earlier active-human outage cases remain failed historical evidence. Fresh
+staging and production cases after the bounded retry correction both passed;
+their exact release and message-delivery evidence is recorded below.
 
 **Exit:** The formal support service is Desk, old per-deployment Inbox resources are gone, and no supported template/provisioner recreates them.
 
@@ -1329,3 +1329,49 @@ infrastructure, while retaining inaccessible historical local-user/customer
 rows. Their lifecycle status flags will be reported truthfully, not claimed
 disabled. No new owner approval, SQL bypass or customer-lifecycle feature is
 implied by this implementation interpretation.
+
+### 2026-10-26 21:59 UTC Both Outage Gates And Same-App UI Cutover Passed
+
+The Console correction is committed and pushed as
+`31531340253f1590c96f86d33d7a6669a991d47b`. CI `40407467213` passed; exact
+OCI/source and normal deployment completion are verified on both hosts.
+Local focused upgrade/browser regression, 15 customer-scope scenarios, seven
+authentication contract tests, TypeScript and Vite build passed. Two initial
+local harness failures (missing new auth/Desk fixtures and a duplicate-label
+locator) were corrected. One concurrent local run also failed before rendering;
+its cause was not established. The isolated final run passed, without changing
+product auth rules.
+
+Actual customer UI proof `assign-verified-release-production-1793051673890`
+explicitly switched the same app from staging to verified production release
+`rel-73d5288d`, binding revision **11**. The customer, consumer, installation
+and public URL are unchanged. This uses the existing verified binding API,
+not an invented promotion record or a weakened activation validator.
+
+Fresh production proof `active-human-outage-production-1793051720419` passed
+all checks, including a real stopped-route **404**, separate ordinary AI
+availability while Desk was down, preserved HUMAN_ACTIVE authority, exactly one
+queued-message receipt after restoration, human reply delivery and explicit
+return to AI. It complements staging's actual 503 proof. Both services were
+restored healthy and both own test episodes returned to AI normally. No SQL
+dispatch reset, closed-case replay or automatic AI fallback was used. Bounded
+delivery is qualified for these restarts, not indefinitely long outages.
+
+The remaining generic proof has progressed through normal owner linking,
+offer invitation/acceptance and configuration-only bootstrap:
+`cus-7651b8b6`, `dep-49db48eb`, `ten-14736798`. It uses the generic
+conversational template with local Lucene and empty entities, actions and
+knowledge sources. There is no dealership or business-system dependency.
+Its hosted activation, scoped permissions and exact cleanup are not yet
+claimed complete. Native email and branded Desk DNS also remain separate open
+gates. AI Fabric is still **0.8.41**.
+
+The neutral first release `rel-015d1f85` / `ver-d184be50` is now applying on
+customer staging with the same qualified artifact. Its draft validation passed
+with only the expected warnings for empty actions, entities and routes. The plan
+contains the runtime and connector, no separate embedding/vectorization worker,
+local Lucene and managed AI-state PostgreSQL. Inference startup validation is
+off and answer tokens are bounded at 256 for the small qualification. No AI
+query has been submitted. The actual customer will enable shared Desk through
+the ordinary UI after this first target verifies; this does not provision a
+per-customer Inbox or business database.

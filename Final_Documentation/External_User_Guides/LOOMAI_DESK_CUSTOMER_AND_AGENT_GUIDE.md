@@ -61,11 +61,13 @@ There are two separate assignments: **connect the deployment to Desk**, then
    If there are unrelated draft edits, review them first. **Enabled** means the
    resulting target release has passed verification, not just that a checkbox
    was saved.
-5. If the Engage app still references an older release, use **Versions & updates
-   -> Use verified release** to upgrade its assignment within the current target.
-   Moving between staging and production is a separate environment-assignment
-   operation through the deployment's go-live controls. The same public app URL
-   then uses the assigned target and its Desk binding.
+5. If the Engage app still references an older release, open **Versions &
+   updates**, select the apply target and use **Use verified release**. The
+   picker shows this deployment's existing apps, their current target and the
+   selected verified target. A cross-environment switch is explicitly labelled;
+   reading the page or applying a release does not switch the app. The same
+   public app URL then uses the assigned target and its Desk binding. Use the
+   go-live promotion flow when creating a production candidate from staging.
 6. Select **Open LoomAI Desk**. Console sign-in is reused through the native
    Supabase authorization flow. In **Agents & access**, assign an already
    registered person as **Support**, **Reviewer**, or both for this target.
@@ -284,12 +286,17 @@ human conversation to AI. Owners can remove an agent's assignment in Desk; that
 agent loses the corresponding deployment permission. Signing out of one browser
 does not promise instantaneous revocation of every token in every service.
 
-Current recovery caveat: the runtime has a five-attempt delivery limit. A normal
-Desk restart can outlast that retry window, leaving a visitor message in failed
-dispatch state rather than automatically delivering after restoration. Human
-authority remains intact, but automatic queued-message recovery is not yet
-qualified. The implementation plan tracks the bounded retry-window correction;
-normal conversation and review success does not erase this limitation.
+Managed Desk configurations now use eight bounded dispatch attempts; other
+channel providers keep the default of five. The setting is server-owned and
+accepts only one through eight. Real staging and production interruption tests
+on 26 October 2026 proved ordinary AI remained available, human control was
+preserved, and a queued visitor message reached Desk exactly once after the
+same service restarted. The human reply and explicit return to AI also passed.
+
+This is bounded retry, not indefinite delivery or failover. A longer outage can
+still exhaust the attempts and leave delivery failed. Permanent authorization
+failures stop immediately; a Desk outage never authorizes an automatic AI return.
+The earlier failed tests remain recorded in the implementation plan.
 
 Customer-specific integration credentials stay server-side. No operator API key,
 runtime signing key or access token is embedded in an Open Desk link.
