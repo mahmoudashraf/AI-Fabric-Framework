@@ -10,6 +10,19 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 20:30 UTC: actual owner approved ONLY the bounded Desk retry-runtime setting
+  in Required for production (human01a179de-34ca-7522-90f0-c8264a382096;
+  receipt owner-decisions/desk-delivery-retry-runtime-owner-approval-20261026.private.json).
+  Source now replaces hardcoded5 with dispatchMaxAttempts, default5/bounds1..8;
+  normal target-materialized Desk plan emits8, other providers unchanged.
+  No backoff, wire/auth/signature, lease-expiry, FIFO, idempotency, authority or
+  framework change. Runtime final focused27 and backend40 PASS, including
+  permanent-failure/FIFO coverage. Independent
+  read-only review found no blocker. No new hosted image/apply yet. Next commit,
+  CI exact backend/runtime images, samev5 stage apply+real outage proof, then
+  production. Keep old failed proof/consumed effects; new batch desk-delivery-window.
+  Third-identity/neutral customer still NOT approved. DNS/Brevo remain separate.
+
 - 17:53 UTC CURRENT: independent shareable recording item completed while owner
   decisions remain pending. Actual public production journey
   conversation-production-embedded-shareable-1793036502767 PASS: AI stock query,

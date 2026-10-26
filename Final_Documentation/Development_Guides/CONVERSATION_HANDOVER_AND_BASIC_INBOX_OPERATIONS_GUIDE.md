@@ -1,4 +1,9 @@
-# Conversation Handover And Basic Inbox Operations
+# Conversation Handover Operations
+
+The formal managed provider is now shared LoomAI Desk. The former per-deployment
+Basic Inbox service and its provisioning path are retired. Use the
+[Desk customer and agent guide](../External_User_Guides/LOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md)
+for activation, Supabase authentication and scoped agent assignments.
 
 ## Purpose
 
@@ -16,14 +21,14 @@ profile supplies the canonical handover routes and scopes.
 
 Use one immutable deployment version containing all of the following:
 
-1. AI Fabric `0.8.32` conversation-control mechanics.
+1. AI Fabric `0.8.41` conversation-control mechanics.
 2. Runtime migration `V10__conversation_handover.sql`.
 3. Runtime capability `conversation-handover-v1` and
    `LOOMAI_CONVERSATION_HANDOVER_ENABLED=true`.
 4. The canonical `request_conversation_handover` action plugin.
 5. One reviewed `INTEGRATION` / `CONVERSATION_CHANNEL` plugin.
 6. The generic REST connector conversation-channel worker.
-7. A provider instance, initially Basic LoomAI Inbox.
+7. An enabled provider binding; managed Desk uses the shared service for that environment.
 8. An AI Workspace manifest that advertises the canonical message, request,
    cancel, retry, control, event, and AI-resume routes.
 
@@ -37,7 +42,7 @@ Browser AI Workspace
   -> assigned deployment runtime canonical message API
   -> deployment-local control/message/outbox tables
   -> deployment integration connector
-  -> dedicated Basic LoomAI Inbox instance
+  -> shared LoomAI Desk through the exact customer/deployment/target binding
   -> authenticated human operator
   -> signed normalized callback through connector
   -> deployment-local canonical transcript and owner SSE replay
@@ -59,7 +64,17 @@ LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID=<reviewed binding id>
 LOOMAI_CONVERSATION_HANDOVER_ANONYMOUS_ALLOWED=true|false
 LOOMAI_CONVERSATION_HANDOVER_INTAKE_SCHEMA_JSON=<compiled bounded schema>
 LOOMAI_CONVERSATION_HANDOVER_REQUIRED_INTAKE_FIELDS=<optional list>
+LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS=5
 ```
+
+The dispatch limit defaults to five and accepts only 1 through 8. Normal managed
+Desk plans select eight so delivery can survive a brief provider restart; other
+providers keep five. The setting is server-owned, not a chat request parameter.
+It bounds completed retryable delivery failures, not AI semantics or lease-expiry
+redelivery. Permanent failures do not consume extra retries. Backoff, stable
+message identity and FIFO remain unchanged; exhaustion stays visible and never
+authorizes an automatic return to AI. Exact hosted qualification is tracked in
+010.48, separately from this configuration contract.
 
 Secret references resolved at deployment time:
 
@@ -90,16 +105,16 @@ The connector validates provider webhooks, then calls the normalized private
 runtime API. It retries committed outbox records in order and exposes dead
 dispatch recovery. It does not own conversation state or operator identity.
 
-## Basic Inbox Configuration
+## Managed Desk Configuration
 
-Run one Basic Inbox instance per tenant/deployment. Required values are listed
-in the service [README](../../product-services/basic-loomai-inbox-service/README.md).
-The trusted `BASIC_INBOX_TENANT_ID`, `BASIC_INBOX_DEPLOYMENT_ID`, and binding ID
-must match the released deployment. Cross-scope dispatches fail closed.
-
-Use PostgreSQL in production. The default H2 file store is for local proof
-only. Give each instance separate provider, callback-signing, encryption, and
-operator credentials through the hosting secret manager.
+Use one shared Desk application and its own PostgreSQL store per hosting
+environment, not per customer. Platform registers each deployment/target binding
+and its distinct provider/callback credentials server-side. Supabase authenticates
+people; explicit Support and Reviewer assignments authorize their binding access.
+An owner is not implicitly a support agent or reviewer. See the service
+[README](../../product-services/loomai-desk-service/README.md) for server-only
+configuration. Do not recreate a retired per-deployment Inbox to restore an old
+release or copy staging credentials/grants to production.
 
 ## AI Workspace Behavior
 

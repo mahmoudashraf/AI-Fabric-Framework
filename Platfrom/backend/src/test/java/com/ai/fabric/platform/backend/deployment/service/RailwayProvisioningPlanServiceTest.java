@@ -84,6 +84,7 @@ class RailwayProvisioningPlanServiceTest {
             var plan = service.buildPlan(deployment, version, null, targetId);
             assertThat(envMap(plan.services().runtime().env()))
                 .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID", "desk-" + targetId)
+                .containsEntry("LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS", "8")
                 .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET", "${secret:" + binding.getRuntimeCallbackKeyRef() + "}");
             var connector = envMap(plan.services().restConnector().env());
             assertThat(connector).containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "desk-" + targetId)
@@ -2514,6 +2515,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("LOOMAI_CONVERSATION_HANDOVER_ENABLED", "true")
             .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID", "basic-loomai-inbox")
+            .doesNotContainKey("LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED", "true")
             .containsEntry(
                 "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_VALUE",

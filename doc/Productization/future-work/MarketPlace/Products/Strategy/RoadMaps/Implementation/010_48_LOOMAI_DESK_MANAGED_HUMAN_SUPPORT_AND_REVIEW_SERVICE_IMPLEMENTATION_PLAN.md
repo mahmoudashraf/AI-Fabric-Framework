@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 17:53 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. The existing-deployment target-selector regression is corrected and deployed to both Consoles, with real customer UI readback; a redacted live customer/agent recording is delivered. An additional live outage check exposed a hard-coded five-attempt delivery window: human authority is preserved, but queued-message recovery fails after a restart. The HTTP-status correction is staged; a separately bounded runtime-configuration decision is pending. The same public app remains on its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
+- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 20:35 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. The existing-deployment target-selector regression is corrected and deployed to both Consoles, with real customer UI readback; a redacted live customer/agent recording is delivered. An additional live outage check exposed a hard-coded five-attempt delivery window. The owner has now approved its narrow configuration correction; source and focused tests pass, but the new hosted outage proof is not yet complete. The same public app remains on its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -25,7 +25,7 @@ The first release includes:
 The first release does **not** include:
 
 - Application-specific agent authorization. An Engage app opens its deployment's Desk workspace and inherits that deployment's support team.
-- AI Fabric framework changes/releases or a new handover/review engine. The original no-runtime-edit scope has the separately owner-authorized, narrowly bounded application-proposal adapter exception recorded in section 15; no other runtime redesign is included.
+- AI Fabric framework changes/releases or a new handover/review engine. The original no-runtime-edit scope has the separately owner-authorized, narrowly bounded application-proposal adapter and dispatch-attempt configuration exceptions recorded in section 15; no other runtime redesign is included.
 - A CRM, lead database, workforce-management platform, skills routing, omnichannel messaging or an enterprise notification system.
 - A new database, service deployment or Supabase project for every customer, agent or deployment.
 - Capacity/admission redesign, generalized draining, disaster-recovery orchestration or an exhaustive unrelated release matrix.
@@ -1176,3 +1176,39 @@ evidence; the limitation is retained visibly, not hidden by a different prompt,
 synthetic answer or silent fallback. It remains a separate quality follow-up.
 The video does not claim outage recovery or demonstrate Action Review, whose
 real approve/reject/replay qualification is recorded separately above.
+
+### 2026-10-26 20:20 UTC Owner-Approved Bounded Dispatch Configuration
+
+The owner explicitly approved **Approve bounded Desk retry change** in Required
+for production, human message `01a179de-34ca-7522-90f0-c8264a382096`. This is a
+separate dated exception to the original runtime scope, not inferred from the
+earlier application-proposal approval or from a general instruction to continue.
+The separate temporary second-customer/third-identity question is still pending.
+
+The narrow implementation adds server-owned
+`loomai.conversation-handover.dispatch-max-attempts`, exposed as
+`LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS`. It defaults to **5**,
+accepts only **1 through 8**, and is set to **8 only by normal generated managed
+Desk plans**. Other channel providers retain their original default. This hard
+configuration bound protects finite transport work; it does not validate or
+reject an LLM's semantic decisions.
+
+Only the existing dispatch failure-completion path consumes the setting. Existing
+backoff, per-conversation FIFO, stable dispatch/message identity, stale-attempt
+fencing, explicit control transitions, callback signing and permission checks are
+unchanged. Permanent failures still stop immediately. Lease-expiry redelivery
+semantics are unchanged, not presented as a new global delivery-attempt limit.
+There is no new recovery engine, service, business write or automatic AI return.
+AI Fabric remains **0.8.41**, with no framework edit or release.
+
+At the initial source checkpoint the focused runtime suite passed 26 tests and
+the provisioning suite passed 40. Review requested two additional focused cases:
+permanent failure under the eight-attempt setting, and a later message blocked
+behind the retrying original. Those tests are being qualified before the normal
+same-version image rollout. The old failed outage reports remain failed; source
+changes or passing unit tests do not close the live recovery gate.
+
+The final focused rerun passed **27 runtime tests and 40 provisioning tests**, with
+no failures or skips. A second independent read-only review found no blocker in
+the added permanent-failure and FIFO cases. Source rollout and exact new-image
+outage verification remain the next steps; no broader release matrix was added.

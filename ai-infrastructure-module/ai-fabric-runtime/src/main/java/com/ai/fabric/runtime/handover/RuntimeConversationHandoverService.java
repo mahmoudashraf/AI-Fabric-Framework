@@ -908,7 +908,7 @@ public class RuntimeConversationHandoverService {
                     safe.code(), safe.message(), safe.retryable()
                 ),
                 Math.max(1, attempt),
-                5
+                properties.getDispatchMaxAttempts()
             );
             if (!accepted) {
                 throw conflict(

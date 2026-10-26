@@ -31,6 +31,8 @@ import java.util.UUID;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -45,6 +47,7 @@ class RuntimeConversationHandoverServiceTest {
     private ConversationHandoverSecurity security;
     private RuntimeConversationHandoverRepository repository;
     private RuntimeConversationHandoverService service;
+    private ConversationHandoverProperties properties;
     private RuntimeResolvedIdentity owner;
     private MutableClock clock;
 
@@ -62,7 +65,7 @@ class RuntimeConversationHandoverServiceTest {
 
         objectMapper = new ObjectMapper().findAndRegisterModules();
         clock = new MutableClock(NOW);
-        ConversationHandoverProperties properties = properties();
+        properties = properties();
         security = new ConversationHandoverSecurity(properties, clock);
         repository = new RuntimeConversationHandoverRepository(
             dataSource,
@@ -408,6 +411,124 @@ class RuntimeConversationHandoverServiceTest {
             .isEqualTo(ConversationChannelDispatchType.USER_MESSAGE);
         assertThat(((ConversationChannelDispatch) userMessage.dispatch()).handoverId())
             .isEqualTo(pending.handoverId());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 5, 8})
+    void retryableDispatchExhaustsExactlyAtTheConfiguredFiniteLimit(int limit) {
+        properties.setDispatchMaxAttempts(limit);
+        requestAnonymous("handover-retry-bound");
+        var initialEvents = service.view(owner, CONVERSATION_ID, 0).events();
+        DispatchClaim first = null;
+
+        for (int attempt = 1; attempt <= limit; attempt++) {
+            DispatchClaim claimed = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+            assertThat(claimed).isNotNull();
+            if (first == null) first = claimed;
+            assertThat(claimed.dispatchId()).isEqualTo(first.dispatchId());
+            assertThat(claimed.dispatch()).isEqualTo(first.dispatch());
+            assertThat(claimed.attempt()).isEqualTo(attempt);
+
+            service.completeDispatch(claimed.dispatchId(), new DispatchOutcome(
+                false, null, null, "PROVIDER_HTTP_503", "Provider unavailable", true
+            ), claimed.attempt());
+
+            var stored = repository.findDispatch(claimed.dispatchId()).orElseThrow();
+            assertThat(stored.status()).isEqualTo(attempt < limit ? "PENDING" : "DEAD");
+            assertThat(stored.attemptCount()).isEqualTo(attempt);
+            assertThat(service.claimDispatch("connector-2", Duration.ofSeconds(30))).isNull();
+            if (attempt < limit) clock.advance(Duration.ofSeconds(1L << attempt));
+        }
+
+        assertThat(repository.dispatchStatusCounts()).containsOnlyKeys("DEAD");
+        var view = service.view(owner, CONVERSATION_ID, 0);
+        assertThat(view.controlState()).isEqualTo(ConversationControlState.HUMAN_PENDING);
+        assertThat(view.events()).isEqualTo(initialEvents);
+    }
+
+    @Test
+    void humanMessageRecoversAfterFifthFailureWithoutChangingIdentityOrDuplicatingDelivery() throws Exception {
+        properties.setDispatchMaxAttempts(8);
+        requestAnonymous("handover-desk-restart");
+        DispatchClaim open = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+        service.completeDispatch(open.dispatchId(), new DispatchOutcome(
+            true, "external-1", null, "ACCEPTED", "Accepted", false
+        ), open.attempt());
+        var claimed = event("claim-desk-restart", ConversationChannelEventType.HANDOVER_CLAIMED,
+            service.view(owner, CONVERSATION_ID, 0), null, null);
+        service.receiveChannelEvent(BINDING_ID, claimed, "nonce-desk-restart", objectMapper.writeValueAsString(claimed));
+
+        String messageKey = "message-desk-restart";
+        String text = "Please keep this message for my support agent.";
+        var accepted = service.appendHumanBoundUserMessage(owner, CONVERSATION_ID, messageKey, text, List.of());
+        service.appendHumanBoundUserMessage(owner, CONVERSATION_ID,
+            "later-message-desk-restart", "Please deliver this later message in order.", List.of());
+        DispatchClaim first = null;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            DispatchClaim dispatch = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+            assertThat(dispatch).isNotNull();
+            if (first == null) first = dispatch;
+            assertThat(dispatch.dispatchId()).isEqualTo(first.dispatchId());
+            assertThat(dispatch.dispatch()).isEqualTo(first.dispatch());
+            assertThat(dispatch.attempt()).isEqualTo(attempt);
+            service.completeDispatch(dispatch.dispatchId(), new DispatchOutcome(
+                false, null, null, "PROVIDER_HTTP_503", "Provider unavailable", true
+            ), dispatch.attempt());
+            assertThat(repository.findDispatch(dispatch.dispatchId()).orElseThrow().status()).isEqualTo("PENDING");
+            assertThat(service.claimDispatch("connector-2", Duration.ofSeconds(30))).isNull();
+            clock.advance(Duration.ofSeconds(1L << attempt));
+        }
+
+        DispatchClaim recovery = service.claimDispatch("connector-2", Duration.ofSeconds(30));
+        assertThat(recovery.attempt()).isEqualTo(6);
+        assertThat(recovery.dispatchId()).isEqualTo(first.dispatchId());
+        assertThat(recovery.dispatch()).isEqualTo(first.dispatch());
+        assertThat(((ConversationChannelDispatch) recovery.dispatch()).type()).isEqualTo(ConversationChannelDispatchType.USER_MESSAGE);
+        assertThat(service.view(owner, CONVERSATION_ID, 0).controlState()).isEqualTo(ConversationControlState.HUMAN_ACTIVE);
+        DispatchOutcome delivered = new DispatchOutcome(true, "external-1", "provider-message-1", "ACCEPTED", "Accepted", false);
+        assertThatThrownBy(() -> service.completeDispatch(recovery.dispatchId(), delivered, 5))
+            .isInstanceOf(ConversationHandoverException.class)
+            .extracting(exception -> ((ConversationHandoverException) exception).code())
+            .isEqualTo("DISPATCH_ATTEMPT_STALE");
+        service.completeDispatch(recovery.dispatchId(), delivered, recovery.attempt());
+        assertThatThrownBy(() -> service.completeDispatch(recovery.dispatchId(), delivered, recovery.attempt()))
+            .isInstanceOf(ConversationHandoverException.class);
+
+        var replay = service.appendHumanBoundUserMessage(owner, CONVERSATION_ID, messageKey, text, List.of());
+        assertThat(replay.messageId()).isEqualTo(accepted.messageId());
+        assertThat(replay.conversation().messages()).filteredOn(message -> messageKey.equals(message.clientMessageId())).hasSize(1);
+        assertThat(replay.conversation().events()).filteredOn(event -> "USER_MESSAGE_ACCEPTED".equals(event.type())
+            && accepted.messageId().equals(event.payload().get("messageId"))).hasSize(1);
+        assertThat(replay.conversation().controlState()).isEqualTo(ConversationControlState.HUMAN_ACTIVE);
+        assertThat(repository.dispatchStatusCounts()).containsEntry("DELIVERED", 2L).containsEntry("PENDING", 1L);
+        var later = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+        assertThat(later).isNotNull();
+        assertThat(later.dispatchId()).isNotEqualTo(recovery.dispatchId());
+        assertThat(later.attempt()).isEqualTo(1);
+        assertThat(((ConversationChannelDispatch) later.dispatch()).type()).isEqualTo(ConversationChannelDispatchType.USER_MESSAGE);
+        service.completeDispatch(later.dispatchId(), new DispatchOutcome(
+            true, "external-1", "provider-message-2", "ACCEPTED", "Accepted", false
+        ), later.attempt());
+        assertThat(repository.dispatchStatusCounts()).containsOnlyKeys("DELIVERED").containsEntry("DELIVERED", 3L);
+        assertThat(service.claimDispatch("connector-1", Duration.ofSeconds(30))).isNull();
+    }
+
+    @Test
+    void permanentFailureDoesNotUseAdditionalDeskAttempts() {
+        properties.setDispatchMaxAttempts(8);
+        requestAnonymous("handover-permanent-provider-error");
+        var dispatch = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+
+        service.completeDispatch(dispatch.dispatchId(), new DispatchOutcome(
+            false, null, null, "PROVIDER_HTTP_403", "Provider denied the request", false
+        ), dispatch.attempt());
+
+        var stored = repository.findDispatch(dispatch.dispatchId()).orElseThrow();
+        assertThat(stored.status()).isEqualTo("DEAD");
+        assertThat(stored.attemptCount()).isEqualTo(1);
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(service.claimDispatch("connector-1", Duration.ofSeconds(30))).isNull();
+        assertThat(service.view(owner, CONVERSATION_ID, 0).controlState()).isEqualTo(ConversationControlState.HUMAN_PENDING);
     }
 
     @Test

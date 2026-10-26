@@ -18,6 +18,7 @@ public class ConversationHandoverProperties {
     private Duration maintenanceInterval = Duration.ofSeconds(30);
     private Duration aiTurnLease = Duration.ofMinutes(5);
     private Duration callbackClockSkew = Duration.ofMinutes(5);
+    private int dispatchMaxAttempts = 5;
     private boolean anonymousAllowed = true;
     private boolean contactIntakeEnabled = true;
     private String intakeSchemaJson;
@@ -46,6 +47,13 @@ public class ConversationHandoverProperties {
     public void setAiTurnLease(Duration aiTurnLease) { this.aiTurnLease = aiTurnLease; }
     public Duration getCallbackClockSkew() { return callbackClockSkew; }
     public void setCallbackClockSkew(Duration callbackClockSkew) { this.callbackClockSkew = callbackClockSkew; }
+    public int getDispatchMaxAttempts() { return dispatchMaxAttempts; }
+    public void setDispatchMaxAttempts(int dispatchMaxAttempts) {
+        if (dispatchMaxAttempts < 1 || dispatchMaxAttempts > 8) {
+            throw new IllegalArgumentException("Conversation handover dispatch attempts must be between 1 and 8.");
+        }
+        this.dispatchMaxAttempts = dispatchMaxAttempts;
+    }
     public boolean isAnonymousAllowed() { return anonymousAllowed; }
     public void setAnonymousAllowed(boolean anonymousAllowed) { this.anonymousAllowed = anonymousAllowed; }
     public boolean isContactIntakeEnabled() { return contactIntakeEnabled; }

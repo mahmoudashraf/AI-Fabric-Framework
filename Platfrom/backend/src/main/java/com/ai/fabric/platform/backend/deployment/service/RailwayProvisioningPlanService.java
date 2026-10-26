@@ -503,6 +503,11 @@ public class RailwayProvisioningPlanService {
         ));
         if (conversationHandoverEnabled) {
             JsonNode channel = conversationHandover.path("channel");
+            if (targetMaterializedDesk) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS", "8"
+                ));
+            }
             String handoverChatScopes = String.join(",",
                 "chat:query",
                 "chat:suggestions",
