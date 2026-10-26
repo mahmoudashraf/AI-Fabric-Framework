@@ -197,58 +197,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         verifyNoInteractions(provisioning);
     }
 
-    @Test
-    void effectiveCoreInboxRechecksOwnedResourcesAndCallbackCanaryWithoutAdmissionFreshness() throws Exception {
-        existingProductionInbox();
-        useCoreAuthorization(true);
-        var service = spec.services().getFirst();
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports(service.initializationContract())).thenReturn(true);
-        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
-        clearInvocations(core, provisioning);
 
-        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
-        assertThat(result.existingConfiguration()).isTrue();
-        assertThat(result.reservationRef()).isNull();
-        assertThat(result.callbacks()).containsEntry("inbox",
-            "https://connector.example.test/integrations/conversation-channel/events");
-        prerequisites.validateExecutionReservation(scope, result.authorityReference());
-        prerequisites.validateArtifact(scope, service);
-        var node = state.nodes.getFirst();
-        var binding = new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
-            node.accountId, node.bindingId, Map.copyOf(node.secrets));
-        prerequisites.initializeAndVerify(scope, service.initializationContract(), binding, "core-init");
-
-        verify(provisioning).ownedDependencyConnection("target", "production");
-        verify(provisioning).verifyOwnedDependencyReady(any(), eq("graph"), eq("managed-service"), eq("inbox"),
-            eq("application"), eq("database"), eq(Map.of("/app/data", "volume")));
-        verify(verifier).initializeAndVerify(scope, service.initializationContract(), binding, "core-init");
-    }
-
-    @Test
-    void coreInboxMissingOwnedResourcesOrProviderReadbackCannotClaimInitialization() throws Exception {
-        existingProductionInbox();
-        useCoreAuthorization(true);
-        var node = state.nodes.getFirst();
-        node.applicationUuid = null;
-        clearInvocations(core);
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
-        verifyNoInteractions(provisioning);
-
-        node.applicationUuid = "application";
-        var service = spec.services().getFirst();
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports(service.initializationContract())).thenReturn(true);
-        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
-        doThrow(new IllegalStateException("provider-readback-failed")).when(provisioning)
-            .verifyOwnedDependencyReady(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyMap());
-        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, service.initializationContract(),
-            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
-                node.accountId, node.bindingId, Map.copyOf(node.secrets)), "core-init"))
-            .hasMessageContaining("provider-readback-failed");
-        verify(verifier, never()).initializeAndVerify(any(), any(), any(), any());
-    }
 
     @Test
     void coreAuthorizationDoesNotSupplyMissingSecretsOrUnprovenCallbacks() throws Exception {
@@ -265,7 +214,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(endpoints.connectorBaseUrl(releases.findById("release").orElseThrow())).thenReturn(null);
         clearInvocations(core);
         assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_CALLBACK_ENDPOINT_MISSING");
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
         verifyNoInteractions(provisioning);
     }
 
@@ -415,26 +364,22 @@ class ProductionManagedDependencyPrerequisitesTest {
     }
 
     @Test
-    void exactInboxRevocationDoesNotDependOnExpiredProvisioningEvidence() {
-        var inbox = ManagedDependencyFixtures.topology().services().stream().filter(value -> value.slot().equals("inbox")).findFirst().orElseThrow();
-        spec = new ManagedDependencySpec("managed-dependencies/v1", List.of(inbox));
-        String fingerprint = validator.fingerprint(spec); graph.setSpecFingerprint(fingerprint);
-        scope = new ManagedDependencyPrerequisites.Scope("graph", "customer", "tenant", "deployment", "target", "version", "release",
-            fingerprint, scope.bindingFingerprint());
-        state.nodes.getFirst().slot = "inbox";
-        when(graphs.spec(graph)).thenReturn(spec);
-        var binding = new ManagedDependencyPrerequisites.Binding("inbox", "managed-service", "https://managed-service.example.test",
-            "account", "binding", Map.of("api", "MANAGED_API"));
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports("inbox-callback-canary/v1")).thenReturn(true);
-        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
-        clearInvocations(core);
+    void historicalInboxCannotReserveOrInitializeNewWork() throws Exception {
+        existingProductionInbox();
+        var node = state.nodes.getFirst();
+        var binding = new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
+            node.accountId, node.bindingId, Map.copyOf(node.secrets));
 
-        prerequisites.verifyOperatorRevocation(scope, binding, List.of("RETIRED_KEY"), "revoke", false);
-
-        verifyNoInteractions(provisioning);
-        verify(verifier).verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
-            List.of("RETIRED_KEY"), "revoke", false);
+        for (var phase : ManagedDependencyPrerequisites.ProvisioningPhase.values()) {
+            assertThatThrownBy(() -> prerequisites.reserve(scope, spec, phase))
+                .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        }
+        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope,
+            spec.services().getFirst().initializationContract(), binding, "initialize"))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        assertThat(graphs.spec(graph).services().getFirst().contract())
+            .isEqualTo(ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1);
+        verifyNoInteractions(provisioning, verifiers);
     }
 
     @Test
@@ -466,86 +411,9 @@ class ProductionManagedDependencyPrerequisitesTest {
         verifyNoInteractions(provisioning, verifiers);
     }
 
-    @Test void previouslyEffectiveActiveInboxUsesConfigurationAuthorityAtEveryReconcileBoundary() throws Exception {
-        existingProductionInbox();
-        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
-        assertThat(result.existingConfiguration()).isTrue();
-        prerequisites.validateReservation(scope, "core-release:release");
-        prerequisites.validateExecutionReservation(scope, "core-release:release");
-        var service = spec.services().getFirst();
-        prerequisites.validateArtifact(scope, service);
-        var verifier = mock(ManagedDependencyInitializationVerifier.class);
-        when(verifier.supports(service.initializationContract())).thenReturn(true);
-        when(verifiers.orderedStream()).thenAnswer(ignored -> Stream.of(verifier));
-        var node = state.nodes.getFirst();
-        prerequisites.initializeAndVerify(scope, service.initializationContract(),
-            new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,
-                Map.copyOf(node.secrets)), "initialize");
-        verify(verifier).initializeAndVerify(eq(scope), eq(service.initializationContract()), any(), eq("initialize"));
-    }
 
-    @Test void missingExistingResourceOrWrongReleaseNeverFallsBackToInitialProvisioning() throws Exception {
-        existingProductionInbox();
-        var node = state.nodes.getFirst();
-        node.applicationUuid = null;
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
-        node.applicationUuid = "application"; node.databaseUuid = null;
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
-        node.databaseUuid = "database"; node.volumes.clear();
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
-        node.volumes.put("/app/data", "volume");
-        releases.findById("release").orElseThrow().setProvisioningStatus("SUPERSEDED");
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-        verifyNoInteractions(provisioning);
-    }
 
-    @Test void previouslyEffectiveStagingInboxStillRechecksOwnedConfiguration() throws Exception {
-        existingProductionInbox(); useCoreAuthorization(false);
-        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
-        assertThat(result.existingConfiguration()).isTrue();
-        prerequisites.validateReservation(scope, "core-release:release");
-        prerequisites.validateExecutionReservation(scope, "core-release:release");
-        state.nodes.getFirst().applicationUuid = null;
-        assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-            .hasMessageContaining("DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
-        verifyNoInteractions(provisioning);
-    }
 
-    @Test void existingConfigurationRejectsFailedInflightAndUnverifiedExactReleaseAtEveryMutationBoundary() throws Exception {
-        existingProductionInbox();
-        var release = releases.findById("release").orElseThrow();
-        var service = spec.services().getFirst();
-        var node = state.nodes.getFirst();
-        var binding = new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl,
-            node.accountId, node.bindingId, Map.copyOf(node.secrets));
-        for (var phase : List.of(Map.entry("FAILED", "ACTIVE"), Map.entry("PROVISIONING", "RUNNING"),
-            Map.entry("VERIFYING", "ACTIVE"), Map.entry("APPLY_REQUESTED", "QUEUED"),
-            Map.entry("APPLIED_VERIFIED", "RUNNING"), Map.entry("APPLIED_VERIFIED", "SUPERSEDED"))) {
-            release.setStatus(phase.getKey()); release.setProvisioningStatus(phase.getValue());
-            assertThatThrownBy(() -> prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND))
-                .as("reserve %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-            assertThatThrownBy(() -> prerequisites.validateReservation(scope, "core-release:release"))
-                .as("configuration %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-            assertThatThrownBy(() -> prerequisites.validateExecutionReservation(scope, "core-release:release"))
-                .as("execution %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-            assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, service.initializationContract(), binding, "update"))
-                .as("initialize %s", phase).hasMessageContaining("DEPENDENCY_EXISTING_CONFIGURATION_REQUIRED");
-        }
-        verifyNoInteractions(provisioning, verifiers);
-    }
-    @Test void firstConfigurationRequiresCoreAuthorityAndNeverClaimsPriorConfiguration() throws Exception {
-        existingProductionInbox(); state.effectiveConfigurationRevision = -1;
-        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND);
-        assertThat(result.existingConfiguration()).isFalse();
-        when(core.find(scope, graph, spec)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> prerequisites.validateExecutionReservation(scope, "core-release:release"))
-            .hasMessageContaining("DEPENDENCY_CORE_RELEASE_AUTHORIZATION_REQUIRED");
-        verifyNoInteractions(provisioning);
-    }
     private void existingProductionInbox() throws Exception {
         var inbox = ManagedDependencyFixtures.productionInbox();
         configureSpecAndSecrets(new ManagedDependencySpec("managed-dependencies/v1", List.of(inbox)), Map.of());

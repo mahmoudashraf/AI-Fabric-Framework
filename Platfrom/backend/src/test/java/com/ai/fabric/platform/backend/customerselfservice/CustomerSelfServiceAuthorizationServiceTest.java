@@ -30,6 +30,18 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class CustomerSelfServiceAuthorizationServiceTest {
+    @Test
+    void retiredInboxOperationsCannotGrantAccessEvenFromHistoricalOfferDefinitions() {
+        clearInvocations(deployments, grants, offers);
+        for (var operation : Set.of(Operation.INBOX_OPERATOR_ENROLL, Operation.INBOX_OPERATOR_ROTATE,
+                Operation.INBOX_OPERATOR_DELIVER, Operation.INBOX_OPERATOR_REVOKE)) {
+            assertThatThrownBy(() -> service.authorize("customer", new AuthorizationRequest(
+                "offer", "staging-target", "deployment", "tenant", null, operation,
+                "retired-operation", Set.of(), "inbox", null, null)))
+                .hasMessageContaining(OPERATION_FORBIDDEN.name());
+        }
+        verifyNoInteractions(deployments, grants, offers);
+    }
     private final CustomerOfferRepository offers = mock(CustomerOfferRepository.class);
     private final CustomerOfferEntitlementRepository grants = mock(CustomerOfferEntitlementRepository.class);
     private final CustomerOfferDeploymentRepository associations = mock(CustomerOfferDeploymentRepository.class);

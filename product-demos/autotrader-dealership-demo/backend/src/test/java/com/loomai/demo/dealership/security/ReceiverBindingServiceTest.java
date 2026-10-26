@@ -42,7 +42,7 @@ class ReceiverBindingServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"disabled", "binding", "customer", "tenant", "deployment", "advertiser", "key", "short-key",
-        "global-key", "runtime-key", "signing-key", "inbox-key", "account-mismatch", "control-character"})
+        "global-key", "runtime-key", "signing-key", "account-mismatch", "control-character"})
     void incompleteOrNonDedicatedBindingsFailClosedWithoutDisclosingConfiguration(String change) {
         var receiver = properties.getReceiver();
         switch (change) {
@@ -57,7 +57,6 @@ class ReceiverBindingServiceTest {
             case "global-key" -> properties.getInternal().setApiKey(KEY);
             case "runtime-key" -> properties.getRuntime().getPrivateAccess().setTrustedApiKey(KEY);
             case "signing-key" -> properties.getRuntime().getPrivateAccess().setSigningKey(KEY);
-            case "inbox-key" -> properties.getHumanInbox().setOperatorApiKey(KEY);
             case "account-mismatch" -> when(stock.configuredAdvertiserId()).thenReturn("other-advertiser");
             case "control-character" -> receiver.setDeploymentId("deployment\n");
             default -> throw new AssertionError();

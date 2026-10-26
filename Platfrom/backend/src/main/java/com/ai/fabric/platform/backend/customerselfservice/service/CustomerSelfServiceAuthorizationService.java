@@ -103,6 +103,7 @@ public class CustomerSelfServiceAuthorizationService {
     private Authorization authorize(String customerId, AuthorizationRequest request, EvidenceMode evidenceMode) {
         if (request == null || request.operation() == null
             || (request.targetProfileId() != null && blank(request.targetProfileId()))) throw invalid();
+        if (!CustomerPermissionMatrix.supported(request.operation())) throw deny(OPERATION_FORBIDDEN);
         if (!bootstrapOperation(request.operation())) return authorizeExisting(customerId, request, evidenceMode);
         return authorizeBootstrap(customerId, request, evidenceMode);
     }

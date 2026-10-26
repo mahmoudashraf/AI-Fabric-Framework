@@ -99,6 +99,7 @@ public class ManagedDependencySpecPublishingService {
             throw conflict("DEPENDENCY_SPEC_PUBLICATION_INVALID");
         }
         validator.validate(request.spec());
+        ManagedDependencySpecValidator.requireProvisionable(request.spec());
         var version = versions.findById(templateVersionId)
             .orElseThrow(() -> conflict("DEPENDENCY_TEMPLATE_VERSION_MISSING"));
         var plugin = plugins.findById(version.getPluginId())

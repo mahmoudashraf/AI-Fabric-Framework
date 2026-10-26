@@ -78,6 +78,12 @@ public class MarketplaceTemplateBootstrapService {
                                         boolean configurationOnly) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(pluginIdOrSlug);
         MarketplacePluginVersionEntity version = resolveVersion(plugin, request.pluginVersion());
+        // Retirement blocks new creation only, not historical resolution or original-template reset.
+        if ("DEPRECATED".equalsIgnoreCase(version.getStatus()) || "RETIRED".equalsIgnoreCase(version.getStatus())
+            || "DEPRECATED".equalsIgnoreCase(plugin.getStatus()) || "RETIRED".equalsIgnoreCase(plugin.getStatus())) {
+            throw new ResponseStatusException(CONFLICT,
+                "Marketplace template is retired for new deployments: " + plugin.getId() + "@" + version.getVersion());
+        }
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
         if (!"TEMPLATE".equals(parsed.pluginType())) {

@@ -16,11 +16,6 @@ public interface ManagedDependencyInitializationVerifier {
     void disableAndVerify(ManagedDependencyPrerequisites.Scope scope,
                           String initializationContract,
                           ManagedDependencyPrerequisites.Binding binding);
-    void verifyOperatorRevocation(ManagedDependencyPrerequisites.Scope scope,
-                                 String initializationContract,
-                                 ManagedDependencyPrerequisites.Binding binding,
-                                 java.util.List<String> retiredCredentialReferences,
-                                 String operationKey, boolean disabled);
     void requireUnused(ManagedDependencyPrerequisites.Scope scope,
                        String initializationContract,
                        ManagedDependencyPrerequisites.Binding binding,

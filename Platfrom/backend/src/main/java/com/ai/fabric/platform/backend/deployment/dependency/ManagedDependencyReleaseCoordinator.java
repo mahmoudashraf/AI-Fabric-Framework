@@ -27,7 +27,6 @@ public class ManagedDependencyReleaseCoordinator {
     private final ManagedDependencySpecRepository specs;
     private final ManagedDependencyGraphStore store;
     private final ManagedDependencyLifecycleService lifecycle;
-    private final ManagedDependencyOperatorService operators;
     private final CustomerOfferEntitlementService ownerEligibility;
     private final CoreReleaseAuthorizationStore authorizations;
     private final PlatformTenantRepository tenants;
@@ -35,7 +34,7 @@ public class ManagedDependencyReleaseCoordinator {
     public ManagedDependencyReleaseCoordinator(CustomerOfferDeploymentRepository offerDeployments,
             CustomerOfferRepository offers, CustomerOfferEntitlementRepository entitlements,
             CustomerOfferCodec codec, ManagedDependencySpecRepository specs, ManagedDependencyGraphStore store,
-            ManagedDependencyLifecycleService lifecycle, ManagedDependencyOperatorService operators,
+            ManagedDependencyLifecycleService lifecycle,
             CustomerOfferEntitlementService ownerEligibility, CoreReleaseAuthorizationStore authorizations,
             PlatformTenantRepository tenants) {
         this.offerDeployments = offerDeployments;
@@ -44,7 +43,6 @@ public class ManagedDependencyReleaseCoordinator {
         this.specs = specs;
         this.store = store;
         this.lifecycle = lifecycle;
-        this.operators = operators;
         this.ownerEligibility = ownerEligibility;
         this.authorizations = authorizations;
         this.tenants = tenants;
@@ -57,15 +55,6 @@ public class ManagedDependencyReleaseCoordinator {
         lifecycle.submitForRelease(deployment.getId(), release.getTargetProfileId(),
             new ManagedDependencyLifecycleService.Request(context.spec().getId(), version.getId(), release.getId(),
                 release.getRuntimeAuthorityFingerprint(), operation(release, "submit")));
-        List<ManagedDependencySpec.Service> inboxes = context.topology().services().stream()
-            .filter(service -> service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1)
-            .toList();
-        if (inboxes.size() > 1) throw conflict("DEPENDENCY_INITIAL_OPERATOR_AMBIGUOUS");
-        if (inboxes.size() == 1) {
-            operators.enrollInitialOwnerForRelease(deployment.getId(), release.getTargetProfileId(), release.getId(),
-                new ManagedDependencyOperatorService.Enroll(inboxes.getFirst().slot(), context.initialOperatorName(),
-                    operation(release, "initial-owner")));
-        }
         lifecycle.provisionForRelease(deployment.getId(), release.getTargetProfileId(), release.getId(),
             operation(release, "foundation"));
     }
@@ -103,7 +92,7 @@ public class ManagedDependencyReleaseCoordinator {
         tenants.findById(deployment.getTenantId()).filter(value -> "ACTIVE".equals(value.getStatus())
             && deployment.getCustomerId().equals(value.getCustomerId()))
             .orElseThrow(() -> conflict("DEPENDENCY_CUSTOMER_SCOPE_CHANGED"));
-        var authorization = authorizations.require(deployment, version, release);
+        authorizations.require(deployment, version, release);
         var installs = codec.tree(version.getCompositionProvenanceJson()).path("marketplaceInstalls");
         if (!installs.isArray()) throw conflict("DEPENDENCY_TEMPLATE_EVIDENCE_REQUIRED");
         List<String> templates = new java.util.ArrayList<>();
@@ -124,8 +113,9 @@ public class ManagedDependencyReleaseCoordinator {
         if (!templateVersionId.equals(spec.getTemplateVersionId())) {
             throw conflict("REVIEWED_DEPENDENCY_SPEC_CHANGED");
         }
-        return new Context(spec, store.parse(spec.getSpecJson(), ManagedDependencySpec.class),
-            authorization.actorId());
+        var topology = store.parse(spec.getSpecJson(), ManagedDependencySpec.class);
+        ManagedDependencySpecValidator.requireProvisionable(topology);
+        return new Context(spec);
     }
 
     private String operation(DeploymentReleaseEntity release, String phase) {
@@ -136,6 +126,5 @@ public class ManagedDependencyReleaseCoordinator {
         return new ResponseStatusException(CONFLICT, code);
     }
 
-    private record Context(ManagedDependencySpecEntity spec, ManagedDependencySpec topology,
-                           String initialOperatorName) { }
+    private record Context(ManagedDependencySpecEntity spec) { }
 }

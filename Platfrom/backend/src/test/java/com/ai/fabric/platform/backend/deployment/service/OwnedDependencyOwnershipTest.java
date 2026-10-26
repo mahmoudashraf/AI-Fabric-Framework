@@ -80,7 +80,11 @@ class OwnedDependencyOwnershipTest {
     }
 
     private ManagedDependencySpec.Service inbox() {
-        return ManagedDependencyFixtures.topology().services().stream().filter(value -> value.slot().equals("inbox")).findFirst().orElseThrow();
+        var service = ManagedDependencyFixtures.http("inbox", false);
+        return new ManagedDependencySpec.Service(service.slot(), service.contract(), service.image(),
+            service.sourceArtifactId(), service.sourceCommit(), 8085, service.healthPath(), service.capacity(),
+            service.secretPurposes(), service.environment(), service.database(), service.volumes(),
+            service.dependsOn(), service.initializationContract());
     }
 
     private CoolifyApplicationSummary app(String uuid, String ref, String slot) {
@@ -260,12 +264,9 @@ class OwnedDependencyOwnershipTest {
     @Test void historicalGraphMetadataCannotAuthorizeAnyLifecycleOrCredentialPath() {
         existing(false);
         var resources = fixture.resources();
-        var restriction = new PlatformManagedProductProvisioningService.OwnedDependencyOperatorRestriction("operator", "BASIC_INBOX_OPERATORS", "", "", 0);
         List<Runnable> operations = List.of(
             () -> reconcile(inbox(), "inbox-service"),
             () -> service.disableOwnedDependency(connection, "graph", "inbox-service", "inbox", "app", checkpoint),
-            () -> service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(), resources, "binding", "operator"),
-            () -> service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(), resources, restriction, checkpoint),
             () -> service.verifyOwnedDependencyReady(connection, "graph", "inbox-service", "inbox", "app", null, resources.volumes()),
             () -> service.retireOwnedDependency(connection, "graph", "inbox-service", "inbox", resources, checkpoint),
             () -> service.verifyOwnedDependenciesReclaimed(connection, "graph", List.of(new ManagedDependencyResource(
@@ -422,7 +423,7 @@ class OwnedDependencyOwnershipTest {
         verify(fixture.authority, times(1)).postVolume(any(), anyString(), anyString(), anyString());
     }
 
-    @Test void optionalInboxCreatesOnlyAiStateWithoutABusinessDatabase() {
+    @Test void optionalAiOperationalServiceCreatesOnlyAiStateWithoutABusinessDatabase() {
         fixture.graph(inbox(), "inbox-service", empty(false, false));
         when(api.createDockerImageApplication(eq(connection), any())).thenAnswer(call -> {
             fixture.applications.put("app", app("app", "inbox-service", "inbox")); return "app";

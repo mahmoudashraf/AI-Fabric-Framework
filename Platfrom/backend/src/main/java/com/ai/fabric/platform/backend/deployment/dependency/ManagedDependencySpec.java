@@ -14,6 +14,7 @@ public record ManagedDependencySpec(String schemaVersion, List<Service> services
         services = services == null ? null : List.copyOf(services);
         runtimeEnvironment = runtimeEnvironment == null ? List.of() : List.copyOf(runtimeEnvironment);
     }
+    // BASIC_INBOX_KEYS_V1 and OPERATORS are retained solely for immutable history and owned cleanup.
     public enum Contract { HTTP_SERVICE, BASIC_INBOX_KEYS_V1 }
     public enum ValueKind {
         LITERAL, SECRET, ACCOUNT_ID, BINDING_ID, CUSTOMER_ID, TENANT_ID, DEPLOYMENT_ID,

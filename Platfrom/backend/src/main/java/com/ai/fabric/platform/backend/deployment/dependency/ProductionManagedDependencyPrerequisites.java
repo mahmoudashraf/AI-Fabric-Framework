@@ -72,6 +72,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         graph(scope);
         ManagedDependencySpecValidator validator = new ManagedDependencySpecValidator(mapper);
         validator.validate(spec);
+        ManagedDependencySpecValidator.requireProvisionable(spec);
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
         ownership.requireAllowed(spec);
         var evidence = authorization(scope, spec, phase == ProvisioningPhase.RUNTIME_BOUND, null);
@@ -136,6 +137,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     @Override
     public void initializeAndVerify(Scope scope, String initializationContract, Binding binding,
                                     String operationKey) {
+        ManagedDependencySpecValidator.requireProvisionable(graphs.spec(graph(scope)));
         validateReservation(scope, graph(scope).getReservationRef());
         var graph = graph(scope);
         var evidence = authorization(scope, graphs.spec(graph), true, graph.getReservationRef());
@@ -163,29 +165,6 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         verifier(contract).disableAndVerify(scope, contract, binding);
     }
 
-    @Override
-    public void validateOperatorRevocationScope(Scope scope, Binding binding) {
-        requireScope(scope);
-        var graph = graph(scope);
-        var node = exactNode(graph, binding);
-        var service = service(graph, node.slot);
-        if (service.contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
-            || node.applicationUuid == null || node.baseUrl == null) {
-            fail("INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
-        }
-        authority(scope);
-    }
-
-    @Override
-    public void verifyOperatorRevocation(Scope scope, Binding binding, List<String> retiredCredentialReferences,
-                                        String operationKey, boolean disabled) {
-        validateOperatorRevocationScope(scope, binding);
-        var graph = graph(scope);
-        var node = exactNode(graph, binding);
-        String contract = service(graph, node.slot).initializationContract();
-        verifier(contract).verifyOperatorRevocation(scope, contract, binding, retiredCredentialReferences,
-            operationKey, disabled);
-    }
 
     @Override
     public void requireInterruptedWorkerTerminated(Scope scope, String workerToken) {

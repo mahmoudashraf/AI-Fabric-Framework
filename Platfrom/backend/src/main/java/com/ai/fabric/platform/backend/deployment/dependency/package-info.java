@@ -15,8 +15,7 @@
  * key and wait for READY. This two-stage contract avoids callback bootstrap/readiness deadlocks;
  * PROVISIONED is not activation or canary evidence. A pending initialization can retain a guarded
  * projection, but only if every resource was provisioned at the exact configuration revision.
- * Owner enrollment may precede reconciliation. Missing Basic Inbox operators blocks the whole
- * composition before any provider creation. There is deliberately no public provision/reconcile
+ * There is deliberately no public provision/reconcile
  * endpoint. Readiness is READY only after all services/databases and initialization canaries pass.
  *
  * Main wiring consumes lifecycle.bindings(deploymentId, targetProfileId, specFingerprint,
@@ -42,8 +41,7 @@
  *
  * initializeAndVerify must use existing connector/integration/runtime management APIs to register
  * callback hosts/signature refs, idempotently seed only the generated account, reconcile stock/media,
- * sync and run target-scoped canaries. For Inbox it verifies binding membership, callback signatures,
- * human reply and current operator key acceptance/rejection; installed plugin rows are not proof.
+ * sync and run target-scoped canaries; installed plugin rows are not proof.
  * Required named callback slots are declared by CALLBACK_URL environment values in the spec.
  * Runtime URLs, private token audiences/issuers and target secrets use TARGET_VALUE/TARGET_SECRET.
  * Cross-service secrets use SERVICE_SECRET(reference=purpose, serviceSlot=declared dependency).
@@ -61,23 +59,18 @@
  * PII key=SECRET_STANDARD_BASE64 (32 bytes); production guards/cookie settings must be explicit.
  * Review its public media, simulator, integration source, runtime and private assertion bindings
  * using TARGET_VALUE, TARGET_SECRET, SERVICE_URL and SERVICE_SECRET. No manual environment repair.
- * Basic Inbox: BASIC_INBOX_BINDING_ID=BINDING_ID, TENANT_ID=TENANT_ID, DEPLOYMENT_ID=DEPLOYMENT_ID;
- * BASIC_INBOX_CONNECTOR_CALLBACK_URL=CALLBACK_URL; distinct SECRET purposes for provider key,
- * callback signing and data encryption; BASIC_INBOX_OPERATORS=OPERATORS. PostgreSQL JDBC/user/
- * password or an explicitly reviewed H2 file path and persistent volume is mandatory.
- * Runtime binding maps the returned provider/callback secret refs, never an operator key.
- *
- * <h2>Operator contracts</h2>
- * Only the persisted CUSTOMER_ADMIN owner enrolls operators. No platform roles are granted.
- * API prefix: /api/deployments/{deploymentId}/targets/{targetProfileId}/managed-dependencies.
- * GET status never returns keys or secret refs. POST operators enrolls; POST
- * operators/{id}/rotate or revoke requires expectedCredentialRevision and operationKey.
- * POST operators/{id}/credential-delivery requires authorized TLS, is no-store and delivers
- * once per key revision. A lost delivery response requires rotation, not replay.
- * Mutation is pending until redeployment/readback; effectiveAt and effectiveConfigurationRevision
- * report actual completion, not an immediate revocation claim. Failed redeploy can leave the old
- * key accepted. Revoking the last operator invokes disableAndVerifyBinding and stops/readbacks
- * the owned Inbox without deleting its database/volume. Selected disabled Inbox blocks readiness.
+ * <h2>010.48 Inbox retirement</h2>
+ * Human support uses shared LoomAI Desk, not a managed dependency per deployment.
+ * BASIC_INBOX_KEYS_V1, OPERATORS and stored operator state are retained solely to deserialize,
+ * fingerprint and audit immutable historical graphs and to authorize owned-resource cleanup.
+ * requireProvisionable rejects the retired contract before publication, submission, release apply,
+ * binding changes, reconciliation or provider resource creation/reconfiguration. Historical
+ * validation/parsing and the authorized native cleanup path do not call that execution guard.
+ * There are no enrollment, rotation, revocation or operator-key delivery endpoints.
+ * The historical Inbox lifecycle contract still supports disable/unused cleanup verification,
+ * but its INITIALIZE command is rejected. Do not interpret these history models as an active
+ * product compatibility path. Shared Desk retains its existing conversation-channel adapter
+ * identifier and authentication headers.
  *
  * The legacy retirement/generation/recovery engine has been removed; automatic retirement is
  * unsupported. Explicit native cleanup still checks exact ownership and physical database/volume

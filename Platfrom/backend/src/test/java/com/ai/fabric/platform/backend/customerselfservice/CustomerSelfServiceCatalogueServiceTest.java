@@ -56,6 +56,26 @@ class CustomerSelfServiceCatalogueServiceTest {
         verifyNoInteractions(placement);
     }
 
+    @Test void historicalInboxBindingsAndOperatorPermissionsAreNotAdvertisedAsCurrentCustomerOptions() throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        com.fasterxml.jackson.databind.node.ObjectNode json = mapper.valueToTree(definition);
+        json.withArray("operations").add("INBOX_OPERATOR_ENROLL").add("INBOX_OPERATOR_DELIVER");
+        json.withArray("bindingSlots").addObject().put("id", "legacy-inbox").put("kind", "INBOX_OPERATOR")
+            .putArray("supportedProfileIds");
+        var historical = mapper.treeToValue(json, Definition.class);
+        when(access.definition(any())).thenReturn(historical);
+        reviewedProfiles();
+
+        var result = catalogue.offer("offer");
+
+        assertThat(result.bindingSlots()).noneMatch(slot -> slot.kind() == BindingKind.INBOX_OPERATOR);
+        assertThat(result.permissions()).noneMatch(row -> !CustomerPermissionMatrix.supported(row.operation()));
+        assertThat(result.targets()).allSatisfy(target ->
+            assertThat(target.capabilities()).allMatch(CustomerPermissionMatrix::supported));
+        assertThat(historical.bindingSlots()).anyMatch(slot -> slot.kind() == BindingKind.INBOX_OPERATOR);
+        assertThat(historical.operations()).contains(Operation.INBOX_OPERATOR_ENROLL, Operation.INBOX_OPERATOR_DELIVER);
+    }
+
     @Test void expiredHistoricalOfferCannotBlockTheCurrentCustomerCatalogue() {
         var valid = grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
         var expired = grant("old-offer", EntitlementStatus.ACTIVE, "owner", Instant.now().minusSeconds(1));

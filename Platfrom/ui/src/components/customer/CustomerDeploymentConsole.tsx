@@ -284,6 +284,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const selectedOffer = selectedDeployment
     ? offers.find((offer) => offer.id === selectedDeployment.offerId) ?? null
     : null
+  const creationBindingSlots = creationOffer?.bindingSlots.filter((slot) => slot.kind !== 'INBOX_OPERATOR') ?? []
+  const selectedBindingSlots = selectedOffer?.bindingSlots.filter((slot) => slot.kind !== 'INBOX_OPERATOR') ?? []
   const creationStagingTargets = creationOffer?.targets.filter((target) => target.intent === 'CUSTOMER_STAGING') ?? []
   const creationTarget = creationStagingTargets.find((target) => target.id === selectedTargetProfileId)
   const productionTargets = selectedOffer?.targets.filter((target) => target.intent === 'CUSTOMER_PRODUCTION') ?? []
@@ -981,7 +983,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`Template ${creationOffer.templateId}`} variant="outlined" />
               <Chip label={`${creationOffer.targets.length} reviewed targets`} variant="outlined" />
-              <Chip label={`${creationOffer.bindingSlots.length} binding slots`} variant="outlined" />
+              <Chip label={`${creationBindingSlots.length} binding slots`} variant="outlined" />
               <Chip label="Staging lifecycle: operator managed" variant="outlined" />
             </Stack>
           </CustomerAdvancedSection> : null}
@@ -1065,10 +1067,10 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
             {guided && step === 'configure' ? <Box>
               <Typography variant="h6" sx={{ mb: 1.5 }}>Required connections</Typography>
-              {selectedOffer.bindingSlots.length ? selectedOffer.bindingSlots.map(slot => <Stack key={slot.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
+              {selectedBindingSlots.length ? selectedBindingSlots.map(slot => <Stack key={slot.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
                 <Box><Typography variant="body2" fontWeight={600}>{slot.kind.replace(/_/g, ' ')}</Typography><Typography variant="caption" color="text.secondary">{slot.id} / {slot.supportedProfileIds.length} reviewed profiles</Typography></Box>
-                {slot.kind === 'EXTERNAL_SERVICE' ? <Button href="#approved-connections">Set up</Button> : ['CUSTOMER_S3', 'INBOX_OPERATOR'].includes(slot.kind)
-                  ? <Button component={RouterLink} to={`${slot.kind === 'CUSTOMER_S3' ? '/document-knowledge' : '/integrations'}?deploymentId=${encodeURIComponent(selectedDeploymentId)}&view=manage`}>Review</Button>
+                {slot.kind === 'EXTERNAL_SERVICE' ? <Button href="#approved-connections">Set up</Button> : slot.kind === 'CUSTOMER_S3'
+                  ? <Button component={RouterLink} to={`/document-knowledge?deploymentId=${encodeURIComponent(selectedDeploymentId)}&view=manage`}>Review</Button>
                   : <Typography variant="caption" color="text.secondary">Reviewed offer binding</Typography>}
               </Stack>) : <Typography variant="body2" color="text.secondary">No connection slots are declared by this offer.</Typography>}
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>Required connections are declared by the offer. Their presence here is not proof of readiness; publication and release verification remain authoritative.</Typography>

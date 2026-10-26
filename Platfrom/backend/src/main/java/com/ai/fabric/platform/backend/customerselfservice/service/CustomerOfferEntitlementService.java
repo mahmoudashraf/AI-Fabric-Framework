@@ -61,6 +61,11 @@ public class CustomerOfferEntitlementService {
     public String publish(PublishOfferRequest request) {
         requireStaffAdmin();
         if (request == null || blank(request.offerId(), 64) || blank(request.reviewReference(), 255)) throw invalid();
+        if (request.definition() != null && (request.definition().operations().stream()
+                .anyMatch(operation -> !CustomerPermissionMatrix.supported(operation))
+            || request.definition().bindingSlots().stream().anyMatch(slot -> slot.kind() == BindingKind.INBOX_OPERATOR))) {
+            throw deny(OPERATION_FORBIDDEN);
+        }
         composition.validate(request.definition());
         String hash = codec.hash(request.definition());
         if (offers.existsById(request.offerId())) throw conflict(OFFER_IMMUTABLE);

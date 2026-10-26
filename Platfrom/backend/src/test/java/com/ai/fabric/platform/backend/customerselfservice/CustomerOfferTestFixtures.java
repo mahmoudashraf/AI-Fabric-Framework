@@ -22,7 +22,9 @@ final class CustomerOfferTestFixtures {
             List.of(new ArtifactPin("runtime-artifact", "artifact-hash")),
             List.of(new TargetPermission("staging-target", TargetIntent.CUSTOMER_STAGING, "staging-hash"),
                 new TargetPermission("production-target", TargetIntent.CUSTOMER_PRODUCTION, "production-hash")),
-            EnumSet.allOf(Operation.class),
+            EnumSet.allOf(Operation.class).stream()
+                .filter(com.ai.fabric.platform.backend.customerselfservice.service.CustomerPermissionMatrix::supported)
+                .collect(java.util.stream.Collectors.toSet()),
             List.of(new SettingRule(Setting.DEPLOYMENT_NAME, ValueType.TEXT, 100, Set.of()),
                 new SettingRule(Setting.APP_TITLE, ValueType.TEXT, 100, Set.of()),
                 new SettingRule(Setting.AUTH_PROFILE_ID, ValueType.CHOICE, 100, Set.of("reviewed-mixed-auth"))),

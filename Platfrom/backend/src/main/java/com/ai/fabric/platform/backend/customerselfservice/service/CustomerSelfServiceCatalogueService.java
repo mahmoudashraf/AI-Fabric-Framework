@@ -62,6 +62,7 @@ public class CustomerSelfServiceCatalogueService {
                     List<String> targetBlockers = new ArrayList<>();
                     placement.requireConfiguredPlacement(profile, permission.intent());
                     var capabilities = definition.operations().stream()
+                        .filter(CustomerPermissionMatrix::supported)
                         .filter(operation -> CustomerPermissionMatrix.row(operation).targetIntents().contains(permission.intent()))
                         .collect(java.util.stream.Collectors.toSet());
                     targets.add(new TargetSummary(permission.targetProfileId(), permission.intent(), readiness,
@@ -71,7 +72,9 @@ public class CustomerSelfServiceCatalogueService {
         } catch (CustomerSelfServiceException ex) { blockers.add(ex.code().name()); }
         return new OfferSummary(offer.getId(), definition.name(), definition.templateId(), definition.template().versionId(),
             offer.getFingerprint(), access.summary(entitlement), List.copyOf(targets), CustomerPermissionMatrix.rows(definition.operations()),
-            definition.settings(), definition.bindingSlots(), definition.documentAudiences(), blockers.stream().distinct().toList(),
+            definition.settings(), definition.bindingSlots().stream()
+                .filter(slot -> slot.kind() != BindingKind.INBOX_OPERATOR).toList(),
+            definition.documentAudiences(), blockers.stream().distinct().toList(),
             compositionReady ? definition.workspaceProfiles() : List.of(),
             compositionReady ? definition.externalIntegrationProfiles() : List.of());
     }

@@ -59,10 +59,6 @@ public interface ManagedDependencyPrerequisites {
                              String operationKey);
     // Stop admitting human work, resolve pending callbacks/work and verify this binding is disabled.
     void disableAndVerifyBinding(Scope scope, Binding binding);
-    // Removal-only proof of the frozen inbox scope; must not require fresh provisioning/admission evidence.
-    void validateOperatorRevocationScope(Scope scope, Binding binding);
-    void verifyOperatorRevocation(Scope scope, Binding binding, List<String> retiredCredentialReferences,
-                                  String operationKey, boolean disabled);
     // Must prove the prior execution process is terminated, not just that a heartbeat is old.
     void requireInterruptedWorkerTerminated(Scope scope, String workerToken);
     // Validates current assignments/generations, resolved human work, backup/retention and no references.

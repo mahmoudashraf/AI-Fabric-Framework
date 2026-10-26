@@ -50,6 +50,18 @@ public final class ManagedDependencyFixtures {
             database ? List.of() : List.of(new Volume("/app/data", new Capacity(0, 0, 2048, 0))),
             List.of(), "scoped-seed-sync-canary/v1");
     }
+    public static ManagedDependencySpec currentTopology() {
+        var historical = topology();
+        return new ManagedDependencySpec(historical.schemaVersion(), historical.services().stream()
+            .filter(service -> service.contract() == Contract.HTTP_SERVICE).toList(),
+            java.util.stream.Stream.concat(historical.runtimeEnvironment().stream()
+                    .filter(binding -> !binding.name().startsWith("MANAGED_INBOX_")),
+                java.util.stream.Stream.of(new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR,
+                    "MANAGED_SERVICE_CALLBACK_SIGNING_SECRET",
+                    new Value(ValueKind.TARGET_SECRET, "conversation-handover-callback-signing")))).toList());
+    }
+
+    /** Immutable historical fixture for deserialization, denial and owned cleanup tests only. */
     public static ManagedDependencySpec topology() {
         Map<String, Value> env = new TreeMap<>();
         env.put("BASIC_INBOX_BINDING_ID", new Value(ValueKind.BINDING_ID, null));

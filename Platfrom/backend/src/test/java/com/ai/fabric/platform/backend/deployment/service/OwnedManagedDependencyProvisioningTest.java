@@ -82,6 +82,17 @@ class OwnedManagedDependencyProvisioningTest {
             .hasMessageContaining("SERVER_PLACEMENT_CONFLICT");
         verify(api, never()).createDockerImageApplication(any(), any());
     }
+
+    @Test void retiredInboxCannotCreateOrReconfigureProviderResources() {
+        var retired = ManagedDependencyFixtures.productionInbox();
+        assertThatThrownBy(() -> service.reconcileOwnedDependency(connection, "graph", "old-inbox", retired,
+            empty(false), ignored -> List.of(), checkpoint))
+            .hasMessageContaining("PER_DEPLOYMENT_INBOX_RETIRED");
+        assertThatThrownBy(() -> service.reconcileExistingOwnedDependency(connection, "graph", "old-inbox", retired,
+            inboxResources(), ignored -> List.of(), checkpoint))
+            .hasMessageContaining("PER_DEPLOYMENT_INBOX_RETIRED");
+        verifyNoInteractions(api, checkpoint, ownership.authority);
+    }
     @Test void trustedLocalCoolifyAliasIsAcceptedForExactStagingPlacement() {
         var target = target("customer-staging", "staging");
         when(resolver.requireConnection(target)).thenReturn(connection);
@@ -142,72 +153,6 @@ class OwnedManagedDependencyProvisioningTest {
         when(targets.findById(id)).thenReturn(Optional.of(target)); return target;
     }
 
-    @Test void operatorRemovalUpdatesOnlyExistingCredentialFieldAndNeverCreatesResources() {
-        var spec = inbox(); var resources = inboxResources();
-        stubExistingInbox(spec);
-        String original = "one|One|" + "a".repeat(43) + "|binding;two|Two|" + "b".repeat(43) + "|binding";
-        String remaining = "two|Two|" + "b".repeat(43) + "|binding";
-        when(api.requireRuntimeEnvironmentValue(connection, "inbox-app", "BASIC_INBOX_OPERATORS"))
-            .thenReturn(original, original, remaining);
-        when(api.start(connection, "inbox-app", true, true)).thenReturn(new CoolifyActionResponse("ok", "build", mapper.createObjectNode()));
-        when(api.getDeployment(connection, "build")).thenReturn(Optional.of(new CoolifyDeploymentSummary("build", "inbox-service", "inbox-app",
-            "finished", null, null, null, null, null, mapper.createObjectNode())));
-
-        var removal = service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec, resources, "binding", "one");
-        service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec, resources, removal, checkpoint);
-
-        assertThat(removal.remainingOperators()).isEqualTo(1); assertThat(removal.toString()).doesNotContain(original, remaining);
-        var changed = ArgumentCaptor.forClass(List.class);
-        verify(api).updateEnvironmentVariables(eq(connection), eq("inbox-app"), changed.capture());
-        assertThat(changed.getValue()).hasSize(1);
-        assertThat(((CoolifyEnvVar) changed.getValue().getFirst()).key()).isEqualTo("BASIC_INBOX_OPERATORS");
-        assertThat(((CoolifyEnvVar) changed.getValue().getFirst()).value()).isEqualTo(remaining);
-        verify(api, never()).createDockerImageApplication(any(), any()); verify(api, never()).createPostgresDatabase(any(), any());
-        verify(api, never()).reconcilePersistentVolumeStorage(any(), anyString(), anyString(), anyString());
-        verify(api, never()).startDatabase(any(), anyString());
-        verify(checkpoint, never()).creating(anyString()); verify(checkpoint, never()).created(anyString(), anyString());
-    }
-    @Test void removalRejectsAReplacementCredentialRatherThanApplyingIt() {
-        var spec = inbox(); stubExistingInbox(spec);
-        String original = "one|One|" + "a".repeat(43) + "|binding;two|Two|" + "b".repeat(43) + "|binding";
-        var replacement = new PlatformManagedProductProvisioningService.OwnedDependencyOperatorRestriction("one", "BASIC_INBOX_OPERATORS",
-            original, "three|Three|" + "c".repeat(43) + "|binding", 1);
-        assertThatThrownBy(() -> service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec,
-            inboxResources(), replacement, checkpoint)).hasMessageContaining("REMOVAL_ONLY_REQUIRED");
-        verify(api, never()).updateEnvironmentVariables(any(), anyString(), anyList());
-        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
-    }
-    @Test void lastOperatorRemovalStopsOnlyTheOwnedInboxAndRequiresStoppedReadback() {
-        var spec = inbox(); stubExistingInbox(spec);
-        var running = api.getApplication(connection, "inbox-app").orElseThrow();
-        var stopped = new java.util.concurrent.atomic.AtomicBoolean(false);
-        when(api.getApplication(connection, "inbox-app")).thenAnswer(call -> Optional.of(new CoolifyApplicationSummary(
-            running.uuid(), running.name(), running.fqdn(), stopped.get() ? "exited" : "running:healthy",
-            running.imageRepository(), running.imageTag(), running.raw())));
-        when(api.stop(connection, "inbox-app", false)).thenAnswer(call -> {
-            stopped.set(true); return new CoolifyActionResponse("stopped", null, mapper.createObjectNode());
-        });
-        when(api.requireRuntimeEnvironmentValue(connection, "inbox-app", "BASIC_INBOX_OPERATORS"))
-            .thenReturn("one|One|" + "a".repeat(43) + "|binding");
-        var removal = service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec,
-            inboxResources(), "binding", "one");
-
-        service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec, inboxResources(), removal, checkpoint);
-
-        verify(api).stop(connection, "inbox-app", false);
-        verify(api, never()).updateEnvironmentVariables(any(), anyString(), anyList());
-        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
-        verify(api, never()).createDockerImageApplication(any(), any()); verify(api, never()).createPostgresDatabase(any(), any());
-    }
-    @Test void stopRequestWithoutStoppedReadbackDoesNotProveRevocation() {
-        var spec = inbox(); stubExistingInbox(spec);
-        when(api.requireRuntimeEnvironmentValue(connection, "inbox-app", "BASIC_INBOX_OPERATORS"))
-            .thenReturn("one|One|" + "a".repeat(43) + "|binding");
-        var removal = service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec,
-            inboxResources(), "binding", "one");
-        assertThatThrownBy(() -> service.applyOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", spec,
-            inboxResources(), removal, checkpoint)).hasMessageContaining("DEPENDENCY_DISABLE_UNCONFIRMED");
-    }
     @Test void alreadyStoppedOwnedInboxMakesDisableRetryIdempotent() {
         var spec = inbox(); stubExistingInbox(spec);
         var running = api.getApplication(connection, "inbox-app").orElseThrow();
@@ -220,22 +165,15 @@ class OwnedManagedDependencyProvisioningTest {
         verify(api, never()).stop(any(), anyString(), anyBoolean());
         verify(checkpoint, never()).guard();
     }
-    @Test void missingExistingInboxDoesNotFallBackToResourceCreation() {
-        stubExistingInbox(inbox());
-        when(api.getApplication(connection, "inbox-app")).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(),
-            inboxResources(), "binding", "one")).hasMessageContaining("OWNERSHIP_CONFLICT");
-        verify(api, never()).createDockerImageApplication(any(), any()); verify(api, never()).createPostgresDatabase(any(), any());
-    }
     @Test void existingConfigurationReusesFullReconcilerWithoutAnyCreateCheckpointOrProviderCreate() {
-        var spec = ManagedDependencyFixtures.productionInbox();
+        var spec = persistentHttpService();
         var resources = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             "inbox-app", "db", true, true, Map.of("/app/data", "volume"));
         stubExistingInbox(spec, resources);
         when(api.start(connection, "inbox-app", true, true)).thenReturn(new CoolifyActionResponse("ok", "build", mapper.createObjectNode()));
         when(api.getDeployment(connection, "build")).thenReturn(Optional.of(new CoolifyDeploymentSummary("build", "inbox-service", "inbox-app",
             "finished", null, null, null, null, null, mapper.createObjectNode())));
-        var env = List.of(new CoolifyEnvVar("BASIC_INBOX_OPERATORS", "owner|Owner|original|binding;new|New|added|binding", false, true, false, false));
+        var env = List.of(new CoolifyEnvVar("FEATURE_ENABLED", "true", false, true, false, false));
         var result = service.reconcileExistingOwnedDependency(connection, "graph", "inbox-service", spec,
             resources, ignored -> env, checkpoint);
         assertThat(result.applicationUuid()).isEqualTo("inbox-app");
@@ -300,7 +238,15 @@ class OwnedManagedDependencyProvisioningTest {
     }
 
     private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service inbox() {
-        return ManagedDependencyFixtures.topology().services().stream().filter(value -> value.slot().equals("inbox")).findFirst().orElseThrow();
+        return ManagedDependencyFixtures.http("inbox", false);
+    }
+
+    private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service persistentHttpService() {
+        var service = ManagedDependencyFixtures.http("inbox", true);
+        return new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service(
+            service.slot(), service.contract(), service.image(), service.sourceArtifactId(), service.sourceCommit(),
+            service.port(), service.healthPath(), service.capacity(), service.secretPurposes(), service.environment(),
+            service.database(), inbox().volumes(), service.dependsOn(), service.initializationContract());
     }
     private PlatformManagedProductProvisioningService.OwnedDependencyResources inboxResources() {
         return new PlatformManagedProductProvisioningService.OwnedDependencyResources("inbox-app", null, true, false, Map.of("/app/data", "volume"));

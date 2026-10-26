@@ -21,7 +21,6 @@ public class DealershipDemoProperties {
     private final Privacy privacy = new Privacy();
     private final Runtime runtime = new Runtime();
     private final ProviderSimulator providerSimulator = new ProviderSimulator();
-    private final HumanInbox humanInbox = new HumanInbox();
 
     public boolean isProductionGuardsEnabled() { return productionGuardsEnabled; }
     public void setProductionGuardsEnabled(boolean productionGuardsEnabled) { this.productionGuardsEnabled = productionGuardsEnabled; }
@@ -41,7 +40,6 @@ public class DealershipDemoProperties {
     public Privacy getPrivacy() { return privacy; }
     public Runtime getRuntime() { return runtime; }
     public ProviderSimulator getProviderSimulator() { return providerSimulator; }
-    public HumanInbox getHumanInbox() { return humanInbox; }
 
     public static class Staff {
         private String username;
@@ -115,22 +113,6 @@ public class DealershipDemoProperties {
         public void setAdvertiserId(String advertiserId) { this.advertiserId = advertiserId; }
         public String getWebhookTargetUrl() { return webhookTargetUrl; }
         public void setWebhookTargetUrl(String webhookTargetUrl) { this.webhookTargetUrl = webhookTargetUrl; }
-    }
-
-    public static class HumanInbox {
-        private boolean enabled;
-        private String baseUrl;
-        private String operatorApiKey;
-        private Duration requestTimeout = Duration.ofSeconds(8);
-
-        public boolean isEnabled() { return enabled; }
-        public void setEnabled(boolean enabled) { this.enabled = enabled; }
-        public String getBaseUrl() { return baseUrl; }
-        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
-        public String getOperatorApiKey() { return operatorApiKey; }
-        public void setOperatorApiKey(String operatorApiKey) { this.operatorApiKey = operatorApiKey; }
-        public Duration getRequestTimeout() { return requestTimeout; }
-        public void setRequestTimeout(Duration requestTimeout) { this.requestTimeout = requestTimeout; }
     }
 
     public static class Runtime {

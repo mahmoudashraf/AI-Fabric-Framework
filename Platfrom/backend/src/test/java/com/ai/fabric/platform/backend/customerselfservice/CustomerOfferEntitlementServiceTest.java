@@ -71,6 +71,22 @@ class CustomerOfferEntitlementServiceTest {
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
+    @Test void newOfferCannotPublishRetiredInboxPermissionsOrBindingDefaults() throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        com.fasterxml.jackson.databind.node.ObjectNode json = mapper.valueToTree(CustomerOfferTestFixtures.definition());
+        json.withArray("operations").add("INBOX_OPERATOR_ENROLL");
+        var retiredOperation = mapper.treeToValue(json, Definition.class);
+        assertCode(OPERATION_FORBIDDEN, () -> service.publish(new PublishOfferRequest("new-offer", retiredOperation, "review")));
+
+        json = mapper.valueToTree(CustomerOfferTestFixtures.definition());
+        json.withArray("bindingSlots").addObject().put("id", "legacy-inbox").put("kind", "INBOX_OPERATOR")
+            .putArray("supportedProfileIds");
+        var retiredBinding = mapper.treeToValue(json, Definition.class);
+        assertCode(OPERATION_FORBIDDEN, () -> service.publish(new PublishOfferRequest("new-offer", retiredBinding, "review")));
+        verify(offers, never()).saveAndFlush(any());
+        verifyNoInteractions(composition, placement, audit);
+    }
+
     @Test void inviteAcceptRevokeAndReplayRetainDurableOriginalResultWithoutReactivation() {
         var invitation = invite();
         assertThat(invitation.status()).isEqualTo(EntitlementStatus.INVITED);

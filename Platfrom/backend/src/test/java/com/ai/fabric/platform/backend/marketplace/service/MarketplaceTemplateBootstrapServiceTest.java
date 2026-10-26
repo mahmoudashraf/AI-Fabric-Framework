@@ -13,14 +13,21 @@ import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersio
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -36,15 +43,25 @@ class MarketplaceTemplateBootstrapServiceTest {
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Test
-    void reviewedTemplateInstallDefaultsReachTheExactPinnedDependency() throws Exception {
+    @ParameterizedTest
+    @CsvSource({
+        "ACTIVE, PUBLISHED, true", "ACTIVE, PUBLISHED, false",
+        "ACTIVE, DRAFT, true", "ACTIVE, DRAFT, false",
+        "DRAFT, DRAFT, true", "DRAFT, DRAFT, false",
+        "ACTIVE, SUBMITTED, true", "ACTIVE, SUBMITTED, false",
+        "ACTIVE, VALIDATED, true", "ACTIVE, VALIDATED, false"
+    })
+    void nonRetiredTemplatesKeepExactPinnedDefaultsInBothCreationPaths(
+            String pluginStatus, String versionStatus, boolean configurationOnly) throws Exception {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("template-plugin");
         plugin.setPluginType("TEMPLATE");
+        plugin.setStatus(pluginStatus);
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId("template-version");
         version.setPluginId(plugin.getId());
         version.setVersion("1.0.0");
+        version.setStatus(versionStatus);
         var manifest = mapper.readTree("""
             {
               "contributions": {"template": {
@@ -79,7 +96,8 @@ class MarketplaceTemplateBootstrapServiceTest {
         )));
         DeploymentSummary deployment = mock(DeploymentSummary.class);
         when(deployment.id()).thenReturn("deployment");
-        when(deployments.createDeploymentConfiguration(any())).thenReturn(deployment);
+        if (configurationOnly) when(deployments.createDeploymentConfiguration(any())).thenReturn(deployment);
+        else when(deployments.createDeployment(any())).thenReturn(deployment);
         DeploymentDraftResponse draft = mock(DeploymentDraftResponse.class);
         when(draft.id()).thenReturn("draft");
         when(draft.providerConfig()).thenReturn(mapper.createObjectNode());
@@ -100,9 +118,11 @@ class MarketplaceTemplateBootstrapServiceTest {
 
         var service = new MarketplaceTemplateBootstrapService(catalog, manifests, compiler, installs,
             installRepository, deploymentRepository, deployments, audit, mapper);
-        service.bootstrapConfiguration(plugin.getId(), new CreateMarketplaceTemplateBootstrapRequest(
+        var bootstrapRequest = new CreateMarketplaceTemplateBootstrapRequest(
             "1.0.0", "Deployment", "staging", null, "REQUIRED", "customer", "tenant"
-        ));
+        );
+        if (configurationOnly) service.bootstrapConfiguration(plugin.getId(), bootstrapRequest);
+        else service.bootstrap(plugin.getId(), bootstrapRequest);
 
         var request = ArgumentCaptor.forClass(CreateDeploymentMarketplaceInstallRequest.class);
         verify(installs).createInstallForTrustedTemplateBootstrap(eq(entity), request.capture());
@@ -114,5 +134,62 @@ class MarketplaceTemplateBootstrapServiceTest {
         verify(deployments).updateDraft(eq("draft"), draftUpdate.capture());
         assertThat(draftUpdate.getValue().providerConfig()).isEqualTo(providerBaseline);
         verify(compiler).syncDeploymentDraftForTrustedTemplateBootstrap("deployment");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "ACTIVE, DEPRECATED, true", "ACTIVE, DEPRECATED, false",
+        "ACTIVE, RETIRED, true", "ACTIVE, RETIRED, false",
+        "DEPRECATED, PUBLISHED, true", "DEPRECATED, PUBLISHED, false",
+        "RETIRED, DRAFT, true", "RETIRED, DRAFT, false",
+        "ACTIVE, deprecated, true", "retired, PUBLISHED, false"
+    })
+    void retiredExplicitTemplatesAreRejectedBeforeAnyCreationEffects(
+            String pluginStatus, String versionStatus, boolean configurationOnly) {
+        var plugin = new MarketplacePluginEntity();
+        plugin.setId("template-plugin");
+        plugin.setPluginType("TEMPLATE");
+        plugin.setStatus(pluginStatus);
+        var version = new MarketplacePluginVersionEntity();
+        version.setId("template-version");
+        version.setPluginId(plugin.getId());
+        version.setVersion("1.0.0");
+        version.setStatus(versionStatus);
+        when(catalog.requirePluginEntity(plugin.getId())).thenReturn(plugin);
+        when(catalog.requirePluginVersionEntity(plugin.getId(), version.getVersion())).thenReturn(version);
+        var service = new MarketplaceTemplateBootstrapService(catalog, manifests, compiler, installs,
+            installRepository, deploymentRepository, deployments, audit, mapper);
+        var request = new CreateMarketplaceTemplateBootstrapRequest(
+            "1.0.0", "Deployment", "staging", null, "REQUIRED", "customer", "tenant");
+
+        assertThatThrownBy(() -> {
+            if (configurationOnly) service.bootstrapConfiguration(plugin.getId(), request);
+            else service.bootstrap(plugin.getId(), request);
+        }).isInstanceOfSatisfying(ResponseStatusException.class, error -> {
+            assertThat(error.getStatusCode()).isEqualTo(CONFLICT);
+            assertThat(error.getReason()).isEqualTo(
+                "Marketplace template is retired for new deployments: template-plugin@1.0.0");
+        });
+        verifyNoInteractions(manifests, compiler, installs, installRepository, deploymentRepository, deployments, audit);
+    }
+
+    @Test
+    void retiredVersionsRemainResolvableForHistoricalReads() {
+        var plugins = mock(MarketplacePluginRepository.class);
+        var versions = mock(MarketplacePluginVersionRepository.class);
+        var historicalCatalog = new MarketplaceCatalogService(plugins, versions, manifests);
+        var version = new MarketplacePluginVersionEntity();
+        version.setId("historical-version");
+        version.setPluginId("template-plugin");
+        version.setVersion("1.0.0");
+        version.setStatus("DEPRECATED");
+        version.setManifestJson("{\"historical\":true}");
+        when(versions.findByPluginIdAndVersion("template-plugin", "1.0.0")).thenReturn(Optional.of(version));
+        when(versions.findById(version.getId())).thenReturn(Optional.of(version));
+
+        assertThat(historicalCatalog.requirePluginVersionEntity("template-plugin", "1.0.0")).isSameAs(version);
+        assertThat(historicalCatalog.requirePluginVersionEntityById(version.getId()).getManifestJson())
+            .isEqualTo("{\"historical\":true}");
+        verifyNoInteractions(manifests, plugins);
     }
 }

@@ -38,9 +38,8 @@ class ManagedDependencyReleaseCoordinatorTest {
     private final ManagedDependencySpecRepository specs = mock(ManagedDependencySpecRepository.class);
     private final ManagedDependencyGraphStore store = mock(ManagedDependencyGraphStore.class);
     private final ManagedDependencyLifecycleService lifecycle = mock(ManagedDependencyLifecycleService.class);
-    private final ManagedDependencyOperatorService operators = mock(ManagedDependencyOperatorService.class);
     private final ManagedDependencyReleaseCoordinator coordinator = new ManagedDependencyReleaseCoordinator(
-        offerDeployments, offers, entitlements, codec, specs, store, lifecycle, operators, eligibility, authorizations, tenants);
+        offerDeployments, offers, entitlements, codec, specs, store, lifecycle, eligibility, authorizations, tenants);
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
     private DeploymentReleaseEntity release;
@@ -76,7 +75,17 @@ class ManagedDependencyReleaseCoordinatorTest {
         when(entitlements.findByCustomerIdAndOfferId("customer-1", "offer-1"))
             .thenReturn(Optional.of(entitlement));
         when(specs.findByTemplateVersionIdAndActiveTrue("template-version-1")).thenReturn(List.of(spec));
+        when(store.parse(any(), eq(ManagedDependencySpec.class))).thenReturn(ManagedDependencyFixtures.currentTopology());
+    }
+
+    @Test
+    void retiredInboxCannotReachSubmissionEnrollmentOrProvisioning() {
         when(store.parse(any(), eq(ManagedDependencySpec.class))).thenReturn(ManagedDependencyFixtures.topology());
+        assertThatThrownBy(() -> coordinator.prepareFoundation(deployment, version, release))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        assertThatThrownBy(() -> coordinator.completeRuntimeBound(deployment, version, release))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        verifyNoInteractions(lifecycle);
     }
 
     @Test
@@ -85,7 +94,6 @@ class ManagedDependencyReleaseCoordinatorTest {
         coordinator.completeRuntimeBound(deployment, version, release);
 
         verify(lifecycle).submitForRelease(eq("dep-1"), eq("target-1"), any());
-        verify(operators).enrollInitialOwnerForRelease(eq("dep-1"), eq("target-1"), eq("release-1"), any());
         verify(lifecycle).provisionForRelease("dep-1", "target-1", "release-1",
             "release:release-1:dependency:foundation");
         verify(lifecycle).reconcileForRelease("dep-1", "target-1", "release-1",
@@ -97,7 +105,7 @@ class ManagedDependencyReleaseCoordinatorTest {
         when(offerDeployments.findById("dep-1")).thenReturn(Optional.empty());
         coordinator.prepareFoundation(deployment, version, release);
         coordinator.completeRuntimeBound(deployment, version, release);
-        verifyNoInteractions(offers, entitlements, specs, store, lifecycle, operators, eligibility, tenants, authorizations);
+        verifyNoInteractions(offers, entitlements, specs, store, lifecycle, eligibility, tenants, authorizations);
     }
 
     @Test
@@ -115,7 +123,7 @@ class ManagedDependencyReleaseCoordinatorTest {
         coordinator.prepareFoundation(deployment, version, release);
         coordinator.completeRuntimeBound(deployment, version, release);
 
-        verifyNoInteractions(lifecycle, operators, store);
+        verifyNoInteractions(lifecycle, store);
     }
 
     @Test
@@ -144,15 +152,14 @@ class ManagedDependencyReleaseCoordinatorTest {
         release.setDeploymentId("other");
         assertThatThrownBy(() -> coordinator.prepareFoundation(deployment, version, release))
             .hasMessageContaining("DEPENDENCY_RELEASE_SCOPE_CHANGED");
-        verifyNoInteractions(lifecycle, operators, store);
+        verifyNoInteractions(lifecycle, store);
     }
 
     @Test
-    void missingOriginalInvitationOwnerDoesNotBlockUpgradeAndInitialInboxUsesCurrentReleaseActor() {
+    void missingOriginalInvitationOwnerDoesNotBlockUpgrade() {
         when(entitlements.findByCustomerIdAndOfferId("customer-1", "offer-1")).thenReturn(Optional.empty());
         coordinator.prepareFoundation(deployment, version, release);
-        verify(operators).enrollInitialOwnerForRelease(eq("dep-1"), eq("target-1"), eq("release-1"),
-            argThat(request -> "current-admin@example.test".equals(request.displayName())));
+        verify(lifecycle).provisionForRelease(eq("dep-1"), eq("target-1"), eq("release-1"), anyString());
         verifyNoInteractions(entitlements, offers);
     }
 }

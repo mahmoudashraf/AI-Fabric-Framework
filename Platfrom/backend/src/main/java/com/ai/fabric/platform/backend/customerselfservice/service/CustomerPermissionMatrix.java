@@ -8,6 +8,13 @@ import java.util.Set;
 public final class CustomerPermissionMatrix {
     private CustomerPermissionMatrix() { }
 
+    public static boolean supported(Operation operation) {
+        return operation != null && switch (operation) {
+            case INBOX_OPERATOR_ENROLL, INBOX_OPERATOR_ROTATE, INBOX_OPERATOR_DELIVER, INBOX_OPERATOR_REVOKE -> false;
+            default -> true;
+        };
+    }
+
     public static PermissionRow row(Operation operation) {
         Set<Setting> settings = switch (operation) {
             case BOOTSTRAP_CONFIGURATION, BOOTSTRAP -> Set.of(Setting.DEPLOYMENT_NAME, Setting.AI_STATE_STORAGE_MODE);
@@ -25,6 +32,7 @@ public final class CustomerPermissionMatrix {
             case DRAFT_EDIT, VERSION_PUBLISH, APP_CONFIGURE, DOMAIN_CONFIGURE, AUTH_CONFIGURE -> StaffAccess.EDITOR;
             case BOOTSTRAP_CONFIGURATION, BINDING_REPLACE, BINDING_REVOKE,
                  INBOX_OPERATOR_ENROLL, INBOX_OPERATOR_ROTATE, INBOX_OPERATOR_DELIVER, INBOX_OPERATOR_REVOKE,
+                 CONVERSATION_HANDOVER_RECOVER,
                  STAGING_RETAIN, STAGING_EXTEND, TARGET_RETIRE -> StaffAccess.ADMIN;
             default -> StaffAccess.OPERATOR;
         };
@@ -44,6 +52,7 @@ public final class CustomerPermissionMatrix {
     }
 
     public static java.util.List<PermissionRow> rows(Set<Operation> operations) {
-        return Arrays.stream(Operation.values()).filter(operations::contains).map(CustomerPermissionMatrix::row).toList();
+        return Arrays.stream(Operation.values()).filter(CustomerPermissionMatrix::supported)
+            .filter(operations::contains).map(CustomerPermissionMatrix::row).toList();
     }
 }

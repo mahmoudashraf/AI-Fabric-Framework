@@ -1593,6 +1593,7 @@ public class PlatformManagedProductProvisioningService {
             String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
             OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
             OwnedDependencyCheckpoint checkpoint) {
+        com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.requireProvisionable(spec);
         requireExistingDependencyResources(connection, graphId, serviceRef, spec, resources);
         return reconcileOwnedDependency(connection, graphId, serviceRef, spec, resources, environment, checkpoint, true);
     }
@@ -1601,6 +1602,7 @@ public class PlatformManagedProductProvisioningService {
             String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
             OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
             OwnedDependencyCheckpoint checkpoint, boolean existingOnly) {
+        com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.requireProvisionable(spec);
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
         }
@@ -1731,97 +1733,6 @@ public class PlatformManagedProductProvisioningService {
         return new OwnedDependencyResult(appUuid, dbUuid, domain);
     }
 
-    public record OwnedDependencyOperatorRestriction(String operatorId, String environmentKey,
-            String previousValue, String restrictedValue, int remainingOperators) {
-        @Override public String toString() {
-            return "OwnedDependencyOperatorRestriction[operatorId=" + operatorId
-                + ", remainingOperators=" + remainingOperators + ", configuration=***]";
-        }
-    }
-
-    /** Reads a strict subset of existing credentials; it never resolves a desired enrollment or creates resources. */
-    public OwnedDependencyOperatorRestriction planOwnedDependencyOperatorRemoval(CoolifyConnection connection,
-            String graphId, String serviceRef,
-            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
-            OwnedDependencyResources resources, String bindingId, String operatorId) {
-        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
-        var keys = spec.environment().entrySet().stream()
-            .filter(entry -> entry.getValue().kind()
-                == com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.ValueKind.OPERATORS)
-            .map(Map.Entry::getKey).toList();
-        if (keys.size() != 1 || !hasText(operatorId) || !hasText(bindingId)) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_REVOCATION_SCOPE_INVALID");
-        }
-        String current = coolifyApiClient.requireRuntimeEnvironmentValue(connection, resources.applicationUuid(), keys.getFirst());
-        List<String> remaining = new ArrayList<>();
-        java.util.Set<String> ids = new java.util.HashSet<>();
-        for (String row : current.split(";", -1)) {
-            String[] fields = row.split("\\|", -1);
-            if (fields.length != 4 || !hasText(fields[0]) || !hasText(fields[1]) || fields[2].length() < 32
-                || !bindingId.equals(fields[3]) || !ids.add(fields[0])) {
-                throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_EVIDENCE_REQUIRED");
-            }
-            if (!operatorId.equals(fields[0])) remaining.add(row);
-        }
-        return new OwnedDependencyOperatorRestriction(operatorId, keys.getFirst(), current,
-            String.join(";", remaining), remaining.size());
-    }
-
-    /** Changes only one existing inbox credential field, or stops that inbox after lifecycle disable. */
-    public void applyOwnedDependencyOperatorRemoval(CoolifyConnection connection, String graphId, String serviceRef,
-            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
-            OwnedDependencyResources resources, OwnedDependencyOperatorRestriction restriction,
-            OwnedDependencyCheckpoint checkpoint) {
-        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
-        var keys = spec.environment().entrySet().stream().filter(entry -> entry.getValue().kind()
-            == com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.ValueKind.OPERATORS)
-            .map(Map.Entry::getKey).toList();
-        var remaining = java.util.Arrays.stream(restriction.previousValue().split(";", -1))
-            .filter(row -> !restriction.operatorId().equals(row.split("\\|", -1)[0])).toList();
-        if (keys.size() != 1 || !keys.getFirst().equals(restriction.environmentKey())
-            || restriction.remainingOperators() != remaining.size()
-            || !String.join(";", remaining).equals(restriction.restrictedValue())) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_REMOVAL_ONLY_REQUIRED");
-        }
-        String current = coolifyApiClient.requireRuntimeEnvironmentValue(connection, resources.applicationUuid(),
-            restriction.environmentKey());
-        if (!current.equals(restriction.previousValue()) && !current.equals(restriction.restrictedValue())) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_CHANGED");
-        }
-        checkpoint.guard();
-        if (restriction.remainingOperators() == 0) {
-            disableOwnedDependency(connection, graphId, serviceRef, spec.slot(), resources.applicationUuid(), checkpoint);
-            return;
-        }
-        var authority = requireOwnedDependencyAuthority();
-        var owner = authority.context(connection, graphId, serviceRef, spec.slot());
-        authority.application(owner, resources.applicationUuid());
-        coolifyApiClient.updateEnvironmentVariables(connection, resources.applicationUuid(), List.of(
-            new CoolifyEnvVar(restriction.environmentKey(), restriction.restrictedValue(), false, true, false, true)));
-        checkpoint.guard();
-        authority.application(owner, resources.applicationUuid());
-        var started = coolifyApiClient.start(connection, resources.applicationUuid(), true, true);
-        if (started == null || !hasText(started.deploymentUuid())) {
-            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
-        }
-        awaitOwnedDependencyDeployment(owner, resources.applicationUuid(), started.deploymentUuid());
-        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
-        verifyOwnedDependencyReady(connection, graphId, serviceRef, spec.slot(), resources.applicationUuid(),
-            resources.databaseUuid(), resources.volumes());
-        if (!restriction.restrictedValue().equals(coolifyApiClient.requireRuntimeEnvironmentValue(
-            connection, resources.applicationUuid(), restriction.environmentKey()))) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_READBACK_FAILED");
-        }
-    }
-
-    private void requireExistingInboxResources(CoolifyConnection connection, String graphId, String serviceRef,
-            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
-            OwnedDependencyResources resources) {
-        if (spec.contract() != com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
-        }
-        requireExistingDependencyResources(connection, graphId, serviceRef, spec, resources);
-    }
 
     private void requireExistingDependencyResources(CoolifyConnection connection, String graphId, String serviceRef,
             com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,

@@ -13,7 +13,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** One explicit inbound business account; unrelated to the outbound runtime/Inbox authority. */
+/** One explicit inbound business account; unrelated to the outbound runtime authority. */
 @Component
 public class ReceiverBindingService {
     public static final String API_KEY_HEADER = "X-DEALERSHIP-INTERNAL-KEY";
@@ -33,8 +33,7 @@ public class ReceiverBindingService {
             || !credential(receiver.getApiKey())
             || sameKey(receiver.getApiKey(), properties.getInternal().getApiKey())
             || sameKey(receiver.getApiKey(), properties.getRuntime().getPrivateAccess().getTrustedApiKey())
-            || sameKey(receiver.getApiKey(), properties.getRuntime().getPrivateAccess().getSigningKey())
-            || sameKey(receiver.getApiKey(), properties.getHumanInbox().getOperatorApiKey())) throw unavailable();
+            || sameKey(receiver.getApiKey(), properties.getRuntime().getPrivateAccess().getSigningKey())) throw unavailable();
         if (!receiver.getAdvertiserId().equals(stock.configuredAdvertiserId())) throw unavailable();
         return new Scope(receiver.getBindingId(), receiver.getCustomerId(), receiver.getTenantId(),
             receiver.getDeploymentId(), receiver.getAdvertiserId());

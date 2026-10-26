@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -264,17 +265,17 @@ class DeploymentIntegrationOperationsServiceTest {
             "dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER), Duration.ofMinutes(5)
         );
-        verify(offerBoundary).requireBindingKind(any(), eq("target-1"), eq("rel-1"),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.INBOX_OPERATOR_DELIVER),
-            eq("retry-1"),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind.INBOX_OPERATOR));
+        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"),
+            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.CONVERSATION_HANDOVER_RECOVER),
+            eq("retry-1"), eq(Map.of()), isNull(), isNull(), isNull());
+        verify(offerBoundary, never()).requireBindingKind(any(), any(), any(), any(), any(), any());
         verify(auditService).record(
             eq("CONVERSATION_HANDOVER_DISPATCH_RETRY_REQUESTED"), eq("DEPLOYMENT"), eq("dep-1"), any()
         );
     }
 
     @Test
-    void conversationHandoverExpiryUsesReviewedInboxBinding() throws Exception {
+    void conversationHandoverExpiryUsesDeploymentRecoveryAuthorityWithoutOperatorKeys() throws Exception {
         AtomicReference<String> path = new AtomicReference<>();
         AtomicReference<String> key = new AtomicReference<>();
         startServer(exchange -> {
@@ -289,10 +290,10 @@ class DeploymentIntegrationOperationsServiceTest {
         assertThat(response.statusCode()).isEqualTo(202);
         assertThat(path.get()).isEqualTo("/api/admin/conversation-handover/handovers/handover-1/expire");
         assertThat(key.get()).isEqualTo("expire-1");
-        verify(offerBoundary).requireBindingKind(any(), eq("target-1"), eq("rel-1"),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.INBOX_OPERATOR_DELIVER),
-            eq("expire-1"),
-            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind.INBOX_OPERATOR));
+        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"),
+            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.CONVERSATION_HANDOVER_RECOVER),
+            eq("expire-1"), eq(Map.of()), isNull(), isNull(), isNull());
+        verify(offerBoundary, never()).requireBindingKind(any(), any(), any(), any(), any(), any());
         verify(runtimeAuthority, times(1)).issuePlatformProxyHeaders(
             "dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER), Duration.ofMinutes(5)

@@ -1,6 +1,5 @@
 import CableRoundedIcon from '@mui/icons-material/CableRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
-import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
@@ -29,21 +28,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
-  deliverManagedDependencyOperatorCredential,
-  enrollManagedDependencyOperator,
   expireConversationHandover,
   fetchConversationHandoverOperations,
   fetchDeploymentIntegrations,
   fetchDeploymentReleases,
   fetchDeploymentTargetContext,
-  fetchManagedDependencies,
-  fetchPlatformAuthSession,
-  fetchCustomerDeploymentPortfolio,
-  fetchCustomerSelfServiceOffer,
   reconcileDeploymentIntegrationSource,
   replayDeploymentIntegrationWebhook,
-  revokeManagedDependencyOperator,
-  rotateManagedDependencyOperator,
   retryConversationHandoverDispatch,
   type ConversationHandoverOperationsOverview,
   type DeploymentTargetReference,
@@ -51,9 +42,7 @@ import {
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
-import { useScopedOneTimeValue } from '../hooks/useScopedOneTimeValue'
 import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
-import { prepareCustomerOperatorPlacement } from '../components/customer/customerOperatorPlacement'
 
 function statusColor(value: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
   const status = (value ?? '').toUpperCase()
@@ -79,8 +68,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const [selectedReleaseId, setSelectedReleaseId] = useState(initialReleaseId)
-  const [operatorName, setOperatorName] = useState('')
-  const [operatorSlot, setOperatorSlot] = useState('')
   const customerSelfService = auth.session?.role === 'CUSTOMER_ADMIN'
   const canOperate = workspace?.access.canOperate ?? false
   const releasesQuery = useQuery({
@@ -98,18 +85,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     targetProfileId: selectedRelease?.targetProfileId ?? '',
     releaseId: selectedRelease?.id ?? '',
   }
-  const credential = useScopedOneTimeValue<string>(JSON.stringify({
-    actorId: auth.session?.actorId, customerId: auth.session?.customerId,
-    role: auth.session?.role, authenticationMode: auth.session?.authenticationMode,
-    ...target,
-  }))
-  const deliveredCredential = credential.value
-  const operatorScope = () => ({ ...target, token: credential.capture() })
-  const prepareOperator = (input: ReturnType<typeof operatorScope>, operation: 'INBOX_OPERATOR_ENROLL' | 'INBOX_OPERATOR_ROTATE' | 'INBOX_OPERATOR_DELIVER') =>
-    prepareCustomerOperatorPlacement(input, auth.session, operation, {
-      session: fetchPlatformAuthSession, deployments: fetchCustomerDeploymentPortfolio,
-      offer: fetchCustomerSelfServiceOffer, target: fetchDeploymentTargetContext,
-    }, () => credential.isCurrent(input.token))
   useEffect(() => {
     setSelectedReleaseId(initialReleaseId)
   }, [selectedDeploymentId, initialReleaseId])
@@ -143,17 +118,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     retry: false,
     refetchInterval: 10_000,
   })
-  const dependencies = useQuery({
-    queryKey: ['managed-dependencies', selectedDeploymentId, target.targetProfileId],
-    queryFn: () => fetchManagedDependencies(selectedDeploymentId, target.targetProfileId),
-    enabled: customerSelfService && !!selectedRelease && handoverLive,
-    retry: false,
-    refetchInterval: 10_000,
-  })
-  const dependencySlots = dependencies.data?.services.map((service) => service.slot) ?? []
-  useEffect(() => {
-    if (!dependencySlots.includes(operatorSlot)) setOperatorSlot(dependencySlots[0] ?? '')
-  }, [dependencySlots, operatorSlot])
 
   const reconcile = useMutation({
     mutationFn: ({ sourceId, operationKey }: { sourceId: string; operationKey: string }) => (
@@ -185,55 +149,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
-    },
-  })
-  const enrollOperator = useMutation({
-    mutationFn: async (input: ReturnType<typeof operatorScope> & { slot: string; displayName: string }) => {
-      await prepareOperator(input, 'INBOX_OPERATOR_ENROLL')
-      return enrollManagedDependencyOperator(input.deploymentId, input.targetProfileId, {
-        slot: input.slot,
-        displayName: input.displayName,
-        operationKey: crypto.randomUUID(),
-      })
-    },
-    onSuccess: async (_, input) => {
-      if (credential.publish(input.token, null)) setOperatorName('')
-      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
-    },
-  })
-  const mutateOperator = useMutation({
-    mutationFn: async (input: ReturnType<typeof operatorScope>
-      & { operatorId: string; revision: number; command: 'rotate' | 'revoke' }) => {
-      const { operatorId, revision, command, deploymentId, targetProfileId } = input
-      if (command === 'rotate') await prepareOperator(input, 'INBOX_OPERATOR_ROTATE')
-      return command === 'rotate'
-        ? rotateManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
-            expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
-          })
-        : revokeManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
-            expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
-          })
-    },
-    onSuccess: async (_, input) => {
-      credential.publish(input.token, null)
-      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
-    },
-  })
-  const deliverCredential = useMutation({
-    gcTime: 0,
-    mutationFn: async (input: ReturnType<typeof operatorScope>
-      & { operatorId: string; revision: number }) => {
-      const { operatorId, revision, deploymentId, targetProfileId } = input
-      await prepareOperator(input, 'INBOX_OPERATOR_DELIVER')
-      return deliverManagedDependencyOperatorCredential(deploymentId, targetProfileId, operatorId, {
-        expectedCredentialRevision: revision,
-        operationKey: crypto.randomUUID(),
-      })
-    },
-    retry: false,
-    onSuccess: async (delivery, input) => {
-      credential.publish(input.token, delivery.apiKey)
-      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
     },
   })
 
@@ -337,77 +252,6 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
       {expireHandover.error ? <Alert severity="error">{errorText(expireHandover.error)}</Alert> : null}
       {detailSection ? overview.data?.sources.filter(source => source.state.errorClass).map(source => <Alert key={source.sourceId} severity="error">{source.sourceId}: {source.state.errorMessage ?? source.state.errorClass}</Alert>) : null}
       {detailSection ? overview.data?.webhooks.filter(webhook => webhook.counts.deadLetter > 0 || webhook.counts.rejected > 0).map(webhook => <Alert key={webhook.sourceId} severity="warning">{webhook.sourceId}: {webhook.counts.rejected} rejected events / {webhook.counts.deadLetter} dead-letter events. Review inbound events in Advanced.</Alert>) : null}
-
-      {customerSelfService && selectedRelease && handoverLive ? (
-        <Paper variant="outlined" sx={{ p: 2.5 }}>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 750 }}>Inbox operators</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Enrol named human operators for this deployment target. Credentials are delivered once and are not stored in the browser.
-              </Typography>
-            </Box>
-            {dependencies.isError ? (
-              <Alert severity="warning">{errorText(dependencies.error)} The reviewed release may not include a managed operator inbox.</Alert>
-            ) : null}
-            {dependencies.data ? (
-              <>
-                {dependencies.data.failureCode ? <Alert severity="warning">Inbox configuration: {dependencies.data.failureCode}</Alert> : null}
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip label={dependencies.data.status} color={statusColor(dependencies.data.status)} />
-                  <Chip label={`Configuration ${dependencies.data.effectiveConfigurationRevision}/${dependencies.data.configurationRevision}`} variant="outlined" />
-                </Stack>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                  <TextField select label="Inbox slot" value={operatorSlot} sx={{ minWidth: 220 }}
-                    onChange={(event) => setOperatorSlot(event.target.value)}>
-                    {dependencySlots.map((slot) => <MenuItem key={slot} value={slot}>{slot}</MenuItem>)}
-                  </TextField>
-                  <TextField fullWidth label="Operator display name" value={operatorName}
-                    onChange={(event) => setOperatorName(event.target.value)} />
-                  <Button variant="contained" disabled={!operatorSlot || operatorName.trim().length < 2 || enrollOperator.isPending}
-                    onClick={() => enrollOperator.mutate({ ...operatorScope(), slot: operatorSlot, displayName: operatorName.trim() })}>Enrol operator</Button>
-                </Stack>
-                {enrollOperator.error || mutateOperator.error || deliverCredential.error ? (
-                  <Alert severity="error">{errorText(enrollOperator.error || mutateOperator.error || deliverCredential.error)}</Alert>
-                ) : null}
-                {deliveredCredential ? (
-                  <Alert severity="warning" onClose={() => credential.publish(credential.capture(), null)}>
-                    One-time operator credential: <Box component="code" sx={{ overflowWrap: 'anywhere' }}>{deliveredCredential}</Box>
-                    Store it now. It cannot be displayed again.
-                  </Alert>
-                ) : null}
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead><TableRow><TableCell>Operator</TableCell><TableCell>Slot</TableCell><TableCell>Status</TableCell><TableCell>Credential</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
-                    <TableBody>
-                      {dependencies.data.operators.map((operator) => (
-                        <TableRow key={operator.id}>
-                          <TableCell>{operator.displayName}</TableCell>
-                          <TableCell>{operator.slot}</TableCell>
-                          <TableCell><Chip size="small" label={operator.status} color={statusColor(operator.status)} /></TableCell>
-                          <TableCell>Revision {operator.credentialRevision} · {operator.delivered ? 'delivered' : 'not delivered'}</TableCell>
-                          <TableCell align="right">
-                            <Stack direction="row" spacing={1} justifyContent="flex-end">
-                              <Button size="small" disabled={operator.status !== 'ENROLLED' || operator.delivered || deliverCredential.isPending
-                                || dependencies.data.status !== 'READY' || !operator.effectiveAt
-                                || dependencies.data.configurationRevision !== dependencies.data.effectiveConfigurationRevision}
-                                onClick={() => deliverCredential.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision })}>Deliver once</Button>
-                              <Button size="small" disabled={operator.status !== 'ENROLLED' || mutateOperator.isPending}
-                                onClick={() => mutateOperator.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision, command: 'rotate' })}>Rotate</Button>
-                              <Button size="small" color="error" disabled={operator.status !== 'ENROLLED' || mutateOperator.isPending}
-                                onClick={() => mutateOperator.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision, command: 'revoke' })}>Revoke</Button>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
-            ) : null}
-          </Stack>
-        </Paper>
-      ) : null}
 
       {handover.data ? (
         <ConversationHandoverOperations
@@ -628,18 +472,6 @@ export function ConversationHandoverOperations({
             Deployment-owned conversation authority and delivery evidence. Message and intake content are not projected here.
           </Typography>
         </Box>
-        {value.operatorConsoleUrl ? (
-          <Button
-            component="a"
-            href={value.operatorConsoleUrl}
-            target="_blank"
-            rel="noreferrer"
-            variant="outlined"
-            startIcon={<LaunchRoundedIcon />}
-          >
-            Operator inbox
-          </Button>
-        ) : null}
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 2.5, mb: 1.5 }}>

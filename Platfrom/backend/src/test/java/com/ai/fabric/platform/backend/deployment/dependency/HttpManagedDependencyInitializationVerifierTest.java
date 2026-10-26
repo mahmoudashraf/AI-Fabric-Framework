@@ -48,6 +48,13 @@ class HttpManagedDependencyInitializationVerifierTest {
             isNull(), isNull());
     }
 
+    @Test void retiredInboxInitializationIsDeniedButItsCleanupContractRemainsRecognizable() {
+        assertThat(verifier.supports("inbox-callback-canary/v1")).isTrue();
+        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "retired-init"))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        verifyNoInteractions(transport, secrets);
+    }
+
     @Test void missingManagementSecretAndForeignReadbackFailClosed() {
         when(secrets.resolveSecret("managed-secret-ref")).thenReturn(null);
         assertThatThrownBy(() -> verifier.initializeAndVerify(scope,
@@ -71,38 +78,9 @@ class HttpManagedDependencyInitializationVerifierTest {
             binding, "retire")).hasMessageContaining("DEPENDENCY_INITIALIZATION_READBACK_INVALID");
     }
 
-    @Test void operatorRemovalRequiresTheOldCredentialToBeRejectedByTheLiveInbox() {
-        when(secrets.resolveSecret("managed-secret-ref")).thenReturn("s".repeat(32));
-        when(secrets.resolveSecret("RETIRED_OPERATOR")).thenReturn("r".repeat(43));
-        when(transport.send(eq(binding.baseUrl()), eq("POST"), anyString(), anyMap(), any(), anyString()))
-            .thenReturn(response("READY", "revoke:lifecycle", 0));
-        when(transport.send(eq(binding.baseUrl()), eq("GET"), eq("/api/operator/me"), anyMap(), isNull(), isNull()))
-            .thenReturn(new DeploymentRuntimeJsonTransport.Response(200, mapper.createObjectNode().put("operatorId", "old")))
-            .thenReturn(new DeploymentRuntimeJsonTransport.Response(401, mapper.createObjectNode().put("code", "OPERATOR_AUTH_INVALID")));
 
-        assertThatThrownBy(() -> verifier.verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
-            java.util.List.of("RETIRED_OPERATOR"), "revoke", false)).hasMessageContaining("INBOX_OPERATOR_REVOCATION_UNCONFIRMED");
-        verifier.verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
-            java.util.List.of("RETIRED_OPERATOR"), "revoke", false);
-        verify(transport, times(2)).send(eq(binding.baseUrl()), eq("GET"), eq("/api/operator/me"),
-            eq(Map.of("X-LoomAI-Operator-Key", "r".repeat(43))), isNull(), isNull());
-        verify(transport, never()).send(anyString(), eq("POST"), anyString(), anyMap(), any(), any());
-    }
 
-    @Test void lastOperatorRemovalRequiresAnExactDisabledLifecycleReadback() {
-        when(secrets.resolveSecret("managed-secret-ref")).thenReturn("s".repeat(32));
-        when(transport.send(eq(binding.baseUrl()), eq("POST"), anyString(), anyMap(), any(), anyString()))
-            .thenReturn(response("DISABLED", "revoke-last:lifecycle", 0));
-        stubCurrent("DISABLED", "revoke-last:lifecycle", 0);
-        verifier.verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
-            java.util.List.of("RETIRED_OPERATOR"), "revoke-last", true);
-        verify(secrets, never()).clearManagedSecret(anyString(), anyMap());
-        verify(transport).send(eq(binding.baseUrl()), eq("GET"), startsWith(HttpManagedDependencyInitializationVerifier.STATUS_PATH),
-            anyMap(), isNull(), isNull());
-        verify(transport, never()).send(anyString(), eq("GET"), eq("/api/operator/me"), anyMap(), any(), any());
-    }
-
-    @Test void callerSuppliedGenerationKeyMakesInboxInitializationFreshAndReplayable() {
+    @Test void callerSuppliedGenerationKeyMakesServiceInitializationFreshAndReplayable() {
         when(secrets.resolveSecret("managed-secret-ref")).thenReturn("s".repeat(32));
         var operationKeys = new java.util.ArrayList<String>();
         var generation = new AtomicReference<String>();
@@ -117,9 +95,9 @@ class HttpManagedDependencyInitializationVerifierTest {
                 String challenge = challenge(call.getArgument(2)); challenges.add(challenge);
                 return current(response("READY", generation.get(), 0).body(), challenge);
             });
-        verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init-generation-1");
-        verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init-generation-1");
-        verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init-generation-2");
+        verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init-generation-1");
+        verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init-generation-1");
+        verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init-generation-2");
         org.assertj.core.api.Assertions.assertThat(operationKeys)
             .containsExactly("init-generation-1", "init-generation-1", "init-generation-2");
         assertThat(challenges).hasSize(3).doesNotHaveDuplicates();
@@ -134,7 +112,7 @@ class HttpManagedDependencyInitializationVerifierTest {
             .thenReturn(receipt);
         stubCurrent("init");
 
-        verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init");
+        verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init");
 
         verify(transport).send(eq(binding.baseUrl()), eq("GET"), startsWith(HttpManagedDependencyInitializationVerifier.STATUS_PATH),
             anyMap(), isNull(), isNull());
@@ -151,7 +129,7 @@ class HttpManagedDependencyInitializationVerifierTest {
             anyMap(), isNull(), isNull())).thenAnswer(call ->
                 current(response("DISABLED", "disable", 0).body(), challenge(call.getArgument(2))));
 
-        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init"))
+        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init"))
             .hasMessageContaining("DEPENDENCY_CURRENT_READBACK_INVALID");
     }
 
@@ -234,7 +212,7 @@ class HttpManagedDependencyInitializationVerifierTest {
                     body.set(invalid.getKey(), mapper.valueToTree(invalid.getValue()));
                     return current(body, challenge(call.getArgument(2)));
                 });
-            assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init"))
+            assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init"))
                 .as(invalid.getKey()).hasMessageContaining("DEPENDENCY_CURRENT_READBACK_INVALID");
         }
         when(transport.send(eq(binding.baseUrl()), eq("GET"), startsWith(HttpManagedDependencyInitializationVerifier.STATUS_PATH),
@@ -243,7 +221,7 @@ class HttpManagedDependencyInitializationVerifierTest {
                 body.put("observedAt", Instant.now().plusSeconds(60).toString());
                 return current(body, challenge(call.getArgument(2)));
             });
-        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init"))
+        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init"))
             .hasMessageContaining("DEPENDENCY_CURRENT_READBACK_INVALID");
     }
 
@@ -253,11 +231,11 @@ class HttpManagedDependencyInitializationVerifierTest {
             .thenAnswer(call -> response("READY", "init", 0));
         when(transport.send(eq(binding.baseUrl()), eq("GET"), startsWith(HttpManagedDependencyInitializationVerifier.STATUS_PATH),
             anyMap(), isNull(), isNull())).thenAnswer(call -> current(response("READY", "init", 0).body(), "old-challenge"));
-        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init"))
+        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init"))
             .hasMessageContaining("DEPENDENCY_CURRENT_READBACK_INVALID");
         when(transport.send(eq(binding.baseUrl()), eq("GET"), startsWith(HttpManagedDependencyInitializationVerifier.STATUS_PATH),
             anyMap(), isNull(), isNull())).thenReturn(new DeploymentRuntimeJsonTransport.Response(401, mapper.createObjectNode()));
-        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "inbox-callback-canary/v1", binding, "init"))
+        assertThatThrownBy(() -> verifier.initializeAndVerify(scope, "scoped-seed-sync-canary/v1", binding, "init"))
             .hasMessageContaining("DEPENDENCY_CURRENT_READBACK_REJECTED");
     }
 

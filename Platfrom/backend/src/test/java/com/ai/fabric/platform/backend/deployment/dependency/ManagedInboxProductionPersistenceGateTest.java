@@ -47,37 +47,35 @@ class ManagedInboxProductionPersistenceGateTest {
         var fixture = new LifecycleFixture(h2, true);
 
         assertThatThrownBy(() -> fixture.service.reserve(fixture.scope, h2, phase))
-            .hasMessageContaining("INBOX_PRODUCTION_POSTGRES_REQUIRED");
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
         verifyNoInteractions(fixture.provisioning, fixture.verifier);
     }
 
-    @Test void stagingH2AndProductionPostgresCanEnterFoundationProvisioning() throws Exception {
+    @Test void stagingH2AndProductionPostgresAreBothRetiredBeforeProvisioning() throws Exception {
         var staging = new LifecycleFixture(h2, false);
-        assertThat(staging.service.reserve(staging.scope, h2, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION)
-            .authorityReference()).isEqualTo("core-release:release");
+        assertThatThrownBy(() -> staging.service.reserve(staging.scope, h2, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
         var production = new LifecycleFixture(postgres(), true);
-        assertThat(production.service.reserve(production.scope, postgres(), ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION)
-            .authorityReference()).isEqualTo("core-release:release");
+        assertThatThrownBy(() -> production.service.reserve(production.scope, postgres(), ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        verifyNoInteractions(staging.provisioning, production.provisioning, staging.verifier, production.verifier);
     }
 
-    @Test void historicalProductionH2CanBeDisabledAndRevokedButRetirementIsExplicitlyUnsupported() throws Exception {
+    @Test void historicalInboxCanStillBeReadAndDisabledWithoutReenablingProvisioning() throws Exception {
         var fixture = new LifecycleFixture(h2, true);
         assertThatThrownBy(() -> fixture.service.initializeAndVerify(fixture.scope, fixture.contract(), fixture.binding(), "initialize"))
-            .hasMessageContaining("INBOX_PRODUCTION_POSTGRES_REQUIRED");
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
         verifyNoInteractions(fixture.provisioning, fixture.verifier);
 
         fixture.node.disabled = true;
         fixture.service.validateReservation(fixture.scope, "core-release:release");
         fixture.service.disableAndVerifyBinding(fixture.scope, fixture.binding());
-        fixture.service.verifyOperatorRevocation(fixture.scope, fixture.binding(), List.of("retired-secret"), "revoke", true);
         fixture.configureRetirement();
         assertThatThrownBy(() -> fixture.service.requireUnused(fixture.scope, fixture.graph.getRevision(), "retire"))
             .hasMessageContaining("DEPENDENCY_CORE_RETIREMENT_UNSUPPORTED");
         fixture.service.releaseReservation(fixture.scope, "core-release:release");
 
         verify(fixture.verifier).disableAndVerify(fixture.scope, fixture.contract(), fixture.binding());
-        verify(fixture.verifier).verifyOperatorRevocation(fixture.scope, fixture.contract(), fixture.binding(),
-            List.of("retired-secret"), "revoke", true);
         verify(fixture.verifier, never()).requireUnused(any(), any(), any(), any());
         fixture.graph.setCustomerId("different-owner");
         assertThatThrownBy(() -> fixture.service.releaseReservation(fixture.scope, "core-release:release"))

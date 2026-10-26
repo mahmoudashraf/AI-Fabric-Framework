@@ -251,7 +251,7 @@ class DealershipDemoHttpTest {
     }
 
     @Test
-    void humanConversationInboxIsStaffOnlyAndFailsClosedWhenNotBound() throws Exception {
+    void retiredHumanConversationProxyIsNotAvailableToAuthenticatedStaff() throws Exception {
         mvc.perform(get("/api/staff/human-conversations/status"))
             .andExpect(status().isUnauthorized());
 
@@ -263,9 +263,8 @@ class DealershipDemoHttpTest {
         MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
 
         mvc.perform(get("/api/staff/human-conversations/status").session(session))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.enabled").value(false))
-            .andExpect(jsonPath("$.operator").doesNotExist());
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test

@@ -56,7 +56,7 @@ class ManagedDependencySpecPublishingServiceTest {
         when(versions.findById("template-version-1")).thenReturn(Optional.of(templateVersion));
         when(plugins.findById("template-1")).thenReturn(Optional.of(plugin));
         when(specs.findByTemplateVersionIdAndActiveTrue("template-version-1")).thenReturn(List.of());
-        for (var dependency : ManagedDependencyFixtures.topology().services()) {
+        for (var dependency : ManagedDependencyFixtures.currentTopology().services()) {
             when(artifacts.findById(dependency.sourceArtifactId())).thenReturn(Optional.of(artifact(dependency)));
         }
         when(specs.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -68,10 +68,20 @@ class ManagedDependencySpecPublishingServiceTest {
     }
 
     @Test
+    void rejectsRetiredInboxPublicationBeforeArtifactOrPersistenceEffects() {
+        clearInvocations(artifacts, specs, audit);
+        assertThatThrownBy(() -> service.publish("template-version-1",
+            new ManagedDependencySpecPublishingService.PublicationRequest(
+                "retired-spec", ManagedDependencyFixtures.topology(), "retirement-check")))
+            .hasMessageContaining(ManagedDependencySpecValidator.RETIRED_INBOX);
+        verifyNoInteractions(artifacts, specs, audit);
+    }
+
+    @Test
     void publishesImmutableArtifactPinnedTopologyForExactTemplateVersion() {
         var result = service.publish("template-version-1",
             new ManagedDependencySpecPublishingService.PublicationRequest(
-                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123"));
+                "dependency-spec-1", ManagedDependencyFixtures.currentTopology(), "review-123"));
 
         assertThat(result.templateVersionId()).isEqualTo("template-version-1");
         assertThat(result.fingerprint()).hasSize(64);
@@ -85,7 +95,7 @@ class ManagedDependencySpecPublishingServiceTest {
 
     @Test
     void readsBackAndRevalidatesTheExactPublishedTopology() throws Exception {
-        var topology = ManagedDependencyFixtures.topology();
+        var topology = ManagedDependencyFixtures.currentTopology();
         var entity = new ManagedDependencySpecEntity();
         entity.setId("dependency-spec-1");
         entity.setTemplateVersionId("template-version-1");
@@ -106,14 +116,14 @@ class ManagedDependencySpecPublishingServiceTest {
 
     @Test
     void rejectsArtifactThatDoesNotMatchReviewedImage() {
-        var first = ManagedDependencyFixtures.topology().services().getFirst();
+        var first = ManagedDependencyFixtures.currentTopology().services().getFirst();
         var artifact = artifact(first);
         artifact.setImageDigest("sha256:" + "f".repeat(64));
         when(artifacts.findById(first.sourceArtifactId())).thenReturn(Optional.of(artifact));
 
         assertThatThrownBy(() -> service.publish("template-version-1",
             new ManagedDependencySpecPublishingService.PublicationRequest(
-                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123")))
+                "dependency-spec-1", ManagedDependencyFixtures.currentTopology(), "review-123")))
             .hasMessageContaining("DEPENDENCY_ARTIFACT_NOT_IMMUTABLE");
         verify(specs, never()).saveAndFlush(any());
     }
@@ -125,7 +135,7 @@ class ManagedDependencySpecPublishingServiceTest {
 
         assertThatThrownBy(() -> service.publish("template-version-1",
             new ManagedDependencySpecPublishingService.PublicationRequest(
-                "dependency-spec-2", ManagedDependencyFixtures.topology(), "review-124")))
+                "dependency-spec-2", ManagedDependencyFixtures.currentTopology(), "review-124")))
             .hasMessageContaining("DEPENDENCY_SPEC_IMMUTABLE");
     }
 
@@ -150,7 +160,7 @@ class ManagedDependencySpecPublishingServiceTest {
 
         assertThat(service.publish("template-version-1",
             new ManagedDependencySpecPublishingService.PublicationRequest(
-                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123")))
+                "dependency-spec-1", ManagedDependencyFixtures.currentTopology(), "review-123")))
             .extracting(ManagedDependencySpecPublishingService.PublicationSummary::specId)
             .isEqualTo("dependency-spec-1");
     }
@@ -171,7 +181,7 @@ class ManagedDependencySpecPublishingServiceTest {
 
         assertThatThrownBy(() -> service.publish("template-version-1",
             new ManagedDependencySpecPublishingService.PublicationRequest(
-                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123")))
+                "dependency-spec-1", ManagedDependencyFixtures.currentTopology(), "review-123")))
             .hasMessageContaining("DEPENDENCY_RUNTIME_BINDING_MISSING")
             .hasMessageContaining("MANAGED_UNKNOWN_BASE_URL");
         verify(specs, never()).saveAndFlush(any());

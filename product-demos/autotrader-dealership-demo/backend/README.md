@@ -86,7 +86,7 @@ The receiver is disabled by default. Both `/api/internal/authz/check` and
 `/api/internal/actions/execute` require the dedicated receiver key in
 `X-DEALERSHIP-INTERNAL-KEY` and resolve the same exact customer/tenant/deployment
 binding. The advertiser must match the configured provider-read account.
-Neither `APP_INTERNAL_API_KEY` nor any `LOOMAI_RUNTIME_*` or Inbox credential is
+Neither `APP_INTERNAL_API_KEY` nor any `LOOMAI_RUNTIME_*` credential is
 a receiver fallback; reusing one of those credentials is rejected. Keep those
 old integration settings unchanged until a separate deliberate cutover.
 
@@ -98,7 +98,7 @@ new deployment's external ACTION slot. Revoke the old external binding and
 credential separately; a Platform-local approval is not proof of remote access.
 Use a new binding ID for the new owner. Scope fingerprints include all five
 binding fields, so even reusing an ID label cannot transfer receipt ownership.
-Do not copy the old runtime signing keys, staff login or Inbox authority to the
+Do not copy the old runtime signing keys or staff login authority to the
 new customer. There is no need to clone this instance or its business database.
 
 V5 adds nullable receiver-scope metadata without rewriting or assigning owners
@@ -153,20 +153,12 @@ event evidence. Browser workspace installation, assigned-runtime discovery,
 and public conversation routes are owned by the LoomAI Platform installation;
 this dealership service does not disclose or route them.
 
-Required when the deployment's Basic LoomAI Inbox channel is enabled:
-
-```text
-HUMAN_INBOX_ENABLED=true
-HUMAN_INBOX_BASE_URL=https://<deployment-bound-basic-inbox>
-HUMAN_INBOX_OPERATOR_API_KEY=<deployment-bound-operator-key>
-HUMAN_INBOX_REQUEST_TIMEOUT=PT8S
-```
-
-The operator key is consumed only by this backend. The browser authenticates
-with the existing dealership staff session and calls the narrow
-`/api/staff/human-conversations/**` BFF. The customer workspace continues to
-call the assigned runtime directly with its anonymous owner session; the
-dealership backend is not placed in the customer chat traffic path.
+Human conversations and action reviews use the shared LoomAI Desk service.
+The staff page opens Desk directly, independently of this backend's staff
+login. Desk uses native SSO and assigned support/reviewer roles; no dealership
+credentials are forwarded. This backend no longer proxies human conversations
+or stores Inbox operator credentials. The customer workspace continues to call
+its assigned runtime directly with its anonymous owner session.
 
 The protected meeting-demo simulator controls additionally require:
 
@@ -235,13 +227,6 @@ GET  /api/staff/integration/status
 POST /api/staff/integration/reconcile
 GET  /api/staff/provider-simulator/status
 POST /api/staff/provider-simulator/scenarios/{scenario}
-GET  /api/staff/human-conversations/status
-GET  /api/staff/human-conversations
-GET  /api/staff/human-conversations/{handoverId}
-POST /api/staff/human-conversations/{handoverId}/claim
-POST /api/staff/human-conversations/{handoverId}/messages
-POST /api/staff/human-conversations/{handoverId}/return-to-ai
-POST /api/staff/human-conversations/{handoverId}/close
 ```
 
 The bounded simulator scenarios are `add-stock`, `update-price`, `mark-sold`,

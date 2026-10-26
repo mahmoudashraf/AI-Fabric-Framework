@@ -7,8 +7,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,12 +21,13 @@ class ManagedInboxPersistenceValidatorTest {
     private ManagedDependencySpec template;
 
     @BeforeEach void reviewedTemplate() throws Exception {
-        template = mapper.readValue(Files.readString(Path.of(
-            "../../product-services/basic-loomai-inbox-service/deployment/managed-dependency-spec.template.json")),
-            ManagedDependencySpec.class);
+        try (var source = getClass().getResourceAsStream("/dependency/retired-basic-inbox-spec.json")) {
+            assertThat(source).isNotNull();
+            template = mapper.readValue(source, ManagedDependencySpec.class);
+        }
     }
 
-    @Test void currentStagingTemplateKeepsItsDefaultFilePathAndFingerprint() {
+    @Test void historicalTemplateKeepsItsDefaultFilePathAndFingerprint() {
         String fingerprint = validator.fingerprint(template);
         assertThat(template.services().getFirst().database()).isNull();
         assertThat(template.services().getFirst().environment()).doesNotContainKey("BASIC_INBOX_JDBC_URL");

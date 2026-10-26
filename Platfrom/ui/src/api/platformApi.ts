@@ -7517,6 +7517,7 @@ export type CustomerTargetIntent = 'CUSTOMER_STAGING' | 'CUSTOMER_PRODUCTION'
 export type CustomerOfferOperation =
   | 'TEMPLATE_SELECT' | 'BOOTSTRAP_CONFIGURATION' | 'BOOTSTRAP' | 'READ' | 'DRAFT_EDIT' | 'VERSION_PUBLISH'
   | 'BINDING_REPLACE' | 'BINDING_REVOKE'
+  | 'CONVERSATION_HANDOVER_RECOVER'
   | 'INBOX_OPERATOR_ENROLL' | 'INBOX_OPERATOR_ROTATE' | 'INBOX_OPERATOR_DELIVER' | 'INBOX_OPERATOR_REVOKE'
   | 'SOURCE_DISCOVER' | 'SOURCE_PREVIEW' | 'SOURCE_INDEX' | 'SOURCE_REFRESH' | 'SOURCE_REMOVE'
   | 'APP_CONFIGURE' | 'DOMAIN_CONFIGURE' | 'AUTH_CONFIGURE' | 'APPLY' | 'VERIFY'
@@ -8067,14 +8068,6 @@ export type ManagedDependencySummary = {
     effectiveAt: string | null
   }>
 }
-export type ManagedDependencyOperatorEnrollRequest = { slot: string; displayName: string; operationKey: string }
-export type ManagedDependencyOperatorMutation = { expectedCredentialRevision: number; operationKey: string }
-export type ManagedDependencyOperatorCredentialDelivery = {
-  operatorId: string
-  bindingId: string
-  credentialRevision: number
-  apiKey: string
-}
 
 function customerOfferPath(offerId: string) {
   return `/api/customer-self-service/catalogue/${encodeURIComponent(offerId)}`
@@ -8379,45 +8372,6 @@ export function cancelTargetRetirement(
 
 export function fetchManagedDependencies(deploymentId: string, targetProfileId: string) {
   return request<ManagedDependencySummary>(`${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies`)
-}
-
-export function enrollManagedDependencyOperator(
-  deploymentId: string, targetProfileId: string, payload: ManagedDependencyOperatorEnrollRequest,
-) {
-  return request<ManagedDependencySummary>(`${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies/operators`, {
-    method: 'POST', body: JSON.stringify(payload),
-  })
-}
-
-function managedDependencyOperatorCommand<T>(
-  deploymentId: string, targetProfileId: string, operatorId: string,
-  command: 'rotate' | 'revoke' | 'credential-delivery', payload: ManagedDependencyOperatorMutation,
-) {
-  return request<T>(
-    `${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies/operators/${encodeURIComponent(operatorId)}/${command}`,
-    { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' },
-  )
-}
-
-export function rotateManagedDependencyOperator(
-  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
-) {
-  return managedDependencyOperatorCommand<ManagedDependencySummary>(deploymentId, targetProfileId, operatorId, 'rotate', payload)
-}
-
-export function revokeManagedDependencyOperator(
-  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
-) {
-  return managedDependencyOperatorCommand<ManagedDependencySummary>(deploymentId, targetProfileId, operatorId, 'revoke', payload)
-}
-
-/** One-time delivery: the caller keeps credentials out of persistent/query state and never retries automatically. */
-export function deliverManagedDependencyOperatorCredential(
-  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
-) {
-  return managedDependencyOperatorCommand<ManagedDependencyOperatorCredentialDelivery>(
-    deploymentId, targetProfileId, operatorId, 'credential-delivery', payload,
-  )
 }
 
 export type CustomerUnusedDraftWorkspaceExpectation = {

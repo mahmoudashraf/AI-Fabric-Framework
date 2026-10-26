@@ -68,17 +68,12 @@ const release = (deploymentId, targetProfileId, suffix) => ({
 const releases = id => [release(id, 'staging', 's1'), release(id, 'staging', 's2'), release(id, 'production', 'p1')]
 
 async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', operationsMode = 'DISABLED',
-  failSelectionSave = false, dependencyBlocked = false } = {}) {
+  failSelectionSave = false, bindingSlots = [] } = {}) {
   const context = await browser.newContext()
   const page = await context.newPage()
   page.setDefaultTimeout(15_000)
   const errors = []
   const calls = []
-  const pending = []
-  let resolveDelivery
-  const deliveryRequested = new Promise(resolve => { resolveDelivery = resolve })
-  let actor = 'owner-one'
-  let delayed = false
   let preferences = { deploymentWorkspace: { lastDeploymentId: preferred, lastSection: '/integrations' } }
   let catalogueReads = 0
   const json = (route, data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
@@ -91,13 +86,14 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
     const method = request.method()
     const body = request.postDataJSON()
     calls.push({ path, method, body })
+    if (path === '/api/platform/auth/customer-config') return json(route, { enabled: false })
     if (path === '/api/deployment-operations/status') return json(route, {
       mode: operationsMode, manualDeploymentsAllowed: true, serviceConfigured: operationsMode !== 'DISABLED',
       providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'EXTERNAL_SERVICE',
     })
     if (path === '/api/platform/auth/session') return json(route, {
       enabled: true, authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION',
-      actorId: actor, displayName: actor, customerId: 'customer-one', customerName: 'Customer One',
+      actorId: 'owner-one', displayName: 'owner-one', customerId: 'customer-one', customerName: 'Customer One',
       canManageUsers: false, canManageCustomers: true, canManageUserDirectory: true, canOperateDeployments: true,
     })
     if (path === '/api/platform/preferences') {
@@ -120,8 +116,8 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
         targets: ['staging', 'production'].map(target => ({
           id: target, intent: target === 'staging' ? 'CUSTOMER_STAGING' : 'CUSTOMER_PRODUCTION',
           readiness: 'REVIEWED_TARGET_READY',
-          blockers: [], capabilities: ['INBOX_OPERATOR_ENROLL', 'INBOX_OPERATOR_ROTATE', 'INBOX_OPERATOR_DELIVER'], limits: { stagingExpiryHours: 24 },
-        })), settings: [], bindingSlots: [], blockers: [],
+          blockers: [], capabilities: [], limits: { stagingExpiryHours: 24 },
+        })), settings: [], bindingSlots, blockers: [],
       }
       return json(route, path.endsWith('/support-offer') ? offer : [offer])
     }
@@ -140,33 +136,17 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
       if (operation === 'releases') return json(route, releases(id))
       if (operation === 'draft') return json(route, { marketplaceDatasetConfig: { datasets: [] } })
       if (operation === 'marketplace/installs') return json(route, [])
+      if (operation === 'desk') return json(route, { available: true, status: 'NOT_ENABLED', portalUrl: null })
       if (/^targets\/[^/]+\/releases\/[^/]+\/context$/.test(operation)) return json(route, {
         deploymentId: id, targetProfileId: operation.split('/')[1], releaseId: operation.split('/')[3],
-        externalIntegrationConfigured: false, conversationHandoverConfigured: true,
+        externalIntegrationConfigured: false, conversationHandoverConfigured: true, documentDatasetIds: [],
       })
       if (operation.endsWith('/conversation-handover')) return json(route, {
-        runtime: { channelBindingId: 'support-inbox', handoverCounts: {}, recentDispatches: [] },
+        success: true,
+        operatorConsoleUrl: 'https://legacy-inbox.example.test',
+        runtime: { enabled: true, channelBindingId: 'support-inbox', handoverCounts: {}, dispatchCounts: {}, recentDispatches: [] },
         connector: { reachable: true, status: { recentCallbacks: [] } },
       })
-      if (operation.endsWith('/managed-dependencies')) return json(route, {
-        status: dependencyBlocked ? 'BLOCKED' : 'READY', configurationRevision: dependencyBlocked ? 2 : 1,
-        effectiveConfigurationRevision: 1, failureCode: dependencyBlocked ? 'DEPENDENCY_ADMISSION_INVALID' : null,
-        services: [{ slot: 'support-inbox' }],
-        operators: [{ id: 'operator-one', displayName: 'Fixture operator', slot: 'support-inbox', status: 'ENROLLED',
-          credentialRevision: 1, delivered: false, effectiveAt: '2026-10-18T00:00:00Z' }],
-      })
-      if (operation.endsWith('/operators/operator-one/credential-delivery')) {
-        if (delayed) {
-          await new Promise(resolve => {
-            pending.push(async () => {
-              try { await json(route, { apiKey: 'SYNTHETIC-OPERATOR-CREDENTIAL' }) } finally { resolve() }
-            })
-            resolveDelivery()
-          })
-          return
-        }
-        return json(route, { apiKey: 'SYNTHETIC-OPERATOR-CREDENTIAL' })
-      }
     }
     if (/^\/api\/customer-self-service\/catalogue\/support-offer\/deployments\/deployment-[ab]\/(admission-reservations|retirements)$/.test(path)) return json(route, [])
     errors.push(`Unhandled ${method} ${path}`)
@@ -174,16 +154,13 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
   })
   await page.goto(`${base}${initial}`, { waitUntil: 'networkidle' })
   return {
-    page, context, errors, calls, pending, deliveryRequested,
-    delay: () => { delayed = true },
-    setActor: value => { actor = value },
+    page, context, errors, calls,
     get catalogueReads() { return catalogueReads },
     async close() {
-      for (const complete of pending.splice(0)) await complete()
       await context.close()
       assert.deepEqual(errors, [])
       assert.equal(calls.some(call => /placement-evidence|admission-reservations|\/probe(?:\/|$)/.test(call.path)), false,
-        'Customer navigation and operator commands must not depend on legacy admission or placement')
+        'Customer navigation must not depend on legacy admission or placement')
     },
   }
 }
@@ -197,7 +174,7 @@ async function selectRelease(page, id) {
   try { await page.getByRole('combobox', { name: /^Target release/ }).click() }
   catch (error) { throw new Error(`${error.message}\nRendered body: ${await page.locator('body').innerText()}`) }
   await page.getByRole('option').filter({ hasText: id }).click()
-  await page.getByRole('heading', { name: 'Inbox operators' }).waitFor()
+  await page.getByRole('heading', { name: 'Conversation handover', exact: true }).waitFor()
 }
 
 async function spaNavigate(page, path) {
@@ -205,11 +182,6 @@ async function spaNavigate(page, path) {
     window.history.pushState(null, '', path)
     window.dispatchEvent(new PopStateEvent('popstate'))
   }, path)
-}
-
-async function hasNoCredential(page) {
-  await page.waitForFunction(() => !document.body.textContent.includes('SYNTHETIC-OPERATOR-CREDENTIAL'))
-  assert.equal(await page.getByText(/One-time operator credential:/).count(), 0)
 }
 
 try {
@@ -305,71 +277,41 @@ try {
     } finally { await placement.close() }
   }
 
-  const blockedInbox = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a', dependencyBlocked: true })
+  const retiredInbox = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
   try {
-    await selectRelease(blockedInbox.page, 'deployment-a-s1')
-    await blockedInbox.page.getByRole('alert').filter({ hasText: 'Inbox configuration: DEPENDENCY_ADMISSION_INVALID' }).waitFor()
-    assert.equal(await blockedInbox.page.getByRole('button', { name: 'Deliver once', exact: true }).isDisabled(), true)
-    assert.equal(blockedInbox.calls.some(call => call.path.endsWith('/credential-delivery')), false)
+    const { page } = retiredInbox
+    for (const releaseId of ['deployment-a-s1', 'deployment-a-s2', 'deployment-a-p1']) {
+      await selectRelease(page, releaseId)
+      assert.equal(await page.getByRole('heading', { name: 'Inbox operators', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('textbox', { name: 'Operator display name', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('button', { name: /^(Enrol operator|Deliver once|Rotate|Revoke)$/ }).count(), 0)
+      assert.equal(await page.getByRole('link', { name: 'Operator inbox', exact: true }).count(), 0)
+    }
+    await spaNavigate(page, '/integrations?view=manage&deploymentId=deployment-b')
+    await selectRelease(page, 'deployment-b-s1')
+    assert.equal(await page.getByRole('heading', { name: 'Inbox operators', exact: true }).count(), 0)
+    await spaNavigate(page, '/human-support?deploymentId=deployment-b&releaseId=deployment-b-s1')
+    await page.getByRole('button', { name: 'Enable LoomAI Desk', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Conversation handover', exact: true }).waitFor()
+    assert.equal(await page.getByRole('link', { name: 'Operator inbox', exact: true }).count(), 0)
+    assert.equal(retiredInbox.calls.some(call => call.path.includes('/managed-dependencies')), false)
     passed += 1
-    console.log('Passed: ineffective inbox configuration warns and prevents credential delivery')
-  } finally { await blockedInbox.close() }
+    console.log('Passed: historical inbox links and operator-key controls stay retired across release, target and deployment selection')
+  } finally { await retiredInbox.close() }
 
-  for (const change of ['release', 'target', 'deployment', 'actor']) {
-    const current = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
-    try {
-      const { page } = current
-      await selectRelease(page, 'deployment-a-s1')
-      await page.getByRole('button', { name: 'Deliver once', exact: true }).click()
-      await page.getByText(/One-time operator credential:.*SYNTHETIC-OPERATOR-CREDENTIAL/).waitFor()
-      assert.deepEqual(current.errors, [], 'No render or API error may accompany credential delivery')
-      if (change === 'release' || change === 'target') await selectRelease(page, change === 'release' ? 'deployment-a-s2' : 'deployment-a-p1')
-      else if (change === 'deployment') {
-        await spaNavigate(page, '/integrations?view=manage&deploymentId=deployment-b')
-        await selectRelease(page, 'deployment-b-s1')
-      } else {
-        current.setActor('owner-two')
-        await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-        await page.getByText('owner-two', { exact: true }).waitFor()
-        await selectRelease(page, 'deployment-a-s1')
-      }
-      await hasNoCredential(page)
-      passed += 1
-      console.log(`Passed: delivered credential clears on ${change} change`)
-    } finally { await current.close() }
-  }
-
-  for (const change of ['release', 'target', 'deployment', 'actor', 'round-trip']) {
-    const current = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
-    try {
-      const { page } = current
-      await selectRelease(page, 'deployment-a-s1')
-      current.delay()
-      await page.getByRole('button', { name: 'Deliver once', exact: true }).click()
-      await current.deliveryRequested
-      assert.equal(current.pending.length, 1, 'The response must still be pending at scope transition')
-      if (change === 'deployment') {
-        await spaNavigate(page, '/integrations?view=manage&deploymentId=deployment-b')
-        await selectRelease(page, 'deployment-b-s1')
-      } else if (change === 'actor') {
-        current.setActor('owner-two')
-        await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-        await page.getByText('owner-two', { exact: true }).waitFor()
-        await selectRelease(page, 'deployment-a-s1')
-      } else {
-        await selectRelease(page, change === 'release' ? 'deployment-a-s2' : 'deployment-a-p1')
-        if (change === 'round-trip') await selectRelease(page, 'deployment-a-s1')
-      }
-      const response = page.waitForResponse(response => response.url().includes('/credential-delivery'))
-      await current.pending.shift()()
-      await response
-      await page.getByRole('button', { name: 'Deliver once', exact: true }).waitFor({ state: 'visible' })
-      await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Deliver once' && !button.disabled))
-      await hasNoCredential(page)
-      passed += 1
-      console.log(`Passed: delayed completion is discarded after ${change}`)
-    } finally { await current.close() }
-  }
+  const setup = await fixture({ initial: 'deployments?view=setup&deploymentId=deployment-a&step=configure',
+    bindingSlots: [
+      { id: 'legacy-support', kind: 'INBOX_OPERATOR', supportedProfileIds: [] },
+      { id: 'customer-identity', kind: 'CUSTOMER_IDENTITY', supportedProfileIds: [] },
+    ] })
+  try {
+    await setup.page.getByRole('heading', { name: 'Required connections', exact: true }).waitFor()
+    await setup.page.getByText('customer-identity / 0 reviewed profiles', { exact: true }).waitFor()
+    assert.equal(await setup.page.getByText('INBOX OPERATOR', { exact: true }).count(), 0)
+    assert.equal(await setup.page.getByText('legacy-support / 0 reviewed profiles', { exact: true }).count(), 0)
+    passed += 1
+    console.log('Passed: customer setup hides immutable legacy operator slots while retaining current connection slots')
+  } finally { await setup.close() }
   console.log(`Customer UI scope regressions: ${passed} scenarios passed. Local mocked APIs only.`)
 } finally {
   await browser.close()

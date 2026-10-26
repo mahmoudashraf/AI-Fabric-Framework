@@ -16,6 +16,7 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Component
 public class ManagedDependencySpecValidator {
+    public static final String RETIRED_INBOX = "PER_DEPLOYMENT_INBOX_RETIRED";
     private final ObjectMapper mapper;
     public ManagedDependencySpecValidator(ObjectMapper mapper) {
         this.mapper = mapper.copy().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
@@ -28,6 +29,22 @@ public class ManagedDependencySpecValidator {
             throw new IllegalStateException("Dependency contract cannot be fingerprinted.", error);
         }
     }
+    /** Historical specifications remain readable; only active execution calls this guard. */
+    public static void requireProvisionable(ManagedDependencySpec spec) {
+        if (spec == null || spec.services() == null) fail("SPEC_INVALID");
+        for (var service : spec.services()) requireProvisionable(service);
+    }
+
+    public static void requireProvisionable(ManagedDependencySpec.Service service) {
+        if (service == null) fail("SPEC_INVALID");
+        if (service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
+            || "inbox-callback-canary/v1".equals(service.initializationContract())
+            || service.environment() != null && service.environment().values().stream()
+                .anyMatch(value -> value != null && value.kind() == ManagedDependencySpec.ValueKind.OPERATORS)) {
+            fail(RETIRED_INBOX);
+        }
+    }
+
     public void validate(ManagedDependencySpec spec) {
         if (spec == null || !"managed-dependencies/v1".equals(spec.schemaVersion())
             || spec.services() == null || spec.services().isEmpty() || spec.services().size() > 16) fail("SPEC_INVALID");

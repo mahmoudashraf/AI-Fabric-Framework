@@ -98,6 +98,7 @@ public class ManagedDependencyLifecycleService {
             .orElseThrow(() -> conflict("REVIEWED_DEPENDENCY_SPEC_MISSING"));
         var spec = store.parse(reviewed.getSpecJson(), ManagedDependencySpec.class);
         validator.validate(spec);
+        ManagedDependencySpecValidator.requireProvisionable(spec);
         if (reviewed.getReviewedAt() == null || reviewed.getReviewedBy() == null || reviewed.getReviewedBy().isBlank()
             || !validator.fingerprint(spec).equals(reviewed.getFingerprint())) fail("DEPENDENCY_SPEC_REVIEW_INVALID");
         String fingerprint = validator.fingerprint(request);
@@ -173,6 +174,7 @@ public class ManagedDependencyLifecycleService {
         if (!deploymentId.equals(version.getDeploymentId()) || request.bindingFingerprint() == null
             || !request.bindingFingerprint().matches("[a-f0-9]{64}")) fail("DEPENDENCY_CANDIDATE_MISMATCH");
         var graph = find(deploymentId, targetProfileId);
+        ManagedDependencySpecValidator.requireProvisionable(store.spec(graph));
         store.mutate(graph.getId(), null, (current, state) -> {
             if (!command(state, request.operationKey(), validator.fingerprint(List.of("BIND_CANDIDATE", expectedGraphRevision, request)), current.getId())) return;
             if (current.getWorkerToken() != null || current.getStatus().startsWith("RETIR")
@@ -196,187 +198,6 @@ public class ManagedDependencyLifecycleService {
         return schedule(deploymentId, targetProfileId, operationKey, false);
     }
 
-    private record OperatorRevocation(ManagedDependencyPrerequisites.Scope scope, String operatorId,
-        int credentialRevision, String secretName, String operationKey, long configurationRevision,
-        String verificationKey,
-        ManagedDependencySpec.Service service, ManagedDependencyPrerequisites.Binding binding,
-        PlatformManagedProductProvisioningService.OwnedDependencyResources resources,
-        List<String> retiredSecretNames) { }
-
-    Summary reconcileSecurityRevocation(String deploymentId, String targetProfileId, String operatorId,
-                                        String operationKey) {
-        requireScope(deploymentId, targetProfileId, true);
-        var graph = find(deploymentId, targetProfileId);
-        String token = id("worker");
-        OperatorRevocation[] accepted = {null};
-        store.mutate(graph.getId(), null, (current, state) -> {
-            if (current.getWorkerToken() != null || current.getStatus().startsWith("RETIR")) {
-                fail("DEPENDENCY_OPERATION_IN_PROGRESS");
-            }
-            var operator = state.operators.stream().filter(value -> value.id.equals(operatorId)).findFirst()
-                .orElseThrow(() -> conflict("INBOX_OPERATOR_NOT_FOUND"));
-            var command = state.commands.get(operationKey);
-            if (!"REVOKED".equals(operator.status) || command == null || !operatorId.equals(command.resultId())
-                || !validator.fingerprint(List.of("REVOKE", operatorId, operator.credentialRevision))
-                    .equals(command.fingerprint())) fail("INBOX_OPERATOR_REVOCATION_REQUIRED");
-            if (operator.effectiveAt != null) return;
-            var spec = store.spec(current);
-            if (!validator.fingerprint(spec).equals(current.getSpecFingerprint())) fail("DEPENDENCY_SPEC_DRIFT");
-            var service = spec.services().stream().filter(value -> operator.slot.equals(value.slot())
-                    && value.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1).findFirst()
-                .orElseThrow(() -> conflict("INBOX_OPERATOR_SLOT_INVALID"));
-            var inbox = node(state, operator.slot);
-            if (inbox.applicationUuid == null || inbox.baseUrl == null) fail("INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
-            List<String> retired = new ArrayList<>();
-            for (int revision = 1; revision <= operator.credentialRevision; revision++) {
-                String reference = managedSecretName(current.getId(), operator.slot, operator.id + "-" + revision);
-                if (state.retiredOperatorSecretNames.contains(reference)) retired.add(reference);
-            }
-            if (!retired.contains(operator.secretName)) fail("INBOX_OPERATOR_REVOCATION_EVIDENCE_REQUIRED");
-            String verificationKey = validator.fingerprint(List.of("OPERATOR_REVOKE", current.getId(),
-                operationKey, operator.id, operator.credentialRevision, state.configurationRevision));
-            if (state.operatorRevocationLifecycleKey != null
-                && (!verificationKey.equals(state.operatorRevocationLifecycleKey)
-                    || !operator.id.equals(state.operatorRevocationOperatorId)
-                    || !operationKey.equals(state.operatorRevocationOperationKey))) {
-                fail("INBOX_OPERATOR_REVOCATION_IN_PROGRESS");
-            }
-            current.setWorkerToken(token); current.setStatus("RUNNING"); current.setStep("OPERATOR_REVOKE");
-            current.setFailureCode(null); current.setAttempt(current.getAttempt() + 1);
-            accepted[0] = new OperatorRevocation(scope(current), operator.id, operator.credentialRevision,
-                operator.secretName, operationKey, state.configurationRevision, verificationKey, service, binding(inbox),
-                resources(inbox), List.copyOf(retired));
-        });
-        if (accepted[0] != null) {
-            try { executor.execute(() -> executeSecurityRevocation(graph.getId(), token, accepted[0])); }
-            catch (RuntimeException error) { failure(graph.getId(), token, "DEPENDENCY_EXECUTOR_REJECTED"); }
-        }
-        return summary(store.read(graph.getId()));
-    }
-
-    private void executeSecurityRevocation(String graphId, String token, OperatorRevocation removal) {
-        try {
-            revocationGuard(graphId, token, removal);
-            var graph = store.read(graphId);
-            var gate = gate();
-            gate.validateOperatorRevocationScope(removal.scope(), removal.binding());
-            var connection = provisioning.ownedDependencyConnection(graph.getTargetProfileId(), environment(graph));
-            var restriction = provisioning.planOwnedDependencyOperatorRemoval(connection, graphId,
-                removal.binding().serviceRef(), removal.service(), removal.resources(),
-                removal.binding().bindingId(), removal.operatorId());
-            revocationGuard(graphId, token, removal);
-            var checkpoint = revocationCheckpoint(graphId, token, removal);
-            boolean disabled = restriction.remainingOperators() == 0;
-            var currentState = store.state(store.read(graphId));
-            boolean lifecycleDisableProven = removal.verificationKey().equals(
-                currentState.operatorRevocationLifecycleKey);
-            if (disabled && !lifecycleDisableProven) {
-                gate.verifyOperatorRevocation(removal.scope(), removal.binding(), removal.retiredSecretNames(),
-                    removal.verificationKey(), true);
-                store.mutate(graphId, token, (current, state) -> {
-                    validateRevocationState(current, state, token, removal);
-                    if (state.operatorRevocationLifecycleKey != null
-                        && !removal.verificationKey().equals(state.operatorRevocationLifecycleKey)) {
-                        fail("INBOX_OPERATOR_REVOCATION_IN_PROGRESS");
-                    }
-                    state.operatorRevocationOperatorId = removal.operatorId();
-                    state.operatorRevocationOperationKey = removal.operationKey();
-                    state.operatorRevocationLifecycleKey = removal.verificationKey();
-                });
-            }
-            provisioning.applyOwnedDependencyOperatorRemoval(connection, graphId, removal.binding().serviceRef(),
-                removal.service(), removal.resources(), restriction, checkpoint);
-            revocationGuard(graphId, token, removal);
-            if (!disabled) {
-                gate.verifyOperatorRevocation(removal.scope(), removal.binding(), removal.retiredSecretNames(),
-                    removal.verificationKey(), false);
-            }
-            store.mutate(graphId, token, (current, state) -> {
-                validateRevocationState(current, state, token, removal);
-                if (disabled && !removal.verificationKey().equals(state.operatorRevocationLifecycleKey)) {
-                    fail("INBOX_OPERATOR_REVOCATION_LIFECYCLE_EVIDENCE_REQUIRED");
-                }
-                var inbox = node(state, removal.binding().slot());
-                boolean desiredApplied = restriction.restrictedValue().equals(
-                    operatorConfiguration(state, removal.binding().slot(), removal.binding().bindingId()));
-                boolean otherwiseEffective = state.effectiveConfigurationRevision + 1 == state.configurationRevision
-                    && state.nodes.stream().filter(value -> !inbox.slot.equals(value.slot))
-                        .allMatch(value -> value.initialized && "READY".equals(value.status)
-                            && value.provisionedConfigurationRevision == state.effectiveConfigurationRevision);
-                for (String reference : removal.retiredSecretNames()) {
-                    secrets.clearManagedSecret(reference, Map.of("dependencyGraphId", graphId,
-                        "deploymentId", current.getDeploymentId(), "purpose", "REVOKED_OPERATOR_KEY"));
-                }
-                state.retiredOperatorSecretNames.removeAll(removal.retiredSecretNames());
-                state.operators.stream().filter(value -> removal.operatorId().equals(value.id))
-                    .findFirst().orElseThrow().effectiveAt = Instant.now();
-                inbox.disabled = disabled; inbox.status = disabled ? "DISABLED" : "READY";
-                state.operatorRevocationOperatorId = null;
-                state.operatorRevocationOperationKey = null;
-                state.operatorRevocationLifecycleKey = null;
-                if (desiredApplied && otherwiseEffective) {
-                    state.effectiveConfigurationRevision = state.configurationRevision;
-                    state.nodes.forEach(value -> value.provisionedConfigurationRevision = state.configurationRevision);
-                }
-                current.setStatus(!disabled && desiredApplied && otherwiseEffective ? "READY" : "BLOCKED");
-                current.setStep("OPERATOR_REVOKE_COMPLETE"); current.setWorkerToken(null);
-                current.setFailureCode(disabled ? "INBOX_DISABLED"
-                    : desiredApplied && otherwiseEffective ? null : "INBOX_OPERATOR_CONFIGURATION_PENDING");
-            });
-            updateProduct(removal.binding().serviceRef(), removal.binding().baseUrl(), disabled ? "DISABLED" : "ACTIVE");
-            audit(graphId, "INBOX_OPERATOR_REVOKED", Map.of("operatorId", removal.operatorId(),
-                "slot", removal.binding().slot(), "configurationRevision", removal.configurationRevision()));
-        } catch (RuntimeException error) {
-            String code = error instanceof ResponseStatusException response && response.getReason() != null
-                && response.getReason().matches("[A-Z][A-Z0-9_]{1,63}") ? response.getReason() : "INBOX_OPERATOR_REVOCATION_FAILED";
-            if (token.equals(store.read(graphId).getWorkerToken())) failure(graphId, token, code);
-        }
-    }
-
-    private void revocationGuard(String graphId, String token, OperatorRevocation removal) {
-        var graph = store.read(graphId);
-        validateRevocationState(graph, store.state(graph), token, removal);
-        var deployment = deployments.findById(graph.getDeploymentId()).orElseThrow(() -> conflict("DEPENDENCY_DEPLOYMENT_MISSING"));
-        if (!graph.getCustomerId().equals(deployment.getCustomerId()) || !graph.getTenantId().equals(deployment.getTenantId())
-            || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_DRIFT");
-        gate().validateOperatorRevocationScope(removal.scope(), removal.binding());
-    }
-
-    private void validateRevocationState(ManagedDependencyGraphEntity graph, ManagedDependencyState state,
-                                        String token, OperatorRevocation removal) {
-        if (!token.equals(graph.getWorkerToken()) || !removal.scope().equals(scope(graph))
-            || removal.configurationRevision() != state.configurationRevision
-            || !validator.fingerprint(store.spec(graph)).equals(graph.getSpecFingerprint())) {
-            fail("INBOX_OPERATOR_REVOCATION_SCOPE_CHANGED");
-        }
-        var operator = state.operators.stream().filter(value -> removal.operatorId().equals(value.id)).findFirst()
-            .orElseThrow(() -> conflict("INBOX_OPERATOR_NOT_FOUND"));
-        var inbox = node(state, removal.binding().slot());
-        if (!"REVOKED".equals(operator.status) || operator.credentialRevision != removal.credentialRevision()
-            || !removal.secretName().equals(operator.secretName) || !removal.binding().equals(binding(inbox))
-            || !removal.resources().equals(resources(inbox))
-            || !state.retiredOperatorSecretNames.containsAll(removal.retiredSecretNames())) {
-            fail("INBOX_OPERATOR_REVOCATION_SCOPE_CHANGED");
-        }
-        if (state.operatorRevocationLifecycleKey != null
-            && (!removal.verificationKey().equals(state.operatorRevocationLifecycleKey)
-                || !removal.operatorId().equals(state.operatorRevocationOperatorId)
-                || !removal.operationKey().equals(state.operatorRevocationOperationKey))) {
-            fail("INBOX_OPERATOR_REVOCATION_SCOPE_CHANGED");
-        }
-    }
-
-    private PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint revocationCheckpoint(
-        String graphId, String token, OperatorRevocation removal) {
-        return new PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint() {
-            @Override public void guard() { revocationGuard(graphId, token, removal); }
-            @Override public void creating(String kind) { fail("INBOX_OPERATOR_REVOCATION_CANNOT_CREATE"); }
-            @Override public void created(String kind, String uuid) { fail("INBOX_OPERATOR_REVOCATION_CANNOT_CREATE"); }
-            @Override public void volume(String mountPath, String uuid) { fail("INBOX_OPERATOR_REVOCATION_CANNOT_CREATE"); }
-            @Override public void volumeReclamationPlanned(Map<String, String> volumeNamesByUuid) { fail("INBOX_OPERATOR_REVOCATION_CANNOT_RECLAIM"); }
-            @Override public void volumesReclaimed(Set<String> volumeUuids) { fail("INBOX_OPERATOR_REVOCATION_CANNOT_RECLAIM"); }
-        };
-    }
 
     Summary provisionForRelease(String deploymentId, String targetProfileId, String releaseId,
                                 String operationKey) {
@@ -409,6 +230,7 @@ public class ManagedDependencyLifecycleService {
 
     private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
                              boolean synchronous) {
+        ManagedDependencySpecValidator.requireProvisionable(store.spec(graph));
         required(operationKey, 128);
         boolean[] accepted = {false};
         store.mutate(graph.getId(), null, (current, state) -> {
@@ -441,6 +263,7 @@ public class ManagedDependencyLifecycleService {
     void execute(String graphId, String token, boolean initialize) {
         try {
             var graph = store.read(graphId); var spec = store.spec(graph); validator.validate(spec);
+            ManagedDependencySpecValidator.requireProvisionable(spec);
             if (!validator.fingerprint(spec).equals(graph.getSpecFingerprint())) fail("DEPENDENCY_SPEC_DRIFT");
             customerOfferGuard.requireActiveExecution(graph);
             var gate = gate(); var scope = scope(graph);
@@ -460,15 +283,12 @@ public class ManagedDependencyLifecycleService {
                 state.targetValues = new TreeMap<>(admission.targetValues()); state.targetSecretReferences = new TreeMap<>(admission.targetSecretReferences());
             });
             for (var service : spec.services()) gate.validateArtifact(scope, service);
-            // All prerequisites and operator enrollment must be available before creating any provider resource.
+            // Resolve all prerequisites before creating any provider resource.
             var initial = store.state(store.read(graphId));
             List<ManagedDependencySpec.Service> phaseServices = spec.services().stream()
                 .filter(service -> initialize || foundationService(service, spec))
                 .toList();
             for (var service : phaseServices) {
-                if (service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
-                    && !node(initial, service.slot()).disabled
-                    && initial.operators.stream().noneMatch(o -> service.slot().equals(o.slot) && "ENROLLED".equals(o.status))) fail("INBOX_OPERATOR_ENROLLMENT_REQUIRED");
                 for (var value : service.environment().values()) {
                     if (value.kind() == ManagedDependencySpec.ValueKind.CALLBACK_URL && !initial.callbacks.containsKey(value.reference())) fail("DEPENDENCY_CALLBACK_MISSING");
                     if (value.kind() == ManagedDependencySpec.ValueKind.TARGET_VALUE && !initial.targetValues.containsKey(value.reference())) fail("DEPENDENCY_TARGET_VALUE_MISSING");
@@ -547,17 +367,11 @@ public class ManagedDependencyLifecycleService {
                 });
                 updateProduct(readyNode.serviceRef, readyNode.baseUrl, "ACTIVE");
             }
-            for (String reference : store.state(store.read(graphId)).retiredOperatorSecretNames) {
-                guard(graphId, token);
-                secrets.clearManagedSecret(reference, Map.of("dependencyGraphId", graphId, "deploymentId", graph.getDeploymentId(), "purpose", "RETIRED_OPERATOR_KEY"));
-            }
             store.mutate(graphId, token, (current, state) -> {
                 customerOfferGuard.requireActiveExecution(current);
                 current.setStatus(disabled[0] ? "BLOCKED" : "READY"); current.setStep("COMPLETE");
                 current.setFailureCode(disabled[0] ? "INBOX_DISABLED" : null); current.setWorkerToken(null);
                 state.effectiveConfigurationRevision = state.configurationRevision;
-                for (var operator : state.operators) operator.effectiveAt = Instant.now();
-                state.retiredOperatorSecretNames.clear();
             });
             audit(graphId, disabled[0] ? "DEPENDENCY_GRAPH_DISABLED" : "DEPENDENCY_GRAPH_READY", Map.of());
         } catch (RuntimeException error) {
@@ -606,7 +420,7 @@ public class ManagedDependencyLifecycleService {
                 case SERVICE_HOST -> serviceHost(node(state, value.reference()).baseUrl);
                 case DATABASE_JDBC -> provisioning.ownedDependencyDatabaseJdbc(connection, databaseUuid);
                 case DATABASE_USERNAME -> "dependency";
-                case OPERATORS -> operatorConfiguration(state, service.slot(), node.bindingId);
+                case OPERATORS -> throw conflict(ManagedDependencySpecValidator.RETIRED_INBOX);
             };
             if (resolved == null || resolved.isBlank()) fail("DEPENDENCY_ENVIRONMENT_UNRESOLVED");
             values.add(env(entry.getKey(), resolved));
@@ -614,10 +428,6 @@ public class ManagedDependencyLifecycleService {
         return values;
     }
 
-    private String operatorConfiguration(ManagedDependencyState state, String slot, String bindingId) {
-        return String.join(";", state.operators.stream().filter(o -> slot.equals(o.slot) && "ENROLLED".equals(o.status))
-            .sorted(java.util.Comparator.comparing(o -> o.id)).map(o -> o.id + "|" + o.displayName + "|" + secret(o.secretName) + "|" + bindingId).toList());
-    }
     private CoolifyEnvVar env(String name, String value) { return new CoolifyEnvVar(name, value, false, true, value.contains("\n"), true); }
     private String secret(String reference) {
         String value = reference == null ? null : secrets.resolveSecret(reference);

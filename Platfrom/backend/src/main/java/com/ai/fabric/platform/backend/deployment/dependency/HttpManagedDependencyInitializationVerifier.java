@@ -43,6 +43,7 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
     public void initializeAndVerify(ManagedDependencyPrerequisites.Scope scope,
         String initializationContract, ManagedDependencyPrerequisites.Binding binding,
         String operationKey) {
+        if ("inbox-callback-canary/v1".equals(initializationContract)) fail(ManagedDependencySpecValidator.RETIRED_INBOX);
         required(operationKey, "DEPENDENCY_INITIALIZATION_OPERATION_REQUIRED");
         execute(scope, initializationContract, binding, "INITIALIZE", "READY", operationKey);
     }
@@ -79,35 +80,6 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
         execute(scope, initializationContract, binding, "DISABLE", "DISABLED", operationKey(scope, binding, "disable"));
     }
 
-    @Override
-    public void verifyOperatorRevocation(ManagedDependencyPrerequisites.Scope scope,
-        String initializationContract, ManagedDependencyPrerequisites.Binding binding,
-        java.util.List<String> retiredCredentialReferences, String operationKey, boolean disabled) {
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
-            throw new IllegalStateException("Dependency credential probes must run outside a database transaction.");
-        }
-        if (!"inbox-callback-canary/v1".equals(initializationContract)
-            || retiredCredentialReferences == null || retiredCredentialReferences.isEmpty()) {
-            fail("INBOX_OPERATOR_REVOCATION_EVIDENCE_REQUIRED");
-        }
-        required(operationKey, "INBOX_OPERATOR_REVOCATION_OPERATION_REQUIRED");
-        if (disabled) {
-            execute(scope, initializationContract, binding, "DISABLE", "DISABLED", operationKey + ":lifecycle");
-            return;
-        }
-        // OPERATOR_AUTH_INVALID is emitted only after the inbox's READY availability gate.
-        // Do not INITIALIZE here: revocation must never re-enable a separately disabled inbox.
-        for (String reference : retiredCredentialReferences) {
-            String credential = secrets.resolveSecret(reference);
-            if (credential == null || credential.length() < 32) fail("INBOX_OPERATOR_SECRET_MISSING");
-            var response = transport.send(binding.baseUrl(), "GET", "/api/operator/me",
-                Map.of("X-LoomAI-Operator-Key", credential), null, null);
-            if (response.statusCode() != 401 || response.body() == null
-                || !"OPERATOR_AUTH_INVALID".equals(response.body().path("code").asText())) {
-                fail("INBOX_OPERATOR_REVOCATION_UNCONFIRMED");
-            }
-        }
-    }
 
     @Override
     public void requireUnused(ManagedDependencyPrerequisites.Scope scope,

@@ -203,20 +203,12 @@ test('customer productization API contracts preserve command scope and transport
       }
     })
 
-    await suite.test('managed inbox operators preserve revisions and use uncached credential transport', async () => {
+    await suite.test('generic managed dependency status remains target-scoped without legacy operator commands', async () => {
       await expectRequest(() => api.fetchManagedDependencies(deployment, target), `${targetPath}/managed-dependencies`)
-      const enroll = { slot: 'inbox', displayName: 'Owner', operationKey: 'enroll-key' }
-      await expectRequest(() => api.enrollManagedDependencyOperator(deployment, target, enroll), `${targetPath}/managed-dependencies/operators`, 'POST', enroll)
-      const command = { expectedCredentialRevision: 2, operationKey: 'operator-key' }
-      for (const [name, route] of [['rotateManagedDependencyOperator', 'rotate'], ['revokeManagedDependencyOperator', 'revoke'], ['deliverManagedDependencyOperatorCredential', 'credential-delivery']]) {
-        const call = await expectRequest(() => api[name](deployment, target, 'operator/one', command), `${targetPath}/managed-dependencies/operators/operator%2Fone/${route}`, 'POST', command)
-        assert.equal(call.init.cache, 'no-store')
+      for (const name of ['enrollManagedDependencyOperator', 'rotateManagedDependencyOperator',
+        'revokeManagedDependencyOperator', 'deliverManagedDependencyOperatorCredential']) {
+        assert.equal(name in api, false, `${name} is retired`)
       }
-      const before = calls.length
-      globalThis.fetch = async () => { calls.push({ failed: true }); throw new TypeError('Connection lost') }
-      await assert.rejects(api.deliverManagedDependencyOperatorCredential(deployment, target, 'operator/one', command), /Connection lost/)
-      assert.equal(calls.length, before + 1, 'one-time credential delivery must not retry automatically')
-      globalThis.fetch = originalFetch
     })
 
     await suite.test('existing workspace, storage, and apply commands preserve auth alongside operation headers', async () => {

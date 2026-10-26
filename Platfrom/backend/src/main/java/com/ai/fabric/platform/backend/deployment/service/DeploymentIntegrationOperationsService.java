@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
@@ -144,7 +143,7 @@ public class DeploymentIntegrationOperationsService {
                                                                String operationKey) {
         String key = DeploymentOperationIdempotencyKey.require(operationKey);
         OperationAccess access = requireAccess(target, true, Capability.CONVERSATION_HANDOVER,
-            Operation.INBOX_OPERATOR_DELIVER, key);
+            Operation.CONVERSATION_HANDOVER_RECOVER, key);
         String normalizedDispatch = required(dispatchId, "dispatchId");
         RuntimeResponse response = send(
             access,
@@ -162,7 +161,7 @@ public class DeploymentIntegrationOperationsService {
                                                        String operationKey) {
         String key = DeploymentOperationIdempotencyKey.require(operationKey);
         OperationAccess access = requireAccess(target, true, Capability.CONVERSATION_HANDOVER,
-            Operation.INBOX_OPERATOR_DELIVER, key);
+            Operation.CONVERSATION_HANDOVER_RECOVER, key);
         String normalizedHandover = required(handoverId, "handoverId");
         RuntimeResponse response = send(
             access,
@@ -195,9 +194,6 @@ public class DeploymentIntegrationOperationsService {
         }
         if (!mutate && operation == Operation.READ) {
             offerBoundary.requireOperationalRead(context.deployment(), target.targetProfileId(), target.releaseId(), null);
-        } else if (operation == Operation.INBOX_OPERATOR_DELIVER) {
-            offerBoundary.requireBindingKind(context.deployment(), target.targetProfileId(), target.releaseId(),
-                operation, operationKey, BindingKind.INBOX_OPERATOR);
         } else {
             offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(), operation,
                 operationKey, Map.of(), null, null, null);

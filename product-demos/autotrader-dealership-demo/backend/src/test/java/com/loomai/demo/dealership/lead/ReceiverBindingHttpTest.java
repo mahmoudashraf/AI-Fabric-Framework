@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:h2:mem:receiver-binding-http;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-    "dealership.runtime.enabled=false", "dealership.provider-simulator.enabled=false", "dealership.human-inbox.enabled=false"
+    "dealership.runtime.enabled=false", "dealership.provider-simulator.enabled=false"
 })
 @AutoConfigureMockMvc
 class ReceiverBindingHttpTest {
@@ -61,7 +61,6 @@ class ReceiverBindingHttpTest {
         properties.getRuntime().getPrivateAccess().setTenantId("old-tenant");
         properties.getRuntime().getPrivateAccess().setDeploymentId("old-deployment");
         properties.getRuntime().getPrivateAccess().setSigningKey("preserved-old-runtime-signing-key");
-        properties.getHumanInbox().setBaseUrl("https://old-inbox.example.test");
         properties.getPrivacy().setEncryptionKeyBase64(Base64.getEncoder().encodeToString(
             "0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8)));
         properties.getPrivacy().setLeadRetentionEnabled(false);
@@ -73,7 +72,7 @@ class ReceiverBindingHttpTest {
     }
 
     @Test
-    void explicitReceiverScopeAuthorizesAndExecutesWithoutRepurposingRuntimeOrInbox() throws Exception {
+    void explicitReceiverScopeAuthorizesAndExecutesWithoutRepurposingRuntime() throws Exception {
         var auth = auth("new");
         mvc.perform(post(AUTHZ).header(ReceiverBindingService.API_KEY_HEADER, KEY).contentType("application/json")
             .content(mapper.writeValueAsString(authorization(auth)))).andExpect(status().isOk()).andExpect(jsonPath("$.granted").value(true));
@@ -89,7 +88,6 @@ class ReceiverBindingHttpTest {
         assertThat(properties.getRuntime().getPrivateAccess().getTenantId()).isEqualTo("old-tenant");
         assertThat(properties.getRuntime().getPrivateAccess().getDeploymentId()).isEqualTo("old-deployment");
         assertThat(properties.getRuntime().getPrivateAccess().getSigningKey()).isEqualTo("preserved-old-runtime-signing-key");
-        assertThat(properties.getHumanInbox().getBaseUrl()).isEqualTo("https://old-inbox.example.test");
         assertThat(properties.getInternal().getApiKey()).isEqualTo(GLOBAL_KEY);
         assertThat(first.toString()).doesNotContain(KEY, GLOBAL_KEY, "Buyer", "buyer@example.test");
     }
