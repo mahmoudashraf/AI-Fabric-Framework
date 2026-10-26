@@ -10,6 +10,30 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 16:17UTC CURRENT: guide/assignment/auth/retirementevidencecommitted+pushed
+  3d72831e6. Extraactivehumanoutagetest13:08-13:11 DIDproveHUMAN_ACTIVE/noAI
+  whileDeskstopped; Deskrestoredhealthy, exactfixtureepisodeexplicitlyCLOSED.
+  Reportactive-human-outage-production-1793020087442 remainsFAILEDbecause
+  queuedUSERmessagewasnotdeliveredafterrestore. RuntimeREADONLYtrace:
+  dispatch-user-ae46e7c8cde181f4482e81543ecc3ec0 DEAD/PROVIDER_HTTP_404/attempt1.
+  Coolifystopremovesroute=>proxy404; connectorretriesonly5xx/429, soimmediate
+  permanentdeliveryfailure. Noauthproblem/frameworkgap, noAIauthorityfallback.
+- NarrowUNCOMMITTEDfix: optionaladditionalretryableprovider4xx Set(emptydefault)
+  genericconnector; managedDeskprovisioningplan opts404only. Startuprejects
+  success/401/403 statuses; existingfiniteattempts/backoff/FIFO/idempotency
+  unchanged. Backend40focusedPASS, connectorfocused13PASSbeforepositivebinding
+  caseadded; fullconnector suiteinprogress. Zenoindependentreadonlyreviewno
+  blockers; positivebindingcaseadded, widerqueuecoverageexistingnotnewproof.
+  Needcommit/build/backendrollout+newserviceimageSAMEframework0.8.41, normal
+  samev5/deploymentapply, freshoutagequalification. DoNOTreplayclosedfailed
+  episodeorconsumedintent. Existingruntime/connectorimagec026untilactualproof.
+- Activeoutageprivatehelperconsumedintent
+  ~/.codex/private/loomai-desk-01048/active-human-outage-production-20261026.intent.private.json.
+  Earlier2HTTPtransportharnesspreflightsfailedBEFOREDeskstop; bothclosedUI.
+  NativeDeskcurrenthealthy, noactivehumancases. NoDBwritesusedforrecovery.
+  Currentpublicappstillprodrelc24/revision7. Keepfocusonboundedtransportfix,
+  notnewrecovery/draining/framework/multi-customerfixtureinfrastructure.
+
 - 12:58UTC CURRENT, supersedes older checkpoints below: BOTH control-plane
   backends/Consoles and the SAME external dealership API now native-verified
   source7bf91b1f419103bd7b474b0b986f4fe93b948ff0; CI40319293535core and

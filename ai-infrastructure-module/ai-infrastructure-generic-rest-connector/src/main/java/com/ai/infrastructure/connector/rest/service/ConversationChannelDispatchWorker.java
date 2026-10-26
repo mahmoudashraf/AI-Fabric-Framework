@@ -89,7 +89,8 @@ public class ConversationChannelDispatchWorker {
                 properties.getProviderApiKey()
             );
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                boolean retryable = response.statusCode() >= 500 || response.statusCode() == 429;
+                boolean retryable = response.statusCode() >= 500 || response.statusCode() == 429
+                    || properties.getAdditionalRetryableProviderHttpStatuses().contains(response.statusCode());
                 return failure(
                     "PROVIDER_HTTP_" + response.statusCode(),
                     "Conversation channel provider rejected the dispatch.",
@@ -166,6 +167,13 @@ public class ConversationChannelDispatchWorker {
         require(properties.getProviderApiKey(), "provider API key");
         requireSecret(properties.getRuntimeCallbackSigningSecret(), "runtime callback signing secret");
         requireSecret(properties.getProviderWebhookSigningSecret(), "provider webhook signing secret");
+        for (Integer status : properties.getAdditionalRetryableProviderHttpStatuses()) {
+            if (status == null || status < 400 || status > 499 || status == 401 || status == 403) {
+                throw new IllegalStateException(
+                    "Additional provider retry statuses must be 4xx failures other than authentication or authorization denials."
+                );
+            }
+        }
         if (!serviceProperties.getPersistence().isEnabled()) {
             throw new IllegalStateException(
                 "Conversation channel delivery requires rest-connector.persistence.enabled=true."

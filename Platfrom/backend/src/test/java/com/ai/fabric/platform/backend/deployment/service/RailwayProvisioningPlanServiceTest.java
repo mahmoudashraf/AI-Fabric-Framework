@@ -89,6 +89,7 @@ class RailwayProvisioningPlanServiceTest {
             assertThat(connector).containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "desk-" + targetId)
                 .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "https://desk-" + targetId + ".example")
                 .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY", "${secret:" + binding.getProviderKeyRef() + "}")
+                .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_ADDITIONAL_RETRYABLE_PROVIDER_HTTP_STATUSES", "404")
                 .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET", "${secret:" + binding.getCallbackKeyRef() + "}");
             String other = "staging".equals(targetId) ? "production" : "staging";
             assertThat(connector.values()).noneMatch(value -> value.contains("desk-" + other) || value.contains("_" + other.toUpperCase()));
@@ -2527,6 +2528,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_ENABLED", "true")
             .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "basic-loomai-inbox")
             .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "https://inbox.example")
+            .doesNotContainKey("REST_CONNECTOR_CONVERSATION_CHANNEL_ADDITIONAL_RETRYABLE_PROVIDER_HTTP_STATUSES")
             .containsEntry(
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY",
                 "${secret:INBOX_PROVIDER_API_KEY}"

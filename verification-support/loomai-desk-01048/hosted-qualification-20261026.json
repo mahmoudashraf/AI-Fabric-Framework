@@ -1,6 +1,6 @@
 {
   "plan": "010.48",
-  "observedAt": "2026-10-26T12:58:00Z",
+  "observedAt": "2026-10-26T16:17:00Z",
   "status": "HOSTED_DEALERSHIP_CORE_QUALIFIED_REMAINING_GATES_OPEN",
   "complete": false,
   "source": {
@@ -78,6 +78,20 @@
     "sqlReceiptFixturesUsed": false,
     "frameworkParameterSubstringDefectFixed": false
   },
+  "activeHumanOutageFollowUp": {
+    "status": "FAILED_DELIVERY_AFTER_RESTORE",
+    "privateProof": "active-human-outage-production-1793020087442",
+    "humanAuthorityPreserved": true,
+    "aiMessageGeneratedDuringOutage": false,
+    "sameDeskRestoredHealthy": true,
+    "queuedVisitorMessageDeliveredWithin120Seconds": false,
+    "ownTestEpisodeExplicitlyClosed": true,
+    "observedRuntimeDispatchStatus": "DEAD",
+    "observedRuntimeFailureCode": "PROVIDER_HTTP_404",
+    "observedAttemptCount": 1,
+    "cause": "Coolify removes the stopped Desk route; the connector treats the proxy 404 as permanent under its original 5xx/429 retry policy.",
+    "boundedManagedDeskRetryCorrection": "IMPLEMENTED_IN_SOURCE_NOT_YET_DEPLOYED"
+  },
   "passedLive": [
     "existing-customer-dual-proof-Supabase-link-preserves-resource-ownership",
     "owner-one-click-Console-to-Desk-without-second-password",
@@ -107,7 +121,7 @@
     "native-public-signup-verification-and-recovery-email-delivery-Brevo-IP-action-pending",
     "branded-desk.loomai.pro-DNS-and-certificate",
     "domain-neutral-hosted-activation-and-known-second-customer-hosted-isolation",
-    "active-human-authority-during-Desk-outage-not-separately-exercised-live",
+    "queued-human-message-delivery-after-managed-Desk-restart",
     "public-embedded-site-protected-action-sign-in-host",
     "redacted-shareable-customer-agent-demonstration-recording"
   ],
@@ -136,6 +150,7 @@
     "visual-production-1793016792056",
     "conversation-production-embedded-1793018725024",
     "final-staff-readback-1793019285711",
+    "active-human-outage-production-1793020087442",
     "core-retirement-proof",
     "external-inbox-client-retirement",
     "legacy-routing-retirement",

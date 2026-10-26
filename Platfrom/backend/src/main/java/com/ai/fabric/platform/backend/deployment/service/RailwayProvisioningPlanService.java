@@ -760,6 +760,12 @@ public class RailwayProvisioningPlanService {
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET",
                 secretReference(channel, "providerWebhookSigningSecretRef", targetMaterializedDesk)
             ));
+            if (targetMaterializedDesk) {
+                // Coolify temporarily removes the route during a managed Desk restart.
+                connectorEnv.add(new RailwayEnvVarSummary(
+                    "REST_CONNECTOR_CONVERSATION_CHANNEL_ADDITIONAL_RETRYABLE_PROVIDER_HTTP_STATUSES", "404"
+                ));
+            }
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
         addCorsEnv(connectorEnv, securityConfig);

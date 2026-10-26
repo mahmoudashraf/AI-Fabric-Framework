@@ -1,13 +1,13 @@
 # LoomAI Desk Service
 
-Shared human-support integration for multiple customers and deployment targets. One Spring Boot application (including its separately built UI) and one Desk PostgreSQL database are used per hosting environment, not per customer. This backend reuses the Basic Inbox channel lifecycle/outbox implementation, adapting persistence and configuration to trusted, immutable binding scopes. The original Basic Inbox remains untouched pending hosted cutover and retirement.
+Shared human-support integration for multiple customers and deployment targets. One Spring Boot application (including its separately built UI) and one Desk PostgreSQL database are used per hosting environment, not per customer. This backend reuses the channel lifecycle/outbox implementation, adapting persistence and configuration to trusted, immutable binding scopes. The original standalone Basic Inbox module, active provisioner and three old application/database pairs have been retired after hosted dealership conversation and Action Review qualification.
 
 ## Ownership
 
 - Desk stores registered operators, owner links, binding-specific credentials, support/reviewer assignments, safe transcript projections, callback outbox and audit entries.
 - The deployment runtime still owns conversation authority and canonical safe transcripts. Customer systems own inventory and business effects.
 - Review tasks and action continuation remain in the runtime/framework. Desk forwards to the existing Platform review bridge with the actual reviewer's Supabase access token and a binding-specific bridge key. No shared reviewer, global operator key or new review engine exists.
-- No runtime/framework changes are required. The only framework dependency is the published `ai-fabric-chat-session:0.8.41` contract, aligned with current Platform consumption.
+- Desk uses the published `ai-fabric-chat-session:0.8.41` contract and does not require a framework change. The separately owner-authorized runtime application-proposal adapter can originate genuine review tasks; it is not part of Desk and does not replace ordinary chat confirmation.
 
 See [API_CONTRACT.md](API_CONTRACT.md) for exact HTTP inputs/outputs and Platform/UI coordination.
 
@@ -81,4 +81,6 @@ The Dockerfile builds `ui/` with its own lockfile and copies the resulting stati
 - Revoking an active agent does not implicitly transfer their claim. Use the runtime's existing explicit return/close workflow or deliberately restore an authorized assignment. No new takeover/draining/recovery engine is introduced.
 - BFF sessions are local to the single service instance; restarting it requires sign-in again. Persisted OAuth tokens do not themselves restore a browser session. Multiple replicas/sticky/session infrastructure are not part of this baseline.
 - Supabase-issued access-token revocation follows the provider's signed-token expiry semantics. Assignment revocation is immediate on subsequent server authorization checks; there is no claim that JWT signatures provide instant provider logout revocation.
-- The original Basic Inbox and its databases must remain until the real hosted dealership conversation and review flows are qualified and main executes the recorded retirement checks.
+- Managed Desk's connector plan explicitly opts HTTP 404 into bounded transport retries: Coolify removes its route while the application is stopped. Other providers retain their original default (5xx/429); 401/403 are never included by this opt-in. Runtime outbox attempt limits, backoff, ordering and visible final failure remain unchanged. This is not an AI fallback or an automatic return to AI. Hosted qualification of this additional outage case is tracked separately from the already passed normal journey.
+
+See the [customer/agent guide](../../Final_Documentation/External_User_Guides/LOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md) for deployment assignment, service authentication and owner/agent responsibilities. Current hosted evidence and remaining external gates are recorded in [010.48](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_48_LOOMAI_DESK_MANAGED_HUMAN_SUPPORT_AND_REVIEW_SERVICE_IMPLEMENTATION_PLAN.md); source or a healthy probe alone does not prove the complete journey.

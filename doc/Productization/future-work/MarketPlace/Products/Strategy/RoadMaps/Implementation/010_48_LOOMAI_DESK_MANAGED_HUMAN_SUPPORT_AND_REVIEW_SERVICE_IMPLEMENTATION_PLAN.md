@@ -957,3 +957,42 @@ separate product-quality issue, not a failed handover or a silently fixed one.
 Structured, secret-free evidence is recorded in
 `verification-support/loomai-desk-01048/hosted-qualification-20261026.json`.
 Raw proof, credentials, SQL exports and browser state remain outside Git.
+
+### 2026-10-26 Active-Human Outage Qualification Follow-Up
+
+The bounded production test at 13:08 UTC proved the existing claimed conversation
+remained `HUMAN_ACTIVE` while Desk was stopped: the visitor's message was accepted
+for human delivery, no AI message was generated and no silent return to AI
+occurred. The same Desk application restarted healthy. The full report remains
+**FAILED**, however, because the queued visitor message did not reach Desk within
+120 seconds after restoration. Its exact test episode was explicitly closed
+through the Desk UI; native records confirm it is closed, not abandoned.
+
+Read-only runtime evidence identifies a single-attempt `USER_MESSAGE` dispatch
+with `DEAD / PROVIDER_HTTP_404`. Coolify removes the application's route during
+stop, so the reverse proxy returns 404, not 503. The connector currently retries
+5xx/429 but correctly treats other unconfigured statuses as permanent. This is a
+transport policy mismatch for this managed integration, not an authentication,
+LLM, framework or conversation-authority defect.
+
+Bounded correction in progress:
+
+1. Add an explicit, optional set of additional retryable provider 4xx statuses to
+   the generic connector; empty by default. Credential denials 401/403 cannot be
+   reclassified, and no successful status can become a failure retry.
+2. The existing managed Desk provisioning plan opts in only 404. Other providers
+   and ordinary business actions are unchanged. Retain existing finite attempts,
+   exponential backoff, idempotency, FIFO ordering and visible terminal failure;
+   a genuinely wrong route will still fail rather than retry forever.
+3. Verify actual HTTP 404 -> accepted delivery with the same dispatch identity,
+   unchanged default permanent responses, credential-denial behavior and plan
+   generation for both targets. Build a new LoomAI service image, not a framework
+   release; keep AI Fabric 0.8.41 and the existing runtime logic.
+4. Qualify through the normal same-deployment release lifecycle on staging and
+   production, then rerun a fresh bounded outage episode. Do not replay or rewrite
+   the closed failed test's dispatch or claim that source tests prove hosted
+   delivery. No new recovery/draining subsystem or automatic AI transition.
+
+The earlier two preflight harness failures were HTTP/2 pseudo-header and copied
+compression-header issues; neither stopped Desk. Both exact fixture episodes
+were explicitly closed through the UI. All failed raw reports are retained.
