@@ -20,7 +20,7 @@ export function CustomerVerifiedReleaseAssignments({ customerId, deploymentId, t
   const apps = useQuery({ queryKey: ['ai-workspace-installations', customerId],
     queryFn: () => fetchAIWorkspaceInstallations(customerId), enabled: Boolean(customerId && targetProfileId), retry: false })
   const assignments = (consumers.data ?? []).filter(consumer => consumer.customerId === customerId
-    && consumer.boundDeploymentId === deploymentId && consumer.boundTargetProfileId === targetProfileId)
+    && consumer.boundDeploymentId === deploymentId)
   const selected = selectedId ? assignments.find(consumer => consumer.consumerId === selectedId)
     : assignments.length === 1 ? assignments[0] : undefined
   const verified = Boolean(release && release.deploymentId === deploymentId && release.targetProfileId === targetProfileId
@@ -53,14 +53,17 @@ export function CustomerVerifiedReleaseAssignments({ customerId, deploymentId, t
     {!targetProfileId ? <Typography color="text.secondary">Select an apply target to view its app assignments.</Typography>
       : consumers.isLoading ? <Typography>Reading app assignments...</Typography>
       : consumers.isError ? <Alert severity="error">{consumers.error instanceof Error ? consumers.error.message : 'App assignments could not be read.'}</Alert>
-      : !assignments.length ? <Typography color="text.secondary">No existing app assignment is bound to this deployment and target.</Typography>
+      : !assignments.length ? <Typography color="text.secondary">No existing app assignment is bound to this deployment.</Typography>
       : <>
         <TextField select fullWidth label="App assignment" value={selected?.consumerId ?? ''}
           disabled={useRelease.isPending} onChange={event => { setSelectedId(event.target.value); useRelease.reset() }}>
           <MenuItem value="">Select an assignment</MenuItem>
           {assignments.map(consumer => <MenuItem key={consumer.consumerId} value={consumer.consumerId}>{consumer.displayName}</MenuItem>)}
         </TextField>
+        {selected ? <Typography variant="body2">Current target: {selected.boundTargetProfileId ?? 'Unassigned'} / {selected.boundReleaseId ?? 'No release'}</Typography> : null}
+        <Typography variant="body2">Selected target: {targetProfileId}</Typography>
         {release ? <Typography variant="body2">Release: {release.id} / {release.status} / {release.verificationStatus}</Typography> : null}
+        {selected && selected.boundTargetProfileId !== targetProfileId ? <Alert severity="warning">Using this release switches the app to the selected environment. Existing conversations stay on their original deployment.</Alert> : null}
         {!verified ? <Alert severity="info">The target release must pass verification before an app can use it.</Alert> : null}
         {selected?.boundReleaseId === release?.id && verified ? <Alert severity="success">This app assignment already uses the verified release.</Alert> : null}
         <Button variant="outlined" startIcon={<PublishedWithChangesOutlined />}

@@ -1212,3 +1212,120 @@ The final focused rerun passed **27 runtime tests and 40 provisioning tests**, w
 no failures or skips. A second independent read-only review found no blocker in
 the added permanent-failure and FIFO cases. Source rollout and exact new-image
 outage verification remain the next steps; no broader release matrix was added.
+
+### 2026-10-26 20:45 UTC Temporary Neutral Customer And Cleanup Approved
+
+The owner separately approved the previously specified temporary second-customer
+test and cleanup in Required for production, human message
+`01a179f4-a59b-7ff3-990f-5b0b8365067f`. This approval does not depend on or expand
+the earlier retry-runtime approval. Main owns all external effects; parallel
+work is limited to preparing the private execution helper while retry rollout
+and its real outage proof continue sequentially with main.
+
+The exact bounded scope is one additional admin-confirmed fixture identity,
+one fresh temporary production-Console customer with its own local credentials,
+and normal dual-proof identity linking. Before creation, verify the exact
+approved alias is unused; never reset or adopt an existing identity. Deploy a
+domain-neutral conversational composition only on the existing customer-staging
+server: at most one runtime, connector and AI-state PostgreSQL with their owned
+state/cache volumes, reusing shared Desk and the frontend. Do not borrow another
+customer's owned S3/vector bindings or create a business/inventory database,
+per-deployment Inbox, vector-cloud service, VM, S3 bucket or paid subscription.
+
+AI qualification is limited to **6 queries, 12,000 total tokens and $1 of the
+existing prepaid allowance**. No email, global authentication-policy change or
+framework change is authorized. Use actual customer and agent API/UI boundaries,
+not hidden controls or synthetic receipts, to prove neutral activation and
+customer isolation.
+
+Cleanup is included in the approval: disable the temporary consumer/installation,
+revoke temporary grants and identity link through normal APIs, delete the third
+Supabase fixture, deactivate the temporary local account/customer, and retire
+only the exact canary-owned services/volumes. Preserve audit/immutable history,
+shared Desk/frontend and all Northfield resources/identities. Neither actual
+neutral qualification nor cleanup is claimed complete at this approval record.
+
+### 2026-10-26 21:24 UTC Staging Retry And Customer Assignment Qualified
+
+Source `63888284e1fa36dfe9fe013578f026bd2d9e9ea0` passed backend CI
+`40397367228` and runtime CI `40397367280`. Both control-plane backends now
+run that exact source with schema 216. Staging release `rel-ad4245f0` uses
+artifact `dsa-9302c94d` and the unchanged published configuration
+`ver-6b73cd40`; final verification `vrf-4ef8bf3a` passed. Native checks confirm
+the exact runtime/connector image, eight runtime dispatch attempts and the
+managed Desk connector's explicit gateway-404 retry policy.
+
+The actual customer owner used **Roll back assignment** in the Console to
+switch the same app to verified staging, binding revision 10. This qualifies
+the cross-environment UI mutation after the target-selector correction; no
+direct SQL assignment or new app was used.
+
+Fresh live proof `active-human-outage-staging-1793049609857` passed. Desk's
+actual stopped-route response was 503, not a fabricated 404. The claimed
+conversation stayed HUMAN_ACTIVE without AI generation; a different ordinary
+AI conversation still answered while Desk was down. After restarting the same
+Desk service, the queued visitor message arrived exactly once, the human reply
+reached the visitor and the agent explicitly returned control to AI. The old
+failed cases remain failed; no dispatch rows were reset or replayed.
+
+That proof authorized promotion of the same immutable artifact to production.
+Normal production apply `rel-73d5288d` is requested but is not yet qualified or
+assigned at this checkpoint. The app remains on verified staging revision 10.
+No framework change, new configuration version, business database or recovery
+engine was introduced.
+
+Neutral-customer read-only preflight confirms the approved alias is unused and
+a published generic conversational template exists. No third identity,
+customer or service has been created. A normal cleanup-contract gap is now
+explicit: identity-link revocation also blocks local password login, but no
+customer deactivation API exists and the sole-admin guard blocks disabling its
+only local owner. A narrow owner choice was requested to retain only those
+non-authenticating historical audit records after all owned infrastructure,
+bindings, grants and the temporary Supabase identity are removed. This does
+not block production retry qualification and is not a request for lifecycle
+or recovery redesign.
+
+### 2026-10-26 21:49 UTC Production Runtime Verified; Assignment UI Correction
+
+Production release `rel-73d5288d` passed final verification `vrf-589bd24d`:
+29 passed, zero failed and four not applicable. Native runtime and connector
+checks confirm source `63888284e1fa36dfe9fe013578f026bd2d9e9ea0`, OCI root
+`sha256:902a5d00e47d34078907ecfbc3aedb3df3f8c33a5134096ddfbbae765474598d`,
+eight managed Desk attempts and the connector's explicit 404 opt-in. No extra
+configuration publish or framework release was needed.
+
+The actual Console **Activate production** attempt returned 400 because that
+command requires a frozen staging-promotion candidate. This normal direct-apply
+release has no such candidate. Failed proof
+`activate-production-production-1793050655053` remains failed; app assignment
+was not changed. The existing **Use verified release** picker also excluded apps
+currently assigned to a different target, leaving this supported upgrade path
+inaccessible in the customer UI.
+
+The narrowly scoped correction lists only this customer's apps bound to the
+same deployment, regardless of current target. It shows the current and selected
+target and warns before a cross-environment switch. The explicit command still
+uses the existing verified-release binding API, revision check, operation key,
+ownership rules and exact result readback. It does not weaken the promotion
+command, auto-switch an app or migrate an existing conversation. Local focused
+upgrade/browser regression, 15 customer-scope scenarios, TypeScript and Vite
+build passed. Console image rollout and actual customer reassignment remain to
+be verified before production outage proof; the app still uses staging revision
+10 at this checkpoint.
+
+The approved temporary neutral customer `cus-7651b8b6` and one confirmed fixture
+have now been created through normal APIs. Actual local and Supabase dual-proof
+linking returned 200. The first recorder lost its response body during browser
+navigation; it was not resubmitted. Fresh native Supabase sign-in independently
+proved the correct linked customer and CUSTOMER_ADMIN role. No neutral hosted
+service, app, grant or AI query exists yet. Private execution receipts track
+the exact identity IDs and mandatory cleanup.
+
+The existing approval includes access removal while preserving audit history.
+Normal identity-link revocation denies Supabase, local password and old local
+session access; the link cannot be reassigned. Cleanup will delete the temporary
+Supabase identity and remove its grants, enabled bindings/apps and exact owned
+infrastructure, while retaining inaccessible historical local-user/customer
+rows. Their lifecycle status flags will be reported truthfully, not claimed
+disabled. No new owner approval, SQL bypass or customer-lifecycle feature is
+implied by this implementation interpretation.

@@ -69,6 +69,9 @@ try {
     const path = url.pathname, method = request.method()
     calls.push({ path, method, query: url.search, body: request.postData(), headers: request.headers() })
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
+    if (path === '/api/platform/auth/customer-config') return json({ enabled: false })
+    if (path === '/api/deployment-operations/status') return json({ mode: 'DISABLED', manualDeploymentsAllowed: true,
+      serviceConfigured: false, providerUsageMode: 'TEAM_AUTHORIZED', decisionSource: 'CONFIGURATION' })
     if (path === '/api/platform/auth/session') return json({ enabled: true, authenticated: true,
       role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION', actorId: 'owner-one', customerId: 'customer-one',
       customerName: 'Customer One', displayName: 'Customer Owner' })
@@ -84,7 +87,8 @@ try {
       assert.equal(body.deploymentId, deployment.id)
       assert.equal(body.targetProfileId, 'production-target')
       assert.equal(body.releaseId, 'release-upgraded')
-      Object.assign(consumers[0], { boundReleaseId: body.releaseId, bindingRevision: consumers[0].bindingRevision + 1 })
+      Object.assign(consumers[0], { boundReleaseId: body.releaseId, boundTargetProfileId: body.targetProfileId,
+        bindingRevision: consumers[0].bindingRevision + 1 })
       apps[0].releaseId = body.releaseId
       return json(consumers[0])
     }
@@ -133,6 +137,7 @@ try {
         return json(result, 201)
       }
       if (operation === 'prompt-revisions') return json([])
+      if (operation === 'desk') return json(null)
       if (operation === 'prompt-baseline' || operation === 'poc/prompt-session') return json(null)
       if (operation === 'secret-usage') return json({ secrets: [], items: [] })
       if (operation === 'webhooks/overview') return json({ deliveries: [], subscriptions: [], recentDeliveries: [] })
@@ -270,6 +275,34 @@ try {
   assert.equal(calls.some(call => /\/marketplace\/(publishers|inference-services)/.test(call.path)), false)
   assert.equal(calls.some(call => call.path === '/api/deployment-templates'), false)
   assert.equal(errors.length, 0, errors.join('\n'))
+  Object.assign(consumers[0], { boundTargetProfileId: 'staging-target', boundReleaseId: 'staging-release', bindingRevision: 9 })
+  consumers.push({ customerId: 'foreign-customer', consumerId: 'foreign-consumer', displayName: 'Foreign customer app',
+    boundDeploymentId: deployment.id, boundTargetProfileId: 'staging-target', boundReleaseId: 'foreign-release', bindingRevision: 1 },
+  { customerId: 'customer-one', consumerId: 'other-deployment-consumer', displayName: 'Other deployment app',
+    boundDeploymentId: 'other-deployment', boundTargetProfileId: 'staging-target', boundReleaseId: 'other-release', bindingRevision: 1 })
+  await page.goto(`${base}revisions?deploymentId=deployment-one&targetProfileId=production-target`)
+  const crossTarget = page.getByRole('region', { name: 'Existing app release assignment' })
+  await crossTarget.getByText('Current target: staging-target / staging-release', { exact: true }).waitFor()
+  await crossTarget.getByText('Selected target: production-target', { exact: true }).waitFor()
+  await crossTarget.getByRole('alert').filter({ hasText: 'switches the app to the selected environment' }).waitFor()
+  const beforeSwitch = mutations().filter(call => call.path.endsWith('/binding')).length
+  assert.equal(beforeSwitch, 1, 'Reading another target must not switch the app')
+  await crossTarget.getByRole('combobox', { name: /^App assignment/ }).click()
+  assert.equal(await page.getByRole('option', { name: 'Foreign customer app', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('option', { name: 'Other deployment app', exact: true }).count(), 0)
+  await page.getByRole('option', { name: 'Existing app assignment', exact: true }).click()
+  await crossTarget.getByRole('button', { name: 'Use verified release', exact: true }).click()
+  await crossTarget.getByText('This app assignment already uses the verified release.', { exact: true }).waitFor()
+  const crossBinding = mutations().filter(call => call.path.endsWith('/binding'))
+  assert.equal(crossBinding.length, beforeSwitch + 1)
+  const switched = JSON.parse(crossBinding.at(-1).body)
+  assert.equal(switched.expectedBindingRevision, 9)
+  assert.equal(switched.targetProfileId, 'production-target')
+  assert.equal(switched.releaseId, 'release-upgraded')
+  assert.notEqual(switched.operationKey, binding.operationKey)
+  assert.equal(consumers[0].boundTargetProfileId, 'production-target')
+  assert.equal(consumers[0].bindingRevision, 10)
+  assert.equal(await crossTarget.getByRole('link', { name: 'https://existing-app.apps.loomai.pro/' }).getAttribute('href'), existingAppUrl)
   await page.goto(`${base}revisions?deploymentId=foreign-deployment`)
   await page.getByRole('heading', { name: 'The requested deployment is not available', exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Reset to template', exact: true }).count(), 0)
@@ -285,7 +318,7 @@ try {
   assert.equal(verification.includes('approvalRequiredForApply'), false)
   assert.equal(revisions.includes('approvalRequiredForApply'), false)
   assert(verification.includes('Direct apply'))
-  console.log('PASS: shared editors/plugins, missing-offer access, direct production apply, verification-gated existing-consumer PUT with revision/idempotency, draft publish/reset, unchanged app URL and cross-customer scope.')
+  console.log('PASS: shared editors/plugins, missing-offer access, direct production apply, explicit cross-target verified assignment with revision/idempotency and scope filtering, draft publish/reset and unchanged app URL.')
 } catch (error) {
   console.error(JSON.stringify({ errors, unexpected, body: await page?.locator('body').innerText().catch(() => '') }))
   throw error

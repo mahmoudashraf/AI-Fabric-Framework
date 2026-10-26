@@ -10,6 +10,60 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 21:45 UTC CURRENT: PROD rel-73d5288d/v5/dsa930 now APPLIED_VERIFIED,
+  vrf-589bd24d29PASS/0FAIL/4SKIP; native runtime+connector638/OCI902a.../
+  attempts8+404optin PASS. Actual appSTILLstage10: GoLive Activateproduction
+  rejected400 because directapply has no frozenstaging promotioncandidate.
+  Failed UI proofactivate-production-production-1793050655053 retained. No
+  assignment changed. Narrow correction inexistingverifiedreleasepicker allows
+  owned SAMEdeployment apps across target, showscurrent/selectedtarget+warning,
+  usesexisting revision/idempotent verified-bindingAPI. Focusedbrowser test in
+  progress; TS/Vite PASS. No backend/runtime/frameworkchange forthisUI fix.
+- NeutralfixtureNOWcreated underapprovedscope: customer cus-7651b8b6,
+  localuser usr-fff9c962, Supasubject fbfb75ea-86f7-4ecc-aa11-1bb751758a08.
+  Exactaliasfreshguardpassed, normaldualprooflinkHTTP200; firstrecorderlost
+  responsebodyduringnavigation(notproductfailure), NOrelink/replay. Freshnative
+  Supasignin linked-identity-readback-1793050969095 PASS correctcustomer/role.
+  Private neutral-second-customer/execution.private.json tracksallIDs+cleanup.
+  ZeroAIqueries/hostedservices/grants/consumer yet. Requiredconfirmed existing
+  approvalcovers inaccessiblehistoricalcustomer/localuser auditrows after
+  normalaccessrevocation+exactSupa deletion+ownedinfrastructurecleanup; no
+  freshhumanapproval claimed, noSQL/soleadminbypass. Cleanupstill REQUIRED.
+
+- 21:24 UTC CURRENT: BOTH control-plane backends now63888284/nativehealthy/
+  schema216 (prod jobltp8yr1dhwvfe17sdqt169hb). STAGE runtime+connector638,
+  dsa930/v5/rel-ad4245f0 APPLIED_VERIFIED/vrf-4ef8bf3a PASSED. Native exactOCI
+  902a5d00.../source plus runtimeattempts8 and connector404 opt-in PASS.
+  Actual customer Console Roll back assignment used SAME app/consumer normally,
+  revision10 -> stagingrelad4 (use-staging-staging-1793049567862).
+  Realactive-human-outage-staging-1793049609857 PASS: native503, humanauthority
+  retained/noAI, separateordinaryAI worked whileDeskdown, SAMEservice restored,
+  queuedvisitor message receivedexactlyonce, humanreply visible, explicitAIreturn.
+  NoSQLreset/replay/shortenedoutage. Artifactdsa930 nowproduction-promoted by
+  that proof; normalprodapplyrel-73d5288d REQUESTED, notyetverified/assigned.
+  Appstillstage10; do notclaimprod638 yet. Neutralread-onlypreflight exactalias
+  UNUSED, generictemplatev1.0.1 exists; NO newidentity/customer/resource yet.
+  ExistingcleanupAPIcannotdisable solelocaladmin/customer; requested narrow
+  ownerchoice to retain non-authenticatingaudit records after linkrevocation/
+  exactSupa deletion/completeownedresourcecleanup, without newlifecyclecode.
+
+- 20:51 UTC CURRENT: bounded retry change committed/pushed63888284e1fa36dfe9fe013578f026bd2d9e9ea0.
+  CI40397367228backend and40397367280runtime PASS; exactOCI roots backend255294fa...
+  /runtime902a5d00... verified. STAGE CP now638/nativehealthy/schema216,
+  joby4f4cjhhsc1o00wnsuru7xfy. PROD CP rollout queued; consumed effect/proofs in
+  private desk-delivery-window/. Newartifactdsa-9302c94d registered/promotedSTAGE;
+  reusepublishedv5/ver6b73cd40, no newconfigpublish. RuntimeapplyNOTstarted yet;
+  actualappstillprodc24/revision9, runtimestage37/prodc026, Consoles2a/Desk3b.
+- Separate actual owner approval20:45 now RECEIVED for temporary neutral second
+  customer+cleanup (human01a179f4-a59b-7ff3-990f-5b0b8365067f;
+  receiptowner-decisions/neutral-second-customer-owner-approval-20261026.private.json).
+  Exactly1third confirmedfixture/fresh localcustomer, normaldual-prooflink,
+  STAGEonlyruntime+connector+AI-statePG/cache/sharedDesk/frontend; <=6queries/
+  12000tokens/$1existingallowance; no email, businessDB, vectorcloud, VM/S3 or
+  newpaidservice. Cleanupapprovedpreservesaudit/shared/Northfield. Main owns all
+  effects; Rawls preparing private helper/checklist ONLY while mainfinishesretry
+  stage/prod proof. No thirdidentity/customer/service/grant created yet.
+
 - 20:30 UTC: actual owner approved ONLY the bounded Desk retry-runtime setting
   in Required for production (human01a179de-34ca-7522-90f0-c8264a382096;
   receipt owner-decisions/desk-delivery-retry-runtime-owner-approval-20261026.private.json).
