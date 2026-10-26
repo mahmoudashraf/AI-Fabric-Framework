@@ -1,0 +1,58 @@
+server:
+  port: ${PORT:8086}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: __Host-LOOMAI_DESK_SESSION
+        secure: true
+        http-only: true
+        same-site: lax
+        path: /
+spring:
+  application:
+    name: loomai-desk
+  datasource:
+    url: ${DESK_JDBC_URL}
+    username: ${DESK_JDBC_USERNAME}
+    password: ${DESK_JDBC_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    locations: classpath:db/desk-migration
+  sql:
+    init:
+      mode: never
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  jackson:
+    default-property-inclusion: non_null
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+loomai:
+  desk:
+    service-key: ${LOOMAI_DESK_SERVICE_KEY}
+    data-encryption-secret: ${DESK_DATA_ENCRYPTION_SECRET}
+    supabase-url: ${SUPABASE_URL}
+    supabase-publishable-key: ${SUPABASE_PUBLISHABLE_KEY:}
+    issuer: ${SUPABASE_ISSUER}
+    jwks-uri: ${SUPABASE_JWKS_URI}
+    audiences: ${SUPABASE_AUDIENCES:authenticated}
+    client-id: ${DESK_OIDC_CLIENT_ID:}
+    client-secret: ${DESK_OIDC_CLIENT_SECRET:}
+    oidc-signing-algorithm: ${DESK_OIDC_SIGNING_ALGORITHM:ES256}
+    request-timeout: 10s
+    max-callback-attempts: 8
+    callback-retry-delay: 5s
+    retention: 30d
+ai:
+  enabled: false

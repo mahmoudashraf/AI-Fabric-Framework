@@ -1,0 +1,80 @@
+name: Publish LoomAI Desk
+
+on:
+  push:
+    branches: [Platform-V11]
+    paths:
+      - ".github/workflows/publish-loomai-desk.yml"
+      - "product-services/loomai-desk-service/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: loomai-desk-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: desk
+          POSTGRES_USER: desk
+          POSTGRES_PASSWORD: desk-tests-local-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U desk -d desk"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: product-services/loomai-desk-service/ui/package-lock.json
+      - name: Verify shared service and scoped PostgreSQL persistence
+        run: mvn -B -ntp -f product-services/loomai-desk-service/pom.xml -Ddesk.test.postgres.url=jdbc:postgresql://127.0.0.1:5432/desk -Ddesk.test.postgres.required=true verify
+      - name: Build Desk portal
+        working-directory: product-services/loomai-desk-service/ui
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+          npm test
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable Desk service and portal image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: product-services/loomai-desk-service/deploy/container/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/loomai-desk-service:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=loomai-desk-service
+          cache-to: type=gha,mode=max,scope=loomai-desk-service
+      - name: Record exact image identity
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/loomai-desk-service
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          printf '## LoomAI Desk\n\n- Image: `%s@%s`\n- Source: `%s`\n' "$IMAGE" "$DIGEST" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
