@@ -1,12 +1,12 @@
 {
   "plan": "010.48",
-  "observedAt": "2026-10-26T17:02:00Z",
+  "observedAt": "2026-10-26T17:53:00Z",
   "status": "HOSTED_DEALERSHIP_CORE_QUALIFIED_REMAINING_GATES_OPEN",
   "complete": false,
   "source": {
     "branch": "Platform-V11",
     "backend": "37e7717cb08911ccc519875400aa2fd4a050c3c4",
-    "console": "7bf91b1f419103bd7b474b0b986f4fe93b948ff0",
+    "console": "2a550d2b306b47b49939992fc786c28f5b07977b",
     "desk": "3b9909cd10989344b86f344b8dcd455a5ec15731",
     "runtime": {
       "staging": "37e7717cb08911ccc519875400aa2fd4a050c3c4",
@@ -19,7 +19,7 @@
   },
   "verification": {
     "coreImageRun": 40357792666,
-    "consoleImageRun": 40319293535,
+    "consoleImageRun": 40367588134,
     "dependencyImageRun": 40319293608,
     "stagingRuntimeImageRun": 40357792569,
     "productionRuntimeImageRun": 40313425336,
@@ -31,7 +31,9 @@
     "transportConnectorFinalFocusedTests": { "passed": 14, "failed": 0, "skipped": 0 },
     "transportProvisioningPlanTests": { "passed": 40, "failed": 0, "skipped": 0 },
     "externalDealershipBackendTests": { "passed": 180, "failed": 0 },
-    "customerUiScopeScenarios": { "passed": 12, "failed": 0 },
+    "customerUiScopeScenarios": { "passed": 15, "failed": 0 },
+    "customerApiContractTests": { "passed": 14, "failed": 0 },
+    "customerUiTypeChecksAndProductionBuild": "PASS",
     "focusedNativeReviewHttpTests": { "passed": 2, "failed": 0, "skipped": 0 },
     "deskBrowserTests": { "passed": 38, "failed": 0 },
     "consoleAuthBrowserScenarios": { "passed": 12, "failed": 0 },
@@ -75,7 +77,8 @@
     "unusedConnectorProcessVariablesRemainUntilNormalRestart": true,
     "actualLoadedRoutingReferencesRetiredVariables": false,
     "loadedRoutingSha256": "bd8d484fe287f3bf4449a5c9abf9a4e081ff1360a2efb51201ec974bda0c8f8c",
-    "connectorRestartPerformedForCleanup": false
+    "connectorRestartPerformedForCleanup": false,
+    "legacyConnectorProcessVariableCountAfterNormalRelease": { "staging": 0, "production": 6 }
   },
   "realActionReview": {
     "staging": { "status": "PASS", "qualifiedReleaseId": "rel-416f6ea9", "approveExternalWrites": 1, "rejectExternalWrites": 0, "exactReplayExtraWrites": 0, "newDecisionAgainstStaleVersionHttpStatus": 409 },
@@ -120,9 +123,40 @@
     "actualSupabaseCustomerOwnerUsedNormalBindingApi": true,
     "directSqlAssignmentWrites": false,
     "crossEnvironmentUiQualified": false,
-    "crossEnvironmentUiObservation": "Same-target Versions widget correctly excludes another target's app. V216 retirement exposed the go-live UI's remaining dependency on its old bootstrap catalogue, which strips targets after REVIEWED_COMPOSITION_CHANGED. The authorized owned-deployment target API still returns staging/production profiles; a narrow UI-only correction is in progress.",
+    "crossEnvironmentUiObservation": "Same-target Versions widget correctly excludes another target's app. The V216-related target selector regression is corrected in Console2a550d2b3 on both hosts. Actual owner UI readback proves authorized production selection and enabled rollback controls; no cross-environment UI mutation was executed.",
     "restoredPublicProductionSmoke": "PASS",
     "privateSmokeProof": "restored-production-smoke-1793033881295"
+  },
+  "consoleTargetCorrection": {
+    "status": "PASS",
+    "source": "2a550d2b306b47b49939992fc786c28f5b07977b",
+    "registryRootDigest": "sha256:703a3eca43d3a2228865dabbbc37add31be2fa383bac217497447bdf8bd39580",
+    "stagingJob": "arbzhokdsln5fmu8tr3aup12",
+    "productionJob": "u70z8gu1672tgp4tsmtjs2q4",
+    "bothNativeImagesAndPublicPagesVerified": true,
+    "actualOwnerUiReadback": "existing-target-ui-production-1793036066008",
+    "ownedTargetApiHttpStatus": 200,
+    "boundProductionSelected": true,
+    "rollbackControlEnabled": true,
+    "deploymentOrAssignmentCommandExecuted": false,
+    "ordinaryPreferenceWrites": 1,
+    "initialHiddenLocatorFailurePreserved": "existing-target-ui-production-1793035940110",
+    "expiredGoLiveReadinessRemainsVisible": true,
+    "configuredPromotionEvidenceMaxAgeSeconds": 3600,
+    "freshnessPolicyWeakened": false
+  },
+  "nativeCancelledLogin": {
+    "status": "PASS",
+    "privateProof": "cancelled-login-production-1793035642057",
+    "freshBrowserToActualConsoleSignIn": true,
+    "deskAuthenticatedAfterCancel": false,
+    "knownConversationApiAfterCancelHttpStatus": 401,
+    "accountsEmailsOrPermissionsChanged": false
+  },
+  "sharedDeskHealth": {
+    "observedAt": "2026-10-26T17:53:14Z",
+    "staging": { "httpStatus": 200, "status": "UP" },
+    "production": { "httpStatus": 200, "status": "UP" }
   },
   "operatingSnapshot": {
     "observedAt": "2026-10-26T17:06:39Z",
@@ -131,6 +165,9 @@
     "production": { "deskCpuPercent": 0.19, "deskMemoryMiB": 320.1, "deskMemoryLimitMiB": 768, "postgresCpuPercent": 0.11, "postgresMemoryMiB": 43.86, "postgresMemoryLimitMiB": 512, "hostLoad1m5m15m": [0.24, 0.30, 0.33] }
   },
   "passedLive": [
+    "both-Consoles-existing-target-selector-correction-and-real-customer-readback",
+    "native-cancelled-Desk-login-leaves-session-anonymous-and-conversation-api401",
+    "redacted-current-production-customer-agent-recording-with-final-CLOSED-readback",
     "existing-customer-dual-proof-Supabase-link-preserves-resource-ownership",
     "owner-one-click-Console-to-Desk-without-second-password",
     "separate-native-agent-registration-initially-grants-no-bindings",
@@ -162,9 +199,8 @@
     "branded-desk.loomai.pro-DNS-and-certificate",
     "domain-neutral-hosted-activation-and-known-second-customer-hosted-isolation",
     "queued-human-message-delivery-after-managed-Desk-restart",
-    "older-bootstrap-cross-environment-customer-target-picker",
-    "public-embedded-site-protected-action-sign-in-host",
-    "redacted-shareable-customer-agent-demonstration-recording"
+    "cross-environment-customer-assignment-UI-mutation-not-exercised-after-target-picker-correction",
+    "public-embedded-site-protected-action-sign-in-host"
   ],
   "observations": [
     "A post-return compound policy-and-stock query executed but reported no relevant evidence; answer quality is not marked passed.",
@@ -195,6 +231,9 @@
     "active-human-outage-staging-1793033149056",
     "active-human-outage-staging-1793033286466",
     "restored-production-smoke-1793033881295",
+    "existing-target-ui-production-1793036066008",
+    "cancelled-login-production-1793035642057",
+    "conversation-production-embedded-shareable-1793036502767",
     "desk-transport-retry",
     "core-retirement-proof",
     "external-inbox-client-retirement",

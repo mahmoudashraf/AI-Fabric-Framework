@@ -1,0 +1,60 @@
+{
+  "plan": "010.48",
+  "status": "PASS_HANDOVER_LIFECYCLE_NOT_BROAD_ANSWER_QUALITY",
+  "recordedAt": "2026-10-26T17:41:42Z",
+  "finalCloseReadbackAt": "2026-10-26T17:49:39Z",
+  "artifact": "Final_Documentation/Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4",
+  "sha256": "28ace21e02bb2fe3db4a4427dac5d01cf494dbbe9b163457db2a64654cfa601f",
+  "byteLength": 5625932,
+  "durationSeconds": 66.24,
+  "width": 2560,
+  "height": 1160,
+  "codec": "h264",
+  "pixelFormat": "yuv420p",
+  "audio": false,
+  "fullDecode": "PASS",
+  "visuallyReviewedKeyframes": 7,
+  "poster": "verification-support/loomai-desk-01048/desk-customer-agent-demo-poster.png",
+  "surfaces": {
+    "visitor": "https://loomai.pro/demos/dealership-ai",
+    "agent": "https://loomai-desk.46.225.162.106.sslip.io/"
+  },
+  "deployment": {
+    "releaseId": "rel-c24e897e",
+    "sourceArtifactId": "dsa-32658297",
+    "consumerBindingRevision": 9,
+    "manifestAssignmentRevision": "sha256:fa2e8dd89f41a99928b7e29ed2486431b9abd88e64d0c1fb4126f39263dcd840",
+    "framework": "0.8.41"
+  },
+  "privateProof": "conversation-production-embedded-shareable-1793036502767",
+  "checks": {
+    "inventorySearch": true,
+    "modelSelectedHandover": true,
+    "agentClaimAndReply": true,
+    "visitorReplyReachedAgent": true,
+    "explicitReturnToAi": true,
+    "freshAiResponseAfterReturn": true,
+    "secondUiButtonHandover": true,
+    "finalCloseRequested": true,
+    "separateLiveUiAndApiConfirmClosed": true
+  },
+  "editing": {
+    "initialNavigationTrimmedSeconds": 3.976,
+    "twoConcurrentBrowserRecordingsShownSideBySide": true,
+    "testAccountDisplayLabelsRedacted": true,
+    "networkRequestsOrResponsesModified": false,
+    "aiOrHumanRepliesSimulated": false,
+    "playbackSpeedChanged": false,
+    "laterReadOnlyAcknowledgementClipExplicitlyLabelled": true,
+    "restartLatencyBenchmark": false
+  },
+  "knownLimitationVisible": "The post-return compound delivery-policy query did not retrieve policy evidence. This is not a broad answer-quality pass or an assertion that this issue was fixed.",
+  "notDemonstrated": [
+    "queued-human-message-recovery-after-Desk-restart",
+    "action-review-lifecycle-qualified-separately",
+    "native-public-email-signup",
+    "second-customer-hosted-isolation"
+  ],
+  "newIdentitiesServicesGrantsOrBusinessBookingsCreated": false,
+  "rawReportsAndAuthenticatedBrowserStatePublished": false
+}

@@ -10,6 +10,53 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 17:53 UTC CURRENT: independent shareable recording item completed while owner
+  decisions remain pending. Actual public production journey
+  conversation-production-embedded-shareable-1793036502767 PASS: AI stock query,
+  model-selected handover, agent claim/reply, visitor message, explicit return
+  to AI, fresh AI answer, button handover and close request. Separate read-only
+  final-close-readback PASS confirms exact episode CLOSED in actual Desk UI/API;
+  accepted close was NOT falsely treated as acknowledged. Recording clearly
+  labels the later cut. MP4 LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4:
+  66.24s/2560x1160/5,625,932bytes/SHA25628ace21e02bb2fe3db4a4427dac5d01cf494dbbe9b163457db2a64654cfa601f.
+  Full decode and7keyframe visual/redaction QA PASS. Only fixture display text
+  masked; no request/response/model/permission data changed. Raw browser states,
+  reports and unreleased preview remain private. Compound delivery-policy miss
+  reproduced visibly; no broad quality or restart-recovery pass claimed.
+  Poster, public metadata and video README/guide updated; old Inbox clip marked
+  historical. Actual consumer still relc24/revision9; both Desk probes200/UP.
+  No new customer/account/service/grant/business write/framework release.
+
+- 17:36 UTC CURRENT: Console-only fix `2a550d2b306b47b49939992fc786c28f5b07977b`
+  committed/pushed and native-verified on BOTH hosts. CI40367588134 PASS;
+  OCIroot703a3eca43d3a2228865dabbbc37add31be2fa383bac217497447bdf8bd39580.
+  Coolify stage arbzhokdsln5fmu8tr3aup12 / prod u70z8gu1672tgp4tsmtjs2q4
+  finished/healthy; schemas216. Existing deployments now use the authorized
+  owned-deployment target API, not retired bootstrap offer targets. Actual owner
+  UI proof existing-target-ui-production-1793036066008 PASS: production selected,
+  APPLIED_VERIFIED visible, rollback control enabled; NO rollout/assignment/
+  permission command. Navigation saved one ordinary preferences PUT. Initial
+  proof1793035940110 FAILED on a hidden duplicate label; retained, corrected
+  harness locator only. Local15browser scenarios/14API tests/bothTS/Vite PASS.
+- Native cancelled-login-production-1793035642057 PASS: fresh Desk -> actual
+  Console sign-in -> Cancel; no Desk session, known conversation API401, no
+  non-auth Desk writes/account/email/permission change. Both shared Desk health
+  probes200/UP17:32. Staging connector process now has zero MANAGED_INBOX_*
+  variables after its normal37e restart; prod still has six unused historical
+  variables in its old process. Desired records/routing remain clean; no extra
+  restart solely for cleanup. Branded Desk DNS still has no result.
+- Current app STILL production rel-c24e897e/revision9; stage runtime37e/prod
+  c026, backends37e, shared Desk3b9909, framework0.8.41, site/external7bf.
+  Go-live summary shows expired activation evidence: configured
+  PLATFORM_PROMOTION_EVIDENCE_MAX_AGE_SECONDS=3600, lastprod verification12:01.
+  This is NOT a new runtime outage or proof that historical29/0/4 failed.
+  No activation/rollback executed, freshness policy weakened, or broad release
+  rerun performed merely to refresh UI. Cross-environment mutation via UI is
+  still not claimed. Retry-runtime and third-identity decisions remain pending
+  in Required for production; no edits/provisioning for either. DNS/native
+  Brevo email, domain-neutral/second-customer proof and shareable video remain
+  open. Continue from this checkpoint, do not replay consumed rollout intents.
+
 - 17:00UTC CURRENT: SAMEapp/consumer RETURNEDtoverifiedPRODUCTIONrel-c24e897e/
   revision9 throughnormalbindingAPIbyactualSupabasecustomerowner. Private
   restore-production-assignment.response.json; publicbrowser

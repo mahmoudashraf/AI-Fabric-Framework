@@ -17,6 +17,11 @@ Conversation handover and real action-review decisions have both passed on the
 dealership's staging and production targets. The old per-deployment Inbox
 services and their dedicated databases have been retired.
 
+The [recorded customer/agent journey](../Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4)
+shows the current shared Desk flow side by side. It demonstrates handover and
+replies, not every answer-quality or restart-recovery case. The known compound
+delivery-policy retrieval limitation remains visible in the recording.
+
 ## Customer Setup
 
 1. Sign in to the customer Console. Existing password-based customers connect a
@@ -80,6 +85,13 @@ One shared Desk application/store serves the customers in each environment.
 Ordinary AI chat still goes directly to the deployment. During handover, the
 deployment connector sends the support conversation to Desk, and signed Desk
 callbacks carry human replies back through that connector to the visitor.
+
+Existing deployments get their target choices from their current authorized
+deployment, not the original template's catalogue availability. Retiring an old
+bootstrap template does not hide an existing production target. Go-live evidence
+has a freshness window: an expired activation check is not a live health result.
+Use **Verify production release** before a new activation when fresh evidence is
+required; merely opening this screen does not deploy or switch the app.
 
 ## Authentication Between Desk And A Deployment
 

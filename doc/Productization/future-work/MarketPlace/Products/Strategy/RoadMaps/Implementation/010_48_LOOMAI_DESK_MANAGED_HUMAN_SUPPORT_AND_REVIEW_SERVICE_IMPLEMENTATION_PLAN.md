@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 17:02 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. An additional live outage check exposed a hard-coded five-attempt delivery window: human authority is preserved, but queued-message recovery fails after a restart. The HTTP-status correction is staged; a separately bounded runtime-configuration decision is pending. The same public app is restored to its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
+- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 17:53 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. The existing-deployment target-selector regression is corrected and deployed to both Consoles, with real customer UI readback; a redacted live customer/agent recording is delivered. An additional live outage check exposed a hard-coded five-attempt delivery window: human authority is preserved, but queued-message recovery fails after a restart. The HTTP-status correction is staged; a separately bounded runtime-configuration decision is pending. The same public app remains on its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -413,14 +413,15 @@ Each phase should be a focused implementation commit with its own verification e
 - [ ] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority.
 - [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (shared-directory PostgreSQL tests and actual two-target provisioning; a second hosted customer journey is not claimed).
 - [x] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below (three scoped pairs, containers and owned volumes verified absent; archived demo history retained privately).
-- [ ] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording.
+- [x] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording (redacted live production technical clip delivered; known answer-quality caveat retained).
 
-Guides, Desk-ready template defaults and cleanup ownership are updated. Actual
-customer/agent browser recordings exist privately with the passing journey
-reports; a redacted, shareable demonstration has not been delivered. The unchecked
-isolation gate still needs a known second hosted customer, and the outage gate
-still needs an active-human conversation case; existing offline and ordinary-AI
-outage proofs are not substituted for those cases.
+Guides, Desk-ready template defaults and cleanup ownership are updated. The
+redacted live customer/agent technical demonstration is delivered in
+`Final_Documentation/Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4`.
+The unchecked isolation gate still needs a known second hosted customer. The
+additional active-human outage case preserved authority but failed queued-message
+recovery; existing offline and ordinary-AI outage proofs do not substitute for
+that result.
 
 **Exit:** The formal support service is Desk, old per-deployment Inbox resources are gone, and no supported template/provisioner recreates them.
 
@@ -1086,3 +1087,92 @@ PostgreSQL, not per-customer replicas:
 This is an idle/low-traffic snapshot after the real journeys, **not** a capacity
 benchmark or evidence of the cause of earlier periodic host-load incidents. No
 admission sampling, resource redesign or new hosting resource was introduced.
+
+### 2026-10-26 Existing Target UI Correction Deployed And Verified
+
+The narrow UI correction is committed and pushed as
+`2a550d2b306b47b49939992fc786c28f5b07977b`. Existing deployment targets come from
+the existing authorized `/api/deployments/{deploymentId}/target-profiles` API.
+Selection is scoped to customer, actor, deployment and assignment, and prefers
+the authorized bound production target. New bootstrap retains the catalogue's
+readiness checks. No old offer or retired Inbox resource was reactivated, and no
+backend authorization contract was changed.
+
+- Fifteen local browser scope scenarios, fourteen API contract tests, both
+  TypeScript checks and the Vite production build passed. The cases include
+  retired bootstrap composition, stale deployment selections, unauthorized
+  targets and unchanged new-deployment restrictions.
+- UI-only image CI `40367588134` passed; backend publishing correctly skipped.
+  The verified OCI root is
+  `sha256:703a3eca43d3a2228865dabbbc37add31be2fa383bac217497447bdf8bd39580`.
+  Staging job `arbzhokdsln5fmu8tr3aup12` and production job
+  `u70z8gu1672tgp4tsmtjs2q4` finished successfully; exact native image, public
+  HTML and health checks passed. Neither Desk nor the runtimes were restarted.
+- Actual Supabase customer UI proof
+  `existing-target-ui-production-1793036066008` passed: owned target API 200,
+  production selected, `APPLIED_VERIFIED` visible and rollback control enabled.
+  No deployment, release, assignment, agent or conversation command was issued.
+  Normal navigation saved one user-preference PUT. This is readback evidence,
+  **not** a claim that rollback or cross-environment assignment was executed.
+- The initial report `existing-target-ui-production-1793035940110` remains
+  failed: its text locator selected a hidden copy of the label. Only the private
+  test locator and its handling of ordinary preference saves were corrected;
+  no further product change was required to obtain the passing readback.
+- Fresh native cancellation proof `cancelled-login-production-1793035642057`
+  passed: Desk redirects to the actual Console sign-in, Cancel creates no Desk
+  session, and the known conversation API still returns 401. No account, email
+  or permission was changed. This closes that cancellation case, not public
+  signup/recovery email or every identity-expiry case.
+
+The go-live page also shows expired activation evidence. The actual backend
+policy is `PLATFORM_PROMOTION_EVIDENCE_MAX_AGE_SECONDS=3600`, while the existing
+production verification completed at 12:01 UTC. The release is still
+`APPLIED_VERIFIED` with its recorded passing run; the stale readiness projection
+is not a new native health failure. No policy was relaxed, activation attempted,
+or broad runtime verification repeated merely to clear the display.
+
+The app remains production `rel-c24e897e`, assignment revision **9**. Both shared
+Desk probes returned 200/UP at 17:32 UTC. After its normal 37e restart, the staging
+connector has no `MANAGED_INBOX_*` process variables. Production's older running
+process still has six unused historical values, with no desired configuration
+or loaded routing reference; no cleanup-only restart was introduced.
+
+Full closure is still open. The bounded retry-runtime change and temporary
+second-customer identity/canary await separate actual owner decisions in
+**Required for production**. Native email, branded DNS and hosted neutral/customer
+isolation proof remain unqualified. The framework remains **0.8.41**; no framework
+edit or release was made.
+
+### 2026-10-26 Redacted Live Customer And Desk Recording
+
+The independent recording item is complete, without waiting on either pending
+scope decision. The actual public production journey
+`conversation-production-embedded-shareable-1793036502767` passed inventory
+search, model-selected handover, agent claim/reply, visitor-to-agent message,
+explicit return to AI, a fresh AI answer and a second UI-button handover.
+The initial close command was accepted, not immediately completed. A separate
+read-only capture confirms the exact episode is `CLOSED` in the actual Desk UI
+and authenticated API after the runtime callback acknowledgement. The video
+labels this later cut explicitly rather than presenting queued close as success.
+
+The final artifact is
+`Final_Documentation/Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4`:
+66.24 seconds, 2560 x 1160, H.264/yuv420p, no audio, 5,625,932 bytes. SHA-256:
+`28ace21e02bb2fe3db4a4427dac5d01cf494dbbe9b163457db2a64654cfa601f`.
+Full decode and seven keyframe visual/redaction checks passed. The exact
+verification metadata and poster are tracked under
+`verification-support/loomai-desk-01048/`.
+
+Only test-account display labels were redacted in the browser rendering. No
+network request, API response, model decision or human reply was replaced. Raw
+recordings, browser storage, reports and an unreleased preview remain private.
+The public app still references production `rel-c24e897e`, revision **9**; both
+Desk services returned 200/UP at the final 17:53 UTC readback. No new deployment,
+identity, role assignment, business booking or framework release was required.
+
+This is a handover lifecycle proof, **not** a broad answer-quality claim. The
+post-return compound delivery-policy question again reported missing policy
+evidence; the limitation is retained visibly, not hidden by a different prompt,
+synthetic answer or silent fallback. It remains a separate quality follow-up.
+The video does not claim outage recovery or demonstrate Action Review, whose
+real approve/reject/replay qualification is recorded separately above.

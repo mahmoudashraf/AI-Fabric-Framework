@@ -1,5 +1,37 @@
 # Conversation Handover Demo Videos
 
+## LoomAI Desk Shared-Service Proof
+
+[Watch the current Desk demo](LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4)
+shows the actual public dealership workspace and the assigned agent's shared
+LoomAI Desk side by side. It is 66 seconds, H.264, 2560 x 1160, with no audio.
+
+The live flow covers inventory search, an AI-selected human handover, agent
+claim/reply, a visitor reply, explicit return to AI, a second button-requested
+handover and final close. The initial close request is labelled pending; a
+separate, labelled read-only capture shows **Closed** after the deployment's
+callback acknowledgement. This cut is not a restart-latency measurement.
+
+Test-account display labels are redacted in the recording only. API requests,
+model answers, human replies and state transitions were not replaced or mocked.
+No new account, grant, deployment, business booking or framework release was
+created for this recording. Raw reports and authenticated browser state remain
+private. The inventory itself is fictional simulator data, not live Auto Trader
+customer data.
+
+**Scope:** this is a technical handover proof, not a broad answer-quality or
+outage-recovery pass. The post-return compound delivery-policy query still
+reports missing policy evidence; that known limitation is retained visibly.
+Action Review is qualified separately and is not shown in this clip.
+
+See the [customer and agent guide](../External_User_Guides/LOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md)
+for the current Console activation, Supabase sign-in and deployment-scoped agent
+assignment flow. The redacted
+[poster](../../verification-support/loomai-desk-01048/desk-customer-agent-demo-poster.png)
+and [verification metadata](../../verification-support/loomai-desk-01048/shareable-demo-20261026.json)
+identify the exact recording. Old dealership Inbox recorders below do not
+reproduce the new Desk architecture.
+
 ## AI Fabric Framework Proof
 
 `AI_FABRIC_FRAMEWORK_CONVERSATION_HANDOVER_DEMO.mp4` is a live framework-only proof of:
@@ -28,7 +60,11 @@ framework video intact and adds a live proof of:
 Its evidence frames are in
 `AI_FABRIC_FRAMEWORK_REQUIRED_EMAIL_HANDOVER_DEMO-evidence/`.
 
-## LoomAI Dealership Proof
+## Historical Dealership Inbox Proof
+
+This earlier recording uses the now-retired dealership/operator Inbox. It is
+retained as historical evidence, not a supported deployment or authentication
+path. The current formal human-support service is shared LoomAI Desk above.
 
 `LOOMAI_DEALERSHIP_CONVERSATION_HANDOVER_DEMO.mp4` is a live side-by-side proof of:
 
@@ -45,7 +81,8 @@ Its evidence frames are in `LOOMAI_DEALERSHIP_CONVERSATION_HANDOVER_DEMO-evidenc
 
 ## Reproduction
 
-The Playwright recorders live in `Platfrom/loomai-site/scripts/`:
+The earlier framework and historical dealership Playwright recorders live in
+`Platfrom/loomai-site/scripts/`. They are not the current Desk recorder:
 
 ```bash
 node scripts/record-ai-fabric-handover-live-demo.mjs
