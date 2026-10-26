@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted dealership core qualified (2026-10-26, 12:55 UTC). Shared Desk, customer linking, owner SSO, agent assignments, full AI/human conversation journeys and genuine Action Review approve/reject/replay pass on staging and production. The public dealership demo uses the verified production release; all three legacy Inbox application/database pairs and active provisioning paths are retired. Full-plan closure remains open for native public email, branded DNS, domain-neutral/second-customer hosted proof and the active-human outage case; see the current execution record.
+- **Status:** Hosted dealership core qualified; full closure open (2026-10-26, 17:02 UTC). Shared Desk, customer linking, owner SSO, agent assignments, normal AI/human journeys and genuine Action Review approve/reject/replay have passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. An additional live outage check exposed a hard-coded five-attempt delivery window: human authority is preserved, but queued-message recovery fails after a restart. The HTTP-status correction is staged; a separately bounded runtime-configuration decision is pending. The same public app is restored to its existing verified production release. Native email, branded DNS and domain-neutral/second-customer proof also remain open; see the execution record.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -996,3 +996,93 @@ Bounded correction in progress:
 The earlier two preflight harness failures were HTTP/2 pseudo-header and copied
 compression-header issues; neither stopped Desk. Both exact fixture episodes
 were explicitly closed through the UI. All failed raw reports are retained.
+
+### 2026-10-26 Transport Fix Staged; Retry Window Approval Pending
+
+- Source `37e7717cb08911ccc519875400aa2fd4a050c3c4` implements the optional
+  retry-code policy and the managed Desk 404 opt-in. The existing runtime attempt
+  limit was not changed. Backend CI `40357792666` and combined service-image CI
+  `40357792569` passed; native backends on both hosts now match that source and
+  schema 216. Console, public site and external receiver remain `7bf91b1f4`;
+  Desk remains `3b9909cd1`, and the framework remains **0.8.41**.
+- Source tests: the connector's full suite passed 87 tests including PostgreSQL
+  cases, then the final focused suite passed 14 tests after adding positive/empty
+  configuration binding. Forty provisioning-plan tests passed. Independent
+  read-only review found no blocker; queue exhaustion and provider deduplication
+  were not falsely claimed as new coverage from the stub-runtime test.
+- Normal same-version apply uses `ver-6b73cd40` with new artifact `dsa-50f6d8ca`.
+  Staging `rel-79d4a1d9` is **APPLIED_VERIFIED**, `vrf-33e91d73`: 29 PASS, 0 FAIL,
+  4 not applicable. Runtime and connector native source/image/health checks pass;
+  the actual connector has the explicit 404 retry setting. No storage renewal,
+  vector transfer, business database or new published configuration was needed.
+- The initial attempt to use the Versions assignment widget on staging found
+  no app, correctly: it only lists assignments already on that target. The
+  older go-live screen then had no selectable production target and its rollback
+  button was disabled. Neither failed harness attempt changed assignment. The
+  cause of that screen's target availability is under read-only review; no UI
+  workaround or unrelated editor change is presented as a fix.
+- For the temporary staging qualification, the actual Supabase-authenticated
+  customer owner used the existing normal binding API with the expected revision.
+  The same app moved from production revision 7 to verified staging revision 8.
+  This was an explicit API operation, not a claimed UI pass or direct SQL write.
+- First staging outage attempt stopped before queuing a message because the
+  harness expected 404 but the actual gateway returned 502. Desk was restored
+  and the fixture explicitly closed. A fresh case records the native response
+  rather than assuming identical proxy behavior across hosts.
+- Fresh staging case `active-human-outage-staging-1793033286466` proves active
+  human authority remains intact and no AI response is generated while Desk is
+  down. The same Desk service restores healthy. However the report remains
+  **FAILED**: the visitor message became `DEAD / PROVIDER_HTTP_503` after five
+  attempts before Desk finished restarting. The exact test episode was explicitly
+  closed; it was not left active or relabelled as delivered.
+- Source inspection found the second cause: `RuntimeConversationHandoverService`
+  passes a literal `5` to `completeDispatch`. It is **not currently configurable**.
+  The exponential delays before attempt five total about 30 seconds, excluding
+  request/scheduling time. Eight attempts would allow about 254 seconds of
+  scheduled retry delay. A separate owner question requests exposing this one
+  bounded setting, keeping default five for other integrations and selecting
+  eight only for managed Desk. No runtime edit for that change has been made;
+  the prior application-proposal adapter approval is not treated as permission.
+- While that decision is pending, the actual owner restored the same app to
+  existing verified production `rel-c24e897e`, revision **9**, using the normal
+  assignment API. Public embedded smoke
+  `restored-production-smoke-1793033881295` passes actual production manifest
+  discovery and a grounded AI stock query. Production runtime remains `c0265e8d8`;
+  the new artifact has **not** been promoted or applied there. Existing normal
+  production conversation/review proof remains valid for that unchanged runtime.
+
+Do not shorten the outage merely to make this check green, reset dispatch state
+with SQL, replay a closed conversation, or add a recovery/draining engine. The
+remaining change is a small delivery configuration contract, subject to the
+explicit runtime-scope decision. Native email/DNS and the separately requested
+third-identity/domain-neutral customer proof remain independent open gates.
+
+### 2026-10-26 Existing-Deployment UI Regression And Operating Snapshot
+
+Read-only follow-up confirms the go-live target issue is a regression exposed by
+V216 retirement, not missing production infrastructure. The accepted old offer
+still exists, but its obsolete Basic Inbox composition fails catalogue validation
+with `REVIEWED_COMPOSITION_CHANGED`, producing `targets: []`. The customer console
+still derives an existing deployment's target choices from that bootstrap data.
+It consequently shows the false state "Production not deployed" and disables
+rollback, although the normal owned-deployment target API returns active staging
+and production profiles and `rel-c24e897e` remains verified/active.
+
+The bounded UI-only correction in progress uses the existing
+`fetchDeploymentTargetOptions(deploymentId)` contract for an existing deployment,
+preferring its authorized bound target. New deployment bootstrap keeps catalogue
+validation. No backend contract, old offer, immutable history or retired Inbox
+resource is changed. The same-target release widget's exclusion of an app on a
+different environment remains correct and must not be weakened.
+
+A single native operating snapshot at 17:06 UTC records shared Desk plus its own
+PostgreSQL, not per-customer replicas:
+
+- Staging: Desk 304.8 MiB / 768 MiB, 0.38% CPU; Desk PostgreSQL 42.89 MiB /
+  512 MiB, 0.12% CPU. Host load averages: 1.37 / 1.16 / 1.15.
+- Production: Desk 320.1 MiB / 768 MiB, 0.19% CPU; Desk PostgreSQL 43.86 MiB /
+  512 MiB, 0.11% CPU. Host load averages: 0.24 / 0.30 / 0.33.
+
+This is an idle/low-traffic snapshot after the real journeys, **not** a capacity
+benchmark or evidence of the cause of earlier periodic host-load incidents. No
+admission sampling, resource redesign or new hosting resource was introduced.

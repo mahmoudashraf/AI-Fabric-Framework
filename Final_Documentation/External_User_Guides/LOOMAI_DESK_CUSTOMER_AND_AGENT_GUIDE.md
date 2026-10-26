@@ -57,8 +57,10 @@ There are two separate assignments: **connect the deployment to Desk**, then
    resulting target release has passed verification, not just that a checkbox
    was saved.
 5. If the Engage app still references an older release, use **Versions & updates
-   -> Use verified release** to switch its assignment. The same public app URL
-   then uses the selected deployment target and its Desk binding.
+   -> Use verified release** to upgrade its assignment within the current target.
+   Moving between staging and production is a separate environment-assignment
+   operation through the deployment's go-live controls. The same public app URL
+   then uses the assigned target and its Desk binding.
 6. Select **Open LoomAI Desk**. Console sign-in is reused through the native
    Supabase authorization flow. In **Agents & access**, assign an already
    registered person as **Support**, **Reviewer**, or both for this target.
@@ -269,6 +271,13 @@ A Desk interruption must not stop ordinary AI chat or silently return an active
 human conversation to AI. Owners can remove an agent's assignment in Desk; that
 agent loses the corresponding deployment permission. Signing out of one browser
 does not promise instantaneous revocation of every token in every service.
+
+Current recovery caveat: the runtime has a five-attempt delivery limit. A normal
+Desk restart can outlast that retry window, leaving a visitor message in failed
+dispatch state rather than automatically delivering after restoration. Human
+authority remains intact, but automatic queued-message recovery is not yet
+qualified. The implementation plan tracks the bounded retry-window correction;
+normal conversation and review success does not erase this limitation.
 
 Customer-specific integration credentials stay server-side. No operator API key,
 runtime signing key or access token is embedded in an Open Desk link.

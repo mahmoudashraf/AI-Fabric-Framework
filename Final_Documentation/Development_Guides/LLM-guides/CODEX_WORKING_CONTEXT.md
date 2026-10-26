@@ -10,6 +10,80 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 17:00UTC CURRENT: SAMEapp/consumer RETURNEDtoverifiedPRODUCTIONrel-c24e897e/
+  revision9 throughnormalbindingAPIbyactualSupabasecustomerowner. Private
+  restore-production-assignment.response.json; publicbrowser
+  restored-production-smoke-1793033881295 PASS actualmanifestprod+groundedAI
+  query. Runtimeprod STILLc026/artifactdsa326; doNOTclaim37prodimageupgrade.
+- STAGE37/rel79/v5/dsa50/vrf33e29/0/4 remainsverifiedhealthy. Outagefreshcase2
+  active-human-outage-staging-1793033286466 FAILEDactualqueuedmessageafter
+  restore: nativeUSER_MESSAGE DEAD/PROVIDER_HTTP_503/attempt5. Humanauthority
+  preserved/noAI; SAMEDeskrestored; exactfixtureexplicitlyCLOSED. Furthertrace
+  RuntimeConversationHandoverService.completeDispatch hardcodesliteral5, NOT
+  anexistingdeployablesetting. RuntimepropsNOTedited. Needownerapprovalfor
+  boundedconfig(default5others,managedDesk8) tooutlastnormalrestart; question
+  issuedinRequiredchat, receiptowner-decisions/desk-delivery-retry-runtime-owner-question-20261026.private.json.
+  Noapprovalyet. Thisisseparatefromearlierapplication-proposaladapterexception.
+- Native404classificationfix37committed/stagingconfiguredandHTTPtested14;
+  current503outagefailureisretry-windowexhaustion, notanotherauth/LLM/framework
+  defect. Productionartifactdsa50NOTpromoted; doNOTweakenprivatepromotionguard
+  orshortenoutagetomakegreen. No directSQLdispatchreset/replayofclosedcases.
+  Privateactive-human-outageharnesscasesconsumed/terminated, allDeskhealthy.
+- Thirdidentity/neutralproofquestionalsopending: actualnewtemporaryprodCP
+  customer/thirdSupafixture,STAGEonly3AIservices/nobusinessDB/sharedDeskfrontend,
+  <=6queries/12000tokens/$1existingallowance, explicitcleanup. Noidentityor
+  customercanarycreationauthorizedyet. Oldcandidatecus19/dep70isSTAGINGCP,
+  dealership0.8.36config/zeroreleases/missinglegitownerpassword; notreusableas-is.
+  RawlsREADONLYinvestigatingwhetherV216retirementcausedGoLive targetUIgap;
+  noUI/source/nativeeditsbyagent. DNS/Brevoemailstillopen. Main finishing
+  evidence/operationalreadbackwhilethoseboundeddecisionspending.
+
+- 16:48UTC CURRENT: STAGErel-79d4a1d9/v5/dsa-50f6d8ca APPLIED_VERIFIED,
+  vrf-33e91d73=29PASS/0FAIL/4SKIP. Runtime+connectornative37e7717cb/source/OCI
+  d31e19e0...healthy; actualconnectoroptin404verified. BothCPbackends37e,
+  Console/site/external7bf, Desk3b9909/framework0.8.41 unchanged.
+  SAMEconsumer/appNOWtemporarilySTAGINGrel79/revision8 fortransportcanary,
+  boundthroughnormalbindingPUT byactualSupabasecustomerowner(private
+  bind-staging-transport-canary.mjs). NoSQLmanualrewrite. NeedreturnSAMEapp
+  verifiedproductionafternewprodapply. ProductUIgaprecord: same-targetVersions
+  widgetcorrectlyexcludesprod-boundappinstage; GoLiveoldbootstrapoffersno
+  productiontargetselector/rollbackdisabled. NeitherfailedUIattemptchanged
+  binding; don'texpandUIfixnoworclaimcrossenvironmentUIproofpassed.
+- Stagingoutagecase1 active-human-outage-staging-1793033149056 FAILEDonly
+  harnessinsistedfirstoutagestatus404butactualgateway502. NOqueuedmessage
+  duringthatattempt; Deskrestored+ownfixtureexplicitlyclosed. Freshcase2
+  active-human-outage-journey.mjs staging rel-79d4a1d9 --run --case=2 RUNNING
+  execsession98321. Harnessrecordsrealstaging404/502/503, productionstill
+  requiresactual404branch. Oldcaseintentnotreplayed. ProductionartifactNOT
+  promotedyet. Inspectprivateprooffinalstatusbeforeanyeffects/continuation.
+
+- 16:28UTC CURRENT: boundedmanagedDesk404retryfixcommitted/pushed
+  37e7717cb08911ccc519875400aa2fd4a050c3c4. CI40357792666backend and40357792569
+  runtimeimagePASS; OCIbackendroota79103ba.../runtimerootd31e19e0...verified.
+  BOTH CPbackends37e/nativehealthy/schema216 verified, Consoles/site/external
+  still7bf, Desk3b9909. Localconnectorfull87PASS/0skip pluslatestfocused14PASS,
+  backend40PASS; readonlyindependentreviewnoblockers. Noframeworkchange0.8.41.
+- SAMEdeployment/v5/artifactNEWdsa-50f6d8ca normalSTAGEapplyrel-79d4a1d9queued
+  16:26UTC COLD_REPLACE/optionaloperationsDISABLED asownerchose. Exactapply
+  response/consumedintent under private desk-transport-retry/. NOprodartifact
+  promotion/newproductionapplyyet; publicconsumer/appstillrelc24/revision7.
+  Needwaitexactstageapply+verification/nativeconnector404env+source37, then
+  temporarilyassignSAMEappverifiedSTAGEthroughnormalUI andrunfreshbounded
+  active-human-outage-journey.mjs staging <release> --run. Nativeoutageharness
+  nowrequiresnewartifact+actualconnector404optin/source, guardsperrelease;
+  closedfailedold13:08episode/intentmustnotbereplayed. OnPASS promoteartifact,
+  normalprodapply/verify, SAMEappverifiedprodassignment, productionoutageproof.
+- Private review-integration.mjs supportsbatchdesk-transport-retry withreusev5,
+  imageproof/register/apply/status/native; productionartifactpromotionrequires
+  actualnewSTAGINGoutagePASS(noAIfallback+queuedmessagedelivery+humanreply+
+  explicitreturnAI). transport-core.mjs hasconsumeddeploymentguardsforboth
+  CPs; bothnativeproofsPASS. ui-journey assign-verified-releaseacceptsboth
+  targetenvironments(sameactualcustomerUI/API), notfirst-timepromotionforms.
+- RawlsreadonlyauditfoundnoknownsecondhostedcustomerwithapprovedSupafixture.
+  Requiredchatrequeststhirdfixtureexactscope/resource/cost/cleanupdetailsbefore
+  ownerquestion. NOthirdidentity/link/resourceauthorizedyet; no testsblocked
+  waitingthiswhilemaintransportflowcontinues. DNS/SMTPremainopen.
+
 - 16:17UTC CURRENT: guide/assignment/auth/retirementevidencecommitted+pushed
   3d72831e6. Extraactivehumanoutagetest13:08-13:11 DIDproveHUMAN_ACTIVE/noAI
   whileDeskstopped; Deskrestoredhealthy, exactfixtureepisodeexplicitlyCLOSED.
