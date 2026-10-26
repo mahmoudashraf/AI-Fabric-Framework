@@ -150,9 +150,10 @@ trusted resource: the application submits a candidate reference, and the
 registered READ handler must authorize and return exactly one canonical target.
 Only that handler's safe target projection becomes specialist context; supplied
 IDs or text alone are never treated as trusted. Grant the caller the lookup's
-`action:<name>` scope too. An optional `vectorSpace` must match the returned
-target and requires its corresponding framework scope; omit it for non-indexed
-resources. No search fallback, first-result selection, business write or raw
+`action:<name>` scope too. An optional `vectorSpace` checks the returned target's
+projection label; omit it for non-indexed resources. It does not enable vector
+retrieval or grant access to an index. The READ handler remains responsible for
+resource authorization. No search fallback, first-result selection, business write or raw
 handler-data attachment is performed by this preflight.
 
 The registered specialist asks the model to propose a permitted action. Only a

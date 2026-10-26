@@ -10,6 +10,25 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 11:13UTC source0d4095a7c CI40310876627backend/40310876716runtimePASS,
+  bothbackendsnativehealthy. Newartifactdsa-0517056d, v5ver-6b73cd40,
+  stageapplyrel-ebdbddc4 exposedstartupbug: proposal specialist unnecessarily
+  requestsdealer-vehiclevectorretrieval; frameworkregistrycorrectlyrejects
+  unregistered specialistspace. Maincorrected profiletonoretrieval, preserving
+  READ/resourceauthandoptionaltypedtargetlabelcheck. 24focusedruntimePASSwith
+  newstartup-definitionregression. Neednewruntimeimage; noframeworkchange.
+  Failedattemptmustremainfailed, don'tblindreapplypendingrelease. Backendneednot
+  rebuildforruntime-onlyfix. Prodoldruntime/SAMEappassignmentuntouched.
+- PreparedINACTIVEembeddedpublicsiteinstallawi_pub_53199a05a3e82c788c2dc84f8009925f
+  SAMEcus9fd/consumer northfield-console-live-20261024, projectedloomai.pro/www
+  originsintov5. ActualproviderreadDEMO-1001/advertiser990001; notinvented.
+  Newprivatebatchreview-lookup; review-journey supports --producer-batch and
+  --producer-fixture=owner-mailbox-v3. Newownercontactfixturesdonotfixframework
+  substringbug. Rawlsstaffsite+UIoperatorretirementprep; ZenoBACKENDretirement
+  prep; NOlivelegacycleanupuntilrealreviewproof. Publicembedhasadditional
+  protected-loginhostgap(noLoomAIWorkspaceHost.requestSignIn), standaloneauth
+  remainsworking. Recordhonestly; don'tsilentlyexpandwidgetauthhere.
+
 - 10:52UTC CURRENT staging rel-ca818c8e APPLIED_VERIFIED, vrf-28daa1db
   29PASS/0FAIL/4NA. ActualcustomerUI3policies register/index/reconcile PASS.
   Twoinitialrealproposals409email: published0.8.41 wrongly rejects substring

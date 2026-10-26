@@ -60,18 +60,29 @@ class ReviewProposalConfigurationTest {
     }
 
     @Test
-    void targetLookupAddsOnlyItsReadCapabilityAndOptionalVectorScope() {
+    void targetLookupAddsOnlyItsReadCapabilityWithoutRequestingVectorRetrieval() {
         context.withPropertyValues("ai.execution.reviews.enabled=true",
                 "app.human-review.proposals.enabled=true",
                 "app.human-review.proposals.allowed-actions=registered_write",
                 "app.human-review.proposals.target-lookup.action=get_record",
-                "app.human-review.proposals.target-lookup.parameter=reference")
+                "app.human-review.proposals.target-lookup.parameter=reference",
+                "app.human-review.proposals.target-lookup.vector-space=records")
             .run(application -> {
                 assertThat(application).hasNotFailed();
                 var requested = application.getBean(SpecialistDefinition.class).executionProfile().requestedCapabilities();
                 assertThat(requested.requestableReadActions()).containsExactly("get_record");
                 assertThat(requested.proposableWriteActions()).containsExactly("registered_write");
                 assertThat(requested.retrievalEnabled()).isFalse();
+                assertThat(requested.requestedVectorSpaces()).isEmpty();
+                AIActionRegistry actions = mock(AIActionRegistry.class);
+                when(actions.getAllMetadata()).thenReturn(List.of(
+                    AIActionMetaData.builder().name("registered_write").accessMode(ActionAccessMode.WRITE_ONLY)
+                        .confirmationRequired(true).build(),
+                    AIActionMetaData.builder().name("get_record").accessMode(ActionAccessMode.READ)
+                        .groundingEligible(true).groundingVectorSpaces(List.of("records")).build()));
+                // Target projection labels are not a request to query the vector provider.
+                new SpecialistDefinitionValidator(actions, Set.of("executor"), Set.of("document"))
+                    .validate(application.getBean(SpecialistDefinition.class));
             });
     }
 }

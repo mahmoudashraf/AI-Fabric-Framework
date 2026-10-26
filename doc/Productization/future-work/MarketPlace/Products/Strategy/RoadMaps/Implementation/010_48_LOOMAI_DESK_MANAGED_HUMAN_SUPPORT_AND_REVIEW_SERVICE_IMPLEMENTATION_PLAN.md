@@ -804,3 +804,15 @@ bypass enter the generic adapter. Independent audit required checking the actual
 governed invocation's EXECUTED status, not merely its handler result; fixed before
 rollout with a focused rejection regression. The new lookup source is not yet
 deployed. Genuine approve/reject and business-write counts remain the next gate.
+
+11:13 UTC: source `0d4095a7c` passed both CI image workflows and both backends
+are native-healthy. The v5 staging attempt `rel-ebdbddc4` exposed a runtime
+startup mistake: the proposal specialist requested `dealer-vehicle` vector
+retrieval although this workflow only invokes an authorized READ and proposes
+a write. Framework startup validation correctly rejected its unregistered
+specialist retrieval declaration. Corrected the runtime capability profile to
+request no vector retrieval. The optional target projection label is still
+checked, and action/resource authorization is unchanged. A focused regression
+now validates that exact profile against a distinct registered vector catalogue;
+all 24 focused runtime tests pass. This is a LoomAI integration correction, not
+a framework change or a validation bypass. Production assignment is unchanged.
