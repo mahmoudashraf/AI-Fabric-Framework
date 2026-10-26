@@ -28,13 +28,18 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     private static final String DEPLOYMENT_ID = "deployment-template-sync";
@@ -265,6 +270,93 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
         assertThat(syncedAgain.entityConfig()).isEqualTo(expectedEntity);
         assertThat(syncedAgain.shellConfig()).isEqualTo(expectedShell);
         assertThat(syncedAgain.behaviorConfig()).isEqualTo(expectedBehavior);
+    }
+
+    @Test
+    void freshHandoverActivationCompilesOneCompleteValidatedUpdateAndPreservesOtherExtensions() {
+        installHandoverPlugins();
+        ((ObjectNode) draft.behaviorConfig()).putArray("executionExtensions").add("HUMAN_REVIEW");
+        assertThat(draft.behaviorConfig().has("conversationHandover")).isFalse();
+
+        DeploymentDraftResponse compiled = compiler.syncDeploymentDraftForTrustedCaller(
+            DEPLOYMENT_ID, Set.of("CONVERSATION_HANDOVER"));
+
+        var contract = new DeploymentBehaviorCatalogService(mapper).validate(compiled.behaviorConfig(), "CONVERSATIONAL");
+        assertThat(contract.valid()).as(contract.message()).isTrue();
+        assertThat(compiled.behaviorConfig().path("executionExtensions"))
+            .extracting(JsonNode::asText).containsExactly("HUMAN_REVIEW", "CONVERSATION_HANDOVER");
+        assertThat(compiled.behaviorConfig().path("conversationHandover").path("actionBinding")
+            .path("implementation").asText()).isEqualTo("SERVER_OWNED_RUNTIME_ACTION");
+        assertThat(compiled.behaviorConfig().path("conversationHandover").path("activeIdleAutoResume").asBoolean()).isFalse();
+        verify(deployments, times(1)).updateDraftForTrustedCaller(eq(DRAFT_ID), any());
+    }
+
+    @Test
+    void requestingHandoverWithoutAnApprovedChannelStillFailsBeforeWritingTheDraft() {
+        assertThatThrownBy(() -> compiler.syncDeploymentDraftForTrustedCaller(DEPLOYMENT_ID, Set.of("CONVERSATION_HANDOVER")))
+            .hasMessageContaining("requires one enabled reviewed conversation-channel integration");
+        verify(deployments, never()).updateDraftForTrustedCaller(any(), any());
+    }
+
+    @Test
+    void requestingHandoverWithoutTheCanonicalActionStillFailsBeforeWritingTheDraft() {
+        installHandoverPlugins();
+        installs.removeIf(install -> "mkp-action-conversation-handover".equals(install.getPluginId()));
+        assertThatThrownBy(() -> compiler.syncDeploymentDraftForTrustedCaller(DEPLOYMENT_ID, Set.of("CONVERSATION_HANDOVER")))
+            .hasMessageContaining("requires the canonical request_conversation_handover action plugin");
+        verify(deployments, never()).updateDraftForTrustedCaller(any(), any());
+    }
+
+    private void installHandoverPlugins() {
+        installs.clear();
+        registerPlugin("mkp-action-conversation-handover", "ACTION", """
+            {
+              "schemaVersion": 1, "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"}, "permissions": {"contributesActions": true},
+              "contributions": {"actions": [{
+                "actionId": "request_conversation_handover", "description": "Request human support.",
+                "readOnly": false, "confirmationRequired": true, "anonymousAllowed": true,
+                "terminal": true, "adapterType": "conversation-control", "operation": "REQUEST_HANDOVER"
+              }]}
+            }
+            """);
+        registerPlugin("mkp-integration-loomai-desk", "INTEGRATION", """
+            {
+              "schemaVersion": 1, "pluginType": "INTEGRATION",
+              "compatibility": {"requiredCapabilities": ["integrations"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesIntegrations": true, "requiresExternalHttpExecution": true, "requiresDeploymentSecrets": true},
+              "installForm": [
+                {"id": "providerBaseUrl", "label": "Provider URL", "type": "url", "required": true},
+                {"id": "providerApiKeySecretRef", "label": "Provider key", "type": "secretRef", "required": true},
+                {"id": "runtimeCallbackSigningSecretRef", "label": "Runtime signature", "type": "secretRef", "required": true},
+                {"id": "providerWebhookSigningSecretRef", "label": "Provider signature", "type": "secretRef", "required": true}
+              ],
+              "contributions": {"conversationChannel": {
+                "contractVersion": "LOOMAI_CONVERSATION_CHANNEL_V1", "bindingId": "desk-test-binding",
+                "adapterImplementationId": "loomai-basic-inbox", "adapterVersion": "1",
+                "compatibleBehaviorTypes": ["CONVERSATIONAL"],
+                "capabilities": ["DISPATCH", "CLAIM", "INBOUND_MESSAGE", "OUTBOUND_MESSAGE", "RETURN_TO_AI", "CLOSE", "AVAILABILITY"],
+                "providerBaseUrlField": "providerBaseUrl", "providerApiKeySecretRefField": "providerApiKeySecretRef",
+                "runtimeCallbackSigningSecretRefField": "runtimeCallbackSigningSecretRef",
+                "providerWebhookSigningSecretRefField": "providerWebhookSigningSecretRef",
+                "requiredRuntimeCapabilityIds": ["conversation-control", "conversation-channel-outbox", "conversation-event-stream"],
+                "requiredMigrationIds": ["loomai-conversation-handover-v1"], "verificationPackIds": ["conversation-handover-v1"],
+                "configuration": {
+                  "modelInitiatedPolicy": "REQUIRE_USER_CONFIRMATION", "userCanCancelPending": true,
+                  "userCanResumeAi": true, "activeIdleAutoResume": false, "queueTimeoutSeconds": 900,
+                  "queueTimeoutOutcome": "EXPIRED_REQUIRES_EXPLICIT_RECOVERY", "transcriptProjection": "SAFE_TEXT_AND_ATTACHMENT_REFS",
+                  "intake": {"anonymousAllowed": true, "fields": []}
+                }
+              }}
+            }
+            """);
+        var channel = installs.stream().filter(install -> "mkp-integration-loomai-desk".equals(install.getPluginId())).findFirst().orElseThrow();
+        channel.setConfigJson("{\"providerBaseUrl\":\"https://desk.example.test\"}");
+        channel.setSecretRefsJson("""
+            {"providerApiKeySecretRef":"DESK_PROVIDER_KEY","runtimeCallbackSigningSecretRef":"DESK_RUNTIME_SIGNATURE","providerWebhookSigningSecretRef":"DESK_PROVIDER_SIGNATURE"}
+            """);
     }
 
     private DeploymentDraftResponse sync(boolean trustedCaller) {

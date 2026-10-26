@@ -150,14 +150,9 @@ public class DeskActivationService {
             installs.createInstallForTrustedCallerWithoutDraftSync(context.deployment(),
                 new CreateDeploymentMarketplaceInstallRequest(PLUGIN, "1.0.0", config, references));
         }
-        ObjectNode behavior = (ObjectNode) draft.behaviorConfig().deepCopy();
-        ArrayNode extensions = behavior.withArray("executionExtensions");
-        append(extensions, "CONVERSATION_HANDOVER");
-        if (request.enableReviews()) append(extensions, "HUMAN_REVIEW");
-        deploymentService.updateDraftForTrustedCaller(draft.id(),
-            new com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest(
-                null, null, null, null, null, null, null, null, null, behavior));
-        var compiled = compiler.syncDeploymentDraftForTrustedCaller(deploymentId);
+        Set<String> extensions = request.enableReviews()
+            ? Set.of("CONVERSATION_HANDOVER", "HUMAN_REVIEW") : Set.of("CONVERSATION_HANDOVER");
+        var compiled = compiler.syncDeploymentDraftForTrustedCaller(deploymentId, extensions);
         var version = deploymentService.publishDraft(compiled.id());
         binding.setVersionId(version.id());
         var release = deploymentService.applyVersion(deploymentId, version.id(), null,
@@ -254,7 +249,6 @@ public class DeskActivationService {
     }
 
     private String portal(DeskServiceClient.Connection connection, String binding) { return connection.baseUrl() + "/?bindingId=" + binding; }
-    private void append(ArrayNode values, String value) { for (var item : values) if (value.equals(item.asText())) return; values.add(value); }
     public record EnableRequest(String targetProfileId, String releaseId, String operationKey, boolean enableReviews) { }
     public record Status(boolean available, String bindingId, String status, String versionId, String releaseId,
                          String portalUrl, String errorMessage) { }

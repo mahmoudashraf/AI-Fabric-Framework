@@ -163,6 +163,14 @@ public class DeploymentMarketplaceDraftCompilerService {
         return syncDeploymentDraft(deploymentId, true, false);
     }
 
+    /** Compile explicitly selected extensions with their plugin-owned configuration in one validated update. */
+    @Transactional
+    public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId,
+                                                                        Set<String> executionExtensions) {
+        return syncDeploymentDraft(deploymentId, true, false,
+            new LinkedHashSet<>(executionExtensions.stream().sorted().toList()));
+    }
+
     /**
      * Compiles an initial template composition while preserving validation errors already present in the
      * selected base template. This lets setup-required provider drafts be created without allowing a
@@ -176,6 +184,13 @@ public class DeploymentMarketplaceDraftCompilerService {
     private DeploymentDraftResponse syncDeploymentDraft(String deploymentId,
                                                          boolean trustedCaller,
                                                          boolean tolerateBaselineErrors) {
+        return syncDeploymentDraft(deploymentId, trustedCaller, tolerateBaselineErrors, Set.of());
+    }
+
+    private DeploymentDraftResponse syncDeploymentDraft(String deploymentId,
+                                                         boolean trustedCaller,
+                                                         boolean tolerateBaselineErrors,
+                                                         Set<String> executionExtensions) {
         DeploymentDraftResponse draft = trustedCaller
             ? deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId)
             : deploymentService.getActiveDraftForDeployment(deploymentId);
@@ -190,6 +205,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
         ObjectNode providerRoot = normalizeProviderRoot(draft.providerConfig());
         ObjectNode behaviorRoot = ensureObject(draft.behaviorConfig());
+        if (!executionExtensions.isEmpty()) mergeTemplateExecutionExtensionDefaults(behaviorRoot, executionExtensions);
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 

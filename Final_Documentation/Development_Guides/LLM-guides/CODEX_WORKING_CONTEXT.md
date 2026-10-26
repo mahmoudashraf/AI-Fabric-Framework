@@ -10,6 +10,20 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 22:27 UTC neutralFIRSTrelease rel-015d1f85 APPLIED_VERIFIED/PASSED,
+  vrf-6e600a4a. ActualcustomerUI EnableDesk reviewsfalse FAILED400:
+  conversationHandover.contractVersion missing. Receiptneutral-second-customer/
+  desk-enable.response.private.json, proofenable-ui-1793052861259. No retry/
+  fixture workaround; CPtransactionrolledback but externalDesk registration
+  mayhaveoccurred beforefailure, mustcapture/reconcilethroughnormalenableand
+  includeinexactcleanup. NoAIqueryyet. Sourcefixnow removes invalid extension-
+  only intermediate draft write: trustedcompiler overloadmergesexplicit
+  extensions thencompilesplugin-ownedcontract inONEvalidatedupdate. Defaults/
+  permissions/confirmation remainenforced, old1argcompilerpaths unchanged.
+  Focused55backendtests PASS/0skip inclrealcontractvalidation+missingchannel/
+  actiondenials/freshreviewsfalse+true. Needcommit, CI/backend-onlyrolloutboth,
+  freshnormalUIactivationcase; NO runtime/framework rebuild for thisfix.
+
 - 22:09 UTC neutralnormalfirstapplyrel-015d1f85/ver-d184be50 REQUESTED on
   stage/dsa930; exactownedresourcesmustbecapturedbeforecleanup. Initialdraft
   validationpublishReady=true/0errors/3expectedemptyactions+entities+routes

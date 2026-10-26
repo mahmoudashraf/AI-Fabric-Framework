@@ -1375,3 +1375,35 @@ off and answer tokens are bounded at 256 for the small qualification. No AI
 query has been submitted. The actual customer will enable shared Desk through
 the ordinary UI after this first target verifies; this does not provision a
 per-customer Inbox or business database.
+
+### 2026-10-26 22:27 UTC Fresh Generic Activation Ordering Defect
+
+The neutral first release passed normal verification (`rel-015d1f85`,
+`vrf-6e600a4a`). Actual customer UI enablement, with reviews off, then returned
+400: `conversationHandover.contractVersion must be
+LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1`. Failed proof
+`enable-ui-1793052861259` and its submitted operation are retained, not replayed.
+Northfield did not expose this defect because its draft already contained a
+valid handover configuration.
+
+Root cause: Desk activation wrote the execution-extension flag before the
+Marketplace compiler built the corresponding reviewed plugin-owned section.
+The ordinary behavior validator correctly rejected that incomplete intermediate
+draft. The fix passes the server-selected extensions into the trusted compiler
+and merges them deterministically inside its existing complete, validated draft
+update. No validator, permission, confirmation, binding rule or LLM decision is
+weakened, and no duplicate handover-default generator is introduced. Existing
+one-argument compiler callers are unchanged.
+
+Focused tests passed **55/55**, including fresh activation with reviews off/on,
+preservation of existing extension choices, real behavior-contract validation,
+and rejection before any draft write when the reviewed channel or canonical
+action plugin is absent. This requires a Platform backend image only: no runtime,
+connector, shared Desk or framework release. Hosted qualification remains open
+until the ordinary customer control succeeds with the fix.
+
+The failed activation's local transaction rolled back, but its earlier external
+workspace/binding registration may remain. Inspect that exact scope, use normal
+activation to reconcile it, and include it in cleanup. Do not claim the failed
+request had no effects or erase its receipt. The temporary fixture still has
+zero AI queries and only its approved runtime, connector and AI-state storage.

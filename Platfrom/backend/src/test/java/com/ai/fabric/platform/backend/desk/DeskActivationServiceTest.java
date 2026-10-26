@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.desk;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.deployment.service.*;
@@ -16,6 +17,8 @@ import com.ai.fabric.platform.backend.security.entity.PlatformCustomerIdentityLi
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -171,7 +174,27 @@ class DeskActivationServiceTest {
         assertThat(registered.path("reviewBridgeUrl").asText()).startsWith("https://console.example/api/desk/bridge/v1/bindings/").endsWith("/reviews");
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void freshDeploymentCompilesExtensionsAndTheirContractsWithoutAnInvalidIntermediateDraft(boolean reviews) {
+        var draft = prepareActivation(false);
+        assertThat(draft.behaviorConfig().has("conversationHandover")).isFalse();
+        assertThat(draft.behaviorConfig().path("executionExtensions")).isEmpty();
+
+        var result = service.enable("dep-a", new DeskActivationService.EnableRequest("production", "rel-prod-old", "enable-prod", reviews));
+
+        verify(deploymentService, never()).updateDraftForTrustedCaller(anyString(), any());
+        verify(compiler).syncDeploymentDraftForTrustedCaller("dep-a", reviews
+            ? Set.of("CONVERSATION_HANDOVER", "HUMAN_REVIEW") : Set.of("CONVERSATION_HANDOVER"));
+        verify(deploymentService).publishDraft(draft.id());
+        assertThat(result.releaseId()).isEqualTo("rel-desk");
+    }
+
     private DeploymentDraftResponse prepareActivation() {
+        return prepareActivation(true);
+    }
+
+    private DeploymentDraftResponse prepareActivation(boolean handoverConfigured) {
         authenticate(new PlatformPrincipal("owner@example.com", PlatformRole.CUSTOMER_ADMIN, "Owner", "SUPABASE", "owner-id"));
         var deployment = deployment();
         var target = new DeploymentTargetProfileEntity(); target.setId("production"); target.setEnvironmentName("production"); target.setActive(true);
@@ -187,7 +210,8 @@ class DeskActivationServiceTest {
         when(users.findByCustomerIdAndRoleIgnoreCaseAndStatusIgnoreCase("customer-a", "CUSTOMER_ADMIN", "ACTIVE"))
             .thenReturn(List.of(user("owner-id")));
         var empty = mapper.createObjectNode();
-        var behavior = DeskTargetConfigurationResolverTest.managedBehavior(mapper);
+        var behavior = handoverConfigured ? DeskTargetConfigurationResolverTest.managedBehavior(mapper)
+            : new DeploymentBehaviorCatalogService(mapper).defaultConfig("CONVERSATIONAL");
         var draft = new DeploymentDraftResponse("draft-current", "dep-a", 3, "DRAFT", empty, empty, empty, empty, empty,
             empty, empty, empty, empty, null, null, "AI_ENTITY_CONFIG_V0_4", behavior);
         when(deploymentService.getActiveDraftForDeployment("dep-a")).thenReturn(draft);
@@ -201,7 +225,7 @@ class DeskActivationServiceTest {
         source.setShellConfigJson("{}"); source.setMarketplaceDatasetConfigJson("{}"); source.setBehaviorConfigJson(behavior.toString());
         when(drafts.findById("draft-published")).thenReturn(Optional.of(source));
         when(secrets.resolveSecret(anyString())).thenReturn("private-binding-key");
-        when(compiler.syncDeploymentDraftForTrustedCaller("dep-a")).thenReturn(draft);
+        when(compiler.syncDeploymentDraftForTrustedCaller(eq("dep-a"), anySet())).thenReturn(draft);
         var published = mock(DeploymentVersionSummary.class); when(published.id()).thenReturn("ver-desk");
         when(deploymentService.publishDraft(draft.id())).thenReturn(published);
         var applied = mock(DeploymentReleaseSummary.class); when(applied.id()).thenReturn("rel-desk");
