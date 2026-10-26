@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
+
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
@@ -61,9 +63,10 @@ public class DeploymentServiceNavigationService {
             .collect(Collectors.toMap(DeploymentServiceConfigSummary::key, service -> service));
 
         DeploymentVersionEntity referenceVersion = liveVersion != null ? liveVersion : latestPublishedVersion;
-        // Navigation has no authorized target and must not resolve an executable external binding.
+        // Navigation metadata cannot select an executable customer target.
         RailwayProvisioningPlanSummary plan = referenceVersion == null
             || DeploymentExistingVectorBindingService.required(readJson(referenceVersion.getProviderConfigJson()))
+            || DeskTargetConfigurationResolver.usesDesk(readJson(referenceVersion.getBehaviorConfigJson()))
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, referenceVersion);
         JsonNode provisioningDetails = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());

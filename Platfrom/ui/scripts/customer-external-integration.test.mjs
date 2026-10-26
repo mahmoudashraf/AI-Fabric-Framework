@@ -2,8 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 const source = await readFile(new URL('../src/components/customer/customerExternalIntegration.ts', import.meta.url), 'utf8')
-const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const code = ts.transpileModule(withCustomerSessionSupport(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const { externalConnectionProfile: profile, requireFreshExternalAuthority: fresh, checkedExternalApproval: option, checkedExternalBinding: binding } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 function fixture() {
   const session = { authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION', actorId: 'owner', customerId: 'customer' }
@@ -27,6 +28,11 @@ test('only current customer-owned published reviewed profiles are editable', () 
     a => { a.offer.bindingSlots[0].pluginId = 'other' }]) {
     const { authority } = fixture(); change(authority); assert.throws(() => profile(authority))
   }
+})
+test('Supabase owners retain scoped external-integration access', async () => {
+  const f = fixture(); f.authority.session.authenticationMode = 'SUPABASE'
+  assert.equal(profile(f.authority).id, 'profile')
+  await fresh(f.authority, f.api, () => true, 'BINDING_REPLACE')
 })
 test('fresh authority retains exact actor, entitlement, tenant, version and operation', async () => {
   const good = fixture(); await fresh(good.authority, good.api, () => true, 'BINDING_REPLACE')

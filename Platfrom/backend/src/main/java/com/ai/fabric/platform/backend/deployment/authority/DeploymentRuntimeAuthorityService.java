@@ -366,6 +366,18 @@ public class DeploymentRuntimeAuthorityService {
             requiredIdentity(sessionId), false, grantedScopes, ttl);
     }
 
+    /** Called only after the Desk bridge authenticates the person and rechecks the target assignment. */
+    @Transactional
+    public Map<String, String> issueDeskReviewerHeaders(DeploymentEntity deployment, DeploymentVersionEntity version,
+        DeploymentReleaseEntity release, String reviewerSubject, boolean decide) {
+        var checked = requireReleaseUnchangedForProvisioning(deployment, version, release);
+        requireProvisioned(workerRelease(release.getId()));
+        return headers(checked.binding(), requiredIdentity(reviewerSubject), "END_USER",
+            "desk-review-" + release.getId() + "-" + requiredIdentity(reviewerSubject), false,
+            decide ? List.of("review:tasks:view", "review:tasks:decide") : List.of("review:tasks:view"),
+            Duration.ofMinutes(2));
+    }
+
     @Transactional
     public long rotate(String deploymentId, String targetProfileId, long expectedGeneration) {
         var deployment = lock(deploymentId, targetProfileId, true);

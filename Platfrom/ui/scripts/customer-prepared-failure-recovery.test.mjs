@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import ts from 'typescript'
+import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/CustomerDeploymentConsole.tsx', import.meta.url), 'utf8')
 const ast = ts.createSourceFile('Console.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -11,7 +12,7 @@ const selected = ast.statements.filter(node => ts.isFunctionDeclaration(node) ? 
   : ts.isVariableStatement(node) && node.declarationList.declarations.some(item => names.has(item.name.getText(ast))))
 assert.equal(selected.length, names.size)
 const transpile = text => ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
-const pure = await import(`data:text/javascript;base64,${Buffer.from(transpile(selected.map(node => node.getText(ast)).join('\n'))).toString('base64')}`)
+const pure = await import(`data:text/javascript;base64,${Buffer.from(transpile(withCustomerSessionSupport(selected.map(node => node.getText(ast)).join('\n')))).toString('base64')}`)
 const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
 const previousWindow = globalThis.window
 globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'https://recovery.invalid' } }

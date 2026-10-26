@@ -30,6 +30,7 @@ import {
   type DeploymentHumanReviewTask,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { isCustomerSession } from '../auth/customerSession'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function timestamp(value: string | null | undefined) {
@@ -59,8 +60,7 @@ export function HumanReviewPage({ title = 'Human Review' }: { title?: string } =
   const { selectedDeploymentId } = useDeploymentWorkspace()
   const [selectedTaskId, setSelectedTaskId] = useState('')
   const [pendingDecision, setPendingDecision] = useState<'APPROVE' | 'REJECT' | null>(null)
-  const customerReviewer = auth.session?.role === 'CUSTOMER_ADMIN'
-    && auth.session.authenticationMode === 'SESSION'
+  const customerReviewer = isCustomerSession(auth.session)
 
   const inboxQuery = useQuery({
     queryKey: ['deployment-human-reviews', selectedDeploymentId],

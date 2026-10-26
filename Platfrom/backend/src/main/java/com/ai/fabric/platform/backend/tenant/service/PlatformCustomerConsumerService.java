@@ -325,8 +325,7 @@ public class PlatformCustomerConsumerService {
         var actor = PlatformSecurityContext.currentPrincipal();
         if (!PlatformSecurityContext.isAuthenticated()
             || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
-            || actor == null || actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN
-            || !"SESSION".equals(actor.authenticationMode()))
+            || !com.ai.fabric.platform.backend.security.CustomerSessionSupport.isCustomerSession(actor))
             throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "NO_EFFECT_CONSUMER_OWNER_SESSION_REQUIRED");
         platformCustomerAccessService.requireCustomerManagementAccess(customerId);
         return detachNeverActivatedConfiguration(customerId, consumerEntityId, deploymentId, targetProfileId,

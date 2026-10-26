@@ -14,6 +14,7 @@ import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDe
 import { CustomerProductHome } from './CustomerProductHome'
 import { CustomerProductTasks } from './CustomerProductTasks'
 import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
+import { CustomerDeskLink } from './CustomerDeskLink'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -49,6 +50,9 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const offer = props.offers.find(item => item.id === props.deployments.find(deployment => deployment.deploymentId === selected?.deploymentId)?.offerId)
   const selectedReleaseId = params.get('releaseId')
   const selectedRelease = props.releases.find(item => item.id === selectedReleaseId)
+  const assignedApp = selected?.kind === 'app' ? props.apps.find(item => item.installationId === selected.id) : null
+  const deskRelease = selected?.kind === 'app'
+    ? props.releases.find(item => item.id === assignedApp?.releaseId) : selectedRelease
   const visibleReleases = selectedReleaseId ? selectedRelease ? [selectedRelease] : [] : props.releases
   const open = (resource: CustomerResource) => {
     const next = new URLSearchParams(location.search)
@@ -102,6 +106,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
           deploymentId: selected.id, ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
         })}`}>Versions & updates</Button> : null}
         {selected.kind === 'app' && safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}
+        {selected.deploymentId && deskRelease?.targetProfileId ? <CustomerDeskLink target={{ deploymentId: selected.deploymentId,
+          targetProfileId: deskRelease.targetProfileId, releaseId: deskRelease.id }} /> : null}
       </Stack>
       <CustomerDetailSections key={`${selected.kind}:${selected.id}`} preferenceKey={selected.kind}
         overview={<Stack spacing={2.5}>

@@ -40,6 +40,66 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void deskUsesTargetRegisteredSecretsBeforeCoolifyResolutionAndNeverPromotesStageCredentials() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var mapper = new ObjectMapper();
+        var secretService = mock(PlatformSecretService.class);
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), secretService, mapper);
+        var bindings = mock(com.ai.fabric.platform.backend.desk.DeskBindingRepository.class);
+        var targets = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository.class);
+        var desk = mock(com.ai.fabric.platform.backend.desk.DeskServiceClient.class);
+        var resolver = new com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver(bindings, targets, desk);
+        ReflectionTestUtils.setField(service, "deskTargetConfigurationResolver", resolver);
+        var deployment = deployment();
+        var version = version(); version.setDeploymentId(deployment.getId());
+        var behavior = mapper.createObjectNode().put("type", "CONVERSATIONAL").put("schemaVersion", "loomai-deployment-behavior-v1").put("contractVersion", 1);
+        behavior.putArray("executionExtensions").add("CONVERSATION_HANDOVER");
+        var handover = behavior.putObject("conversationHandover").put("enabled", true)
+            .put("marketplacePluginId", "mkp-integration-loomai-desk").put("channelBindingId", "${MANAGED_DESK_BINDING_ID}");
+        handover.putObject("intake").put("anonymousAllowed", true).putArray("fields");
+        handover.putObject("channel").put("bindingId", "${MANAGED_DESK_BINDING_ID}")
+            .put("providerBaseUrl", "${MANAGED_DESK_PROVIDER_BASE_URL}").put("operatorConsoleUrl", "${MANAGED_DESK_OPERATOR_CONSOLE_URL}")
+            .put("providerApiKeySecretRef", "MANAGED_DESK_PROVIDER_API_KEY")
+            .put("runtimeCallbackSigningSecretRef", "MANAGED_DESK_RUNTIME_CALLBACK_SIGNING_SECRET")
+            .put("providerWebhookSigningSecretRef", "MANAGED_DESK_PROVIDER_WEBHOOK_SIGNING_SECRET");
+        version.setBehaviorConfigJson(behavior.toString());
+        String published = version.getBehaviorConfigJson();
+        for (String targetId : java.util.List.of("staging", "production")) {
+            var binding = new com.ai.fabric.platform.backend.desk.DeskBindingEntity();
+            binding.setId("desk-" + targetId); binding.setDeploymentId(deployment.getId()); binding.setCustomerId(deployment.getCustomerId());
+            binding.setTenantId(deployment.getTenantId()); binding.setTargetProfileId(targetId); binding.setStatus("ENABLED");
+            binding.setProviderKeyRef("MANAGED_DESK_PROVIDER_" + targetId.toUpperCase());
+            binding.setCallbackKeyRef("MANAGED_DESK_CALLBACK_" + targetId.toUpperCase());
+            binding.setRuntimeCallbackKeyRef("MANAGED_DESK_RUNTIME_" + targetId.toUpperCase());
+            when(bindings.findByDeploymentIdAndTargetProfileId(deployment.getId(), targetId)).thenReturn(java.util.Optional.of(binding));
+            var target = new com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity();
+            target.setId(targetId); target.setActive(true); target.setEnvironmentName(targetId);
+            when(targets.findById(targetId)).thenReturn(java.util.Optional.of(target));
+            when(desk.connection(targetId)).thenReturn(new com.ai.fabric.platform.backend.desk.DeskServiceClient.Connection("https://desk-" + targetId + ".example", "service-key"));
+            var plan = service.buildPlan(deployment, version, null, targetId);
+            assertThat(envMap(plan.services().runtime().env()))
+                .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID", "desk-" + targetId)
+                .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET", "${secret:" + binding.getRuntimeCallbackKeyRef() + "}");
+            var connector = envMap(plan.services().restConnector().env());
+            assertThat(connector).containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "desk-" + targetId)
+                .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "https://desk-" + targetId + ".example")
+                .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY", "${secret:" + binding.getProviderKeyRef() + "}")
+                .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET", "${secret:" + binding.getCallbackKeyRef() + "}");
+            String other = "staging".equals(targetId) ? "production" : "staging";
+            assertThat(connector.values()).noneMatch(value -> value.contains("desk-" + other) || value.contains("_" + other.toUpperCase()));
+        }
+        assertThat(version.getBehaviorConfigJson()).isEqualTo(published);
+        org.mockito.Mockito.verify(secretService, org.mockito.Mockito.never()).resolveSecret("MANAGED_DESK_PROVIDER_API_KEY");
+        assertThatThrownBy(() -> service.buildPlan(deployment, version, null, "new-target"))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("Desk target is unavailable");
+    }
+
+    @Test
     void conversationalExecutorHasExplicitConfigurableProviderScorePolicy() {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

@@ -1,5 +1,6 @@
 import { Alert, Button, Checkbox, Divider, FormControlLabel, Stack, TextField, Typography } from '@mui/material'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
@@ -48,7 +49,7 @@ export function prepareKnownNoEffectSettlement(scope: KnownNoEffectSettlementSco
   request: CustomerKnownNoEffectSettlementPlanRequest, response: CustomerKnownNoEffectSettlementPlan): PreparedSettlement {
   const command = response?.command
   if (!text(response?.proofFingerprint) || !command || !command.fence
-    || !text(scope.authority?.actorId) || !text(scope.authority?.customerId) || scope.authority.authenticationMode !== 'SESSION'
+    || !text(scope.authority?.actorId) || !text(scope.authority?.customerId) || !isCustomerAuthenticationMode(scope.authority.authenticationMode)
     || ![scope.offerId, scope.deploymentId, scope.reservationId, scope.targetProfileId, request.operationKey, request.reason].every(text)
     || request.operationKey.length > 128 || request.reason.length > 1000
     || !revision(scope.revision) || scope.revision === Number.MAX_SAFE_INTEGER || command.fence.reservationId !== scope.reservationId
@@ -121,7 +122,7 @@ export function KnownNoEffectSettlementPanel(props: PanelProps) {
   const scopeKey = JSON.stringify([authority, targetProfileId, offerId, deploymentId, reservation, candidateFailed])
   const currentScope = useRef(scopeKey)
   currentScope.current = scopeKey
-  if (!authority || !text(authority.actorId) || !text(authority.customerId) || authority.authenticationMode !== 'SESSION'
+  if (!authority || !text(authority.actorId) || !text(authority.customerId) || !isCustomerAuthenticationMode(authority.authenticationMode)
     || !reservation || reservation.targetProfileId !== targetProfileId || reservation.deploymentId !== deploymentId || !text(offerId) || !candidateFailed
     || !text(reservation.id) || !text(reservation.targetProfileId) || !revision(reservation.revision)
     || reservation.state !== 'RESERVED') return null

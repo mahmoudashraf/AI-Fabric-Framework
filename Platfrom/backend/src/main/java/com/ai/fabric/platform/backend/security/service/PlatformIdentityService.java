@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserSessionEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserSessionRepository;
+import com.ai.fabric.platform.backend.security.repository.PlatformCustomerIdentityLinkRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,17 +38,20 @@ public class PlatformIdentityService {
     private final PlatformUserSessionRepository sessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlatformAuditService auditService;
+    private final PlatformCustomerIdentityLinkRepository identityLinks;
 
     public PlatformIdentityService(PlatformAuthProperties properties,
                                    PlatformUserRepository userRepository,
                                    PlatformUserSessionRepository sessionRepository,
                                    PasswordEncoder passwordEncoder,
-                                   PlatformAuditService auditService) {
+                                   PlatformAuditService auditService,
+                                   PlatformCustomerIdentityLinkRepository identityLinks) {
         this.properties = properties;
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.identityLinks = identityLinks;
     }
 
     @Transactional
@@ -100,6 +104,10 @@ public class PlatformIdentityService {
             throw new ResponseStatusException(UNAUTHORIZED, "Invalid platform credentials.");
         }
 
+        if (PlatformRole.CUSTOMER_ADMIN.name().equals(user.getRole()) && identityLinks.existsByPlatformUserId(user.getId())) {
+            throw new CustomerSupabaseLoginRequiredException();
+        }
+
         Instant now = Instant.now();
         String rawToken = generateToken();
         PlatformUserSessionEntity session = new PlatformUserSessionEntity();
@@ -149,7 +157,8 @@ public class PlatformIdentityService {
         PlatformUserEntity user = userRepository.findById(session.getUserId())
             .filter(this::isActive)
             .orElse(null);
-        if (user == null) {
+        if (user == null || (PlatformRole.CUSTOMER_ADMIN.name().equals(user.getRole())
+            && identityLinks.existsByPlatformUserId(user.getId()))) {
             return null;
         }
 
@@ -186,7 +195,8 @@ public class PlatformIdentityService {
             user.getEmail(),
             PlatformRole.valueOf(user.getRole()),
             user.getDisplayName(),
-            authenticationMode
+            authenticationMode,
+            user.getId()
         );
     }
 

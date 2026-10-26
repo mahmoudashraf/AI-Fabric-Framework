@@ -1,4 +1,5 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
@@ -1432,7 +1433,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 }
 
 export type PreparedFailureRecoveryScope = {
-  actorId: string; customerId: string; authenticationMode: 'SESSION'
+  actorId: string; customerId: string; authenticationMode: 'SESSION' | 'SUPABASE'
   offerId: string; offerFingerprint: string; entitlementRevision: number
   deploymentId: string; targetProfileId: string; reservationId: string; revision: number; releaseId: string
 }
@@ -1445,7 +1446,7 @@ export const preparedFailureRecoveryHoldScope = (scope: PreparedFailureRecoveryS
 export function prepareCustomerFailureRecovery(scope: PreparedFailureRecoveryScope,
   request: CustomerPreparedFailureRecoveryPlanRequest, response: CustomerPreparedFailureRecoveryPlan): PreparedFailureReview {
   const command = response?.command
-  if (!scope || scope.authenticationMode !== 'SESSION' || ![scope.actorId, scope.customerId, scope.offerId, scope.offerFingerprint,
+  if (!scope || !isCustomerAuthenticationMode(scope.authenticationMode) || ![scope.actorId, scope.customerId, scope.offerId, scope.offerFingerprint,
     scope.deploymentId, scope.targetProfileId, scope.reservationId, scope.releaseId].every(recoveryText)
     || !recoveryRevision(scope.revision) || !recoveryRevision(scope.entitlementRevision)
     || !/^[A-Za-z0-9._:-]{1,128}$/.test(request.operationKey) || !recoveryText(request.reason) || request.reason.length > 255
@@ -1489,13 +1490,13 @@ type PreparedFailurePanelProps = {
 
 export function PreparedFailureRecoveryPanel(props: PreparedFailurePanelProps) {
   const { session, offer, deploymentId, targetProfileId, reservation, release } = props
-  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
     || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
     || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
     || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
     || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
     || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
-  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: session.authenticationMode,
     offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
     deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
   return <PreparedFailureReview key={JSON.stringify(scope)} scope={scope} onRecovered={props.onRecovered} />
@@ -1519,7 +1520,7 @@ function PreparedFailureReview({ scope, onRecovered }: { scope: PreparedFailureR
   catch (failure) { protectionError = errorText(failure) }
   const ownerStillCurrent = async () => {
     const session = await fetchPlatformAuthSession()
-    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
       || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Recovery authority changed. Review current state.')
   }
   async function plan() {
@@ -1619,13 +1620,13 @@ type FailedApplyRetryPanelProps = Omit<PreparedFailurePanelProps, 'onRecovered'>
 }
 export function FailedApplyRetryPanel(props: FailedApplyRetryPanelProps) {
   const { session, offer, deploymentId, targetProfileId, reservation, release } = props
-  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
     || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
     || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
     || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
     || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
     || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
-  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: session.authenticationMode,
     offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
     deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
   return <FailedApplyRetryReview key={JSON.stringify(scope)} scope={scope} onAuthorized={props.onAuthorized} />
@@ -1644,7 +1645,7 @@ function FailedApplyRetryReview({ scope, onAuthorized }: { scope: PreparedFailur
   catch (failure) { protectionError = errorText(failure) }
   const ownerStillCurrent = async () => {
     const session = await fetchPlatformAuthSession()
-    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
       || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Redeploy authority changed. Review current state.')
   }
   async function plan() {
@@ -1745,13 +1746,13 @@ type PostProvisionResumePanelProps = Omit<PreparedFailurePanelProps, 'onRecovere
 }
 export function PostProvisionResumePanel(props: PostProvisionResumePanelProps) {
   const { session, offer, deploymentId, targetProfileId, reservation, release } = props
-  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
     || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
     || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
     || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
     || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
     || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
-  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: session.authenticationMode,
     offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
     deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
   return <PostProvisionResumeReview key={JSON.stringify(scope)} scope={scope} releaseStatus={release.status} onAuthorized={props.onAuthorized} />
@@ -1771,7 +1772,7 @@ function PostProvisionResumeReview({ scope, releaseStatus, onAuthorized }: { sco
   catch (failure) { protectionError = errorText(failure) }
   const ownerStillCurrent = async () => {
     const session = await fetchPlatformAuthSession()
-    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
       || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Setup authority changed. Review current state.')
   }
   async function plan() {

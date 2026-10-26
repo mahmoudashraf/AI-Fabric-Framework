@@ -249,7 +249,7 @@ public class PlatformUserPreferenceService {
         if (principal == null) {
             return Optional.empty();
         }
-        return userRepository.findByEmailIgnoreCase(principal.actorId());
+        return PlatformUserRepository.findForPrincipal(userRepository, principal);
     }
 
     private PlatformUserEntity currentUserOrNull() {

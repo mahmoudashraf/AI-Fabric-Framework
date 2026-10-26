@@ -1,7 +1,8 @@
 import type { CustomerStagingConsumerConfigurationRequest } from '../../api/platformApi'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export type AssignmentConfigurationSnapshot = {
-  actorId: string; authenticationMode: 'SESSION'; customerId: string; consumerId: string
+  actorId: string; authenticationMode: 'SESSION' | 'SUPABASE'; customerId: string; consumerId: string
   offerId: string; offerFingerprint: string; entitlementRevision: number
   deploymentId: string; tenantId: string; targetProfileId: string; bindingRevision: number
   draftId: string; draftRevision: number; draftUpdatedAt: string
@@ -42,7 +43,7 @@ const validSnapshot = (value: unknown): value is AssignmentConfigurationSnapshot
     'deploymentId', 'tenantId', 'targetProfileId', 'bindingRevision', 'draftId', 'draftRevision', 'draftUpdatedAt', 'draftWorkspaces'])) return false
   const apps = value.draftWorkspaces
   return ['actorId', 'customerId', 'consumerId', 'offerId', 'offerFingerprint', 'deploymentId', 'tenantId', 'targetProfileId', 'draftId']
-    .every(name => id(value[name])) && value.authenticationMode === 'SESSION'
+    .every(name => id(value[name])) && typeof value.authenticationMode === 'string' && isCustomerAuthenticationMode(value.authenticationMode)
     && ['entitlementRevision', 'bindingRevision', 'draftRevision'].every(name => revision(value[name]))
     && typeof value.draftUpdatedAt === 'string' && Number.isFinite(Date.parse(value.draftUpdatedAt))
     && Array.isArray(apps) && apps.length <= 100 && apps.every(app => fields(app, ['installationEntityId', 'expectedRowVersion'])

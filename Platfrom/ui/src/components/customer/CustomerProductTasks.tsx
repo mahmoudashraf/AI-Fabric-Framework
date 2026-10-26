@@ -41,7 +41,7 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
       <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }}>
         {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={scoped ? `/integrations?${scoped}` : '#'} disabled={!scoped}>Synchronization</Button> : null}
         {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={scoped ? `/document-knowledge?${scoped}` : '#'} disabled={!scoped}>Policies & documents</Button> : null}
-        {kinds.has('INBOX_OPERATOR') ? <Button component={RouterLink} to={scoped ? `/human-support?${scoped}` : '#'} disabled={!scoped}>Human support</Button> : null}
+        <Button component={RouterLink} to={scoped ? `/human-support?${scoped}` : '#'} disabled={!scoped}>Human support</Button>
       </Stack>
     </Box> : null}
   </Box>

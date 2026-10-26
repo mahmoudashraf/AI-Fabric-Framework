@@ -1,3 +1,10 @@
+export type CustomerAuthConfig = {
+  enabled: boolean
+  projectUrl: string | null
+  publicKey: string | null
+  deskClients: Array<{ clientId: string; redirectUris: string[] }>
+}
+
 export type DeploymentTemplateSummary = {
   id: string
   name: string
@@ -4569,6 +4576,20 @@ function resolveApiBaseUrl(): string {
 const apiBaseUrl = resolveApiBaseUrl()
 const requestTimeoutMs = 30_000
 let platformApiKey = ''
+let platformAccessTokenProvider: (() => Promise<string | null>) | null = null
+
+export function setPlatformAccessTokenProvider(provider: (() => Promise<string | null>) | null) {
+  platformAccessTokenProvider = provider
+}
+
+export async function platformCredentials(path: string, apiKey: string, policy: 'default' | 'local' | 'none' = 'default'): Promise<{ credentials: RequestCredentials; headers: Record<string, string> }> {
+  if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('://')) throw new Error('Only first-party Platform API paths are accepted.')
+  const token = policy === 'default' ? await platformAccessTokenProvider?.() : null
+  if (policy === 'default' && platformAccessTokenProvider && !token) throw new Error('Customer session expired. Please sign in again.')
+  if (policy === 'none') return { credentials: 'omit', headers: {} }
+  if (token) return { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } }
+  return { credentials: 'include', headers: policy === 'default' && apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {} }
+}
 
 export class PlatformApiError extends Error {
   status: number
@@ -4592,6 +4613,7 @@ export function getPlatformApiBaseUrl(): string {
 }
 
 export function setStoredPlatformApiKey(value: string) {
+  setPlatformAccessTokenProvider(null)
   platformApiKey = value.trim()
 }
 
@@ -4599,11 +4621,12 @@ export function clearStoredPlatformApiKey() {
   platformApiKey = ''
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, policy: 'default' | 'local' | 'none' = 'default'): Promise<T> {
   const apiKey = getStoredPlatformApiKey()
+  const credential = await platformCredentials(path, apiKey, policy)
   const baseHeaders: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
+    ...credential.headers,
   }
   const timeoutController = new AbortController()
   const timeoutHandle = globalThis.setTimeout(() => timeoutController.abort(), requestTimeoutMs)
@@ -4614,8 +4637,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl}${path}`, {
-      credentials: 'include',
       ...init,
+      credentials: credential.credentials,
+      redirect: 'error',
       headers: {
         ...baseHeaders,
         ...(init?.headers ?? {}),
@@ -4664,17 +4688,25 @@ export function fetchPlatformAuthSession() {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/session')
 }
 
+export function fetchCustomerAuthConfig() {
+  return request<CustomerAuthConfig>('/api/platform/auth/customer-config', undefined, 'none')
+}
+
+export function linkCustomerSupabaseIdentity(accessToken: string) {
+  return request<void>('/api/platform/auth/customer-link', { method: 'POST', body: JSON.stringify({ accessToken }) }, 'local')
+}
+
 export function loginToPlatform(payload: PlatformLoginRequest) {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
-  })
+  }, 'local')
 }
 
 export function logoutFromPlatform() {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/logout', {
     method: 'POST',
-  })
+  }, 'local')
 }
 
 export function fetchPlatformUserPreferences() {
@@ -8589,4 +8621,27 @@ export function resumeCustomerPostProvisioning(
     `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/resume-post-provisioning`,
     { method: 'POST', body: JSON.stringify(command) },
   )
+}
+
+export type DeploymentDeskStatus = {
+  available: boolean
+  bindingId: string | null
+  status: 'NOT_ENABLED' | 'PREPARING' | 'APPLYING' | 'ENABLED' | 'FAILED'
+  versionId: string | null
+  releaseId: string | null
+  portalUrl: string | null
+  errorMessage: string | null
+}
+
+export function fetchDeploymentDesk(target: DeploymentTargetReference) {
+  return request<DeploymentDeskStatus>(`/api/deployments/${encodeURIComponent(target.deploymentId)}/desk?${new URLSearchParams({
+    targetProfileId: target.targetProfileId, releaseId: target.releaseId,
+  })}`)
+}
+
+export function enableDeploymentDesk(target: DeploymentTargetReference, operationKey: string, enableReviews = false) {
+  return request<DeploymentDeskStatus>(`/api/deployments/${encodeURIComponent(target.deploymentId)}/desk/enable`, {
+    method: 'POST', headers: { 'Idempotency-Key': operationKey },
+    body: JSON.stringify({ targetProfileId: target.targetProfileId, releaseId: target.releaseId, operationKey, enableReviews }),
+  })
 }

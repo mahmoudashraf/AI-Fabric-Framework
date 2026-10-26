@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -106,6 +107,13 @@ public class PlatformAuthController {
         platformIdentityService.logout(readCookie(request, properties.sessionCookieName()));
         clearSessionCookie(response);
         return unauthenticatedSummary();
+    }
+
+    @ExceptionHandler(com.ai.fabric.platform.backend.security.service.CustomerSupabaseLoginRequiredException.class)
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> customerUsesSupabase(
+        com.ai.fabric.platform.backend.security.service.CustomerSupabaseLoginRequiredException ex) {
+        return org.springframework.http.ResponseEntity.status(401).body(java.util.Map.of(
+            "success", false, "errorCode", "CUSTOMER_USE_SUPABASE", "useSupabase", true, "message", ex.getReason()));
     }
 
     private PlatformAuthSessionSummary unauthenticatedSummary() {

@@ -172,9 +172,7 @@ public class DeploymentHumanReviewService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null
-            || principal.role() != PlatformRole.CUSTOMER_ADMIN
-            || !"SESSION".equalsIgnoreCase(principal.authenticationMode())) {
+        if (!com.ai.fabric.platform.backend.security.CustomerSessionSupport.isCustomerSession(principal)) {
             throw new ResponseStatusException(
                 FORBIDDEN,
                 decision

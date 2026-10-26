@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
-const panelSource = await readFile(new URL('../src/components/customer/KnownNoEffectSettlementPanel.tsx', import.meta.url), 'utf8')
+const panelSource = withCustomerSessionSupport(await readFile(new URL('../src/components/customer/KnownNoEffectSettlementPanel.tsx', import.meta.url), 'utf8'))
 const transpile = (source, module) => ts.transpileModule(source, { compilerOptions: {
   target: ts.ScriptTarget.ES2022, module, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
 } }).outputText

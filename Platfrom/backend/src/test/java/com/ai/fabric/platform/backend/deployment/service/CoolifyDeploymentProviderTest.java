@@ -1286,6 +1286,20 @@ class CoolifyDeploymentProviderTest {
 
     @Test
     void provisionsConversationHandoverConnectorWithRestrictedDatabaseRole() throws Exception {
+        provisionConversationHandover(false, false);
+    }
+
+    @Test
+    void firstDeskPromotionPreparesTargetBeforePlanningAndRegistersPublicCallbackBeforeEnvironmentOrDeploy() throws Exception {
+        provisionConversationHandover(true, false);
+    }
+
+    @Test
+    void rejectedDeskRegistrationStopsBeforeAnyEnvironmentUpdateOrApplicationDeployment() throws Exception {
+        provisionConversationHandover(true, true);
+    }
+
+    private void provisionConversationHandover(boolean deskEnabled, boolean rejectRegistration) throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -1362,6 +1376,11 @@ class CoolifyDeploymentProviderTest {
               "executionExtensions": ["CONVERSATION_HANDOVER"]
             }
             """);
+        if (deskEnabled) {
+            var behavior = (ObjectNode) objectMapper.readTree(handoverVersion.getBehaviorConfigJson());
+            behavior.putObject("conversationHandover").put("marketplacePluginId", "mkp-integration-loomai-desk");
+            handoverVersion.setBehaviorConfigJson(behavior.toString());
+        }
 
         when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
@@ -1420,9 +1439,23 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setTargetProfileId("dtp-coolify-production");
 
+        var deskProvisioner = mock(com.ai.fabric.platform.backend.desk.DeskBindingProvisioner.class);
+        ReflectionTestUtils.setField(provider, "deskBindingProvisioner", deskProvisioner);
+        if (rejectRegistration) {
+            org.mockito.Mockito.doThrow(new IllegalStateException("DESK_REGISTRATION_REJECTED"))
+                .when(deskProvisioner).registerCallback(any(), eq(profile), eq("https://dep-123-connector.runtime.example.test"));
+        }
+
         var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
             List.of(runtimeApplication, connectorApplication), List.of(database));
 
+        if (rejectRegistration) {
+            assertThatThrownBy(() -> provider.provision(deployment(), handoverVersion, release, ProvisioningProgressTracker.noop()))
+                .hasMessageContaining("DESK_REGISTRATION_REJECTED");
+            verify(coolifyApiClient, never()).updateEnvironmentVariables(any(), anyString(), any());
+            verify(coolifyApiClient, never()).start(any(), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean());
+            return;
+        }
         ProvisioningResult result = provider.provision(
             deployment(),
             handoverVersion,
@@ -1430,6 +1463,17 @@ class CoolifyDeploymentProviderTest {
             ProvisioningProgressTracker.noop()
         );
         assertCreatedReceipts(receipts, 3);
+        if (deskEnabled) {
+            var order = inOrder(deskProvisioner, railwayProvisioningPlanService, coolifyApiClient);
+            order.verify(deskProvisioner).prepareForApply(any(), eq(handoverVersion), eq(release), eq(profile));
+            order.verify(railwayProvisioningPlanService).buildPlan(any(), eq(handoverVersion), isNull(), eq("dtp-coolify-production"), nullable(String.class));
+            order.verify(deskProvisioner).registerCallback(any(), eq(profile), eq("https://dep-123-connector.runtime.example.test"));
+            order.verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("runtime-uuid"), any());
+            order.verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("connector-uuid"), any());
+            order.verify(coolifyApiClient).start(eq(connection), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean());
+        } else {
+            verifyNoInteractions(deskProvisioner);
+        }
 
         assertThat(result.detailsJson()).contains("connector-uuid", "db-uuid", "COOLIFY_POSTGRES");
         verify(coolifyApiClient).configurePrivateApplicationNetwork(

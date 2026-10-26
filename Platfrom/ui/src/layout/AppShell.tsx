@@ -1,4 +1,5 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import { isCustomerSession } from '../auth/customerSession'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -149,7 +150,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
       return customerWorkspace || (session?.enabled ? session.canManageUserDirectory : true)
     }
     if (item.customerReviewerOnly) {
-      return session?.role === 'CUSTOMER_ADMIN' && session.authenticationMode === 'SESSION'
+      return isCustomerSession(session)
     }
     return true
   }).sort((left, right) => customerWorkspace

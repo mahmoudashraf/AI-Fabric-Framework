@@ -167,13 +167,12 @@ public class CustomerOfferEntitlementService {
 
     public CustomerActor requireCustomerActor() {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || principal.role() != PlatformRole.CUSTOMER_ADMIN
-            || !"SESSION".equals(principal.authenticationMode())) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
+        if (!com.ai.fabric.platform.backend.security.CustomerSessionSupport.isCustomerSession(principal)) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
         PlatformCustomerAccessService.CustomerScopeSummary scope;
         try { scope = customerAccess.currentScope(principal); }
         catch (ResponseStatusException ex) { throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED); }
         if (scope == null || blank(scope.customerId(), 64)) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
-        var user = users.findByEmailIgnoreCase(principal.actorId()).orElseThrow(() -> deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED));
+        var user = PlatformUserRepository.findForPrincipal(users, principal).orElseThrow(() -> deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED));
         if (!"ACTIVE".equals(user.getStatus()) || !"CUSTOMER_ADMIN".equals(user.getRole())
             || !scope.customerId().equals(user.getCustomerId())) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
         requireActiveCustomer(scope.customerId());

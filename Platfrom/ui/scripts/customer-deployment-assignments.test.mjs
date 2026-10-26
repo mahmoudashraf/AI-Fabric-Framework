@@ -2,12 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/customerDeploymentAssignments.ts', import.meta.url), 'utf8')
 const journalSource = await readFile(new URL('../src/components/customer/customerAssignmentConfigurationIntents.ts', import.meta.url), 'utf8')
-const journalCode = ts.transpileModule(journalSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const journalCode = ts.transpileModule(withCustomerSessionSupport(journalSource), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const journal = await import(`data:text/javascript;base64,${Buffer.from(journalCode).toString('base64')}`)
-const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } })
+const compiled = ts.transpileModule(withCustomerSessionSupport(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } })
 const loaded = { exports: {} }
 new Function('exports', 'require', compiled.outputText)(loaded.exports, name => {
   assert.equal(name, './customerAssignmentConfigurationIntents'); return journal

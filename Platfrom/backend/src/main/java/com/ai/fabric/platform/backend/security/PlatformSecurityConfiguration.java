@@ -53,7 +53,7 @@ public class PlatformSecurityConfiguration {
                                          PlatformSecretService platformSecretService,
                                          PlatformManagedProductServiceRepository productServiceRepository,
                                          PartnerSupabaseAuthProperties partnerSupabaseAuthProperties,
-                                         ObjectProvider<JwtDecoder> partnerJwtDecoder,
+                                         @org.springframework.beans.factory.annotation.Qualifier("partnerSupabaseJwtDecoder") ObjectProvider<JwtDecoder> partnerJwtDecoder,
                                          PartnerMemberRepository partnerMemberRepository) {
         this.properties = properties;
         this.publicApiProperties = publicApiProperties;
@@ -79,7 +79,12 @@ public class PlatformSecurityConfiguration {
 
     @Bean
     public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http,
-        com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleGatewayProperties lifecycle) throws Exception {
+        com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleGatewayProperties lifecycle,
+        com.ai.fabric.platform.backend.config.CustomerSupabaseAuthProperties customerSupabase,
+        com.ai.fabric.platform.backend.security.service.CustomerSupabaseIdentityService customerIdentities,
+        com.ai.fabric.platform.backend.desk.DeskActivationService deskActivation,
+        com.ai.fabric.platform.backend.desk.DeskServiceClient deskClient,
+        com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository targetProfiles) throws Exception {
         if (properties.enabled() && !apiKeyAuthAvailable() && !properties.sessionEnabled()) {
             throw new IllegalStateException("Platform auth is enabled but no authentication method is configured.");
         }
@@ -88,6 +93,8 @@ public class PlatformSecurityConfiguration {
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.cors(Customizer.withDefaults());
         http.addFilterBefore(new com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter(lifecycle),
+            AnonymousAuthenticationFilter.class);
+        http.addFilterBefore(new CustomerSupabaseAuthenticationFilter(customerSupabase, customerIdentities, objectMapper),
             AnonymousAuthenticationFilter.class);
         http.addFilterBefore(
             new PlatformSessionAuthenticationFilter(properties, platformIdentityService),
@@ -118,12 +125,16 @@ public class PlatformSecurityConfiguration {
                 AnonymousAuthenticationFilter.class
             );
         }
+        // The bridge owns its path's principal even when a caller also presents a local cookie or API key.
+        http.addFilterBefore(new com.ai.fabric.platform.backend.desk.DeskReviewBridgeAuthenticationFilter(
+            deskActivation, customerIdentities, deskClient, targetProfiles, objectMapper), AnonymousAuthenticationFilter.class);
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers("/internal/v1/deployment-lifecycle/**")
                 .hasAuthority(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter.AUTHORITY);
             authorize.requestMatchers(
                 "/actuator/health/**",
                 "/api/platform/auth/session",
+                "/api/platform/auth/customer-config",
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
                 "/api/public/ai-workspace/**",

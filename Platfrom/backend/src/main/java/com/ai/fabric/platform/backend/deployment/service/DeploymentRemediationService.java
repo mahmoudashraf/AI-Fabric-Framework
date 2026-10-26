@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
+
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
@@ -1050,6 +1052,7 @@ public class DeploymentRemediationService {
                                                     DeploymentVersionEntity activeVersion,
                                                     DeploymentReleaseEntity latestRelease) {
         RailwayProvisioningPlanSummary livePlan = activeVersion == null
+            || DeskTargetConfigurationResolver.usesDesk(readJson(activeVersion.getBehaviorConfigJson()))
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, activeVersion);
         DeploymentRailwayLiveReadbackSummary liveReadback = deploymentRailwayLiveReadbackService.build(

@@ -134,7 +134,7 @@ public class DeploymentAssignmentService {
             return;
         }
 
-        PlatformUserEntity user = platformUserRepository.findByEmailIgnoreCase(principal.actorId()).orElse(null);
+        PlatformUserEntity user = PlatformUserRepository.findForPrincipal(platformUserRepository, principal).orElse(null);
         if (user == null) {
             return;
         }

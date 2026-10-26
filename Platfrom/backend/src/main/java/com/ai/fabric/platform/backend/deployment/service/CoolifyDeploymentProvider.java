@@ -34,6 +34,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import com.ai.fabric.platform.backend.desk.DeskBindingProvisioner;
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
 
 import java.net.URI;
 import java.time.Duration;
@@ -120,6 +122,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService;
     private CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
+    @Autowired(required = false)
+    private DeskBindingProvisioner deskBindingProvisioner;
     @Autowired
     private CoolifyResourceOwnership resourceOwnership;
 
@@ -297,6 +301,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             SERVICE_ROLE_CONNECTOR
         );
         validateExpectedWebhookConnectorDomain(version, connectorDomain);
+        boolean deskEnabled = DeskTargetConfigurationResolver.usesDesk(readJson(version.getBehaviorConfigJson()));
+        if (deskEnabled) {
+            if (deskBindingProvisioner == null) throw new IllegalStateException("Desk target provisioner is unavailable.");
+            tracked(progressTracker, "prepare_desk_target_binding", "Prepare the selected target's Desk binding and credentials.", () -> {
+                deskBindingProvisioner.prepareForApply(deployment, version, release, profile);
+                return null;
+            });
+        }
         if (deploymentExecutionSecretService != null) {
             tracked(
                 progressTracker,
@@ -588,6 +600,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         String connectorBaseUrl = connectorApplication == null
             ? runtimeBaseUrl
             : normalizeRuntimeBaseUrl(connectorApplication.fqdn());
+        if (deskEnabled) {
+            if (connectorApplication == null) throw new IllegalStateException("Desk requires a deployment connector.");
+            tracked(progressTracker, "register_desk_target_callback", "Register Desk with this target's resolved connector callback.", () -> {
+                deskBindingProvisioner.registerCallback(deployment, profile, connectorBaseUrl);
+                return null;
+            });
+        }
         String connectorRuntimeBaseUrl;
         String runtimeConnectorBaseUrl = connectorBaseUrl;
         if (requiresDurableConnectorPersistence(version) && connectorApplication != null) {

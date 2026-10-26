@@ -1,5 +1,10 @@
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import { usePlatformAuth } from './auth/PlatformAuthProvider'
+import { isCustomerSession } from './auth/customerSession'
+import { DeskOAuthAuthorizationPage } from './pages/DeskOAuthAuthorizationPage'
+import { CustomerIdentityLinkPage } from './pages/CustomerIdentityLinkPage'
+import { CustomerAuthCallbackPage } from './pages/CustomerAuthCallbackPage'
+import { CustomerAuthRecoveryPage } from './pages/CustomerAuthRecoveryPage'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
@@ -52,6 +57,11 @@ export default function App() {
   const customerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
   const Shell = customerWorkspace ? CustomerConsoleShell : AppShell
 
+  // Identity-provider consent is available to Desk agents without Console membership.
+  if (window.location.pathname === '/auth/desk/authorize') return <DeskOAuthAuthorizationPage />
+  if (window.location.pathname === '/auth/callback') return <CustomerAuthCallbackPage />
+  if (window.location.pathname === '/auth/recovery') return <CustomerAuthRecoveryPage />
+
   if (auth.isLoading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -68,6 +78,7 @@ export default function App() {
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 3 }}>
         <Alert severity="error" sx={{ maxWidth: 720 }}>
           {auth.error.message}
+          <Button onClick={() => { void auth.signOut() }}>Return to sign in</Button>
         </Alert>
       </Box>
     )
@@ -86,15 +97,19 @@ export default function App() {
     )
   }
 
-  if (auth.session?.role === 'CUSTOMER_ADMIN' && auth.session.authenticationMode !== 'SESSION') {
+  if (auth.session?.role === 'CUSTOMER_ADMIN' && !isCustomerSession(auth.session)) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 3 }}>
         <Stack spacing={2} sx={{ maxWidth: 620 }}>
-          <Alert severity="error">Customer self-service requires a password-backed session. API-key access cannot open the customer workspace.</Alert>
+          <Alert severity="error">Customer self-service requires a verified customer session. API-key access cannot open the customer workspace.</Alert>
           <Button variant="contained" onClick={() => { void auth.signOut() }}>Return to sign in</Button>
         </Stack>
       </Box>
     )
+  }
+
+  if (customerWorkspace && auth.session?.authenticationMode === 'SESSION' && auth.customerConfig?.enabled) {
+    return <CustomerIdentityLinkPage />
   }
 
   return (

@@ -7,10 +7,14 @@ import {
   CardContent,
   Divider,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   TextField,
   Typography,
 } from '@mui/material'
 import { FormEvent, useEffect, useState } from 'react'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 
 type PlatformLoginPageProps = {
   headerName: string
@@ -29,6 +33,8 @@ export function PlatformLoginPage({
   onPasswordSubmit,
   onApiKeySubmit,
 }: PlatformLoginPageProps) {
+  const auth = usePlatformAuth()
+  const [loginMode, setLoginMode] = useState<'customer' | 'staff' | 'link'>(() => auth.customerConfig?.enabled ? 'customer' : 'staff')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -95,15 +101,23 @@ export function PlatformLoginPage({
                   Platform sign-in
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Use a platform user session by default. API key login remains available as an operator fallback.
+                  {loginMode === 'customer' ? 'Your Console and LoomAI Desk account.' : loginMode === 'link' ? 'Sign in to the existing account before connecting Supabase.' : 'Internal administrator and operator access.'}
                 </Typography>
               </Box>
             </Stack>
 
+            {auth.customerConfig?.enabled && <ToggleButtonGroup value={loginMode} exclusive size="small" fullWidth
+              onChange={(_, next) => { if (next) { setLoginMode(next); setLocalError(null); setPassword('') } }}>
+              <ToggleButton value="customer">Customer</ToggleButton><ToggleButton value="staff">Staff</ToggleButton>
+            </ToggleButtonGroup>}
+
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
             {!errorMessage && localError ? <Alert severity="error">{localError}</Alert> : null}
 
-            {sessionAuthEnabled ? (
+            {loginMode === 'customer' ? <SupabaseIdentityForm allowRegistration /> : null}
+            {loginMode === 'customer' && <Button onClick={() => { setLoginMode('link') }}>Connect an existing customer account</Button>}
+
+            {loginMode !== 'customer' && sessionAuthEnabled ? (
               <Box component="form" onSubmit={handlePasswordSubmit}>
                 <Stack spacing={2}>
                   <TextField
@@ -133,9 +147,9 @@ export function PlatformLoginPage({
               </Box>
             ) : null}
 
-            {sessionAuthEnabled && apiKeyAuthEnabled ? <Divider>Or use API key</Divider> : null}
+            {loginMode === 'staff' && sessionAuthEnabled && apiKeyAuthEnabled ? <Divider>Or use API key</Divider> : null}
 
-            {apiKeyAuthEnabled ? (
+            {loginMode === 'staff' && apiKeyAuthEnabled ? (
               <Box component="form" onSubmit={handleApiKeySubmit}>
                 <Stack spacing={2}>
                   <Typography variant="body2" color="text.secondary">

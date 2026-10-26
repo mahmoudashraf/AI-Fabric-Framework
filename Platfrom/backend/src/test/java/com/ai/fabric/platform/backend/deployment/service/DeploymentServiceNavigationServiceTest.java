@@ -27,6 +27,19 @@ import static org.mockito.Mockito.when;
 
 class DeploymentServiceNavigationServiceTest {
 
+    @Test
+    void deskNavigationKeepsPublishedMetadataWithoutInferringATarget() {
+        var fixture = new NavigationFixture();
+        var latest = version("ver-desk", "{}");
+        latest.setBehaviorConfigJson("{\"conversationHandover\":{\"marketplacePluginId\":\"mkp-integration-loomai-desk\"}}");
+        fixture.stubModel(latest);
+        var summary = fixture.service.build(fixture.deployment, null, null, latest, null, null);
+        verifyNoInteractions(fixture.plans);
+        assertThat(summary.provider().repository()).isEqualTo("org/repo");
+        assertThat(summary.surfaces().stream().filter(surface -> "runtime".equals(surface.key())).findFirst().orElseThrow().primaryUrl())
+            .isEqualTo("https://runtime.example");
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void externalBindingNavigationUsesExistingMetadataWithoutExecutablePlan(boolean live) {

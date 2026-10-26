@@ -2,8 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 const source = await readFile(new URL('../src/components/customer/customerEngageCommands.ts', import.meta.url), 'utf8')
-const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
+const compiled = ts.transpileModule(withCustomerSessionSupport(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
 const { prepareCustomerEngageCommand } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const fixture = () => ({ actorId: 'owner', customerId: 'customer',
   consumers: [{ consumerId: 'chosen', customerId: 'customer', status: 'ACTIVE', boundDeploymentId: 'deployment',
@@ -13,6 +14,9 @@ const fixture = () => ({ actorId: 'owner', customerId: 'customer',
     targets: [{ id: 'staging', capabilities: ['APP_CONFIGURE'] }, { id: 'production', capabilities: ['APP_CONFIGURE'] }] }],
 })
 const account = () => ({ authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' })
+test('verified Supabase owners can configure the same owned app', async () => {
+  await prepareCustomerEngageCommand(fixture, 'chosen', async () => ({ ...account(), authenticationMode: 'SUPABASE' }))
+})
 test('checks the current account and exact assigned target without placement or reservation calls', async () => {
   const state = fixture(); let reads = 0
   await prepareCustomerEngageCommand(() => state, 'chosen', async () => { reads++; return account() })

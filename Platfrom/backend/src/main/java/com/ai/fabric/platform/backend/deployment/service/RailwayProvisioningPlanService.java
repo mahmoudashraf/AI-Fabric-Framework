@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisio
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyLifecycleService;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRuntimeEnvironmentResolver;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
@@ -89,6 +90,9 @@ public class RailwayProvisioningPlanService {
 
     @Autowired(required = false)
     private DeploymentExistingVectorBindingService existingVectorBindings;
+
+    @Autowired(required = false)
+    private DeskTargetConfigurationResolver deskTargetConfigurationResolver;
 
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
@@ -297,6 +301,13 @@ public class RailwayProvisioningPlanService {
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        boolean targetMaterializedDesk = DeskTargetConfigurationResolver.usesDesk(behaviorConfig);
+        if (targetMaterializedDesk) {
+            if (deskTargetConfigurationResolver == null) {
+                throw new RailwayProvisioningConfigurationException("Desk target configuration resolver is unavailable.");
+            }
+            behaviorConfig = deskTargetConfigurationResolver.resolve(deployment, version, targetProfileId, behaviorConfig);
+        }
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
@@ -500,7 +511,7 @@ public class RailwayProvisioningPlanService {
             ));
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET",
-                secretReference(channel, "runtimeCallbackSigningSecretRef")
+                secretReference(channel, "runtimeCallbackSigningSecretRef", targetMaterializedDesk)
             ));
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "LOOMAI_CONVERSATION_HANDOVER_ANONYMOUS_ALLOWED",
@@ -712,7 +723,7 @@ public class RailwayProvisioningPlanService {
             ));
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_RUNTIME_CALLBACK_SIGNING_SECRET",
-                secretReference(channel, "runtimeCallbackSigningSecretRef")
+                secretReference(channel, "runtimeCallbackSigningSecretRef", targetMaterializedDesk)
             ));
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL",
@@ -720,11 +731,11 @@ public class RailwayProvisioningPlanService {
             ));
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY",
-                secretReference(channel, "providerApiKeySecretRef")
+                secretReference(channel, "providerApiKeySecretRef", targetMaterializedDesk)
             ));
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET",
-                secretReference(channel, "providerWebhookSigningSecretRef")
+                secretReference(channel, "providerWebhookSigningSecretRef", targetMaterializedDesk)
             ));
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
@@ -2251,7 +2262,7 @@ public class RailwayProvisioningPlanService {
         return false;
     }
 
-    private String secretReference(JsonNode node, String field) {
+    private String secretReference(JsonNode node, String field, boolean targetMaterializedDesk) {
         String secretName = node == null ? "" : node.path(field).asText("").trim();
         if (!secretName.matches("^[A-Z][A-Z0-9_]{2,127}$")) {
             throw new ResponseStatusException(
@@ -2259,7 +2270,7 @@ public class RailwayProvisioningPlanService {
                 "Conversation Handover requires a valid deployment secret reference for " + field + "."
             );
         }
-        if (secretName.startsWith("MANAGED_")) {
+        if (!targetMaterializedDesk && secretName.startsWith("MANAGED_")) {
             return "${" + secretName + "}";
         }
         return "${secret:" + secretName + "}";

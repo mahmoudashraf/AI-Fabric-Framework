@@ -1,5 +1,6 @@
 import type { CustomerDeploymentSummary, CustomerOfferSummary, DeploymentTargetReference,
   DeploymentTargetContextSummary, PlatformAuthSessionSummary } from '../../api/platformApi'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export async function prepareCustomerOperatorPlacement(target: DeploymentTargetReference,
   session: PlatformAuthSessionSummary | null, operation: 'INBOX_OPERATOR_ENROLL' | 'INBOX_OPERATOR_ROTATE' | 'INBOX_OPERATOR_DELIVER',
@@ -11,7 +12,7 @@ export async function prepareCustomerOperatorPlacement(target: DeploymentTargetR
   }, stillCurrent: () => boolean) {
   const requireSession = (current: PlatformAuthSessionSummary) => {
     if (!stillCurrent() || !session?.actorId || !session.customerId || !current.authenticated
-      || current.role !== 'CUSTOMER_ADMIN' || current.authenticationMode !== 'SESSION'
+      || current.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(current.authenticationMode)
       || current.actorId !== session.actorId || current.customerId !== session.customerId) {
       throw new Error('The customer or selected support channel changed. Review it again.')
     }

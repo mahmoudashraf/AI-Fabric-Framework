@@ -39,7 +39,7 @@ public class DeploymentRailwayLiveReadbackService {
                                                       DeploymentReleaseEntity latestRelease,
                                                       RailwayProvisioningPlanSummary livePlan) {
         if (livePlan == null) {
-            return unavailable("No live version is applied yet, so Railway read-back is not available.");
+            return unavailable("No target-specific executable plan is available for Railway read-back.");
         }
         if (!"RAILWAY_API".equalsIgnoreCase(livePlan.mode())) {
             return unavailable("Live Railway read-back is only available for RAILWAY_API deployments.");

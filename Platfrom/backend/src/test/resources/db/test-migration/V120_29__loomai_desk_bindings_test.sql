@@ -1,0 +1,20 @@
+CREATE TABLE platform_desk_bindings (
+    id VARCHAR(64) PRIMARY KEY,
+    customer_id VARCHAR(64) NOT NULL,
+    tenant_id VARCHAR(64) NOT NULL,
+    deployment_id VARCHAR(64) NOT NULL REFERENCES platform_deployments(id),
+    target_profile_id VARCHAR(64) NOT NULL REFERENCES deployment_target_profiles(id),
+    source_release_id VARCHAR(64) NOT NULL REFERENCES platform_deployment_releases(id),
+    operation_key VARCHAR(128) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    release_id VARCHAR(64) REFERENCES platform_deployment_releases(id),
+    version_id VARCHAR(64) REFERENCES platform_deployment_versions(id),
+    provider_key_ref VARCHAR(255) NOT NULL,
+    callback_key_ref VARCHAR(255) NOT NULL,
+    runtime_callback_key_ref VARCHAR(255) NOT NULL,
+    bridge_key_ref VARCHAR(255) NOT NULL,
+    error_message VARCHAR(500),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT uk_platform_desk_target UNIQUE (deployment_id, target_profile_id)
+);

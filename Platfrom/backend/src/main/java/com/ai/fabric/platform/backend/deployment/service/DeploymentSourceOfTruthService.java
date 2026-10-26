@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
+
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -116,9 +118,11 @@ public class DeploymentSourceOfTruthService {
 
         DeploymentVersionEntity referenceVersion = liveVersion != null ? liveVersion : latestPublishedVersion;
         RailwayProvisioningPlanSummary plan = referenceVersion == null
+            || DeskTargetConfigurationResolver.usesDesk(readJson(referenceVersion.getBehaviorConfigJson()))
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, referenceVersion);
         RailwayProvisioningPlanSummary livePlan = liveVersion == null
+            || DeskTargetConfigurationResolver.usesDesk(readJson(liveVersion.getBehaviorConfigJson()))
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, liveVersion);
         DeploymentRailwayLiveReadbackSummary liveRailwayReadback = deploymentRailwayLiveReadbackService.build(

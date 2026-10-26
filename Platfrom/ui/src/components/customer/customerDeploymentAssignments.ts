@@ -3,6 +3,7 @@ import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, Custome
   PlatformConsumerSummary, PlatformAuthSessionSummary } from '../../api/platformApi'
 import type { AssignmentConfigurationIntents, AssignmentConfigurationSnapshot } from './customerAssignmentConfigurationIntents'
 import { sameAssignmentReadback } from './customerAssignmentConfigurationIntents'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export function selectableCustomerAssignments(
   consumers: PlatformConsumerSummary[], customerId: string, deploymentId: string,
@@ -34,7 +35,7 @@ export function canReviewCustomerAssignment(scope: CustomerAssignmentConfigurati
   versions: DeploymentVersionSummary[], releases: DeploymentReleaseSummary[]) {
   const { actorId, authenticationMode, customerId, offer, deployment, consumer } = scope
   const target = offer.targets.find((item) => item.id === deployment.bootstrapTargetProfileId)
-  return Boolean(actorId && authenticationMode === 'SESSION' && customerId && offer.entitlement.customerId === customerId
+  return Boolean(actorId && isCustomerAuthenticationMode(authenticationMode) && customerId && offer.entitlement.customerId === customerId
     && offer.entitlement.status === 'ACTIVE' && safeRevision(offer.entitlement.revision)
     && deployment.offerId === offer.id && deployment.offerFingerprint === offer.fingerprint
     && deployment.status === 'DRAFT' && deployment.activeVersionId === null
@@ -83,8 +84,8 @@ export function assignmentConfigurationClaimKey(scope: CustomerAssignmentConfigu
 
 export function assignmentConfigurationSnapshot(scope: CustomerAssignmentConfigurationScope,
   workspaces: CustomerStagingConsumerConfigurationRequest['expectedDraftWorkspaces']): AssignmentConfigurationSnapshot {
-  if (!scope.draft || scope.authenticationMode !== 'SESSION') throw new Error('Current editable draft and session authority are required.')
-  return { actorId: scope.actorId, authenticationMode: 'SESSION', customerId: scope.customerId, consumerId: scope.consumer.consumerId,
+  if (!scope.draft || !isCustomerAuthenticationMode(scope.authenticationMode)) throw new Error('Current editable draft and session authority are required.')
+  return { actorId: scope.actorId, authenticationMode: scope.authenticationMode, customerId: scope.customerId, consumerId: scope.consumer.consumerId,
     offerId: scope.offer.id, offerFingerprint: scope.offer.fingerprint, entitlementRevision: scope.offer.entitlement.revision,
     deploymentId: scope.deployment.deploymentId, tenantId: scope.deployment.tenantId, targetProfileId: scope.deployment.bootstrapTargetProfileId,
     bindingRevision: scope.consumer.bindingRevision, draftId: scope.draft.id, draftRevision: scope.draft.revisionNumber,
@@ -112,7 +113,7 @@ async function freshAssignmentConfiguration(api: ConfigurationApi, scope: Custom
   const matches = consumers.filter(item => item.consumerId === scope.consumer.consumerId)
   const owned = deployments.filter(item => item.deploymentId === scope.deployment.deploymentId)
   const fresh = matches.length === 1 && owned.length === 1 ? { ...scope, offer, deployment: owned[0], consumer: matches[0], draft } : null
-  if (!stillCurrent() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+  if (!stillCurrent() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
     || session.actorId !== scope.actorId || session.customerId !== scope.customerId || !fresh
     || offer.id !== scope.offer.id || offer.fingerprint !== scope.offer.fingerprint || offer.entitlement.revision !== scope.offer.entitlement.revision
     || fresh.deployment.tenantId !== scope.deployment.tenantId || fresh.deployment.bootstrapTargetProfileId !== scope.deployment.bootstrapTargetProfileId

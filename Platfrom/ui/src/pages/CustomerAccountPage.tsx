@@ -1,10 +1,11 @@
 import { Alert, Box, Divider, Stack, Typography } from '@mui/material'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { isCustomerSession } from '../auth/customerSession'
 import { UsersPage } from './UsersPage'
 
 export function CustomerAccountPage() {
   const { session } = usePlatformAuth()
-  if (session?.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION' || !session.customerId) {
+  if (!isCustomerSession(session)) {
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   return <Stack spacing={3}>

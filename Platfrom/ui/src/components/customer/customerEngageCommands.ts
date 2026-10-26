@@ -1,4 +1,5 @@
 import type { CustomerDeploymentSummary, CustomerOfferSummary, PlatformAuthSessionSummary, PlatformConsumerSummary } from '../../api/platformApi'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export type CustomerEngageCommandContext = {
   actorId: string | null | undefined
@@ -37,7 +38,7 @@ export async function prepareCustomerEngageCommand(
   if (ids.length === 0) throw new Error('Select an app assignment before configuring an app.')
   const scopes = ids.map(id => commandScope(before, id))
   const account = await session()
-  if (!account.authenticated || account.role !== 'CUSTOMER_ADMIN' || account.authenticationMode !== 'SESSION'
+  if (!account.authenticated || account.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(account.authenticationMode)
     || account.actorId !== before.actorId || account.customerId !== before.customerId) {
     throw new Error('The app account changed. Sign in to the current customer account before continuing.')
   }

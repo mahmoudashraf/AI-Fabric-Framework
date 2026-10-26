@@ -2,6 +2,7 @@ import { Alert } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { isCustomerSession } from '../auth/customerSession'
 import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerDeploymentConsole } from '../components/customer/CustomerDeploymentConsole'
 import { CustomerResourceSurface } from '../components/customer/CustomerResourceSurface'
@@ -12,7 +13,7 @@ import { AIWorkspacesPage } from './AIWorkspacesPage'
 export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' | 'apps' }) {
   const { session } = usePlatformAuth()
   const location = useLocation()
-  if (session?.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION' || !session.customerId) {
+  if (!isCustomerSession(session)) {
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   const view = new URLSearchParams(location.search).get('view')

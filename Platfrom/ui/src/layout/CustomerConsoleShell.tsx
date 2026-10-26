@@ -19,6 +19,7 @@ import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
+import { isCustomerSession } from '../auth/customerSession'
 import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio } from '../api/platformApi'
 import { useQuery } from '@tanstack/react-query'
 import { CustomerConsoleTheme, useCustomerColorPreference, type CustomerColorPreference } from '../theme/CustomerConsoleTheme'
@@ -46,7 +47,7 @@ type CustomerShellProps = {
 export function CustomerConsoleShell(props: CustomerShellProps) {
   const workspace = useDeploymentWorkspace()
   const customerId = props.session?.customerId ?? ''
-  const customerSession = props.session?.role === 'CUSTOMER_ADMIN' && props.session.authenticationMode === 'SESSION' && Boolean(customerId)
+  const customerSession = isCustomerSession(props.session)
   const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio, enabled: customerSession })
   const apps = useQuery({ queryKey: ['ai-workspace-installations', customerId], queryFn: () => fetchAIWorkspaceInstallations(customerId), enabled: customerSession })
   const expandedNavigation = Boolean(portfolio.data?.length || apps.data?.length || workspace.selectedDeploymentSummary || portfolio.isError || apps.isError)
@@ -64,7 +65,7 @@ export function CustomerShellLayout({ session, onSignOut, children, buildWorkspa
   humanSupportAvailable?: boolean
   expandedNavigation?: boolean
 }) {
-  if (session?.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION') {
+  if (!isCustomerSession(session)) {
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   return <CustomerConsoleTheme><CustomerShellContent session={session} onSignOut={onSignOut}

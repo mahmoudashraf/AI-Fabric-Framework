@@ -1,6 +1,7 @@
 import type { CustomerDeploymentSummary, CustomerExternalIntegrationApprovalOption, CustomerExternalIntegrationProfile,
   CustomerExternalIntegrationScope, CustomerExternalIntegrationSummary, CustomerOfferSummary, DeploymentVersionSummary,
   PlatformAuthSessionSummary } from '../../api/platformApi'
+import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export type ExternalConnectionAuthority = {
   session: PlatformAuthSessionSummary; offer: CustomerOfferSummary; deployment: CustomerDeploymentSummary
@@ -12,7 +13,7 @@ export function externalConnectionProfile(authority: ExternalConnectionAuthority
   const slot = offer.bindingSlots.filter(item => item.id === scope.bindingSlotId && item.kind === 'EXTERNAL_SERVICE')
   const profiles = offer.externalIntegrationProfiles.filter(item => item.id === scope.selectedProfileId
     && item.bindingSlotId === scope.bindingSlotId && item.targetProfileIds.includes(scope.targetProfileId))
-  if (!session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+  if (!session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
     || !session.actorId || !session.customerId || offer.entitlement.customerId !== session.customerId
     || offer.entitlement.status !== 'ACTIVE' || !Number.isSafeInteger(offer.entitlement.revision)
     || offer.entitlement.revision < 0 || deployment.offerId !== offer.id || deployment.offerFingerprint !== offer.fingerprint

@@ -235,7 +235,7 @@ public class DeploymentAccessService {
         if (principal == null) {
             return null;
         }
-        PlatformUserEntity user = platformUserRepository.findByEmailIgnoreCase(principal.actorId()).orElse(null);
+        PlatformUserEntity user = PlatformUserRepository.findForPrincipal(platformUserRepository, principal).orElse(null);
         return user == null ? null : user.getId();
     }
 

@@ -3,11 +3,12 @@ import { Alert, MenuItem, Stack, TextField } from '@mui/material'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchCustomerDeploymentPortfolio } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { isCustomerSession } from '../auth/customerSession'
 import { HumanReviewPage } from './HumanReviewPage'
 
 export function CustomerActionReviewsPage() {
   const { session } = usePlatformAuth()
-  if (session?.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION' || !session.customerId) {
+  if (!isCustomerSession(session)) {
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   return <CustomerActionReviewReads key={`${session.actorId}:${session.customerId}`} customerId={session.customerId} />

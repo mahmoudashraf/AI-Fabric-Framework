@@ -115,7 +115,7 @@ public class PlatformCustomerAccessService {
         if (principal == null || !StringUtils.hasText(principal.actorId())) {
             return null;
         }
-        return platformUserRepository.findByEmailIgnoreCase(principal.actorId()).orElse(null);
+        return PlatformUserRepository.findForPrincipal(platformUserRepository, principal).orElse(null);
     }
 
     public record CustomerScopeSummary(
