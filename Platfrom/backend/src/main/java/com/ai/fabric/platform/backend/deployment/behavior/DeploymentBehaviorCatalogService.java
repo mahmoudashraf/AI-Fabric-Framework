@@ -280,6 +280,14 @@ public class DeploymentBehaviorCatalogService {
                         "Each reviewable action must be an exact registered action name.");
                 }
             }
+            JsonNode lookup = proposals.path("targetLookup");
+            if (!lookup.isMissingNode() && !lookup.isNull()
+                && (!lookup.isObject() || !lookup.path("action").asText("").matches("[a-z][a-z0-9_]{0,119}")
+                    || !lookup.path("parameter").asText("").matches("[A-Za-z][A-Za-z0-9_]{0,79}")
+                    || (lookup.hasNonNull("vectorSpace") && !lookup.path("vectorSpace").asText("").matches("[a-z0-9][a-z0-9._-]{0,119}")))) {
+                return Validation.invalid("REVIEW_TARGET_LOOKUP_INVALID",
+                    "Target lookup requires an exact READ action/parameter and an optional authorized vector space.");
+            }
         }
         return Validation.valid(config.deepCopy());
     }

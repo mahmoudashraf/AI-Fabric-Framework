@@ -94,6 +94,20 @@ class DeploymentBehaviorCatalogServiceTest {
     }
 
     @Test
+    void reviewTargetLookupSupportsNonIndexedReadsWithoutBroadeningActionNames() {
+        ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
+        behavior.withArray("executionExtensions").add("HUMAN_REVIEW");
+        var proposals = behavior.putObject("humanReview").putObject("actionProposals").put("enabled", true);
+        proposals.putArray("allowedActions").add("registered_write");
+        var lookup = proposals.putObject("targetLookup").put("action", "get_record").put("parameter", "reference");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isTrue();
+        lookup.put("vectorSpace", "records");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isTrue();
+        lookup.put("action", "*");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").code()).isEqualTo("REVIEW_TARGET_LOOKUP_INVALID");
+    }
+
+    @Test
     void rejectsUnreviewedBindingPlaceholders() {
         ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
         behavior.withArray("executionExtensions").add("CONVERSATION_HANDOVER");

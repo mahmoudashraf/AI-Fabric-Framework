@@ -58,4 +58,20 @@ class ReviewProposalConfigurationTest {
         context.withPropertyValues("ai.execution.reviews.enabled=true", "app.human-review.proposals.enabled=true")
             .run(application -> assertThat(application).hasFailed());
     }
+
+    @Test
+    void targetLookupAddsOnlyItsReadCapabilityAndOptionalVectorScope() {
+        context.withPropertyValues("ai.execution.reviews.enabled=true",
+                "app.human-review.proposals.enabled=true",
+                "app.human-review.proposals.allowed-actions=registered_write",
+                "app.human-review.proposals.target-lookup.action=get_record",
+                "app.human-review.proposals.target-lookup.parameter=reference")
+            .run(application -> {
+                assertThat(application).hasNotFailed();
+                var requested = application.getBean(SpecialistDefinition.class).executionProfile().requestedCapabilities();
+                assertThat(requested.requestableReadActions()).containsExactly("get_record");
+                assertThat(requested.proposableWriteActions()).containsExactly("registered_write");
+                assertThat(requested.retrievalEnabled()).isFalse();
+            });
+    }
 }

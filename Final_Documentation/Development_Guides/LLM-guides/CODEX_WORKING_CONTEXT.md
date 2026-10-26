@@ -10,6 +10,24 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 10:52UTC CURRENT staging rel-ca818c8e APPLIED_VERIFIED, vrf-28daa1db
+  29PASS/0FAIL/4NA. ActualcustomerUI3policies register/index/reconcile PASS.
+  Twoinitialrealproposals409email: published0.8.41 wrongly rejects substring
+  example/required/optional/e.g regardlessprovenanceWARN. Explicit.testfixture
+  attemptthen409trustedcontext; noactualreviewtasks/writes/decisions created.
+  OWNERlatestRequiredchatmessage01a177d2-74dd-74e1-80a4-a3c554a444fb says
+  KEEPFRAMEWORK,PROVIDEREALVALUES. Noframeworkedit/release/adoption authorized;
+  usealreadyapprovedownerfixturemailbox. Limitationstaysunfixed/documented.
+- Narrowruntimeauthorizedtargetlookup implementedUNCOMMITTED: optional
+  humanReview.actionProposals.targetLookup READ action/parameter/optionalvector,
+  existinggovernedinvocation+actualcaller/effectivecapabilities, exactlyone
+  canonicaltypedtarget→internalattachment. NoHTTPtrustedattachments/rawpayload,
+  inventedID/firstresult/broadfallback. IndependentreviewEXECUTEDstatusguard
+  added; focusedtestsbeingrun. ZenoownsONLYnewrealinvocationcontracttest.
+  Nextbatchnewimage/versionwithlookup+publicembeddedCORS, stagingrealreview
+  approve/reject/replaycounts thenproduction/sameapp. NoLegacyInboxretirement
+  beforeproof. Privateops consumedintentguards remain; don'tblindlyreplay.
+
 - 10:00UTC CURRENT sourcebefdf1b78521c0ec72d037facd48214a4fbec0cc pushed;
   runtimeCI40299794581 + backendCI40299794571 PASS, immutable digests privately
   verified. BOTH controlplane backends nowbefdf1b78/nativehealthy; Console2d14

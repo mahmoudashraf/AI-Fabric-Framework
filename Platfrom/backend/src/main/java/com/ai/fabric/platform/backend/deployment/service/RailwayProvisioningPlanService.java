@@ -466,6 +466,14 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "APP_HUMAN_REVIEW_PROPOSALS_ALLOWED_ACTIONS", String.join(",", reviewActions)
             ));
+            JsonNode lookup = reviewProposals.path("targetLookup");
+            if (lookup.isObject()) {
+                runtimeEnv.add(new RailwayEnvVarSummary("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_ACTION", lookup.path("action").asText()));
+                runtimeEnv.add(new RailwayEnvVarSummary("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_PARAMETER", lookup.path("parameter").asText()));
+                if (lookup.hasNonNull("vectorSpace")) {
+                    runtimeEnv.add(new RailwayEnvVarSummary("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_VECTOR_SPACE", lookup.path("vectorSpace").asText()));
+                }
+            }
         }
         if (humanReviewEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(

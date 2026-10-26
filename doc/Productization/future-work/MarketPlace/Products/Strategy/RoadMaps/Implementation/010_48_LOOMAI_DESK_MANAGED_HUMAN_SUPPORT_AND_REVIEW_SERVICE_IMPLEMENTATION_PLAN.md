@@ -784,3 +784,23 @@ runner now checks actual Desk UI decisions and read-only external business
 counts, without extracting contact payloads or requiring them in Desk's safe
 outcome projection. Native email delivery and branded DNS remain independent
 open gates.
+
+10:52 UTC continuation: staging `rel-ca818c8e` is now **APPLIED_VERIFIED**,
+`vrf-28daa1db` has 29 PASS, 0 FAIL and 4 not-applicable checks. The actual
+customer UI registered/indexed/reconciled the three policy files through the
+fresh owned binding; no source objects or historical ownership were rewritten.
+
+Real proposal checks found two distinct gates. Published framework 0.8.41
+incorrectly treats substrings such as `example` as missing required values.
+The owner explicitly directed **keep the framework, provide real values**;
+this defect remains documented and unfixed, not hidden by input rewriting.
+Qualification will use the already authorized owner-controlled contact mailbox.
+Separately, the action correctly requires a trusted vehicle rather than a
+name supplied in text. The narrow runtime integration now supports an optional,
+deployment-configured authorized READ lookup. Its single canonical safe target
+projection becomes internal specialist context, with caller authority preserved.
+No domain terms, raw handler payloads, automatic broad search or hidden-target
+bypass enter the generic adapter. Independent audit required checking the actual
+governed invocation's EXECUTED status, not merely its handler result; fixed before
+rollout with a focused rejection regression. The new lookup source is not yet
+deployed. Genuine approve/reject and business-write counts remain the next gate.

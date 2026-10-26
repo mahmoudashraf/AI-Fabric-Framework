@@ -23,12 +23,15 @@ public class ReviewProposalService {
     private final AIExecutionGateway executions;
     private final ReviewDecisionGateway reviews;
     private final HumanReviewService contexts;
+    private final ReviewProposalTargetResolver targets;
     private RuntimeBudgetTurnScopes budgetTurns;
 
-    public ReviewProposalService(AIExecutionGateway executions, ReviewDecisionGateway reviews, HumanReviewService contexts) {
+    public ReviewProposalService(AIExecutionGateway executions, ReviewDecisionGateway reviews, HumanReviewService contexts,
+        ReviewProposalTargetResolver targets) {
         this.executions = executions;
         this.reviews = reviews;
         this.contexts = contexts;
+        this.targets = targets;
     }
 
     @Autowired(required = false)
@@ -41,6 +44,7 @@ public class ReviewProposalService {
         String summary = required(request.summary(), "summary", 1000);
         String key = required(idempotencyKey, "Idempotency-Key", 160);
         var source = contexts.sourceContext(identity);
+        var input = new ReviewProposalInput(question, targets.resolve(request.targetReference(), source));
         RuntimeBudgetTurnScopes.Turn turn;
         try {
             turn = budgetTurns == null ? null : budgetTurns.openChat(identity, null);
@@ -52,7 +56,7 @@ public class ReviewProposalService {
         try (turn) {
             if (turn != null) turn.verifyBeforeOrchestration();
             proposal = executions.execute(new AIExecutionRequest<>(
-                ReviewProposalConfiguration.SPECIALIST_ID, question, source, null, null, key));
+                ReviewProposalConfiguration.SPECIALIST_ID, input, source, null, null, key));
             if (turn != null && turn.interruption().isPresent()) {
                 return new ReviewTaskCreationResult(null, false, new ReviewDecisionFailure(
                     RuntimeBudgetTurnScopes.INTERRUPTION_CODE, "Provider spending was interrupted. No review was submitted.", false));
@@ -84,5 +88,7 @@ public class ReviewProposalService {
         return value.trim();
     }
 
-    public record Request(String request, String title, String summary) { }
+    public record Request(String request, String title, String summary, String targetReference) {
+        public Request(String request, String title, String summary) { this(request, title, summary, null); }
+    }
 }

@@ -25,7 +25,8 @@ class ReviewProposalServiceTest {
     private final AIExecutionGateway executions = mock(AIExecutionGateway.class);
     private final ReviewDecisionGateway reviews = mock(ReviewDecisionGateway.class);
     private final HumanReviewService contexts = mock(HumanReviewService.class);
-    private final ReviewProposalService service = new ReviewProposalService(executions, reviews, contexts);
+    private final ReviewProposalTargetResolver targets = mock(ReviewProposalTargetResolver.class);
+    private final ReviewProposalService service = new ReviewProposalService(executions, reviews, contexts, targets);
     private final RuntimeResolvedIdentity identity = RuntimeResolvedIdentity.builder().build();
     private final Instant now = Instant.parse("2026-10-26T09:00:00Z");
     private final TrustedExecutionContext source = new TrustedExecutionContext(
@@ -44,10 +45,11 @@ class ReviewProposalServiceTest {
 
         service.propose(identity, request(), "request-key");
 
-        ArgumentCaptor<AIExecutionRequest<String>> execution = ArgumentCaptor.forClass(AIExecutionRequest.class);
+        ArgumentCaptor<AIExecutionRequest<ReviewProposalInput>> execution = ArgumentCaptor.forClass(AIExecutionRequest.class);
         verify(executions).execute(execution.capture());
         assertThat(execution.getValue().specialistId()).isEqualTo(ReviewProposalConfiguration.SPECIALIST_ID);
-        assertThat(execution.getValue().input()).isEqualTo("Prepare the requested action.");
+        assertThat(execution.getValue().input().question()).isEqualTo("Prepare the requested action.");
+        assertThat(execution.getValue().input().verifiedAttachments()).isEmpty();
         assertThat(execution.getValue().trustedExecutionContext()).isSameAs(source);
         assertThat(execution.getValue().idempotencyKey()).isEqualTo("request-key");
         ArgumentCaptor<ActionReviewRequest> review = ArgumentCaptor.forClass(ActionReviewRequest.class);

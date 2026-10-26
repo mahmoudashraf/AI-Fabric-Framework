@@ -110,7 +110,11 @@ pending. Enable it through versioned deployment behavior configuration:
   "humanReview": {
     "actionProposals": {
       "enabled": true,
-      "allowedActions": ["your_registered_confirmable_write"]
+      "allowedActions": ["your_registered_confirmable_write"],
+      "targetLookup": {
+        "action": "your_registered_read",
+        "parameter": "reference"
+      }
     }
   }
 }
@@ -130,7 +134,8 @@ Content-Type: application/json
 {
   "request": "Prepare the requested registered action using these supplied facts ...",
   "title": "Application request",
-  "summary": "A concise, accurate, application-owned summary without contact details or secrets."
+  "summary": "A concise, accurate, application-owned summary without contact details or secrets.",
+  "targetReference": "the-application-selected-resource-reference"
 }
 ```
 
@@ -139,6 +144,16 @@ server-issued identity must contain `review:action-proposals:create`,
 `specialist:application-action-review@1` and `action:<name>` for each configured
 action. Browser input cannot select identity, tenant, deployment or scopes.
 Do not put these credentials in a visitor script or a Desk launch link.
+
+`targetLookup` is optional. Configure it when the write requires an existing
+trusted resource: the application submits a candidate reference, and the
+registered READ handler must authorize and return exactly one canonical target.
+Only that handler's safe target projection becomes specialist context; supplied
+IDs or text alone are never treated as trusted. Grant the caller the lookup's
+`action:<name>` scope too. An optional `vectorSpace` must match the returned
+target and requires its corresponding framework scope; omit it for non-indexed
+resources. No search fallback, first-result selection, business write or raw
+handler-data attachment is performed by this preflight.
 
 The registered specialist asks the model to propose a permitted action. Only a
 genuine framework confirmation receipt becomes a review task, using the SAME

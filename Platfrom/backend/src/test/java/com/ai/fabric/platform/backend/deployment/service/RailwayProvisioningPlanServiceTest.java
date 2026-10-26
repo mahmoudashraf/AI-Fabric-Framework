@@ -2202,7 +2202,8 @@ class RailwayProvisioningPlanServiceTest {
               "type": "AGENTIC_SPECIALIST_TEAM",
               "contractVersion": 1,
               "executionExtensions": ["HUMAN_REVIEW"],
-              "humanReview": {"actionProposals": {"enabled": true, "allowedActions": ["request_reviewed_action"]}}
+              "humanReview": {"actionProposals": {"enabled": true, "allowedActions": ["request_reviewed_action"],
+                "targetLookup": {"action": "get_record", "parameter": "reference", "vectorSpace": "records"}}}
             }
             """);
         Map<String, String> agenticEnv = envMap(service.buildPlan(deployment(), agentic).services().runtime().env());
@@ -2221,6 +2222,9 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_EXECUTION_REVIEWS_ENABLED", "true")
             .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_ENABLED", "true")
             .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_ALLOWED_ACTIONS", "request_reviewed_action")
+            .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_ACTION", "get_record")
+            .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_PARAMETER", "reference")
+            .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_TARGET_LOOKUP_VECTOR_SPACE", "records")
             .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "AGENTIC_SPECIALIST_TEAM")
             .containsEntry("LOOMAI_DEPLOYMENT_COMPOSITION_HASH", "composition-hash-123")
             .containsEntry(

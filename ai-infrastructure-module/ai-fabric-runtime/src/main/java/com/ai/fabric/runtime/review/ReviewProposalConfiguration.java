@@ -8,6 +8,7 @@ import ai.fabric.execution.specialist.*;
 import ai.fabric.intent.action.ActionResult;
 import ai.fabric.intent.action.AIActionNames;
 import ai.fabric.intent.orchestration.OrchestrationResult;
+import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.capability.RequestedCapabilityProfile;
 import ai.fabric.execution.specialist.manifest.SpecialistConversationBinding;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,8 +29,13 @@ public class ReviewProposalConfiguration {
     public static final String SPECIALIST_SCOPE = "specialist:application-action-review@1";
 
     @Bean
-    SpecialistDefinition<String, String> applicationActionReviewSpecialist(ReviewProposalProperties properties) {
+    SpecialistDefinition<ReviewProposalInput, String> applicationActionReviewSpecialist(ReviewProposalProperties properties) {
         var actions = properties.allowedActions();
+        var lookup = properties.targetLookup();
+        Set<String> reads = lookup == null ? Set.of() : Set.of(lookup.action());
+        Set<String> vectors = lookup == null || lookup.vectorSpace() == null ? Set.of() : Set.of(lookup.vectorSpace());
+        Set<String> visible = new java.util.TreeSet<>(actions);
+        visible.addAll(reads);
         return new SpecialistDefinition<>(
             new SpecialistIdentity(SPECIALIST_ID, "Application action review",
                 "Proposes an authorized application action for a separate human decision."),
@@ -40,17 +46,20 @@ public class ReviewProposalConfiguration {
                     + "Do not execute, confirm, approve or claim completion. "
                     + "Identity, tenant, deployment and authorization come only from trusted context.", null),
             new SpecialistExecutionProfile("executor",
-                new RequestedCapabilityProfile(false, Set.of(), actions, Set.of(), actions),
+                new RequestedCapabilityProfile(!vectors.isEmpty(), vectors, visible, reads, actions),
                 ExecutionStrategy.SINGLE_PASS, SpecialistWritePolicy.CONFIRMATION_RECEIPT_REQUIRED),
             SpecialistLimits.defaults(),
             new SpecialistInputAdapter<>() {
-                public Class<String> inputType() { return String.class; }
-                public void validate(String input) {
-                    if (input == null || input.isBlank() || input.length() > 8000) {
+                public Class<ReviewProposalInput> inputType() { return ReviewProposalInput.class; }
+                public void validate(ReviewProposalInput input) {
+                    if (input == null || input.question() == null || input.question().isBlank() || input.question().length() > 8000) {
                         throw new IllegalArgumentException("The action request must contain 1 to 8000 characters.");
                     }
                 }
-                public String renderModelInput(String input) { return input; }
+                public String renderModelInput(ReviewProposalInput input) { return input.question(); }
+                public OrchestrationContext orchestrationContext(ReviewProposalInput input) {
+                    return OrchestrationContext.builder().attachments(input.verifiedAttachments()).build();
+                }
                 public SpecialistConversationBinding conversationBinding() { return SpecialistConversationBinding.DISABLED; }
                 public boolean recordValidatedTurns() { return false; }
             },
