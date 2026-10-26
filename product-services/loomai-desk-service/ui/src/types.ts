@@ -81,38 +81,62 @@ export interface Agent {
   roles: Role[];
   createdAt?: string;
 }
+export type ReviewTaskStatus =
+  | "WAITING_FOR_REVIEW"
+  | "DECIDING"
+  | "WAITING_FOR_INFORMATION"
+  | "APPROVED"
+  | "REJECTED"
+  | "CORRECTED"
+  | "ESCALATED"
+  | "EXPIRED"
+  | "FAILED";
+export type ReviewDecisionType =
+  | "APPROVE"
+  | "REJECT"
+  | "CORRECT"
+  | "REQUEST_INFORMATION"
+  | "ESCALATE";
+export type ReviewType =
+  | "OPERATIONAL_REVIEW"
+  | "CORRECTION"
+  | "ESCALATION"
+  | "OUTCOME_REVIEW"
+  | "QUALITY_SAMPLE";
 export interface ReviewTask {
   taskId: string;
-  type: string;
+  type: ReviewType;
   title: string;
   summary: string;
-  status: string;
+  status: ReviewTaskStatus;
   version: number;
-  allowedDecisions: ("APPROVE" | "REJECT")[];
-  policyId?: { name: string; version: string };
+  allowedDecisions: ReviewDecisionType[];
+  policyId: { name: string; version: string };
   createdAt: string;
-  expiresAt?: string;
+  expiresAt: string;
 }
 export interface ReviewOutcome {
-  actionName?: string;
-  status?: string;
-  success?: boolean;
-  message?: string;
-  [key: string]: unknown;
+  actionName: string;
+  message: string;
+  data: Record<string, unknown>;
 }
 export interface ReviewDetail {
   task: ReviewTask;
-  message?: string;
-  failureReason?: string;
-  proposal?: Record<string, unknown>;
-  requestedInformation?: unknown;
-  suppliedInformation?: unknown;
-  successorTaskId?: string | null;
-  outcome?: ReviewOutcome | null;
+  requestedInformation: unknown;
+  suppliedInformation: unknown;
+  message: string | null;
+  outcome: ReviewOutcome | null;
+  successorTaskId: string | null;
+  failureReason: string | null;
+}
+export interface ReviewDecisionFailure {
+  reason: string;
+  publicMessage: string;
+  retryable: boolean;
 }
 export interface DecisionResult {
-  task?: ReviewTask | null;
-  outcome?: ReviewOutcome | null;
-  message?: string;
-  failureReason?: string;
+  task: ReviewTask | null;
+  outcome: ReviewOutcome | null;
+  successorTaskId: string | null;
+  failure: ReviewDecisionFailure | null;
 }

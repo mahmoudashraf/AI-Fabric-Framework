@@ -68,6 +68,18 @@ This portal follows the current service's `../API_CONTRACT.md`:
   references and returned execution outcomes are rendered as safe text.
   Decisions submit `decisionId`, `decision`, and the inspected
   `expectedVersion`; an approval is never invented as execution success.
+  The contract is the published `ai-fabric-execution:0.8.41` JAR, checked with
+  `javap`: review task status is `WAITING_FOR_REVIEW`, not `PENDING`. Only that
+  status enables approve/reject, still subject to `allowedDecisions` and expiry.
+  Decision responses are `{task,outcome,successorTaskId,failure}`; failure is
+  `{reason,publicMessage,retryable}` and is an error even on HTTP 200. Typed
+  HTTP 409 bodies remain accessible as `ApiError.payload`; their public message
+  and reason are preserved rather than replaced by a generic bridge error.
+  No write is automatically retried. Detail still uses `message` and
+  `failureReason`. There is no `proposal` projection. `ActionOutcomeView` has
+  only `actionName`, `message`, and `data`, with no invented top-level status or
+  success flag. Task types, status enums, fixtures, and tests are type-checked
+  together; obsolete review contract aliases are not accepted.
 - `POST /logout` includes session CSRF, accepts the backend's native same-origin
   logout redirect, then clears cached customer state and returns to `/`.
 
@@ -122,6 +134,18 @@ Browser fixtures prove frontend contract behavior, not hosted Supabase setup,
 cross-origin first-party SSO, real callback delivery, runtime review execution,
 or the dealership cutover. Those require the main implementation's hosted
 verification against the integrated service.
+
+To recheck the current framework DTO signatures without a framework build:
+
+```sh
+javap -classpath "$HOME/.m2/repository/io/github/loom-ai-labs/ai-fabric-execution/0.8.41/ai-fabric-execution-0.8.41.jar" \
+  ai.fabric.execution.review.ReviewTaskStatus \
+  ai.fabric.execution.review.ReviewTaskView \
+  ai.fabric.execution.review.ReviewTaskDetailView \
+  ai.fabric.execution.review.decision.ReviewDecisionResult \
+  ai.fabric.execution.review.decision.ReviewDecisionFailure \
+  ai.fabric.execution.action.ActionOutcomeView
+```
 
 Supabase JS is pinned to `2.50.0`, the smallest following minor checked here
 with the patched Auth JS dependency, rather than carrying the older `2.49.1`

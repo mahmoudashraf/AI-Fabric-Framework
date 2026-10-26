@@ -1,13 +1,35 @@
-import type { DeskConfig } from "./types";
+import type { DeskConfig, ReviewDecisionFailure } from "./types";
+
+export function structuredFailure(
+  payload: unknown,
+): ReviewDecisionFailure | null {
+  if (!payload || typeof payload !== "object" || !("failure" in payload))
+    return null;
+  const failure = payload.failure;
+  return failure &&
+    typeof failure === "object" &&
+    "reason" in failure &&
+    typeof failure.reason === "string" &&
+    "publicMessage" in failure &&
+    typeof failure.publicMessage === "string" &&
+    "retryable" in failure &&
+    typeof failure.retryable === "boolean"
+    ? (failure as ReviewDecisionFailure)
+    : null;
+}
 
 export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
     public code?: string,
+    public payload?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+  get failure() {
+    return structuredFailure(this.payload);
   }
 }
 
@@ -54,8 +76,10 @@ export async function api<T>(
       window.dispatchEvent(new Event("desk:session-expired"));
     if (response.status === 403)
       window.dispatchEvent(new Event("desk:access-changed"));
+    const failure = structuredFailure(data);
     const message =
-      data &&
+      failure?.publicMessage ??
+      (data &&
       typeof data === "object" &&
       "message" in data &&
       typeof data.message === "string"
@@ -64,15 +88,16 @@ export async function api<T>(
           ? "Your session has expired. Sign in again."
           : response.status === 403
             ? "You no longer have permission for this workspace."
-            : `Request failed (${response.status}). Please try again.`;
+            : `Request failed (${response.status}). Please try again.`);
     const code =
-      data &&
+      failure?.reason ??
+      (data &&
       typeof data === "object" &&
       "code" in data &&
       typeof data.code === "string"
         ? data.code
-        : undefined;
-    throw new ApiError(message, response.status, code);
+        : undefined);
+    throw new ApiError(message, response.status, code, data);
   }
   if (response.status !== 204 && data === undefined)
     throw new ApiError(

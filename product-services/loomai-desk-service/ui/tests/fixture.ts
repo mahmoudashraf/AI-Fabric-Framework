@@ -1,9 +1,43 @@
 import type { Page, Route } from "@playwright/test";
+import type {
+  DecisionResult,
+  ReviewDecisionFailure,
+  ReviewDetail,
+  ReviewOutcome,
+  ReviewTask,
+} from "../src/types";
 
 const stamp = new Date().toISOString();
 const ago = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
 export function fixtureState() {
+  const reviews: ReviewTask[] = [
+    {
+      taskId: "task-1",
+      type: "OPERATIONAL_REVIEW",
+      title: "Confirm a visitor appointment",
+      summary:
+        "A visitor has requested a confirmed appointment. Review the proposed time and contact information before this action continues.",
+      status: "WAITING_FOR_REVIEW",
+      version: 3,
+      allowedDecisions: ["APPROVE", "REJECT"],
+      policyId: { name: "Appointment review", version: "1" },
+      createdAt: ago(5),
+      expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    },
+    {
+      taskId: "task-2",
+      type: "OPERATIONAL_REVIEW",
+      title: "Update a service request",
+      summary: "Review a requested update to an existing service request.",
+      status: "WAITING_FOR_REVIEW",
+      version: 1,
+      allowedDecisions: ["APPROVE", "REJECT"],
+      policyId: { name: "Service review", version: "1" },
+      createdAt: ago(15),
+      expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    },
+  ];
   return {
     session: {
       authenticated: true,
@@ -152,33 +186,20 @@ export function fixtureState() {
         createdAt: ago(1440),
       },
     ],
-    reviews: [
-      {
-        taskId: "task-1",
-        type: "ACTION_PROPOSAL",
-        title: "Confirm a visitor appointment",
-        summary:
-          "A visitor has requested a confirmed appointment. Review the proposed time and contact information before this action continues.",
-        status: "PENDING",
-        version: 3,
-        allowedDecisions: ["APPROVE", "REJECT"],
-        policyId: { name: "Appointment review", version: "1" },
-        createdAt: ago(5),
-        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    reviews,
+    reviewDetails: {} as Record<string, Partial<ReviewDetail>>,
+    decisionFailure: null as ReviewDecisionFailure | null,
+    decisionFailureOutcome: null as ReviewOutcome | null,
+    decisionFailureStatus: 409,
+    decisionSuccessorTaskId: null as string | null,
+    decisionOutcomes: {
+      "task-1": {
+        actionName: "confirm_appointment",
+        message: "The application returned appointment reference REQ-1042.",
+        data: { reference: "REQ-1042", appointmentTime: "14:30" },
       },
-      {
-        taskId: "task-2",
-        type: "ACTION_PROPOSAL",
-        title: "Update a service request",
-        summary: "Review a requested update to an existing service request.",
-        status: "PENDING",
-        version: 1,
-        allowedDecisions: ["APPROVE", "REJECT"],
-        policyId: { name: "Service review", version: "1" },
-        createdAt: ago(15),
-        expiresAt: new Date(Date.now() + 3600000).toISOString(),
-      },
-    ],
+      "task-2": null,
+    } as Record<string, ReviewOutcome | null>,
     calls: [] as {
       path: string;
       method: string;
@@ -198,7 +219,6 @@ export function fixtureState() {
       retryEligible: boolean;
     }[],
     failDetail: false,
-    failDecision: false,
     expire: false,
   };
 }
@@ -358,38 +378,43 @@ export async function mockDesk(page: Page, state = fixtureState()) {
       const task = state.reviews.find((item) => item.taskId === id);
       if (!task) return json(route, { message: "Task not found" }, 404);
       if (operation === "decisions") {
-        if (state.failDecision)
-          return json(
-            route,
-            {
-              message:
-                "This task changed. Review the current version before deciding.",
-            },
-            409,
-          );
+        if (state.decisionFailure) {
+          const result: DecisionResult = {
+            task,
+            outcome: state.decisionFailureOutcome,
+            successorTaskId: state.decisionSuccessorTaskId,
+            failure: state.decisionFailure,
+          };
+          return json(route, result, state.decisionFailureStatus);
+        }
         task.status = body?.decision === "APPROVE" ? "APPROVED" : "REJECTED";
         task.version++;
-        return json(route, {
+        const result: DecisionResult = {
           task,
-          outcome: {
-            actionName: "confirm_appointment",
-            status: body?.decision === "APPROVE" ? "QUEUED" : "NOT_EXECUTED",
-            message:
-              body?.decision === "APPROVE"
-                ? "Approved. Execution is queued, not yet confirmed."
-                : "Rejected. No action was executed.",
-            success: false,
-          },
-        });
+          outcome:
+            body?.decision === "APPROVE"
+              ? (state.decisionOutcomes[task.taskId] ?? null)
+              : null,
+          successorTaskId: state.decisionSuccessorTaskId,
+          failure: null,
+        };
+        return json(route, result);
       }
-      return json(route, {
+      const detail: ReviewDetail = {
         task,
+        requestedInformation: null,
         suppliedInformation: {
           visitor: "Eve Lin",
           appointment: { day: "Tuesday", time: "14:30" },
           notes: "Accessibility arrangements requested",
         },
-      });
+        message: null,
+        outcome: null,
+        successorTaskId: null,
+        failureReason: null,
+        ...state.reviewDetails[task.taskId],
+      };
+      return json(route, detail);
     }
     return json(route, { message: `Unknown fixture path: ${resource}` }, 404);
   });

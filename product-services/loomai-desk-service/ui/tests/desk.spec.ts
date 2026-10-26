@@ -109,16 +109,20 @@ test("review decisions use version and distinct IDs, with real returned outcome"
     .getByRole("button", { name: "Approve action", exact: true })
     .click();
   await expect(
-    page.getByText("Approved. Execution is queued, not yet confirmed."),
+    page.getByText("The application returned appointment reference REQ-1042."),
   ).toBeVisible();
+  await expect(page.getByText("REQ-1042", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Update a service request/ }).click();
   await page.getByRole("button", { name: "Reject", exact: true }).click();
   await page
     .getByRole("button", { name: "Reject action", exact: true })
     .click();
   await expect(
-    page.getByText("Rejected. No action was executed."),
+    page.getByRole("status").filter({ hasText: "Task rejected" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Returned execution outcome" }),
+  ).toHaveCount(0);
   const decisions = state.calls.filter((call) =>
     call.path.endsWith("/decisions"),
   );
@@ -304,7 +308,12 @@ test("stale review version is shown and never reported as approved", async ({
   page,
 }) => {
   const state = fixtureState();
-  state.failDecision = true;
+  state.decisionFailure = {
+    reason: "REVIEW_VERSION_CONFLICT",
+    publicMessage:
+      "This task changed. Review the current version before deciding.",
+    retryable: false,
+  };
   await mockDesk(page, state);
   await page.goto("/");
   await page
@@ -317,10 +326,17 @@ test("stale review version is shown and never reported as approved", async ({
   await page
     .getByRole("button", { name: "Approve action", exact: true })
     .click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "This task changed",
-  );
+  await expect(page.getByRole("alert")).toContainText("This task changed");
   await expect(page.getByText("Task approved")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText(
+    "REVIEW_VERSION_CONFLICT",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "This decision is not retryable.",
+  );
+  expect(
+    state.calls.filter((call) => call.path.endsWith("/decisions")),
+  ).toHaveLength(1);
 });
 
 test("mobile navigation, queue and transcript remain usable without overflow", async ({
@@ -646,4 +662,236 @@ test("a queued claim remains read-only until the deployment confirms it", async 
   await page.getByRole("button", { name: "Refresh workspace" }).click();
   await expect(page.getByLabel("Reply to Eve Lin")).toBeEnabled();
   expect(state.calls.filter((call) => call.method === "POST")).toHaveLength(0);
+});
+
+test("Pending reviews use WAITING_FOR_REVIEW; other actual states remain in All tasks", async ({
+  page,
+}) => {
+  const state = fixtureState();
+  state.reviews.push({
+    ...state.reviews[0]!,
+    taskId: "deciding",
+    title: "Decision in progress",
+    status: "DECIDING",
+  });
+  state.reviews.push({
+    ...state.reviews[0]!,
+    taskId: "information",
+    title: "More information requested",
+    status: "WAITING_FOR_INFORMATION",
+  });
+  await mockDesk(page, state);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Action reviews", exact: true })
+    .click();
+  await expect(
+    page.getByRole("tab", { name: "Pending", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("heading", { name: "Action reviews 2" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Confirm a visitor appointment/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Decision in progress/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /More information requested/ }),
+  ).toHaveCount(0);
+  await page.getByRole("tab", { name: "All tasks" }).click();
+  await expect(
+    page.getByRole("button", { name: /Decision in progress/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /More information requested/ }),
+  ).toBeVisible();
+});
+
+for (const status of [
+  "DECIDING",
+  "WAITING_FOR_INFORMATION",
+  "APPROVED",
+  "REJECTED",
+  "CORRECTED",
+  "ESCALATED",
+  "EXPIRED",
+  "FAILED",
+] as const) {
+  test(`actual review status ${status} never enables approve or reject`, async ({
+    page,
+  }) => {
+    const state = fixtureState();
+    state.reviews = [{ ...state.reviews[0]!, status }];
+    await mockDesk(page, state);
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Action reviews", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "All tasks" }).click();
+    await page
+      .getByRole("button", { name: /Confirm a visitor appointment/ })
+      .click();
+    await expect(page.locator(".review-detail-top .status")).toHaveText(
+      status
+        .toLowerCase()
+        .replaceAll("_", " ")
+        .replace(/^./, (char) => char.toUpperCase()),
+    );
+    await expect(
+      page.getByRole("button", { name: "Approve", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Reject", exact: true }),
+    ).toHaveCount(0);
+    expect(state.calls.some((call) => call.method === "POST")).toBe(false);
+  });
+}
+
+test("typed HTTP 200 decision failure remains an error and polling never retries the write", async ({
+  page,
+}) => {
+  const state = fixtureState();
+  state.decisionFailure = {
+    reason: "REVIEW_DECISION_IN_PROGRESS",
+    publicMessage: "Another decision is being processed.",
+    retryable: true,
+  };
+  state.decisionFailureStatus = 200;
+  await mockDesk(page, state);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Action reviews", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /Confirm a visitor appointment/ })
+    .click();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Approve action", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Another decision is being processed.",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "REVIEW_DECISION_IN_PROGRESS",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "Retry permitted. No automatic retry was made.",
+  );
+  await expect(page.getByText("Task approved", { exact: true })).toHaveCount(0);
+  const reads = () =>
+    state.calls.filter(
+      (call) => call.method === "GET" && call.path.endsWith("/reviews/task-1"),
+    ).length;
+  const beforePoll = reads();
+  await expect.poll(reads, { timeout: 8000 }).toBeGreaterThan(beforePoll);
+  expect(
+    state.calls.filter((call) => call.path.endsWith("/decisions")),
+  ).toHaveLength(1);
+});
+
+test("typed HTTP 409 preserves public failure, returned outcome and successor task", async ({
+  page,
+}) => {
+  const state = fixtureState();
+  state.decisionFailure = {
+    reason: "ACTION_EXECUTION_IN_PROGRESS",
+    publicMessage: "The application action is still in progress.",
+    retryable: true,
+  };
+  state.decisionSuccessorTaskId = "review-followup-42";
+  state.decisionFailureOutcome = {
+    actionName: "confirm_appointment",
+    message: "The application returned tracking reference TRACK-42.",
+    data: { trackingReference: "TRACK-42" },
+  };
+  await mockDesk(page, state);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Action reviews", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /Confirm a visitor appointment/ })
+    .click();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Approve action", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "The application action is still in progress.",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "ACTION_EXECUTION_IN_PROGRESS",
+  );
+  await expect(page.getByText("TRACK-42", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("review-followup-42", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Task approved", { exact: true })).toHaveCount(0);
+});
+
+test("approval without an ActionOutcomeView does not invent execution success", async ({
+  page,
+}) => {
+  const state = fixtureState();
+  state.decisionOutcomes["task-1"] = null;
+  state.decisionSuccessorTaskId = "review-next-step";
+  await mockDesk(page, state);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Action reviews", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /Confirm a visitor appointment/ })
+    .click();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Approve action", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Task approved" }),
+  ).toContainText("The decision alone does not confirm business execution.");
+  await expect(
+    page.getByRole("heading", { name: "Returned execution outcome" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("review-next-step", { exact: true }),
+  ).toBeVisible();
+});
+
+test("review detail displays actual information, message and failureReason projections", async ({
+  page,
+}) => {
+  const state = fixtureState();
+  state.reviewDetails["task-1"] = {
+    message: "The reviewer must inspect the supplied information.",
+    failureReason: "REVIEW_SOURCE_STORE_UNAVAILABLE",
+    requestedInformation: { question: "Is a revised visit time required?" },
+    successorTaskId: "detail-followup",
+  };
+  await mockDesk(page, state);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Action reviews", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /Confirm a visitor appointment/ })
+    .click();
+  await expect(
+    page.getByText("The reviewer must inspect the supplied information."),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText(
+    "REVIEW_SOURCE_STORE_UNAVAILABLE",
+  );
+  await expect(
+    page.getByText("Is a revised visit time required?", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Accessibility arrangements requested", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("detail-followup", { exact: true }),
+  ).toBeVisible();
 });

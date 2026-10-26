@@ -37,9 +37,22 @@ export function IconButton({
   );
 }
 export function Status({ value }: { value: string }) {
-  const tone = ["ACTIVE", "APPROVED", "COMPLETED", "ENABLED"].includes(value)
+  const tone = [
+    "ACTIVE",
+    "APPROVED",
+    "CORRECTED",
+    "COMPLETED",
+    "ENABLED",
+  ].includes(value)
     ? "teal"
-    : ["WAITING", "PENDING", "CLAIM_PENDING", "IN_REVIEW"].includes(value)
+    : [
+          "WAITING",
+          "PENDING",
+          "CLAIM_PENDING",
+          "WAITING_FOR_REVIEW",
+          "WAITING_FOR_INFORMATION",
+          "DECIDING",
+        ].includes(value)
       ? "amber"
       : ["FAILED", "REJECTED", "EXPIRED"].includes(value)
         ? "coral"

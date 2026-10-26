@@ -24,6 +24,16 @@ Prefix `/api/desk/v1/bindings/{bindingId}`. Access is checked against current as
 - `DELETE /agents/{agentId}` -> 204.
 - `GET /reviews?status=&limit=`, `GET /reviews/{taskId}`, `POST /reviews/{taskId}/decisions` (`{decisionId,decision,expectedVersion}`): transparent safe Platform bridge result; no local review engine.
 
+The current published runtime uses `WAITING_FOR_REVIEW` (not `PENDING`) for
+decidable action-review tasks. Its decision result is
+`{task,outcome,successorTaskId,failure}`; a failure contains
+`{reason,publicMessage,retryable}` and may arrive with HTTP 409. Desk preserves
+that bounded typed conflict so the portal can show the actual public reason.
+An action outcome is `{actionName,message,data}`. Do not invent a successful
+execution status from approval alone. Task details have their own `message` and
+`failureReason` fields; they deliberately do not expose executable action
+parameters through a fabricated `proposal` projection.
+
 ## Platform Administration
 
 All require `X-LoomAI-Desk-Service-Key`; never browser credentials. Prefix `/api/desk/admin/v1`.

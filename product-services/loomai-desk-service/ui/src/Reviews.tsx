@@ -9,12 +9,20 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { api, bindingPath, commandKey, errorMessage, post } from "./api";
+import {
+  ApiError,
+  api,
+  bindingPath,
+  commandKey,
+  errorMessage,
+  post,
+} from "./api";
 import {
   DataFields,
   dateTime,
   Empty,
   ErrorNotice,
+  humanize,
   Loading,
   MobileBack,
   Modal,
@@ -35,7 +43,9 @@ export function Reviews({
   accessFresh: boolean;
 }) {
   const [selected, setSelected] = useState("");
-  const [filter, setFilter] = useState("PENDING");
+  const [filter, setFilter] = useState<"WAITING_FOR_REVIEW" | "ALL">(
+    "WAITING_FOR_REVIEW",
+  );
   const [search, setSearch] = useState("");
   const canReview = binding.roles.includes("REVIEWER");
   const tasks = useQuery({
@@ -71,8 +81,9 @@ export function Reviews({
             <h2>
               Action reviews{" "}
               <span className="count-badge">
-                {tasks.data?.filter((task) => task.status === "PENDING")
-                  .length ?? 0}
+                {tasks.data?.filter(
+                  (task) => task.status === "WAITING_FOR_REVIEW",
+                ).length ?? 0}
               </span>
             </h2>
           </div>
@@ -89,7 +100,7 @@ export function Reviews({
         </label>
         <div className="queue-filters">
           <div role="tablist" aria-label="Review filter">
-            {["PENDING", "ALL"].map((item) => (
+            {(["WAITING_FOR_REVIEW", "ALL"] as const).map((item) => (
               <button
                 role="tab"
                 aria-selected={filter === item}
@@ -122,7 +133,7 @@ export function Reviews({
                 <div className="review-item-meta">
                   <span>
                     <FileCheck2 size={14} />
-                    Action proposal
+                    {humanize(task.type)}
                   </span>
                   <Status value={task.status} />
                 </div>
@@ -188,12 +199,23 @@ function ReviewInspector({
   const [receipt, setReceipt] = useState<DecisionResult | null>(null);
   const ids = useRef(new Map<string, string>());
   const path = `${bindingPath(binding.bindingId)}/reviews/${encodeURIComponent(taskId)}`;
+  const detailKey = ["binding", binding.bindingId, "review", taskId];
   const detail = useQuery({
-    queryKey: ["binding", binding.bindingId, "review", taskId],
+    queryKey: detailKey,
     queryFn: ({ signal }) => api<ReviewDetail>(path, { signal }),
     refetchInterval: 5000,
   });
   const task = detail.data?.task;
+  function recordResult(result: DecisionResult) {
+    setReceipt(result);
+    setDecision(null);
+    if (result.task) {
+      const returnedTask = result.task;
+      client.setQueryData<ReviewDetail>(detailKey, (previous) =>
+        previous ? { ...previous, task: returnedTask } : previous,
+      );
+    }
+  }
   async function decide() {
     if (!task || !decision || busy) return;
     setBusy(true);
@@ -206,15 +228,22 @@ function ReviewInspector({
         expectedVersion: task.version,
       });
       request.done();
-      setReceipt(result);
-      setDecision(null);
+      recordResult(result);
       await client.invalidateQueries({
         queryKey: ["binding", binding.bindingId, "reviews"],
       });
       await detail.refetch();
     } catch (error) {
-      setError(errorMessage(error));
+      if (error instanceof ApiError && error.failure) {
+        request.done();
+        recordResult(error.payload as DecisionResult);
+      } else {
+        setError(errorMessage(error));
+      }
       void detail.refetch();
+      void client.invalidateQueries({
+        queryKey: ["binding", binding.bindingId, "reviews"],
+      });
     } finally {
       setBusy(false);
     }
@@ -236,11 +265,17 @@ function ReviewInspector({
       </section>
     );
   const pending =
-    task.status === "PENDING" && (!receipt || !!receipt.failureReason);
-  const expires = task.expiresAt
-    ? new Date(task.expiresAt).getTime() <= Date.now()
-    : false;
-  const outcome = receipt?.outcome ?? detail.data.outcome;
+    task.status === "WAITING_FOR_REVIEW" && (!receipt || !!receipt.failure);
+  const expires = new Date(task.expiresAt).getTime() <= Date.now();
+  const outcome = detail.data.outcome ?? receipt?.outcome ?? null;
+  const successorTaskId =
+    detail.data.successorTaskId ?? receipt?.successorTaskId ?? null;
+  const decisionUnavailable =
+    !accessFresh ||
+    detail.isError ||
+    expires ||
+    task.status !== "WAITING_FOR_REVIEW" ||
+    !!(receipt?.failure && !receipt.failure.retryable);
   return (
     <section className="review-detail">
       <header className="review-detail-top">
@@ -249,10 +284,10 @@ function ReviewInspector({
           <FileCheck2 size={22} />
         </span>
         <div>
-          <span className="eyebrow">ACTION PROPOSAL</span>
+          <span className="eyebrow">{humanize(task.type)}</span>
           <h2>{task.title}</h2>
         </div>
-        <Status value={receipt?.task?.status ?? task.status} />
+        <Status value={task.status} />
       </header>
       <div className="review-detail-body">
         {detail.isError && (
@@ -266,9 +301,7 @@ function ReviewInspector({
           <div>
             <span>Policy</span>
             <strong>
-              {task.policyId
-                ? `${task.policyId.name} / ${task.policyId.version}`
-                : "Not supplied"}
+              {`${task.policyId.name} / ${task.policyId.version}`}
             </strong>
           </div>
           <div>
@@ -284,12 +317,6 @@ function ReviewInspector({
             <strong>{dateTime(task.expiresAt)}</strong>
           </div>
         </div>
-        {detail.data.proposal && (
-          <section className="proposal-section">
-            <h3>Proposed action details</h3>
-            <DataFields value={detail.data.proposal} />
-          </section>
-        )}
         {detail.data.requestedInformation != null && (
           <section className="proposal-section">
             <h3>Requested information</h3>
@@ -302,10 +329,9 @@ function ReviewInspector({
             <DataFields value={detail.data.suppliedInformation} />
           </section>
         )}
-        {detail.data.successorTaskId && (
+        {successorTaskId && (
           <div className="notice">
-            Follow-up task:{" "}
-            <span className="mono">{detail.data.successorTaskId}</span>
+            Follow-up task: <span className="mono">{successorTaskId}</span>
           </div>
         )}
         {detail.data.message && (
@@ -316,23 +342,32 @@ function ReviewInspector({
         )}
         {receipt && (
           <section
-            className={`decision-receipt ${receipt.failureReason || outcome?.success === false ? "failed" : ""}`}
-            role="status"
+            className={`decision-receipt ${receipt.failure ? "failed" : ""}`}
+            role={receipt.failure ? "alert" : "status"}
           >
             <span className="eyebrow">DECISION RECEIPT</span>
             <h3>
-              {receipt.task?.status
-                ? `Task ${receipt.task.status.toLowerCase()}`
-                : "Decision response received"}
+              {receipt.failure
+                ? "Decision not accepted"
+                : receipt.task?.status
+                  ? `Task ${receipt.task.status.toLowerCase()}`
+                  : "Decision response received"}
             </h3>
-            {receipt.message && <p>{receipt.message}</p>}
-            {receipt.failureReason && (
-              <ErrorNotice message={receipt.failureReason} />
+            {receipt.failure && (
+              <>
+                <p>{receipt.failure.publicMessage}</p>
+                <p className="mono">{receipt.failure.reason}</p>
+                <p className="caption">
+                  {receipt.failure.retryable
+                    ? "Retry permitted. No automatic retry was made."
+                    : "This decision is not retryable."}
+                </p>
+              </>
             )}
             {!outcome && (
               <p>
-                No business execution outcome was returned. Approval alone does
-                not confirm that the action succeeded.
+                No business execution outcome was returned. The decision alone
+                does not confirm business execution.
               </p>
             )}
           </section>
@@ -363,9 +398,7 @@ function ReviewInspector({
               className="button secondary reject"
               disabled={
                 busy ||
-                expires ||
-                !accessFresh ||
-                detail.isError ||
+                decisionUnavailable ||
                 !task.allowedDecisions.includes("REJECT")
               }
               onClick={() => {
@@ -380,9 +413,7 @@ function ReviewInspector({
               className="button primary"
               disabled={
                 busy ||
-                expires ||
-                !accessFresh ||
-                detail.isError ||
+                decisionUnavailable ||
                 !task.allowedDecisions.includes("APPROVE")
               }
               onClick={() => {
@@ -419,9 +450,7 @@ function ReviewInspector({
                 className={`button ${decision === "APPROVE" ? "primary" : "danger"}`}
                 disabled={
                   busy ||
-                  expires ||
-                  !accessFresh ||
-                  detail.isError ||
+                  decisionUnavailable ||
                   !task.allowedDecisions.includes(decision)
                 }
                 onClick={() => void decide()}

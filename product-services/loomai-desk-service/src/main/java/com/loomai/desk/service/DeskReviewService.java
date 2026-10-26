@@ -58,10 +58,21 @@ public class DeskReviewService {
         builder
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
-      HttpResponse<String> response =
-          client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+      HttpResponse<java.io.InputStream> response =
+          client.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+      byte[] bytes;
+      try (var stream = response.body()) {
+        bytes = stream.readNBytes(1048577);
+      }
+      if (bytes.length > 1048576)
+        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Action review response is too large.");
+      JsonNode result = bytes.length == 0 ? mapper.createObjectNode() : mapper.readTree(bytes);
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         int status = response.statusCode();
+        if (status == 409 && result.path("failure").isObject()) {
+          directory.audit(bindingId, binding.customerId(), reviewer.id(), "REVIEW_DECISION_REJECTED", path);
+          return ResponseEntity.status(status).body(result);
+        }
         if (status == 401 || status == 403 || status == 404 || status == 409 || status == 422) {
           return ResponseEntity.status(status)
               .body(
@@ -75,8 +86,6 @@ public class DeskReviewService {
         throw new ResponseStatusException(
             HttpStatus.BAD_GATEWAY, "Action review service is unavailable.");
       }
-      JsonNode result =
-          response.body().isBlank() ? mapper.createObjectNode() : mapper.readTree(response.body());
       directory.audit(
           bindingId,
           binding.customerId(),
