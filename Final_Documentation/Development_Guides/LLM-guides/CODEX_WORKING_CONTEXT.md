@@ -10,6 +10,64 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- CURRENT: generic second-customer hosted proof PASS and exact temporary cleanup
+  complete. Backend b54ba9bbb is native OCI/source verified on both hosts;
+  Console315313402/runtime63888284/Desk3b9909cd/framework0.8.41 unchanged.
+  Generic rel-28774f7a APPLIED_VERIFIED, vrf-64b28e55:26PASS/0FAIL/7NA.
+  Actual customer UI Enable Desk, owner Console-to-Desk SSO and explicit self-
+  Support assignment passed. generic-human-ui-1793055507703 passed anonymous
+  button handover, claim, two-way replies, explicit AI return; canonical runtime
+  AI_ACTIVE and later Desk RETURNED_TO_AI. ZERO AI submissions in neutral proof,
+  no generic AI-quality/provider-ledger claim. App creation used owned customer
+  API, not Create AI App UI (minimal qualification offer has no workspace profiles).
+- Known-real SAME staging Desk cross-customer conversation AND review requests
+  denied403 BOTH directions; each actual customer own queue200. No nonexistent-ID
+  or invalid-auth substitution. Full private evidence neutral-second-customer/.
+- Cleanup verified23:08:07UTC: app disabled/unbound, consumer disabled; Support,
+  deployment assignment and entitlement revoked; exact Desk binding disabled and
+  known session logged out. Immutable Console link revoked; actual old Supabase
+  Console403, old local cookie unauthenticated, original local password401
+  CUSTOMER_USE_SUPABASE. Exact third Supabase fixture deleted/adminGET404/
+  originalSupapassword invalid_credentials. dep-49db48eb archived; ONLY its
+  runtimebzwl5..., connectory3j..., AIstatePGsgfw... plus2ownedvolumes deleted;
+  native API/container/volume absence proven. Historical customer/localuser/link/
+  version/provider audit retained, NOT falsely labelled disabled/nativepresent.
+  No SQL mutation/global prune/sole-admin bypass/shared or Northfield deletion.
+- Northfield SAME app remains production rel-73d5288d/revision11. Both bounded
+  outage proofs already PASS, no further outage/writes needed. Final proof
+  final-qualification-1793056564788 PASS at23:16:43UTC: both exact backend OCI
+  identities, shared Desk/appPG/frontends healthy; public Northfield manifest
+  hash matches owned app and production runtime, composer+handover visible;
+  disabled neutral manifest403, primary agent normal reauth/own queue200.
+  Bothhosts lowload:stage1.09/8CPU,prod0.14/4CPU; availableRAM9374/10315MiB,
+  rootdisk25/15percent; Desk310.4/310.9MiB (point samples, NOTloadbenchmark).
+  Evidence JSON, guide and01048plan updated; no public-ready claim.
+  Native public signup/recovery email+branded Desk DNS remain external gates;
+  public embedded protected-capability sign-in also not newly qualified. Keep
+  Hetzner access open under owner's instruction; no framework release or new
+  capacity/recovery stream. Runtime image ownership is OCI-based: staging CP
+  APP_BUILD_COMMIT env still18ac7b5f, not authoritative deployed source.
+
+- 22:38 UTC CURRENT: atomicfreshactivationfix b54ba9bbbbd49c1e3600e2951ade35f3f338385f
+  committed/pushed, CI40412486452 PASS/OCI00bcf095..., BOTH CPbackendsnative
+  verified/schema216 (stagew10fwuexr3rb1iqtodh1xy21/prodkx153p41h82wi46t6lkj36tw).
+  Independentread-onlyreviewnoblocker. Console315/runtime638/Desk3b/framework
+  0.8.41 unchanged; NO customer runtimeimage rebuild for thiscontrolplanefix.
+- ActualneutralcustomerUI enable-fixed-atomic-ui-1793054107638 PASS with
+  reviewsfalse; normalnewrelease rel-28774f7a nowPROVISIONING onSTAGE, observer
+  exec18759. FirstfailedUIreceipt400 retained, newnormaloperationnotreplay.
+  Exactexternalbindingdesk-aca70ae335f6a83c7b1ad2f8ebbed9e9 observedenabled;
+  originalfullconfigurationbackedupprivately viaread-onlyexactscopedmetadata
+  capture (onlyfornormalbindingdisablecleanup, noreceipt/modelforgery).
+  capture-desk-binding.mjs refreshedafternewnormalregistration. Native3services
+  captured: runtimebzwl5hjtbj6vsrtsimla775s, connectory3jpf8gmppfph92wrjzkeviv,
+  AIstatePGsgfw9znh3fajm57v57y3m97w and2ownedvolumes. Seeexecution.private.json
+  andowned-resources-initial-1793053544100.private.json. No genericapp/consumer/
+  Supportgrant/AIqueryyet. Continuewaitrel287verification then actualownerDesk
+  link+selfSupport, genericanonymousapp, boundedneutraljourney+bothdirections
+  known-realforeignbindingdenials, exactnormalcleanup. Inaccessibleauditrows
+  retained under existingapproval, noSQL/soleadmin bypass. Northfieldprodrev11.
+
 - 22:27 UTC neutralFIRSTrelease rel-015d1f85 APPLIED_VERIFIED/PASSED,
   vrf-6e600a4a. ActualcustomerUI EnableDesk reviewsfalse FAILED400:
   conversationHandover.contractVersion missing. Receiptneutral-second-customer/

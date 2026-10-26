@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted dealership core and bounded restart recovery qualified; full closure open (2026-10-26, 22:06 UTC). Shared Desk, customer linking, owner SSO, scoped agent assignments, AI/human journeys and genuine Action Review passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. Fresh real outage proofs now pass on both targets, including exactly-once queued-message delivery and preserved human authority. The same app is back on verified production through the corrected customer assignment UI. The approved neutral second-customer proof is in progress, followed by exact cleanup. Native email and branded Desk DNS remain external open gates; see the execution record.
+- **Status:** Hosted core, generic activation, cross-customer isolation and bounded restart recovery qualified; public-release closure still open (2026-10-26). Shared Desk, customer linking, owner SSO, scoped assignments, AI/human journeys and genuine Action Review passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. Fresh outage proofs pass on both targets with exactly-once queued-message delivery and preserved human authority. The same Northfield app is on verified production revision 11. The neutral second-customer journey passed and its temporary identity, access and owned infrastructure are cleaned up. Native email and branded Desk DNS remain external gates; see the latest execution record for the exact evidence and other unqualified paths.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -408,20 +408,22 @@ Each phase should be a focused implementation commit with its own verification e
 ### P5 Hosted customer journey and removal of old Inbox
 
 - [x] Run the full dealership journey with a customer owner and a different registered agent/reviewer on staging, then the current production deployment.
-- [ ] Enable Desk on one compatible domain-neutral deployment through the same customer control, without dealership branches.
-- [ ] Verify cross-customer, staging/production target and support/reviewer isolation through the actual APIs, not only hidden UI elements.
+- [x] Enable Desk on one compatible domain-neutral deployment through the same customer control, without dealership branches (fresh generic customer, actual UI enablement, normal verified release and human lifecycle passed).
+- [x] Verify cross-customer, staging/production target and support/reviewer isolation through the actual APIs, not only hidden UI elements (known-real same-service cross-customer conversation/review denials in both directions, plus the earlier target and independent-role checks).
 - [x] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority (fresh staging and production proofs after the bounded retry correction, including exactly-once queued-message delivery).
-- [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (shared-directory PostgreSQL tests and actual two-target provisioning; a second hosted customer journey is not claimed).
+- [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (actual second hosted generic customer reused shared Desk/frontend; only its approved runtime, connector and optional AI-state PostgreSQL were provisioned and subsequently removed).
 - [x] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below (three scoped pairs, containers and owned volumes verified absent; archived demo history retained privately).
 - [x] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording (redacted live production technical clip delivered; known answer-quality caveat retained).
 
 Guides, Desk-ready template defaults and cleanup ownership are updated. The
 redacted live customer/agent technical demonstration is delivered in
 `Final_Documentation/Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4`.
-The unchecked isolation gate still needs a known second hosted customer. The
-earlier active-human outage cases remain failed historical evidence. Fresh
-staging and production cases after the bounded retry correction both passed;
-their exact release and message-delivery evidence is recorded below.
+The known-second-customer isolation gate is now qualified and its temporary
+resources are removed. The earlier active-human outage cases remain failed
+historical evidence. Fresh staging and production cases after the bounded retry
+correction both passed; their exact release and message-delivery evidence is
+recorded below. Public email delivery and branded Desk DNS are not closed by
+these fixture-based proofs.
 
 **Exit:** The formal support service is Desk, old per-deployment Inbox resources are gone, and no supported template/provisioner recreates them.
 
@@ -1407,3 +1409,118 @@ workspace/binding registration may remain. Inspect that exact scope, use normal
 activation to reconcile it, and include it in cleanup. Do not claim the failed
 request had no effects or erase its receipt. The temporary fixture still has
 zero AI queries and only its approved runtime, connector and AI-state storage.
+
+At 22:38 UTC the correction is committed/pushed as
+`b54ba9bbbbd49c1e3600e2951ade35f3f338385f`, CI `40412486452` passed, and both
+control-plane backends are native-verified at that source. Independent read-only
+review found no blocker. The actual neutral customer repeated the normal UI
+operation with a new operation key after the fix, not a replay of the failed
+command. Proof `enable-fixed-atomic-ui-1793054107638` passed and queued ordinary
+Desk-enabled staging release `rel-28774f7a`. Verification, the neutral agent
+journey, cross-customer isolation and exact cleanup remain to finish. Runtime,
+connector, shared Desk and AI Fabric binaries were not rebuilt for this fix.
+
+### 2026-10-26 Generic Customer, Isolation And Exact Cleanup Qualified
+
+The normal Desk-enabled generic release `rel-28774f7a` passed as
+`vrf-64b28e55`: 26 checks passed, none failed, seven were not applicable.
+The customer used the actual **Enable LoomAI Desk** control with reviews off.
+The deployment uses the generic conversational template, empty domain entities,
+actions and knowledge sources, local Lucene and optional managed AI-state
+PostgreSQL. It has no dealership backend or business database dependency.
+
+Actual owner launch `owner-desk-ui-1793054906706` reused Console Supabase sign-in
+and exposed only the owned staging binding. Owner membership initially did not
+grant Support. The customer explicitly assigned their registered account Support
+through **Agents & access**; Reviewer was not selected. The generic Engage app
+was created through the normal customer API, not claimed as a Create AI App UI
+test: this deliberately minimal qualification offer has no reviewed workspace
+profile choices. Domain verification and activation used the existing contracts.
+
+Live proof `generic-human-ui-1793055507703` passed button-requested anonymous
+handover, agent claim, human reply visible in the visitor app, visitor reply
+visible in Desk and explicit return to AI. Canonical runtime state became
+`AI_ACTIVE`; a later normal Desk read confirmed `RETURNED_TO_AI`, rather than
+treating the accepted `RETURN_PENDING` command as completion. This neutral proof
+made **zero AI submissions**. It qualifies the generic support integration,
+not generic AI answer quality or an actual provider token/cost ledger. The
+dealership's AI-selected handover and resumed AI answers are separate live proofs.
+
+On the **same shared staging Desk**, both customers' own conversation queues
+returned 200. The neutral customer's requests for Northfield conversations and
+reviews returned 403; the real Northfield agent's requests for the neutral
+binding's conversations and reviews also returned 403. Both bindings were known
+to exist through their authorized owners. No guessed nonexistent ID, expired
+authentication, empty queue or service outage was substituted for isolation.
+
+Cleanup completed with native absence proof at **23:08:07 UTC**:
+
+- Disabled the temporary app, unbound and disabled its consumer, revoked its
+  scoped Support grant and disabled its exact Desk binding.
+- Logged out the known fixture Desk session; protected access returned 401.
+  Before logout, that same real session had no accessible bindings and its
+  protected queue returned 403. This is scoped access removal, not a claim of
+  administrative global session revocation.
+- Revoked the bootstrap-created deployment assignment, customer entitlement
+  and immutable Console identity link through normal APIs. The actual former
+  Supabase Console token returned 403 `CUSTOMER_IDENTITY_NOT_LINKED`; the old
+  local cookie was unauthenticated and the original local password returned
+  401 `CUSTOMER_USE_SUPABASE`.
+- Deleted only temporary Supabase subject
+  `fbfb75ea-86f7-4ecc-aa11-1bb751758a08` after exact identity readback. Admin GET
+  then returned 404 and its original Supabase password returned
+  `invalid_credentials`. No verification/recovery email was sent.
+- Archived `dep-49db48eb`. Fresh ownership checks preceded exact native deletion
+  of connector `y3jpf8gmppfph92wrjzkeviv`, runtime
+  `bzwl5hjtbj6vsrtsimla775s`, AI-state PostgreSQL
+  `sgfw9znh3fajm57v57y3m97w` and their two owned volumes. API resource,
+  container and volume absence were verified independently. No global prune,
+  forced volume removal, shared-service deletion or business database deletion.
+
+Historical local-user/customer rows, revoked links, published configuration and
+provider-handle history remain as audit evidence. Their lifecycle flags are not
+falsely labelled disabled, and archived provider metadata is not native resource
+presence. No sole-admin guard bypass or SQL data mutation was used. The retained
+test offer has no active entitlement; no new retirement feature was added.
+
+Private execution metadata and real response receipts are under
+`~/.codex/private/loomai-desk-01048/neutral-second-customer/`.
+The offline cleanup-helper guard suite passed 15 tests. The main execution also
+used fresh normal API reads and explicit scoped native-maintenance actions;
+these tests are not represented as a provider or customer-delete UI proof.
+
+Recorder errors are retained honestly: the first app readiness read used the
+row ID instead of the public installation ID; one cleanup read assumed an
+unsupported single-consumer GET; the terminal conversation status is nested
+under `conversation`; native logout followed an HTML redirect. These were
+verification-script assumptions, not product failures. Completed side effects
+were reconciled by actual readback, never blindly replayed. No missing receipt
+was fabricated. The earlier fresh-activation 400 remains a real product defect
+fixed by `b54ba9bbb`, with its 55 focused tests and both backend rollouts.
+
+**Still not qualified:** native public signup/verification/recovery email and
+branded `desk.loomai.pro` DNS/certificate. Confirmed fixtures do not close those
+gates. The public embedded dealership site's protected-capability sign-in host
+also remains a separately unqualified path. No new live expired-SSO lifecycle
+case or broader compound stock/policy answer-quality pass is claimed. The
+framework remains **0.8.41**; no semantic matching or hidden fallback was added.
+
+Final read-only proof `final-qualification-1793056564788` passed at
+**23:16:43 UTC**. Both backends match the immutable `b54ba9bbb` OCI source and
+digest; both shared Desk application/database pairs and Engage frontends are
+healthy. The unchanged Northfield app is active on production revision 11;
+its public manifest assignment hash matches the owned installation and routes
+to the expected production runtime. Composer and human-support controls render.
+The disabled neutral app's public manifest returns 403. The original agent's
+normal sign-in still reaches their owned staging queue with 200 after cleanup.
+The branded Desk DNS read remains `ENOTFOUND`.
+
+Point samples, not a load/capacity benchmark: staging load 1.09 on eight CPUs,
+9,374 MiB available RAM and 25% root-disk use; production load 0.14 on four
+CPUs, 10,315 MiB available RAM and 15% root-disk use. Desk uses approximately
+310 MiB per environment; its shared PostgreSQL uses 41-47 MiB. Coolify catalogue
+counts are 41 applications/eight databases on staging and 21/five on production;
+these include stopped resources, not a claim that all are active or disposable.
+The staging control-plane `APP_BUILD_COMMIT` environment value is stale
+(`18ac7b5f`); native immutable-image metadata proves the actual source. It was
+recorded separately, not used to justify another product rollout.

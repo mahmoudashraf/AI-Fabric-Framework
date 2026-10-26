@@ -17,6 +17,14 @@ Conversation handover and real action-review decisions have both passed on the
 dealership's staging and production targets. The old per-deployment Inbox
 services and their dedicated databases have been retired.
 
+The same customer enablement flow has also passed on a fresh, domain-neutral
+conversational deployment using the generic workspace pack. Real API checks
+denied access between that customer and Northfield in both directions. Adding
+that customer reused shared Desk and its database; it did not create another
+Inbox. The temporary qualification deployment and identity were removed after
+testing. This does not qualify public signup email delivery or every visitor
+sign-in integration.
+
 The [recorded customer/agent journey](../Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4)
 shows the current shared Desk flow side by side. It demonstrates handover and
 replies, not every answer-quality or restart-recovery case. The known compound
