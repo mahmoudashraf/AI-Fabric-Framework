@@ -59,7 +59,11 @@ async function scenario(name, action, options = {}) {
         if (options.approvalFailure && req.postDataJSON().action === 'approve') return respond({ message: 'Desk consent unavailable' }, 503)
         return respond({ redirect_url: `https://desk.example.test/auth/callback?${req.postDataJSON().action === 'deny' ? 'error=access_denied' : 'code=one-use'}&state=fixture` })
       }
-      if (url.pathname.includes('/oauth/authorizations/')) return respond(options.returning ? { redirect_url: 'https://desk.example.test/auth/callback?code=already-consented&state=fixture' } : { ...details, ...options.details })
+      if (url.pathname.includes('/oauth/authorizations/')) {
+        const reads = calls.filter(call => call.path === url.pathname && call.method === 'GET').length
+        if (options.oneUseDetails && reads > 1) return respond({ message: 'authorization request cannot be processed' }, 400)
+        return respond(options.returning ? { redirect_url: 'https://desk.example.test/auth/callback?code=already-consented&state=fixture' } : { ...details, ...options.details })
+      }
       throw new Error(`Unexpected Supabase route ${url.pathname}`)
     }
     if (url.origin !== new URL(server.resolvedUrls.local[0]).origin) { errors.push(`Unmocked remote ${url.origin}`); return route.abort() }
@@ -141,6 +145,12 @@ try {
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { seed: true, returning: true })
+  await scenario('linked_console_owner_consumes_one_use_returning_authorization_once', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
+  }, { seed: true, returning: true, oneUseDetails: true })
   await scenario('agent_signup_verification_uses_pkce_and_returns_to_same_central_desk_request', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
     await page.getByRole('button', { name: 'Create account', exact: true }).click()

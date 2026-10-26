@@ -1,5 +1,5 @@
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Typography } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 import { requireDeskAuthorization, requireDeskCallback, type DeskAuthorizationDetails } from '../auth/deskOAuthPolicy'
@@ -19,6 +19,7 @@ export function DeskOAuthAuthorizationPage() {
   const [existingRedirect, setExistingRedirect] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const reviewed = useRef<{ identity: string; details: DeskAuthorizationDetails } | null>(null)
   useEffect(() => {
     let active = true
     setDetails(null); setExistingRedirect(null); setError(null)
@@ -26,31 +27,36 @@ export function DeskOAuthAuthorizationPage() {
     if (!auth.supabase || !auth.supabaseSession || !auth.customerConfig) return
     setBusy(true)
     const client = auth.supabase, config = auth.customerConfig
+    const identity = `${config.projectUrl}:${auth.supabaseSession.user.id}`
     void (async () => {
       try {
-        const user = await client.auth.getUser()
-        if (user.error) throw user.error
-        if (!user.data.user?.email_confirmed_at) throw new Error('Verify your email before opening LoomAI Desk.')
-        const { data, error } = await client.auth.oauth.getAuthorizationDetails(authorizationId)
-        if (error) throw error
-        if (!data) throw new Error('Authorization request is unavailable.')
-        if (!active) return
-        if ('authorization_id' in data) {
-          requireDeskAuthorization(config, data, authorizationId)
-          if (active) setDetails(data)
-          const redirect = await authorizeDeskOnce(authorizationId, `${config.projectUrl}:${user.data.user.id}:${data.client.id}`, async () => {
+        // Reading an already-consented request can itself consume it. Deduplicate
+        // the complete exchange, not only the final approval command.
+        const redirect = await authorizeDeskOnce(authorizationId, identity, async () => {
+          const user = await client.auth.getUser()
+          if (user.error) throw user.error
+          if (!user.data.user?.email_confirmed_at) throw new Error('Verify your email before opening LoomAI Desk.')
+          if (user.data.user.id !== auth.supabaseSession!.user.id) throw new Error('The authorization identity changed. Open LoomAI Desk again.')
+          const { data, error } = await client.auth.oauth.getAuthorizationDetails(authorizationId)
+          if (error) throw error
+          if (!data) throw new Error('Authorization request is unavailable.')
+          if ('authorization_id' in data) {
+            requireDeskAuthorization(config, data, authorizationId)
+            reviewed.current = { identity, details: data }
             const approved = await client.auth.oauth.approveAuthorization(authorizationId, { skipBrowserRedirect: true })
             if (approved.error) throw approved.error
             if (!approved.data) throw new Error('Authorization decision was not returned.')
             return requireDeskCallback(config, approved.data.redirect_url, data.redirect_uri)
-          })
-          if (active) window.location.replace(redirect)
-        } else {
-          const redirect = requireDeskCallback(config, data.redirect_url)
-          if (active) setExistingRedirect(redirect)
-          if (active) window.location.replace(redirect)
+          }
+          return requireDeskCallback(config, data.redirect_url)
+        })
+        if (active) { setExistingRedirect(redirect); window.location.replace(redirect) }
+      } catch (ex) {
+        if (active) {
+          if (reviewed.current?.identity === identity) setDetails(reviewed.current.details)
+          setError(authorizationError(ex))
         }
-      } catch (ex) { if (active) setError(authorizationError(ex)) }
+      }
       finally { if (active) setBusy(false) }
     })()
     return () => { active = false }
