@@ -126,7 +126,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
     try {
       await post("/logout", {});
       client.clear();
-      location.assign("/");
+      location.replace("/?login=signed-out");
     } catch (error) {
       setLogoutError(errorMessage(error));
       setLoggingOut(false);
@@ -152,6 +152,13 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
       onClick={() => setTheme(theme === "light" ? "dark" : "light")}
     />
   );
+  if (loggingOut)
+    return (
+      <div className="boot">
+        <Brand />
+        <Loading label="Signing out of your Desk" />
+      </div>
+    );
   if (session.isPending || config.isPending)
     return (
       <div className="boot">

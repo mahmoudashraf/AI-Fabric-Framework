@@ -52,7 +52,7 @@ export function Auth({
   const authUrl = `${authTarget.pathname}${authTarget.search}`;
   const cancelled =
     new URLSearchParams(location.search).get("login") === "cancelled";
-  const autoLogin = !!bindingId && config.oidcEnabled !== false && !cancelled;
+  const autoLogin = !!bindingId && config.oidcEnabled !== false && !cancelled && !expired;
   const redirected = useRef(false);
   useEffect(() => {
     if (autoLogin && !redirected.current) {

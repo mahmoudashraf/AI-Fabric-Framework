@@ -604,6 +604,36 @@ test("local logout sends session CSRF and clears protected workspace", async ({
   expect(csrf).toBe("fixture-csrf");
 });
 
+test("logout from a Console deep link does not silently restart SSO", async ({ page }) => {
+  const state = await mockDesk(page);
+  const oauthRequests: string[] = [];
+  await page.route("**/oauth2/**", async (route) => {
+    oauthRequests.push(route.request().url());
+    await route.fulfill({ status: 400, body: "Unexpected reauthentication" });
+  });
+  await page.route("**/logout", async (route) => {
+    state.session.authenticated = false;
+    await route.fulfill({ status: 204 });
+  });
+  await page.goto("/?bindingId=studio-prod");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/\?login=signed-out$/);
+  await expect(page.getByRole("link", { name: "Sign in to LoomAI Desk" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Conversation transcript" })).toHaveCount(0);
+  expect(oauthRequests).toEqual([]);
+});
+
+test("an expired deep-link session waits for explicit sign-in", async ({ page }) => {
+  const state = await mockDesk(page);
+  await page.goto("/?bindingId=studio-prod");
+  await page.getByRole("button", { name: /Eve Lin/ }).click();
+  state.expire = true;
+  await page.getByRole("button", { name: "Refresh workspace" }).click();
+  await expect(page.getByRole("link", { name: "Sign in to LoomAI Desk" })).toBeVisible();
+  await expect(page).toHaveURL(/bindingId=studio-prod$/);
+  await expect(page.getByText("Eve Lin", { exact: true })).toHaveCount(0);
+});
+
 test("safe text rendering does not execute provider markup or attachment URLs", async ({
   page,
 }) => {

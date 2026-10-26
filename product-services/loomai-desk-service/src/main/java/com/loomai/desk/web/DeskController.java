@@ -3,7 +3,6 @@ package com.loomai.desk.web;
 import static com.loomai.desk.channel.model.InboxContracts.*;
 import static com.loomai.desk.model.DeskContracts.*;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.desk.config.DeskProperties;
 import com.loomai.desk.service.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -238,7 +237,7 @@ public class DeskController {
   }
 
   @GetMapping("/bindings/{bindingId}/reviews")
-  public ResponseEntity<JsonNode> reviews(
+  public ResponseEntity<byte[]> reviews(
       Authentication auth,
       @PathVariable String bindingId,
       @RequestParam(required = false) String status,
@@ -253,7 +252,7 @@ public class DeskController {
   }
 
   @GetMapping("/bindings/{bindingId}/reviews/{taskId}")
-  public ResponseEntity<JsonNode> review(
+  public ResponseEntity<byte[]> review(
       Authentication auth, @PathVariable String bindingId, @PathVariable String taskId) {
     return reviews.request(
         bindingId,
@@ -264,7 +263,7 @@ public class DeskController {
   }
 
   @PostMapping("/bindings/{bindingId}/reviews/{taskId}/decisions")
-  public ResponseEntity<JsonNode> decide(
+  public ResponseEntity<byte[]> decide(
       Authentication auth,
       @PathVariable String bindingId,
       @PathVariable String taskId,

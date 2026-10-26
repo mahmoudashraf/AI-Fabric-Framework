@@ -2,6 +2,7 @@ package com.loomai.desk.service;
 
 import static com.loomai.desk.model.DeskContracts.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.desk.config.DeskProperties;
@@ -12,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,7 +37,7 @@ public class DeskReviewService {
             .build();
   }
 
-  public ResponseEntity<JsonNode> request(
+  public ResponseEntity<byte[]> request(
       String bindingId, Operator reviewer, VerifiedIdentity identity, String path, Object body) {
     Binding binding = directory.authorize(bindingId, reviewer, Role.REVIEWER);
     if (binding.reviewBridgeUrl() == null || binding.reviewBridgeKey() == null)
@@ -71,17 +73,17 @@ public class DeskReviewService {
         int status = response.statusCode();
         if (status == 409 && result.path("failure").isObject()) {
           directory.audit(bindingId, binding.customerId(), reviewer.id(), "REVIEW_DECISION_REJECTED", path);
-          return ResponseEntity.status(status).body(result);
+          return jsonResponse(status, result);
         }
         if (status == 401 || status == 403 || status == 404 || status == 409 || status == 422) {
-          return ResponseEntity.status(status)
-              .body(
-                  mapper
-                      .createObjectNode()
-                      .put("code", "REVIEW_BRIDGE_REJECTED")
-                      .put(
-                          "message",
-                          "The review service rejected this operation; refresh the task and permissions."));
+          return jsonResponse(
+              status,
+              mapper
+                  .createObjectNode()
+                  .put("code", "REVIEW_BRIDGE_REJECTED")
+                  .put(
+                      "message",
+                      "The review service rejected this operation; refresh the task and permissions."));
         }
         throw new ResponseStatusException(
             HttpStatus.BAD_GATEWAY, "Action review service is unavailable.");
@@ -92,7 +94,7 @@ public class DeskReviewService {
           reviewer.id(),
           body == null ? "REVIEW_READ" : "REVIEW_DECISION",
           path);
-      return ResponseEntity.status(response.statusCode()).body(result);
+      return jsonResponse(response.statusCode(), result);
     } catch (ResponseStatusException e) {
       throw e;
     } catch (InterruptedException e) {
@@ -102,6 +104,14 @@ public class DeskReviewService {
       throw new ResponseStatusException(
           HttpStatus.BAD_GATEWAY, "Action review service is unavailable.");
     }
+  }
+
+  private ResponseEntity<byte[]> jsonResponse(int status, JsonNode result)
+      throws JsonProcessingException {
+    // Boot 4's Jackson 3 converter treats Jackson 2 trees as beans, not JSON values.
+    return ResponseEntity.status(status)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(mapper.writeValueAsBytes(result));
   }
 
   public static String segment(String value) {
