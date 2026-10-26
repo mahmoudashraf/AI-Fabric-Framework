@@ -66,9 +66,18 @@ const release = (deploymentId, targetProfileId, suffix) => ({
   status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED',
 })
 const releases = id => [release(id, 'staging', 's1'), release(id, 'staging', 's2'), release(id, 'production', 'p1')]
+const targetProfile = (id, environmentName = 'production', active = true) => ({ id, name: id, environmentName, active })
+const boundConsumer = (deploymentId, targetProfileId, releaseId) => ({
+  consumerId: `${deploymentId}-app`, customerId: 'customer-one', displayName: `${deploymentId} app`, status: 'ACTIVE',
+  boundDeploymentId: deploymentId, boundReleaseId: releaseId, boundReleaseStatus: 'APPLIED_VERIFIED',
+  boundTargetProfileId: targetProfileId, bindingRevision: 2,
+})
 
 async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', operationsMode = 'DISABLED',
-  failSelectionSave = false, bindingSlots = [] } = {}) {
+  failSelectionSave = false, bindingSlots = [], offerTargets, consumers = [],
+  deploymentReleases = releases,
+  targetProfiles = () => [targetProfile('staging', 'staging'), targetProfile('production')],
+  beforeTargetResponse = async () => {} } = {}) {
   const context = await browser.newContext()
   const page = await context.newPage()
   page.setDefaultTimeout(15_000)
@@ -105,7 +114,7 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
       return json(route, preferences)
     }
     if (path === '/api/customer-self-service/invitations') return json(route, [])
-    if (path === '/api/platform/customers/customer-one/consumers') return json(route, [])
+    if (path === '/api/platform/customers/customer-one/consumers') return json(route, consumers)
     if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json(route, [])
     if (path === '/api/customer-self-service/deployments') return json(route, deployments)
     if (path === '/api/customer-self-service/catalogue' || path === '/api/customer-self-service/catalogue/support-offer') {
@@ -113,11 +122,11 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
       const offer = {
         id: 'support-offer', name: 'Support experience', fingerprint: 'reviewed', templateId: 'support-template',
         entitlement: { customerId: 'customer-one', status: 'ACTIVE', revision: 1 },
-        targets: ['staging', 'production'].map(target => ({
+        targets: offerTargets ?? ['staging', 'production'].map(target => ({
           id: target, intent: target === 'staging' ? 'CUSTOMER_STAGING' : 'CUSTOMER_PRODUCTION',
           readiness: 'REVIEWED_TARGET_READY',
           blockers: [], capabilities: [], limits: { stagingExpiryHours: 24 },
-        })), settings: [], bindingSlots, blockers: [],
+        })), settings: [], bindingSlots, blockers: offerTargets?.length === 0 ? ['REVIEWED_COMPOSITION_CHANGED'] : [],
       }
       return json(route, path.endsWith('/support-offer') ? offer : [offer])
     }
@@ -133,7 +142,11 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
         documentKnowledgeConfigured: false, externalIntegrationConfigured: false, conversationHandoverConfigured: true,
       })
       if (operation === 'versions') return json(route, [])
-      if (operation === 'releases') return json(route, releases(id))
+      if (operation === 'releases') return json(route, deploymentReleases(id))
+      if (operation === 'target-profiles') {
+        await beforeTargetResponse(id)
+        return json(route, targetProfiles(id))
+      }
       if (operation === 'draft') return json(route, { marketplaceDatasetConfig: { datasets: [] } })
       if (operation === 'marketplace/installs') return json(route, [])
       if (operation === 'desk') return json(route, { available: true, status: 'NOT_ENABLED', portalUrl: null })
@@ -147,6 +160,9 @@ async function fixture({ initial = 'deployments?view=manage&deploymentId=deploym
         runtime: { enabled: true, channelBindingId: 'support-inbox', handoverCounts: {}, dispatchCounts: {}, recentDispatches: [] },
         connector: { reachable: true, status: { recentCallbacks: [] } },
       })
+    }
+    if (/^\/api\/customer-self-service\/catalogue\/support-offer\/deployments\/deployment-[ab]\/go-live-readiness$/.test(path)) {
+      return json(route, { activationReady: true, postActivationComplete: true, items: [], blockers: [] })
     }
     if (/^\/api\/customer-self-service\/catalogue\/support-offer\/deployments\/deployment-[ab]\/(admission-reservations|retirements)$/.test(path)) return json(route, [])
     errors.push(`Unhandled ${method} ${path}`)
@@ -312,6 +328,86 @@ try {
     passed += 1
     console.log('Passed: customer setup hides immutable legacy operator slots while retaining current connection slots')
   } finally { await setup.close() }
+
+  const retiredOffer = await fixture({ offerTargets: [],
+    consumers: [boundConsumer('deployment-b', 'production-bound', 'deployment-b-bound')],
+    targetProfiles: () => [targetProfile('staging', 'staging'), targetProfile('production'),
+      targetProfile('production-bound'), targetProfile('production-disabled', 'production', false)],
+    deploymentReleases: id => [...releases(id), release(id, 'production-bound', 'bound')],
+  })
+  try {
+    const { page } = retiredOffer
+    await selectedConsole(page, 'b')
+    const selector = page.getByRole('combobox', { name: /^Production target/ })
+    await selector.waitFor()
+    assert.match(await selector.innerText(), /production-bound/)
+    await page.getByText('Production active', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Roll back assignment', exact: true }).isEnabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Verify production release', exact: true }).isEnabled(), true)
+    assert.equal(await page.getByText('Production not deployed', { exact: true }).count(), 0)
+    await selector.click()
+    assert.equal(await page.getByRole('option').count(), 2)
+    assert.equal(await page.getByRole('option').filter({ hasText: 'production-disabled' }).count(), 0)
+    await page.keyboard.press('Escape')
+    await page.getByRole('textbox', { name: 'Deployment name' }).fill('Cannot reuse retired bootstrap')
+    assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+    assert.ok(retiredOffer.calls.some(call => call.path === '/api/deployments/deployment-b/target-profiles'))
+    assert.equal(retiredOffer.calls.some(call => call.method !== 'GET' && call.path !== '/api/platform/preferences'), false)
+    passed += 1
+    console.log('Passed: retired bootstrap targets do not hide authorized bound production, verification or rollback; new creation stays blocked')
+  } finally { await retiredOffer.close() }
+
+  let allowTargetsB
+  const pendingTargetsB = new Promise(resolve => { allowTargetsB = resolve })
+  let requestedTargetsB
+  const targetsBRequested = new Promise(resolve => { requestedTargetsB = resolve })
+  const targetScope = await fixture({ initial: 'deployments?view=manage&deploymentId=deployment-a', offerTargets: [],
+    consumers: [boundConsumer('deployment-a', 'production-a', 'deployment-a-bound'),
+      boundConsumer('deployment-b', 'production-b', 'deployment-b-bound'),
+      { ...boundConsumer('deployment-b', 'foreign-production', 'foreign-release'), consumerId: 'foreign-app', customerId: 'customer-two' }],
+    targetProfiles: id => [targetProfile('staging', 'staging'), targetProfile('production'), targetProfile(`production-${id.at(-1)}`)],
+    deploymentReleases: id => [...releases(id), release(id, `production-${id.at(-1)}`, 'bound')],
+    beforeTargetResponse: async id => { if (id === 'deployment-b') { requestedTargetsB(); await pendingTargetsB } },
+  })
+  try {
+    const { page } = targetScope
+    await selectedConsole(page, 'a')
+    await page.getByRole('combobox', { name: /^Production target/ }).click()
+    await page.getByRole('option', { name: 'production · production', exact: true }).click()
+    await spaNavigate(page, '/deployments?view=manage&deploymentId=deployment-b')
+    await selectedConsole(page, 'b')
+    await targetsBRequested
+    assert.equal(await page.getByRole('combobox', { name: /^Production target/ }).count(), 0)
+    await page.getByText('Select a production target', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Review production candidate', exact: true }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Roll back assignment', exact: true }).isDisabled(), true)
+    allowTargetsB()
+    const selector = page.getByRole('combobox', { name: /^Production target/ })
+    await selector.filter({ hasText: 'production-b' }).waitFor()
+    await page.getByText('Production active', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Roll back assignment', exact: true }).isEnabled(), true)
+    await selector.click()
+    assert.equal(await page.getByRole('option').filter({ hasText: 'production-a' }).count(), 0)
+    assert.equal(await page.getByRole('option').filter({ hasText: 'foreign-production' }).count(), 0)
+    await page.keyboard.press('Escape')
+    assert.equal(targetScope.calls.some(call => call.path.includes('/foreign-')), false)
+    passed += 1
+    console.log('Passed: deployment changes discard old target data and manual selection while loading, then prefer the new authorized app binding')
+  } finally { allowTargetsB(); await targetScope.close() }
+
+  const blockedBootstrap = await fixture({ initial: 'deployments?view=setup&step=template', offerTargets: [{
+    id: 'staging', intent: 'CUSTOMER_STAGING', readiness: 'BLOCKED', blockers: ['TARGET_NOT_READY'],
+    capabilities: [], limits: { stagingExpiryHours: 24 },
+  }] })
+  try {
+    const { page } = blockedBootstrap
+    await page.getByRole('textbox', { name: 'Deployment name' }).fill('New bootstrap still validated')
+    await page.getByText('BLOCKED · TARGET_NOT_READY', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+    assert.equal(blockedBootstrap.calls.some(call => call.path.endsWith('/target-profiles')), false)
+    passed += 1
+    console.log('Passed: new deployment bootstrap keeps catalogue target readiness checks and does not query another deployment for targets')
+  } finally { await blockedBootstrap.close() }
   console.log(`Customer UI scope regressions: ${passed} scenarios passed. Local mocked APIs only.`)
 } finally {
   await browser.close()

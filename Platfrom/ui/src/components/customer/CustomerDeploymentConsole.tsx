@@ -54,6 +54,7 @@ import {
   fetchPlatformAuthSession,
   fetchCustomerSelfServiceInvitations,
   fetchDeploymentReleases,
+  fetchDeploymentTargetOptions,
   fetchDeploymentVersions,
   fetchCompatibleDeploymentSourceArtifacts,
   fetchDeploymentDraft,
@@ -220,7 +221,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const customerId = session.customerId ?? ''
   const [selectedOfferId, setSelectedOfferId] = useState(requestedOfferId)
   const [selectedTargetProfileId, setSelectedTargetProfileId] = useState('')
-  const [selectedProductionTargetProfileId, setSelectedProductionTargetProfileId] = useState('')
+  const [productionTargetChoice, setProductionTargetChoice] = useState<{ scope: string; targetProfileId: string } | null>(null)
   const [deploymentName, setDeploymentName] = useState('')
   const [storageChoice, setStorageChoice] = useState<{ scope: string; mode: string } | null>(null)
   const [consumerId, setConsumerId] = useState('')
@@ -280,6 +281,12 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const consumers = consumersQuery.data ?? []
   const selectedDeployment = deployments.find((deployment) => deployment.deploymentId === requestedDeploymentId) ?? null
   const selectedDeploymentId = selectedDeployment?.deploymentId ?? ''
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles', selectedDeploymentId, customerId, session.actorId, session.authenticationMode],
+    queryFn: () => fetchDeploymentTargetOptions(selectedDeploymentId),
+    enabled: Boolean(customerId && selectedDeploymentId),
+    placeholderData: undefined,
+  })
   const creationOffer = offers.find((offer) => offer.id === selectedOfferId) ?? null
   const selectedOffer = selectedDeployment
     ? offers.find((offer) => offer.id === selectedDeployment.offerId) ?? null
@@ -288,7 +295,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const selectedBindingSlots = selectedOffer?.bindingSlots.filter((slot) => slot.kind !== 'INBOX_OPERATOR') ?? []
   const creationStagingTargets = creationOffer?.targets.filter((target) => target.intent === 'CUSTOMER_STAGING') ?? []
   const creationTarget = creationStagingTargets.find((target) => target.id === selectedTargetProfileId)
-  const productionTargets = selectedOffer?.targets.filter((target) => target.intent === 'CUSTOMER_PRODUCTION') ?? []
+  const productionTargets = selectedDeploymentId && !targetProfilesQuery.isPlaceholderData
+    ? (targetProfilesQuery.data ?? []).filter((target) => target.active && target.environmentName === 'production') : []
   const stagingTargetProfileId = selectedDeployment?.bootstrapTargetProfileId ?? selectedTargetProfileId
   const storageChoiceScope = JSON.stringify([session.actorId, session.authenticationMode, customerId, creationOffer?.id, creationOffer?.fingerprint,
     creationOffer?.entitlement.revision, selectedTargetProfileId])
@@ -350,14 +358,6 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   }, [creationOffer, selectedTargetProfileId])
 
   useEffect(() => {
-    if (!selectedOffer) return
-    const eligible = selectedOffer.targets.filter((target) => target.intent === 'CUSTOMER_PRODUCTION')
-    if (!eligible.some((target) => target.id === selectedProductionTargetProfileId)) {
-      setSelectedProductionTargetProfileId(eligible.length === 1 ? eligible[0].id : '')
-    }
-  }, [selectedOffer, selectedProductionTargetProfileId])
-
-  useEffect(() => {
     setPromotion(null)
   }, [selectedDeploymentId])
 
@@ -387,11 +387,18 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const stagingImage = useScopedOneTimeValue<string>(JSON.stringify([session.actorId, customerId, selectedDeploymentId, latestVersion?.id]))
   const selectedStagingImage = (stagingArtifacts.data ?? []).find(artifact => artifact.id === stagingImage.value)
   const stagingRelease = releases.find((release) => release.targetProfileId === stagingTargetProfileId) ?? null
-  const productionRelease = releases.find((release) => release.targetProfileId === selectedProductionTargetProfileId) ?? null
   const deploymentConsumers = selectableCustomerAssignments(consumers, customerId, selectedDeploymentId)
   const selectedConsumer = creatingNewAssignment ? null : deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
     ?? deploymentConsumers[0]
     ?? null
+  const productionTargetScope = JSON.stringify([session.actorId, session.authenticationMode, customerId, selectedDeploymentId, selectedConsumer?.consumerId])
+  const chosenProductionTarget = productionTargetChoice?.scope === productionTargetScope
+    ? productionTargets.find((target) => target.id === productionTargetChoice.targetProfileId) : undefined
+  const boundProductionTarget = selectedConsumer?.boundDeploymentId === selectedDeploymentId
+    ? productionTargets.find((target) => target.id === selectedConsumer.boundTargetProfileId) : undefined
+  const selectedProductionTargetProfileId = (chosenProductionTarget ?? boundProductionTarget
+    ?? (productionTargets.length === 1 ? productionTargets[0] : undefined))?.id ?? ''
+  const productionRelease = releases.find((release) => release.targetProfileId === selectedProductionTargetProfileId) ?? null
   const assignmentCreationGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
     selectedOffer?.entitlement.revision, selectedDeploymentId, stagingTargetProfileId, stagingRelease?.id,
@@ -840,6 +847,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     || (publish.variables?.token === publishGuard.capture() ? publish.error : null)
     || (configureAssignment.variables?.token === configurationGuard.capture() ? configureAssignment.error : null)
     || stagingApply.error || createConsumer.error || bindConsumerToStaging.error || planPromotion.error || applyProduction.error
+    || targetProfilesQuery.error
     || (refreshProductionReadiness.variables?.token === readinessGuard.capture() ? refreshProductionReadiness.error : null)
     || activateProduction.error || rollbackProduction.error
 
@@ -1335,10 +1343,10 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               </Typography>
               {productionTargets.length > 1 ? (
                 <TextField select label="Production target" value={selectedProductionTargetProfileId}
-                  onChange={(event) => { setSelectedProductionTargetProfileId(event.target.value); setPromotion(null) }}>
+                  onChange={(event) => { setProductionTargetChoice({ scope: productionTargetScope, targetProfileId: event.target.value }); setPromotion(null) }}>
                   {productionTargets.map((target) => (
-                    <MenuItem key={target.id} value={target.id} disabled={!targetSelectable(target.readiness)}>
-                      {target.id} · {target.readiness}
+                    <MenuItem key={target.id} value={target.id}>
+                      {target.id} · {target.name}
                     </MenuItem>
                   ))}
                 </TextField>
