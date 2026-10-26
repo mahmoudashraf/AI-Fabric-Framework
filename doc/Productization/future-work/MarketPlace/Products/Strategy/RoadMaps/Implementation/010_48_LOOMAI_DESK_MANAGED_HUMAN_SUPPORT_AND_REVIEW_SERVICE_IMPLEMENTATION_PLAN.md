@@ -757,3 +757,30 @@ candidate facts in Desk's summary; no receipt decryption/private binding-format
 dependency, duplicate proposal store, raw handler projection or receiver-auth
 change remains. Image publication, live approve/reject and retirement are still
 pending; these source checks do not close them.
+
+10:00 UTC hosted progress: source `befdf1b78521c0ec72d037facd48214a4fbec0cc`
+is published. Runtime CI `40299794581` and backend CI `40299794571` passed;
+both control planes run the new backend, with unchanged Console and Desk images.
+New runtime artifact `dsa-332b1a2c`, version `ver-8d1df30d`, enables only the
+registered test-drive proposal action. No framework release was made.
+
+The first staging release `rel-1a7ceaab` was healthy but failed its final
+document-source gate. Its new image also includes the pre-existing committed
+document ownership change `cde62f78c`, absent from the retained `c2e886f804`
+image. That change rejects historical registrations without a physical storage
+identity; opening an empty source list does not make them safe to adopt.
+
+Using the owner's existing fresh-canary-data authorization, the operator used
+normal binding removal/configuration APIs to create a fresh **staging-only**
+owned binding for the SAME S3 bucket, prefix and read-only credentials. No S3
+files, legacy source ownership, SQL registrations or vector records were
+rewritten. The SAME deployment/version/image is being reapplied as
+`rel-ca818c8e`, after which the normal customer registration/indexing flow must
+qualify fresh sources. This is not a general migration claim or a storage
+ownership-check bypass. Production runtime/app assignment is unchanged.
+
+Real approval/rejection and legacy retirement remain pending. The private
+runner now checks actual Desk UI decisions and read-only external business
+counts, without extracting contact payloads or requiring them in Desk's safe
+outcome projection. Native email delivery and branded DNS remain independent
+open gates.

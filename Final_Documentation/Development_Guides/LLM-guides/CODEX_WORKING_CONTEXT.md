@@ -10,6 +10,38 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 10:00UTC CURRENT sourcebefdf1b78521c0ec72d037facd48214a4fbec0cc pushed;
+  runtimeCI40299794581 + backendCI40299794571 PASS, immutable digests privately
+  verified. BOTH controlplane backends nowbefdf1b78/nativehealthy; Console2d14
+  andDesk3b9909 unchanged. Newruntimeartifactdsa-332b1a2c/stagingpromoted,
+  v4ver-8d1df30d optsinreviewproposer(testdriveonly), sameframework0.8.41.
+  Firststageapplyrel-1a7ceaab healthPASS but finalverificationFAILEDonly
+  document_active_sources_ready. Newimageincludes PREEXISTINGcde62f78c source
+  storageidentity guard (oldc2eimage didnot): legacy registrations lack digest,
+  so discovery409DOCUMENT_SOURCE_SCOPE_UNVERIFIED. NoSQLadoption/bypass/fix.
+- Ownerallowsfreshcanarydata. NORMAL storagebinding DELETE+POST for SAMEstage
+  customerS3bucket/prefix/credentials: dsh-1a684782-f2d -> dsh-e16763c3-676.
+  NoS3objectwrite/newstorage/newdeployment. ReapplySAMEv4/image queued09:59UTC
+  rel-ca818c8e, coldreplaceINPROGRESS. Waituntilprovisioned, then standard
+  customerUI discover/register/publicapprove/index SAME3files and recheck.
+  EarlierUIattempts whileprovisioning/readguard failed; no source registrations
+  were fabricated. Prod runtime/appassignment remainsoldverifiedv3/revision6.
+- Privateorchestration ~/.codex/private/loomai-desk-01048/review-integration.mjs
+  commands have consumedintent guards; inspect before replay. Imageproof,
+  sourceartifact/version/apply/bindingresponses in review-integration/. No genuine
+  review proposals/decisions YET. Afterstageverified use propose staging approve
+  and reject (explicit optional4thargreleaseID), then review-journey.mjs staging
+  --verified-release=rel-ca818c8e --verified-desk-source=3b9909cd10989344b86f344b8dcd455a5ec15731 --run.
+  Agentpreparedrunner+businesscounthelper, no effects. Sourceintent carries
+  tokenfreeactualcalleridentity; counthelperSQLREADONLY exactscope/session,
+  noPII/decryption. It resolvesactualnativecompiledrouting, nottemplateplaceholder.
+- Mainmust review/proveactualapproveone/rejectone/replaycounts(1/0), then NORMAL
+  samev4productionpromotion. RenewPRODbinding BEFOREfirstnewimageapply toavoid
+  samelegacyguard; noProdS3writes. Publishartifactproductionchannel onlyafter
+  stagingproof. KeepSAMEEngageURL. NolegacyInboxretirementperformed; sourceAPI
+  supportsoptionalapplicationworkflow, ordinarychatconfirmationunchanged.
+  BrandedDeskDNSstillabsent09:55UTC; nativeSMTPgateunchanged/noresend.
+
 - 08:56UTC OWNERAPPROVED narrow originating-application/runtime governed review
   integration in Required for production; actual human message
   01a1776b-885e-7cb2-8ccb-b2280300bfa6 verified, private receipt under
