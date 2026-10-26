@@ -8,6 +8,122 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
+
+- 05:12UTC CURRENT: productionrel-29f1fa74/ver-28c18fd1 APPLIED_VERIFIED,
+  normalcustomerUI3S3policiesregistered/indexed;vrf-4496e8a029PASS0FAIL4NA.
+  ActualprodOwnerDeskSSO, SAMEagentproductionDeskregistrationinitial0bindings,
+  ownerassignmentSUPPORT+REVIEWERPASS. SAMEconsumer/appactivatedprod05:11UTC,
+  assignmentrevision6/unchangednorthfield-console-live.apps.loomai.proURL.
+  Desk3b9909cd10989344b86f344b8dcd455a5ec15731 nowBOTHhealthy;CI40272106154
+  PASS requiredPG/backend/38browser/image. FocusedactualHTTP2testsPASS.
+  Byte[]JSONfixandlogouttransitionfixcommitted/pushed. NoCP/runtimeeditforfix.
+  Currentmainrunningproductionconversation-journey.mjs withrel29f, thennative
+  stageaccess/logoutrecheckAFTERitfinishes. SERIALIZEowner/agentbrowserstate
+  runners: separatecontextsusingSAMEsavedexpiredSuparefreshtokenconcurrently
+  caninvalidatefixturesessions;normalUIcanreauthfixtures,butnorecreate/reset.
+  PrioractivationharnesswaitedforoldPOSTadmission-reservationsafterRefresh
+  readiness;actualflowisGETgo-live-readinessunderdisabledoptionalops. Itfailed
+  beforeANYassignmentwrite;fixedharnessthennormalactivationPASS. No product
+  recovery/capacitychange. Existingprivateproofsfailuresretainedhonestly.
+
+- 04:55UTC CURRENT, supersedes earlier entries in this section: backend
+  34fb995e5 bothhosts/schema215; Console2d14f299a bothhosts; sharedDesk5b55f9e4c
+  bothhosts. Main commits ec20cb3/34fb995/5b55f9/2d14f299 pushed Platform-V11.
+  Stage Desk https://loomai-desk.46.224.145.148.sslip.io, production SAMEservice
+  temporaryHTTPS https://loomai-desk.46.225.162.106.sslip.io; brandedDNSstillopen.
+  Nativeownerdual-prooflinkpassed: usr-dc2c2ed0/cus-9fd67f55 preserved, subject
+  12af5967-5789-4172-a82f-3299b2bdf901. OwnerexplicitlyapprovedTWO synthetic
+  admin-confirmedSupaidentitiesinRequiredchat; distinctagent862bc1b3-6282-4723-
+  802b-eb72ba7738ec registeredwithzerobindings, thenownerUIassignedSUPPORT+
+  REVIEWERtoSTAGEonly. ActualfirstConsole->DeskSSOpassednosecondpassword.
+  2d14fixdeduplicatesENTIREconsumableOAuthlookup/approval;7unit+12browserPASS.
+- Stage normalenablever-28c18fd1/rel-c5e8d054 APPLIED_VERIFIED afteractualUI
+  registration/publicapproval/index/reconcileofSAME3S3policyfiles(newrelease
+  registrationsrequiredbyretained0.8.41runtime). Recheckvrf-91efa90b29PASS/0FAIL/
+  4notapplicableSKIP. SAMEinstallationawi_pub_d33c69a074da480628c2f81358a03144,
+  URLnorthfield-console-live.apps.loomai.pro temporarilyboundverifiedSTAGEvia
+  normalcustomerRollbackassignmentUI. FullstagingconversationflowPASS:
+  stocksearch->AIhandover->agentclaim/reply->visitorhumanreply->returnAI->
+  AIquery->UIhandover->explicitclose. Evidenceprivateui-proof/conversation-
+  staging-1792989794167 endsFAILEDonlyatseparatereviewtransportcheck,notchat.
+  Earlierwrongqueueidentifierharnessfailurepreserved;waitingepisodeclosed.
+- ProductionpromotionofSAMEversionqueuedrel-29f1fa74 viaproductionConsoleUI;
+  normalcoldapplyinprogress(finalconnectorhealthwaitasof04:54). Donotresubmit.
+  Needstandard3docregistration+indexandverificationontheneweffectiverelease,
+  ownerDeskproductionSSO, register/assignSAMEagentaccountinproductionDesk,
+  activateSAMEEngageappverifiedprod,repeatconversationproof. Noframework/runtime
+  sourceedits: sourcec2e886f804/framework0.8.41 remainpinned.
+- CRITICALSCOPEFINDING: deployedordinarychatcreatespendingconversationactions,
+  NOTgovernedActionProposalReceipt. Existingreviews/action-proposals/{receiptId}
+  consumesexistingcorrectlyownedPROPOSEDreceipt;read-onlyspecialistcannotmake
+  one. Framework0.8.41alreadyhasprimitives,noframeworkreleasegap. RealDesk
+  approval/rejectionrequiresseparatelyapprovedoriginatingAPPLICATIONwiring.
+  Requiredchataskedowner,deferqualificationorauthorizeboundedruntimeintegration;
+  NOreplyyet. DonotfabricateSQLreceiptsorclaimemptyinboxprovesapproval.
+- CurrentfocusedSOURCEpatchuncommitted: DeskHTTPJsonNodeJackson2serializedas
+  beanflagsunderBoot4Jackson3;Rawlsfixingservicebyte[]+JSONContentTypeandreal
+  BootMVCserializationtests. MainfixingDeskUIlogoutrace(cacheclearoldbinding
+  canauto-restartSSO),App/Auth+2regressions;buildand38portaltestspass. Need
+  combinecommit/pushDeskonlyimage,deployboth,recheckactualreviewarrayandlogout.
+  Actualrole/revocation/reassignmentreadchecksPASS;logoutcaughtgenuinebug.
+- OldInboxretirementNOTDONE/gatedonconversationANDreviewproof. Nativeinventory
+  stageuf8e89g08fokzp5kk2fmeq27+PGq7gc5jrr1mzh5tlmpcppo0qw;production
+  sscwmjlivwe6ag7buffll8vq+PGtyobr77as149sarjjn649r0s;originalpublicdemo
+  stoppedapp i9mwzvct2ttrfabo6t2u0ebx+PGkmxefnvl9rajltyvxkmxc483(twoWAITING).
+  Oldentitledoffers+9stage/12prodspecsstillactiveBasicInbox;mustretireafter
+  proofwithoutrewritingimmutablehistory. Originalloomai.pro/dealershipdemo
+  stillpointsstoppeddep-f023c863/oldstaffInbox;needsseparateactualcutover.
+  DoNOTdeleteAIstate/customerbusiness/Platform/sharedDeskDBsorDeskchannelcode.
+- Privatehosthelpers/runnersunder~/.codex/private/loomai-desk-01048; credentials
+  andbrowserstatesprivate0600. NativepublicsignupSMTP525BrevoIPstillOPEN;
+  fixtureaccountsarenotemaildeliveryproof. Firewallkeepopenownerinstruction.
+
+- User approved full 010.48 implementation with a creative operator UI. Shared
+  managed Desk app+PostgreSQL per environment; deployment/target-scoped agents,
+  separate Support/Reviewer roles, Supabase customer Console identity and native
+  first-party OAuth/PKCE. No runtime/framework edits or new framework release.
+- Shared Desk source/image `ec20cb3fe3c572c35fb98ca8ee00cd08dc397514` committed,
+  pushed and GitHub run40260746672 passed PostgreSQL+portal tests. Staging public
+  HTTPS `https://loomai-desk.46.224.145.148.sslip.io/` is healthy. Prod Desk app
+  i13lxkspuql9qkjzbf2eha4q + shared DB gwp0no7b84h6egbh9hq6hr4y are internally
+  healthy; `desk.loomai.pro` DNS/certificate remains pending. Stage app
+  zyivu69wblt4alx2zevffghj + DB e4fqe4817eaeoam1ys7ev5rv. No customer cutover yet.
+- Platform source auth/activation/bridge+V214/V215 are uncommitted as of03:40UTC;
+  combined170 affected tests passed (0failures/skips), auth40 tests separately
+  passed, Console activation/link browser smoke passed. Desk UI23 browser tests
+  initially passed; final correction aligns review UI/fixtures with actual
+  0.8.41 WAITING_FOR_REVIEW/typed failure/outcome contracts. Do not reuse invented
+  PENDING review statuses. UI source build passed; final contract rerun pending.
+- Target-specific Desk materialization is implemented through normal Coolify
+  apply: read-only previews, per-target secrets/binding, real connector callback
+  registration, first production promotion without an earlier prod release,
+  all active linked customer owners retained. Main adding bounded metadata-only
+  guards for old target-less staff diagnostics; never infer a target's secrets.
+- Customer-link POST additionally requires dedicated exact Console link-origins
+  even if global CORS allows other websites. Cookie+verified native identity
+  dual proof remains mandatory; local staff auth/CORS unchanged. Native OAuth
+  clients and exact email redirects configured; credentials only in ignored
+  `/Users/mahmoudashraf/.codex/private/loomai-desk-01048/`.
+- Actual native signup email failed ONCE at02:54UTC: matching Supabase log proves
+  SMTP525 Unauthorized IP. No user created, resend, admin-confirm bypass or
+  global auth relaxation. Required for production chat owns exact Brevo IP/DNS
+  questions and a separately requested OWNER-PENDING approval for two explicitly
+  synthetic admin-provisioned test identities. No approval inferred or accounts
+  created. Public signup/email delivery remains unqualified. Native email/auth
+  prerequisites must not be represented as a framework defect.
+- Main private hosting helper `loomai-desk-01048/hosting.mjs` configured new Desk
+  and customer-auth settings in existing CP envs without restarting CPs. Old CP
+  code ignores them until new image rollout. Merge, do not overwrite unrelated
+  SPRING_APPLICATION_JSON/env. All old Inbox apps/DBs, current dealership runtime,
+  Engage assignment and customer data remain untouched until real conversation
+  AND action-review proof passes. Main plan010.48 section15 tracks progress.
+- Relevant agents: Rawls01a175ea-1820-7061-82fa-89b7478b46ce finished Platform
+  target binding implementation; Zeno01a175ea-2cfd-7162-9f22-8d0fa765b7e1 finished
+  auth/origin hardening; Hilbert01a175ea-1cf6-73f2-a69c-8836af30124e is fixing UI
+  runtime-review contract. Reuse only for relevant work; no unrelated framework
+  matrix, capacity/drain/recovery redesign or business-database provisioning.
+
 ## 2026-10-25 Normal Production Upgrades And Bootstrap-Only Templates (Verified)
 
 - 20:08UTC CURRENT: Platform fix committed/pushed through26baf9cdf and verified
