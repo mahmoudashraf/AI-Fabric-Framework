@@ -10,6 +10,38 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 05:28UTC CURRENT/checkpoint: deployedDesk3b9909 BOTHhostshealthy/imageID
+  eaf40a68d12cbf6bd188320bb45372d7a71f0b3c68540c9d4f762c0d306b12ef.
+  FullPRODconversationrunnerconversation-production-1792991540201PASS and
+  reviewinboxHTTP200actual[]; read-onlyvisual-production-1792991882424confirms
+  realCLOSED/RETURNED_TO_AI,nopendingtestepisodes,settledlight/dark/mobilePASS.
+  access-staging-1792992099315PASS11realchecks inclSupport-onlydecision403,
+  owner/support/reviewer separation, revocationSAMEcookie403,reassignandactual
+  CSRFlogoutendsanonymous(noautoSSO). Browserharnesssnapshotsmustbeserialized.
+  Onepostrolloutownerreauthcancelled;freshConsoleSSO1792992003990PASSwithout
+  password;individualfailurecauseunproven,noterased. Darkcontrastwastransition
+  screenshotartifact;settledcomputedcolorsPASS,noCSSsourcechangeneeded.
+- BoundedproductionDeskoutagetestoutage-production-1792992392126PASS: noactive
+  humanconversationspreflight,stopONLYDeskapplication,health503OUT_OF_SERVICE,
+  SAMEpublicEngageordinarygroundedstockquery200success,restoreSAMEDeskhealthUP.
+  Actualhuman-authorityDURINGoutagenotseparatelyhostedtested;don'tclaimit.
+  CurrentappstillverifiedPRODUCTIONrel29f/version28c/bindingrev6,unchangedURL.
+  BasicidleDesk310MiB/768MiB,sharedPG42MiB/512MiB perenv;notcapacitybenchmark.
+- IMPORTANTanswerqualityfollowup: post-human-returncompoundrequestdeliverypolicy
+  +previousstockexecutedbutreportednorelevantevidence. HandoverfunctionalPASS
+  isNOTanswerqualityPASS. Recorded010.48section15;noRAG/prompt/frameworkfix.
+  Remainingfull-closuregates: ownerdecisiononapplicationgovernedreceiptproducer
+  (Requiredchatstillpending),realapprove/rejectproof,nativeSMTPBrevoIP/DNS,
+  domainneutral/knownsecondcustomerhostedproof,originalpublicdemoassignment/
+  staffInboxcutover,alllegacyInboxretirement. NOlegacyapps/DBs/code/specsdeleted.
+  SharedDeskchannels/headernamesremaincurrentprotocol.Noframework/runtimeedits.
+- Sourceproductcodeallcommitted/pushed; docscheckpoint653ac4a40, finalstructured
+  evidenceverification-support/loomai-desk-01048/hosted-qualification-20261026.json
+  recordsPARTIALLY_HOSTED_QUALIFIED/completefalse. Privateproofrootunchanged.
+  PublicGuideLOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md andplan01048tracknativeflow.
+  Firewallstaysopenunderownerinstructionuntiloverallplanfinish. Donotstartnew
+  frameworkrelease,capacity/recoverywork,orblindlive-effectreplays.
+
 - 05:12UTC CURRENT: productionrel-29f1fa74/ver-28c18fd1 APPLIED_VERIFIED,
   normalcustomerUI3S3policiesregistered/indexed;vrf-4496e8a029PASS0FAIL4NA.
   ActualprodOwnerDeskSSO, SAMEagentproductionDeskregistrationinitial0bindings,

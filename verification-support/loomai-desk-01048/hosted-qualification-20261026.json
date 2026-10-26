@@ -1,0 +1,78 @@
+{
+  "plan": "010.48",
+  "observedAt": "2026-10-26T05:28:00Z",
+  "status": "PARTIALLY_HOSTED_QUALIFIED",
+  "complete": false,
+  "source": {
+    "branch": "Platform-V11",
+    "backend": "34fb995e5d7691877a86687af1242c24807e7364",
+    "console": "2d14f299ab65e13c407d1415cd067d61564a94db",
+    "desk": "3b9909cd10989344b86f344b8dcd455a5ec15731",
+    "runtimeUnchanged": "c2e886f804b473d5efc20d52beb8f15df7423228",
+    "frameworkUnchanged": "0.8.41"
+  },
+  "verification": {
+    "coreImageRun": 40265720257,
+    "consoleImageRun": 40269725285,
+    "deskImageRun": 40272106154,
+    "focusedNativeReviewHttpTests": { "passed": 2, "failed": 0, "skipped": 0 },
+    "deskBrowserTests": { "passed": 38, "failed": 0 },
+    "consoleAuthBrowserScenarios": { "passed": 12, "failed": 0 },
+    "livePermissionAndLogoutChecks": { "passed": 11, "failed": 0 }
+  },
+  "deployment": {
+    "customerId": "cus-9fd67f55",
+    "deploymentId": "dep-3c4dbe4f",
+    "versionId": "ver-28c18fd1",
+    "staging": { "releaseId": "rel-c5e8d054", "verificationId": "vrf-91efa90b", "passed": 29, "failed": 0, "notApplicable": 4 },
+    "production": { "releaseId": "rel-29f1fa74", "verificationId": "vrf-4496e8a0", "passed": 29, "failed": 0, "notApplicable": 4 },
+    "appUrl": "https://northfield-console-live.apps.loomai.pro/",
+    "installationId": "awi_pub_d33c69a074da480628c2f81358a03144",
+    "assignmentRevision": 6,
+    "appAssignedTo": "production",
+    "newBusinessDatabaseCreated": false,
+    "vectorRecordsTransferredByPromotion": false
+  },
+  "passedLive": [
+    "existing-customer-dual-proof-Supabase-link-preserves-resource-ownership",
+    "owner-one-click-Console-to-Desk-without-second-password",
+    "separate-native-agent-registration-initially-grants-no-bindings",
+    "owner-UI-assigns-deployment-target-Support-and-Reviewer",
+    "staging-and-production-stock-search-AI-handover-claim-human-replies-return-AI-button-handover-close",
+    "production-provider-state-committed-RETURNED_TO_AI-and-CLOSED",
+    "production-review-inbox-returns-actual-JSON-array",
+    "owner-does-not-imply-Support",
+    "Support-does-not-imply-owner-or-Reviewer",
+    "Reviewer-does-not-imply-Support",
+    "revocation-denies-same-session-without-token-reissue",
+    "explicit-reassignment-restores-scope",
+    "local-logout-does-not-silently-restart-SSO",
+    "settled-light-dark-and-basic-mobile-visual-check",
+    "ordinary-grounded-AI-remains-available-during-confirmed-Desk-outage",
+    "same-Desk-application-restored-healthy"
+  ],
+  "notQualified": [
+    "real-action-review-approve-reject-lifecycle-missing-originating-application-receipt-producer",
+    "native-public-signup-verification-and-recovery-email-delivery-Brevo-IP-action-pending",
+    "branded-desk.loomai.pro-DNS-and-certificate",
+    "domain-neutral-hosted-activation-and-known-second-customer-hosted-isolation",
+    "active-human-authority-during-Desk-outage-not-separately-exercised-live",
+    "original-public-site-dealership-assignment-and-staff-inbox-cutover",
+    "legacy-Basic-Inbox-module-provisioner-UI-offer-app-database-retirement"
+  ],
+  "observations": [
+    "A post-return compound policy-and-stock query executed but reported no relevant evidence; answer quality is not marked passed.",
+    "One post-rollout owner reauthorization reached the cancelled-login page; a fresh normal Console launch passed. Root cause of that individual failure is not established.",
+    "Initial release verification failures and failed harness runs are retained privately; they were not rewritten as passes.",
+    "Two explicitly owner-approved admin-confirmed test identities do not prove public email signup.",
+    "An empty live review queue proves transport and access only, not an approval lifecycle."
+  ],
+  "privateEvidenceDirectories": [
+    "conversation-staging-1792989794167",
+    "conversation-production-1792991540201",
+    "access-staging-1792992099315",
+    "visual-production-1792991882424",
+    "outage-production-1792992392126"
+  ],
+  "replay": "Consumed live effects must not be replayed automatically. Browser credentials, storage and raw reports remain private."
+}

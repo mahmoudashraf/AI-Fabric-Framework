@@ -7,6 +7,13 @@ Release qualification is tracked in the [010.48 implementation plan](../../doc/P
 This guide describes the implemented product flow; it is not evidence that every
 hosting environment has completed its cutover.
 
+Current verified deployment: the existing
+[Northfield Engage app](https://northfield-console-live.apps.loomai.pro/) uses
+shared Desk on verified production. The temporary production portal is
+[LoomAI Desk](https://loomai-desk.46.225.162.106.sslip.io/).
+The branded Desk address and public signup email delivery are still pending.
+Existing verified accounts can use the qualified sign-in/support journey.
+
 ## Customer Setup
 
 1. Sign in to the customer Console. Existing password-based customers connect a

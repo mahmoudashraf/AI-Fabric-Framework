@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Implementation in progress (2026-10-26). Shared Desk is hosted on both environments; customer linking, first owner SSO, agent assignment and staging AI/human conversation flow pass live. Production cutover is running. Actual Action Review qualification has a discovered originating-application gap; old Inbox retirement remains gated.
+- **Status:** Partially hosted-qualified (2026-10-26). Shared Desk, customer linking, owner SSO, agent assignment and full AI/human conversation flow pass on staging and production. The existing Engage app is on verified production. Actual Action Review needs a separately agreed originating-application integration; full plan closure and old Inbox retirement remain gated.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -385,7 +385,7 @@ Each phase should be a focused implementation commit with its own verification e
 - [x] Publish/configure the reviewed Desk conversation-channel integration and its server-side binding administration.
 - [x] Add Console enable/open/status controls and app links using existing editors and release services (live staging enable/apply/recheck/open passed).
 - [x] Implement the separate Desk queue/detail/agents UI using the existing channel operations.
-- [ ] Switch the current dealership target to Desk using a normal new configuration version, keeping its deployment identity and Engage URL.
+- [x] Switch the current dealership target to Desk using a normal new configuration version, keeping its deployment identity and Engage URL (both environments; existing app activated on production).
 - [x] Verify AI search -> AI-requested handover -> agent claim/reply -> explicit return to AI -> UI-requested handover -> close, through actual public routes (staging passed; production qualification remains P5).
 
 **Exit:** Current dealership visitors and assigned registered agents complete the real conversation journey on the shared service. No per-deployment Inbox is used for that qualified target.
@@ -406,7 +406,7 @@ Each phase should be a focused implementation commit with its own verification e
 - [ ] Enable Desk on one compatible domain-neutral deployment through the same customer control, without dealership branches.
 - [ ] Verify cross-customer, staging/production target and support/reviewer isolation through the actual APIs, not only hidden UI elements.
 - [ ] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority.
-- [ ] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database.
+- [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (shared-directory PostgreSQL tests and actual two-target provisioning; a second hosted customer journey is not claimed).
 - [ ] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below.
 - [ ] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording.
 
@@ -657,3 +657,66 @@ Read-only native snapshot, 26 October 04:33 UTC:
   customer business systems, Platform databases and the shared Desk stores are
   not retirement targets. Desk's reused internal channel classes and
   `X-LoomAI-Inbox-Key` are still the supported protocol, not obsolete resources.
+
+### Final Hosted Checkpoint: 26 October 05:28 UTC
+
+- Production visitor/agent runner `conversation-production-1792991540201`
+  PASSED: grounded inventory search, AI-requested handover, agent claim,
+  asynchronous human reply, visitor human reply, explicit AI return, a second
+  UI-requested handover and close. The real review queue also returned HTTP 200
+  with JSON `[]`, confirming the serialization correction, not an approval flow.
+- Follow-up read-only inspection `visual-production-1792991882424` confirmed the
+  actual committed provider states `RETURNED_TO_AI` and `CLOSED`; no synthetic
+  episode remained WAITING/ACTIVE/pending. Desktop light/dark and 390px mobile
+  screenshots were inspected. Dark-mode text/background computed colours pass
+  after transitions settle; an earlier screenshot captured the transition and
+  was not evidence of a persistent theme defect.
+- Native access runner `access-staging-1792992099315` PASSED 11 checks: owner
+  without Support, Support without owner, unknown binding, wrong environment,
+  Support-only review read AND decision denial, Reviewer-only conversation
+  denial, immediate same-cookie read denial after revocation, explicit
+  reassignment, and actual CSRF-protected local logout ending unauthenticated.
+  No protected task was created by the denied synthetic decision request.
+- Returning owner SSO passed again on the corrected service image, without a
+  second password (`owner-desk-staging-1792992003990`). One earlier post-rollout
+  reauthorization attempt reached the honest cancelled-login page; its cause
+  was not established. The fresh launch passed. Do not erase that observation
+  or claim provider-wide authentication reliability from these bounded tests.
+- Outage runner `outage-production-1792992392126` PASSED: after verifying no
+  active human conversations, stopped ONLY the shared production Desk app,
+  confirmed it out of service, opened the unchanged Engage app and obtained a
+  grounded stock answer (HTTP 200). Restored the SAME Desk app/image, health UP.
+  This proves ordinary AI availability during a Desk outage. Active human
+  authority during an outage was not separately exercised live; existing
+  protocol/durable-state tests cover that contract, not this hosted experiment.
+- Point-in-time idle snapshot: staging Desk 309.6 MiB / 768 MiB, PG 42.61 MiB /
+  512 MiB; production Desk 310.4 MiB / 768 MiB, PG 42.03 MiB / 512 MiB. Both app
+  and shared database pairs healthy. These are observed samples, not capacity
+  admission guarantees or a load benchmark.
+- **Answer-quality follow-up, not a Desk lifecycle failure:** after the human
+  returned the chat to AI, the request "We are back with AI. Summarize the
+  delivery policy and the electric vehicles you found." ran successfully but
+  answered that no relevant indexed context was available. Initial live stock
+  search and release document-retrieval proof passed. This compound follow-up
+  answer is not qualified as correct; no keyword workaround, forced search-all,
+  hidden fallback, deployment-prompt patch or framework/runtime edit was added.
+
+### Remaining Closure Gates
+
+1. Owner scope decision for the missing originating governed-receipt workflow,
+   then real distinct-reviewer approval/rejection, separation of duty and
+   no-duplicate execution proof. The question is in **Required for production**.
+2. Native signup/verification/recovery email delivery after the Brevo IP action.
+   Approved admin-confirmed fixtures do not close public registration readiness.
+3. Branded `desk.loomai.pro` DNS/certificate qualification. Temporary production
+   HTTPS works; it is not a claim that the branded name resolves.
+4. Compatible domain-neutral hosted activation and a known second-customer
+   hosted isolation proof. Generic source and real PostgreSQL multi-scope tests
+   passed; these additional hosted journeys have not been run.
+5. Original public dealership site's stopped assignment/staff inbox cutover,
+   explicit disposition of its two waiting conversations, new Desk-ready offer
+   defaults, and full legacy provisioner/UI/module/app/database retirement AFTER
+   the agreed combined qualification gate. No deletion has been performed.
+
+The implementation is committed and working for the qualified conversation
+journey. The overall plan is deliberately **not marked complete**.
