@@ -13,6 +13,9 @@ shared Desk on verified production. The temporary production portal is
 [LoomAI Desk](https://loomai-desk.46.225.162.106.sslip.io/).
 The branded Desk address and public signup email delivery are still pending.
 Existing verified accounts can use the qualified sign-in/support journey.
+Conversation handover and real action-review decisions have both passed on the
+dealership's staging and production targets. The old per-deployment Inbox
+services and their dedicated databases have been retired.
 
 ## Customer Setup
 
@@ -34,6 +37,77 @@ The app and deployment addresses stay the same. A new configuration release does
 not automatically change an Engage app's pinned assignment: use the Console's
 existing verified-release assignment control when a switch is needed. Each app
 uses the support team belonging to its assigned deployment target.
+
+## Deployment Assignment To Desk
+
+There are two separate assignments: **connect the deployment to Desk**, then
+**give registered people access to that deployment**.
+
+1. In the customer Console, open **Human support** for the owned deployment and
+   select the staging or production target and its release.
+2. Select **Enable LoomAI Desk**. Platform creates or reuses a binding for that
+   exact deployment and target. The binding records the customer, tenant,
+   deployment and target; it is not an assignment to a particular agent.
+3. Platform registers the customer workspace and its linked owners in the shared
+   Desk service for that environment. It generates integration credentials
+   server-side, registers the connector callback and review bridge, and configures
+   the Desk conversation-channel plugin. No customer has to copy operator keys.
+4. The existing publish, apply and verify process installs the configuration.
+   If there are unrelated draft edits, review them first. **Enabled** means the
+   resulting target release has passed verification, not just that a checkbox
+   was saved.
+5. If the Engage app still references an older release, use **Versions & updates
+   -> Use verified release** to switch its assignment. The same public app URL
+   then uses the selected deployment target and its Desk binding.
+6. Select **Open LoomAI Desk**. Console sign-in is reused through the native
+   Supabase authorization flow. In **Agents & access**, assign an already
+   registered person as **Support**, **Reviewer**, or both for this target.
+
+The owner can manage these assignments but must explicitly assign themselves
+Support or Reviewer permission to do that work. A Desk link contains only
+navigation context; Desk checks the signed-in person's permissions independently.
+
+Staging and production have different bindings and agent assignments. Applying a
+Desk-enabled version to production prepares that target's binding and callback
+automatically; it does not copy staging's agent grants. Normal upgrades on the
+same deployment and target reuse its binding and preserve its existing agent
+assignments. Multiple Engage apps on that target share the same support team.
+
+This creates metadata and credentials, **not another Inbox service or database**.
+One shared Desk application/store serves the customers in each environment.
+Ordinary AI chat still goes directly to the deployment. During handover, the
+deployment connector sends the support conversation to Desk, and signed Desk
+callbacks carry human replies back through that connector to the visitor.
+
+## Authentication Between Desk And A Deployment
+
+Human sign-in and service integration use different credentials:
+
+- **Agent to Desk:** Supabase authenticates the person. Desk checks the active
+  Support or Reviewer assignment for the selected deployment and target on each
+  protected operation. Sign-in alone grants no deployment access.
+- **Deployment connector to Desk:** HTTPS requests carry the binding-specific
+  provider API key in `X-LoomAI-Inbox-Key` (the existing protocol header). Desk
+  resolves that key to an enabled binding and validates the payload's binding,
+  tenant and deployment. One binding's key cannot select another deployment.
+- **Desk to deployment connector:** callbacks carry an HMAC-SHA256 signature
+  over the timestamp, nonce and exact body. The connector verifies the signature,
+  allowed timestamp, binding and nonce replay protection. It forwards accepted
+  events to the runtime with the runtime API credential and a separate callback
+  signature. These are not ordinary anonymous chat requests.
+- **Action reviews:** Desk forwards the verified reviewer's Supabase access token
+  and a separate binding-specific service credential to Platform's review bridge.
+  The bridge validates both, rechecks the current Reviewer assignment with Desk,
+  and resolves the current verified release. It then issues a two-minute runtime
+  identity assertion limited to review viewing or review decision scopes, carrying
+  the real reviewer's subject. Runtime review policy still governs the decision.
+
+Platform generates and configures the integration secrets server-side during
+activation/apply. Staging and production use separate binding credentials.
+Customers do not manually distribute these keys, and they never appear in an
+Engage visitor script, an Open Desk link or the agent's browser configuration.
+This is HTTPS plus scoped service keys and signed messages; it is not mTLS or a
+shared end-user password between services.
 
 ## Agent Registration
 
@@ -92,17 +166,18 @@ and submit it through the runtime's review-creation API with the correct trusted
 identity. Desk neither creates fictional tasks nor executes the business write
 itself.
 
-Current qualification limitation: the retained dealership runtime's ordinary
-chat confirmation does not produce those governed receipts. The review UI and
-authorized bridge are implemented, but real dealership approval/rejection is
-not qualified until the separate originating application integration is supplied.
-An empty live review inbox is not evidence of an approval lifecycle.
+Ordinary dealership chat confirmation does not produce governed review receipts.
+The separately authorized application integration below passes real staging and
+production approval/rejection: approval creates exactly one external request,
+rejection none, and decision replay creates no duplicate.
+An empty review inbox alone is still not evidence of an approval lifecycle.
 
 ### Originating Application Integration (Opt-In)
 
 The owner-authorized runtime adapter adds a separate, private application API;
-ordinary chat confirmations remain unchanged. Its hosted qualification is still
-pending. Enable it through versioned deployment behavior configuration:
+ordinary chat confirmations remain unchanged. Its dealership staging and
+production journeys are qualified. Enable it through versioned deployment
+behavior configuration:
 
 ```json
 {

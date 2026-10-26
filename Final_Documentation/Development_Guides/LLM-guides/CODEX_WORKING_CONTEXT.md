@@ -10,6 +10,109 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 12:58UTC CURRENT, supersedes older checkpoints below: BOTH control-plane
+  backends/Consoles and the SAME external dealership API now native-verified
+  source7bf91b1f419103bd7b474b0b986f4fe93b948ff0; CI40319293535core and
+  40319293608dependenciesPASS. Both schemas216, active obsoleteInboxspecs0,
+  Deskpluginpublished and4Desk-readytemplates. Desk3b9909 unchanged; runtime
+  c0265e8d8/framework0.8.41 unchanged. Both runtime releases verified29/0/4;
+  SAMEapp/consumer remainsproductionrel-c24e897e/revision7, no new businessDB.
+- REALreview-production-1793016197517 andreview-staging-1793014616252 PASS:
+  approve1externalwrite/reject0/exactreplay0extra/staleversion409. After ALL
+  legacydeletions, public embeddedconversation-production-embedded-1793018725024
+  PASS actualAIsearch/AIhandover/claim/two-wayhumanmessages/returnAI/AIquery/
+  UIhandover/close. Newpublicinstallawi_pub_53199a05a3e82c788c2dc84f8009925f.
+  Finalreadonlystafflink/nativeOAuth/basicmobilePASS
+  final-staff-readback-1793019285711;0legacycalls/0pageerrors. Two earlier
+  readonlyharnessfailures(routeexpectation/duplicateSignInbuttons) preserved;
+  no productauthchange or repeatedbusinesswrite to make screenshots pass.
+- All3OLD Inbox app/PG pairs VERIFIEDABSENT includingcontainers/ownedvolumes:
+  uf8e89g08fokzp5kk2fmeq27/q7gc5jrr1mzh5tlmpcppo0qw(stage),
+  sscwmjlivwe6ag7buffll8vq/tyobr77as149sarjjn649r0s(prod),
+  i9mwzvct2ttrfabo6t2u0ebx/kmxefnvl9rajltyvxkmxc483(originaldemo).
+  Private scopedSQL/configexports+hashes kept; restoreNOTtested. Originaldemo
+  twohistoricalWAITINGepisodesarchived, not falselyclosed/migrated. Exact
+  unreferenced leftoverdata volumes removed withoutforce/globalprune. Historical
+  graphs/payloads/hashes remainhistory, notfabricatednative-retirementevents.
+- Olddemo4installations/2consumersDISABLED throughnormalAPIs. Sharedfrontend
+  andcurrentcustomer untouched. SAMEexternalbusinessPGs10ag41pp0ti4l93e5o0xq0f
+  retained; obsoleteclientclasses/HUMAN_INBOX_*configremoved. Bothconnectors'
+  desiredunusedMANAGED_INBOX_*recordsremoved; runningprocess retainsdeadstrings
+  untilnextnormalrestart. ACTUALloadedrouting exactv5hashbd8d484f...references
+  none; no oldendpointused. Don'tclaimprocessenvempty or restartperformed.
+- Customer guide now explains BOTHassignments: deployment+target->Deskbinding,
+  registeredperson->Support/Reviewer onthatbinding. Normalapply/promotion
+  prepares target-localcallback/keys; same-targetupgradesreusebinding/grants;
+  staginggrantsnotcopiedtoprod; no per-deploymentInboxDB/service. Ownerisnot
+  automaticallySupport/Reviewer. Appmustexplicitlyuseverifiedrelease.
+- Fullclosure STILLNOTclaimed: brandedDeskDNS/cert, nativepublicverification/
+  recoveryemail(BrevoIP), neutralactivation/knownsecondcustomerhostedproof,
+  activehuman-authorityoutagecase, redactedshareabledemorecording. Publicrichsite
+  protected-loginhostmissing; standaloneauthisnotitsproof. Priorcompound
+  policy+stockanswerqualityissue staysseparate. Required/Updates notified~12:57.
+  No newaccounts/mail/AIframeworkedit/release. Firewallstaysopenasownerasked.
+
+- 12:14UTC CURRENT: BOTH runtimesc0265e8d8/AI Fabric0.8.41. Production SAME
+  v5ver-6b73cd40/artifactdsa-32658297/rel-c24e897e APPLIED_VERIFIED;
+  vrf-e038063f29PASS/0FAIL/4NA after actualcustomerUI3freshS3policiesindexed.
+  Native production exactOCIroot5c6326ee.../source/amd64/linux/healthPASS.
+  Initialvrf-323583a7failedONLYdocument_active_sources_ready; retained.
+- REALproduction review UI review-production-1793016197517 PASS approve1/
+  reject0, exactreplay/noextra write, newstaledecision409/noextra write.
+  SAMEappconsumer northfield-console-live-20261024 nowboundrelc24/revision7
+  through normal Versions & updates -> Use verified release actualcustomerUI,
+  assign-verified-release-production-1793016390780. NoSQLassignmentwrites.
+  First-time practicalpromotion/activation screens were wrong harness path for
+  directupgrade: rejected409/400 BEFOREassignment. No product workaround/fix.
+- Publicsite source7bf91b1f419103bd7b474b0b986f4fe93b948ff0, exactnativejob
+  lml98b2lucoeu8z306l8ambl finished. NewACTIVEembedded installawi_pub_53199a05a3e82c788c2dc84f8009925f
+  SAMEconsumer. RuntimeplatformAPIoriginproduction/currentruntimeCSP updated.
+  Actualpublicsite fullflow conversation-production-embedded-1793016670129 PASS
+  AIsearch->AIhandover->agentreply->visitorreply->returnAI->UIhandover->close.
+  Standalone newreleaseall6functionalchecksPASS but runnerfinishedFAILED only
+  followup theme expectation(accountalreadydark); failurepreserved, no replay.
+  Independentvisual-production-1793016792056 PASS light/dark/mobile, allactual
+  testepisodesCLOSED/RETURNED_TO_AI. Publicembedprotectedlogin NOTqualified.
+- Cleanup commits50bc2861e +7bf91b1f4 pushed. CI40319293535core and40319293608
+  dependencies PASS; backend/UI/externalOCIproofs in private retirement-images/.
+  378mainfocusedbackend +2realPGmigrationtests/0skip;12customerUIscope,API
+  contracts,staffbrowser,TS/buildPASS. V216deactivatesobsoleteInboxspecs and
+  deprecatesoldbootstrapversions ONLY; historicalpayloads/hashes/graphs unchanged.
+- Fresh compressedSQL/configexports forBOTH CPs and SAMEexternalbusinessPG
+  in private retirement-rollout-backups/, restore NOTtested. Initialrawstage
+  dump exceeded32MiB helper transportbuffer; compressedstreamverifiedactualSQL
+  successfully(69.7MBuncompressed), notfirewall/DB outage. No source-datawrites.
+  Stagebackend7bf cleanuprollout nowbeingqueued; do NOT resubmit blindly.
+  Prodbackend/Console stillolduntilreadback. ALL3oldInboxnativepairsstillpresent;
+  no deletions yet. Needcleanupimages/metadata verified, externalreceiverunused
+  Inboxclient/env retired, actualpublicstaffDesklink then exactnativecleanup.
+
+- 11:46UTC CURRENT: runtime-only startup correction c0265e8d89c8d7ab0d6075bd2b6cd2db7886e6e6
+  pushed; CI40313425336 PASS. Stage v5ver-6b73cd40/artifactdsa-32658297/
+  rel-416f6ea9 APPLIED_VERIFIED, vrf-af0c072b29PASS/0FAIL/4NA, native exact
+  source/health verified. Both CP backends remain0d4095a7c; Console2d14, Desk3b9909.
+- Genuine staging Action Review UI proof review-staging-1793014616252 PASS:
+  approve creates exactly1 external request, reject0, exact replay200/no extra
+  write, stale decision409/no extra write. Actual current READ validates target
+  DEMO-1001, source identity distinct from reviewer. Framework0.8.41 unchanged;
+  owner-approved real mailbox is test input, NOT a substring-validator fix.
+- Production artifact promotion complete. Normal S3 binding renewal for same
+  bucket/prefix/readonly keys dsh-43c00b43-413 -> dsh-22f01deb-e62 complete;
+  no source-object writes/new storage. First-time promotion UI rejected before
+  apply because consumer already production-bound (requires exact bound staging
+  candidate). Do NOT roll app back just for that screen; use normal direct
+  existing-deployment production apply. Prior session60028 exited1 with no apply.
+  SAME consumer/app still old verifiedv3/revision6 until explicit activation.
+- Agent-prepared Backend/UI/external-demo/staff legacy Inbox retirement code
+  remains uncommitted, focused qualification passed. Native old3 Inbox app/PG
+  pairs NOT deleted; scoped dumps/config exports retained privately, restore
+  not tested. Source Basic module/workflow still present. No whole-target cleanup.
+- Private batch review-lookup-runtimefix guards consumed effects. Before any
+  repeat inspect actual response/intent; production apply not yet submitted at
+  this checkpoint. Branded Desk DNS and Brevo native email gate still open.
+  Public embed prepared inactive; protected-signin host missing, not qualified.
+  Owner was given actual assigned agent fixture credentials, no auth reset.
+
 - 11:13UTC source0d4095a7c CI40310876627backend/40310876716runtimePASS,
   bothbackendsnativehealthy. Newartifactdsa-0517056d, v5ver-6b73cd40,
   stageapplyrel-ebdbddc4 exposedstartupbug: proposal specialist unnecessarily

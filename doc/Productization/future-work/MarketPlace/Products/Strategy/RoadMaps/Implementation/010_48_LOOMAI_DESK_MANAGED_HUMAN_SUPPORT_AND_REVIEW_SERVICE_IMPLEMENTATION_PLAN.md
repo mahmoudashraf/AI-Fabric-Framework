@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Partially hosted-qualified (2026-10-26). Shared Desk, customer linking, owner SSO, agent assignment and full AI/human conversation flow pass on staging and production. The existing Engage app is on verified production. Actual Action Review needs a separately agreed originating-application integration; full plan closure and old Inbox retirement remain gated.
+- **Status:** Hosted dealership core qualified (2026-10-26, 12:55 UTC). Shared Desk, customer linking, owner SSO, agent assignments, full AI/human conversation journeys and genuine Action Review approve/reject/replay pass on staging and production. The public dealership demo uses the verified production release; all three legacy Inbox application/database pairs and active provisioning paths are retired. Full-plan closure remains open for native public email, branded DNS, domain-neutral/second-customer hosted proof and the active-human outage case; see the current execution record.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -25,7 +25,7 @@ The first release includes:
 The first release does **not** include:
 
 - Application-specific agent authorization. An Engage app opens its deployment's Desk workspace and inherits that deployment's support team.
-- Runtime or AI Fabric framework code changes, new framework releases, or a new handover/review engine.
+- AI Fabric framework changes/releases or a new handover/review engine. The original no-runtime-edit scope has the separately owner-authorized, narrowly bounded application-proposal adapter exception recorded in section 15; no other runtime redesign is included.
 - A CRM, lead database, workforce-management platform, skills routing, omnichannel messaging or an enterprise notification system.
 - A new database, service deployment or Supabase project for every customer, agent or deployment.
 - Capacity/admission redesign, generalized draining, disaster-recovery orchestration or an exhaustive unrelated release matrix.
@@ -35,7 +35,11 @@ The name is a product proposal, not a trademark or domain-availability claim. Pr
 
 ## 2. Current Implementation And Reuse
 
-### 2.1 What already works
+### 2.1 Pre-implementation baseline
+
+This subsection records the starting point, not the current supported product.
+The standalone Basic Inbox module/provisioner and its live per-deployment
+resources were removed during the qualified Desk cutover below.
 
 Basic Inbox implements queue, claim, participant replies, explicit return to AI, close, callback retries and operator delivery status. Its README explicitly requires one trusted tenant/deployment pair per instance. Tenant/deployment configuration, provider credentials, callback destination and operator credentials are currently process-global.
 
@@ -73,12 +77,13 @@ This plan deliberately moves **customer** Console authentication to Supabase. It
 
 Relevant current files, relative to the repository root:
 
-- `product-services/basic-loomai-inbox-service/README.md`
-- `product-services/basic-loomai-inbox-service/src/main/java/com/loomai/inbox/service/BasicInboxService.java`
-- `product-services/basic-loomai-inbox-service/src/main/java/com/loomai/inbox/service/InboxSecurityService.java`
-- `product-services/basic-loomai-inbox-service/src/main/java/com/loomai/inbox/persistence/BasicInboxRepository.java`
-- `product-services/basic-loomai-inbox-service/src/main/java/com/loomai/inbox/service/InboxCallbackWorker.java`
-- `verification-support/productization-01036/managed-postgres-inbox-spec.mjs`
+- `product-services/loomai-desk-service/README.md`
+- `product-services/loomai-desk-service/src/main/java/com/loomai/desk/service/DeskDirectory.java`
+- `product-services/loomai-desk-service/src/main/java/com/loomai/desk/service/DeskChannelService.java`
+- `product-services/loomai-desk-service/src/main/java/com/loomai/desk/service/DeskReviewService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/desk/DeskActivationService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/desk/DeskBindingProvisioner.java`
+- `Platfrom/backend/src/test/resources/dependency/retired-basic-inbox-spec.json` (historical decoding/test fixture, not an active provisioning path)
 - `Platfrom/ui/src/auth/PlatformAuthProvider.tsx`
 - `Platfrom/ui/src/pages/CustomerKnowledgeConnectionsPage.tsx`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/service/PlatformIdentityService.java`
@@ -386,29 +391,36 @@ Each phase should be a focused implementation commit with its own verification e
 - [x] Add Console enable/open/status controls and app links using existing editors and release services (live staging enable/apply/recheck/open passed).
 - [x] Implement the separate Desk queue/detail/agents UI using the existing channel operations.
 - [x] Switch the current dealership target to Desk using a normal new configuration version, keeping its deployment identity and Engage URL (both environments; existing app activated on production).
-- [x] Verify AI search -> AI-requested handover -> agent claim/reply -> explicit return to AI -> UI-requested handover -> close, through actual public routes (staging passed; production qualification remains P5).
+- [x] Verify AI search -> AI-requested handover -> agent claim/reply -> explicit return to AI -> UI-requested handover -> close, through actual public routes (staging and production; public embedded demo rechecked after legacy removal).
 
 **Exit:** Current dealership visitors and assigned registered agents complete the real conversation journey on the shared service. No per-deployment Inbox is used for that qualified target.
 
 ### P4 Action review portal
 
 - [x] Add the bounded Platform review integration adapter using actual Desk reviewer identity, existing request signing and target authorization (focused offline tests passed).
-- [ ] Configure Human Review through existing deployment settings; consume real runtime tasks rather than Desk-only fixtures.
+- [x] Configure Human Review through existing deployment settings; consume real runtime tasks rather than Desk-only fixtures (real staging and production tasks and decisions qualified).
 - [x] Add pending-task detail, approve/reject and receipt views in Desk.
-- [ ] Prove a reviewer can approve one real demo proposal and reject another, a support-only agent cannot decide, and stale/replayed decisions do not duplicate execution.
-- [ ] Check configured separation of duty and that the returned business-action outcome is shown honestly.
+- [x] Prove a reviewer can approve one real demo proposal and reject another, a support-only agent cannot decide, and stale/replayed decisions do not duplicate execution (actual UI/API decisions and read-only business counts on both environments; permission checks through actual APIs).
+- [x] Check configured separation of duty and that the returned business-action outcome is shown honestly (actual distinct application source and assigned reviewer; actual completed outcome, not a fabricated receipt).
 
-**Exit:** Conversation support and action review both work in Desk with separate permissions and unchanged framework/runtime binaries.
+**Exit:** Conversation support and action review both work in Desk with separate permissions. The framework remains published 0.8.41. The initial no-runtime-change constraint has the explicit owner-authorized, generic opt-in application-adapter exception recorded below; ordinary chat behavior is unchanged.
 
 ### P5 Hosted customer journey and removal of old Inbox
 
-- [ ] Run the full dealership journey with a customer owner and a different registered agent/reviewer on staging, then the current production deployment.
+- [x] Run the full dealership journey with a customer owner and a different registered agent/reviewer on staging, then the current production deployment.
 - [ ] Enable Desk on one compatible domain-neutral deployment through the same customer control, without dealership branches.
 - [ ] Verify cross-customer, staging/production target and support/reviewer isolation through the actual APIs, not only hidden UI elements.
 - [ ] Verify Desk interruption leaves ordinary AI chat healthy and does not silently transfer human authority.
 - [x] Record actual service/database inventory and basic resource usage; show that adding a customer creates a binding, not another Inbox service/database (shared-directory PostgreSQL tests and actual two-target provisioning; a second hosted customer journey is not claimed).
-- [ ] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below.
+- [x] Remove all remaining per-deployment Basic Inbox services/databases and active provisioning paths after the retirement checks below (three scoped pairs, containers and owned volumes verified absent; archived demo history retained privately).
 - [ ] Update operator/customer guides, Marketplace/template defaults, cleanup ownership and a real customer/agent demonstration recording.
+
+Guides, Desk-ready template defaults and cleanup ownership are updated. Actual
+customer/agent browser recordings exist privately with the passing journey
+reports; a redacted, shareable demonstration has not been delivered. The unchecked
+isolation gate still needs a known second hosted customer, and the outage gate
+still needs an active-human conversation case; existing offline and ordinary-AI
+outage proofs are not substituted for those cases.
 
 **Exit:** The formal support service is Desk, old per-deployment Inbox resources are gone, and no supported template/provisioner recreates them.
 
@@ -438,7 +450,7 @@ Before the retirement step, a failed canary may revert to the still-existing old
 - The dealership's existing public Engage URL completes AI -> human -> AI journeys with real operator replies.
 - The same portal handles real action-review tasks through the existing runtime decision APIs, with distinct reviewer permissions and real actor attribution.
 - Existing visitor authentication, attachments, conversation continuity and ordinary AI queries still work.
-- The runtime/framework binaries and public integration contracts are unchanged by this feature.
+- The framework and existing conversation-channel contract are unchanged. The narrowly owner-authorized opt-in runtime application-proposal adapter is separately versioned, tested and qualified; it does not silently change ordinary chat confirmation.
 - Per-deployment Basic Inbox services, dedicated databases, active provisioners, operator-key UI and obsolete deployment instructions are removed.
 - No business inventory/lead database, hidden LLM fallback, duplicate review engine or unrelated operational redesign was added.
 
@@ -816,3 +828,132 @@ checked, and action/resource authorization is unchanged. A focused regression
 now validates that exact profile against a distinct registered vector catalogue;
 all 24 focused runtime tests pass. This is a LoomAI integration correction, not
 a framework change or a validation bypass. Production assignment is unchanged.
+
+### 2026-10-26 Genuine Staging Review And Production Upgrade
+
+Runtime-only correction `c0265e8d89c8d7ab0d6075bd2b6cd2db7886e6e6` passed
+CI `40313425336`. Staging version `ver-6b73cd40`, artifact `dsa-32658297`,
+release `rel-416f6ea9` is **APPLIED_VERIFIED**. Verification `vrf-af0c072b`
+records 29 PASS, 0 FAIL and 4 not-applicable checks. Native runtime source and
+health match that immutable artifact; the three registered S3 policies remain
+indexed under the fresh owned staging binding.
+
+Real staging tasks `review-task-234f9760-c6ec-4459-9bce-92097b1cbe32` and
+`review-task-ea5ee443-38b5-4629-8eef-7d2df662a757` were created through the
+private application endpoint, then approved/rejected in actual Desk UI by the
+separately assigned reviewer. Read-only external receiver counts prove approval
+created exactly one request and rejection none. Exact decision replay returns
+the original result without another write; a new decision with the stale version
+returns 409. The actual current READ authorized the candidate target; no SQL
+receipt fixture or untrusted vehicle identifier bypass was used.
+
+The published framework's substring validator remains unfixed under the owner's
+explicit keep-framework decision. Owner-authorized real contact values are test
+inputs, not a framework correction. The first harness count read failed before
+any decision because it assumed a shared route rather than the actual compiled
+per-action URL/header; that failed run is retained, not relabelled as a pass.
+
+After staging proof, the artifact was promoted to the production channel.
+The same customer-owned production S3 binding was renewed through normal APIs
+using the same bucket, prefix and read-only keys; no source objects were written.
+The first-time promotion screen correctly rejected an already production-bound
+consumer, before an apply. The existing-deployment direct upgrade path was then
+used: production `rel-c24e897e` is cold-applying the same v5/artifact. The app URL
+and consumer identity remain unchanged. Production approval/rejection, fresh
+policy registration and explicit verified assignment activation are still due.
+
+Source cleanup has passed 378 focused backend tests, 12 customer UI scope
+scenarios, 14 API contract checks and the staff-page browser regression. The
+obsolete standalone Inbox module/build entry is removed in source; its historical
+specification fixture moved into backend test resources. Old native Inbox apps
+and databases are not yet removed. Their scoped configuration/SQL exports exist;
+restore testing is not claimed.
+
+The public embedded site has no sign-in host for protected actions. Its anonymous
+journey may be qualified independently; protected workflows remain on the
+existing standalone Engage app. Native public verification email delivery and
+branded Desk DNS remain external open gates.
+
+### 2026-10-26 Production Qualification And Legacy Retirement Complete
+
+Current observation: **12:58 UTC**. This entry supersedes earlier in-progress
+entries; those failures and checkpoints remain historical evidence.
+
+- Both control-plane backends and Consoles, the public site and the same
+  external dealership API run source
+  `7bf91b1f419103bd7b474b0b986f4fe93b948ff0`. Native source, immutable image,
+  platform and health readbacks passed. Core CI `40319293535` and dependency CI
+  `40319293608` passed. Both Platform schemas are 216; no obsolete Inbox
+  dependency specification remains active, and four Desk-ready template versions
+  are available. The shared Desk remains `3b9909cd1`; both runtimes remain
+  `c0265e8d8`, using published AI Fabric **0.8.41**.
+- The existing deployment `dep-3c4dbe4f`, version `ver-6b73cd40` and runtime
+  artifact `dsa-32658297` are verified on staging `rel-416f6ea9` and production
+  `rel-c24e897e`. Checks `vrf-af0c072b` and `vrf-e038063f` each record 29 PASS,
+  0 FAIL and 4 not applicable. The customer UI discovered, registered, publicly
+  approved and indexed the three existing customer-owned S3 policies in each
+  fresh binding; no source-object writes or new storage service were needed.
+- Production review tasks were genuinely created by the authorized application
+  endpoint and decided by a different registered reviewer in Desk. Actual
+  external receipt counts prove approval wrote exactly once, rejection did not
+  write, and identical decision replay did not repeat a write. A different
+  decision against the stale version returns 409. Both staging and production
+  review journey reports pass; this is not an empty-queue or SQL-fixture proof.
+- Normal **Versions & updates -> Use verified release** assigned the same
+  consumer/app to production release `rel-c24e897e`, revision 7. The existing
+  `northfield-console-live.apps.loomai.pro` address did not change. Rejected
+  first-time promotion/activation attempts occurred before assignment and remain
+  failed harness-path evidence; no extra publishing mechanism or safety bypass
+  was added to force them through.
+- The public dealership site uses new active installation
+  `awi_pub_53199a05a3e82c788c2dc84f8009925f` for that same consumer. The actual
+  browser journey **passed again after all old Inbox resources were deleted**:
+  AI inventory search, AI-requested handover, agent claim/reply, visitor reply,
+  explicit return to AI, another AI query, button-requested handover and explicit
+  close. Latest proof: `conversation-production-embedded-1793018725024`.
+- The staff page exposes only the shared Desk link before independent dealership
+  staff login. Final read-only desktop/native OAuth/basic-mobile proof
+  `final-staff-readback-1793019285711` passed with zero old Inbox requests and zero
+  page errors. The signed-out link correctly redirects automatically to Console
+  authorization. Earlier harness assumptions about an intermediate link and a
+  unique Sign in button failed; those reports remain failed, and only the
+  read-only harness was corrected.
+- All three old Inbox application/database pairs are verified absent through
+  native API/container/owned-volume checks: staging
+  `uf8e89g08fokzp5kk2fmeq27` / `q7gc5jrr1mzh5tlmpcppo0qw`, production
+  `sscwmjlivwe6ag7buffll8vq` / `tyobr77as149sarjjn649r0s`, and original demo
+  `i9mwzvct2ttrfabo6t2u0ebx` / `kmxefnvl9rajltyvxkmxc483`. Scoped SQL and
+  configuration archives with hashes were retained privately before deletion;
+  restore testing is not claimed. The original demo's two historical waiting
+  episodes were archived, not falsely closed or migrated. The old demo's four
+  installations and two consumers are disabled through normal APIs.
+- Source retirement commits `50bc2861e` and `7bf91b1f4` remove the obsolete
+  module/build path, provisioner, old operator UI/API and external demo Inbox
+  client. Historical payload/hash/graph/audit records remain intact. V216 marks
+  obsolete specifications inactive and old template versions deprecated; it does
+  not rewrite immutable history or claim native deletion through historical
+  graph status. The external business database and shared Desk, Platform,
+  runtime AI-state and vector services were not deleted.
+- Both connectors' desired unused `MANAGED_INBOX_*` environment records are
+  removed. Existing processes retain dead variable strings until the next normal
+  restart. The actual loaded, signed v5 routing matches immutable SHA-256
+  `bd8d484fe287f3bf4449a5c9abf9a4e081ff1360a2efb51201ec974bda0c8f8c` and
+  references none of them; no connector restart was performed for this cleanup.
+- The customer guide now explicitly separates deployment/target-to-Desk binding
+  from agent-role assignment, explains verified app assignment and target-local
+  promotion, and records that upgrades reuse bindings without allocating another
+  Inbox service/database.
+
+**Remaining, not represented as passed:** native public signup/recovery email
+delivery, branded `desk.loomai.pro` DNS/certificate, domain-neutral activation,
+known second-customer hosted isolation and active-human authority during a Desk
+outage. A redacted shareable recording has not been delivered; actual customer
+and agent browser recordings are retained with the private passing reports.
+The public embedded demo's protected sign-in host is also not implemented;
+its qualified anonymous journey is distinct from standalone Engage sign-in.
+The earlier compound inventory/policy answer-quality observation remains a
+separate product-quality issue, not a failed handover or a silently fixed one.
+
+Structured, secret-free evidence is recorded in
+`verification-support/loomai-desk-01048/hosted-qualification-20261026.json`.
+Raw proof, credentials, SQL exports and browser state remain outside Git.
