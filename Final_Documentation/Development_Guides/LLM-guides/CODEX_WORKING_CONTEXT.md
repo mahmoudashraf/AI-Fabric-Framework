@@ -10,6 +10,15 @@ Rules:
 
 ## 2026-10-26 LoomAI Desk 010.48 Implementation In Progress
 
+- 08:56UTC OWNERAPPROVED narrow originating-application/runtime governed review
+  integration in Required for production; actual human message
+  01a1776b-885e-7cb2-8ccb-b2280300bfa6 verified, private receipt under
+  ~/.codex/private/loomai-desk-01048/owner-decisions/. Dated exception recorded
+  in01048; framework stays published0.8.41, noframeworkrelease. Main inspecting
+  smallest generic opt-in receipt producer and external dealership actions;
+  Zeno independent exactcontract read-only check. No newruntime edit/rollout yet.
+  DNS/SMTP and legacyretirement gates remain open, no syntheticSQLreceipt proof.
+
 - 05:28UTC CURRENT/checkpoint: deployedDesk3b9909 BOTHhostshealthy/imageID
   eaf40a68d12cbf6bd188320bb45372d7a71f0b3c68540c9d4f762c0d306b12ef.
   FullPRODconversationrunnerconversation-production-1792991540201PASS and

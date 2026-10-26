@@ -69,6 +69,31 @@ class DeploymentBehaviorCatalogServiceTest {
     }
 
     @Test
+    void actionProposalConfigurationIsExplicitAndRequiresHumanReview() {
+        ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
+        behavior.putObject("humanReview").putObject("actionProposals")
+            .put("enabled", true).putArray("allowedActions").add("registered_write");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").code())
+            .isEqualTo("HUMAN_REVIEW_EXTENSION_REQUIRED");
+        behavior.withArray("executionExtensions").add("HUMAN_REVIEW");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isTrue();
+        ((ObjectNode) behavior.path("humanReview").path("actionProposals")).putArray("allowedActions");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").code())
+            .isEqualTo("REVIEW_PROPOSAL_ACTIONS_INVALID");
+    }
+
+    @Test
+    void actionProposalAllowlistCannotContainWildcardsOrUnboundedEntries() {
+        ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
+        behavior.withArray("executionExtensions").add("HUMAN_REVIEW");
+        var proposals = behavior.putObject("humanReview").putObject("actionProposals").put("enabled", true);
+        proposals.putArray("allowedActions").add("*");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isFalse();
+        proposals.putArray("allowedActions").add("registered_write");
+        assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isTrue();
+    }
+
+    @Test
     void rejectsUnreviewedBindingPlaceholders() {
         ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
         behavior.withArray("executionExtensions").add("CONVERSATION_HANDOVER");

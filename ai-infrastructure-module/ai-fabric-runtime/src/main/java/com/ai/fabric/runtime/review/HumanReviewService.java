@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.review;
 
 import ai.fabric.execution.context.ExecutionPrincipal;
+import ai.fabric.execution.context.ExecutionCallerIdentity;
 import ai.fabric.execution.context.ExecutionPrincipalType;
 import ai.fabric.execution.context.ExecutionSource;
 import ai.fabric.execution.context.ExecutionSubjectRef;
@@ -145,7 +146,15 @@ public class HumanReviewService {
         );
     }
 
+    TrustedExecutionContext sourceContext(RuntimeResolvedIdentity identity) {
+        return sourceContext(requireAuth(identity));
+    }
+
     private TrustedExecutionContext sourceContext(RuntimeAuthContext auth) {
+        if (auth.getSubjectType() == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Application action reviews require an authenticated source identity.");
+        }
         boolean endUser = auth.getSubjectType() == RuntimeAuthSubjectType.END_USER;
         ExecutionPrincipalType principalType = endUser
             ? ExecutionPrincipalType.END_USER
@@ -161,7 +170,13 @@ public class HumanReviewService {
             scopes(auth),
             null,
             clock.instant()
-        );
+        ).withCallerIdentity(new ExecutionCallerIdentity(
+            auth.getSubjectType().name(),
+            auth.getAuthMode() == null ? null : auth.getAuthMode().name(),
+            auth.getCallerType() == null ? null : auth.getCallerType().name(),
+            auth.getSessionId(), auth.getCustomerId(), auth.getIssuer(),
+            auth.getAudiences(), auth.getExpiresAt()
+        ));
     }
 
     private Set<String> scopes(RuntimeAuthContext auth) {

@@ -261,6 +261,26 @@ public class DeploymentBehaviorCatalogService {
                 "conversationHandover configuration requires the CONVERSATION_HANDOVER execution extension."
             );
         }
+        JsonNode proposals = config.path("humanReview").path("actionProposals");
+        if (!proposals.isMissingNode() && !proposals.isNull()) {
+            if (!stringSet(config.path("executionExtensions")).contains("HUMAN_REVIEW")) {
+                return Validation.invalid("HUMAN_REVIEW_EXTENSION_REQUIRED",
+                    "Action proposals require the HUMAN_REVIEW execution extension.");
+            }
+            JsonNode actions = proposals.path("allowedActions");
+            if (!proposals.isObject() || !proposals.path("enabled").isBoolean()
+                || !actions.isArray() || actions.size() > 16
+                || (proposals.path("enabled").asBoolean() && actions.isEmpty())) {
+                return Validation.invalid("REVIEW_PROPOSAL_ACTIONS_INVALID",
+                    "Action proposals require an explicit enabled flag and at most 16 allowed action names.");
+            }
+            for (JsonNode action : actions) {
+                if (!action.isTextual() || !action.asText().matches("[a-z][a-z0-9_]{0,119}")) {
+                    return Validation.invalid("REVIEW_PROPOSAL_ACTIONS_INVALID",
+                        "Each reviewable action must be an exact registered action name.");
+                }
+            }
+        }
         return Validation.valid(config.deepCopy());
     }
 

@@ -36,6 +36,7 @@
     "conversation-channel-outbox",
     "conversation-event-stream",
     "action-proposal-human-review",
+    "application-action-review-proposals-v1",
     "cloudevents-ingress",
     "customer-backend-ingestion",
     "deployment-result-store",
@@ -73,6 +74,7 @@
     "review-decision",
     "review-detail",
     "review-inbox",
+    "review-application-proposal",
     "review-outcome",
     "trigger-submit",
     "session-management"

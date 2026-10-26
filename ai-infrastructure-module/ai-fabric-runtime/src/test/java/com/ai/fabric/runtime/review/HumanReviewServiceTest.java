@@ -50,6 +50,10 @@ class HumanReviewServiceTest {
         assertThat(request.getValue().policyId()).isEqualTo(HumanReviewRuntimeConfiguration.STANDARD_ACTION_POLICY);
         assertThat(context.getValue().tenantId()).isEqualTo("tenant-1");
         assertThat(context.getValue().deploymentId()).isEqualTo("dep-1");
+        assertThat(context.getValue().callerIdentity().customerId()).isEqualTo("customer-1");
+        assertThat(context.getValue().callerIdentity().sessionId()).isEqualTo("review-session");
+        assertThat(context.getValue().callerIdentity().subjectType()).isEqualTo("END_USER");
+        assertThat(context.getValue().callerIdentity().expiresAt()).isEqualTo(NOW.plusSeconds(300));
     }
 
     @Test
@@ -99,6 +103,14 @@ class HumanReviewServiceTest {
         assertThat(decision.getValue().taskId()).isEqualTo("task-1");
         assertThat(decision.getValue().expectedVersion()).isEqualTo(4);
         assertThat(decision.getValue().decision()).isEqualTo(ReviewDecisionType.APPROVE);
+    }
+
+    @Test
+    void doesNotReclassifyAnAnonymousCallerAsAnAuthenticatedReviewSource() {
+        var gateway = mock(ReviewDecisionGateway.class);
+        var service = new HumanReviewService(gateway, Clock.fixed(NOW, ZoneOffset.UTC));
+        assertThatThrownBy(() -> service.sourceContext(identity(RuntimeAuthSubjectType.ANONYMOUS_SESSION, List.of())))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("authenticated source identity");
     }
 
     private RuntimeResolvedIdentity identity(RuntimeAuthSubjectType subjectType, List<String> scopes) {

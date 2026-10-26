@@ -2201,7 +2201,8 @@ class RailwayProvisioningPlanServiceTest {
               "schemaVersion": "loomai-deployment-behavior-v1",
               "type": "AGENTIC_SPECIALIST_TEAM",
               "contractVersion": 1,
-              "executionExtensions": ["HUMAN_REVIEW"]
+              "executionExtensions": ["HUMAN_REVIEW"],
+              "humanReview": {"actionProposals": {"enabled": true, "allowedActions": ["request_reviewed_action"]}}
             }
             """);
         Map<String, String> agenticEnv = envMap(service.buildPlan(deployment(), agentic).services().runtime().env());
@@ -2218,6 +2219,8 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("LOOMAI_DEPLOYMENT_KNOWLEDGE_SPECIALIST_ENABLED", "true")
             .containsEntry("AI_EXECUTION_RECEIPTS_ENABLED", "true")
             .containsEntry("AI_EXECUTION_REVIEWS_ENABLED", "true")
+            .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_ENABLED", "true")
+            .containsEntry("APP_HUMAN_REVIEW_PROPOSALS_ALLOWED_ACTIONS", "request_reviewed_action")
             .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "AGENTIC_SPECIALIST_TEAM")
             .containsEntry("LOOMAI_DEPLOYMENT_COMPOSITION_HASH", "composition-hash-123")
             .containsEntry(

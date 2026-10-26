@@ -98,6 +98,75 @@ authorized bridge are implemented, but real dealership approval/rejection is
 not qualified until the separate originating application integration is supplied.
 An empty live review inbox is not evidence of an approval lifecycle.
 
+### Originating Application Integration (Opt-In)
+
+The owner-authorized runtime adapter adds a separate, private application API;
+ordinary chat confirmations remain unchanged. Its hosted qualification is still
+pending. Enable it through versioned deployment behavior configuration:
+
+```json
+{
+  "executionExtensions": ["HUMAN_REVIEW"],
+  "humanReview": {
+    "actionProposals": {
+      "enabled": true,
+      "allowedActions": ["your_registered_confirmable_write"]
+    }
+  }
+}
+```
+
+Merge this fragment with the deployment's existing behavior, rather than
+replacing its other extensions. Publish/apply a compatible runtime advertising
+`application-action-review-proposals-v1`. The adapter is off by default.
+
+Your trusted application calls the assigned deployment, not Desk:
+
+```http
+POST /api/reviews/v1/application-proposals
+Idempotency-Key: opaque-application-request-id
+Content-Type: application/json
+
+{
+  "request": "Prepare the requested registered action using these supplied facts ...",
+  "title": "Application request",
+  "summary": "A concise, accurate, application-owned summary without contact details or secrets."
+}
+```
+
+Use the deployment's verified private-runtime authentication contract. The
+server-issued identity must contain `review:action-proposals:create`,
+`specialist:application-action-review@1` and `action:<name>` for each configured
+action. Browser input cannot select identity, tenant, deployment or scopes.
+Do not put these credentials in a visitor script or a Desk launch link.
+
+The registered specialist asks the model to propose a permitted action. Only a
+genuine framework confirmation receipt becomes a review task, using the SAME
+trusted source context. A successful submission returns HTTP 201 with `task`,
+`dispatchAccepted` and `failure`; no proposal returns a visible HTTP 409 failure.
+Missing facts or provider failures never create a fabricated task. Reuse the
+same idempotency key and unchanged request on transport retry, and do not retry
+a business action merely because a response is uncertain.
+
+Desk's separately assigned reviewer decides that task through the existing
+review API. Registered external handlers remain responsible for current
+business authorization and execution. The default result projection exposes
+only the action name, a completion message and `completed`; raw handler payloads
+and PII are not returned. An application-specific registered safe projector can
+provide richer results. None of this makes visitor consent equivalent to staff
+approval, or routes every normal chat action to a reviewer.
+
+The review summary includes the actual action name and the framework's rendered
+confirmation message. Configure the registered action's existing
+`confirmationMessage` template to include decision-critical non-sensitive
+parameters, for example `Review request for {{vehicle}} on {{preferredDate}}?`.
+This renders the actual candidate parameters, not a copy of the original user
+request. Do not include contact details or credentials in that template.
+The additional application summary is labelled **Requested facts**, not proposed
+parameters. Overlong combined summaries fail visibly instead of silently
+truncating decision-critical information. No private receipt-decryption contract
+or duplicate proposal store is introduced.
+
 ## Operations And Ownership
 
 Desk hosts the operator portal, assignments, queue, bounded transcript projection

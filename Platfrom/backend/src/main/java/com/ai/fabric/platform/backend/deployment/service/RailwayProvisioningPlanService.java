@@ -452,6 +452,21 @@ public class RailwayProvisioningPlanService {
             "AI_EXECUTION_REVIEWS_ENABLED",
             Boolean.toString(humanReviewEnabled)
         ));
+        JsonNode reviewProposals = behaviorConfig.path("humanReview").path("actionProposals");
+        boolean reviewProposalsEnabled = humanReviewEnabled && reviewProposals.path("enabled").asBoolean(false);
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "APP_HUMAN_REVIEW_PROPOSALS_ENABLED", Boolean.toString(reviewProposalsEnabled)
+        ));
+        if (reviewProposalsEnabled) {
+            java.util.List<String> reviewActions = new java.util.ArrayList<>();
+            reviewProposals.path("allowedActions").forEach(action -> reviewActions.add(action.asText()));
+            if (reviewActions.isEmpty()) {
+                throw new RailwayProvisioningConfigurationException("REVIEW_PROPOSAL_ACTIONS_REQUIRED");
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "APP_HUMAN_REVIEW_PROPOSALS_ALLOWED_ACTIONS", String.join(",", reviewActions)
+            ));
+        }
         if (humanReviewEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_EXECUTION_RECEIPTS_TTL",

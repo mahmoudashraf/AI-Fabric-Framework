@@ -210,7 +210,7 @@ actions:
     accessMode: WRITE_ONLY
     anonymousAllowed: true
     requiresConfirmation: true
-    confirmationMessage: Send your name, contact details and preferred date to request this test drive?
+    confirmationMessage: "Send the supplied contact details to request a test drive for {{vehicle}}, preferred date {{preferredDate|not specified}}?"
     params:
       - name: vehicle
         description: Buyer-facing vehicle make and model, stock id or URL slug.

@@ -720,3 +720,40 @@ Read-only native snapshot, 26 October 04:33 UTC:
 
 The implementation is committed and working for the qualified conversation
 journey. The overall plan is deliberately **not marked complete**.
+
+### 2026-10-26 Owner-Authorized Narrow Review Integration
+
+At 08:56 UTC the owner selected **Authorize the narrow dealership integration**
+in Required for production (human message
+`01a1776b-885e-7cb2-8ccb-b2280300bfa6`). This is a dated exception to the
+original no-runtime-edit scope, not a claim that its missing producer existed.
+
+- Add only the originating application's governed-proposal wiring needed for
+  genuine Action Review. Reuse published AI Fabric **0.8.41** receipt, policy,
+  reviewer authorization and execution APIs; no framework change or release.
+- Keep dealership business execution in its external integration. Shared
+  runtime/Desk code must remain domain-neutral, with explicit opt-in capability
+  configuration and backend-owned authority, not client-selected identity.
+- Prove actual approve/reject, source/reviewer separation, stale decision and
+  replay behavior against the external action system before Inbox retirement.
+- Do not fabricate SQL receipts, impersonate an administrator, replace normal
+  chat confirmation silently, or expand into capacity/drain/recovery work.
+- Branded DNS and Brevo email delivery remain separate external gates. This
+  approval does not authorize an email retry or make those checks pass.
+
+Execution: contract inspection in progress; no new runtime implementation or
+rollout claimed yet. The first remaining gate above now has owner authorization;
+its actual review qualification is still pending.
+
+09:28 UTC source progress: the generic opt-in application-proposal endpoint,
+real registered write specialist, same-source review submission, preserved
+verified caller identity and safe outcome projector are implemented against
+published 0.8.41. Versioned `humanReview.actionProposals` config supplies an
+explicit allowed-action list. Ordinary chat confirmation is unchanged.
+Eighteen focused runtime and 45 Platform tests pass. Independent contract review
+caught provider-accounting scope and anonymous-classification issues; both were
+corrected before rollout. Existing native confirmation templates supply actual
+candidate facts in Desk's summary; no receipt decryption/private binding-format
+dependency, duplicate proposal store, raw handler projection or receiver-auth
+change remains. Image publication, live approve/reject and retirement are still
+pending; these source checks do not close them.
