@@ -833,7 +833,7 @@ function MessageRow({
     );
   return (
     <article
-      className={`message-row ${agent ? "agent-message" : ""} ${grouped ? "grouped" : ""}`}
+      className={`message-row ${agent ? "agent-message" : bot ? "assistant-message" : "customer-message"} ${grouped ? "grouped" : ""}`}
     >
       <div className="message-avatar">
         {!grouped &&
@@ -851,12 +851,6 @@ function MessageRow({
             <strong>{author}</strong>
             {bot && <span className="message-role">AI</span>}
             {agent && <span className="message-role">Agent</span>}
-            <time title={dateTime(message.createdAt)}>
-              {new Date(message.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </time>
           </div>
         )}
         <div className="message-content">{message.content}</div>
@@ -870,6 +864,12 @@ function MessageRow({
             ))}
           </div>
         )}
+        <time className="message-time" title={dateTime(message.createdAt)}>
+          {new Date(message.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </time>
       </div>
     </article>
   );

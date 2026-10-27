@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import type {
   DecisionResult,
+  Message,
   ReviewDecisionFailure,
   ReviewDetail,
   ReviewOutcome,
@@ -167,7 +168,7 @@ export function fixtureState() {
         attachmentRefs: [],
         createdAt: ago(1),
       },
-    ],
+    ] as Message[],
     agents: [
       {
         agentId: "assignment-1",

@@ -938,9 +938,16 @@ code,
 }
 .message-row {
   display: flex;
+  align-items: flex-start;
   gap: 10px;
-  margin: 0 0 26px;
+  width: fit-content;
+  max-width: min(84%, 760px);
+  margin: 0 0 20px;
   animation: message-enter 0.18s ease-out;
+}
+.message-row.agent-message {
+  flex-direction: row-reverse;
+  margin-left: auto;
 }
 .message-avatar {
   width: 28px;
@@ -959,16 +966,19 @@ code,
 }
 .message-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 7px;
+  gap: 3px 7px;
   font-size: 11px;
   margin: 4px 0 8px;
 }
-.message-meta time {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 400;
-  color: var(--muted);
+.message-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.agent-message .message-meta {
+  justify-content: flex-end;
+  text-align: right;
 }
 .message-role {
   font-size: 8px;
@@ -978,25 +988,44 @@ code,
   border-radius: 3px;
 }
 .message-content {
+  background: var(--muted-surface);
+  border: 1px solid var(--line);
+  border-radius: 2px 8px 8px 8px;
+  padding: 12px 15px;
   color: var(--text);
   font-size: 12px;
   line-height: 1.85;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.assistant-message .message-content {
+  background: var(--surface);
+}
 .agent-message .message-content {
   background: var(--agent-message);
-  padding: 13px 16px;
-  border-radius: 2px 8px 8px 8px;
+  border-radius: 8px 2px 8px 8px;
 }
 .message-row.grouped {
-  margin-top: -17px;
+  margin-top: -12px;
+}
+.message-time {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+.agent-message .message-time {
+  text-align: right;
 }
 .message-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   margin-top: 7px;
+}
+.agent-message .message-attachments {
+  justify-content: flex-end;
 }
 .message-attachments > span {
   display: flex;
@@ -2208,6 +2237,13 @@ code,
   }
   .message-stream {
     padding: 5px 16px 16px;
+  }
+  .message-row {
+    max-width: 94%;
+    gap: 8px;
+  }
+  .message-content {
+    padding: 10px 12px;
   }
   .message-content {
     font-size: 13px;
