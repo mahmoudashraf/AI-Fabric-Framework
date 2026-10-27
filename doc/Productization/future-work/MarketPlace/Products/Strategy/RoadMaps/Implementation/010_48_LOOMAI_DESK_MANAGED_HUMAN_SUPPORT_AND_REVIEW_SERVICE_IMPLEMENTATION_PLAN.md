@@ -1635,3 +1635,33 @@ active-page session expiry and the embedded dealership's separate protected-
 capability sign-in host are additional unqualified paths, not hidden passes or
 reasons to rebuild the framework. Existing bounded expiry/authorization checks
 remain enabled; this session did not extend into a broader recovery matrix.
+
+### 2026-10-27 Chat-Style Transcript Layout Deployed
+
+User-requested presentation correction `4569aad991b857e6165138a38a72426867fc4a03`
+places customer/AI bubbles on the left and human-agent replies/avatars on the
+right. System events remain centered; message order, attachments and timestamps
+on every message, including consecutive replies, are preserved. Existing human
+role aliases are unchanged. This changes only portal rendering/styles and tests,
+not backend Java, permissions, message delivery or conversation authority.
+
+Local production build and all 43 browser tests passed. New layout cases cover
+both themes, desktop/mobile geometry, long text/identities, grouped timestamps,
+safe attachment presentation and chronological role alignment. CI `40557075498`
+passed shared-service/PostgreSQL verification, portal build/browser tests and
+immutable publication. Both shared Desk instances now natively verify this
+source, healthy application/database status and public health 200, with image
+`sha256:24500f760ef0e15e355084589cfe8d3fa98f664a85cbbcbea25131fdec35dc50`.
+Staging job `nxi2ag84on11h5b4nkj3uai8` and production job
+`qwzwd8nea2e2wukjufuttuja` finished successfully. Each update first confirmed
+zero active human conversations; existing history and bindings were retained.
+
+Normal agent sign-in and actual existing terminal conversations passed live
+layout checks at 1440, 1920 and 390 pixels in light and dark on **both** targets.
+Each transcript included real customer, AI and human messages; alignment and
+timestamp counts passed with no horizontal overflow. Screenshots were visually
+inspected. No new chat message, claim, business action, AI query or email was
+submitted for this cosmetic verification. Redacted evidence:
+`verification-support/loomai-desk-01048/chat-layout-20261027.json`.
+Console `4eafcd08f`, runtime/framework, customer app assignments and the separate
+recovery-email inbox-placement follow-up are unchanged.

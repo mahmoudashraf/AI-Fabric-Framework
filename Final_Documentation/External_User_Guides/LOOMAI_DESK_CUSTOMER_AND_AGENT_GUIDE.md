@@ -178,6 +178,11 @@ specific agent teams are not part of this release.
 
 ## Conversations
 
+The transcript uses chat bubbles: customer and AI messages stay on the left,
+human-agent replies appear on the right, and system events stay centered.
+Sender labels, attachments and each message's timestamp remain visible,
+including timestamps on consecutive replies from the same agent.
+
 The visitor requests a human through the configured AI handover action or Engage
 button. The existing deployment policy determines which contact fields are
 requested and what transcript can be shared.

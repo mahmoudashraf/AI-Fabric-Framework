@@ -10613,3 +10613,40 @@ test is being called hosted acceptance. UI extraction remains last.
   unqualified/deferred, not falsePASS. Preserve originalfailedreceipts privately.
   Hetzneraccess stays open under owner'sstandinginstruction. No new infrastructure,
   customerbusinessDB, grants or appassignments; temporaryemailidentity isdeleted.
+
+### 2026-10-27 Desk Chat Layout Requested And Implemented
+
+- User wants customer/AI left and human agents right. Desk portal-only source
+  4569aad991b857e6165138a38a72426867fc4a03 committed/pushed: bounded chat bubbles,
+  right-side human avatars/labels, centered system events, all message timestamps
+  inclgroupedreplies, attachments preserved. No protocol/auth/AI/backendJava edit.
+- Local Desk UI build and43browser tests PASS; new5tests cover desktop/mobile,
+  light/dark, no overflow, grouped times, existing role aliases and chronology.
+  Images visually inspected. Initial test harness selected hidden mobile theme/
+  duplicate close-nav controls; corrected to actual navigation, not UI bypass.
+- CI40557075498 verifies/publishes shared Desk image; native rollout NOT yet
+  performed at this checkpoint. Preserve unrelated dirty files. Bounded helpers
+  /private/tmp/loomai-desk-chat-layout-{rollout,live}-20261027.mjs deploy/status
+  staging thenproduction afterCI PASS, nativeimage/source/health and existing
+  terminalconversation geometry/screenshots (1440/1920/390 light+dark). NoAI or
+  livechatwrites required. Beforedeploy check0activehumans; no drain redesign.
+  Receipts ~/.codex/private/loomai-desk-01048/chat-layout-20261027/. Signup/email
+  placement status unchanged; do not send new emails for a cosmetic UI update.
+
+### 2026-10-27 18:24 UTC Desk Chat Layout LIVE Both Targets
+
+- Supersedes pending layout rollout: both shared Desk instances now source
+  4569aad991b857e6165138a38a72426867fc4a03/nativeimage24500f760ef0e15e355084589cfe8d3fa98f664a85cbbcbea25131fdec35dc50,
+  CI40557075498 PASS (service+Postgres/portal/browser/image). Stagejobnxi2ag84on11h5b4nkj3uai8,
+  prodqwzwd8nea2e2wukjufuttuja terminalhealthy/publichealth200/PGhealthy.
+- Actual existing authorized transcripts USER/AI/USER/HUMAN qualify customer+AI
+  left/humanright, alltimestamps and nohorizontaloverflow at1440/1920/390 in
+  light/dark BOTHenvs (6variantseach). NormalagentSSO PASS, private screenshots
+  inspected;0Desk businessmutations/AIqueries/emails. No new grants/appassignment/
+  backendJava/runtime/framework change. Original histories/bindings retained.
+- Guide/01048 and redacted chat-layout-20261027.json updated. Rawreports/screens
+  ~/.codex/private/loomai-desk-01048/chat-layout-20261027/. First staging screenshot
+  caught an existing entrance animation; final captures disable animations.
+  Console stays4eafcd08f/backendb54/runtime638/framework0.8.41. Recovery emailSpam
+  follow-up remains OPEN, not resolved by this cosmetic update. Preserve dirty
+  unrelated work; do not replay native deployments or send signup emails.
