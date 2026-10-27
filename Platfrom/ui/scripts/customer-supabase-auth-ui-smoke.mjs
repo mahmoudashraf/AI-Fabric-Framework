@@ -47,7 +47,11 @@ async function scenario(name, action, options = {}) {
   await context.route('**/*', async route => {
     const req = route.request(), url = new URL(req.url()), headers = req.headers()
     const respond = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (url.hostname === 'desk.example.test') return route.fulfill({ contentType: 'text/plain', body: 'Desk callback received' })
+    if (url.hostname === 'desk.example.test') {
+      calls.push({ path: url.pathname, method: req.method(), deskCallback: true })
+      if (options.delayedCustomerAuthorizationTransition) await new Promise(resolve => setTimeout(resolve, 1200))
+      return route.fulfill({ contentType: 'text/plain', body: 'Desk callback received' })
+    }
     if (url.hostname === 'auth.example.test') {
       calls.push({ path: url.pathname, method: req.method(), authorization: headers.authorization, body: req.postDataJSON(), query: url.search })
       if (url.pathname === '/auth/v1/token') { refreshed = url.searchParams.get('grant_type') === 'refresh_token'; return respond(sbSession(refreshed ? 'refreshed' : 'signed-in')) }
@@ -76,6 +80,7 @@ async function scenario(name, action, options = {}) {
     if (url.pathname.endsWith('/session')) {
       if (headers.authorization) {
         assert.equal(headers['x-platform-api-key'], undefined); assert.equal(headers.cookie, undefined)
+        if (options.delayedCustomerAuthorizationTransition) await new Promise(resolve => setTimeout(resolve, 400))
         return options.deskOnly && !linked ? respond({ success: false, errorCode: 'CUSTOMER_IDENTITY_NOT_LINKED', message: 'No Console membership' }, 403) : respond(customer)
       }
       return respond(headers['x-platform-api-key'] ? { ...staff, authenticationMode: 'API_KEY' } : local)
@@ -151,6 +156,20 @@ try {
     assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { seed: true, returning: true, oneUseDetails: true })
+  await scenario('customer_role_arrival_does_not_replay_one_use_callback_navigation', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
+    assert.equal(calls.filter(call => call.deskCallback).length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
+  }, { seed: true, returning: true, oneUseDetails: true, delayedCustomerAuthorizationTransition: true })
+  await scenario('customer_role_arrival_does_not_replay_first_consent_callback_navigation', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
+    assert.equal(calls.filter(call => call.deskCallback).length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/consent') && call.body.action === 'approve').length, 1)
+  }, { seed: true, oneUseDetails: true, delayedCustomerAuthorizationTransition: true })
   await scenario('agent_signup_verification_uses_pkce_and_returns_to_same_central_desk_request', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
     await page.getByRole('button', { name: 'Create account', exact: true }).click()
