@@ -9,10 +9,20 @@ hosting environment has completed its cutover.
 
 Current verified deployment: the existing
 [Northfield Engage app](https://northfield-console-live.apps.loomai.pro/) uses
-shared Desk on verified production. The temporary production portal is
-[LoomAI Desk](https://loomai-desk.46.225.162.106.sslip.io/).
-The branded Desk address and public signup email delivery are still pending.
-Existing verified accounts can use the qualified sign-in/support journey.
+shared Desk on verified production. The production portal is
+[LoomAI Desk](https://desk.loomai.pro/), with verified HTTPS and HTTP-to-HTTPS
+routing. Native signup confirmation and email-driven password recovery passed
+on 2026-10-27, including sign-in with the recovered password. Gmail delivered
+the signup message to Inbox but classified the recovery message as Spam.
+Inbox placement therefore remains a launch-quality follow-up, not a delivery
+or recovery pass inferred from an accepted send request.
+
+The Console's **Open LoomAI Desk** link now targets the branded address.
+The cancelled owner OAuth callback exposed during qualification was traced to
+a Console router remount, corrected in `4eafcd08f`, and deployed to both
+Consoles. Actual fresh, repeated-fresh and returning owner launches passed on
+production; fresh launches each made exactly one native OAuth callback.
+The existing customer identity and deployment ownership were preserved.
 Conversation handover and real action-review decisions have both passed on the
 dealership's staging and production targets. The old per-deployment Inbox
 services and their dedicated databases have been retired.
@@ -22,8 +32,8 @@ conversational deployment using the generic workspace pack. Real API checks
 denied access between that customer and Northfield in both directions. Adding
 that customer reused shared Desk and its database; it did not create another
 Inbox. The temporary qualification deployment and identity were removed after
-testing. This does not qualify public signup email delivery or every visitor
-sign-in integration.
+testing. Native public signup email is now qualified separately; this generic
+proof does not qualify every visitor sign-in integration.
 
 The [recorded customer/agent journey](../Demo_Videos/LOOMAI_DESK_DEALERSHIP_CUSTOMER_AGENT_DEMO.mp4)
 shows the current shared Desk flow side by side. It demonstrates handover and
@@ -139,6 +149,20 @@ An agent opens Desk, creates a LoomAI account if needed, verifies their email,
 signs in, and registers their agent profile. They share their verified email or
 agent reference with the customer owner. Registration alone grants no customer
 data access and no customer Console administration permissions.
+
+### Email Verification And Password Recovery
+
+Select **Create an account** on Desk, then confirm the email using the received
+link. The link returns to Desk; complete normal sign-in before registering an
+agent profile. Email confirmation alone creates no deployment assignment.
+
+For password recovery, open [Console sign-in](https://console.loomai.pro/), enter
+the account email and select **Forgot password?**. Open the recovery link in the
+same browser that requested it, choose and confirm a new password, then sign in
+to Desk with that password. The recovery flow uses the normal Supabase PKCE
+session, not an administrator password reset or a bypass of identity checks.
+Check Spam if a message is absent; LoomAI-domain sender/inbox-placement
+qualification is still outstanding.
 
 The customer owner chooses the deployment, staging or production target, and
 one or both agent roles:

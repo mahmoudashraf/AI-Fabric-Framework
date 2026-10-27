@@ -10554,3 +10554,62 @@ test is being called hosted acceptance. UI extraction remains last.
   binding helper/tests only; Curie01a15360-a1b3-72f2-ae28-017f43ddf055 owns new real
   PostgreSQL handoff IT only. Both sol6.1/max, no hosted actions/commit/push.
   Parent owns critical implementation and hosted orchestration; UI remains last.
+
+## 2026-10-27 Desk HTTPS And Native Email Closeout Follow-Up
+
+- Latest main task is Desk HTTPS/signup/recovery verification, not the historical
+  010.44 deployment work above. Framework README docs-only1bde2bd4 is already
+  pushed to Loom-AI-Labs/ai-fabric-framework/main; no product framework upgrade.
+- Branded https://desk.loomai.pro is DNS/TLS/HTTP-redirect/health qualified on
+  SAME prod Desk i13lxk.../PGgwp0.../source3b9909cd. Let's Encrypt valid through
+  2027-01-25; old alias retained for existing integrations. Both CPs changed only
+  LOOMAI_DESK_PRODUCTION_BASE_URL, same backendb54ba9bbb, native healthy.
+- Exactly1 native signup email Inbox and1 recovery email SPAM received. Actual
+  confirmation, PKCE recovery form and new-password Desk sign-in PASS; unassigned
+  identity had0bindings. Exact newly created user sessions revoked/user deleted,
+  adminGET404/password invalid_credentials, existing owner/agent untouched.
+  Sender-domain/inbox-placement follow-up surfaced to Required for production;
+  do not assume Brevo domain unauthenticated or invent DNS/DMARC records.
+- Branded owner Console click exposed real duplicate callback. Role arrival
+  swapped router, remounting OAuth page; existing exchange-dedup did not prevent
+  duplicate navigation. Trace authorization_request_not_found then firstrequest
+  success; offline regression reproduced2callbacks, expected1. Console-onlyfix
+  4eafcd08fddce6ac2cb3c54a52e08ecce8f4a5d6 committed/pushed. Auth14/DeskUI6/
+  TS+Vite PASS; CI40549535165 PASS, UI built/backend skipped. Both temporary
+  OAuth logger entries removed, ordinary same3b service restored/nativehealthy.
+- Console stage rollout n25u1wsq91nydryoby2nfguc requested; verify actual source/
+  terminalhealthy before prod. Helper /private/tmp/loomai-desk-auth-console-rollout-
+  20261027.mjs deploy|status staging|production has consumed-intent guards. Then
+  real fresh+returning owner Console-link browser checks; preserve failures.
+  Native email helper /private/tmp/loomai-desk-native-email-ui-20261027.mjs.
+  Raw current receipts ~/.codex/private/loomai-desk-01048/external-closeout-20261027/.
+  Do not replay email requests, confirmation/recovery links or completed deletes.
+- Northfield unchanged prodrel73d5288d/revision11. Read-only final-qualification-
+  1793120981274 PASS both Desk/PG/frontends/backendb54, publicapp+existingagent.
+  No runtime/framework release, new customer business DB, appassignment or grant.
+  Finish actual Console rollout/SSO; update guide/01048/redacted evidence and
+  commit only task-owned files. Email inbox placement and separately unqualified
+  embedded protected-capability host/explicit live expired-SSO not broadPASS.
+
+### 2026-10-27 17:30 UTC Desk Core Closeout And Owner SSO PASS
+
+- Supersedes pending Console rollout above: BOTH native Consoles now4eafcd08f,
+  image/digestb44c9158592d06098674230a34302dbdb5bff267ec9eb16171bc9f613358d894,
+  terminalhealthy/publicHTTPS200. Stagejobn25u1wsq91nydryoby2nfguc and production
+  v142uoihg0pe9in3v783rqc3. No backend/runtime/Desk/framework binary update.
+- Actual realConsolelink branded-owner-fixed-fresh PASS exactly1callback;
+  fixed-returning PASS sameDesk session/0callbacks; fixed-repeat PASS fresh
+  browser/exactly1callback. No retry-to-success bypass/secret/role-policy change.
+  Duplicate callback race is corrected, not left as an unexplained cancellation.
+- Final final-qualification-1793122159183 PASS both Desk+PG/frontends/backendb54,
+  sameNorthfieldprodrel73d5288d/revision11/publiccomposer+humancontrol and primary
+  agentnormalaccess. Allrequired local processes/rollouts complete,0AIqueries.
+- Guide/01048/currentredacted external-auth-closeout-20261027.json updated.
+  Historical hosted-qualification-20261026.json is NOT current release state.
+  Only external launch concern is reliable recovery-email Inbox placement:
+  signupInbox/confirmationPASS, recoverySPAM/PKCE/newpasswordPASS. Required for
+  production has sender-domain follow-up; no account settings/email sends there.
+  Explicitlive active-page expiry and embeddedprotectedsign-in remain separately
+  unqualified/deferred, not falsePASS. Preserve originalfailedreceipts privately.
+  Hetzneraccess stays open under owner'sstandinginstruction. No new infrastructure,
+  customerbusinessDB, grants or appassignments; temporaryemailidentity isdeleted.

@@ -1,6 +1,6 @@
 # 010.48 LoomAI Desk Managed Human Support And Review Service Implementation Plan
 
-- **Status:** Hosted core, generic activation, cross-customer isolation and bounded restart recovery qualified; public-release closure still open (2026-10-26). Shared Desk, customer linking, owner SSO, scoped assignments, AI/human journeys and genuine Action Review passed on staging and production. All three legacy Inbox application/database pairs and active provisioning paths are retired. Fresh outage proofs pass on both targets with exactly-once queued-message delivery and preserved human authority. The same Northfield app is on verified production revision 11. The neutral second-customer journey passed and its temporary identity, access and owned infrastructure are cleaned up. Native email and branded Desk DNS remain external gates; see the latest execution record for the exact evidence and other unqualified paths.
+- **Status:** Desk implementation and hosted core journeys qualified, including branded HTTPS, native signup confirmation, browser password recovery and corrected one-click owner sign-in (2026-10-27). Recovery email reached Gmail Spam, so sender/inbox-placement qualification remains the external launch follow-up; not a fully closed public-release claim. Both Consoles run `4eafcd08f`; Northfield remains on the same verified production app assignment, revision 11. Legacy per-deployment Inbox resources remain retired. Additional unqualified paths and historical failures are explicitly distinguished in the latest execution record below.
 - **Created:** 2026-10-26
 - **Proposed product name:** **LoomAI Desk**, alongside **LoomAI Engage** and the **LoomAI Platform**.
 - **Primary outcome:** A customer enables human support on an existing deployment, opens its Desk workspace without another login, and assigns registered human agents to handle conversations or action reviews.
@@ -31,7 +31,9 @@ The first release does **not** include:
 - Capacity/admission redesign, generalized draining, disaster-recovery orchestration or an exhaustive unrelated release matrix.
 - Moving ordinary AI chat traffic through Desk or the Platform control plane.
 
-The name is a product proposal, not a trademark or domain-availability claim. Proposed public addresses are `https://desk.loomai.pro` and a separate staging address; neither is claimed to exist yet.
+The name is a product proposal, not a trademark claim. Production now uses
+`https://desk.loomai.pro`, with normally verified TLS; staging uses its separate
+address. Hosting and identity qualifications are recorded by date below.
 
 ## 2. Current Implementation And Reuse
 
@@ -380,8 +382,9 @@ Each phase should be a focused implementation commit with its own verification e
 - [x] Confirm private Supabase configuration and configure the required first-party OAuth clients/redirects.
 - [x] Move customer Console sign-in to Supabase, preserving stable customer/resource ownership and internal staff login (deployed; actual existing-owner dual-proof UI linking passed).
 - [x] Implement immutable subject linking, automatic owner Desk membership and standard first-party Console-to-Desk authentication (actual first owner launch passed on staging).
-- [x] Add agent registration/verification, deployment/target assignment and independent support/review permissions (source and offline verification; real email delivery remains blocked below).
-- [ ] Verify first-ever Desk launch, returning launch, expired/cancelled login, logout, revoked assignment, unassigned registered user and unchanged staff administration.
+- [x] Add agent registration/verification, deployment/target assignment and independent support/review permissions (real native signup confirmation and password recovery passed on 2026-10-27; recovery inbox placement remains open).
+- [x] Verify first-ever Desk launch, returning launch, cancelled login, logout, revoked assignment, unassigned registered user and unchanged staff administration (existing live/contract evidence; native email and corrected branded owner launch requalified on 2026-10-27).
+- [ ] Additional live qualification: active-page session-expiry journey. Explicitly deferred; focused expiry handling, logout and revocation are not represented as this live timeout case. No session-timeout or identity checks were weakened.
 
 **Exit:** A real customer signs in once, opens Desk through one link, and a separately registered agent can access only assigned deployment targets.
 
@@ -1524,3 +1527,111 @@ these include stopped resources, not a claim that all are active or disposable.
 The staging control-plane `APP_BUILD_COMMIT` environment value is stale
 (`18ac7b5f`); native immutable-image metadata proves the actual source. It was
 recorded separately, not used to justify another product rollout.
+
+### 2026-10-27 Branded HTTPS And Native Email Verification
+
+The owner completed the Namecheap record and Brevo IP authorization. Main then
+qualified `https://desk.loomai.pro` on the existing production Desk application,
+retaining the old HTTPS alias for existing integrations. DNS resolves to
+`46.225.162.106`; normal certificate-chain and hostname validation passed.
+The Let's Encrypt certificate is valid through 2027-01-25, HTTP redirects to
+HTTPS and `/actuator/health` returns 200/UP. No TLS-verification bypass was used.
+Both control planes' production Desk URL setting now points to the branded
+address; their immutable backend image remains `b54ba9bbb`.
+
+Real native email qualification used one fresh, unassigned test identity:
+
+- Exactly one signup request returned 200 without issuing a session. Its actual
+  confirmation email arrived in Gmail Inbox at 16:44 UTC; following that email
+  confirmed the account, and normal branded Desk sign-in showed no bindings.
+- Exactly one recovery request returned 200. The real recovery email arrived at
+  16:53 UTC. Its link completed the Console PKCE exchange; the actual password
+  form updated only this new identity, and its new password signed in to Desk.
+- Gmail placed the recovery message in **Spam**. Functional delivery/recovery is
+  qualified, but reliable inbox placement is not. Reuse an already authenticated
+  LoomAI sender domain if available; otherwise complete Brevo's account-provided
+  domain/sender setup, then requalify placement. Do not invent DNS records or
+  replace an existing DMARC policy. This follow-up is surfaced in **Required for
+  production**; no additional sends or sender changes were made there.
+- The exact temporary identity was subsequently signed out/revoked and deleted.
+  Native readback returned 404 and the recovered password returned
+  `invalid_credentials`. Existing owner/agent passwords, grants, deployments and
+  customer data were not changed. No administrator confirmation was substituted
+  for the received signup link.
+
+Initial recorder failures involved absent-versus-null optional JSON fields,
+required-field label matching and Supabase's legacy error-field shape. Actual
+completed effects were reconciled through readback, not replayed; no extra
+signup/recovery email or repeated deletion was needed. Raw receipts remain
+private under `loomai-desk-01048/external-closeout-20261027/`.
+
+### 2026-10-27 Branded Owner Launch: Duplicate Callback Correction
+
+Actual **Open LoomAI Desk** clicks used the correct branded link but reproduced
+a cancelled OAuth callback. A successful isolated attempt was not treated as
+closure. Bounded private tracing showed `authorization_request_not_found`, with
+two navigations to the same one-use callback: one request had already consumed
+the authorization request while the other failed. Temporary diagnostic logging
+was removed after capture, restoring the same `3b9909cd` Desk image and normal
+logging. Each diagnostic enablement first checked for zero active human
+conversations; the probes did not create a visitor handover.
+
+Root cause: customer-role resolution switched `PlatformRouting` from its initial
+router to the customer router. That remounted the identity page. Existing
+`authorizeDeskOnce` correctly deduplicated the Supabase exchange, but the new
+page reused its result and navigated to the callback again. This is a Console
+lifecycle race, not a missing credential, permissive identity fallback or a
+framework defect.
+
+Console-only commit `4eafcd08fddce6ac2cb3c54a52e08ecce8f4a5d6` keeps identity
+protocol routes mounted across role resolution. The new offline browser case
+failed before the correction with **two callbacks instead of one**. Afterward,
+all 14 authentication scenarios passed, including delayed role resolution for
+both first consent and returning consent. Six customer Desk UI checks and the
+TypeScript/Vite production build passed. CI `40549535165` succeeded and built
+only the Console image; the backend image job was skipped. Hosted staging and
+production rollout/qualification is recorded in the follow-up below.
+
+No runtime, connector, Desk binary, framework, model setting or deployment/app
+assignment changed for this correction. Existing Northfield production remains
+`rel-73d5288d`, binding revision 11. The later read-only proof
+`final-qualification-1793120981274` passed both service/database health checks,
+native backend identity, unchanged public app assignment and normal existing
+agent access. It does not by itself qualify the new Console image.
+
+### 2026-10-27 Console Correction Deployed And Branded Owner Journey Qualified
+
+Both Consoles now natively verify source
+`4eafcd08fddce6ac2cb3c54a52e08ecce8f4a5d6`, healthy container status and native
+image/digest `sha256:b44c9158592d06098674230a34302dbdb5bff267ec9eb16171bc9f613358d894`.
+Staging job `n25u1wsq91nydryoby2nfguc` and production job
+`v142uoihg0pe9in3v783rqc3` finished successfully; both public roots returned
+HTTPS 200. No unrelated dirty Console source was included in the two-file commit.
+
+Actual production customer UI checks passed after the correction:
+
+- `branded-owner-fixed-fresh`: normal Console sign-in, actual **Open LoomAI
+  Desk** click, one native OAuth callback, branded Desk authenticated and the
+  existing owned production binding visible.
+- `branded-owner-fixed-returning`: the same customer opens Desk again through
+  the actual Console link; the valid session is reused without another callback
+  or password prompt.
+- `branded-owner-fixed-repeat`: a second fresh browser repeats normal customer
+  sign-in and the real link, again with exactly one native callback and the
+  correct owned binding. No arbitrary retry-to-success policy was added.
+
+Final read-only proof `final-qualification-1793122159183` passed shared Desk and
+database health on both environments, native backend source, the unchanged
+production app/release/revision, public composer/human-support controls, and
+normal access by the existing agent. All diagnostic logging was already removed.
+No AI queries or human/business actions were submitted during this closeout.
+
+The current redacted evidence is
+`verification-support/loomai-desk-01048/external-auth-closeout-20261027.json`;
+the 2026-10-26 aggregate remains dated historical evidence. The implementation
+and core Desk flows are live and qualified. **Reliable recovery-email inbox
+placement remains open** before a fully closed public launch. Explicit live
+active-page session expiry and the embedded dealership's separate protected-
+capability sign-in host are additional unqualified paths, not hidden passes or
+reasons to rebuild the framework. Existing bounded expiry/authorization checks
+remain enabled; this session did not extend into a broader recovery matrix.
