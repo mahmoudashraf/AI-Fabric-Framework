@@ -1,0 +1,693 @@
+{
+  "verifiedAt": "2026-10-27T21:44:52.528Z",
+  "scope": "12 public framework demo backends plus one MCP reference server on existing staging host",
+  "frameworkVersion": "0.8.42",
+  "publicationEvidence": "https://repo.maven.apache.org/maven2/io/github/loom-ai-labs/ai-fabric-bom/maven-metadata.xml",
+  "backendDeploymentAndRepresentativeFunctionalityPassed": true,
+  "nativeAuditAt": "2026-10-27T21:34:22.855Z",
+  "services": [
+    {
+      "name": "ai-fabric-account-resolver",
+      "uuid": "prjnwmfsk6bva2r2lxnq6lwh",
+      "url": "https://ai-fabric-account-resolver.46.224.145.148.sslip.io",
+      "job": "hoaj1h3d0zkkgf93s95pn7bp",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/prjnwmfsk6bva2r2lxnq6lwh-205945839778",
+      "image": "prjnwmfsk6bva2r2lxnq6lwh:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:f9c9a350e3370da67dfc9a086240e5d3a4ae2550ecba2ff712e7e818bf497bd6",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-behavior-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-relationship-query-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-agentic-action-resolver",
+      "uuid": "t6z8f42csi42upi16o6d8a7c",
+      "url": "https://ai-fabric-agentic-action-resolver.46.224.145.148.sslip.io",
+      "job": "rsojs3qh4rve6jizajagbjfx",
+      "jobStatus": "finished",
+      "source": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "container": "/t6z8f42csi42upi16o6d8a7c",
+      "image": "t6z8f42csi42upi16o6d8a7c:6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "imageId": "sha256:36a33ff58b2c8b57bc27cbbaadd21a0435eedb7583430518f004fb12dadced18",
+      "nativeHealth": "healthy",
+      "restarts": 11,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-behavior-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-execution-0.8.42.jar",
+        "ai-fabric-relationship-query-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-chat-capabilities-demo",
+      "uuid": "otyh3h5y5gyvjx4epa8ywbau",
+      "url": "https://ai-fabric-chat-capabilities-demo.46.224.145.148.sslip.io",
+      "job": "dmy4ufsoh3xpag5jee6a51r0",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/otyh3h5y5gyvjx4epa8ywbau-210437581556",
+      "image": "otyh3h5y5gyvjx4epa8ywbau:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:d359ebe52f412ab9a3f2087fa6d4be08b51351fd9a89f76d6f8eca45c33fe9e8",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-curated-commerce-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-data-sync-0.8.42.jar",
+        "ai-fabric-governance-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-conversation-handover-demo",
+      "uuid": "ftcihcqx63hz0z47t4hfrlkn",
+      "url": "https://ai-fabric-conversation-handover.46.224.145.148.sslip.io",
+      "job": "n5i8hhc0zmpod3bmks30fa4c",
+      "jobStatus": "finished",
+      "source": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "container": "/ftcihcqx63hz0z47t4hfrlkn",
+      "image": "ftcihcqx63hz0z47t4hfrlkn:6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "imageId": "sha256:83145ca78e861fadbbdaea9e6fb60afdd763fe97e2bf3f3c4f019b7a86de4a28",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-provider-starter-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-deployment-knowledge-guard",
+      "uuid": "c5tchl6bk4hmm754gcxy3vex",
+      "url": "https://ai-fabric-deployment-knowledge-guard.46.224.145.148.sslip.io",
+      "job": "ds5fref82b1hnii8i8j63x3i",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/c5tchl6bk4hmm754gcxy3vex-210802651525",
+      "image": "c5tchl6bk4hmm754gcxy3vex:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:d6e48762fb7f54a9ffb2319b57ccd6e3ab2e5f0b9dec7d30dfd59b0b00201cff",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-execution-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-document-knowledge-operations",
+      "uuid": "refedmc7wzyenhn1zs6p3ixh",
+      "url": "https://ai-fabric-document-knowledge-operations.46.224.145.148.sslip.io",
+      "job": "l13csvpaoi6vvbmktrnwbptj",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/refedmc7wzyenhn1zs6p3ixh-211059330107",
+      "image": "refedmc7wzyenhn1zs6p3ixh:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:cf524c6dc3e2c382b56adb0d0a771c5b16457c77f083266e97b21f65ec5107d3",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-incident-investigation",
+      "uuid": "b4254njjk3fnluhrbb9usqq5",
+      "url": "https://ai-fabric-incident-investigation.46.224.145.148.sslip.io",
+      "job": "qvhhlp0k9czon08jw287pwwt",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/b4254njjk3fnluhrbb9usqq5-211232168922",
+      "image": "b4254njjk3fnluhrbb9usqq5:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:921507cdb9ded5c9f0a7f00ce7100f1a78eadd3eb96ab960d3384693200787c4",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-execution-0.8.42.jar",
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-live-data-sync",
+      "uuid": "wjpx1xxiwwcyyeyfnqzawbnl",
+      "url": "https://ai-fabric-live-data-sync.46.224.145.148.sslip.io",
+      "job": "wf0srdbeg714kg4hctlljaky",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/wjpx1xxiwwcyyeyfnqzawbnl-211533659716",
+      "image": "wjpx1xxiwwcyyeyfnqzawbnl:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:1a2b972b3ad5e7373362e2bcda9b1734196effabd416f683fb18ccc7d74dfdd8",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-rag-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-mcp-operations",
+      "uuid": "yb0akw6x2ck5lj6ykcns6hk8",
+      "url": "https://ai-fabric-mcp-operations.46.224.145.148.sslip.io",
+      "job": "i2pv60l7oup69dya1xldedm3",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/yb0akw6x2ck5lj6ykcns6hk8-211707181359",
+      "image": "yb0akw6x2ck5lj6ykcns6hk8:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:6555f7e8e8450a82a98d1fb6a3ce3f486caf5e96ea039716ea9ffda1961c7710",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-actions-connector-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-execution-0.8.42.jar",
+        "ai-fabric-chat-session-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-mcp-reference-server",
+      "uuid": "x11nj16gpsctb3d8fdi555u0",
+      "url": "https://ai-fabric-mcp-reference-server.46.224.145.148.sslip.io",
+      "job": "h16uh38724itn9lf3800fq01",
+      "jobStatus": "finished",
+      "source": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "container": "/x11nj16gpsctb3d8fdi555u0",
+      "image": "x11nj16gpsctb3d8fdi555u0:6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "imageId": "sha256:e4f62362ec9a598f5bcced96f1341f376a4a840ef5488cc0b83bad1691b92eed",
+      "nativeHealth": "healthy",
+      "restarts": 9,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-privacy-shield",
+      "uuid": "nzdion3id78rpfc5vviroscj",
+      "url": "https://ai-fabric-privacy-shield.46.224.145.148.sslip.io",
+      "job": "frfdjw6ja4nmmt9918w19738",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/nzdion3id78rpfc5vviroscj-212355485603",
+      "image": "nzdion3id78rpfc5vviroscj:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:9eb79d391ee54e06701c462e5e567a2b014e6855f5c7b4d25f8879dd1e8dae43",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-governance-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "ai-fabric-tenant-guard",
+      "uuid": "vjxzie88egcafmhiuxisvcdc",
+      "url": "https://ai-fabric-tenant-guard.46.224.145.148.sslip.io",
+      "job": "nj4b66rpcgg8elq7e57579xv",
+      "jobStatus": "finished",
+      "source": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "container": "/vjxzie88egcafmhiuxisvcdc",
+      "image": "vjxzie88egcafmhiuxisvcdc:1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "imageId": "sha256:fea371f610bb9f0efde9c2d5098360c1e66e163b3d02cb7feb71444fa395837c",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "1bde2bd4523a481f748bb2201bb14a6b706850bf",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-starter-0.8.42.jar",
+        "ai-fabric-pii-0.8.42.jar",
+        "ai-fabric-indexing-0.8.42.jar",
+        "ai-fabric-governance-0.8.42.jar",
+        "ai-fabric-vector-lucene-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    },
+    {
+      "name": "behavior-churn-signals",
+      "uuid": "n1070wzco189zbacg1perldn",
+      "url": "https://behavior-churn-signals.46.224.145.148.sslip.io",
+      "job": "und77cn37j6j4fuju7zb4g5k",
+      "jobStatus": "finished",
+      "source": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "container": "/n1070wzco189zbacg1perldn",
+      "image": "n1070wzco189zbacg1perldn:6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "imageId": "sha256:3834cf77ba2b8a1844104aab44827d26fbb4a7192fd092920920afbf92fae3b2",
+      "nativeHealth": "healthy",
+      "restarts": 0,
+      "oomKilled": false,
+      "healthStatus": 200,
+      "version": "0.8.42",
+      "healthSource": "6e5a3548c8b1d5cd2f42a3798578cd61ca7efda7",
+      "actuatorStatus": 200,
+      "actuator": "UP",
+      "frameworkLibraries": [
+        "ai-fabric-core-0.8.42.jar",
+        "ai-fabric-curated-default-0.8.42.jar",
+        "ai-fabric-vector-memory-0.8.42.jar",
+        "ai-fabric-provider-starter-0.8.42.jar",
+        "ai-fabric-provider-spring-ai-0.8.42.jar",
+        "ai-fabric-behavior-0.8.42.jar",
+        "ai-fabric-execution-0.8.42.jar"
+      ],
+      "packagedVersions": [
+        "0.8.42"
+      ],
+      "passed": true
+    }
+  ],
+  "functional": [
+    {
+      "name": "ai-fabric-incident-investigation",
+      "at": "2026-10-27T21:15:30.751Z",
+      "passed": true,
+      "requests": 4
+    },
+    {
+      "name": "ai-fabric-deployment-knowledge-guard",
+      "passed": true,
+      "requests": 5,
+      "note": "Original successful live response requalified after harness SUCCEEDED status correction; missing-scope canary denied"
+    },
+    {
+      "name": "ai-fabric-conversation-handover-demo",
+      "at": "2026-10-27T21:34:04.063Z",
+      "passed": true,
+      "requests": 11
+    },
+    {
+      "name": "behavior-churn-signals",
+      "at": "2026-10-27T21:28:35.140Z",
+      "passed": true,
+      "requests": 4
+    },
+    {
+      "name": "ai-fabric-privacy-shield",
+      "at": "2026-10-27T21:25:35.824Z",
+      "passed": true,
+      "requests": 3
+    },
+    {
+      "name": "ai-fabric-chat-capabilities-demo",
+      "passed": true,
+      "requests": 3,
+      "note": "Original live response requalified after correcting harness to actual ChatController response envelope"
+    },
+    {
+      "name": "ai-fabric-account-resolver",
+      "at": "2026-10-27T21:04:47.317Z",
+      "passed": true,
+      "requests": 3
+    },
+    {
+      "name": "ai-fabric-document-knowledge-operations",
+      "at": "2026-10-27T21:18:00.243Z",
+      "passed": true,
+      "requests": 19
+    },
+    {
+      "name": "ai-fabric-agentic-action-resolver",
+      "at": "2026-10-27T21:35:21.722Z",
+      "passed": true,
+      "requests": 7
+    },
+    {
+      "name": "ai-fabric-tenant-guard",
+      "at": "2026-10-27T21:27:01.286Z",
+      "passed": true,
+      "requests": 4
+    },
+    {
+      "name": "ai-fabric-live-data-sync",
+      "at": "2026-10-27T21:19:09.412Z",
+      "passed": true,
+      "requests": 7
+    },
+    {
+      "name": "ai-fabric-mcp-reference-server",
+      "at": "2026-10-27T21:34:56.514Z",
+      "passed": true,
+      "requests": 2
+    },
+    {
+      "name": "ai-fabric-mcp-operations",
+      "at": "2026-10-27T21:35:03.965Z",
+      "passed": true,
+      "requests": 11
+    }
+  ],
+  "functionalHttpRequests": 83,
+  "browser": [
+    {
+      "route": "ai-fabric-account-resolver",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 3
+    },
+    {
+      "route": "ai-fabric-agentic-action-resolver",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 2
+    },
+    {
+      "route": "ai-shopping-experience",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 13
+    },
+    {
+      "route": "ai-fabric-conversation-handover",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 5,
+      "finalRecheck": {
+        "method": "Fresh Codex in-app browser after obsolete-instance retirement",
+        "version": "0.8.42",
+        "authority": "AI_ACTIVE",
+        "isolatedConversationLoaded": true,
+        "browserErrors": [],
+        "passed": true
+      }
+    },
+    {
+      "route": "ai-fabric-deployment-knowledge-guard",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 4
+    },
+    {
+      "route": "ai-fabric-document-knowledge-operations",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 4
+    },
+    {
+      "route": "ai-fabric-incident-investigation",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 3
+    },
+    {
+      "route": "ai-fabric-live-data-sync",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 2
+    },
+    {
+      "route": "ai-fabric-mcp-operations",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 5
+    },
+    {
+      "route": "ai-fabric-privacy-shield",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 3
+    },
+    {
+      "route": "ai-fabric-tenant-guard",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 2
+    },
+    {
+      "route": "ai-fabric-behavior-signals",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 2
+    },
+    {
+      "route": "ai-fabric-agentic-action-resolver/review",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 3
+    },
+    {
+      "route": "ai-fabric-behavior-signals/agentic-ui",
+      "httpStatus": 200,
+      "passed": true,
+      "pageErrors": [],
+      "failedApiCount": 0,
+      "apiRequests": 1
+    }
+  ],
+  "exampleFixes": [
+    "e51459d0",
+    "6e5a3548"
+  ],
+  "testOnlyCorrection": "84207902",
+  "focusedTests": {
+    "originalAccountTests": 51,
+    "handoverTests": 13,
+    "correctedSubjectFixtureTests": 7,
+    "frameworkVersion": "0.8.42"
+  },
+  "pending": [
+    {
+      "kind": "COSMETIC_WEBSITE_PUBLISH",
+      "source": "afed600",
+      "note": "Catalogue badge source built/pushed; existing Lovable publisher sign-in required. Individual demo badges are live0.8.42."
+    },
+    {
+      "kind": "BROAD_AUTOMATIC_CI",
+      "source": "84207902",
+      "note": "Test-only fixture corrected after one failed assertion on prior run; latest complete CI not claimed green."
+    },
+    {
+      "kind": "PUSH_TRIGGER_PROOF",
+      "note": "Native auto-deploy configuration enabled; corrective builds were explicitly triggered, not observed GitHub delivery proof."
+    }
+  ],
+  "resourceObservation": {
+    "physicalMemoryAvailableMiB": 3311,
+    "physicalMemoryTotalMiB": 15608,
+    "loadAverage": [
+      1.44,
+      2.25,
+      2.26
+    ],
+    "currentContainerOomKilled": false
+  }
+}

@@ -10650,3 +10650,41 @@ test is being called hosted acceptance. UI extraction remains last.
   Console stays4eafcd08f/backendb54/runtime638/framework0.8.41. Recovery emailSpam
   follow-up remains OPEN, not resolved by this cosmetic update. Preserve dirty
   unrelated work; do not replay native deployments or send signup emails.
+
+### 2026-10-27 Public Framework Demos Restored On 0.8.42
+
+- Owner requested all framework demos live/latest. All12 public demo backends
+  plus MCP reference server now runninghealthy, exactly1instance each, actual
+  packaged AI Fabric JARs exclusively0.8.42. Exact terminaljob/nativeimage/source/
+  publichealth/Actuator/Dockerhealth allverified. Source1bde2bd4 for unchanged
+  examples; correctedagentic/handover/MCPhelper and Behavior6e5a3548. This does
+  NOT upgrade LoomAI Platform/runtime/Desk/Shopify/ProdUS; their preceding state
+  remains unchanged. Publicframework dirtycheckout preserved; clean temporary
+  frameworkworktree used to publish only bounded example fixes.
+- Final13functionalqualifications PASS,83HTTPrequests inclhealth/polling:
+  account3scenarios, shoppingretrieval, consentedAI/human/AIhandover, knowledge
+  scopedanswer/missing-scope denial, documentcreate/index/replace/delete, parallel
+  incidentplan, livesynccreate/update/delete, authenticatedMCPread/confirm/replay/
+  bindingdenial, privacyredaction, tenantscopedRAG and realOpenAIbehavioranalysis.
+  All14webviews bootstrapPASS; freshhandoverbrowser afterretirement shows0.8.42,
+  isolatedconversation/noerrors. No broad all-feature/UI/semantic-matrix claim.
+- Examplefixese51459d0 use trustedaccountsubject instead ofopaqueactor and report
+  realhandovermetadata;6e5a3548 honorsMCPhelperframeworkbuildarg. 51+13focused
+  exampletestsPASS0.8.42. AutomaticCI6e5a3548 failed1newunitassertion aboutupstream
+  userIdprojection; testfixtureexplicitopaqueactor correction84207902 pushed,
+  7focusedtestsPASS; broadreruntrackedseparately, NOT claimedgreen. No framework
+  librarychange/release, semantictextmatching, synthesizedfallback or safetybypass.
+- Coolifynativesettings: mainautodeploy/sourcecommitinjection ON, fixed-name
+  coldreplacement ON. InitialMCProllingreplaceH2lockfailed; oldhealthyretained.
+  Fixed-name transition left3timestampoldcontainers routing/relocking; exactold
+  instancesgracefullystopped/retained/restartdisabled, final1currenteachhealthy.
+  DONT replay mutationhelpers or restorethoseobsoleteinstances. NoDBdeleted.
+- Livewebsitecataloguelabels stillold: websiteafed600 built/pushed butLovable
+  publishneeds signed-in publisher; Requiredforproduction informed withproject
+  URL. Individualdemospages showlive0.8.42. Existingpushwebhook/settingsenabled
+  butnewdeliverynotobserved; correctedrolloutsmanual, notauto-deployproof.
+- Record verification-support/framework-demos/2026-10-27_LIVE_0_8_42_VERIFICATION.md
+  and sanitizedJSON; raw ~/.codex/private/framework-demos-20261027/. Oneexploratory
+  unsupportedMCPlogsquestionclarified visibly; supportedstatus/restartpassed.
+  Staging3311MiBphysicalavailable, load1.44/2.25/2.26,noOOMincurrentaudit.
+  Preserve sequentialbuilds, unrelateddirtywork and openHetzneraccess perowner.
