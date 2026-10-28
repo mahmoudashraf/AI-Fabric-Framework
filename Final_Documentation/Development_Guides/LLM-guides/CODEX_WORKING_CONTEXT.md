@@ -10793,3 +10793,26 @@ test is being called hosted acceptance. UI extraction remains last.
   Viewport restored. No backend/runtime/Console redeployment or unrelated dirty
   changes included. Private evidence: ~/.codex/private/loomai-onboarding-01049/
   public-site-console-link/ (includes live-platform-card.png).
+
+### 2026-10-28 Console Dark Default And Public Site Theme LIVE CLOSED
+
+- Console public/customer surfaces default to dark for new visitors. Explicitly
+  saved light/dark/system choices and staff/admin themes remain unchanged.
+- loomai.pro now has a persistent Sun/Moon header toggle, pre-paint theme setup,
+  system preference until an explicit choice, and themed public pages/diagrams.
+  Dealership demo and customer workspace themes remain independently owned.
+- Source52251ff8c2118cce3adc66d9d982f4e019af3324 is live on the public site and
+  both Console frontends. Image workflow40734384358 PASS; backend build skipped.
+  Public-site jobod07r4wiv2fppttcpee0wrbz and Console jobs
+  stagingy2adayp616v4j5mw63nlbxxp / productiong116glqafz6hsm5r0hhvrk7p finished.
+  Route/health/source/settings checks PASS; Console restart counts zero.
+- PASS:14 focused Console theme browser tests,19 signup/auth/product checks,
+  7 public-site theme scenarios including navigation/reload/mobile/storage cases,
+  public content/static28route checks, Astro diagnostics and both UI builds.
+  Local screenshot review includes all three product pages. Live public-site
+  dark toggle/reload/390px layout and Console saved preference/toggle/reload
+  verified. A previously saved Console light choice was retained, as intended.
+- Private evidence: ~/.codex/private/loomai-onboarding-01049/public-site-theme/
+  and {staging,production}/dark-mode/. Browser viewport restored; temporary test
+  servers and focused parallel agent closed. No backend/runtime/framework,
+  customer assignment, integration credentials or unrelated dirty work changed.
