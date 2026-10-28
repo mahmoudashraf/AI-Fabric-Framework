@@ -57,6 +57,7 @@ import {
   fetchDeploymentReleases,
   fetchDeploymentTargetContext,
   fetchDeploymentMarketplaceInstalls,
+  fetchMarketplacePluginVersion,
   fetchDeploymentTargetProfiles,
   fetchDocumentConnectorStatus,
   fetchDocumentRetentionStatus,
@@ -85,15 +86,11 @@ import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope, hasReviewedDocumentStorageInstall,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
+import { hasApprovedAnonymousDocumentSource } from './documentKnowledgeAudience'
 
 const DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-document-knowledge-s3',
   'mkp-data-document-knowledge-mounted-demo',
-  'mkp-data-dealership-knowledge-v1',
-  'mkp-data-dealership-knowledge-mounted-demo-v1',
-])
-
-const PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-dealership-knowledge-v1',
   'mkp-data-dealership-knowledge-mounted-demo-v1',
 ])
@@ -286,7 +283,16 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     () => documentInstall(installsQuery.data ?? [], dataset),
     [dataset, installsQuery.data],
   )
-  const publicAudiencePackage = install != null && PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS.has(install.pluginId)
+  const documentVersionQuery = useQuery({
+    queryKey: ['document-knowledge-plugin-version', customerId, selectedDeploymentId, install?.pluginId, install?.pluginVersion],
+    queryFn: () => fetchMarketplacePluginVersion(install!.pluginId, install!.pluginVersion),
+    enabled: Boolean(install),
+    retry: false,
+  })
+  const documentContractReady = Boolean(install && documentVersionQuery.isSuccess
+    && documentVersionQuery.data.id === install.pluginVersionId)
+  const publicAudiencePackage = documentContractReady
+    && hasApprovedAnonymousDocumentSource(documentVersionQuery.data?.manifest, datasetId)
   const configuredBindingRef = asRecord(install?.config).documentStorageBindingRef
   const customerDeployment = (customerPortfolioQuery.data ?? [])
     .find((deployment) => deployment.deploymentId === selectedDeploymentId) ?? null
@@ -820,7 +826,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
                       <TableCell align="right">
                         <Button
                           size="small" startIcon={<DescriptionRoundedIcon />}
-                          disabled={!!source.registeredSourceId || !canOperate || registerMutation.isPending}
+                          disabled={!!source.registeredSourceId || !canOperate || registerMutation.isPending || !documentContractReady}
                           onClick={() => {
                             setRegistrationSelection({ target: targetReference, source })
                             setRegistrationCategory('')
@@ -1011,9 +1017,10 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity={publicAudiencePackage ? 'warning' : 'info'}>
               {publicAudiencePackage
-                ? 'This package can ground anonymous website answers. Register only dealership-owned material approved for public visitors.'
+                ? 'This package can ground anonymous answers. Register only material approved for public visitors.'
                 : 'Confirm the source audience and category before creating derived indexing evidence.'}
             </Alert>
+            {!documentContractReady ? <Alert severity="warning">Document audience contract is unavailable. Registration is disabled until it can be verified.</Alert> : null}
             <TextField
               fullWidth
               size="small"
@@ -1066,18 +1073,19 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             startIcon={<DescriptionRoundedIcon />}
             disabled={
               registerMutation.isPending
+              || !documentContractReady
               || !registrationSource
               || !registrationCategory.trim()
               || !registrationApproved
             }
-            onClick={() => registrationSource && registrationSelection && registerMutation.mutate({
+            onClick={() => documentContractReady && registrationSource && registrationSelection && registerMutation.mutate({
               target: registrationSelection.target,
               datasetId,
               publicAudiencePackage,
               selection: registrationSelection,
               objectReference: registrationSource.objectReference,
               sourceCategory: registrationCategory.trim(),
-              visibility: registrationVisibility,
+              visibility: publicAudiencePackage ? 'tenant' : registrationVisibility,
               operationKey: crypto.randomUUID(),
             })}
           >

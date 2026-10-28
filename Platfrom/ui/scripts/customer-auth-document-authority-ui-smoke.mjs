@@ -52,6 +52,7 @@ async function scenario(name, documents, action, { live = false } = {}) {
     const path = url.pathname, method = route.request().method(), body = route.request().postDataJSON()
     state.calls.push({ path, method, body, key: route.request().headers()['idempotency-key'] })
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
+    if (path === '/api/platform/auth/customer-config') return json({ enabled: false })
     if (path === '/api/platform/auth/session') {
       const reply = route.request().headers()['x-platform-api-key'] ? { ...owner, actorId: 'key-owner', authenticationMode: 'API_KEY' } : structuredClone(state.session)
       if (state.holdSession) { state.holdSession = false; state.sessionReplies.push(() => json(reply)); return }
@@ -66,7 +67,15 @@ async function scenario(name, documents, action, { live = false } = {}) {
     }
     if (path === '/api/customer-self-service/deployments') return json(portfolio)
     if (path === '/api/deployments/dep/draft') return json({ marketplaceDatasetConfig: { datasets: [{ ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE', datasetId: 'docs' }] } })
-    if (path.endsWith('/marketplace-installs')) return json([{ id: 'install', pluginId: 'mkp-data-document-knowledge-s3', config: { documentStorageBindingRef: 'slot:document-storage' } }])
+    if (path.endsWith('/marketplace-installs')) return json([{ id: 'install', pluginId: 'mkp-data-document-knowledge-s3',
+      pluginVersion: '1.1.0', pluginVersionId: 'document-private-v1-1', config: { documentStorageBindingRef: 'slot:document-storage' } }])
+    if (path === '/api/marketplace/plugins/mkp-data-document-knowledge-s3/versions/1.1.0') return json({
+      id: 'document-private-v1-1', manifest: { contributions: {
+        datasets: [{ datasetId: 'docs', ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE' }],
+        knowledgeSources: [{ datasetRef: 'docs', sourceType: 'deployment-private-vector',
+          authModes: ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED'], filters: { datasetId: 'docs' } }],
+      } },
+    })
     if (path === '/api/deployments/dep/releases') return json(live ? [{ id: 'release-one', deploymentId: 'dep',
       deploymentVersionId: 'version-one', targetProfileId: 'stage', status: 'APPLIED_VERIFIED',
       provisioningStatus: 'ACTIVE', verificationStatus: 'PASSED' }] : [])
@@ -161,7 +170,8 @@ try {
     await page.evaluate(() => window.__auth.signOut())
     await until(async () => await page.getByTestId('auth').innerText() === 'anonymous:SESSION', 'logout same empty key observer')
     assert.equal(await page.evaluate(() => window.__client.getQueryData(['private-owner'])), undefined)
-    assert.equal(await page.evaluate(() => window.__client.getQueryCache().findAll().filter(q => q.getObserversCount() > 0).length), 1)
+    assert.deepEqual(await page.evaluate(() => window.__client.getQueryCache().findAll().filter(q => q.getObserversCount() > 0)
+      .map(q => q.queryKey[0]).sort()), ['customer-auth-config', 'platform-auth-session'])
   })
   await scenario('key-session-transition-and-delayed-old-session', false, async ({ page, state }) => {
     state.holdSession = true

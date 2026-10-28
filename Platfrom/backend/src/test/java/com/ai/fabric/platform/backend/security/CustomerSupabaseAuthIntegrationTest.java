@@ -45,6 +45,7 @@ class CustomerSupabaseAuthIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired PlatformCustomerIdentityLinkRepository links;
     @Autowired com.ai.fabric.platform.backend.security.repository.PlatformUserRepository users;
+    @Autowired com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository customers;
     @MockBean(name = "customerSupabaseJwtDecoder") JwtDecoder decoder;
     @MockBean CustomerSupabaseUserVerifier verifier;
 
@@ -54,7 +55,8 @@ class CustomerSupabaseAuthIntegrationTest {
             if (token.equals("invalid") || token.equals("expired")) throw new JwtException("Invalid token");
             var jwt = Jwt.withTokenValue(token).header("alg", "ES256").issuer("https://auth.example.test/auth/v1")
                 .subject(token.equals("delegated-owner") ? "subject-owner" : token).audience(java.util.List.of("authenticated")).issuedAt(Instant.now().minusSeconds(10))
-                .expiresAt(Instant.now().plusSeconds(300)).claim("email", "same-email@not-an-identity.test");
+                .expiresAt(Instant.now().plusSeconds(300)).claim("email", token.startsWith("signup-")
+                    ? token + "@onboarding.example.test" : "same-email@not-an-identity.test");
             if (token.equals("delegated-owner")) jwt.claim("client_id", "desk-test");
             return jwt.build();
         });
@@ -161,6 +163,83 @@ class CustomerSupabaseAuthIntegrationTest {
         mvc.perform(get("/api/platform/auth/session").cookie(cookie)).andExpect(status().isOk())
             .andExpect(jsonPath("$.authenticationMode", is("SESSION"))).andExpect(jsonPath("$.role", is("PLATFORM_OPERATOR")));
         mvc.perform(get("/api/platform/overview").cookie(cookie)).andExpect(status().isOk());
+    }
+
+    @Test void verifiedSignupCreatesOnlyItsOwnWorkspaceAndRetriesDoNotCreateAnother() throws Exception {
+        String token = "signup-fresh";
+        mvc.perform(get("/api/platform/auth/customer-onboarding").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status", is("CREATE_WORKSPACE")));
+        var created = mvc.perform(onboard(token).content("{\"workspaceName\":\"New company\",\"displayName\":\"New owner\",\"role\":\"PLATFORM_ADMIN\",\"customerId\":\"cust-internal\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status", is("READY"))).andReturn();
+        String customerId = JsonPath.read(created.getResponse().getContentAsString(), "$.customerId");
+        var owner = users.findByEmailIgnoreCase(token + "@onboarding.example.test").orElseThrow();
+        assertThat(owner.getRole()).isEqualTo("CUSTOMER_ADMIN");
+        assertThat(owner.getCustomerId()).isEqualTo(customerId).isNotEqualTo("cust-internal");
+        assertThat(customers.findById(customerId).orElseThrow().isPlatformManaged()).isFalse();
+        mvc.perform(onboard(token).content("{\"workspaceName\":\"Ignored rename\",\"displayName\":\"Ignored owner\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.customerId", is(customerId)))
+            .andExpect(jsonPath("$.workspaceName", is("New company")));
+        mvc.perform(get("/api/platform/auth/session").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.customerId", is(customerId)))
+            .andExpect(jsonPath("$.role", is("CUSTOMER_ADMIN"))).andExpect(jsonPath("$.canManageSecrets", is(false)));
+        mvc.perform(get("/api/platform/customers").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1))).andExpect(jsonPath("$[0].id", is(customerId)));
+        mvc.perform(post("/api/customer-self-service/enrollment").header("Authorization", "Bearer " + token)
+            .header(HttpHeaders.ORIGIN, "https://console.example.test"))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/customer-self-service/catalogue").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test void templateEnrollmentRejectsNonConsoleOrigins() throws Exception {
+        mvc.perform(onboard("signup-enrollment-origin").content("{\"workspaceName\":\"Enrollment origin\",\"displayName\":\"Owner\"}"))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/customer-self-service/enrollment").header("Authorization", "Bearer signup-enrollment-origin")
+            .header(HttpHeaders.ORIGIN, "https://dealer.apps.example.test")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/customer-self-service/enrollment").header("Authorization", "Bearer signup-enrollment-origin"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test void workspaceRegistrationNeverClaimsAnExistingEmailOrRevivesRevokedMembership() throws Exception {
+        user("signup-collision@onboarding.example.test", customer("signup-existing"));
+        mvc.perform(get("/api/platform/auth/customer-onboarding").header("Authorization", "Bearer signup-collision"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status", is("LINK_REQUIRED")));
+        mvc.perform(onboard("signup-collision").content("{\"workspaceName\":\"Claim existing\",\"displayName\":\"Owner\"}"))
+            .andExpect(status().isConflict());
+        assertThat(links.findByIssuerAndSubject("https://auth.example.test/auth/v1", "signup-collision")).isEmpty();
+        mvc.perform(onboard("signup-revoked").content("{\"workspaceName\":\"Revoked workspace\",\"displayName\":\"Owner\"}"))
+            .andExpect(status().isOk());
+        var owner = users.findByEmailIgnoreCase("signup-revoked@onboarding.example.test").orElseThrow();
+        mvc.perform(delete("/api/platform/auth/customer-links/" + owner.getId()).header("X-PLATFORM-API-KEY", "staff-key"))
+            .andExpect(status().isOk());
+        mvc.perform(onboard("signup-revoked").content("{\"workspaceName\":\"Replacement\",\"displayName\":\"Owner\"}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(get("/api/platform/auth/customer-onboarding").header("Authorization", "Bearer signup-revoked"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test void onboardingRequiresVerifiedDirectIdentityAndTrustedOrigin() throws Exception {
+        String body = "{\"workspaceName\":\"Blocked\",\"displayName\":\"Owner\"}";
+        long initial = customers.count();
+        mvc.perform(post("/api/platform/auth/customer-onboarding").header(HttpHeaders.ORIGIN, "https://console.example.test")
+            .header("X-PLATFORM-API-KEY", "staff-key").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(onboard("invalid").content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(onboard("delegated-owner").content(body)).andExpect(status().isForbidden());
+        doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED))
+            .when(verifier).requireVerifiedUser("signup-unverified", "signup-unverified");
+        mvc.perform(onboard("signup-unverified").content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/platform/auth/customer-onboarding").header("Authorization", "Bearer signup-foreign-origin")
+            .header(HttpHeaders.ORIGIN, "https://dealer.apps.example.test").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isForbidden());
+        mvc.perform(onboard("signup-invalid-name").content("{\"workspaceName\":\" \",\"displayName\":\"Owner\"}"))
+            .andExpect(status().isBadRequest());
+        assertThat(customers.count()).isEqualTo(initial);
+    }
+
+    private MockHttpServletRequestBuilder onboard(String token) {
+        return post("/api/platform/auth/customer-onboarding").header("Authorization", "Bearer " + token)
+            .header(HttpHeaders.ORIGIN, "https://console.example.test").contentType(MediaType.APPLICATION_JSON);
     }
 
     @Test void linkingRejectsMissingOriginBeforeIdentityVerificationOrMutation() throws Exception {

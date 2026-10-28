@@ -5,7 +5,11 @@ import { DeskOAuthAuthorizationPage } from './pages/DeskOAuthAuthorizationPage'
 import { CustomerIdentityLinkPage } from './pages/CustomerIdentityLinkPage'
 import { CustomerAuthCallbackPage } from './pages/CustomerAuthCallbackPage'
 import { CustomerAuthRecoveryPage } from './pages/CustomerAuthRecoveryPage'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { PlatformApiError } from './api/platformApi'
+import { productStartPath } from './auth/customerAuthReturn'
+import { PublicProductsPage } from './pages/PublicProductsPage'
+import { CustomerOnboardingPage, CustomerProductStartPage, CustomerSignInPage } from './pages/CustomerOnboardingPage'
 import { AppShell } from './layout/AppShell'
 import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
 import { CustomerResourcesPage } from './pages/CustomerResourcesPage'
@@ -54,6 +58,7 @@ import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceCont
 
 export default function App() {
   const auth = usePlatformAuth()
+  const location = useLocation()
   const customerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
   const Shell = customerWorkspace ? CustomerConsoleShell : AppShell
 
@@ -61,6 +66,12 @@ export default function App() {
   if (window.location.pathname === '/auth/desk/authorize') return <DeskOAuthAuthorizationPage />
   if (window.location.pathname === '/auth/callback') return <CustomerAuthCallbackPage />
   if (window.location.pathname === '/auth/recovery') return <CustomerAuthRecoveryPage />
+
+  const publicProduct = ['/products/platform', '/products/engage', '/products/desk'].includes(location.pathname)
+    ? location.pathname.split('/')[2] as 'platform' | 'engage' | 'desk' : undefined
+  if (location.pathname === '/' || location.pathname === '/products' || publicProduct) {
+    return <PublicProductsPage product={publicProduct} authenticated={Boolean(auth.session?.authenticated)} consolePath={customerWorkspace ? '/home' : '/deployments'} />
+  }
 
   if (auth.isLoading) {
     return (
@@ -71,6 +82,24 @@ export default function App() {
         </Stack>
       </Box>
     )
+  }
+
+  if (location.pathname === '/staff/sign-in') {
+    if (customerWorkspace && auth.session?.authenticationMode === 'SESSION' && auth.customerConfig?.enabled) return <CustomerIdentityLinkPage />
+    if (auth.session?.authenticated) return <Navigate to={customerWorkspace ? '/home' : '/deployments'} replace />
+    return <PlatformLoginPage headerName={auth.session?.headerName ?? 'X-PLATFORM-API-KEY'}
+      sessionAuthEnabled={auth.session?.sessionAuthEnabled ?? true} apiKeyAuthEnabled={auth.session?.apiKeyAuthEnabled ?? false}
+      errorMessage={auth.apiKey ? 'Platform API key rejected. Please try again.' : null}
+      onPasswordSubmit={auth.signInWithPassword} onApiKeySubmit={auth.setApiKey} />
+  }
+
+  const unlinkedCustomer = Boolean(auth.supabaseSession && auth.error instanceof PlatformApiError
+    && auth.error.errorCode === 'CUSTOMER_IDENTITY_NOT_LINKED')
+  if (unlinkedCustomer) return <CustomerOnboardingPage />
+
+  if (location.pathname === '/sign-in' || location.pathname === '/sign-up') {
+    if (auth.session?.authenticated) return <Navigate to={customerWorkspace ? productStartPath(location.search) : '/deployments'} replace />
+    return <CustomerSignInPage register={location.pathname === '/sign-up'} />
   }
 
   if (auth.error) {
@@ -85,16 +114,7 @@ export default function App() {
   }
 
   if (auth.session?.enabled && !auth.session.authenticated) {
-    return (
-      <PlatformLoginPage
-        headerName={auth.session.headerName}
-        sessionAuthEnabled={auth.session.sessionAuthEnabled}
-        apiKeyAuthEnabled={auth.session.apiKeyAuthEnabled}
-        errorMessage={auth.apiKey ? 'Platform API key rejected. Please try again.' : null}
-        onPasswordSubmit={auth.signInWithPassword}
-        onApiKeySubmit={auth.setApiKey}
-      />
-    )
+    return <Navigate to={`/sign-in${location.search}`} replace />
   }
 
   if (auth.session?.role === 'CUSTOMER_ADMIN' && !isCustomerSession(auth.session)) {
@@ -120,6 +140,8 @@ export default function App() {
           {customerWorkspace ? (
             <>
               <Route path="/home" element={<CustomerResourcesPage mode="home" />} />
+              <Route path="/start" element={<CustomerProductStartPage />} />
+              <Route path="/onboarding" element={<Navigate to={productStartPath(location.search)} replace />} />
               <Route path="/deployments" element={<CustomerResourcesPage mode="deployments" />} />
               <Route path="/ai-workspaces" element={<CustomerResourcesPage mode="apps" />} />
               <Route path="/document-knowledge" element={<CustomerKnowledgeConnectionsPage mode="knowledge" />} />

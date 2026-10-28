@@ -3,9 +3,9 @@ import { type FormEvent, useState } from 'react'
 import { usePlatformAuth } from './PlatformAuthProvider'
 import { rememberCustomerAuthReturn } from './customerAuthReturn'
 
-export function SupabaseIdentityForm({ linking = false, allowRegistration = false }: { linking?: boolean; allowRegistration?: boolean }) {
+export function SupabaseIdentityForm({ linking = false, allowRegistration = false, initialMode = 'login' }: { linking?: boolean; allowRegistration?: boolean; initialMode?: 'login' | 'register' }) {
   const auth = usePlatformAuth()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -23,7 +23,10 @@ export function SupabaseIdentityForm({ linking = false, allowRegistration = fals
       } else if (linking) {
         const { error } = await auth.supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-      } else await auth.signInCustomer(email, password)
+      } else {
+        rememberCustomerAuthReturn(false)
+        await auth.signInCustomer(email, password)
+      }
       setPassword('')
     } catch (ex) { setError(ex instanceof Error ? ex.message : 'Sign-in failed.') }
     finally { setBusy(false) }
@@ -46,6 +49,6 @@ export function SupabaseIdentityForm({ linking = false, allowRegistration = fals
       } catch (ex) { setError(ex instanceof Error ? ex.message : 'Password recovery failed.') }
       finally { setBusy(false) }
     }}>Forgot password?</Button>}
-    {allowRegistration && <Typography variant="caption" color="text.secondary">An account alone does not grant access to customer deployments.</Typography>}
+    {allowRegistration && <Typography variant="caption" color="text.secondary">Verify your email, then create your workspace or connect an existing customer account.</Typography>}
   </Stack>
 }

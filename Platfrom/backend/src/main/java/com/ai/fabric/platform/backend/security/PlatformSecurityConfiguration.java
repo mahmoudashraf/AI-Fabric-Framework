@@ -135,6 +135,7 @@ public class PlatformSecurityConfiguration {
                 "/actuator/health/**",
                 "/api/platform/auth/session",
                 "/api/platform/auth/customer-config",
+                "/api/platform/auth/customer-onboarding",
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
                 "/api/public/ai-workspace/**",

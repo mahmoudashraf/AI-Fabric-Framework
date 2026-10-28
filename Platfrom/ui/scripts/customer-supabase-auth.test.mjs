@@ -99,10 +99,23 @@ test('verification returns only to the local linking or central Desk path, never
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/authorize?authorization_id=opaque-request')
     rememberCustomerAuthReturn(true)
     assert.equal(customerAuthReturn().purpose, 'link')
-    assert.equal(consumeCustomerAuthReturn(), '/')
+    assert.equal(consumeCustomerAuthReturn(), '/staff/sign-in?link=customer')
     storage.set('loomai-console-auth-return', JSON.stringify({ purpose: 'customer', createdAt: Date.now(), next: 'https://evil.test' }))
-    assert.equal(consumeCustomerAuthReturn(), '/')
+    assert.equal(consumeCustomerAuthReturn(), '/start')
     storage.set('loomai-console-auth-return', JSON.stringify({ purpose: 'desk', createdAt: Date.now() - 3600001, authorizationId: 'expired' }))
     assert.equal(customerAuthReturn(), null)
+  } finally { delete globalThis.window }
+})
+
+test('product selection survives email verification but cannot become an arbitrary redirect', () => {
+  const storage = new Map()
+  globalThis.window = { location: { pathname: '/sign-up', search: '?product=engage&next=https://evil.test' },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    rememberCustomerAuthReturn(false)
+    assert.equal(consumeCustomerAuthReturn(), '/start?product=engage')
+    window.location.search = '?product=https://evil.test'
+    rememberCustomerAuthReturn(false)
+    assert.equal(consumeCustomerAuthReturn(), '/start')
   } finally { delete globalThis.window }
 })

@@ -66,6 +66,9 @@ platform:
     bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
     bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
     bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
+    customer-onboarding:
+      enabled: ${PLATFORM_CUSTOMER_ONBOARDING_ENABLED:true}
+      template-offer-ids: ${PLATFORM_CUSTOMER_ONBOARDING_TEMPLATE_OFFER_IDS:}
     supabase:
       enabled: ${PLATFORM_SUPABASE_AUTH_ENABLED:true}
       issuer: ${PLATFORM_SUPABASE_ISSUER:https://xazkenhomhtpejjjqtsy.supabase.co/auth/v1}

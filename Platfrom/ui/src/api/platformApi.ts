@@ -4696,6 +4696,26 @@ export function linkCustomerSupabaseIdentity(accessToken: string) {
   return request<void>('/api/platform/auth/customer-link', { method: 'POST', body: JSON.stringify({ accessToken }) }, 'local')
 }
 
+export type CustomerOnboardingSummary = {
+  status: 'CREATE_WORKSPACE' | 'READY' | 'LINK_REQUIRED' | 'REGISTRATION_CLOSED'
+  customerId: string | null
+  workspaceName: string | null
+}
+
+export function fetchCustomerOnboarding() {
+  return request<CustomerOnboardingSummary>('/api/platform/auth/customer-onboarding')
+}
+
+export function createCustomerWorkspace(payload: { workspaceName: string; displayName: string }) {
+  return request<CustomerOnboardingSummary>('/api/platform/auth/customer-onboarding', {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export function enrollPublicCustomerTemplates() {
+  return request<void>('/api/customer-self-service/enrollment', { method: 'POST' })
+}
+
 export function loginToPlatform(payload: PlatformLoginRequest) {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/login', {
     method: 'POST',

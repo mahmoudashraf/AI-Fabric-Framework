@@ -71,6 +71,31 @@ class CustomerOfferEntitlementServiceTest {
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
+    @Test void publicEnrollmentUsesExistingEntitlementLedgerAndNeverRevivesOrReassignsAccess() {
+        CustomerOfferTestFixtures.authenticate(owner.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+        service.enrollPublicTemplates(List.of("offer", "offer"));
+        assertThat(saved.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
+        assertThat(saved.getCustomerId()).isEqualTo("customer");
+        assertThat(saved.getOwnerUserId()).isEqualTo("owner");
+        assertThat(saved.getInvitationReference()).isEqualTo("PUBLIC_SELF_SERVICE");
+        service.enrollPublicTemplates(List.of("offer"));
+        saved.setStatus(EntitlementStatus.REVOKED);
+        service.enrollPublicTemplates(List.of("offer"));
+        assertThat(saved.getStatus()).isEqualTo(EntitlementStatus.REVOKED);
+        verify(entitlements, times(1)).saveAndFlush(any());
+        verify(commands, times(1)).save(any());
+        verify(audit).record(eq("CUSTOMER_OFFER_ENROLL"), anyString(), anyString(), anyMap());
+    }
+
+    @Test void emptyPublicCatalogueDoesNotExposePrivateOffersAndStaffCannotSelfEnroll() {
+        CustomerOfferTestFixtures.authenticate(owner.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+        service.enrollPublicTemplates(List.of());
+        verifyNoInteractions(offers);
+        verify(entitlements, never()).saveAndFlush(any());
+        CustomerOfferTestFixtures.authenticate("admin-key", PlatformRole.PLATFORM_ADMIN, "API_KEY");
+        assertCode(ACTIVE_CUSTOMER_SCOPE_REQUIRED, () -> service.enrollPublicTemplates(List.of("offer")));
+    }
+
     @Test void newOfferCannotPublishRetiredInboxPermissionsOrBindingDefaults() throws Exception {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
         com.fasterxml.jackson.databind.node.ObjectNode json = mapper.valueToTree(CustomerOfferTestFixtures.definition());

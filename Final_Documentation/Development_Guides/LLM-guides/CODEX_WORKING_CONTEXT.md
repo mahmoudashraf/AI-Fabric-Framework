@@ -10688,3 +10688,50 @@ test is being called hosted acceptance. UI extraction remains last.
   unsupportedMCPlogsquestionclarified visibly; supportedstatus/restartpassed.
   Staging3311MiBphysicalavailable, load1.44/2.25/2.26,noOOMincurrentaudit.
   Preserve sequentialbuilds, unrelateddirtywork and openHetzneraccess perowner.
+
+### 2026-10-28 Product Entrance And Workspace Onboarding Implemented Locally
+
+- Owner approved minimal products/authentication entrance, no upper menu, and
+  short Platform/Engage/Desk pages with clear return, demo and start actions.
+  Implemented PublicProductsPage/CSS plus2existing vehicle bitmap assets; light/
+  dark and basic mobile. No staff/customer editor extraction or framework change.
+- New verified Supabase identity explicitly creates its own customer+owner+link,
+  one transaction, no email-based joins, staff escalation, deployment, business DB
+  or provider allowance. Existing dual-proof linking and Desk-only OAuth retained.
+  Product selection survives signup PKCE callback through a fixed3value contract.
+- Auth onboarding GET/POST independently verifies bearer identity; POST and
+  self-enrollment require exact configured Console origins. Public bootstrap
+  enrollment reads only PLATFORM_CUSTOMER_ONBOARDING_TEMPLATE_OFFER_IDS, default
+  empty; preserves revoked/existing grants. No timed trial or private fallback.
+  V217 adds ENROLL to existing receipt constraint; no new tables. Backend before UI.
+- Local PASS:37backend/8authunits/19SDKbrowser/15customer-scope scenarios; TS/Vite
+  build. Actual SQL constraint+ledger/concurrency exercised on isolated H2 PGmode,
+  NOTnativePostgres. Review caught missinginitialENROLLconstraint, fixed withV217;
+  re-review no further blocker. Productionbuild visual light/dark/nav/image/no
+  desktop overflow PASS, publicdealershipdemoHTTP200. Existingbundlewarning retained.
+- Preview http://127.0.0.1:5187/ (builtUI only; localbackend/provider not configured).
+  Supersededdev5186 stopped. Actual UI tab retained as deliverable. Tracked01049
+  document and UI README. Changes NOT committed/pushed/deployed; prior hosted
+  Console/backend/runtime/Desk assignments unchanged. Hosted native signup/email
+  and public bootstrap offer enablement still outstanding. Asked owner whether
+  initial public templates should be dealership only or dealership+generic.
+  Do not publish a funded/private canary as a public signup default.
+
+### 2026-10-28 Public Signup Starter Selection And Release Preparation
+
+- Owner selected dealership simulator plus generic knowledge workspace. Both
+  clean offers published on both CPs through normal marketplace/staff APIs:
+  public-dealership-simulator-v1 (template1.11) and public-knowledge-workspace-v1
+  (template/data1.2). No Northfield credential, authproject, fundedallowance,
+  storage/vectorbinding, customerassignment or businessDB bundled or changed.
+- Generic document UI recognizes declared approved anonymous source contracts,
+  not dealershipIDs. Per-source PUBLIC_APPROVED/explicitapproval retained;
+  template defaults do not pre-approve new customer files. Public profiles use
+  none/PUBLIC, optional AIstate managedorcustomerPostgres, externalvectors still
+  require ownedbinding. Runtimecatalogue staging registered qualified638/0.8.41;
+  no framework/runtime rollout. Existing customer deployments unchanged.
+- Latest PASS:38backend including nativePGV217;7starter/7audience units;
+  10document-race/9document-authority/19signup-auth browser;8authunits; UIbuild.
+  Vite test cache isolation fixes harness interference, not productthemebehavior.
+- Selective commit/backend-before-UI staging thenproduction rollout is next.
+  New offers are published but signup endpoint/UI/env activation not hosted yet.

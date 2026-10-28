@@ -58,6 +58,28 @@ public class CustomerOfferEntitlementService {
     }
 
     @Transactional
+    public void enrollPublicTemplates(List<String> publicOfferIds) {
+        var actor = requireCustomerActor();
+        // Only operator-selected public bootstrap offers may be self-enrolled; never accept an offer ID from the caller.
+        for (String offerId : publicOfferIds.stream().distinct().sorted().toList()) {
+            var offer = offers.findByIdForUpdate(offerId).orElseThrow(() -> deny(ENTITLEMENT_REQUIRED));
+            if (entitlements.findForUpdate(actor.customerId(), offerId).isPresent()) continue;
+            composition.validate(definition(offer));
+            var now = Instant.now();
+            var entity = new CustomerOfferEntitlementEntity();
+            entity.setId("cse-" + UUID.randomUUID()); entity.setCustomerId(actor.customerId());
+            entity.setOwnerUserId(actor.userId()); entity.setOfferId(offerId);
+            entity.setInvitationReference("PUBLIC_SELF_SERVICE"); entity.setStatus(EntitlementStatus.ACTIVE);
+            entity.setRevision(1); entity.setCreatedAt(now); entity.setUpdatedAt(now);
+            // Public bootstrap access is not a timed trial. Existing explicit revocation still applies.
+            entity.setExpiresAt(Instant.parse("9999-12-31T23:59:59Z"));
+            entitlements.saveAndFlush(entity);
+            record(entity, "ENROLL", "enroll-" + UUID.randomUUID(), codec.hash(Map.of("offerId", offerId)),
+                "Customer selected a publicly available bootstrap template.");
+        }
+    }
+
+    @Transactional
     public String publish(PublishOfferRequest request) {
         requireStaffAdmin();
         if (request == null || blank(request.offerId(), 64) || blank(request.reviewReference(), 255)) throw invalid();

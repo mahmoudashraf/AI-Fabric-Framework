@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
@@ -20,6 +23,7 @@ React.createElement('button',{onClick:()=>a.supabase.auth.refreshSession()},'Ref
 React.createElement('button',{onClick:async()=>{startCustomerIdentityLink();await a.supabase.auth.signInWithPassword({email:'agent@example.test',password:'TestPassword'});await a.linkCustomer()}},'Link identity'))}
 createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient()},React.createElement(PlatformAuthProvider,{},React.createElement(Fixture))));`
 let server, browser
+const cacheDir = await mkdtemp(join(tmpdir(), 'loomai-auth-smoke-'))
 const results = []
 const timestamp = Math.floor(Date.now() / 1000)
 const jwt = suffix => `${Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: 'subject-agent', iss: 'https://auth.example.test/auth/v1', role: 'authenticated', aud: 'authenticated', exp: timestamp + 3600, iat: timestamp, suffix })).toString('base64url')}.fixture-signature`
@@ -34,7 +38,7 @@ const details = { authorization_id: 'request-one', redirect_uri: 'https://desk.e
 async function scenario(name, action, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
   const calls = [], errors = []
-  let local = anonymous, refreshed = false, linked = false
+  let local = anonymous, refreshed = false, linked = false, onboarded = false, enrolled = false
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
   page.setDefaultTimeout(15000)
@@ -73,15 +77,34 @@ async function scenario(name, action, options = {}) {
     if (url.origin !== new URL(server.resolvedUrls.local[0]).origin) { errors.push(`Unmocked remote ${url.origin}`); return route.abort() }
     if (!url.pathname.startsWith('/api/')) return route.continue()
     calls.push({ path: url.pathname, method: req.method(), authorization: headers.authorization, cookie: headers.cookie, key: headers['x-platform-api-key'] })
-    if (url.pathname.endsWith('/customer-config')) return respond(config)
+    if (url.pathname.endsWith('/customer-config')) return options.backendUnavailable ? respond({ message: 'Unavailable' }, 503) : respond(config)
+    if (url.pathname.endsWith('/customer-onboarding')) {
+      assert.ok(headers.authorization?.startsWith('Bearer '))
+      if (req.method() === 'POST') {
+        assert.deepEqual(req.postDataJSON(), { workspaceName: 'My company', displayName: 'New customer' })
+        onboarded = true
+      }
+      return respond({ status: onboarded ? 'READY' : options.linkRequired ? 'LINK_REQUIRED' : 'CREATE_WORKSPACE',
+        customerId: onboarded ? customer.customerId : null, workspaceName: onboarded ? 'My company' : null })
+    }
+    if (url.pathname === '/api/customer-self-service/enrollment') { assert.ok(onboarded); enrolled = true; return route.fulfill({ status: 200, body: '' }) }
+    if (url.pathname === '/api/customer-self-service/catalogue' && options.publicTemplate && enrolled) return respond([
+      ['public-dealership-simulator-v1', 'Dealership simulator'], ['public-knowledge-workspace-v1', 'Knowledge workspace'],
+    ].map(([id, name]) => ({
+      id, name, templateId: id, templateVersionId: 'version', fingerprint: 'fingerprint',
+      entitlement: { id: `enrollment-${id}`, offerId: id, customerId: customer.customerId, ownerUserId: 'new-owner', status: 'ACTIVE', revision: 1, expiresAt: '2099-01-01T00:00:00Z' },
+      targets: [], permissions: [], settings: [], bindingSlots: [], documentAudiences: [], blockers: [], workspaceProfiles: [], externalIntegrationProfiles: [],
+    })))
+    if (url.pathname === '/api/deployment-operations/status') return respond({ mode: 'DISABLED', providerUsageMode: 'TEAM_AUTHORIZED', manualDeploymentsAllowed: true, serviceConfigured: false })
     if (url.pathname.endsWith('/customer-link')) { assert.equal(local.authenticationMode, 'SESSION'); assert.equal(headers.authorization, undefined); linked = true; return route.fulfill({ status: 200, body: '' }) }
     if (url.pathname.endsWith('/login')) { local = options.localCustomer ? { ...customer, authenticationMode: 'SESSION' } : staff; return respond(local) }
     if (url.pathname.endsWith('/logout')) { local = anonymous; return respond(anonymous) }
     if (url.pathname.endsWith('/session')) {
+      if (options.backendUnavailable) return respond({ message: 'Unavailable' }, 503)
       if (headers.authorization) {
         assert.equal(headers['x-platform-api-key'], undefined); assert.equal(headers.cookie, undefined)
         if (options.delayedCustomerAuthorizationTransition) await new Promise(resolve => setTimeout(resolve, 400))
-        return options.deskOnly && !linked ? respond({ success: false, errorCode: 'CUSTOMER_IDENTITY_NOT_LINKED', message: 'No Console membership' }, 403) : respond(customer)
+        return (options.deskOnly && !linked) || (options.fresh && !onboarded) ? respond({ success: false, errorCode: 'CUSTOMER_IDENTITY_NOT_LINKED', message: 'No Console membership' }, 403) : respond(customer)
       }
       return respond(headers['x-platform-api-key'] ? { ...staff, authenticationMode: 'API_KEY' } : local)
     }
@@ -93,7 +116,7 @@ async function scenario(name, action, options = {}) {
 }
 
 try {
-  server = await createServer({ root, configFile: false, envFile: false, esbuild: { jsx: 'automatic' }, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'auth-fixture', enforce: 'pre',
+  server = await createServer({ root, cacheDir, configFile: false, envFile: false, esbuild: { jsx: 'automatic' }, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'auth-fixture', enforce: 'pre',
     resolveId(id) { if (id === '/auth-test-entry.jsx') return '\0auth-test-entry.jsx' },
     load(id) { if (id === '\0auth-test-entry.jsx') return fixtureEntry },
     configureServer(vite) {
@@ -202,12 +225,11 @@ try {
   await scenario('cancelled_login_creates_no_token_or_oauth_approval', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
     await page.getByRole('link', { name: 'Cancel', exact: true }).click()
-    await page.getByText('Platform sign-in', { exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
     assert.equal(calls.filter(call => call.path === '/auth/v1/token' || call.path.endsWith('/consent')).length, 0)
   })
   await scenario('existing_console_owner_registers_verifies_and_explicitly_links_both_identities', async ({ page, calls, linked, base }) => {
-    await page.goto(`${base}/`)
-    await page.getByRole('button', { name: 'Connect an existing customer account' }).click()
+    await page.goto(`${base}/staff/sign-in?link=customer`)
     await page.getByLabel('Email', { exact: true }).fill('existing-owner@example.test')
     await page.getByLabel('Password', { exact: true }).fill('ExistingPlatformPassword')
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -227,5 +249,65 @@ try {
     assert.equal(link.authorization, undefined); assert.equal(link.key, undefined)
     await page.waitForURL('**/home')
   }, { deskOnly: true, localCustomer: true })
+  await scenario('public_products_are_readable_without_membership_and_keep_simple_navigation', async ({ page, calls, base }) => {
+    await page.goto(base)
+    await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
+    assert.equal(await page.getByRole('navigation').count(), 0)
+    for (const product of ['Platform', 'Engage', 'Desk']) {
+      await page.getByRole('link', { name: `Explore ${product}`, exact: true }).click()
+      await page.getByRole('heading', { name: `LoomAI ${product}`, exact: true }).waitFor()
+      await page.getByRole('link', { name: 'Back to products', exact: true }).click()
+    }
+    assert.equal(calls.filter(call => call.method === 'POST').length, 0)
+  })
+  await scenario('new_verified_customer_creates_workspace_then_opens_existing_template_setup', async ({ page, calls, base }) => {
+    await page.goto(`${base}/products/platform`)
+    await page.getByRole('link', { name: 'Get started', exact: true }).click()
+    await page.getByRole('button', { name: 'Create account', exact: true }).click()
+    await page.getByLabel(/^Email/).fill('new-customer@example.test')
+    await page.getByLabel(/^Password/).fill('TestPassword')
+    await page.getByRole('button', { name: 'Create account', exact: true }).last().click()
+    await page.getByText('Check your email to verify your account. Then return here to sign in.').waitFor()
+    await page.goto(`${base}/auth/callback?code=new-customer-verified-email`)
+    await page.getByRole('heading', { name: 'Create your workspace', exact: true }).waitFor()
+    await page.getByLabel(/^Your name/).fill('New customer')
+    await page.getByLabel(/^Workspace name/).fill('My company')
+    await page.getByRole('button', { name: 'Create workspace', exact: true }).click()
+    await page.getByRole('heading', { name: 'Set up your AI deployment', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Choose a deployment template', exact: true }).click()
+    await page.waitForURL('**/deployments?view=setup&step=template')
+    await page.getByLabel('Product offer', { exact: true }).waitFor()
+    await page.getByLabel('Product offer', { exact: true }).click()
+    await page.getByRole('option', { name: /Dealership simulator/ }).waitFor()
+    await page.getByRole('option', { name: /Knowledge workspace/ }).waitFor()
+    assert.equal(await page.getByRole('option').count(), 2)
+    await page.keyboard.press('Escape')
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding') && call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path === '/api/customer-self-service/enrollment').length, 1)
+    assert.equal(calls.filter(call => call.method === 'POST' && /\/(apply|staging-releases|deployments)$/.test(call.path)).length, 0)
+  }, { fresh: true, publicTemplate: true })
+  await scenario('existing_account_requires_explicit_link_instead_of_registration_claim', async ({ page, calls, base }) => {
+    await page.goto(`${base}/start?product=desk`)
+    await page.getByText(/This identity matches an existing Console account/).waitFor()
+    await page.getByRole('link', { name: 'Connect existing account', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding') && call.method === 'POST').length, 0)
+  }, { seed: true, fresh: true, linkRequired: true })
+  await scenario('product_discovery_survives_backend_unavailability_without_authentication_bypass', async ({ page, calls, base }) => {
+    await page.goto(base)
+    await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
+    await page.getByRole('link', { name: 'Explore Engage', exact: true }).click()
+    await page.getByRole('heading', { name: 'LoomAI Engage', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.method === 'POST').length, 0)
+  }, { backendUnavailable: true })
+  await scenario('empty_public_catalogue_is_explicit_and_does_not_fall_back_to_private_templates', async ({ page, calls, base }) => {
+    await page.goto(`${base}/start?product=engage`)
+    await page.getByLabel(/^Your name/).fill('New customer')
+    await page.getByLabel(/^Workspace name/).fill('My company')
+    await page.getByRole('button', { name: 'Create workspace', exact: true }).click()
+    await page.getByRole('heading', { name: 'Create your Engage workspace', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Choose a deployment template', exact: true }).click()
+    await page.getByText(/No self-service template is available for this workspace yet/).waitFor()
+    assert.equal(calls.filter(call => call.method === 'POST' && /\/(staging-releases|deployments)$/.test(call.path)).length, 0)
+  }, { seed: true, fresh: true })
   console.log(JSON.stringify({ ok: true, scope: 'offline browser; synthetic identities; no live configuration or credentials', checks: results }, null, 2))
-} finally { await browser?.close(); await server?.close() }
+} finally { await browser?.close(); await server?.close(); await rm(cacheDir, { recursive: true, force: true }) }

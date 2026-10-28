@@ -34,7 +34,9 @@ export function PlatformLoginPage({
   onApiKeySubmit,
 }: PlatformLoginPageProps) {
   const auth = usePlatformAuth()
-  const [loginMode, setLoginMode] = useState<'customer' | 'staff' | 'link'>(() => auth.customerConfig?.enabled ? 'customer' : 'staff')
+  const [loginMode, setLoginMode] = useState<'customer' | 'staff' | 'link'>(() =>
+    window.location.pathname === '/staff/sign-in' ? new URLSearchParams(window.location.search).get('link') === 'customer' ? 'link' : 'staff'
+      : auth.customerConfig?.enabled ? 'customer' : 'staff')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')

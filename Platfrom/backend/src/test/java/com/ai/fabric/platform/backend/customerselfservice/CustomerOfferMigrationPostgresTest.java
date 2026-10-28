@@ -21,7 +21,9 @@ class CustomerOfferMigrationPostgresTest {
             CustomerOfferMigrationTest.verifyMigration(connection, "db/migration/V160__customer_self_service_offer_authorization.sql");
             ScriptUtils.executeSqlScript(connection,
                 new ClassPathResource("db/migration/V181__customer_offer_command_types.sql"));
-            for (String command : new String[]{"BOOTSTRAP_CONFIG", "BIND_S3", "REVOKE_S3", "PUBLISH_VERSION"}) {
+            ScriptUtils.executeSqlScript(connection,
+                new ClassPathResource("db/migration/V217__public_customer_template_enrollment.sql"));
+            for (String command : new String[]{"ENROLL", "BOOTSTRAP_CONFIG", "BIND_S3", "REVOKE_S3", "PUBLISH_VERSION"}) {
                 execute(connection, "INSERT INTO platform_customer_entitlement_commands VALUES ('command-" + command
                     + "','grant','key-" + command + "','hash','" + command
                     + "','admin','{}',CURRENT_TIMESTAMP)");

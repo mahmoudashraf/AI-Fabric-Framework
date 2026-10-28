@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 
@@ -7,8 +10,10 @@ import { createServer } from 'vite'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const entryId = '\0document-knowledge-race-entry.jsx'
 const workspaceId = '\0document-knowledge-race-workspace'
+const cacheDir = await mkdtemp(join(tmpdir(), 'document-knowledge-race-vite-'))
 const server = await createServer({
   root,
+  cacheDir,
   configFile: false,
   envFile: false,
   server: { host: '127.0.0.1', port: 0 },
@@ -17,10 +22,14 @@ const server = await createServer({
     enforce: 'pre',
     resolveId(id, importer) {
       if (id === '/__race-entry.jsx') return entryId
+      if (id.endsWith('/auth/PlatformAuthProvider')) return '\0race-auth.js'
       if (id.endsWith('/workspace/DeploymentWorkspaceContext')
         && importer?.endsWith('/pages/DocumentKnowledgePage.tsx')) return workspaceId
     },
     load(id) {
+      if (id === '\0race-auth.js') return `export function usePlatformAuth() { return { session: {
+        authenticated: true, actorId: 'race-staff', role: 'PLATFORM_ADMIN', authenticationMode: 'SESSION'
+      } }; }`
       if (id === workspaceId || id.endsWith('/workspace/DeploymentWorkspaceContext.tsx')) return `
         import { useSyncExternalStore } from 'react';
         let deploymentId = 'dep-a';
@@ -92,6 +101,7 @@ async function session(browser, baseUrl, test, { configuredSlot = false } = {}) 
   const registrations = new Map()
   const installs = new Map(['dep-a', 'dep-b'].map(deployment => [deployment, {
     id: `install-${deployment}`, pluginId: 'mkp-data-dealership-knowledge-v1',
+    pluginVersion: '1.0.0', pluginVersionId: 'document-public-v1',
     config: { preservedSetting: deployment, ...(configuredSlot ? { documentStorageBindingRef: 'slot:document-storage' } : {}) },
   }]))
   page.on('pageerror', error => pageErrors.push(error.message))
@@ -121,6 +131,14 @@ async function session(browser, baseUrl, test, { configuredSlot = false } = {}) 
       { id: 'target-a', name: 'Production profile', providerType: 'COOLIFY', active: true, environmentName: 'production' },
       { id: 'target-b', name: 'Staging profile', providerType: 'COOLIFY', active: true, environmentName: 'staging' },
     ])
+    if (path === '/api/marketplace/plugins/mkp-data-dealership-knowledge-v1/versions/1.0.0') {
+      const datasetIds = ['dep-a', 'dep-b'].flatMap(deployment => ['a', 'b'].map(letter => `dataset-${deployment}-release-${letter}`))
+      return json({ id: 'document-public-v1', manifest: { contributions: {
+        datasets: datasetIds.map(datasetId => ({ datasetId, ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE' })),
+        knowledgeSources: datasetIds.map(datasetId => ({ datasetRef: datasetId, sourceType: 'deployment-private-vector',
+          authModes: ['PUBLIC_RUNTIME_ANONYMOUS'], filters: { datasetId, publicationStatus: 'PUBLIC_APPROVED' } })),
+      } } })
+    }
     const deploymentMatch = path.match(/^\/api\/deployments\/(dep-[ab])\/(.*)$/)
     if (!deploymentMatch) {
       unexpected.push(`${method} ${path}`)
@@ -431,4 +449,5 @@ try {
 } finally {
   await browser?.close()
   await server.close()
+  await rm(cacheDir, { recursive: true, force: true })
 }
