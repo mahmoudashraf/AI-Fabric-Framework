@@ -10816,3 +10816,19 @@ test is being called hosted acceptance. UI extraction remains last.
   and {staging,production}/dark-mode/. Browser viewport restored; temporary test
   servers and focused parallel agent closed. No backend/runtime/framework,
   customer assignment, integration credentials or unrelated dirty work changed.
+
+### 2026-10-28 Public Website Light Default LIVE CLOSED
+
+- Owner clarified loomai.pro must default to LIGHT, independent of OS theme.
+  Both pre-paint bootstrap and interactive controls now use light unless an
+  explicit light/dark choice is saved. Dark toggle and persistence remain.
+  Supersedes the earlier public-site system-preference default; Console remains
+  dark-by-default at52251ff8c2118cce3adc66d9d982f4e019af3324, with no redeployment.
+- Public-site source4d6a22e5667ea5ac96d04d9d8bdd6f38478d1df9 live via job
+  at77v0mluuy2o855p4yc056x. Health/source/routes/settings PASS. All7 updated theme
+  browser scenarios, Astro diagnostics/build and28route static checks PASS.
+  Fresh dark-OS fixtures default light; stored dark survives navigation/reload.
+  Live browser light toggle/reload verified; signed-out homepage retained.
+- Private rollout/screenshot evidence: ~/.codex/private/loomai-onboarding-01049/
+  public-site-light-default/. No backend/runtime/integration changes; unrelated
+  work preserved and all task test/deployment processes completed.
