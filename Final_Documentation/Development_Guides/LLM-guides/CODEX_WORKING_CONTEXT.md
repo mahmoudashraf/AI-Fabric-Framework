@@ -10735,3 +10735,36 @@ test is being called hosted acceptance. UI extraction remains last.
   Vite test cache isolation fixes harness interference, not productthemebehavior.
 - Selective commit/backend-before-UI staging thenproduction rollout is next.
   New offers are published but signup endpoint/UI/env activation not hosted yet.
+
+### 2026-10-28 Product Entrance And Public Signup LIVE CLOSED
+
+- Both CPs healthy/schema217 at source6bd90580a8f411777b53df3e308670896a97b878.
+  Both UI frontends at6df8f2b32019ebdabd3875c2283951962cfdef52, all product routes
+  HTTP200 and newUIrestartcount0. Console https://console.loomai.pro/ now has
+  approved simple products/auth entrance and short Platform/Engage/Desk pages.
+  Both image workflows40696394103/40699096920 PASS. No runtime/framework release.
+- Two hosted findings FIXED, not bypassed: simulator inherited MANAGED_* defaults
+  conflicted with canonical target-owned binding initializer (normal guard409);
+  corrected template1.12/offer public-dealership-simulator-v2. Static Node server
+  streamed /products asset-directory as file, EISDIR/crash/502; isFile/streamerror
+  fix plus actualproductionserverregression PASS. Backend rebuild not repeated
+  for UI-only fix. Generic knowledge template/data1.2 and public-knowledge-workspace-v1.
+- Actual owned-inbox signup email delivered, emailed confirmation+PKCE verified,
+  noadminconfirmationbypass. Freshproductionaccount browser signed in, explicitly
+  created ownworkspace, opened picker exactly Dealershipsimulator+Knowledgeworkspace.
+  Same verified identity uses separate CP-local ownership on staging/production.
+- Both starters created CONFIGURATION_ONLY drafts on eachCP through live APIs:
+  stagingcus-c2c12c54-dc0c-4967-82f2-1ffa425070f2 /dep-a9fbb2e4+dep-2bcc8c44;
+  productioncus-6ac3c336-3d42-4a3e-8fcd-8a08215f6a0a /dep-30ea5174+dep-f3b5b977.
+  Zero newinfra/providerallowances/businessDBs. Actual apply/AI requires customer's
+  provider/vector/storage/external bindings; no fake working AI claim. Earlier
+  failedv1 stagingtestgrant revoked through auditedAPI, no data rewrite.
+- Public enrollment config bothCPs exactly public-dealership-simulator-v2,
+  public-knowledge-workspace-v1. Existing customers/runtimes/apps/allowances unchanged.
+  Backups privatePGgzip integrityverified/restoreNOTtested. Serverhealth/settings/
+  domains preserved. Final15customerUIscoperegressions PASS, server1 and starter8
+  tests PASS in addition earlier38backend/7audience/19auth+19documentbrowser/8authunit.
+- Production browser light/dark, detail/start/demo/back navigation and logout
+  inspected; account signed out, producttab8 retained, local5187 preview no longer
+  running. Evidence ~/.codex/private/loomai-onboarding-01049/; 01049 record updated.
+  Unrelated dirty work preserved. No more execution needed for this scoped task.

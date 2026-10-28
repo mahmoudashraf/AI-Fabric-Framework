@@ -2,6 +2,38 @@
 
 Date: 2026-10-28
 
+## Current Status
+
+**Implemented, committed, deployed and hosted-verified on staging and production.**
+
+- Production entrance: `https://console.loomai.pro/`; short Platform, Engage and
+  Desk pages, authentication/start actions, no upper menu, light/dark mode.
+- Backend source `6bd90580a8f411777b53df3e308670896a97b878`, native schema 217 on
+  both control planes. UI source `6df8f2b32019ebdabd3875c2283951962cfdef52` on both
+  frontends; all product routes and health returned 200, zero UI restarts after
+  the route-directory correction. Existing domains/settings were preserved.
+- Real Supabase signup email delivery, emailed confirmation and PKCE exchange
+  passed. A fresh production identity signed in, explicitly created its workspace
+  in the browser and opened the picker showing exactly the two selected starters.
+- Both clean templates created owned `CONFIGURATION_ONLY` drafts through live
+  customer APIs in both environments. No infrastructure, provider allowance or
+  customer business database was created. Customer-owned provider/vector/storage
+  and simulator/action bindings are still prerequisites for an actual deployment;
+  this check does not claim an AI conversation without those bindings.
+- Final public enrollment IDs: `public-dealership-simulator-v2` and
+  `public-knowledge-workspace-v1`. Corrected template versions are 1.12.0 and
+  1.2.0. The first failed staging-test offer grant was explicitly revoked through
+  the normal audited API; no customer account or deployment data was rewritten.
+- Control-plane backups were saved as private compressed PostgreSQL exports;
+  archive integrity checked, restore not tested. No Coolify-wide backup, new
+  database, new runtime release or framework release was required.
+- Final sources are pushed to `Platform-V11`; image publication runs 40696394103
+  and 40699096920 passed. Hosted receipts and screenshots are retained privately
+  under `~/.codex/private/loomai-onboarding-01049/`. The local preview is stopped.
+- The earlier local/publication checkpoints below are historical, not remaining
+  rollout blockers. Follow-on customer configuration remains the normal existing
+  deployment lifecycle, not a second onboarding implementation.
+
 ## Scope And Direction
 
 Implement the owner-approved simple Console entrance: products and authentication,
@@ -94,7 +126,7 @@ mechanism, not a second deployment pipeline.
   it creates no tables. No framework release, runtime image or customer business
   storage is required. Release the control-plane backend before the matching UI.
 
-## Execution Status
+## Initial Local Qualification
 
 - Implemented: public product entrance and three detail pages, dark mode, basic
   mobile layout; auth forms, product-preserving callback, explicit workspace
