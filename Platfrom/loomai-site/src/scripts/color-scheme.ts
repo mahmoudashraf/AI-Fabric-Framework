@@ -2,7 +2,6 @@ const key = 'loomai-site-color-scheme'
 type Theme = 'light' | 'dark'
 
 export function initializeThemeControls() {
-  const system = window.matchMedia('(prefers-color-scheme: dark)')
   let preference: Theme | null = null
   try {
     const stored = localStorage.getItem(key)
@@ -10,7 +9,7 @@ export function initializeThemeControls() {
   } catch { /* Theme controls still work when storage is unavailable. */ }
 
   const apply = () => {
-    const mode = preference ?? (system.matches ? 'dark' : 'light')
+    const mode = preference ?? 'light'
     document.documentElement.dataset.theme = mode
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#151719' : '#f8faff')
     document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach(button => {
@@ -27,7 +26,6 @@ export function initializeThemeControls() {
       apply()
     })
   })
-  system.addEventListener('change', () => { if (!preference) apply() })
   window.addEventListener('storage', event => {
     if (event.key !== key && event.key !== null) return
     preference = event.newValue === 'light' || event.newValue === 'dark' ? event.newValue : null
