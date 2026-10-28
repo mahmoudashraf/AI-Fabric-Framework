@@ -10780,3 +10780,16 @@ test is being called hosted acceptance. UI extraction remains last.
   product browser regressions and production build PASS. Backend, runtime,
   framework, customer deployments and assignments unchanged. Private rollout
   evidence: ~/.codex/private/loomai-onboarding-01049/{environment}/brand-link/.
+
+### 2026-10-28 Homepage Console Action LIVE CLOSED
+
+- Products from the lab / LoomAI Platform now includes Open console linking to
+  https://console.loomai.pro/ in the same tab. Explore Platform and the dealership
+  demo remain available; shared Products page card also includes the new button.
+- Public site source3ae7fe802f7cadeafe0a2fd8904c466f687f3c61 deployed through
+  Coolify jobugpd0optoii9aqf71gidigub; health UP and installation config preserved.
+  Astro check/build/content/static28route checks PASS. Live browser button click
+  reached Console; desktop layout inspected and390px viewport had no overflow.
+  Viewport restored. No backend/runtime/Console redeployment or unrelated dirty
+  changes included. Private evidence: ~/.codex/private/loomai-onboarding-01049/
+  public-site-console-link/ (includes live-platform-card.png).
