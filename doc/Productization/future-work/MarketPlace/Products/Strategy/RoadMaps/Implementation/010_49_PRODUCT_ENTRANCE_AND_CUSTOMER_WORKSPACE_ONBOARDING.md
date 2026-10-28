@@ -203,3 +203,12 @@ infrastructure writes, together with retained Desk consent and staff/linking pat
 - Native Supabase signup email was delivered to the owned test inbox and its
   actual verification link plus PKCE exchange passed. No administrator user
   confirmation or token-validation bypass was used.
+
+### Console Brand Navigation, 2026-10-28
+
+The public Console logo returns to `https://loomai.pro/` in the same tab.
+The separate **Back to products** action stays within Console. UI revision
+`c8d03af9b60064b50e57f776f147545ae4e33c80` is deployed and verified on staging
+and production; all 19 signup/auth/product browser regressions and the production
+build passed. Both live navigation paths were clicked in the production browser.
+This UI-only change did not rebuild or redeploy the backend or customer runtimes.

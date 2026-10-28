@@ -10768,3 +10768,15 @@ test is being called hosted acceptance. UI extraction remains last.
   inspected; account signed out, producttab8 retained, local5187 preview no longer
   running. Evidence ~/.codex/private/loomai-onboarding-01049/; 01049 record updated.
   Unrelated dirty work preserved. No more execution needed for this scoped task.
+
+### 2026-10-28 Console Homepage Link LIVE CLOSED
+
+- Public Console logo now links to https://loomai.pro/ in the same tab on the
+  product chooser and all three product pages. Back to products remains internal.
+- UI source c8d03af9b60064b50e57f776f147545ae4e33c80 deployed on staging and
+  production; image workflow40726633648 PASS, backend build correctly skipped.
+  Both UI route/health checks PASS with zero restarts and settings preserved.
+- Production browser clicked both return paths successfully. All19 signup/auth/
+  product browser regressions and production build PASS. Backend, runtime,
+  framework, customer deployments and assignments unchanged. Private rollout
+  evidence: ~/.codex/private/loomai-onboarding-01049/{environment}/brand-link/.
