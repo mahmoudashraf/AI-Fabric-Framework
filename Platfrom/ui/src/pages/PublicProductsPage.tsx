@@ -9,6 +9,8 @@ import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import DnsOutlined from '@mui/icons-material/DnsOutlined'
+import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded'
+import ExtensionRounded from '@mui/icons-material/ExtensionRounded'
 import ForumOutlined from '@mui/icons-material/ForumOutlined'
 import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined'
 import HubRounded from '@mui/icons-material/HubRounded'
@@ -16,12 +18,15 @@ import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import LinkRounded from '@mui/icons-material/LinkRounded'
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded'
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
+import PersonRounded from '@mui/icons-material/PersonRounded'
+import MoreHorizRounded from '@mui/icons-material/MoreHorizRounded'
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded'
 import PublicRounded from '@mui/icons-material/PublicRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import SendRounded from '@mui/icons-material/SendRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
+import SmartToyOutlined from '@mui/icons-material/SmartToyOutlined'
 import ViewInArRounded from '@mui/icons-material/ViewInArRounded'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import './PublicProductsPage.css'
@@ -93,9 +98,14 @@ const products: Record<PublicProduct, {
   },
 }
 
+function PreviewSymbol({ name }: { name: 'box' | 'database' }) {
+  const mask = `url(${assetBase}${name}.svg)`
+  return <span className={`lp-symbol lp-symbol-${name}`} style={{ maskImage: mask, WebkitMaskImage: mask }} />
+}
+
 function ProductMark({ product, small = false }: { product: PublicProduct; small?: boolean }) {
   const Icon = products[product].icon
-  return <span className={`lp-mark lp-${product}${small ? ' lp-mark-small' : ''}`}><Icon /></span>
+  return <span className={`lp-mark lp-${product}${small ? ' lp-mark-small' : ''}`}>{product === 'platform' ? <PreviewSymbol name="box" /> : <Icon />}</span>
 }
 
 function PreviewFrame({ children, label, className = '' }: { children: ReactNode; label: string; className?: string }) {
@@ -115,11 +125,11 @@ function PreviewItem({ icon: Icon, title, subtitle, status = false }: {
 function PlatformPreview({ expanded = false }: { expanded?: boolean }) {
   if (!expanded) return <PreviewFrame label="Your systems connect through plugins to an AI deployment" className="lp-platform-compact">
     <div className="lp-compact-connection">
-      <div className="lp-compact-node"><h3>Your systems</h3><div className="lp-system-icons"><PublicRounded /><DnsOutlined /><DescriptionOutlined /></div></div>
+      <div className="lp-compact-node"><h3>Your systems</h3><div className="lp-system-icons"><PreviewSymbol name="database" /><img src={`${assetBase}google-drive.png`} alt="" width="24" height="24" /><img src={`${assetBase}slack.svg`} alt="" width="24" height="24" /><MoreHorizRounded /></div></div>
       <ArrowForwardRounded className="lp-flow-arrow" />
-      <div className="lp-compact-node"><h3>Plugins</h3><HubRounded className="lp-node-icon" /></div>
+      <div className="lp-compact-node"><h3>Plugins</h3><ExtensionRounded className="lp-node-icon" /></div>
       <ArrowForwardRounded className="lp-flow-arrow" />
-      <div className="lp-compact-node"><h3>AI deployment</h3><ViewInArRounded className="lp-node-icon" /></div>
+      <div className="lp-compact-node"><h3>AI deployment</h3><div className="lp-deployment-icon"><DnsOutlined className="lp-node-icon" /><AutoAwesomeRounded /></div></div>
     </div>
   </PreviewFrame>
   return <PreviewFrame label="Business systems connect through plugins to a dedicated AI deployment, Engage and Desk"
@@ -155,7 +165,19 @@ function VehicleResult({ second = false, wide = false }: { second?: boolean; wid
   </div>
 }
 
-function EngageConversation({ compact = false }: { compact?: boolean }) {
+function PreviewAvatar({ kind }: { kind: 'customer' | 'assistant' | 'agent' }) {
+  if (kind === 'agent') return <img className="lp-preview-avatar lp-agent-portrait" src={`${assetBase}demo-support-agent.webp`} alt="" width="32" height="32" loading="lazy" />
+  return <span className={`lp-preview-avatar lp-preview-${kind}`}>{kind === 'customer' ? <PersonRounded /> : <SmartToyOutlined />}</span>
+}
+
+function EngageConversation({ compact = false, landing = false }: { compact?: boolean; landing?: boolean }) {
+  if (landing) return <div className="lp-engage-conversation lp-landing-conversation">
+    <div className="lp-mini-message"><PreviewAvatar kind="customer" /><p>Any electric cars under GBP 35,000?</p><span className="lp-message-time">10:24</span></div>
+    <div className="lp-mini-message"><PreviewAvatar kind="assistant" /><div className="lp-mini-answer">
+      <div className="lp-answer-heading"><p>Here&apos;s a great option within your budget.</p><span className="lp-message-time">10:24</span></div>
+      <VehicleResult wide />
+    </div></div>
+  </div>
   return <div className={`lp-engage-conversation${compact ? ' lp-conversation-compact' : ''}`}>
     {!compact && <div className="lp-mini-app-header"><ProductMark product="engage" small /><strong>Northfield AI</strong><OpenInFullRounded /></div>}
     {!compact && <div className="lp-mini-tools"><span><DirectionsCarOutlined />Browse stock</span><span><DescriptionOutlined />This vehicle</span><span><HeadsetMicOutlined />Human support</span></div>}
@@ -177,11 +199,15 @@ function EngagePreview({ expanded = false }: { expanded?: boolean }) {
       <div className="lp-dealer-copy"><span>Fictional dealership</span><h3>Find your next electric car.</h3><p>Explore stock, compare your options, and ask your questions.</p></div>
       <div className="lp-dealer-stock"><VehicleResult wide /><VehicleResult second wide /></div>
     </div>}
-    <EngageConversation compact={!expanded} />
+    <EngageConversation compact={!expanded} landing={!expanded} />
   </PreviewFrame>
 }
 
-function DeskConversation({ compact = false }: { compact?: boolean }) {
+function DeskConversation({ compact = false, landing = false }: { compact?: boolean; landing?: boolean }) {
+  if (landing) return <div className="lp-desk-conversation lp-landing-conversation">
+    <div className="lp-desk-message-row"><PreviewAvatar kind="customer" /><p>Can someone help with a test drive?</p><span className="lp-message-time">11:03</span></div>
+    <div className="lp-agent-message"><span className="lp-agent-name">Alex &middot; Agent</span><div className="lp-desk-message-row"><span className="lp-message-time">11:04</span><p>Of course. Which day suits you?</p><PreviewAvatar kind="agent" /></div></div>
+  </div>
   return <div className={`lp-desk-conversation${compact ? ' lp-conversation-compact' : ''}`}>
     <div className="lp-mini-app-header"><span className="lp-initials">AV</span><div><strong>Anonymous visitor</strong>{!compact && <span className="lp-ready"><i />Human support</span>}</div>{!compact && <span className="lp-return-ai"><RefreshRounded />Return to AI</span>}</div>
     <div className="lp-desk-messages">
@@ -199,7 +225,7 @@ function DeskPreview({ expanded = false }: { expanded?: boolean }) {
       {expanded && <div className="lp-inbox-counts"><span><HeadsetMicOutlined />Waiting for an agent <b>3</b></span><span><PersonOutlineRounded />Assigned to me <b>1</b></span><span><ShieldOutlined />Action reviews <b>2</b></span></div>}
       {[['AV', 'Anonymous visitor', 'Can someone help me arrange...'], ['JL', 'Jamie Lee', 'Charging options for the E1?'], ['PS', 'Priya Sharma', 'Test drive availability'], ['TM', 'Taylor Morgan', 'Exterior colour options']].map(([initials, name, message], index) => <div className={`lp-inbox-row${index === 0 ? ' lp-inbox-selected' : ''}`} key={initials}><span className="lp-initials">{initials}</span><div><strong>{name}</strong><span>{message}</span></div></div>)}
     </div>
-    <DeskConversation compact={!expanded} />
+    <DeskConversation compact={!expanded} landing={!expanded} />
   </PreviewFrame>
 }
 
@@ -246,7 +272,6 @@ function ProductLanding() {
         </div>
       </article>
     })}</div>
-    <p className="lp-together"><HubRounded />Use them together, or start with what you need.</p>
   </>
 }
 
@@ -255,13 +280,15 @@ function PublicProductsContent({ product, authenticated = false, consolePath = '
   const { setPreference } = useCustomerColorPreference()
   const selectedProduct = product ?? 'platform'
   const themeLabel = palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+  const authActions = <div className="lp-auth-actions">
+    {authenticated ? <Button component={RouterLink} to={consolePath} variant="contained" className="lp-account-button">Open console</Button> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
+  </div>
+  const themeToggle = <Tooltip title={themeLabel}><IconButton aria-label={themeLabel} onClick={() => setPreference(palette.mode === 'dark' ? 'light' : 'dark')} size="small">{palette.mode === 'dark' ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}</IconButton></Tooltip>
   useEffect(() => { window.scrollTo(0, 0) }, [product])
   return <div className="lp-public-products" data-public-products-theme={palette.mode}>
-    <header className="lp-header"><a href="https://loomai.pro/" className="lp-brand" aria-label="LoomAI home"><HubRounded /><span>LoomAI</span></a><div className="lp-auth-actions">
-      {authenticated ? <Button component={RouterLink} to={consolePath} variant="contained" className="lp-account-button">Open console</Button> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
-    </div></header>
+    <header className="lp-header"><a href="https://loomai.pro/" className="lp-brand" aria-label="LoomAI home"><PreviewSymbol name="box" /><span>LoomAI</span></a>{product ? authActions : themeToggle}</header>
     <main className="lp-main">{product ? <ProductDetail product={product} /> : <ProductLanding />}</main>
-    <footer className="lp-footer"><span>Loom AI Labs</span><Tooltip title={themeLabel}><IconButton aria-label={themeLabel} onClick={() => setPreference(palette.mode === 'dark' ? 'light' : 'dark')} size="small">{palette.mode === 'dark' ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}</IconButton></Tooltip></footer>
+    <footer className="lp-footer">{product ? <><span>Loom AI Labs</span>{themeToggle}</> : <><span>One account. Your connected AI products.</span>{authActions}</>}</footer>
   </div>
 }
 
