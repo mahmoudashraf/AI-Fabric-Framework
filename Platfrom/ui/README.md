@@ -42,7 +42,7 @@ still govern later deployment. Workspace creation alone grants none of these.
 Explicitly revoked enrollments are not restored by reopening setup.
 
 The owner-selected public starters are **Dealership simulator** and **Knowledge
-workspace**. Their offer IDs are `public-dealership-simulator-v1` and
+workspace**. Their offer IDs are `public-dealership-simulator-v2` and
 `public-knowledge-workspace-v1`. These are clean bootstrap packages, not invitations
 to the existing Northfield demo. Publication helpers and focused contract checks
 are in `verification-support/productization-01049/`.
@@ -66,6 +66,7 @@ npm run build
 node --test scripts/customer-supabase-auth.test.mjs
 node scripts/customer-supabase-auth-ui-smoke.mjs
 node scripts/customer-ui-scope-regressions.mjs
+node --test scripts/document-knowledge-audience.test.mjs scripts/production-server.test.mjs
 ```
 
 The browser regression suite uses synthetic identities and mocked HTTP boundaries.

@@ -32,7 +32,7 @@ Owner decision, 2026-10-28: offer **Dealership simulator** and **Knowledge works
 to newly registered customers. Reuse the normal marketplace/template/bootstrap
 mechanism, not a second deployment pipeline.
 
-- `public-dealership-simulator-v1`: simulated dealership stock/discovery/actions,
+- `public-dealership-simulator-v2`: simulated dealership stock/discovery/actions,
   customer-owned approved policy documents, dealership Engage experience.
 - `public-knowledge-workspace-v1`: generic document knowledge and generic Engage
   experience. No dealership vocabulary or integration is required.
@@ -151,3 +151,23 @@ infrastructure writes, together with retained Desk consent and staff/linking pat
   sharing development optimizer state.
 - Hosted backend/UI activation and fresh-customer readback remain the next gate.
   Catalogue publication is not proof of a live signup-to-deployment journey.
+
+### Hosted Findings And Corrections
+
+- The native fresh-customer check exposed an inherited simulator template defect:
+  mutable `MANAGED_*` external install defaults conflict with target-owned external
+  bindings. The guard correctly returned `EXTERNAL_INTEGRATION_MUTABLE_INSTALL_BINDING_FORBIDDEN`.
+  Publish simulator template `1.12.0` and offer `public-dealership-simulator-v2`
+  without those defaults; normal binding initialization supplies the symbolic
+  fields. Initial template `1.11.0`/offer v1 are not public enrollment defaults.
+  This is a template correction, not a weakened guard or a framework workaround.
+- The real Node production server exposed a route/asset collision: the new
+  `/products` asset directory was streamed as a file when the SPA route was
+  requested, causing `EISDIR`, process restarts and 502s. Static serving now checks
+  `isFile`, leaves directories to the SPA, handles stream read errors and serves
+  WebP with its correct MIME type. A regression starts the actual production
+  server and checks all product routes plus an image and subsequent health.
+  Vite preview alone was insufficient to detect this hosting-only defect.
+- Native Supabase signup email was delivered to the owned test inbox and its
+  actual verification link plus PKCE exchange passed. No administrator user
+  confirmation or token-validation bypass was used.

@@ -1,5 +1,5 @@
-import { createReadStream, existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,6 +21,7 @@ const contentTypes = new Map([
   ['.jpg', 'image/jpeg'],
   ['.jpeg', 'image/jpeg'],
   ['.gif', 'image/gif'],
+  ['.webp', 'image/webp'],
   ['.ico', 'image/x-icon'],
   ['.txt', 'text/plain; charset=utf-8'],
   ['.woff', 'font/woff'],
@@ -100,14 +101,31 @@ const server = createServer(async (request, response) => {
     return
   }
 
-  if (existsSync(targetPath) && !targetPath.endsWith(path.sep)) {
+  let file
+  try {
+    file = await stat(targetPath)
+  } catch (error) {
+    if (!['ENOENT', 'ENOTDIR'].includes(error.code)) {
+      writeJson(response, 500, { success: false, message: 'Failed to read UI asset.' })
+      return
+    }
+  }
+  if (file?.isFile()) {
     const extension = path.extname(targetPath)
-    response.writeHead(200, {
-      'Content-Type': contentTypes.get(extension) || 'application/octet-stream',
-      'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
-      ...securityHeaders(extension !== '.html'),
+    const stream = createReadStream(targetPath)
+    stream.once('error', () => {
+      if (response.headersSent) response.destroy()
+      else writeJson(response, 500, { success: false, message: 'Failed to read UI asset.' })
     })
-    createReadStream(targetPath).pipe(response)
+    stream.once('open', () => {
+      response.writeHead(200, {
+        'Content-Type': contentTypes.get(extension) || 'application/octet-stream',
+        'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+        ...securityHeaders(extension !== '.html'),
+      })
+      stream.pipe(response)
+    })
+    response.once('close', () => stream.destroy())
     return
   }
 

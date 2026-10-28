@@ -30,7 +30,15 @@ test('dealership defaults never pre-approve customer documents', () => {
   const original = base('dealership')
   const result = starterTemplate('dealership', original)
   assert.equal(result.contributions.template.requiredPluginInstallDefaults['mkp-data-dealership-knowledge-v1@1.0.0'].config.publicContentApprovalConfirmed, false)
+  assert.deepEqual(Object.keys(result.contributions.template.requiredPluginInstallDefaults), ['mkp-data-dealership-knowledge-v1@1.0.0'])
   assert.equal(original.contributions.template.requiredPluginInstallDefaults['mkp-data-dealership-knowledge-v1@1.0.0'].config.publicContentApprovalConfirmed, true)
+})
+test('public dealership bootstrap never carries legacy mutable external account defaults', () => {
+  const original = base('dealership')
+  original.contributions.template.requiredPluginInstallDefaults.stock = { config: { providerBaseUrl: '${MANAGED_SIMULATOR_BASE_URL}' } }
+  original.contributions.template.requiredPluginInstallDefaults.receiver = { secretRefs: { receiverApiKey: 'MANAGED_RECEIVER_API_KEY' } }
+  assert.ok(!JSON.stringify(starterTemplate('dealership', original)).includes('MANAGED_SIMULATOR'))
+  assert.ok(!JSON.stringify(starterTemplate('dealership', original)).includes('MANAGED_RECEIVER'))
 })
 test('anonymous document retrieval requires the complete explicit publication contract', () => {
   const result = publicKnowledgeManifest(document)

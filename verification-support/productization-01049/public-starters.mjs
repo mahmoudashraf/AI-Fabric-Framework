@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 
 export const PUBLIC_STARTERS = Object.freeze({
-  dealership: { offerId: 'public-dealership-simulator-v1', name: 'Dealership simulator',
-    pluginId: 'mkp-template-simulated-dealership-experience-v1', version: '1.11.0' },
+  dealership: { offerId: 'public-dealership-simulator-v2', name: 'Dealership simulator',
+    pluginId: 'mkp-template-simulated-dealership-experience-v1', version: '1.12.0' },
   knowledge: { offerId: 'public-knowledge-workspace-v1', name: 'Knowledge workspace',
     pluginId: 'mkp-template-document-knowledge-assistant', version: '1.2.0' },
 })
@@ -43,7 +43,10 @@ export function starterTemplate(kind, original) {
   const template = manifest.contributions.template
   // Public defaults never pre-authorize a customer's files or bind a provider account.
   if (kind === 'dealership') {
-    template.requiredPluginInstallDefaults['mkp-data-dealership-knowledge-v1@1.0.0'].config.publicContentApprovalConfirmed = false
+    // External account fields come from the target-scoped binding initializer,
+    // not the older mutable MANAGED_* install placeholders.
+    template.requiredPluginInstallDefaults = { 'mkp-data-dealership-knowledge-v1@1.0.0': {
+      config: { documentStorageBindingRef: 'slot:document-storage', publicContentApprovalConfirmed: false }, secretRefs: {} } }
   } else {
     manifest.compatibility.supportedDeploymentTargets = ['dev-openai-milvus']
     template.templateId = 'dev-openai-milvus'
