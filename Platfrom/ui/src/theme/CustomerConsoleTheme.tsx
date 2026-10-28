@@ -7,14 +7,14 @@ const preferenceKey = 'loomai-customer-console-color-scheme'
 const ColorPreference = createContext<{
   preference: CustomerColorPreference
   setPreference: (preference: CustomerColorPreference) => void
-}>({ preference: 'system', setPreference: () => {} })
+}>({ preference: 'dark', setPreference: () => {} })
 
 function readPreference(): CustomerColorPreference {
   try {
     const value = window.localStorage.getItem(preferenceKey)
     if (value === 'light' || value === 'dark' || value === 'system') return value
   } catch { /* A blocked preference store must not block access. */ }
-  return 'system'
+  return 'dark'
 }
 
 export function CustomerConsoleTheme({ children }: { children: ReactNode }) {

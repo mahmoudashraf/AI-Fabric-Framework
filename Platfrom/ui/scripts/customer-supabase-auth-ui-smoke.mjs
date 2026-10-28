@@ -252,6 +252,7 @@ try {
   await scenario('public_products_are_readable_without_membership_and_keep_simple_navigation', async ({ page, calls, base }) => {
     await page.goto(base)
     await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
+    assert.equal(await page.locator('[data-public-products-theme]').getAttribute('data-public-products-theme'), 'dark')
     assert.equal(await page.getByRole('navigation').count(), 0)
     for (const product of ['Platform', 'Engage', 'Desk']) {
       await page.getByRole('link', { name: `Explore ${product}`, exact: true }).click()

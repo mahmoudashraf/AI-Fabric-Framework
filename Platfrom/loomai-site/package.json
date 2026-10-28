@@ -17,10 +17,11 @@
     "smoke:content": "node --experimental-strip-types scripts/content-smoke.ts",
     "smoke": "npm run smoke:content && node scripts/static-smoke.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
+    "smoke:theme": "node scripts/color-scheme-browser-smoke.mjs",
     "smoke:dealership-live": "node scripts/dealership-live-gate.mjs",
     "quality:dealership-live": "node scripts/dealership-quality-check.mjs",
     "quality:dealership-compound-repetition": "node scripts/dealership-compound-repetition-gate.mjs",
-    "verify": "npm run check && npm run build && npm run prepare:workspace-test-assets && npm run smoke && npm run smoke:browser"
+    "verify": "npm run check && npm run build && npm run prepare:workspace-test-assets && npm run smoke && npm run smoke:browser && npm run smoke:theme"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

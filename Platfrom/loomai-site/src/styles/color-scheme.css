@@ -1,0 +1,142 @@
+.site-header__actions {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-self: end;
+}
+
+.site-theme-toggle {
+  flex: 0 0 2.75rem;
+}
+
+[data-theme-icon="light"],
+:root[data-theme="dark"] [data-theme-icon="dark"] {
+  display: none;
+}
+
+:root[data-theme="dark"] [data-theme-icon="light"] {
+  display: block;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --loom-navy-950: #f1f3f8;
+  --loom-navy-900: #e5e9f1;
+  --loom-navy-800: #d8dfe9;
+  --loom-navy-700: #c2cbd8;
+  --loom-navy-600: #b2bece;
+  --loom-navy-500: #9daaba;
+  --loom-canvas: #151719;
+  --loom-surface: #1d2024;
+  --loom-surface-soft: #24282d;
+  --loom-surface-tint: #29313b;
+  --loom-text-primary: #f1f3f8;
+  --loom-text-secondary: #c2cbd5;
+  --loom-text-muted: #a3afbf;
+  --loom-blue-vivid: #91b7ff;
+  --loom-blue-600: #a2c3ff;
+  --loom-indigo-500: #b3acff;
+  --loom-violet-500: #c4a5ff;
+  --loom-cyan-500: #57d7e8;
+  --loom-border-subtle: #2c3138;
+  --loom-border-default: #39414c;
+  --loom-border-strong: #4a5565;
+  --loom-border-accent: #6b8dce;
+  --loom-success: #80d9b0;
+  --loom-success-soft: #19392c;
+  --loom-warning: #f0c578;
+  --loom-warning-soft: #3a3020;
+  --loom-info: #a2c3ff;
+  --loom-info-soft: #263447;
+  --loom-shadow-card: 0 12px 32px rgb(0 0 0 / 15%);
+  --loom-shadow-card-hover: 0 20px 48px rgb(0 0 0 / 25%);
+  --loom-focus-ring: 0 0 0 2px var(--loom-canvas), 0 0 0 5px #a2c3ff;
+  --loom-gradient-brand: linear-gradient(135deg, #087dba, #2458e0 44%, #7441e9);
+}
+
+:root[data-theme="dark"] body {
+  background: var(--loom-canvas);
+}
+
+:root[data-theme="dark"] .site-header {
+  background: rgb(21 23 25 / 94%);
+  border-bottom-color: var(--loom-border-subtle);
+}
+
+:root[data-theme="dark"] .loom-wordmark img {
+  filter: invert(1) hue-rotate(180deg);
+  mix-blend-mode: screen;
+}
+
+:root[data-theme="dark"] :is(
+  .page-hero, .cta-band, .site-footer, .home-research,
+  .research-card--featured, .lab-product-card,
+  .platform-products, .platform-primitives, .framework-diagram--overview,
+  .framework-diagram--pipeline, .research-related
+) {
+  background: var(--loom-surface-soft);
+}
+
+:root[data-theme="dark"] :is(
+  .lab-platform-card, .home-path-grid a, .platform-system,
+  .platform-system__bar, .platform-system__primitive-grid > span, .platform-system__zone--control,
+  .platform-system__foundations, .platform-case__board, .platform-product__video-play,
+  .platform-case__customer, .platform-case__runtime,
+  .framework-code, .framework-map, .framework-capabilities__grid article,
+  .framework-authority-flow, .platform-primitives__boundary,
+  .chat-capability-summary__grid article, .chat-architecture,
+  .featured-experiment, .compact-experiment, .experiment-method,
+  .featured-research, .compact-research, .evidence-levels
+) {
+  background: var(--loom-surface);
+  border-color: var(--loom-border-default);
+}
+
+:root[data-theme="dark"] :is(
+  .platform-case__template code, .platform-product-flexibility__flow
+) {
+  background: var(--loom-surface-tint);
+}
+
+:root[data-theme="dark"] .platform-primitives__flow li:not(:last-child)::after {
+  background: var(--loom-surface);
+}
+
+:root[data-theme="dark"] :is(
+  .skip-link, .filter-button[aria-pressed="true"],
+  .platform-system__zone--deployment, .platform-case__board-header,
+  .platform-case__journey, .platform-product__video-launcher
+) {
+  background: #101723;
+  border-color: var(--loom-border-strong);
+  color: #f1f3f8;
+}
+
+:root[data-theme="dark"] .loom-card {
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] :is(.platform-case__live, .framework-map__lifecycle--action > div:nth-of-type(3)) {
+  background: var(--loom-success-soft);
+  border-color: #3b7259;
+  color: var(--loom-success);
+}
+
+:root[data-theme="dark"] .framework-map__lifecycle--action > div:nth-of-type(3) > svg,
+:root[data-theme="dark"] .platform-product__benefits svg {
+  color: var(--loom-success);
+}
+
+:root[data-theme="dark"] .framework-code__annotation { color: #a2c3ff; }
+:root[data-theme="dark"] .framework-code__value { color: #d3b0ff; }
+:root[data-theme="dark"] .framework-code__type { color: #80d9b0; }
+
+:root[data-theme="dark"] :is(.framework-map__group, .framework-map__node, .framework-map__lifecycle) {
+  border-color: var(--loom-border-strong);
+}
+
+@media (max-width: 74rem) and (min-width: 60rem) {
+  .site-header__inner { gap: 1rem; }
+  .site-header__nav { gap: 1.2rem; }
+  .site-header__brand .loom-wordmark { width: 12rem; }
+}

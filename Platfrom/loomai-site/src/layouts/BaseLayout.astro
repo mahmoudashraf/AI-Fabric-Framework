@@ -2,6 +2,8 @@
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '../styles/global.css'
+import '../styles/color-scheme.css'
+import themeBootstrap from '../scripts/color-scheme-bootstrap.js?raw'
 import SiteFooter from '../components/SiteFooter.astro'
 import SiteHeader from '../components/SiteHeader.astro'
 import { site } from '../data/content'
@@ -48,6 +50,7 @@ const defaultJsonLd = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f8faff" />
+    <script is:inline set:html={themeBootstrap} />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
     {noIndex && <meta name="robots" content="noindex, nofollow" />}

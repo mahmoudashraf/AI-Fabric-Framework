@@ -1,5 +1,5 @@
 ---
-import { ArrowUpRight, GitFork, Menu, X } from '@lucide/astro'
+import { ArrowUpRight, GitFork, Menu, Moon, Sun, X } from '@lucide/astro'
 import { navigation } from '../data/content'
 import LoomWordmark from './LoomWordmark.astro'
 
@@ -25,6 +25,17 @@ const isActive = (patterns: string[]) =>
       ))}
     </nav>
 
+    <div class="site-header__actions">
+    <button
+      class="icon-button site-theme-toggle"
+      type="button"
+      aria-label="Switch to dark mode"
+      title="Switch to dark mode"
+      data-theme-toggle
+    >
+      <Moon size={19} stroke-width={1.8} aria-hidden="true" data-theme-icon="dark" />
+      <Sun size={19} stroke-width={1.8} aria-hidden="true" data-theme-icon="light" />
+    </button>
     <a
       class="site-header__connect"
       href="https://github.com/Loom-AI-Labs"
@@ -44,6 +55,7 @@ const isActive = (patterns: string[]) =>
     >
       <Menu size={22} stroke-width={1.8} aria-hidden="true" />
     </button>
+    </div>
   </div>
 </header>
 
@@ -72,6 +84,9 @@ const isActive = (patterns: string[]) =>
 </dialog>
 
 <script>
+  import { initializeThemeControls } from '../scripts/color-scheme'
+  initializeThemeControls()
+
   const dialog = document.querySelector<HTMLDialogElement>('[data-mobile-menu]')
   const openButton = document.querySelector<HTMLButtonElement>('[data-menu-open]')
   const closeButton = document.querySelector<HTMLButtonElement>('[data-menu-close]')
