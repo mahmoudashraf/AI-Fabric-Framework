@@ -10852,3 +10852,26 @@ test is being called hosted acceptance. UI extraction remains last.
 - Private screenshots/checks: ~/.codex/private/loomai-onboarding-01049/visual/
   product-cards/; rollout evidence {staging,production}/product-cards/. Temporary
   local5187 preview stopped. Unrelated dirty work preserved.
+
+### 2026-10-28 Product Preview Reference Match LIVE CLOSED
+
+- Corrected the remaining approved-mockup differences: local Google Drive/Slack
+  logos, library database/cube/puzzle/server icons, fictional generated agent
+  portrait, customer/bot avatars, timestamps and framed conversation previews.
+  Tighter card spacing and indented copy match the reference composition. Landing
+  theme control is in the header; sign-in/create-account remain in the footer.
+  Product detail pages retain their header authentication actions.
+- UI source40bfb146cf5858dfcd002831b1b02737c3c9bdc0 committed/pushed; image
+  workflow40764800367 PASS, backend skipped. Identical OCI9e3105a5db15... live on
+  staging jobd4n1svbya4piqu5oye511u9w and production
+  jobm1419xbh9t4c8idb05mjd4jn. Source/routes/health/settings PASS, zero restarts.
+- Build PASS. Local320/390/1440px checks passed all four preview images loaded,
+  one human portrait, two system logos, auth links and no horizontal overflow.
+  Staging mobile and production mobile dark/desktop light verified. Actual
+  production footer Sign in/Create account both opened the correct forms;
+  no registration, password or permission change. No backend/runtime changes.
+- Asset licenses/provenance and generation prompt: Platfrom/ui/public/products/
+  README.md. Portrait optimized to2714bytes WebP; no external asset dependency.
+  Private screenshots/checks: ~/.codex/private/loomai-onboarding-01049/visual/
+  product-card-reference/; rollout evidence {staging,production}/product-card-
+  reference/. Local5187 preview stopped; unrelated work preserved.
