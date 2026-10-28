@@ -43,20 +43,19 @@ const assetBase = `${import.meta.env.BASE_URL}products/`
 
 const products: Record<PublicProduct, {
   name: string
+  category: string
   icon: ProductIcon
   promise: string
   summary: string
-  audience: string
   vision: string
   description: string
   startLabel: string
   features: Feature[]
 }> = {
   platform: {
-    name: 'LoomAI Platform', icon: ViewInArRounded,
+    name: 'LoomAI Platform', category: 'Build & connect', icon: ViewInArRounded,
     promise: 'Connect your systems and deploy your AI.',
     summary: 'Templates, plugins and your own configuration.',
-    audience: 'For websites and business applications',
     vision: 'Connect your business systems. Deploy your AI. Keep control.',
     description: 'Start with a template, connect plugins, and configure a dedicated AI deployment for your business.',
     startLabel: 'Get started',
@@ -67,10 +66,9 @@ const products: Record<PublicProduct, {
     ],
   },
   engage: {
-    name: 'LoomAI Engage', icon: PersonOutlineRounded,
+    name: 'LoomAI Engage', category: 'Customer experience', icon: ForumOutlined,
     promise: 'Give your customers a branded AI workspace.',
     summary: 'On your website or at its own address.',
-    audience: 'For customer-facing AI experiences',
     vision: 'An AI workspace your customers can actually use.',
     description: 'Answers, useful actions and human support, branded for your business.',
     startLabel: 'Create a workspace',
@@ -81,10 +79,9 @@ const products: Record<PublicProduct, {
     ],
   },
   desk: {
-    name: 'LoomAI Desk', icon: HeadsetMicOutlined,
+    name: 'LoomAI Desk', category: 'Human support', icon: HeadsetMicOutlined,
     promise: 'Bring your team into AI conversations.',
     summary: 'Human support and action reviews.',
-    audience: 'For your support team',
     vision: 'Your people, inside the AI conversation.',
     description: 'Let agents take over when needed, keep the context, and review important actions.',
     startLabel: 'Set up Desk',
@@ -116,6 +113,15 @@ function PreviewItem({ icon: Icon, title, subtitle, status = false }: {
 }
 
 function PlatformPreview({ expanded = false }: { expanded?: boolean }) {
+  if (!expanded) return <PreviewFrame label="Your systems connect through plugins to an AI deployment" className="lp-platform-compact">
+    <div className="lp-compact-connection">
+      <div className="lp-compact-node"><h3>Your systems</h3><div className="lp-system-icons"><PublicRounded /><DnsOutlined /><DescriptionOutlined /></div></div>
+      <ArrowForwardRounded className="lp-flow-arrow" />
+      <div className="lp-compact-node"><h3>Plugins</h3><HubRounded className="lp-node-icon" /></div>
+      <ArrowForwardRounded className="lp-flow-arrow" />
+      <div className="lp-compact-node"><h3>AI deployment</h3><ViewInArRounded className="lp-node-icon" /></div>
+    </div>
+  </PreviewFrame>
   return <PreviewFrame label="Business systems connect through plugins to a dedicated AI deployment, Engage and Desk"
     className={expanded ? 'lp-platform-expanded' : 'lp-platform-compact'}>
     {expanded && <div className="lp-preview-heading"><ProductMark product="platform" small /><div><strong>Dealership AI</strong><span>Example deployment</span></div><span className="lp-example-badge">Illustrative setup</span></div>}
@@ -154,7 +160,7 @@ function EngageConversation({ compact = false }: { compact?: boolean }) {
     {!compact && <div className="lp-mini-app-header"><ProductMark product="engage" small /><strong>Northfield AI</strong><OpenInFullRounded /></div>}
     {!compact && <div className="lp-mini-tools"><span><DirectionsCarOutlined />Browse stock</span><span><DescriptionOutlined />This vehicle</span><span><HeadsetMicOutlined />Human support</span></div>}
     <div className="lp-mini-message"><span className="lp-mini-avatar"><PersonOutlineRounded /></span><p>{compact ? 'Any electric cars under GBP 35,000?' : 'Compare these two electric cars from your current stock.'}</p></div>
-    <div className="lp-mini-message"><span className="lp-mini-avatar lp-mini-ai"><ViewInArRounded /></span><div className="lp-mini-answer"><p>{compact ? 'Here are two options from current stock.' : 'Here are the Aster E1 and Morrow C2, using current Northfield stock.'}</p>
+    <div className="lp-mini-message"><span className="lp-mini-avatar lp-mini-ai"><ViewInArRounded /></span><div className="lp-mini-answer"><p>{compact ? 'Here is an option from current stock.' : 'Here are the Aster E1 and Morrow C2, using current Northfield stock.'}</p>
       <div className={`lp-vehicle-results${compact ? ' lp-single-result' : ''}`}><VehicleResult wide={compact} />{!compact && <VehicleResult second />}</div>
       {!compact && <p className="lp-mini-source"><DescriptionOutlined />Current stock &middot; Fictional demo data</p>}
     </div></div>
@@ -163,7 +169,7 @@ function EngageConversation({ compact = false }: { compact?: boolean }) {
 }
 
 function EngagePreview({ expanded = false }: { expanded?: boolean }) {
-  return <PreviewFrame label="A branded dealership website alongside an AI workspace with stock comparisons" className={expanded ? 'lp-engage-expanded' : 'lp-engage-compact'}>
+  return <PreviewFrame label={expanded ? 'A branded dealership website alongside an AI workspace with stock comparisons' : 'A branded AI workspace with an answer grounded in current stock'} className={expanded ? 'lp-engage-expanded' : 'lp-engage-compact'}>
     {expanded && <div className="lp-dealer-site">
       <div className="lp-browser-bar"><i /><i /><i /><span>Northfield Motor House &middot; Demo website</span></div>
       <div className="lp-dealer-header"><strong>Northfield Motor House</strong><span>Electric &middot; Used cars</span></div>
@@ -188,7 +194,7 @@ function DeskConversation({ compact = false }: { compact?: boolean }) {
 }
 
 function DeskPreview({ expanded = false }: { expanded?: boolean }) {
-  return <PreviewFrame label="An agent inbox with customer and AI messages on the left and the human agent reply on the right" className={expanded ? 'lp-desk-expanded' : 'lp-desk-compact'}>
+  return <PreviewFrame label={expanded ? 'An agent inbox with customer and AI messages on the left and the human agent reply on the right' : 'A customer message on the left and a human support agent reply on the right'} className={expanded ? 'lp-desk-expanded' : 'lp-desk-compact'}>
     <div className="lp-desk-sidebar"><strong>Conversations</strong>
       {expanded && <div className="lp-inbox-counts"><span><HeadsetMicOutlined />Waiting for an agent <b>3</b></span><span><PersonOutlineRounded />Assigned to me <b>1</b></span><span><ShieldOutlined />Action reviews <b>2</b></span></div>}
       {[['AV', 'Anonymous visitor', 'Can someone help me arrange...'], ['JL', 'Jamie Lee', 'Charging options for the E1?'], ['PS', 'Priya Sharma', 'Test drive availability'], ['TM', 'Taylor Morgan', 'Exterior colour options']].map(([initials, name, message], index) => <div className={`lp-inbox-row${index === 0 ? ' lp-inbox-selected' : ''}`} key={initials}><span className="lp-initials">{initials}</span><div><strong>{name}</strong><span>{message}</span></div></div>)}
@@ -226,12 +232,16 @@ function ProductDetail({ product }: { product: PublicProduct }) {
 
 function ProductLanding() {
   return <>
-    <section className="lp-landing-intro" aria-labelledby="lp-products-title"><h1 id="lp-products-title">LoomAI products</h1><p>Choose what you want to build, launch or manage.</p></section>
+    <section className="lp-landing-intro" aria-labelledby="lp-products-title"><h1 id="lp-products-title">LoomAI products</h1><p>Build, engage and support with AI.</p></section>
     <div className="lp-products-grid">{(Object.keys(products) as PublicProduct[]).map(product => {
       const details = products[product]
-      return <article className={`lp-product-card lp-${product}`} key={product}>
+      return <article className={`lp-product-card lp-${product}`} key={product} aria-labelledby={`lp-card-${product}`}>
+        <div className="lp-product-card-intro"><p className="lp-product-category">{details.category}</p>
+          <div className="lp-card-title"><ProductMark product={product} /><h2 id={`lp-card-${product}`}>{details.name}</h2></div>
+          <p className="lp-promise">{details.promise}</p><p className="lp-summary">{details.summary}</p>
+        </div>
         {product === 'platform' ? <PlatformPreview /> : product === 'engage' ? <EngagePreview /> : <DeskPreview />}
-        <div className="lp-product-card-content"><div className="lp-card-title"><ProductMark product={product} /><h2>{details.name}</h2></div><p className="lp-promise">{details.promise}</p><p className="lp-summary">{details.summary}</p><div className="lp-audience"><PersonOutlineRounded /><span>{details.audience}</span></div>
+        <div className="lp-product-card-content">
           <Button component={RouterLink} to={`/products/${product}`} variant="contained" endIcon={<ArrowForwardRounded />} className="lp-product-button">Explore {product === 'platform' ? 'Platform' : product === 'engage' ? 'Engage' : 'Desk'}</Button>
         </div>
       </article>
