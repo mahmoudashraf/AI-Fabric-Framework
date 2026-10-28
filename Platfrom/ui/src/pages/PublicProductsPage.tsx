@@ -247,7 +247,7 @@ function PublicProductsContent({ product, authenticated = false, consolePath = '
   const themeLabel = palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
   useEffect(() => { window.scrollTo(0, 0) }, [product])
   return <div className="lp-public-products" data-public-products-theme={palette.mode}>
-    <header className="lp-header"><RouterLink to="/products" className="lp-brand" aria-label="LoomAI products"><HubRounded /><span>LoomAI</span></RouterLink><div className="lp-auth-actions">
+    <header className="lp-header"><a href="https://loomai.pro/" className="lp-brand" aria-label="LoomAI home"><HubRounded /><span>LoomAI</span></a><div className="lp-auth-actions">
       {authenticated ? <Button component={RouterLink} to={consolePath} variant="contained" className="lp-account-button">Open console</Button> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
     </div></header>
     <main className="lp-main">{product ? <ProductDetail product={product} /> : <ProductLanding />}</main>

@@ -256,8 +256,16 @@ try {
     for (const product of ['Platform', 'Engage', 'Desk']) {
       await page.getByRole('link', { name: `Explore ${product}`, exact: true }).click()
       await page.getByRole('heading', { name: `LoomAI ${product}`, exact: true }).waitFor()
+      const logo = page.getByRole('link', { name: 'LoomAI home', exact: true })
+      assert.equal(await logo.getAttribute('href'), 'https://loomai.pro/')
+      assert.equal(await logo.getAttribute('target'), null)
       await page.getByRole('link', { name: 'Back to products', exact: true }).click()
+      assert.equal(page.url(), `${base}/products`)
     }
+    await page.route('https://loomai.pro/', route => route.fulfill({ contentType: 'text/plain', body: 'LoomAI home' }))
+    await page.getByRole('link', { name: 'LoomAI home', exact: true }).click()
+    await page.waitForURL('https://loomai.pro/')
+    assert.equal(page.context().pages().length, 1)
     assert.equal(calls.filter(call => call.method === 'POST').length, 0)
   })
   await scenario('new_verified_customer_creates_workspace_then_opens_existing_template_setup', async ({ page, calls, base }) => {
