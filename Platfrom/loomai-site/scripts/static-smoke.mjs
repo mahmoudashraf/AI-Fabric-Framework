@@ -96,6 +96,12 @@ const platformProductHtml = readFileSync(
   path.join(dist, 'products', 'loomai-platform', 'index.html'),
   'utf8',
 )
+for (const route of ['', 'products']) {
+  const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
+  if (!html.includes('href="https://console.loomai.pro/"') || !html.includes('Open console')) {
+    errors.push(`Platform card is missing its Console action at /${route}`)
+  }
+}
 for (const expected of [
   'Platform products',
   'Dealership AI Workspace',
