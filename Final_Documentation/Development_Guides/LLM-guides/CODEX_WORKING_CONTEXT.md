@@ -10832,3 +10832,23 @@ test is being called hosted acceptance. UI extraction remains last.
 - Private rollout/screenshot evidence: ~/.codex/private/loomai-onboarding-01049/
   public-site-light-default/. No backend/runtime/integration changes; unrelated
   work preserved and all task test/deployment processes completed.
+
+### 2026-10-28 Distinct Console Product Cards LIVE CLOSED
+
+- Approved mobile mockup implemented: product identity/category precedes its
+  preview; Platform blue, Engage teal and Desk amber have distinct tinted
+  surfaces, accent borders and buttons, with 32px mobile separation. Compact
+  architecture/conversation previews replace the oversized landing previews.
+  Authentication, product/detail/start/demo links and theme preferences remain.
+- UI source3441588d8526b9827566bafbab16bc7c93a2c7d5 committed/pushed. Image
+  workflow40750001361 PASS; backend build skipped. Identical OCI7a3d1c07913e...
+  live on staging jobt13fq607kdhxn3hed3du74bf and production
+  jobo9ma7hyzh337j59zil16nohp; source/health/routes/settings PASS, zero restarts.
+- TypeScript/Vite production build PASS. Browser checks at320/390/1440px passed
+  no horizontal overflow, title-before-preview, contained buttons, distinct
+  colours and loaded imagery; all three product links opened locally. Staging
+  mobile dark and production mobile dark/desktop light verified live. UI-only:
+  no backend, framework, runtime, customer deployment or assignment changes.
+- Private screenshots/checks: ~/.codex/private/loomai-onboarding-01049/visual/
+  product-cards/; rollout evidence {staging,production}/product-cards/. Temporary
+  local5187 preview stopped. Unrelated dirty work preserved.
