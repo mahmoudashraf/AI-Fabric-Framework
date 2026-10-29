@@ -18,6 +18,17 @@ input placeholder. Configuration merge preserves tools, integrations, auth and
 pack-specific fields. Both generic and dealership packs consume the same theme
 logo contract. No framework release or customer-runtime replacement.
 
+Follow-up scope is tracked in
+[010.52 Connection, Complete Preview And Custom Domains](010_52_ENGAGE_CONNECTION_COMPLETE_PREVIEW_AND_CUSTOM_DOMAINS_PLAN.md).
+The deployed branding preview is not a configuration-complete tool/capability
+preview. Follow-up inspection found that its tool-label reader and fixture use
+an array while the real tool-group contract is an object; configured tools can
+be absent from the sample. This is preview-only and does not remove saved or
+live tools. Contextual groups, rail, registered renderers and conditional
+auth/attachment/handover presentation remain follow-up work. Customer-owned
+domain acceptance and the missing production CNAME target are also tracked
+there, separately from verified Platform-default addresses.
+
 Active installation editing follows existing lifecycle: preview locally while
 active; an explicit, confirmed disable is required before persisting changes.
 No silent disable/re-enable or hidden recovery workflow. Saving affects only

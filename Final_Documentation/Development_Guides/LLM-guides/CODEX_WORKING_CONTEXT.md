@@ -10944,3 +10944,28 @@ test is being called hosted acceptance. UI extraction remains last.
   {staging,production}/engage-appearance*. Local5187 server stopped; unrelated
   changes preserved. Runtime/framework/Desk/Engage shared service unchanged.
   No new broad AI, private-adapter or protected-action regression claim.
+
+### 2026-10-29 Engage Follow-Up 010.52 PLANNED ONLY
+
+- Consolidated agreed shared Connect Deployment panel, supported configuration-
+  complete preview and customer-owned domains in 010_52_ENGAGE_CONNECTION_
+  COMPLETE_PREVIEW_AND_CUSTOM_DOMAINS_PLAN.md. No application/DNS/runtime change.
+- Reuse existing consumers/installations and normal target/release activation.
+  One panel from both deployment/app sides; hide manual IDs, permit deployment-
+  bound pre-release drafts, prevent shared-assignment sibling app moves.
+  Code confirms configuration-only assignment exists, but current UI and fresh
+  command guard require boundReleaseId even for draft saves. Staging creation
+  endpoint is not a generic production/cross-deployment binding endpoint.
+- Preview gap confirmed: actual toolGroups is object-shaped, but 010.51 helper
+  and fixture incorrectly expect an array. Correct that, then reuse live pack
+  defaults/components for contextual groups, rail, registered results and
+  conditional auth/attachments/handover. No AI/actions/networked sign-in in
+  preview. 010.51 scope correction/cross-reference added; live tools preserved.
+- Production has no standalone shell CNAME target in native env or Spring JSON;
+  canonical shared service currently loomai-engage-web.46.225.162.106.sslip.io.
+  Existing qualified Northfield domain is PLATFORM_DEFAULT, not custom-domain
+  proof. Plan requires canonical host + exact TXT/CNAME + route/TLS + app and
+  runtime-origin/auth qualification before claiming customer-domain readiness.
+- Phases C1 connection, P1 parity, D1 domains, R1 scoped hosted release. Avoid
+  new services/framework release/versioning or recovery machinery. Independent
+  hard extensions are recorded rather than widening the basic customer journey.
