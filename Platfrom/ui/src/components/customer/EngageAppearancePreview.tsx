@@ -10,7 +10,7 @@ import { engagePreviewDocument } from './engagePreviewDocument'
 
 let bundle: Promise<string> | null = null
 function previewBundle() {
-  if (!bundle) bundle = fetch('/engage-preview.iife.js', { credentials: 'omit' }).then(async response => {
+  if (!bundle) bundle = fetch('/engage-preview.iife.js', { credentials: 'omit', cache: 'no-store' }).then(async response => {
     if (!response.ok) throw new Error('The visual preview asset is unavailable. Your draft has not changed.')
     const value = await response.text()
     if (value.trimStart().startsWith('<') || value.length < 1000) throw new Error('The visual preview asset is invalid.')
