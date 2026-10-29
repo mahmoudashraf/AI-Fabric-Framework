@@ -11049,3 +11049,22 @@ test is being called hosted acceptance. UI extraction remains last.
   Local5187 fixture stopped; temporary browser tabs closed; viewport reset.
   Unrelated dirty files preserved. No global old-fixture cleanup or new broad
   AI/private-adapter/protected-action regression claim. Full details in010.52.
+
+### 2026-10-29 Engage Customer Environment List LIVE CLOSED
+
+- Connect deployment shows Staging/Production once each, grouping authorized
+  active technical profiles. Exact current target/release retained; release
+  choices span the selected environment and supply their exact target ID.
+  Drafts use bootstrap/unique compatible provider-source configuration, never
+  the arbitrary first profile or another environment. No provider admin change.
+- UI source af2964611576a289dcfce2a7db8fba9faddf1140 committed/pushed;
+  CI40972913462 PASS/backend skipped. Identical OCI5358c21342d9f54c1a9539ff35f8bafbd10d683484a23615ee72f1a43e8a0d73
+  on stage jobkjqbf5huen2jwqis02jpq0lm/prodlj2bnjx9vcf68e9wj4vqd95j.
+  Native health/source/routes/settings verified; zero restarts. 68 focused UI
+  tests and TS/Vite build PASS. Local four-profile browser fixture verified
+  exact image target for both production release and null-release draft.
+- Live customer browser checks BOTH hosts show only two environments. Staging
+  draft switch and production release list/return to current assignment checked
+  then cancelled, no hosted app/connection writes. Screenshots output/engage-
+  01052/{staging,production}-environments.png. Local5187 fixture stopped.
+  Backend/runtime/framework unchanged; 01052 domain gate still awaits DNS.

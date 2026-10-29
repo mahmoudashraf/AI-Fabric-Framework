@@ -435,3 +435,33 @@ The domain canary remains DRAFT/inaccessible for this continuation. No DNS,
 canonical shared route, backend CNAME-target environment or runtime-origin
 change was made before the DNS prerequisite. UI/source work is delivered, but
 010.52 as a whole is intentionally not marked fully closed.
+
+### Customer Environment Selector Follow-Up: 2026-10-29
+
+- Customer Connect deployment now groups authorized active target profiles by
+  environment: **Staging** and **Production**, rather than displaying separate
+  Git-build and immutable-image profile names as extra environments. Provider
+  target administration is unchanged.
+- Existing connections retain their exact target/release. Release choices cover
+  all authorized profiles in the selected environment; selecting one retains its
+  exact target ID. Drafts use the configured bootstrap target or a uniquely
+  compatible provider/source strategy in the requested environment. Ambiguous
+  configuration is visible, never an arbitrary first-profile selection or a
+  silent cross-environment substitution. A previous deployment's assignment is
+  not reused when choosing a different deployment.
+- Source `af2964611576a289dcfce2a7db8fba9faddf1140` committed/pushed.
+  Focused Console tests **68 passed**; TypeScript/Vite production build passed.
+  Local browser fixture with four technical profiles showed exactly two
+  environment choices; production release and pre-release draft commands both
+  submitted the exact expected image target. These were synthetic local
+  commands, not customer assignment changes. Hosted rollout pending at this
+  checkpoint. Custom-domain qualification remains separately pending DNS.
+- Hosted follow-up CLOSED: CI `40972913462` passed, backend skipped. Identical
+  UI image `sha256:5358c21342d9f54c1a9539ff35f8bafbd10d683484a23615ee72f1a43e8a0d73`
+  deployed to staging (`kjqbf5huen2jwqis02jpq0lm`) and production
+  (`lj2bnjx9vcf68e9wj4vqd95j`). Native source/health/routes/settings verified,
+  zero restarts. Live customer browser selectors on BOTH hosts showed exactly
+  Production/Staging. Staging pre-release selection and production existing
+  releases/return to the current production release checked, then cancelled
+  without saving. Screenshots `output/engage-01052/*-environments.png`.
+  No backend, runtime, framework, target-profile or customer-assignment changes.
