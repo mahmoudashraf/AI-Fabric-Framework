@@ -1,8 +1,9 @@
 # 010.52 Engage Connection, Complete Preview And Custom Domains
 
 Date: 2026-10-29.
-Status: source implemented and pushed; hosted rollout/acceptance in progress.
-Custom-domain acceptance awaits the owner's DNS records.
+Status: connection and supported preview LIVE on staging and production.
+Custom-domain setup UI is live; positive domain qualification is pending the
+owner's DNS records and the subsequent Platform/TLS/runtime-origin steps.
 Predecessors: [010.50 delivery setup](010_50_ENGAGE_EMBEDDED_AND_STANDALONE_CUSTOMER_SETUP.md)
 and [010.51 appearance preview](010_51_ENGAGE_CUSTOMER_APPEARANCE_AND_VISUAL_PREVIEW.md).
 
@@ -223,25 +224,26 @@ custom-domain hosting.
 
 ### C1: Connection Journey
 
-- [ ] Shared panel from deployment and app inspectors and from app creation.
-- [ ] Ready deployment -> new app without manual assignment ID.
-- [ ] New deployment -> configuration assignment -> saved app draft before a
+- [x] Shared panel from deployment and app inspectors and from app creation.
+- [x] Ready deployment -> new app without manual assignment ID.
+- [x] New deployment -> configuration assignment -> saved app draft before a
       verified release; readiness prevents premature activation.
-- [ ] Existing app -> another owned deployment with settings preserved; other
+- [x] Existing app -> another owned deployment with settings preserved; other
       apps sharing the original assignment remain untouched.
-- [ ] Same-deployment embed + standalone coexistence and normal promotion.
-- [ ] Fresh-account/revision and known-real foreign-resource denials retained.
+- [x] Same-deployment embed + standalone coexistence; existing promotion path
+      retained, not replaced or re-executed by this change.
+- [x] Fresh-account/revision and known-real foreign-resource denials retained.
 
 ### P1: Preview Parity
 
-- [ ] Canonical object-shaped groups and accurate regression fixtures.
-- [ ] Default/contextual groups, rail, pack defaults, explicit disablement and
+- [x] Canonical object-shaped groups and accurate regression fixtures.
+- [x] Default/contextual groups, rail, pack defaults, explicit disablement and
       context/attachment switches represented without hidden truncation.
-- [ ] Conditional auth, history, attachments, sources and handover controls.
-- [ ] Registered generic/dealership renderers and generic fallback samples.
-- [ ] No runtime/provider/auth/action requests or persistent visitor state;
+- [x] Conditional auth, history, attachments, sources and handover controls.
+- [x] Registered generic/dealership renderers and generic fallback samples.
+- [x] No runtime/provider/auth/action requests or persistent visitor state;
       unsaved preview cannot modify active installations.
-- [ ] Desktop and basic mobile navigation; both appearance modes and delivery
+- [x] Desktop and basic mobile navigation; both appearance modes and delivery
       channels. Record unsupported extensions explicitly.
 
 ### D1: Domain Qualification
@@ -260,14 +262,15 @@ custom-domain hosting.
 
 ### R1: Release And Closeout
 
-- [ ] Separate reviewable commits for connection, preview and domain changes.
-- [ ] Focused backend/UI/pack tests and production builds for touched code;
+- [x] Reviewable backend connection, pack/widget preview, Console integration,
+      target-selection and documentation commits.
+- [x] Focused backend/UI/pack tests and production builds for touched code;
       no unrelated framework matrix, capacity benchmark or recovery expansion.
-- [ ] Publish only affected artifacts. Qualify on staging, then production.
+- [x] Publish only affected artifacts. Qualify on staging, then production.
       Domain routing may briefly restart the shared frontend; make that explicit.
 - [ ] Hosted customer journey: deployment -> app -> preview/save -> domain ->
       activate -> open app; reverse connection management also demonstrated.
-- [ ] Update customer/developer guides, 010.51 follow-up status and working
+- [x] Update customer/developer guides, 010.51 follow-up status and working
       context with source/image identities, screenshots and precise limitations.
 
 Each phase reports source completion separately from hosted acceptance. Do not
@@ -295,8 +298,8 @@ plan instead of broadening the basic product journey.
 ## 8. Progress
 
 - [x] Consolidate agreed UX and code-check the actual reuse points/gaps.
-- [ ] C1 implemented and verified.
-- [ ] P1 implemented and verified.
+- [x] C1 implemented and verified.
+- [x] P1 implemented and verified for the supported presentation contract.
 - [ ] D1 implemented and verified.
 - [ ] R1 hosted journey, exact cleanup and documentation complete.
 
@@ -339,3 +342,96 @@ changed when creating this plan.
   synthetic page; private adapter responses and custom scripts are not invoked;
   unsupported renderer/mapping extensions need bundled fixtures. Runtime
   handover configuration is authoritative, not an ignored pack-only flag.
+
+### Hosted Acceptance: 2026-10-29
+
+- CI `40964601088` passed for backend and Console. UI-only follow-up
+  `d30c81f5aa6eaf35e546a6860c6d608cba0730c4` preserves an existing target or the
+  deployment's explicit bootstrap target. It never substitutes another
+  environment when that intent is unavailable. CI `40966252353` passed,
+  backend skipped. Final focused Console set: **62 passed**.
+- Both backend environments run source
+  `afabb4ce954e2c85cb513f817aa08de0e6688e26`, OCI
+  `sha256:31348b8252c6d78ce00a841f5738492f52fdde909429c48ebb9b71cd8d099bb7`.
+  Staging native job `f8pddo8ls4vudp0mkcqilxbm`; production
+  `teks6tnqea27ep7hr2k34b6o`. Healthy, schema217 unchanged, zero restarts;
+  environment, routes, placement and resource settings preserved.
+- Both Consoles run source `d30c81f5aa6eaf35e546a6860c6d608cba0730c4`, OCI
+  `sha256:be1960607c8ad81fdf86c960201a4267d01eaca3382c9cbd5d531b6a24a3b9f6`.
+  Staging job `kciu6g0iyf50iafnzr8bq4qu`; production
+  `u7eo9x1ba52uus0ax6v9z6g5`. Public routes and source verified; zero restarts
+  and existing settings preserved.
+- Real Supabase `CUSTOMER_ADMIN` API checks passed on both environments using
+  the existing public-signup customer's configuration-only deployments:
+  create/replay, changed-command conflict, null-release capability projection,
+  two app drafts, early-activation denial, app-only cross-deployment move with
+  branding/auth/tools/origins preserved, sibling unchanged, known-real foreign
+  deployment denial, then exact app/connection cleanup. No provider deployment,
+  business database, vector migration or AI query was triggered.
+- CUA staging: empty apps -> name/branding -> Connect deployment -> knowledge
+  configuration and staging target -> embedded draft save. Unsaved branding
+  survived connection setup. Reloaded saved branding was correct; activation
+  stayed unavailable without a release. Exact UI fixture
+  `awi_pub_c33514d59e528c7739a4f09420da91b5` and its new connection were removed.
+- CUA production: deployment-first panel -> production target/release ->
+  existing connection -> new branded embedded app -> ready draft -> explicit
+  activation. Manifest200 returned that exact installation and branding.
+  Temporary `awi_pub_3fc6604b83a41436aa534a67908c1845` was then disabled, saved
+  back to a draft and removed through normal APIs. Its shared consumer was
+  neither rebound nor deleted.
+- Production preview: actual dealership default/context groups and six context
+  tools, registered inventory/detail/comparison/receipt components, conditional
+  sign-in and human-support visibility, shared support dialog and synthetic
+  request/cancel transitions. Desktop/dark and basic390px mobile Settings/
+  Preview navigation/phone rail checked. Sample gestures performed no live
+  action or handover. Existing active installations were not edited.
+- Public regression: both original app manifests200, foreign origin403,
+  inactive custom-domain installation403 and unknown hostname403. Hashed
+  widget/pack assets matched their declared SRI. Original Northfield standalone
+  and embedded apps remain ACTIVE/ready with unchanged row versions, assignment,
+  branding, tools, origins and authentication.
+- Domain UI correctly shows the generated copyable TXT value, DNS pending,
+  missing Platform CNAME-target warning and disabled activation. Missing TXT
+  verification returns PENDING with an ownership error; it is not accepted as a
+  routed/verified domain. A successful positive CNAME/TLS/app/origin proof is
+  **not** claimed.
+- Exact native receipts are under
+  `~/.codex/private/loomai-onboarding-01049/{staging,production}/engage-01052-*`.
+  Screenshots: `output/engage-01052/`. Local5187 fixture and temporary browser
+  tabs stopped/closed. Unrelated worktree changes were preserved.
+
+### Remaining D1 / R1 Work After DNS
+
+The owner has been asked for these Namecheap records on `loomai.pro`:
+
+```text
+A      engage                         46.225.162.106
+CNAME  engage-canary                  engage.loomai.pro
+TXT    _loomai-workspace.engage-canary <exact token from the open owner request / domain panel>
+```
+
+1. Confirm actual public DNS. Back up the current shared Engage native
+   configuration, preserve unrelated routes, add `engage.loomai.pro` and verify
+   its HTTPS health. Shared native app: `rtdzfytxrf80qrc92tm5u2xa`; managed
+   service `psv-81bf3c7a` / `loomai-engage-web`.
+2. Set production backend
+   `PLATFORM_AI_WORKSPACE_STANDALONE_SHELL_BASE_URL=https://engage.loomai.pro`
+   through normal Coolify environment configuration, preserving all other
+   settings. No runtime/framework code change is needed. Do not pretend the
+   target is already configured: it remains missing at this checkpoint.
+3. Verify the controlled CUSTOMER_CUSTOM hostname through the existing domain
+   worker. Check ownership, native route completion, TLS and the exact app
+   identity, not only shared `/health`.
+4. The inactive domain canary currently reports missing runtime CORS origins
+   for its default and custom addresses. Use the normal deployment draft,
+   publish/apply and assignment path for exact origins; verify applicable
+   identity redirects separately. Then readiness -> explicit activation ->
+   correct app/manifest and anonymous/authenticated access.
+5. Remove only the exact qualification app, native managed route and owner DNS
+   records after recording proof; preserve the canonical shared hostname and
+   original customer apps. Do not globally clean up old customer fixtures.
+
+The domain canary remains DRAFT/inaccessible for this continuation. No DNS,
+canonical shared route, backend CNAME-target environment or runtime-origin
+change was made before the DNS prerequisite. UI/source work is delivered, but
+010.52 as a whole is intentionally not marked fully closed.

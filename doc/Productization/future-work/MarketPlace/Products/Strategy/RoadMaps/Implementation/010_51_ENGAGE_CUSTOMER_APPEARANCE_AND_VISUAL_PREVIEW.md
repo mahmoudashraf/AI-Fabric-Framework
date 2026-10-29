@@ -20,14 +20,14 @@ logo contract. No framework release or customer-runtime replacement.
 
 Follow-up scope is tracked in
 [010.52 Connection, Complete Preview And Custom Domains](010_52_ENGAGE_CONNECTION_COMPLETE_PREVIEW_AND_CUSTOM_DOMAINS_PLAN.md).
-The deployed branding preview is not a configuration-complete tool/capability
-preview. Follow-up inspection found that its tool-label reader and fixture use
-an array while the real tool-group contract is an object; configured tools can
-be absent from the sample. This is preview-only and does not remove saved or
-live tools. Contextual groups, rail, registered renderers and conditional
-auth/attachment/handover presentation remain follow-up work. Customer-owned
-domain acceptance and the missing production CNAME target are also tracked
-there, separately from verified Platform-default addresses.
+The original 010.51 branding preview was not configuration-complete: its reader
+and fixture used an array rather than the real object-shaped tool-group
+contract. **010.52 now corrects this on staging and production**, including
+shared pack defaults, contextual groups, rail, registered renderers and
+conditional auth/attachment/handover presentation. Saved/live tools were never
+removed by the old preview reader. Customer-owned-domain positive acceptance
+and the missing production CNAME target remain pending DNS in 010.52, separately
+from verified Platform-default addresses.
 
 Active installation editing follows existing lifecycle: preview locally while
 active; an explicit, confirmed disable is required before persisting changes.

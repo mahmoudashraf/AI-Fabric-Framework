@@ -10994,3 +10994,58 @@ test is being called hosted acceptance. UI extraction remains last.
   local screenshot output/engage-01052/. Scoped backend rollout helper
   engage-01052-backend-rollout.mjs has a fresh receipt directory. Do not reuse
   old fixed receipt folders or retry native deployment after unknown outcomes.
+
+### 2026-10-29 Engage 010.52 CONNECTION/PREVIEW LIVE; DOMAIN POSITIVE PROOF PENDING DNS
+
+- C1/P1 are implemented, committed, pushed and hosted-qualified. Overall010.52
+  stays open only for D1 and the domain portion of R1. No framework/runtime,
+  shared frontend, canonical-route or DNS change has been made by this work.
+- Backend source afabb4ce954e2c85cb513f817aa08de0e6688e26 on both servers:
+  OCI31348b8252c6d78ce00a841f5738492f52fdde909429c48ebb9b71cd8d099bb7.
+  Stage job f8pddo8ls4vudp0mkcqilxbm / prod teks6tnqea27ep7hr2k34b6o.
+  Healthy200, schema217 unchanged, zero restarts, settings/routes preserved.
+- Console source d30c81f5aa6eaf35e546a6860c6d608cba0730c4 on both servers:
+  OCIbe1960607c8ad81fdf86c960201a4267d01eaca3382c9cbd5d531b6a24a3b9f6.
+  Stage kciu6g0iyf50iafnzr8bq4qu / prod u7eo9x1ba52uus0ax6v9z6g5.
+  Zero restarts, settings preserved. CI40964601088 and40966252353 passed;
+  latter UI-only/backend skipped. Latest docs commit is not an image identity.
+- Focused183 backend and62 Console tests passed; widget/packs/Console builds
+  passed. Both environments passed real CUSTOMER_ADMIN config-only connection,
+  replay/conflict, pre-release draft, denied early activation, app-only move,
+  sibling preservation, known-real foreign-deployment denial and exact cleanup.
+  The existing public-signup customer was used for this customer-portfolio proof,
+  not legacy staff-created canaries absent from that portfolio.
+- Staging CUA: blank app list -> branding -> connect knowledge deployment ->
+  save embedded draft before release. Branding persisted; early activation
+  stayed unavailable. Temporary app awi_pub_c33514d59e528c7739a4f09420da91b5
+  and its connection removed. A receipt filename collided with a rollout
+  receipt after cleanup completed; fresh app/consumer reads reconciled absence
+  without repeating any deletion. Correct evidence folder engage-01052-ui-customer.
+- Production CUA: deployment-first -> selected production target/release ->
+  existing shared connection -> ready embedded draft -> explicit activation;
+  correct branded manifest200. Temporary awi_pub_3fc6604b83a41436aa534a67908c1845
+  disabled, saved back to DRAFT and deleted normally; shared original consumer
+  was never rebound/deleted. Original standalone/embed remain ACTIVE/ready,
+  rowVersion1, same assignment/auth/tools/origins/branding.
+- Production supported preview: pack default/context tools, registered result
+  cards, conditional auth/support, real safe support intake/request/cancel
+  presentation, sample-only feedback, dark/light and basic390px mobile rail/
+  Settings/Preview navigation checked. No real handover, write or AI call.
+  Public manifests200 and SRI checked; foreign/inactive/unknown origin403.
+- D1 canary remains DRAFT awi_pub_be622d27062f1320bfb872757d8bd5d9,
+  engage-canary.loomai.pro. Missing TXT returns PENDING/ownership error; UI
+  correctly shows missing Platform CNAME target. Owner DNS requests are open:
+  engage A46.225.162.106, engage-canary CNAMEengage.loomai.pro and generated TXT.
+  Native DNS still absent at final check. Do not claim custom-domain readiness.
+- After owner DNS: preserve native routes on shared app rtdzfytxrf80qrc92tm5u2xa
+  (servicepsv-81bf3c7a/loomai-engage-web), add/verify engage.loomai.pro HTTPS,
+  set PLATFORM_AI_WORKSPACE_STANDALONE_SHELL_BASE_URL on prod backend using
+  normal Coolify env/redeploy. Then exact ownership/route/TLS check, normal
+  runtime origin publication/apply (canary currently missing two CORS origins),
+  relevant identity redirects, readiness/activate/exact-app proof and exact
+  canary/DNS cleanup. No new framework/runtime code is expected.
+- Screenshots output/engage-01052/; private receipts
+  ~/.codex/private/loomai-onboarding-01049/{staging,production}/engage-01052-*.
+  Local5187 fixture stopped; temporary browser tabs closed; viewport reset.
+  Unrelated dirty files preserved. No global old-fixture cleanup or new broad
+  AI/private-adapter/protected-action regression claim. Full details in010.52.
