@@ -213,7 +213,7 @@ public class PublicAIWorkspaceManifestService {
         connection.put("profileCode", profile.code());
         connection.put("profileVersion", profile.version());
         connection.put("handler", profile.handler());
-        ObjectNode handover = publicConversationHandover(behaviorConfiguration);
+        ObjectNode handover = AIWorkspacePublicHandoverProjection.project(objectMapper, behaviorConfiguration);
         boolean handoverEnabled = handover.path("enabled").asBoolean(false);
         connection.set("conversationHandover", handover);
         if (mode != AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME) {
@@ -314,41 +314,6 @@ public class PublicAIWorkspaceManifestService {
             routes.put("aiResumeRequestUrlTemplate", "/api/chat/me/conversations/{conversationId}/ai-resume-requests");
         }
         return routes;
-    }
-
-    private ObjectNode publicConversationHandover(JsonNode behaviorConfiguration) {
-        ObjectNode result = objectMapper.createObjectNode();
-        JsonNode configured = behaviorConfiguration.path("conversationHandover");
-        boolean extensionSelected = false;
-        JsonNode extensions = behaviorConfiguration.path("executionExtensions");
-        if (extensions.isArray()) {
-            for (JsonNode extension : extensions) {
-                if ("CONVERSATION_HANDOVER".equals(extension.asText(""))) {
-                    extensionSelected = true;
-                    break;
-                }
-            }
-        }
-        boolean enabled = extensionSelected && configured.path("enabled").asBoolean(false);
-        result.put("enabled", enabled);
-        if (!enabled) {
-            return result;
-        }
-        result.put("contractVersion", configured.path("contractVersion").asText(""));
-        result.put("modelInitiatedPolicy", configured.path("modelInitiatedPolicy").asText(""));
-        result.put("userCanCancelPending", configured.path("userCanCancelPending").asBoolean(false));
-        result.put("userCanResumeAi", configured.path("userCanResumeAi").asBoolean(false));
-        result.put("queueTimeoutSeconds", configured.path("queueTimeoutSeconds").asInt(0));
-        JsonNode intake = configured.path("intake");
-        ObjectNode publicIntake = result.putObject("intake");
-        publicIntake.put("anonymousAllowed", intake.path("anonymousAllowed").asBoolean(true));
-        publicIntake.set(
-            "fields",
-            intake.path("fields").isArray()
-                ? intake.path("fields").deepCopy()
-                : objectMapper.createArrayNode()
-        );
-        return result;
     }
 
     private ObjectNode assetProjection(com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAssetDescriptor asset) {

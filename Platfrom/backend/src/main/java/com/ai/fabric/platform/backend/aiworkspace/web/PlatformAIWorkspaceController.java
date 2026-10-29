@@ -3,10 +3,15 @@ package com.ai.fabric.platform.backend.aiworkspace.web;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceCatalogSummary;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationSummary;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessSummary;
+import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceConnectionRequest;
 import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.model.UpdateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceInstallationService;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceConnectionService;
+import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,9 +30,26 @@ import java.util.List;
 public class PlatformAIWorkspaceController {
 
     private final AIWorkspaceInstallationService service;
+    private final AIWorkspaceConnectionService connections;
 
-    public PlatformAIWorkspaceController(AIWorkspaceInstallationService service) {
+    public PlatformAIWorkspaceController(AIWorkspaceInstallationService service, AIWorkspaceConnectionService connections) {
         this.service = service;
+        this.connections = connections;
+    }
+
+    @PostMapping("/customers/{customerId}/ai-workspaces/connections")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PlatformConsumerSummary createConnection(@PathVariable String customerId,
+                                                     @Valid @RequestBody CreateAIWorkspaceConnectionRequest request) {
+        return connections.create(customerId, request);
+    }
+
+    @GetMapping("/customers/{customerId}/ai-workspaces/connections/{consumerId}/preview-capabilities")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    public AIWorkspaceConnectionService.PreviewCapabilities previewCapabilities(@PathVariable String customerId,
+                                                                               @PathVariable String consumerId) {
+        return connections.previewCapabilities(customerId, consumerId);
     }
 
     @GetMapping("/ai-workspaces/catalog")

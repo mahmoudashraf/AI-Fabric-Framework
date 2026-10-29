@@ -531,7 +531,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
     @Configuration @EnableWebMvc static class HttpConfiguration { }
     private void startHttp() {
         webContext = new AnnotationConfigWebApplicationContext(); webContext.register(HttpConfiguration.class);
-        var controller = new PlatformAIWorkspaceController(installationService);
+        var controller = new PlatformAIWorkspaceController(installationService, mock(AIWorkspaceConnectionService.class));
         webContext.addBeanFactoryPostProcessor(beans -> {
             beans.registerSingleton("workspaceController", controller);
             beans.registerSingleton("routeController", new AIWorkspaceRouteController(worker));
