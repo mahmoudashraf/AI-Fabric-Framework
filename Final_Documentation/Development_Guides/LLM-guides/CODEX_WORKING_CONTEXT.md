@@ -10875,3 +10875,36 @@ test is being called hosted acceptance. UI extraction remains last.
   Private screenshots/checks: ~/.codex/private/loomai-onboarding-01049/visual/
   product-card-reference/; rollout evidence {staging,production}/product-card-
   reference/. Local5187 preview stopped; unrelated work preserved.
+
+### 2026-10-29 Engage Embedded And Standalone Customer Setup LIVE CLOSED
+
+- 010.50 implemented. Customers can choose either delivery and use BOTH as
+  separate installations against the same consumer/deployment. Customer
+  inspector/shared editor have Add website embed/Add standalone app shortcuts,
+  full owned configuration copying, exact origins, script/copy/setup/readiness.
+  Templates remain startup defaults: removed stale UI offer/target/hash pins
+  for existing owned configurations/commands, matching unchanged backend
+  ownership/role/target authorization. Fresh actor/account/assignment checks
+  retained. Published starter hashes still checked; no invented defaults.
+- UI sourcebb95dface54c73b8e8362681b4ae0ec7075f66aa live BOTH hosts, workflow
+  40799597897 PASS/backend skipped, OCI652ba5b4c66e...; jobs stage
+  x11wcgymkkewufxh5zdybabg/prodza1icmidz7yr1u3kkppihr6o. Native source,
+  routes/health/settings preservation PASS, zero restarts. 39 focused tests and
+  TS/Vite build PASS. Earlier feature commitb13f63b6f also pushed.
+- Actual production customer UI created ready embedded counterpart from SAME
+  standalone consumer/config, reopened/saved it, prepared reverse standalone
+  setup with required slug and cancelled. API exact full config/auth/connection
+  comparison PASS. Test draftawi_pub_0b76c848a2dd4d71c05cb6514a1cdef0 removed
+  through normal API; both original ACTIVE/ready installations and rowVersions
+  unchanged on dep3c4/rel73/revision11. No runtime/deployment change/AI query.
+- Script clipboard PASS; real loomai.pro dealership website embed and Northfield
+  standalone bootstrapped. Allowed manifest200/foreign403/missingOrigin404;
+  installer200. Staging sign-in, both delivery fields and390px layout verified.
+  This is scoped setup/bootstrap qualification, not a new private-adapter or
+  protected-action/provider regression. Backend/runtime/framework unchanged.
+- Customer guide: External_User_Guides/LOOMAI_ENGAGE_WEBSITE_AND_STANDALONE_
+  SETUP_GUIDE.md; 010.50 holds exact evidence. Private rollout/API receipts under
+  ~/.codex/private/loomai-onboarding-01049/{staging,production}/engage-dual-
+  delivery[-ownership]/; browser proof output/engage-dual-delivery-20261029/.
+  No local server started; unrelated work preserved; firewall remains open per
+  owner's instruction. Historical unrelated release warnings left untouched.
