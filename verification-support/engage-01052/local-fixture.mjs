@@ -5,6 +5,12 @@ const consumers = [{ customerId, consumerId, displayName: 'Knowledge connection'
   boundDeploymentName: 'Knowledge workspace', boundDeploymentEnvironment: 'STAGING', boundReleaseId: 'preview-release', boundTargetProfileId: 'preview-target', bindingRevision: 1 }]
 const deployments = ['preview-deployment', 'draft-deployment'].map((deploymentId, index) => ({ deploymentId,
   name: index ? 'New knowledge deployment' : 'Knowledge workspace', environmentName: 'STAGING', status: 'ACTIVE', tenantId: 'tenant', bootstrapTargetProfileId: 'preview-target' }))
+const targets = [
+  { id: 'stage-git', name: 'Coolify Staging', environmentName: 'staging', sourceStrategy: 'GIT_SOURCE' },
+  { id: 'preview-target', name: 'Coolify Staging Immutable Behavior Runtime', environmentName: 'staging', sourceStrategy: 'IMAGE_SOURCE' },
+  { id: 'prod-git', name: 'Coolify Production', environmentName: 'production', sourceStrategy: 'GIT_SOURCE' },
+  { id: 'prod-image', name: 'Coolify Production Immutable Behavior Runtime', environmentName: 'production', sourceStrategy: 'IMAGE_SOURCE' },
+].map(target => ({ ...target, active: true, providerType: 'COOLIFY', defaultForRuntime: false }))
 const configuration = { app: { assistantLabel: 'Support AI' }, capabilities: { currentPage: true, handover: true }, page: { rootSelector: 'main', maxChars: 4000 },
   theme: { primaryColor: '#155eef', darkMode: false }, copy: { welcomeMessage: 'Welcome to your workspace.', placeholder: 'Ask us a question...' },
   toolGroups: { initialScope: 'default', default: { label: 'Browse knowledge', tools: Array.from({ length: 10 }, (_, n) => ({ id: `tool-${n}`, label: `Knowledge tool ${n + 1}`, icon: 'search', query: `Example ${n}` })) },
@@ -43,8 +49,12 @@ const server = await createServer({ root: new URL('../../Platfrom/ui', import.me
       if (path === '/api/customer-self-service/deployments') return json(deployments)
       if (path === '/api/customer-self-service/catalogue') return json([])
       if (path.endsWith('/preview-capabilities')) return json({ runtimeConfigured: true, handover: { enabled: true, userCanCancelPending: true, userCanResumeAi: true, intake: { anonymousAllowed: true, fields: [{ key: 'email', label: 'Email', type: 'EMAIL', required: true, purpose: 'Reply to your request', maxLength: 254, options: [] }] } } })
-      if (path.endsWith('/target-profiles')) return json([{ id: 'preview-target', name: 'Customer staging', environmentName: 'STAGING', active: true }])
-      if (path.endsWith('/releases')) return json(path.includes('draft-deployment') ? [] : [{ id: 'preview-release', deploymentId: 'preview-deployment', targetProfileId: 'preview-target', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: now }])
+      if (path.endsWith('/target-profiles')) return json(targets)
+      if (path.endsWith('/releases')) return json(path.includes('draft-deployment') ? [] : [
+        { id: 'preview-release', deploymentId: 'preview-deployment', targetProfileId: 'preview-target', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: now },
+        { id: 'prod-release', deploymentId: 'preview-deployment', targetProfileId: 'prod-image', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: now },
+        { id: 'old-prod-release', deploymentId: 'preview-deployment', targetProfileId: 'prod-git', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: '2026-10-01T00:00:00Z' },
+      ])
       if (path === `/api/platform/customers/${customerId}/ai-workspace-installations`) return json([installation])
       if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, assetStatus: 'READY', experiencePacks: [{ code: 'generic-workspace', version: '1.0.0', name: 'Generic workspace', enabled: true }], connectionProfiles: [{ code: 'public-anonymous', version: '1.0.0', name: 'Public anonymous', mode: 'public-runtime-anonymous', enabled: true }], authenticationProfiles: [{ code: 'supabase', version: '1.0.0', name: 'Supabase', enabled: true }] })
       res.statusCode = 404; return json({ message: `Unimplemented fixture read: ${path}` })

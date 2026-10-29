@@ -6,7 +6,8 @@ import { createAIWorkspaceConnection, fetchDeploymentReleases, fetchDeploymentTa
   fetchPlatformAuthSession, type AIWorkspaceInstallationSummary, type CustomerDeploymentSummary,
   type PlatformConsumerSummary } from '../../api/platformApi'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
-import { connectableRelease, initialConnectionRelease, initialConnectionTarget, matchingEngageConnections } from './customerEngageConnection'
+import { connectableRelease, connectionEnvironments, connectionEnvironmentSelection,
+  initialConnectionRelease, initialConnectionTarget, matchingEngageConnections } from './customerEngageConnection'
 
 export function CustomerEngageConnectionPanel({ open, onClose, customerId, actorId, deployments, consumers, apps,
   initialDeploymentId, currentConsumerId, currentApp, chooseApp = false, onConnected, onManageApp }: {
@@ -19,6 +20,7 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
 }) {
   const queryClient = useQueryClient()
   const [deploymentId, setDeploymentId] = useState('')
+  const [environment, setEnvironment] = useState('')
   const [targetId, setTargetId] = useState('')
   const [releaseId, setReleaseId] = useState('')
   const [connectionId, setConnectionId] = useState('')
@@ -29,9 +31,12 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
   const active = useRef({ open, customerId, actorId })
   active.current = { open, customerId, actorId }
   const current = consumers.find(item => item.consumerId === currentConsumerId && item.customerId === customerId)
+  const deploymentCurrent = current?.boundDeploymentId === deploymentId ? current : undefined
+  const bootstrapTargetId = deployments.find(item => item.deploymentId === deploymentId)?.bootstrapTargetProfileId
   useEffect(() => {
     if (!open) return
     setDeploymentId(initialDeploymentId ?? current?.boundDeploymentId ?? '')
+    setEnvironment('')
     setTargetId(current?.boundTargetProfileId ?? '')
     setReleaseId(current?.boundReleaseId ?? '')
     setConnectionId(''); setAppId(currentApp?.installationId ?? 'new'); setError(null); command.current = null
@@ -42,21 +47,24 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
     queryFn: () => fetchDeploymentReleases(deploymentId), enabled: open && Boolean(deploymentId), retry: false })
   useEffect(() => {
     if (!targets.isSuccess || !releases.isSuccess) return
-    if (!targetId) {
-      const id = initialConnectionTarget(targets.data, current?.boundTargetProfileId,
-        deployments.find(item => item.deploymentId === deploymentId)?.bootstrapTargetProfileId)
+    if (!environment) {
+      const id = initialConnectionTarget(targets.data, deploymentCurrent?.boundTargetProfileId, bootstrapTargetId)
       if (!id) return
+      setEnvironment(targets.data.find(item => item.id === id)!.environmentName)
       setTargetId(id)
-      setReleaseId(initialConnectionRelease(releases.data, id, current))
+      setReleaseId(initialConnectionRelease(releases.data, id, deploymentCurrent))
     }
-  }, [targets.data, releases.data, targetId])
+  }, [targets.data, releases.data, environment, deploymentCurrent, bootstrapTargetId])
+  const environments = connectionEnvironments(targets.data ?? [])
+  const environmentReleases = releases.data?.filter(item => targets.data?.some(target => target.active
+    && target.environmentName === environment && target.id === item.targetProfileId)) ?? []
   const matches = matchingEngageConnections(consumers, customerId, deploymentId, targetId, releaseId || null)
   useEffect(() => {
     setConnectionId(matches.length === 1 ? matches[0].consumerId : matches.length ? '' : 'new')
   }, [deploymentId, targetId, releaseId, matches.map(item => item.consumerId).join('|')])
   const selectedApp = chooseApp ? apps.find(item => item.installationId === appId) ?? null : currentApp ?? null
   const selectedRelease = releases.data?.find(item => item.id === releaseId && item.targetProfileId === targetId)
-  const validTarget = targets.data?.some(item => item.id === targetId && item.active)
+  const validTarget = targets.data?.some(item => item.id === targetId && item.active && item.environmentName === environment)
   const readError = targets.error || releases.error
   const canConnect = Boolean(deploymentId && validTarget && connectionId && !readError && !targets.isFetching
     && !releases.isFetching && (!releaseId || (selectedRelease && connectableRelease(selectedRelease)))
@@ -94,16 +102,25 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
         {apps.map(app => <MenuItem key={app.installationId} value={app.installationId}>{app.displayName} · {app.status}</MenuItem>)}
       </TextField> : null}
       <TextField select label="AI deployment" value={deploymentId} disabled={pending} onChange={event => {
-        setDeploymentId(event.target.value); setTargetId(''); setReleaseId(''); setError(null)
+        setDeploymentId(event.target.value); setEnvironment(''); setTargetId(''); setReleaseId(''); setError(null)
       }}><MenuItem value="">Choose a deployment</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}</TextField>
-      <TextField select label="Environment" value={targets.data?.some(item => item.id === targetId) ? targetId : ''}
+      <TextField select label="Environment" value={environments.some(item => item.name === environment) ? environment : ''}
         disabled={pending || !targets.isSuccess} onChange={event => {
-          setTargetId(event.target.value); setReleaseId(initialConnectionRelease(releases.data ?? [], event.target.value, current))
-        }}><MenuItem value="">Choose an environment</MenuItem>{targets.data?.map(item => <MenuItem key={item.id} value={item.id}>{item.name} · {item.environmentName}</MenuItem>)}</TextField>
-      <TextField select label="Runtime release" value={releaseId} InputLabelProps={{ shrink: true }} SelectProps={{ displayEmpty: true }} disabled={pending || !targetId || !releases.isSuccess} onChange={event => setReleaseId(event.target.value)}>
+          setEnvironment(event.target.value)
+          const selection = connectionEnvironmentSelection(event.target.value, targets.data ?? [],
+            releases.data ?? [], deploymentCurrent, bootstrapTargetId)
+          setTargetId(selection.targetId); setReleaseId(selection.releaseId)
+        }}><MenuItem value="">Choose an environment</MenuItem>{environments.map(item => <MenuItem key={item.name} value={item.name}>{item.label}</MenuItem>)}</TextField>
+      <TextField select label="Runtime release" value={releaseId} InputLabelProps={{ shrink: true }} SelectProps={{ displayEmpty: true }} disabled={pending || !environment || !releases.isSuccess} onChange={event => {
+        const selected = environmentReleases.find(item => item.id === event.target.value)
+        if (selected) { setReleaseId(selected.id); setTargetId(selected.targetProfileId!); return }
+        const selection = connectionEnvironmentSelection(environment, targets.data ?? [], [], deploymentCurrent, bootstrapTargetId)
+        setReleaseId(''); setTargetId(selection.targetId)
+      }}>
         <MenuItem value="">Configure draft - no live release</MenuItem>
-        {releases.data?.filter(item => item.targetProfileId === targetId).map(item => <MenuItem key={item.id} value={item.id} disabled={!connectableRelease(item)}>{new Date(item.createdAt).toLocaleString()} · {connectableRelease(item) ? 'Ready' : 'Verification needed'}</MenuItem>)}
+        {environmentReleases.map(item => <MenuItem key={item.id} value={item.id} disabled={!connectableRelease(item)}>{new Date(item.createdAt).toLocaleString()} · {connectableRelease(item) ? 'Ready' : 'Verification needed'}</MenuItem>)}
       </TextField>
+      {environment && !targetId && targets.isSuccess && releases.isSuccess ? <Alert severity="warning">This environment needs a deployment target configured before you can connect an app.</Alert> : null}
       {!releaseId && targetId ? <Alert severity="info">You can save and preview an app now. Activation waits for a verified runtime release.</Alert> : null}
       {matches.length > 1 ? <TextField select label="Existing connection" value={connectionId} disabled={pending} onChange={event => setConnectionId(event.target.value)}>
         <MenuItem value="">Choose a connection</MenuItem>{matches.map(item => <MenuItem key={item.consumerId} value={item.consumerId}>{item.displayName}</MenuItem>)}<MenuItem value="new">Create a separate connection</MenuItem>
