@@ -2,8 +2,8 @@ import {
   dealershipActionPresentationConfig,
   registerDealershipActionPresentationElements,
 } from './action-presentations'
-import { createDealershipToolGroups } from './tool-groups'
-import { createDealershipToolRail } from './tool-rail'
+import { resolveDealershipPresentation } from './presentation'
+import './browser-globals'
 import type {
   AIWorkspacePackMountContext,
   DealershipExperienceConfig,
@@ -14,6 +14,7 @@ import type {
 } from './types'
 
 export * from './types'
+export { resolveDealershipPresentation } from './presentation'
 export { createDealershipToolGroups } from './tool-groups'
 export { createDealershipToolRail } from './tool-rail'
 export {
@@ -40,18 +41,7 @@ export async function mountInstallation(
     activeController?.destroy()
     registerDealershipActionPresentationElements()
     const maxMode = context.maxMode
-    const capabilities = {
-      comparison: config.capabilities?.comparison !== false,
-      testDrive: config.capabilities?.testDrive === true,
-      callback: config.capabilities?.callback === true,
-    }
-    const toolGroups = config.toolGroups || createDealershipToolGroups({
-      pageKind: page.kind,
-      subjectLabel: page.subjectLabel,
-      capabilities,
-    })
-    const toolRail = config.toolRail || createDealershipToolRail()
-    const copy = resolveCopy(config, page.kind, page.subjectLabel)
+    const { capabilities, toolGroups, toolRail, copy, theme } = resolveDealershipPresentation(config, page)
     maxMode.init({
       ...context.widgetConfig,
       features: {
@@ -61,13 +51,7 @@ export async function mountInstallation(
         conversations: (context.widgetConfig.features as Record<string, unknown> | undefined)?.conversations !== false,
         quickActions: true,
       },
-      theme: {
-        primaryColor: config.theme?.primaryColor || '#123b35',
-        logoUrl: config.theme?.logoUrl,
-        borderRadius: config.theme?.borderRadius || '0.5rem',
-        fontFamily: config.theme?.fontFamily || 'Inter, system-ui, sans-serif',
-        darkMode: config.theme?.darkMode ?? false,
-      },
+      theme,
       launcher: false,
       beforeNewConversation: context.refreshAssignment,
       host: {
@@ -244,24 +228,6 @@ function resolvePage(config: DealershipExperienceConfig) {
   } as const
 }
 
-function resolveCopy(config: DealershipExperienceConfig, kind: 'inventory' | 'vehicle-detail', subject?: string) {
-  const detailPage = kind === 'vehicle-detail'
-  const defaultSuggestions = detailPage
-    ? ['Which features stand out?', 'How does its mileage compare?', ...(config.capabilities?.testDrive === true ? ['Request a test drive'] : [])]
-    : [...(config.capabilities?.comparison !== false ? ['Compare electric cars'] : []), 'What is under £30,000?', 'Which car has the best luggage space?']
-  return {
-    welcomeMessage: config.copy?.welcomeMessage || (detailPage && subject
-      ? `I can answer questions about this ${subject} using current indexed dealership evidence and live facts.`
-      : 'I can search and compare current inventory using indexed dealership evidence and live facts.'),
-    placeholder: config.copy?.placeholder || (detailPage ? 'Ask about this vehicle...' : 'Ask about a vehicle, feature, budget or comparison...'),
-    emptyMessage: config.copy?.emptyMessage || (detailPage
-      ? 'Attach this page for its visible details, or ask a grounded question about this vehicle.'
-      : 'Ask about current vehicles, compare options, or start an available dealership request.'),
-    companionModeLabel: config.copy?.companionModeLabel || 'Vehicle assistant',
-    starterSuggestions: config.copy?.starterSuggestions || defaultSuggestions,
-  }
-}
-
 function validateConfig(input: DealershipExperienceConfig) {
   if (!input || typeof input !== 'object') throw new Error('Dealership experience configuration is required.')
   if (!input.dealer?.id?.trim()) throw new Error('A dealership identifier is required.')
@@ -280,8 +246,8 @@ function assertToolGroups(groups: DealershipExperienceConfig['toolGroups']) {
   if (!groups) return
   if (!['default', 'contextual'].includes(groups.initialScope)) throw new Error('Tool groups require a valid initial scope.')
   for (const group of [groups.default, groups.contextual]) {
-    if (!group?.label?.trim() || !Array.isArray(group.tools) || group.tools.length === 0) {
-      throw new Error('Each dealership tool group requires a label and at least one tool.')
+    if (!group?.label?.trim() || !Array.isArray(group.tools)) {
+      throw new Error('Each dealership tool group requires a label and a tools array.')
     }
   }
 }

@@ -1,6 +1,9 @@
 import type { GenericWorkspaceConfig, GenericWorkspaceController, GenericWorkspaceMountContext } from './types'
+import { resolveGenericWorkspacePresentation } from './presentation'
+import './browser-globals'
 
 export * from './types'
+export { resolveGenericWorkspacePresentation } from './presentation'
 
 export const code = 'generic-workspace'
 export const version = '1.0.0'
@@ -12,6 +15,7 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
   activeController?.destroy()
   const standalone = context.deliveryMode === 'standalone'
   const page = config.page || {}
+  const presentation = resolveGenericWorkspacePresentation(config)
   context.maxMode.init({
     ...context.widgetConfig,
     features: {
@@ -21,26 +25,16 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
       conversations: context.widgetConfig.features?.conversations !== false,
       quickActions: true,
     },
-    theme: {
-      primaryColor: config.theme?.primaryColor || '#155eef',
-      logoUrl: config.theme?.logoUrl,
-      borderRadius: config.theme?.borderRadius || '0.5rem',
-      fontFamily: config.theme?.fontFamily || 'Inter, system-ui, sans-serif',
-      darkMode: config.theme?.darkMode ?? false,
-    },
+    theme: presentation.theme,
     launcher: !standalone,
     beforeNewConversation: context.refreshAssignment,
     host: {
       ...(context.widgetConfig.host || {}),
-      assistantLabel: config.app.assistantLabel,
-      welcomeMessage: config.copy?.welcomeMessage || 'How can I help using the approved knowledge and services available to this workspace?',
-      starterSuggestions: config.copy?.starterSuggestions || [
-        'What can you help me with?',
-        'Search the available knowledge',
-        'Show the sources used in your answer',
-      ],
-      toolGroups: config.toolGroups || defaultToolGroups(),
-      toolRail: config.toolRail || { items: [], initiallyCollapsed: true },
+      assistantLabel: presentation.assistantLabel,
+      welcomeMessage: presentation.copy.welcomeMessage,
+      starterSuggestions: presentation.copy.starterSuggestions,
+      toolGroups: presentation.toolGroups,
+      toolRail: presentation.toolRail,
       requestContext: {
         ...(config.requestContext || {}),
         workspaceInstallationId: context.installationId,
@@ -52,7 +46,7 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
       showUtilityPanel: false,
       companionDock: !standalone,
       showCloseButton: !standalone,
-      currentPageAttachment: config.capabilities?.currentPage === false ? undefined : {
+      currentPageAttachment: !presentation.currentPage ? undefined : {
         enabled: true,
         maxChars: page.maxChars || 1800,
         maxPages: page.maxPages || 3,
@@ -60,10 +54,10 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
         rootSelector: page.rootSelector || 'main',
         invalidateOnNavigation: false,
       },
-      companionContextLabel: page.contextLabel || 'Current page',
-      companionModeLabel: config.copy?.companionModeLabel || 'AI workspace',
-      companionPlaceholder: config.copy?.placeholder || 'Ask a question...',
-      companionEmptyMessage: config.copy?.emptyMessage || 'Ask about approved knowledge or an available service.',
+      companionContextLabel: presentation.contextLabel,
+      companionModeLabel: presentation.copy.companionModeLabel,
+      companionPlaceholder: presentation.copy.placeholder,
+      companionEmptyMessage: presentation.copy.emptyMessage,
     },
   })
   if (standalone) context.maxMode.open()
@@ -89,27 +83,4 @@ function validateConfig(value: Record<string, unknown>): GenericWorkspaceConfig 
     throw new Error('Generic AI Workspace configuration requires app.assistantLabel.')
   }
   return config
-}
-
-function defaultToolGroups() {
-  return {
-    initialScope: 'default',
-    default: {
-      label: 'Explore',
-      icon: 'search',
-      tools: [
-        { label: 'Search knowledge', query: 'Search the approved knowledge for information relevant to my question.', position: 'search', mode: 'executor', icon: 'search' },
-        { label: 'Available help', query: 'What approved information and actions are available in this workspace?', position: 'search', mode: 'executor', icon: 'sparkles' },
-      ],
-    },
-    contextual: {
-      label: 'Current context',
-      icon: 'documents',
-      availableWithoutAttachments: false,
-      tools: [
-        { label: 'Summarize context', query: 'Summarize the attached context and identify the important points.', position: 'search', mode: 'executor', icon: 'documents' },
-        { label: 'Explain details', query: 'Explain the attached context clearly and cite the relevant evidence.', position: 'search', mode: 'executor', icon: 'details' },
-      ],
-    },
-  }
 }

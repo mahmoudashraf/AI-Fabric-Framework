@@ -200,16 +200,3 @@ export interface AIWorkspaceBrowserApi {
     mount(context: AIWorkspacePackMountContext): Promise<unknown> | unknown
   }): void
 }
-
-declare global {
-  interface Window {
-    MaxMode?: MaxModeBrowserApi
-    LoomAIWorkspace?: AIWorkspaceBrowserApi
-    LoomAIDealershipExperience?: {
-      mountInstallation(context: AIWorkspacePackMountContext): Promise<DealershipExperienceController>
-      attachVehicle(vehicle: DealershipVehicleContext): boolean
-      sendMessage(message: string, requestContext?: Record<string, unknown>): boolean
-      destroy(): void
-    }
-  }
-}

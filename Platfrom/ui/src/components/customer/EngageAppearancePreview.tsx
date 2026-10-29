@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Chip, IconButton, MenuItem, Paper, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Box, Chip, FormControlLabel, IconButton, MenuItem, Paper, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material'
 import DesktopWindowsOutlined from '@mui/icons-material/DesktopWindowsOutlined'
 import SmartphoneOutlined from '@mui/icons-material/SmartphoneOutlined'
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
@@ -7,6 +7,7 @@ import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import type { WorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
 import { engagePreviewDocument } from './engagePreviewDocument'
+import { buildWorkspacePreviewConfiguration, type PreviewCapabilities, type PreviewInteractionPolicy } from './buildWorkspacePreviewConfiguration'
 
 let bundle: Promise<string> | null = null
 function previewBundle() {
@@ -19,8 +20,9 @@ function previewBundle() {
   return bundle
 }
 
-export function EngageAppearancePreview({ appearance, appName, deliveryMode, toolLabels, showBrandingError }: {
-  appearance: WorkspaceAppearance; appName: string; deliveryMode: string; toolLabels: string[]; showBrandingError: boolean
+export function EngageAppearancePreview({ appearance, appName, deliveryMode, configuration: selectedConfiguration, packCode, interactionPolicy, capabilities, showBrandingError }: {
+  appearance: WorkspaceAppearance; appName: string; deliveryMode: string; showBrandingError: boolean
+  configuration: Record<string, unknown>; packCode: string; interactionPolicy: PreviewInteractionPolicy; capabilities: PreviewCapabilities
 }) {
   const iframe = useRef<HTMLIFrameElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -32,6 +34,8 @@ export function EngageAppearancePreview({ appearance, appName, deliveryMode, too
   const [device, setDevice] = useState('desktop')
   const [layout, setLayout] = useState(deliveryMode === 'standalone' ? 'standalone' : 'embedded')
   const [sample, setSample] = useState('welcome')
+  const [signedIn, setSignedIn] = useState(false)
+  const [attachment, setAttachment] = useState(false)
   const [overrideDark, setOverrideDark] = useState<boolean | null>(null)
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
   useEffect(() => { setOverrideDark(null) }, [appearance.darkMode])
@@ -62,19 +66,19 @@ export function EngageAppearancePreview({ appearance, appName, deliveryMode, too
     observer.observe(viewport.current)
     return () => observer.disconnect()
   }, [])
-  const configuration = {
-    ...appearance,
-    assistantLabel: appearance.assistantLabel.trim() || 'Your assistant',
-    primaryColor: /^#[0-9a-f]{6}$/i.test(appearance.primaryColor) ? appearance.primaryColor : '#155eef',
-    logoUrl: showBrandingError ? '' : appearance.logoUrl.trim(),
-    appName, layout, sample, toolLabels,
-    dark: overrideDark ?? (appearance.darkMode === 'auto' ? systemDark : appearance.darkMode === 'dark'),
-  }
-  const latest = useRef(configuration)
-  latest.current = configuration
+  const configuration = useMemo(() => buildWorkspacePreviewConfiguration({ configuration: selectedConfiguration, packCode, interactionPolicy, capabilities,
+    appearance: { ...appearance, logoUrl: showBrandingError ? '' : appearance.logoUrl.trim() } }),
+  [selectedConfiguration, packCode, interactionPolicy, capabilities, appearance, showBrandingError])
+  const dark = overrideDark ?? (appearance.darkMode === 'auto' ? systemDark : appearance.darkMode === 'dark')
+  const scenario = { appName, layout, sample: !configuration.capabilities.handover.enabled && ['pending', 'human'].includes(sample) ? 'conversation' : sample,
+    signedIn: interactionPolicy !== 'public' && signedIn, attachment: (configuration.capabilities.attachments || configuration.currentPage.enabled) && attachment, dark }
+  const message = { type: 'loomai:engage-preview:configure', configuration, scenario }
+  const messageKey = JSON.stringify(message)
+  const latest = useRef(message)
+  latest.current = message
   useEffect(() => {
-    if (ready) iframe.current?.contentWindow?.postMessage({ type: 'loomai:engage-preview:configure', configuration: latest.current }, '*')
-  }, [ready, appearance, appName, layout, sample, toolLabels.join('\0'), overrideDark, systemDark, showBrandingError])
+    if (ready) iframe.current?.contentWindow?.postMessage(latest.current, '*')
+  }, [ready, messageKey])
   const logicalWidth = device === 'mobile' ? 390 : 960
   const logicalHeight = device === 'mobile' ? 760 : 700
   const scale = Math.min(1, Math.max(1, width) / logicalWidth)
@@ -90,17 +94,25 @@ export function EngageAppearancePreview({ appearance, appName, deliveryMode, too
           <ToggleButton value="mobile" aria-label="Phone preview"><Tooltip title="Phone"><SmartphoneOutlined fontSize="small" /></Tooltip></ToggleButton>
         </ToggleButtonGroup>
         <TextField select size="small" label="View" value={layout} onChange={event => setLayout(event.target.value)} sx={{ flex: 1, minWidth: 150 }}>
-          <MenuItem value="embedded">Website dock</MenuItem><MenuItem value="max">MAX workspace</MenuItem><MenuItem value="standalone">Standalone app</MenuItem>
+          <MenuItem value="launcher">Website launcher</MenuItem><MenuItem value="embedded">Website dock</MenuItem><MenuItem value="max">MAX workspace</MenuItem><MenuItem value="standalone">Standalone app</MenuItem>
         </TextField>
-        <Tooltip title={configuration.dark ? 'Preview light appearance' : 'Preview dark appearance'}>
-          <IconButton aria-label={configuration.dark ? 'Preview light appearance' : 'Preview dark appearance'} onClick={() => setOverrideDark(!configuration.dark)}>{configuration.dark ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton>
+        <Tooltip title={dark ? 'Preview light appearance' : 'Preview dark appearance'}>
+          <IconButton aria-label={dark ? 'Preview light appearance' : 'Preview dark appearance'} onClick={() => setOverrideDark(!dark)}>{dark ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton>
         </Tooltip>
         {overrideDark != null ? <Tooltip title="Use configured appearance"><IconButton aria-label="Use configured appearance" onClick={() => setOverrideDark(null)}><RefreshRounded /></IconButton></Tooltip> : null}
       </Stack>
-      <TextField select size="small" label="Sample screen" value={sample} onChange={event => setSample(event.target.value)}>
-        <MenuItem value="welcome">Welcome</MenuItem><MenuItem value="conversation">Conversation</MenuItem><MenuItem value="human">Human support</MenuItem>
+      <TextField select size="small" label="Sample screen" value={scenario.sample} onChange={event => setSample(event.target.value)}>
+        <MenuItem value="welcome">Welcome</MenuItem><MenuItem value="conversation">Conversation</MenuItem>
+        <MenuItem value="results">Registered results</MenuItem><MenuItem value="fallback">Generic result</MenuItem>
+        <MenuItem value="confirmation">Confirmation</MenuItem><MenuItem value="receipt">Receipt</MenuItem>
+        {configuration.capabilities.handover.enabled && <MenuItem value="pending">Support pending</MenuItem>}
+        {configuration.capabilities.handover.enabled && <MenuItem value="human">Human support</MenuItem>}
       </TextField>
-      <Typography variant="caption" color="text.secondary">Unsaved appearance. No AI calls or live actions.</Typography>
+      <Stack direction="row" flexWrap="wrap" useFlexGap>
+        {interactionPolicy !== 'public' && <FormControlLabel control={<Switch size="small" checked={signedIn} onChange={(_, checked) => setSignedIn(checked)} disabled={!configuration.capabilities.authentication.signInAvailable} />} label="Signed-in sample" />}
+        <FormControlLabel control={<Switch size="small" checked={scenario.attachment} onChange={(_, checked) => setAttachment(checked)} disabled={!configuration.capabilities.attachments && !configuration.currentPage.enabled} />} label="Attached context" />
+      </Stack>
+      <Typography variant="caption" color="text.secondary">Unsaved configuration. Synthetic content only. No AI calls, sign-in, actions or saved visitor state.</Typography>
     </Stack>
     {error ? <Alert severity="warning" action={<IconButton aria-label="Retry visual preview" onClick={() => setAttempt(value => value + 1)}><RefreshRounded /></IconButton>}>{error}</Alert> : null}
     {!error && !ready ? <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>Loading visual preview...</Typography> : null}

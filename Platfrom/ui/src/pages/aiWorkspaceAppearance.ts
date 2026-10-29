@@ -1,3 +1,5 @@
+import { resolveWorkspacePackPresentation } from '../components/customer/buildWorkspacePreviewConfiguration'
+
 export type WorkspaceAppearance = {
   assistantLabel: string
   logoUrl: string
@@ -7,19 +9,19 @@ export type WorkspaceAppearance = {
   placeholder: string
 }
 
-const identityKeys: Record<string, string> = { 'generic-workspace': 'app', dealership: 'dealer' }
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 const text = (value: unknown) => typeof value === 'string' ? value : ''
 
 export function readWorkspaceAppearance(configuration: Record<string, unknown>, packCode: string): WorkspaceAppearance {
-  const identity = object(configuration[identityKeys[packCode]])
+  const presentation = resolveWorkspacePackPresentation(configuration, packCode)
+  const identity = object(configuration[presentation?.identityKey ?? ''])
   const theme = object(configuration.theme)
   const copy = object(configuration.copy)
   return {
     assistantLabel: text(identity.assistantLabel) || 'Your assistant',
     logoUrl: text(theme.logoUrl),
-    primaryColor: text(theme.primaryColor) || (packCode === 'dealership' ? '#123b35' : '#155eef'),
+    primaryColor: text(theme.primaryColor) || presentation?.theme.primaryColor || '#155eef',
     darkMode: theme.darkMode === 'auto' ? 'auto' : theme.darkMode === true ? 'dark' : 'light',
     welcomeMessage: text(copy.welcomeMessage),
     placeholder: text(copy.placeholder),
@@ -48,7 +50,7 @@ export function applyWorkspaceAppearance(
 ): Record<string, unknown> {
   const error = workspaceAppearanceError(value)
   if (error) throw new Error(error)
-  const identityKey = identityKeys[packCode]
+  const identityKey = resolveWorkspacePackPresentation(configuration, packCode)?.identityKey
   if (!identityKey) throw new Error('This experience pack does not expose a branding editor.')
   const result = structuredClone(configuration)
   result[identityKey] = { ...object(result[identityKey]), assistantLabel: value.assistantLabel.trim() }
@@ -68,7 +70,9 @@ export function applyWorkspaceAppearance(
 }
 
 export function workspacePreviewTools(configuration: Record<string, unknown>): string[] {
-  const groups = configuration.toolGroups
-  const tools = Array.isArray(groups) ? object(groups.find(group => object(group).scope === 'default')).tools : []
-  return Array.isArray(tools) ? tools.map(tool => text(object(tool).label)).filter(Boolean).slice(0, 8) : []
+  const groups = object(configuration.toolGroups)
+  return ['default', 'contextual'].flatMap(scope => {
+    const tools = object(groups[scope]).tools
+    return Array.isArray(tools) ? tools.map(tool => text(object(tool).label)).filter(Boolean) : []
+  })
 }

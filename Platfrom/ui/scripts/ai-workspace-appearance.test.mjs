@@ -1,19 +1,22 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import test from 'node:test'
+import test, { after } from 'node:test'
 import ts from 'typescript'
+import { createServer } from 'vite'
+import { fileURLToPath } from 'node:url'
+
+const server = await createServer({ configFile: false, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' })
+after(() => server.close())
 
 async function moduleAt(path) {
-  const source = await readFile(new URL(path, import.meta.url), 'utf8')
-  const result = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputText).toString('base64')}`)
+  return server.ssrLoadModule(fileURLToPath(new URL(path, import.meta.url)))
 }
 const { readWorkspaceAppearance, applyWorkspaceAppearance, workspaceAppearanceError, workspacePreviewTools } = await moduleAt('../src/pages/aiWorkspaceAppearance.ts')
 const { engagePreviewDocument } = await moduleAt('../src/components/customer/engagePreviewDocument.ts')
 const configuration = () => ({ app: { assistantLabel: 'Support' },
   theme: { primaryColor: '#155eef', borderRadius: '8px', fontFamily: 'Inter', darkMode: false },
   copy: { welcomeMessage: 'Welcome', starterSuggestions: ['Help me'], companionModeLabel: 'Assistant' },
-  toolGroups: [{ scope: 'default', label: 'Browse', tools: [{ label: 'Search', query: 'Original query' }] }],
+  toolGroups: { initialScope: 'default', default: { label: 'Browse', tools: [{ label: 'Search', query: 'Original query' }] }, contextual: { label: 'Context', tools: [{ label: 'Explain', query: 'Original context query' }] } },
   requestContext: { vectorSpaces: ['approved'] }, capabilities: { handover: true },
 })
 
@@ -37,7 +40,7 @@ test('appearance changes preserve tools, context, capabilities, typography and s
   assert.deepEqual(output.theme, { ...input.theme, logoUrl: draft.logoUrl, primaryColor: draft.primaryColor, darkMode: true })
   assert.deepEqual(output.copy, { ...input.copy, welcomeMessage: 'Hello', placeholder: 'Ask us...' })
   for (const key of ['toolGroups', 'requestContext', 'capabilities']) assert.deepEqual(output[key], input[key])
-  output.toolGroups[0].tools[0].label = 'Changed copy'
+  output.toolGroups.default.tools[0].label = 'Changed copy'
   assert.deepEqual(input, before)
 })
 test('clearing logo and optional copy really removes overrides without losing sibling values', () => {
@@ -66,8 +69,14 @@ test('invalid execution fields and unsafe image locations cannot be saved', () =
   assert.equal(workspaceAppearanceError({ ...draft, logoUrl: 'https://images.example.test/logo.png?width=64' }), null)
 })
 test('preview tools derive only from configured display labels, never queries or credentials', () => {
-  assert.deepEqual(workspacePreviewTools(configuration()), ['Search'])
+  assert.deepEqual(workspacePreviewTools(configuration()), ['Search', 'Explain'])
   assert.deepEqual(workspacePreviewTools({ toolGroups: [{ scope: 'default', tools: [{ query: 'No label' }] }] }), [])
+})
+test('canonical object groups retain every configured default/contextual label in order', () => {
+  const tools = Array.from({ length: 14 }, (_, index) => ({ label: `Tool ${index}`, query: `Query ${index}` }))
+  const config = { toolGroups: { initialScope: 'contextual', default: { tools }, contextual: { tools: [{ label: 'Context' }] } } }
+  assert.deepEqual(workspacePreviewTools(config), [...tools.map(tool => tool.label), 'Context'])
+  assert.deepEqual(workspacePreviewTools({ toolGroups: { default: { tools: [] }, contextual: { tools: [] } } }), [])
 })
 test('preview document forbids network, forms and embedding active script data', () => {
   const html = engagePreviewDocument('const example = "</script>";')
