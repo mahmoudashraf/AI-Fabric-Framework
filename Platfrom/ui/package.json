@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "node scripts/build-engage-preview.mjs",
+    "prebuild": "node scripts/build-engage-preview.mjs",
     "build": "tsc -b && vite build",
     "sync:max-mode-widget": "node scripts/sync-max-mode-widget.mjs",
     "preview": "vite preview",

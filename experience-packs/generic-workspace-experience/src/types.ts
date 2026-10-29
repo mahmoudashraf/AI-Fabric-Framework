@@ -28,6 +28,7 @@ export type GenericWorkspaceConfig = {
   requestContext?: Record<string, unknown>
   theme?: {
     primaryColor?: string
+    logoUrl?: string
     borderRadius?: string
     fontFamily?: string
     darkMode?: boolean | 'auto'

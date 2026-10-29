@@ -53,6 +53,7 @@ export function Composer({
   onCancelHandover,
   onRetryHandover,
   onResumeAi,
+  placeholder,
 }: {
   attachedItems: AttachedItem[];
   onRemoveAttachment: (filteredIndex: number) => void;
@@ -93,6 +94,7 @@ export function Composer({
   onCancelHandover: () => void;
   onRetryHandover: () => void;
   onResumeAi: () => void;
+  placeholder?: string;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
   const composerStackRef = useRef<HTMLDivElement>(null);
@@ -190,6 +192,7 @@ export function Composer({
             nonAiAttachmentsCount={nonAiAttachments.length}
             onSubmit={onSubmit}
             conversationControlState={handoverState}
+            placeholder={placeholder}
           />
         </div>
       </div>

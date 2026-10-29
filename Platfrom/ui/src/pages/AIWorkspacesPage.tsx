@@ -9,6 +9,7 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import {
   Alert,
   Box,
@@ -35,6 +36,8 @@ import {
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
+  Tabs,
+  Tab,
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -62,6 +65,9 @@ import { resolveReviewedWorkspaceProfiles, reviewedWorkspaceRequest } from './ai
 import { CustomerAdvancedSection, CustomerEditorDepthSwitch, CustomerEditorNotices, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 import { customerEngageSelection } from '../components/customer/customerEngageSelection'
 import { prepareCustomerEngageCommand, type CustomerEngageCommandContext } from '../components/customer/customerEngageCommands'
+import { EngageAppearanceFields } from '../components/customer/EngageAppearanceFields'
+import { EngageAppearancePreview } from '../components/customer/EngageAppearancePreview'
+import { applyWorkspaceAppearance, readWorkspaceAppearance, workspaceAppearanceError, workspacePreviewTools, type WorkspaceAppearance } from './aiWorkspaceAppearance'
 
 type FormState = {
   packCode: string
@@ -135,9 +141,10 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode }: {
+export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview }: {
   initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
   initialDeliveryMode?: 'embedded' | 'standalone'
+  autoPreview?: boolean
 } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -148,6 +155,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(defaultForm)
+  const [appearance, setAppearance] = useState<WorkspaceAppearance>(() => readWorkspaceAppearance({}, defaultForm.packCode))
+  const [appearanceEdited, setAppearanceEdited] = useState(false)
+  const appearanceSource = useRef('')
+  const initialPreview = useRef('')
+  const [editorTab, setEditorTab] = useState('settings')
   const [notice, setNotice] = useState<string | null>(null)
   const [reviewedProfileId, setReviewedProfileId] = useState('')
   const [configurationError, setConfigurationError] = useState<string | null>(null)
@@ -225,6 +237,18 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const reviewedProfiles = reviewedScopeReady ? (reviewedProfilesQuery.data ?? []) : []
   const reviewedProfile = reviewedProfiles.find((item) => item.id === reviewedProfileId) ?? null
   const effectiveDeliveryMode = form.deliveryMode
+  const appearanceError = workspaceAppearanceError(appearance)
+  const editingActive = editing !== 'new' && editing?.status === 'ACTIVE'
+  const experienceConfiguration = customerScopeLocked ? reviewedProfile?.configuration.configuration ?? {}
+    : editing !== 'new' && editing ? editing.configuration : {}
+  const experiencePackCode = customerScopeLocked ? reviewedProfile?.configuration.experiencePackCode ?? form.packCode : form.packCode
+
+  useEffect(() => {
+    if (!customerScopeLocked || !reviewedProfile || appearanceSource.current === reviewedProfile.id) return
+    appearanceSource.current = reviewedProfile.id
+    setAppearance(readWorkspaceAppearance(reviewedProfile.configuration.configuration, reviewedProfile.configuration.experiencePackCode))
+    setAppearanceEdited(false)
+  }, [customerScopeLocked, reviewedProfile])
 
   useEffect(() => {
     if (!customerScopeLocked || editing == null || !reviewedProfilesQuery.isSuccess) return
@@ -290,6 +314,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     onSuccess: async (installation) => {
       setNotice(`AI Workspace ${installation.displayName} disabled.`)
       setSelected(installation)
+      setEditing(current => current !== 'new' && current?.installationId === installation.installationId ? installation : current)
       await invalidate()
     },
   })
@@ -320,6 +345,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
       profileCode: firstProfile?.code ?? defaultForm.profileCode,
     })
     setEditing('new')
+    setAppearance(readWorkspaceAppearance(source?.configuration ?? {}, source?.experiencePackCode ?? defaultForm.packCode))
+    appearanceSource.current = source?.installationId ?? ''
+    setAppearanceEdited(false)
+    setEditorTab('settings')
     setReviewedProfileId(source?.installationId ?? '')
     setConfigurationError(selection.error)
   }
@@ -346,6 +375,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     const capabilities = config.capabilities ?? {}
     const presentation = config.presentation ?? {}
     const theme = config.theme ?? {}
+    setAppearance(readWorkspaceAppearance(config, installation.experiencePackCode))
+    appearanceSource.current = installation.installationId
+    setAppearanceEdited(false)
+    setEditorTab('settings')
     setForm({
       packCode: installation.experiencePackCode,
       deliveryMode: installation.deliveryMode,
@@ -386,6 +419,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     setConfigurationError(null)
   }
 
+  useEffect(() => {
+    if (!autoPreview || !initialInstallationId || !selected || selected.installationId !== initialInstallationId) return
+    const key = `${customerId}:${initialInstallationId}`
+    if (initialPreview.current === key) return
+    initialPreview.current = key
+    openEdit(selected)
+  }, [autoPreview, initialInstallationId, selected, customerId])
+
   const saveWorkspace = (payload: SaveAIWorkspaceInstallationRequest) => {
     const identity = JSON.stringify({ customerId, installationId: editing === 'new' ? null : editing?.installationId, payload })
     if (saveCommand.current?.identity !== identity) saveCommand.current = { identity, key: crypto.randomUUID() }
@@ -394,6 +435,8 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
 
   const submit = () => {
     setConfigurationError(null)
+    if (editingActive) { setConfigurationError('Disable this installation before saving. The live app has not changed.'); return }
+    if (appearanceError) { setConfigurationError(appearanceError); return }
     if (customerScopeLocked) {
       if (!reviewedScopeReady || !reviewedProfile) {
         setConfigurationError('Select an available starter or existing app configuration before saving.')
@@ -409,6 +452,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
           allowedOrigins: lines(form.origins),
           ...(editing !== 'new' && editing ? { rowVersion: editing.rowVersion } : {}),
         })
+        if (appearanceEdited) payload.configuration = applyWorkspaceAppearance(payload.configuration, payload.experiencePackCode, appearance)
         saveWorkspace(payload)
       } catch (error) {
         setConfigurationError(errorText(error))
@@ -492,6 +536,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
       } : {},
       ...(editing !== 'new' && editing ? { rowVersion: editing.rowVersion } : {}),
     }
+    payload.configuration = applyWorkspaceAppearance(payload.configuration, payload.experiencePackCode, appearance)
     saveWorkspace(payload)
   }
 
@@ -613,17 +658,20 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
       </TableContainer>
 
       {selected && <WorkspaceDetails installation={selected} refresh={invalidate}
+        customize={() => openEdit(selected)}
         addDelivery={(mode) => openCreate(selected, mode)} addDeliveryDisabled={appCommandPending || !catalog?.assetsReady} />}
 
-      <Dialog open={editing != null} onClose={saveMutation.isPending ? undefined : () => setEditing(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Edit Engage app'}</DialogTitle>
+      <Dialog open={editing != null} onClose={appCommandPending ? undefined : () => setEditing(null)} maxWidth={false} fullWidth
+        PaperProps={{ sx: { width: 'min(1440px, calc(100vw - 32px))', maxWidth: 'none', m: 2, height: 'calc(100dvh - 32px)' } }}>
+        <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Appearance & preview'}</DialogTitle>
         <DialogContent dividers>
           <CustomerEditorNotices />
           <CustomerEditorDepthSwitch label="App configuration depth" />
-          <Stack component="fieldset" disabled={saveMutation.isPending} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
-            <Alert severity="info">
-              The installation ID is a public locator. Provider credentials, private assertions and runtime keys remain server-side.
-            </Alert>
+          <Tabs value={editorTab} onChange={(_, value) => setEditorTab(value)} aria-label="Engage editor view" sx={{ display: { xs: 'flex', lg: 'none' }, mb: 2 }}>
+            <Tab value="settings" label="Settings" /><Tab value="preview" label="Preview" />
+          </Tabs>
+          <Box sx={{ display: { lg: 'grid' }, gridTemplateColumns: 'minmax(320px, 0.85fr) minmax(420px, 1.15fr)', gap: 3, alignItems: 'start' }}>
+          <Stack component="fieldset" disabled={appCommandPending} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0, display: { xs: editorTab === 'settings' ? 'flex' : 'none', lg: 'flex' } }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Workspace name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
               <TextField select fullWidth label="Consumer" value={form.consumerId} onChange={(e) => { setForm({ ...form, consumerId: e.target.value }); setConfigurationError(null) }}>
@@ -632,6 +680,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 ))}
               </TextField>
             </Stack>
+            <EngageAppearanceFields value={appearance} error={appearanceEdited ? appearanceError : null}
+              onChange={value => { setAppearance(value); setAppearanceEdited(true) }}
+              onReset={() => { setAppearance(readWorkspaceAppearance(experienceConfiguration, experiencePackCode)); setAppearanceEdited(false) }} />
+            <Divider />
             {customerScopeLocked ? (
               <Stack spacing={1.5}>
                 <TextField select fullWidth label="Experience configuration" value={reviewedProfile?.id ?? ''}
@@ -762,13 +814,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 <Typography variant="subtitle2">{form.packCode === 'dealership' ? 'Dealership experience' : 'Generic experience'}</Typography>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                   {form.packCode === 'dealership' && <TextField fullWidth label="Dealership ID" value={form.dealerId} onChange={(e) => setForm({ ...form, dealerId: e.target.value })} />}
-                  <TextField fullWidth label="Assistant label" value={form.assistantLabel} onChange={(e) => setForm({ ...form, assistantLabel: e.target.value })} />
                   {form.packCode === 'dealership' && <TextField fullWidth label="Source mode" value={form.sourceMode} onChange={(e) => setForm({ ...form, sourceMode: e.target.value })} />}
                 </Stack>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                   <TextField fullWidth label="Page content selector" value={form.rootSelector} onChange={(e) => setForm({ ...form, rootSelector: e.target.value })} />
                   <TextField fullWidth label="Default context label" value={form.contextLabel} onChange={(e) => setForm({ ...form, contextLabel: e.target.value })} />
-                  <TextField fullWidth type="color" label="Primary colour" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} InputLabelProps={{ shrink: true }} />
                 </Stack>
                 {form.packCode === 'dealership' && <Stack direction="row" spacing={2} flexWrap="wrap">
                   <FormControlLabel control={<Checkbox checked={form.comparison} onChange={(e) => setForm({ ...form, comparison: e.target.checked })} />} label="Vehicle comparison" />
@@ -794,10 +844,17 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
             {configurationError ? <Alert severity="error">{configurationError}</Alert> : null}
             {saveMutation.error ? <Alert severity="error">{errorText(saveMutation.error)}</Alert> : null}
           </Stack>
+          <Box sx={{ minWidth: 0, display: { xs: editorTab === 'preview' ? 'block' : 'none', lg: 'block' } }}>
+            <EngageAppearancePreview appearance={appearance} appName={form.displayName} deliveryMode={effectiveDeliveryMode}
+              toolLabels={workspacePreviewTools(experienceConfiguration)} showBrandingError={Boolean(appearanceError)} />
+          </Box>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button disabled={saveMutation.isPending} onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId
+          {editingActive ? <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', px: 1 }}>Preview only. Your active app is unchanged.</Typography> : null}
+          {editingActive && editing ? <Button color="warning" disabled={appCommandPending} onClick={() => requestDestructive('disable', editing)}>Disable for editing</Button> : null}
+          <Button disabled={appCommandPending} onClick={() => setEditing(null)}>{editingActive ? 'Close preview' : 'Cancel'}</Button>
+          <Button variant="contained" onClick={submit} disabled={appCommandPending || editingActive || Boolean(appearanceError) || !form.displayName.trim() || !form.consumerId
             || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
             || (effectiveDeliveryMode === 'embedded' && lines(form.origins).length === 0)
             || (customerScopeLocked
@@ -822,9 +879,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   )
 }
 
-function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled }: {
+function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled, customize }: {
   installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void>
   addDelivery: (mode: 'embedded' | 'standalone') => void; addDeliveryDisabled: boolean
+  customize: () => void
 }) {
   const customerView = usePlatformAuth().session?.role === 'CUSTOMER_ADMIN'
   const [copied, setCopied] = useState(false)
@@ -856,6 +914,7 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
           </Typography></CustomerAdvancedSection>
         </Box>
         <Stack direction="row" gap={1} flexWrap="wrap">
+          <Button startIcon={<PaletteOutlinedIcon />} onClick={customize}>Appearance & preview</Button>
           {customerView ? <Button startIcon={installation.deliveryMode === 'standalone' ? <CodeRoundedIcon /> : <OpenInNewRoundedIcon />}
             disabled={addDeliveryDisabled} onClick={() => addDelivery(installation.deliveryMode === 'standalone' ? 'embedded' : 'standalone')}>
             {installation.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}

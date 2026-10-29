@@ -22,6 +22,7 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
       const params = new URLSearchParams(location.search)
       const delivery = params.get('delivery')
       return <AIWorkspacesPage key={location.search} initialConsumerId={params.get('consumerId') ?? undefined}
+        initialInstallationId={params.get('previewInstallationId') ?? undefined} autoPreview={Boolean(params.get('previewInstallationId'))}
         sourceInstallationId={params.get('sourceInstallationId') ?? undefined}
         initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} />
     }

@@ -47,6 +47,7 @@ export function ComposerInputRow({
   nonAiAttachmentsCount,
   onSubmit,
   conversationControlState,
+  placeholder,
 }: {
   searchCategory: string | null;
   hasAiSearch: boolean;
@@ -71,6 +72,7 @@ export function ComposerInputRow({
   nonAiAttachmentsCount: number;
   onSubmit: () => void;
   conversationControlState: ConversationControlState;
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -154,7 +156,7 @@ export function ComposerInputRow({
                 ? "Type your search query..."
                 : nonAiAttachmentsCount > 0
                   ? `Ask about ${nonAiAttachmentsCount} item${nonAiAttachmentsCount === 1 ? "" : "s"}...`
-                  : "Ask me anything..."
+                  : placeholder?.trim() || "Ask me anything..."
           }
           value={chatQuery}
           onChange={(e) => onChatQueryChange(e.target.value)}

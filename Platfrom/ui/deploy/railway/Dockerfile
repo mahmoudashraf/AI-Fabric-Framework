@@ -1,6 +1,13 @@
 # Railway-friendly Platform UI image.
 #
 # Build context: repo root
+FROM node:20-alpine AS engage-preview
+WORKDIR /preview
+COPY max-mode-widget/package.json max-mode-widget/package-lock.json ./
+RUN npm ci
+COPY max-mode-widget ./
+RUN npm run build:preview
+
 FROM node:20-alpine AS build
 
 WORKDIR /workspace
@@ -12,6 +19,7 @@ WORKDIR /workspace/Platfrom/ui
 RUN npm ci
 
 COPY Platfrom/ui ./
+COPY --from=engage-preview /preview/dist/engage-preview.iife.js ./public/engage-preview.iife.js
 
 RUN npm run build
 

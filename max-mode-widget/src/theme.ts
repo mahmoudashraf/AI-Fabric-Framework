@@ -85,7 +85,8 @@ export function buildThemeCSS(theme?: MaxModeThemeConfig): string {
 
   if (vars.length === 0) return "";
 
-  return `:host {\n  ${vars.join("\n  ")}\n}`;
+  // Root defaults are injected later; keep configured values authoritative there.
+  return `:host, :host .max-mode-widget-root {\n  ${vars.join("\n  ")}\n}`;
 }
 
 /**
@@ -108,4 +109,16 @@ export function applyThemeToElement(
   if (theme.fontFamily) {
     element.style.setProperty("--mxw-font-family", theme.fontFamily);
   }
+}
+
+export function bindWidgetColorScheme(element: HTMLElement, mode?: MaxModeThemeConfig['darkMode']): () => void {
+  const media = element.ownerDocument.defaultView?.matchMedia('(prefers-color-scheme: dark)');
+  const previous = element.classList.contains('dark');
+  const update = () => element.classList.toggle('dark', mode === true || (mode === 'auto' && media?.matches === true));
+  update();
+  if (mode === 'auto') media?.addEventListener('change', update);
+  return () => {
+    if (mode === 'auto') media?.removeEventListener('change', update);
+    element.classList.toggle('dark', previous);
+  };
 }

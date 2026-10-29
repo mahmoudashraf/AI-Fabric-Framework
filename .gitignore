@@ -133,3 +133,5 @@ product-services/shopify-bridge-service/shopify.app.toml
 product-services/shopify-bridge-service/shopify.app.*.toml
 product-services/shopify-bridge-service/.shopify/
 product-services/shopify-bridge-service/deploy/shopify/.env.shopify
+# Generated from the shared widget presentation entry during Console builds.
+Platfrom/ui/public/engage-preview.iife.js

@@ -8,6 +8,7 @@ import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import AddRounded from '@mui/icons-material/AddRounded'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
+import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import { appResource, deploymentResource, releaseEnvironment, releaseIssues, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
@@ -103,6 +104,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {resourceNotices}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>
+        {assignedApp ? <Button component={RouterLink} startIcon={<PaletteOutlined />}
+          to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', previewInstallationId: assignedApp.installationId })}`}>Appearance & preview</Button> : null}
         {selected.kind === 'deployment' ? <Button component={RouterLink} variant="outlined" to={`/revisions?${new URLSearchParams({
           deploymentId: selected.id, ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
         })}`}>Versions & updates</Button> : null}

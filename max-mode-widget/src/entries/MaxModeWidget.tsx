@@ -19,7 +19,7 @@ import {
 import { MaxModeProvider, type SharedAttachment } from "@/context";
 import { MaxModePage } from "@/components/MaxModePage";
 import { ToastContainer } from "@/ui/toast-container";
-import { applyThemeToElement } from "@/theme";
+import { applyThemeToElement, bindWidgetColorScheme } from "@/theme";
 import { bindWidgetViewport } from "@/viewport";
 
 // Import widget styles
@@ -86,6 +86,9 @@ export function MaxModeWidget({
       applyThemeToElement(containerRef.current, theme);
     }
   }, [theme]);
+  useLayoutEffect(() => {
+    if (containerRef.current) return bindWidgetColorScheme(containerRef.current, theme?.darkMode);
+  }, [theme?.darkMode]);
 
   return (
     <div ref={containerRef} className="max-mode-widget-root">

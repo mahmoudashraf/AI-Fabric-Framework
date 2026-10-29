@@ -68,7 +68,7 @@ jobs:
                 ;;
             esac
             case "$path" in
-              .github/workflows/publish-platform-core-images.yml|Platfrom/ui/*)
+              .github/workflows/publish-platform-core-images.yml|Platfrom/ui/*|max-mode-widget/*)
                 ui=true
                 ;;
             esac

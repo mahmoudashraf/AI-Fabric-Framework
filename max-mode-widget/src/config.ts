@@ -156,6 +156,8 @@ export interface MaxModeFeatures {
 export interface MaxModeThemeConfig {
   /** Primary brand color (CSS color value) */
   primaryColor?: string;
+  /** Public HTTPS logo URL, at most 2048 characters, without userinfo or fragments; browser-only. */
+  logoUrl?: string;
   /** Border radius in CSS units (default: "0.5rem") */
   borderRadius?: string;
   /** Font family (default: "Inter, system-ui, sans-serif") */
@@ -472,6 +474,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   },
   theme: {
     primaryColor: undefined,
+    logoUrl: undefined,
     borderRadius: "0.5rem",
     fontFamily: "Inter, system-ui, sans-serif",
     darkMode: false,

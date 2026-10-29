@@ -63,6 +63,7 @@ export async function mountInstallation(
       },
       theme: {
         primaryColor: config.theme?.primaryColor || '#123b35',
+        logoUrl: config.theme?.logoUrl,
         borderRadius: config.theme?.borderRadius || '0.5rem',
         fontFamily: config.theme?.fontFamily || 'Inter, system-ui, sans-serif',
         darkMode: config.theme?.darkMode ?? false,

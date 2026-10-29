@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -334,7 +335,8 @@ public class AIWorkspaceConfigurationValidator {
     private void validateTheme(JsonNode theme) {
         if (theme.isMissingNode() || theme.isNull()) return;
         requireObjectNode(theme, "theme");
-        rejectUnknown(theme, Set.of("primaryColor", "borderRadius", "fontFamily", "darkMode"), "theme");
+        rejectUnknown(theme, Set.of("primaryColor", "logoUrl", "borderRadius", "fontFamily", "darkMode"), "theme");
+        if (theme.has("logoUrl")) validateLogoUrl(theme.path("logoUrl"));
         if (theme.has("primaryColor") && !requireTextValue(theme.path("primaryColor"), "theme.primaryColor", 32).matches("#[0-9A-Fa-f]{6}")) {
             throw badRequest("theme.primaryColor must be a six-digit hex colour.");
         }
@@ -351,6 +353,23 @@ public class AIWorkspaceConfigurationValidator {
             if (!darkMode.isBoolean() && !(darkMode.isTextual() && "auto".equals(darkMode.asText()))) {
                 throw badRequest("theme.darkMode must be true, false, or auto.");
             }
+        }
+    }
+
+    private void validateLogoUrl(JsonNode node) {
+        String value = requireTextValue(node, "theme.logoUrl", 2048);
+        // Public image locations must not introduce executable schemes or embedded credentials.
+        // This is browser-only presentation: do not resolve DNS or fetch the URL here.
+        try {
+            URI uri = URI.create(value);
+            var url = uri.toURL();
+            if (!value.equals(node.asText()) || !"https".equalsIgnoreCase(uri.getScheme())
+                || url.getHost().isBlank() || url.getHost().contains("*")
+                || url.getUserInfo() != null || uri.getFragment() != null || url.getPort() > 65535) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException | MalformedURLException ex) {
+            throw badRequest("theme.logoUrl must be an exact HTTPS URL without userinfo or fragments.");
         }
     }
 

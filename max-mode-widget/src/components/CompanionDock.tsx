@@ -3,6 +3,7 @@ import { Headphones, Loader2, MessageCircle, Send, Sparkles, UserRound, X, Zap }
 
 import { MessageList } from "@/components/Chat/MessageList";
 import { CurrentPageAttachmentControl } from "@/components/Chat/CurrentPageAttachmentControl";
+import { AssistantBrandMark } from "@/components/AssistantBrandMark";
 import type { MaxModeMode } from "@/constants";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 import { Button } from "@/ui/button";
@@ -78,11 +79,15 @@ export function CompanionDock({
       className="max-mode-companion-dock fixed z-[2147483645] -translate-x-1/2 pointer-events-auto text-gray-950 dark:text-gray-100"
     >
       {expanded && (
-        <div className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-blue-200/80 bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
-          <div className="flex items-center justify-between gap-4 border-b border-gray-200/80 bg-gradient-to-r from-blue-50 via-white to-fuchsia-50 px-5 py-4 dark:border-gray-800 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+        <div className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)] bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-200/80 bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.05)] px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-500/15 dark:text-blue-300">
-                <MessageCircle className="h-5 w-5" />
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.1)] text-primary ring-1 ring-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)]">
+                <AssistantBrandMark
+                  logoUrl={getWidgetConfig().theme?.logoUrl}
+                  fallbackIcon={MessageCircle}
+                  className="h-7 w-7"
+                />
               </span>
               <div className="min-w-0">
                 <h2 className="truncate text-base font-bold text-gray-950 dark:text-white">{controller.assistantLabel}</h2>

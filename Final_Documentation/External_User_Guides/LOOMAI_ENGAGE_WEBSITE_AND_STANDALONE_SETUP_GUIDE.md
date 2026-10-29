@@ -61,6 +61,35 @@ A conversation is not automatically transferred between unrelated website and
 standalone origins. Changing the consumer assignment changes where subsequent
 bootstrap resolves; it does not migrate visitor conversations.
 
+## Appearance And Preview
+
+During **Create Engage app**, customize **Customer-facing appearance** beside
+the **Customer preview**. For an existing app, open its resource details and
+choose **Appearance & preview**. The assistant name is what visitors see;
+the workspace name identifies the installation in your account.
+
+Change the assistant name, HTTPS logo image URL, brand colour, light/dark/system
+appearance, welcome message and input placeholder. The preview updates without
+saving. Switch between Website dock, MAX workspace and Standalone app, desktop
+and phone, and sample welcome/conversation/human-support screens. On a smaller
+screen, use the Settings and Preview tabs.
+
+The canvas uses sample content and shared widget presentation components. It
+does not call AI, execute actions, open visitor conversations, or change your
+deployment. A sample human-support screen does not enable human support.
+Only the appearance controls are saved; preview view/device/sample switches
+do not change delivery or capabilities.
+
+Logos must be publicly browser-loadable HTTPS images without embedded
+credentials. The image host must permit cross-origin display; an unavailable
+image uses the default assistant mark. LoomAI does not upload or manage your
+logo storage. Clear the URL to restore the default mark.
+
+An active app can be previewed safely. To publish changes, explicitly choose
+**Disable for editing**, confirm, save the draft, check readiness and activate
+again. Viewing or closing the preview never changes an active app. Changes
+apply to this installation only; a second delivery channel remains independent.
+
 ## Configuration And Access
 
 - Templates supply startup defaults, not permanent delivery restrictions.

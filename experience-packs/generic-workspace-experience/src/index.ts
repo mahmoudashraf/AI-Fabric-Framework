@@ -23,6 +23,7 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
     },
     theme: {
       primaryColor: config.theme?.primaryColor || '#155eef',
+      logoUrl: config.theme?.logoUrl,
       borderRadius: config.theme?.borderRadius || '0.5rem',
       fontFamily: config.theme?.fontFamily || 'Inter, system-ui, sans-serif',
       darkMode: config.theme?.darkMode ?? false,

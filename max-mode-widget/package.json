@@ -26,6 +26,7 @@
     "build:embedded": "npm run build:iife && npm run build:installer",
     "build:esm": "vite build",
     "build:iife": "vite build --config vite.config.iife.ts",
+    "build:preview": "vite build --config vite.config.preview.ts",
     "build:installer": "vite build --config vite.config.installer.ts",
     "typecheck": "tsc --noEmit",
     "smoke:action-presentation": "node scripts/action-presentation-smoke.mjs",

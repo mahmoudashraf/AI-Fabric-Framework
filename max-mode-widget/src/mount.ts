@@ -8,7 +8,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { setWidgetConfig, getWidgetConfig, type MaxModeWidgetConfig } from "./config";
-import { buildThemeCSS } from "./theme";
+import { bindWidgetColorScheme, buildThemeCSS } from "./theme";
 import { WidgetShell } from "./entries/WidgetShell";
 import { bindWidgetViewport } from "./viewport";
 
@@ -21,6 +21,7 @@ let _isOpen = false;
 let _currentConfig: MaxModeWidgetConfig | null = null;
 let _widgetStyleText = "";
 let _releaseViewport: (() => void) | null = null;
+let _releaseColorScheme: (() => void) | null = null;
 
 export function mountWidget(config: MaxModeWidgetConfig): void {
   // Prevent double mount
@@ -69,6 +70,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   container.className = "max-mode-widget-root";
   container.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;";
   _shadowRoot.appendChild(container);
+  _releaseColorScheme = bindWidgetColorScheme(container, config.theme?.darkMode);
 
   // Render widget
   _root = ReactDOM.createRoot(container);
@@ -111,6 +113,8 @@ export function destroyWidget(): void {
     _root = null;
   }
   _releaseViewport?.();
+  _releaseColorScheme?.();
+  _releaseColorScheme = null;
   _releaseViewport = null;
   const host = document.getElementById(SHADOW_HOST_ID);
   if (host) host.remove();

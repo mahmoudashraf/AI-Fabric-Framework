@@ -38,6 +38,7 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
 
   return (
     <Composer
+      placeholder={getWidgetConfig().host?.companionPlaceholder}
       attachedItems={attachedItems}
       onRemoveAttachment={removeNonAiAttachmentByIndex}
       searchCategory={searchCategory}

@@ -35,6 +35,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.max-mode-widget-root.dark {
+  --mxw-background: 222.2 84% 4.9%;
+  --mxw-foreground: 210 40% 98%;
+  --mxw-card: 222.2 84% 4.9%;
+  --mxw-card-foreground: 210 40% 98%;
+  --mxw-muted: 217.2 32.6% 17.5%;
+  --mxw-muted-foreground: 215 20.2% 65.1%;
+  --mxw-border: 217.2 32.6% 17.5%;
+  --mxw-input: 217.2 32.6% 17.5%;
+}
+
 /* Fit visible controls to the viewport, including keyboard and device insets. */
 .max-mode-viewport {
   position: fixed;

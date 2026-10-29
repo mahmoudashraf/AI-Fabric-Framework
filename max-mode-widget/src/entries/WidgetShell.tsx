@@ -6,6 +6,7 @@ import React from "react";
 import { MessageCircle } from "lucide-react";
 import { MaxModeProvider } from "@/context";
 import { CompanionDock } from "@/components/CompanionDock";
+import { AssistantBrandMark } from "@/components/AssistantBrandMark";
 import { MaxModeView } from "@/components/MaxModeView";
 import { useMaxModeController } from "@/hooks/useMaxModeController";
 import { ToastContainer } from "@/ui/toast-container";
@@ -85,7 +86,7 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
             height: "60px",
             padding: launcherVariant === "pill" ? "0 20px" : undefined,
             borderRadius: launcherVariant === "pill" ? "9999px" : "50%",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)",
+            background: "hsl(var(--mxw-primary, 221.2 83.2% 53.3%))",
             color: "white",
             border: "none",
             cursor: "pointer",
@@ -93,7 +94,7 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
             alignItems: "center",
             justifyContent: "center",
             gap: launcherVariant === "pill" ? "10px" : undefined,
-            boxShadow: "0 4px 20px rgba(99, 102, 241, 0.4), 0 2px 8px rgba(0,0,0,0.1)",
+            boxShadow: "0 4px 20px hsl(var(--mxw-primary, 221.2 83.2% 53.3%) / 0.4), 0 2px 8px rgba(0,0,0,0.1)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             zIndex: 2147483646,
             pointerEvents: "auto",
@@ -101,17 +102,17 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
             fontSize: launcherVariant === "pill" ? "14px" : undefined,
           }}
           onMouseEnter={(e) => {
-            (e.target as HTMLButtonElement).style.transform = "scale(1.1)";
-            (e.target as HTMLButtonElement).style.boxShadow =
-              "0 6px 28px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0,0,0,0.15)";
+            e.currentTarget.style.transform = "scale(1.1)";
+            e.currentTarget.style.boxShadow =
+              "0 6px 28px hsl(var(--mxw-primary, 221.2 83.2% 53.3%) / 0.5), 0 4px 12px rgba(0,0,0,0.15)";
           }}
           onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.transform = "scale(1)";
-            (e.target as HTMLButtonElement).style.boxShadow =
-              "0 4px 20px rgba(99, 102, 241, 0.4), 0 2px 8px rgba(0,0,0,0.1)";
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow =
+              "0 4px 20px hsl(var(--mxw-primary, 221.2 83.2% 53.3%) / 0.4), 0 2px 8px rgba(0,0,0,0.1)";
           }}
         >
-          <MessageCircle size={28} strokeWidth={2} />
+          <AssistantBrandMark logoUrl={config.theme?.logoUrl} fallbackIcon={MessageCircle} className="h-7 w-7" />
           {launcherVariant === "pill" && <span>{launcherLabel}</span>}
         </button>
       )}
