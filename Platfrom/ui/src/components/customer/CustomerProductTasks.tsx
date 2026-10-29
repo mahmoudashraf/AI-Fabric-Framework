@@ -27,7 +27,7 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
       <Button component={RouterLink} to={setup('configure')} startIcon={<SettingsOutlined />}>Continue setup</Button>
       {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={`${setup('configure')}#approved-connections`} startIcon={<CableOutlined />}>Configure data connection</Button> : null}
       {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={configure('/document-knowledge')} startIcon={<DescriptionOutlined />}>Connect document storage</Button> : null}
-      <Button component={RouterLink} to={setup('configure')} startIcon={<ForumOutlined />}>Engage app assignment</Button>
+      <Button component={RouterLink} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', connectDeploymentId: deploymentId })}`} startIcon={<ForumOutlined />}>Connect Engage app</Button>
       <Button component={RouterLink} to={setup('staging')} startIcon={<RocketLaunchOutlined />}>Test in customer staging</Button>
       <Button component={RouterLink} to={setup('production')} startIcon={<RocketLaunchOutlined />}>Review go-live</Button>
     </Stack>

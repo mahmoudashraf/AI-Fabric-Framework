@@ -5948,6 +5948,28 @@ export function fetchDeploymentTargetOptions(deploymentId: string) {
   return request<DeploymentTargetProfileSummary[]>(`/api/deployments/${encodeURIComponent(deploymentId)}/target-profiles`)
 }
 
+export function createAIWorkspaceConnection(customerId: string, payload: {
+  deploymentId: string; targetProfileId: string; releaseId: string | null; displayName: string; operationKey: string
+}) {
+  return request<PlatformConsumerSummary>(`/api/platform/customers/${encodeURIComponent(customerId)}/ai-workspaces/connections`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export type AIWorkspacePreviewCapabilities = {
+  runtimeConfigured: boolean | null
+  handover: {
+    enabled: boolean; userCanCancelPending: boolean; userCanResumeAi: boolean
+    intake?: { anonymousAllowed: boolean; fields: Array<{ key: string; label: string;
+      type: 'TEXT' | 'EMAIL' | 'PHONE' | 'BOOLEAN' | 'SELECT'; required: boolean; consentRequired: boolean;
+      purpose: string; maxLength: number; options: string[] }> }
+  }
+}
+
+export function fetchAIWorkspacePreviewCapabilities(customerId: string, consumerId: string) {
+  return request<AIWorkspacePreviewCapabilities>(`/api/platform/customers/${encodeURIComponent(customerId)}/ai-workspaces/connections/${encodeURIComponent(consumerId)}/preview-capabilities`)
+}
+
 export function fetchDeploymentSourceArtifacts(serviceName?: string) {
   const suffix = serviceName ? `?serviceName=${encodeURIComponent(serviceName)}` : ''
   return request<DeploymentSourceArtifactSummary[]>(`/api/deployment-provider/source-artifacts${suffix}`)

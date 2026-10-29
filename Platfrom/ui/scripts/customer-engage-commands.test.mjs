@@ -41,11 +41,18 @@ test('bootstrap offer provenance does not restrict later owned-app commands', as
 })
 test('missing deployment or incomplete assignment stops before an account read', async () => {
   for (const change of [state => { state.deployments = [] },
-    state => { state.consumers[0].boundDeploymentId = 'foreign' },
-    state => { state.consumers[0].boundReleaseId = null }]) {
+    state => { state.consumers[0].boundDeploymentId = 'foreign' }]) {
     const state = fixture(); change(state)
     await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read')))
   }
+})
+test('configuration-only connections can save drafts but cannot activate', async () => {
+  const state = fixture(); state.consumers[0].boundReleaseId = null
+  await prepareCustomerEngageCommand(() => state, 'chosen', async () => account())
+  await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read'),
+    { requireRelease: true }), /verified runtime release/)
+  state.consumers[0].boundReleaseId = 'release'
+  await prepareCustomerEngageCommand(() => state, 'chosen', async () => account(), { requireRelease: true })
 })
 test('a failed authenticated account read propagates without a retry or write', async () => {
   let calls = 0

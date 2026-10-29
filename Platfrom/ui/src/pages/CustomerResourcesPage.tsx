@@ -21,10 +21,12 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
     if (mode === 'apps') {
       const params = new URLSearchParams(location.search)
       const delivery = params.get('delivery')
-      return <AIWorkspacesPage key={location.search} initialConsumerId={params.get('consumerId') ?? undefined}
+      return <CustomerEditorSections key={location.search} scopeKey={`engage:${session.customerId}`}><AIWorkspacesPage initialConsumerId={params.get('consumerId') ?? undefined}
         initialInstallationId={params.get('previewInstallationId') ?? undefined} autoPreview={Boolean(params.get('previewInstallationId'))}
         sourceInstallationId={params.get('sourceInstallationId') ?? undefined}
-        initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} />
+        connectDeploymentId={params.get('connectDeploymentId') ?? undefined}
+        connectInstallationId={params.get('connectInstallationId') ?? undefined}
+        initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} /></CustomerEditorSections>
     }
     return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
       : <CustomerDeploymentConsole session={session} />

@@ -9,6 +9,7 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
 import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
+import LinkRounded from '@mui/icons-material/LinkRounded'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import { appResource, deploymentResource, releaseEnvironment, releaseIssues, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
@@ -104,6 +105,9 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {resourceNotices}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>
+        <Button component={RouterLink} startIcon={<LinkRounded />} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage',
+          ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
+        })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : 'Change deployment'}</Button>
         {assignedApp ? <Button component={RouterLink} startIcon={<PaletteOutlined />}
           to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', previewInstallationId: assignedApp.installationId })}`}>Appearance & preview</Button> : null}
         {selected.kind === 'deployment' ? <Button component={RouterLink} variant="outlined" to={`/revisions?${new URLSearchParams({

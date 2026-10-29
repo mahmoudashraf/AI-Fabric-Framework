@@ -10,6 +10,7 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded'
 import {
   Alert,
   Box,
@@ -49,6 +50,7 @@ import {
   disableAIWorkspaceInstallation,
   fetchAIWorkspaceCatalog,
   fetchAIWorkspaceInstallations,
+  fetchAIWorkspacePreviewCapabilities,
   fetchCustomerDeploymentPortfolio,
   fetchCustomerSelfServiceCatalogue,
   fetchPlatformAuthSession,
@@ -67,7 +69,10 @@ import { customerEngageSelection } from '../components/customer/customerEngageSe
 import { prepareCustomerEngageCommand, type CustomerEngageCommandContext } from '../components/customer/customerEngageCommands'
 import { EngageAppearanceFields } from '../components/customer/EngageAppearanceFields'
 import { EngageAppearancePreview } from '../components/customer/EngageAppearancePreview'
-import { applyWorkspaceAppearance, readWorkspaceAppearance, workspaceAppearanceError, workspacePreviewTools, type WorkspaceAppearance } from './aiWorkspaceAppearance'
+import { CustomerEngageConnectionPanel } from '../components/customer/CustomerEngageConnectionPanel'
+import { EngageDomainInstructions } from '../components/customer/EngageDomainInstructions'
+import { applyWorkspaceAppearance, readWorkspaceAppearance, workspaceAppearanceError, type WorkspaceAppearance } from './aiWorkspaceAppearance'
+import type { PreviewInteractionPolicy } from '../components/customer/buildWorkspacePreviewConfiguration'
 
 type FormState = {
   packCode: string
@@ -141,10 +146,11 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview }: {
+export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId }: {
   initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
   initialDeliveryMode?: 'embedded' | 'standalone'
   autoPreview?: boolean
+  connectDeploymentId?: string; connectInstallationId?: string
 } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -167,6 +173,8 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const initialSelection = useRef('')
   const initialCreate = useRef('')
   const [selectionError, setSelectionError] = useState<string | null>(null)
+  const [connectionPanel, setConnectionPanel] = useState<{ fromEditor: boolean; deploymentId?: string; consumerId?: string; app?: AIWorkspaceInstallationSummary | null; chooseApp?: boolean } | null>(null)
+  const initialConnect = useRef('')
   const saveCommand = useRef<{ identity: string; key: string } | null>(null)
   const commandContext = useRef<CustomerEngageCommandContext | null>(null)
   const mounted = useRef(true)
@@ -196,9 +204,9 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     && customersQuery.isSuccess && !portfolioQuery.isFetching && !customersQuery.isFetching
     ? { actorId: auth.session?.actorId, customerId, consumers: customer?.consumers ?? [],
       deployments: portfolioQuery.data } : null
-  const prepareCommand = async (consumerIds: string | string[]) => {
+  const prepareCommand = async (consumerIds: string | string[], requireRelease = false) => {
     if (customerScopeLocked) await prepareCustomerEngageCommand(
-      () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession,
+      () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession, { requireRelease },
     )
   }
   const installations = installationsQuery.data ?? []
@@ -224,7 +232,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     && item.fingerprint === reviewedDeployment.offerFingerprint
     && item.entitlement.customerId === customerId && item.entitlement.status === 'ACTIVE')
   const reviewedScopeReady = Boolean(consumer?.customerId === customerId && consumer.status === 'ACTIVE'
-    && reviewedDeployment && consumer.boundTargetProfileId && consumer.boundReleaseId)
+    && reviewedDeployment && consumer.boundTargetProfileId)
   const reviewedProfilesQuery = useQuery({
     queryKey: ['ai-workspace-reviewed-profiles', customerId, reviewedOffer?.id, reviewedOffer?.fingerprint,
       reviewedOffer?.settings, reviewedOffer?.workspaceProfiles,
@@ -242,13 +250,30 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const experienceConfiguration = customerScopeLocked ? reviewedProfile?.configuration.configuration ?? {}
     : editing !== 'new' && editing ? editing.configuration : {}
   const experiencePackCode = customerScopeLocked ? reviewedProfile?.configuration.experiencePackCode ?? form.packCode : form.packCode
+  const previewCapabilitiesQuery = useQuery({
+    queryKey: ['ai-workspace-preview-capabilities', customerId, consumer?.consumerId, consumer?.bindingRevision],
+    queryFn: () => fetchAIWorkspacePreviewCapabilities(customerId, consumer!.consumerId),
+    enabled: editing != null && Boolean(customerId && consumer?.consumerId), retry: false,
+  })
+  const previewInteractionPolicy = (customerScopeLocked ? reviewedProfile?.configuration.interactionPolicy ?? form.interactionPolicy
+    : form.interactionPolicy) as PreviewInteractionPolicy
+  const previewAuthProfile = customerScopeLocked ? reviewedProfile?.configuration.authProfileCode ?? form.authProfileCode : form.authProfileCode
+  const previewRuntime = previewCapabilitiesQuery.data
+  const previewCapabilities = {
+    history: true, attachments: true, sources: true, currentPage: true,
+    authentication: { signInAvailable: previewInteractionPolicy !== 'public' && previewAuthProfile !== 'none' },
+    handover: { enabled: previewRuntime?.handover.enabled === true, runtimeConfigured: previewRuntime?.runtimeConfigured ?? null,
+      userCanCancelPending: previewRuntime?.handover.userCanCancelPending === true,
+      userCanResumeAi: previewRuntime?.handover.userCanResumeAi === true, intake: previewRuntime?.handover.intake },
+  }
 
   useEffect(() => {
     if (!customerScopeLocked || !reviewedProfile || appearanceSource.current === reviewedProfile.id) return
     appearanceSource.current = reviewedProfile.id
+    if (appearanceEdited) return
     setAppearance(readWorkspaceAppearance(reviewedProfile.configuration.configuration, reviewedProfile.configuration.experiencePackCode))
     setAppearanceEdited(false)
-  }, [customerScopeLocked, reviewedProfile])
+  }, [customerScopeLocked, reviewedProfile, appearanceEdited])
 
   useEffect(() => {
     if (!customerScopeLocked || editing == null || !reviewedProfilesQuery.isSuccess) return
@@ -296,7 +321,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
 
   const activateMutation = useMutation({
     mutationFn: async ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) => {
-      await prepareCommand(installation.consumerId ?? '')
+      await prepareCommand(installation.consumerId ?? '', true)
       return activateAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey)
     },
     onSuccess: async (installation) => {
@@ -365,6 +390,21 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     }
     openCreate(source)
   }, [sourceInstallationId, initialDeliveryMode, customerId, Boolean(customer), catalog?.assetsReady, installationsQuery.isSuccess])
+
+  useEffect(() => {
+    if ((!connectDeploymentId && !connectInstallationId) || !customerScopeLocked || !customer
+      || !portfolioQuery.isSuccess || !installationsQuery.isSuccess) return
+    const key = JSON.stringify([customerId, connectDeploymentId, connectInstallationId])
+    if (initialConnect.current === key) return
+    initialConnect.current = key
+    const app = connectInstallationId ? installations.find(item => item.installationId === connectInstallationId) : null
+    if (connectInstallationId && !app) { setSelectionError('The requested app is not available in this account.'); return }
+    if (connectDeploymentId && !portfolioQuery.data.some(item => item.deploymentId === connectDeploymentId)) {
+      setSelectionError('The requested deployment is not available in this account.'); return
+    }
+    setConnectionPanel({ fromEditor: false, deploymentId: connectDeploymentId ?? app?.deploymentId ?? undefined,
+      consumerId: app?.consumerId ?? undefined, app, chooseApp: !connectInstallationId })
+  }, [connectDeploymentId, connectInstallationId, customerId, customerScopeLocked, Boolean(customer), portfolioQuery.isSuccess, installationsQuery.isSuccess])
 
   const openEdit = (installation: AIWorkspaceInstallationSummary) => {
     saveMutation.reset()
@@ -603,7 +643,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
               <TableCell>Name</TableCell>
               <TableCell>Delivery</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Consumer</TableCell>
+              <TableCell>{customerScopeLocked ? 'AI deployment' : 'Consumer'}</TableCell>
               <TableCell>Connection</TableCell>
               <TableCell>Assignment</TableCell>
               <TableCell>Origins</TableCell>
@@ -621,16 +661,16 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
               >
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{installation.displayName}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  <CustomerAdvancedSection><Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                     {installation.installationId}
-                  </Typography>
+                  </Typography></CustomerAdvancedSection>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">{installation.deliveryMode === 'standalone' ? 'Standalone app' : 'Embedded'}</Typography>
                   <Typography variant="caption" color="text.secondary">{installation.appUrl ?? installation.experiencePackCode}</Typography>
                 </TableCell>
                 <TableCell><Chip size="small" label={installation.status} color={statusColor(installation.status)} /></TableCell>
-                <TableCell>{installation.consumerId ?? 'Unavailable'}</TableCell>
+                <TableCell>{customerScopeLocked ? portfolioQuery.data?.find(item => item.deploymentId === installation.deploymentId)?.name ?? 'Not connected' : installation.consumerId ?? 'Unavailable'}</TableCell>
                 <TableCell>
                   <Typography variant="body2">{connectionLabel(installation.connectionMode)}</Typography>
                   <Typography variant="caption" color="text.secondary">{installation.connectionProfileCode}</Typography>
@@ -659,6 +699,8 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
 
       {selected && <WorkspaceDetails installation={selected} refresh={invalidate}
         customize={() => openEdit(selected)}
+        deploymentName={portfolioQuery.data?.find(item => item.deploymentId === selected.deploymentId)?.name}
+        connect={customerScopeLocked ? () => setConnectionPanel({ fromEditor: false, deploymentId: selected.deploymentId ?? undefined, consumerId: selected.consumerId ?? undefined, app: selected }) : undefined}
         addDelivery={(mode) => openCreate(selected, mode)} addDeliveryDisabled={appCommandPending || !catalog?.assetsReady} />}
 
       <Dialog open={editing != null} onClose={appCommandPending ? undefined : () => setEditing(null)} maxWidth={false} fullWidth
@@ -674,12 +716,22 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
           <Stack component="fieldset" disabled={appCommandPending} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0, display: { xs: editorTab === 'settings' ? 'flex' : 'none', lg: 'flex' } }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Workspace name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
-              <TextField select fullWidth label="Consumer" value={form.consumerId} onChange={(e) => { setForm({ ...form, consumerId: e.target.value }); setConfigurationError(null) }}>
+              {!customerScopeLocked ? <TextField select fullWidth label="Consumer" value={form.consumerId} onChange={(e) => { setForm({ ...form, consumerId: e.target.value }); setConfigurationError(null) }}>
                 {(customer?.consumers ?? []).filter((consumer) => consumer.status === 'ACTIVE').map((consumer) => (
                   <MenuItem key={consumer.consumerId} value={consumer.consumerId}>{consumer.displayName} ({consumer.consumerId})</MenuItem>
                 ))}
-              </TextField>
+              </TextField> : null}
             </Stack>
+            {customerScopeLocked ? <Stack spacing={1}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+                <Box><Typography variant="subtitle2">AI deployment</Typography><Typography variant="body2" color="text.secondary">{reviewedDeployment?.name ?? 'Not connected'}</Typography>
+                  {consumer?.boundTargetProfileId ? <Typography variant="caption" color="text.secondary">{consumer.boundDeploymentEnvironment ?? 'Selected environment'} / {consumer.boundReleaseId ? 'Runtime connected' : 'Configuration draft'}</Typography> : null}</Box>
+                <Button startIcon={<LinkRoundedIcon />} disabled={editingActive} onClick={() => setConnectionPanel({ fromEditor: true,
+                  deploymentId: consumer?.boundDeploymentId ?? undefined, consumerId: form.consumerId,
+                  app: editing !== 'new' ? editing : null })}>{consumer ? 'Change deployment' : 'Connect deployment'}</Button>
+              </Stack>
+              <CustomerAdvancedSection><Typography variant="caption">Assignment: {form.consumerId || 'Not connected'} / revision {consumer?.bindingRevision ?? '-'}</Typography></CustomerAdvancedSection>
+            </Stack> : null}
             <EngageAppearanceFields value={appearance} error={appearanceEdited ? appearanceError : null}
               onChange={value => { setAppearance(value); setAppearanceEdited(true) }}
               onReset={() => { setAppearance(readWorkspaceAppearance(experienceConfiguration, experiencePackCode)); setAppearanceEdited(false) }} />
@@ -700,7 +752,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 ) : portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
                   <Alert severity="error">{errorText(portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
                 ) : !reviewedScopeReady ? (
-                  <Alert severity="warning">Select an active assignment connected to one of your deployments before configuring an app.</Alert>
+                  <Alert severity="info" action={<Button onClick={() => setConnectionPanel({ fromEditor: true })}>Connect deployment</Button>}>Connect one of your deployments to save this app. Appearance preview is available now.</Alert>
                 ) : reviewedProfiles.length === 0 ? (
                   <Alert severity="warning">
                     No starter or existing app configuration is available for this deployment.
@@ -846,7 +898,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
           </Stack>
           <Box sx={{ minWidth: 0, display: { xs: editorTab === 'preview' ? 'block' : 'none', lg: 'block' } }}>
             <EngageAppearancePreview appearance={appearance} appName={form.displayName} deliveryMode={effectiveDeliveryMode}
-              toolLabels={workspacePreviewTools(experienceConfiguration)} showBrandingError={Boolean(appearanceError)} />
+              configuration={experienceConfiguration} packCode={experiencePackCode} interactionPolicy={previewInteractionPolicy}
+              capabilities={previewCapabilities} showBrandingError={Boolean(appearanceError)} />
+            {previewCapabilitiesQuery.isError ? <Alert severity="warning" sx={{ mt: 1 }}>Runtime capability visibility could not be loaded. Human support is not represented as enabled in this preview.</Alert> : null}
+            {(customerScopeLocked ? reviewedProfile?.configuration.connectionMode : form.connectionMode) === 'backend-mediated-private-runtime'
+              ? <Alert severity="info" sx={{ mt: 1 }}>Private adapter responses are not invoked by this preview. Adapter-controlled history and support availability require a live integration check.</Alert> : null}
           </Box>
           </Box>
         </DialogContent>
@@ -865,6 +921,17 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                   || (!form.supabaseEmailPassword && !form.supabaseMagicLink))))}>Save draft</Button>
         </DialogActions>
       </Dialog>
+      {customerScopeLocked ? <CustomerEngageConnectionPanel open={Boolean(connectionPanel)} onClose={() => setConnectionPanel(null)}
+        customerId={customerId} actorId={auth.session?.actorId} deployments={portfolioQuery.data ?? []}
+        consumers={customer?.consumers ?? []} apps={installations}
+        initialDeploymentId={connectionPanel?.deploymentId} currentConsumerId={connectionPanel?.consumerId}
+        currentApp={connectionPanel?.app} chooseApp={connectionPanel?.chooseApp}
+        onManageApp={app => { setConnectionPanel(null); setSelected(app); openEdit(app) }}
+        onConnected={(connection, app) => {
+          if (!connectionPanel?.fromEditor) { if (app) openEdit(app); else openCreate() }
+          setForm(current => ({ ...current, consumerId: connection.consumerId }))
+          setConfigurationError(null); setConnectionPanel(null)
+        }} /> : null}
       {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{pendingDestructive?.command === 'delete' ? 'Delete draft app?' : 'Disable app?'}</DialogTitle>
         <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? 'This removes the selected draft installation. It does not delete its deployment or customer data.' : 'This disables the selected app installation. It does not stop or delete its deployment.'}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
@@ -879,10 +946,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   )
 }
 
-function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled, customize }: {
+function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled, customize, connect, deploymentName }: {
   installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void>
   addDelivery: (mode: 'embedded' | 'standalone') => void; addDeliveryDisabled: boolean
   customize: () => void
+  connect?: () => void; deploymentName?: string
 }) {
   const customerView = usePlatformAuth().session?.role === 'CUSTOMER_ADMIN'
   const [copied, setCopied] = useState(false)
@@ -909,12 +977,14 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 750 }}>{installation.displayName}</Typography>
+          {customerView ? <Typography variant="body2" color="text.secondary">AI deployment: {deploymentName ?? 'Not connected'}</Typography> : null}
           <CustomerAdvancedSection><Typography variant="body2" color="text.secondary">
             Assigned deployment {installation.deploymentId ?? 'unavailable'} · release {installation.releaseId ?? 'unavailable'}
           </Typography></CustomerAdvancedSection>
         </Box>
         <Stack direction="row" gap={1} flexWrap="wrap">
           <Button startIcon={<PaletteOutlinedIcon />} onClick={customize}>Appearance & preview</Button>
+          {connect ? <Button startIcon={<LinkRoundedIcon />} onClick={connect}>Change deployment</Button> : null}
           {customerView ? <Button startIcon={installation.deliveryMode === 'standalone' ? <CodeRoundedIcon /> : <OpenInNewRoundedIcon />}
             disabled={addDeliveryDisabled} onClick={() => addDelivery(installation.deliveryMode === 'standalone' ? 'embedded' : 'standalone')}>
             {installation.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}
@@ -937,30 +1007,8 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
               <Typography component="a" href={installation.appUrl ?? undefined} target="_blank" rel="noreferrer" sx={{ fontWeight: 750 }}>{installation.appUrl ?? 'App address unavailable'}</Typography>
               <Stack spacing={1.5} sx={{ mt: 2 }}>
                 {installation.domains.map((domain) => (
-                  <Paper key={domain.hostname} variant="outlined" sx={{ p: 1.5, borderRadius: 1 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{domain.hostname}</Typography>
-                        <Typography variant="caption" color="text.secondary">{domain.type} · {domain.status}</Typography>
-                      </Box>
-                      {domain.status !== 'VERIFIED' && (
-                        <Button size="small" onClick={() => verifyMutation.mutate({ hostname: domain.hostname, operationKey: crypto.randomUUID() })} disabled={verifyMutation.isPending}>
-                          {domain.type === 'CUSTOMER_CUSTOM' ? 'Verify domain' : 'Verify route'}
-                        </Button>
-                      )}
-                    </Stack>
-                    {domain.type === 'CUSTOMER_CUSTOM' && domain.status !== 'VERIFIED' && (
-                      <Stack spacing={0.5} sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
-                          TXT {domain.dnsRecordName} = {domain.dnsRecordValue}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
-                          CNAME {domain.routingRecordName} = {domain.routingRecordValue ?? 'shared frontend route pending'}
-                        </Typography>
-                      </Stack>
-                    )}
-                    {domain.lastVerificationError && <Typography variant="caption" color="warning.main">{domain.lastVerificationError}</Typography>}
-                  </Paper>
+                  <EngageDomainInstructions key={domain.hostname} domain={domain} pending={verifyMutation.isPending}
+                    verify={() => verifyMutation.mutate({ hostname: domain.hostname, operationKey: crypto.randomUUID() })} />
                 ))}
               </Stack>
             </>
