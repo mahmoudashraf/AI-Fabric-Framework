@@ -10908,3 +10908,39 @@ test is being called hosted acceptance. UI extraction remains last.
   delivery[-ownership]/; browser proof output/engage-dual-delivery-20261029/.
   No local server started; unrelated work preserved; firewall remains open per
   owner's instruction. Historical unrelated release warnings left untouched.
+
+### 2026-10-29 Engage Appearance Preview 010.51 LIVE CLOSED
+
+- Customer-facing name/logo/colour/light-dark-system/welcome/placeholder controls
+  now preview immediately in Create Engage app and shared Appearance & preview
+  editor. Desktop split layout; mobile Settings/Preview tabs; embedded dock/MAX/
+  standalone and sample welcome/conversation/human views. Sample-only iframe
+  reuses actual widget presentation components, scripts-only sandbox, no origin
+  privilege, CSP connections/forms denied. No auth/transport/query configuration
+  sent into it. Preview never executes AI/actions or changes an active app.
+- Shared theme.logoUrl is consumed by generic/dealership packs and widget
+  launcher/dock/MAX header, public HTTPS browser-only with fallback. Widget-local
+  dark/system appearance and MAX placeholder now align with configured branding.
+  Actual save still uses explicit disable/edit/readiness/activate lifecycle.
+  All tools, auth and integration fields preserved. External setup guide updated.
+- Backend/feature389f956ca698c3fd1a699bd53aea7005114b500b live BOTH hosts,
+  CI40913171364 PASS, OCIf062697fd8d0...; stage rlozkyfwj9jp7js48pcf28qm,
+  prodvmlapt1fl0tcvv3shu6ylwp0. Healthy/schema217/zero restarts/settings unchanged.
+  Final UI fa3e4d6d11a8eabdad7600eef8bbba7b490f9b12 live BOTH, CI40914930127
+  PASS/backend skipped, OCIdb5fcc532613...; stageya25aj8wwmrl0jbj28xineeg,
+  prodixq6bhu9fc0l026wdj5dqpuq. Narrow UI cache-freshness follow-up only.
+- 42 focused UI and43 backend validator tests PASS, widget+both pack typechecks,
+  Console+pack builds,2 delivery tests and4 branding mount cases PASS. Local
+  fixture recorded only explicit disable/save, no preview/runtime mutations.
+  Hosted staging unassigned customer cannot save. Real production owner created,
+  saved and reopened separate branded draft through customer UI; exact full
+  appearance/readback/preserved nonappearance fields verified. Draftd55087...
+  normally deleted/absence proven, both original ACTIVE/ready apps androwVersions
+  unchanged (dep3c4/rel73/revision11). Final desktop1440/mobile390 passed with
+  no dialog overflow; preview-only changes cancelled. New widget SRI PASS,
+  existing standalone tools/sign-in/handover bootstrap PASS; no AI query.
+- 010.51 records evidence; screenshots output/engage-appearance-20261029/.
+  Private rollout/API receipts ~/.codex/private/loomai-onboarding-01049/
+  {staging,production}/engage-appearance*. Local5187 server stopped; unrelated
+  changes preserved. Runtime/framework/Desk/Engage shared service unchanged.
+  No new broad AI, private-adapter or protected-action regression claim.
