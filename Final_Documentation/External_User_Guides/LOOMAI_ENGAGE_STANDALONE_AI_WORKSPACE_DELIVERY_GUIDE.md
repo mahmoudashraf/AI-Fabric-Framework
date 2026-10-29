@@ -18,6 +18,12 @@ Standalone delivery and embedded delivery use the same reviewed workspace,
 experience-pack, connection, assignment, and runtime contracts. The delivery
 choice does not create a second AI execution engine.
 
+Customers can use **both** delivery channels against the same deployment. The
+customer Console offers **Embed on my website** and **Standalone app**, with
+**Add website embed** / **Add standalone app** shortcuts that preserve the
+existing installation. Follow the [website and standalone setup guide](LOOMAI_ENGAGE_WEBSITE_AND_STANDALONE_SETUP_GUIDE.md)
+for current customer setup and script installation.
+
 ## Choose The Supported Path
 
 | Delivery | Interaction policy | Connection | Intended use |
@@ -33,10 +39,10 @@ runtime access merely because the standalone shell also exists.
 
 ## Customer Self-Service Portal
 
-Invited customer administrators sign in to `https://console.loomai.pro` with
-their own password-backed Platform session. This account is separate from the
-Supabase identity used by visitors inside an Engage app. Shared staff API keys
-are not a customer sign-in mechanism.
+Customer administrators sign in to `https://console.loomai.pro` with their own
+Supabase-backed customer account. Console administration is separate from
+visitor identity and permissions inside an Engage app, even if both use the
+same identity provider. Shared staff API keys are not a customer sign-in mechanism.
 
 1. In **My Deployments**, accept the reviewed offer, select its customer-staging
    target, verify placement and create the deployment configuration. Optional
@@ -49,7 +55,7 @@ are not a customer sign-in mechanism.
    rejected credential save. Mounted folders are for approved small/demo data,
    not a LoomAI-managed customer object-storage product.
 3. Publish the reviewed configuration and deploy to customer staging. Open
-   **My Engage Apps** to create the app from the offer's approved configuration,
+   **Engage apps** to create the app from a starter or existing configuration,
    verify its address and connect it to the verified staging assignment. App
    branding and experience configuration use the existing installation editor.
 4. Use **Manage deployment** to select the resource before opening Knowledge,

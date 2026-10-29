@@ -7,6 +7,8 @@ import PauseCircleOutlineRoundedIcon from '@mui/icons-material/PauseCircleOutlin
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
+import CodeRoundedIcon from '@mui/icons-material/CodeRounded'
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import {
   Alert,
   Box,
@@ -31,6 +33,8 @@ import {
   TableRow,
   TextField,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -131,7 +135,10 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: { initialInstallationId?: string; initialConsumerId?: string } = {}) {
+export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode }: {
+  initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
+  initialDeliveryMode?: 'embedded' | 'standalone'
+} = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const customerScopeLocked = auth.session?.role === 'CUSTOMER_ADMIN'
@@ -146,6 +153,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   const [configurationError, setConfigurationError] = useState<string | null>(null)
   const [pendingDestructive, setPendingDestructive] = useState<{ command: 'disable' | 'delete'; installation: AIWorkspaceInstallationSummary; actorId: string | null | undefined } | null>(null)
   const initialSelection = useRef('')
+  const initialCreate = useRef('')
   const [selectionError, setSelectionError] = useState<string | null>(null)
   const saveCommand = useRef<{ identity: string; key: string } | null>(null)
   const commandContext = useRef<CustomerEngageCommandContext | null>(null)
@@ -218,14 +226,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   })
   const reviewedProfiles = reviewedScopeReady ? (reviewedProfilesQuery.data ?? []) : []
   const reviewedProfile = reviewedProfiles.find((item) => item.id === reviewedProfileId) ?? null
-  const effectiveDeliveryMode = customerScopeLocked ? reviewedProfile?.configuration.deliveryMode : form.deliveryMode
+  const effectiveDeliveryMode = form.deliveryMode
 
   useEffect(() => {
-    if (!customerScopeLocked || editing == null) return
+    if (!customerScopeLocked || editing == null || !reviewedProfilesQuery.isSuccess) return
     setReviewedProfileId((current) => reviewedProfiles.some((item) => item.id === current) ? current
       : editing === 'new' ? reviewedProfiles[0]?.id ?? ''
         : reviewedProfiles.find((item) => item.id === editing.installationId)?.id ?? '')
-  }, [customerScopeLocked, editing, reviewedProfilesQuery.data, reviewedScopeReady])
+  }, [customerScopeLocked, editing, reviewedProfilesQuery.data, reviewedProfilesQuery.isSuccess, reviewedScopeReady])
 
   useEffect(() => {
     if (customerScopeLocked && auth.session?.customerId && customerId !== auth.session.customerId) {
@@ -300,21 +308,36 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
     },
   })
 
-  const openCreate = () => {
+  const openCreate = (source?: AIWorkspaceInstallationSummary, deliveryMode = initialDeliveryMode ?? 'standalone') => {
     saveMutation.reset()
     saveCommand.current = null
     const firstProfile = catalog?.connectionProfiles.find((profile) => profile.mode === defaultForm.connectionMode)
-    const selection = customerScopeLocked ? customerEngageSelection(customer?.consumers ?? [], customerId, initialConsumerId)
+    const selection = customerScopeLocked ? customerEngageSelection(customer?.consumers ?? [], customerId, source?.consumerId ?? initialConsumerId)
       : { consumerId: customer?.consumers.find(consumer => consumer.status === 'ACTIVE')?.consumerId ?? '', error: null }
     setForm({
       ...defaultForm,
+      deliveryMode,
+      displayName: source ? `${source.displayName} - ${deliveryMode === 'embedded' ? 'website' : 'app'}`.slice(0, 255) : '',
       consumerId: selection.consumerId,
       profileCode: firstProfile?.code ?? defaultForm.profileCode,
     })
     setEditing('new')
-    setReviewedProfileId('')
+    setReviewedProfileId(source?.installationId ?? '')
     setConfigurationError(selection.error)
   }
+
+  useEffect(() => {
+    if (!sourceInstallationId || !customer || !catalog?.assetsReady || !installationsQuery.isSuccess) return
+    const request = JSON.stringify([customerId, sourceInstallationId, initialDeliveryMode])
+    if (initialCreate.current === request) return
+    initialCreate.current = request
+    const source = installations.find(item => item.installationId === sourceInstallationId && item.customerId === customerId)
+    if (!source) {
+      setSelectionError('The source Engage app is not available in this account. No other configuration was selected.')
+      return
+    }
+    openCreate(source)
+  }, [sourceInstallationId, initialDeliveryMode, customerId, Boolean(customer), catalog?.assetsReady, installationsQuery.isSuccess])
 
   const openEdit = (installation: AIWorkspaceInstallationSummary) => {
     saveMutation.reset()
@@ -375,13 +398,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
     setConfigurationError(null)
     if (customerScopeLocked) {
       if (!reviewedOffer || !reviewedScopeReady || !reviewedProfile) {
-        setConfigurationError('Select an available configuration from the current reviewed offer before saving.')
+        setConfigurationError('Select an available starter or existing app configuration before saving.')
         return
       }
       try {
         const payload = reviewedWorkspaceRequest(reviewedOffer, reviewedProfile, {
           consumerId: form.consumerId,
           displayName: form.displayName,
+          deliveryMode: effectiveDeliveryMode as 'standalone' | 'embedded',
           appSlug: effectiveDeliveryMode === 'standalone' ? form.appSlug.trim() : undefined,
           customDomains: effectiveDeliveryMode === 'standalone' ? lines(form.customDomains) : [],
           allowedOrigins: lines(form.origins),
@@ -496,9 +520,9 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>AI Workspaces</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>Engage apps</Typography>
           <Typography color="text.secondary">
-            Publish reviewed one-script experiences that resolve each consumer&apos;s assigned runtime.
+            Embed on your website, publish a standalone app, or use both with the same deployment.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ maxWidth: '100%' }}>
@@ -516,14 +540,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
               {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
             </TextField>
           )}
-          {!focused ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={appCommandPending || !customer || !catalog?.assetsReady}>
-            Create AI App
+          {!focused ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => openCreate()} disabled={appCommandPending || !customer || !catalog?.assetsReady}>
+            Create Engage app
           </Button> : null}
         </Stack>
       </Stack>
 
       {notice && <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert>}
-      {initialInstallationId && selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
+      {selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
       {initialInstallationId && installationsQuery.isError ? <Alert severity="error">{errorText(installationsQuery.error)}</Alert> : null}
       {operationError && !(editing != null && operationError === saveMutation.error) && <Alert severity="error">{errorText(operationError)}</Alert>}
       {catalog && !catalog.assetsReady && <Alert severity="warning">Workspace assets are not release-ready: {catalog.assetStatus}</Alert>}
@@ -590,10 +614,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
         </Table>
       </TableContainer>
 
-      {selected && <WorkspaceDetails installation={selected} refresh={invalidate} />}
+      {selected && <WorkspaceDetails installation={selected} refresh={invalidate}
+        addDelivery={(mode) => openCreate(selected, mode)} addDeliveryDisabled={appCommandPending || !catalog?.assetsReady} />}
 
       <Dialog open={editing != null} onClose={saveMutation.isPending ? undefined : () => setEditing(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{editing === 'new' ? 'Create AI App' : 'Edit AI App'}</DialogTitle>
+        <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Edit Engage app'}</DialogTitle>
         <DialogContent dividers>
           <CustomerEditorNotices />
           <CustomerEditorDepthSwitch label="App configuration depth" />
@@ -611,7 +636,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
             </Stack>
             {customerScopeLocked ? (
               <Stack spacing={1.5}>
-                <TextField select fullWidth label="Reviewed app configuration" value={reviewedProfile?.id ?? ''}
+                <TextField select fullWidth label="Experience configuration" value={reviewedProfile?.id ?? ''}
                   disabled={reviewedProfilesQuery.isFetching || reviewedProfiles.length === 0}
                   onChange={(event) => { setReviewedProfileId(event.target.value); setConfigurationError(null) }}>
                   {reviewedProfiles.map((profile) => (
@@ -621,25 +646,23 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
                   ))}
                 </TextField>
                 {offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching ? (
-                  <Typography variant="body2" color="text.secondary">Loading reviewed configurations...</Typography>
+                  <Typography variant="body2" color="text.secondary">Loading experience configurations...</Typography>
                 ) : offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
                   <Alert severity="error">{errorText(offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
                 ) : !reviewedScopeReady ? (
                   <Alert severity="warning">The selected assignment needs a current reviewed offer and an entitled deployment target before configuring an app.</Alert>
                 ) : reviewedProfiles.length === 0 ? (
                   <Alert severity="warning">
-                    No valid reviewed app configuration is available from this offer or your existing apps.
-                    LoomAI must publish a configuration matching the approved interaction, theme, and authentication profiles before you can save.
+                    No starter or existing app configuration is available for this deployment.
                   </Alert>
                 ) : !reviewedProfile ? (
-                  <Alert severity="warning">The saved configuration is not included in this offer. Select a reviewed configuration explicitly before saving.</Alert>
+                  <Alert severity="warning">Select a starter or existing app configuration before saving.</Alert>
                 ) : null}
                 {reviewedProfile ? (
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Tooltip title={reviewedProfile.interactionProfileId}><Chip label={reviewedProfile.configuration.experiencePackCode} variant="outlined" /></Tooltip>
-                    <Chip label={reviewedProfile.configuration.deliveryMode} variant="outlined" />
                     <Tooltip title={reviewedProfile.authProfileId}><Chip label={reviewedProfile.configuration.interactionPolicy} variant="outlined" /></Tooltip>
-                    <Tooltip title={reviewedProfile.themeProfileId}><Chip label="Reviewed theme" variant="outlined" /></Tooltip>
+                    <Tooltip title={reviewedProfile.themeProfileId}><Chip label="Saved theme" variant="outlined" /></Tooltip>
                   </Stack>
                 ) : null}
                 {reviewedProfile ? <CustomerAdvancedSection><Stack spacing={0.5}>
@@ -654,12 +677,17 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
                 <TextField select fullWidth label="Experience pack" value={form.packCode} onChange={(e) => setForm({ ...form, packCode: e.target.value })}>
                   {(catalog?.experiencePacks ?? []).map((pack) => <MenuItem key={pack.code} value={pack.code} disabled={!pack.enabled}>{pack.name}</MenuItem>)}
                 </TextField>
-                <TextField select fullWidth label="Delivery" value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
-                  <MenuItem value="standalone">Standalone AI app</MenuItem>
-                  <MenuItem value="embedded">Embedded one-script workspace</MenuItem>
-                </TextField>
               </Stack>
             ) : null}
+            <Stack spacing={1}>
+              <Typography variant="subtitle2">Delivery</Typography>
+              <ToggleButtonGroup exclusive fullWidth value={form.deliveryMode} aria-label="Engage delivery"
+                onChange={(_, mode: string | null) => { if (mode) setForm({ ...form, deliveryMode: mode }) }}>
+                <ToggleButton value="embedded" sx={{ gap: 1 }}><CodeRoundedIcon fontSize="small" />Embed on my website</ToggleButton>
+                <ToggleButton value="standalone" sx={{ gap: 1 }}><OpenInNewRoundedIcon fontSize="small" />Standalone app</ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary">Add both as separate Engage installations connected to the same deployment.</Typography>
+            </Stack>
             {effectiveDeliveryMode === 'standalone' && (
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <TextField fullWidth label="App slug" helperText="Creates <slug>.apps.loomai.pro" value={form.appSlug} onChange={(e) => setForm({ ...form, appSlug: e.target.value.toLowerCase() })} />
@@ -667,7 +695,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
               </Stack>
             )}
             {(!customerScopeLocked || effectiveDeliveryMode === 'embedded') ? (
-              <TextField multiline minRows={2} label="Allowed website origins" helperText="One exact HTTPS origin per line" value={form.origins} onChange={(e) => setForm({ ...form, origins: e.target.value })} />
+              <TextField required={effectiveDeliveryMode === 'embedded'} multiline minRows={2} label="Allowed website origins" helperText="Exact HTTPS origins, for example https://www.example.com. No paths or wildcards." value={form.origins} onChange={(e) => setForm({ ...form, origins: e.target.value })} />
             ) : null}
             {!customerScopeLocked ? (
               <>
@@ -772,6 +800,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
           <Button disabled={saveMutation.isPending} onClick={() => setEditing(null)}>Cancel</Button>
           <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId
             || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
+            || (effectiveDeliveryMode === 'embedded' && lines(form.origins).length === 0)
             || (customerScopeLocked
               ? !reviewedProfile || !reviewedScopeReady || offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching
                 || offersQuery.isError || portfolioQuery.isError || reviewedProfilesQuery.isError || installationsQuery.isError
@@ -794,15 +823,30 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   )
 }
 
-function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void> }) {
+function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled }: {
+  installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void>
+  addDelivery: (mode: 'embedded' | 'standalone') => void; addDeliveryDisabled: boolean
+}) {
   const customerView = usePlatformAuth().session?.role === 'CUSTOMER_ADMIN'
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  useEffect(() => { setCopied(false); setCopyError(null) }, [installation.installationId])
   const verifyMutation = useMutation({
     mutationFn: ({ hostname, operationKey }: { hostname: string; operationKey: string }) =>
       verifyAIWorkspaceDomain(installation.customerId, installation.installationId, hostname, operationKey),
     onSuccess: () => void refresh(),
   })
   const snippet = `<script\n  async\n  src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js"\n  data-installation-id="${installation.installationId}">\n</script>`
+  const copyInstallation = async () => {
+    setCopyError(null)
+    try {
+      await navigator.clipboard.writeText(installation.deliveryMode === 'standalone' ? (installation.appUrl ?? '') : snippet)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+      setCopyError('Clipboard access is unavailable. Select and copy the installation details below.')
+    }
+  }
   return (
     <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
@@ -812,14 +856,22 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
             Assigned deployment {installation.deploymentId ?? 'unavailable'} · release {installation.releaseId ?? 'unavailable'}
           </Typography></CustomerAdvancedSection>
         </Box>
-        <Button startIcon={<RefreshRoundedIcon />} onClick={() => void refresh()}>Refresh readiness</Button>
+        <Stack direction="row" gap={1} flexWrap="wrap">
+          {customerView ? <Button startIcon={installation.deliveryMode === 'standalone' ? <CodeRoundedIcon /> : <OpenInNewRoundedIcon />}
+            disabled={addDeliveryDisabled} onClick={() => addDelivery(installation.deliveryMode === 'standalone' ? 'embedded' : 'standalone')}>
+            {installation.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}
+          </Button> : null}
+          <Button startIcon={<RefreshRoundedIcon />} onClick={() => void refresh()}>Refresh readiness</Button>
+        </Stack>
       </Stack>
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
         <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
             <Typography variant="subtitle2">{installation.deliveryMode === 'standalone' ? 'AI app address' : 'Installation script'}</Typography>
             <Tooltip title={installation.deliveryMode === 'standalone' ? 'Copy app address' : 'Copy installation script'}>
-              <IconButton size="small" onClick={() => { void navigator.clipboard.writeText(installation.deliveryMode === 'standalone' ? (installation.appUrl ?? '') : snippet); setCopied(true) }}><ContentCopyRoundedIcon /></IconButton>
+              <IconButton size="small" aria-label={installation.deliveryMode === 'standalone' ? 'Copy app address' : 'Copy installation script'}
+                disabled={installation.deliveryMode === 'standalone' && !installation.appUrl}
+                onClick={() => void copyInstallation()}><ContentCopyRoundedIcon /></IconButton>
             </Tooltip>
           </Stack>
           {installation.deliveryMode === 'standalone' ? (
@@ -857,9 +909,19 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
           ) : (
             <>
               <Box component="pre" sx={{ m: 0, p: 2, bgcolor: customerView ? 'action.hover' : 'grey.950', color: customerView ? 'text.primary' : 'grey.100', borderRadius: 1, overflowX: 'auto', fontSize: 12 }}>{snippet}</Box>
-              <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Use this exact script on an approved origin.'}</Typography>
+              <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Add once before the closing </body> tag on your website.'}</Typography>
+              <Stack component="ol" spacing={1} sx={{ pl: 2.5, my: 2 }}>
+                <Typography component="li" variant="body2">Allow your exact website origin in this installation.</Typography>
+                <Typography component="li" variant="body2">If readiness reports missing runtime origins or identity settings, publish and apply the deployment update, then refresh readiness.</Typography>
+                <Typography component="li" variant="body2">Activate this installation, add the script to your site layout, and open your website to try the workspace.</Typography>
+              </Stack>
+              <Typography variant="subtitle2">Allowed websites</Typography>
+              {installation.allowedOrigins.map(origin => <Typography key={origin} variant="body2" sx={{ fontFamily: 'monospace', mt: 0.5 }}>{origin}</Typography>)}
+              {installation.status !== 'ACTIVE' ? <Alert severity="info" sx={{ mt: 2 }}>The script will not load a workspace until this installation is active and ready.</Alert> : null}
             </>
           )}
+          {copyError ? <Alert severity="warning" sx={{ mt: 1 }}>{copyError}</Alert> : null}
+          {copied && installation.deliveryMode === 'standalone' ? <Typography variant="caption" color="success.main">Copied.</Typography> : null}
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Readiness</Typography>

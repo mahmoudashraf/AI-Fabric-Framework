@@ -95,6 +95,7 @@ function publicJson(value: unknown): boolean {
 async function resolveProfile(
   offer: CustomerOfferSummary, id: string, label: string,
   interaction: unknown, theme: unknown, authentication: unknown, includeTheme = true,
+  requireBootstrapPins = true,
 ): Promise<ReviewedWorkspaceProfile | null> {
   if (!record(interaction) || !exactFields(interaction, interactionFields)
     || !record(authentication) || !exactFields(authentication, authenticationFields)
@@ -115,9 +116,9 @@ async function resolveProfile(
   const interactionProfileId = await profileId('workspace', interaction)
   const themeProfileId = await profileId('theme', theme)
   const authProfileId = await profileId('auth', authentication)
-  if (!allowedProfile(offer, 'INTERACTION_PROFILE_ID', interactionProfileId)
+  if (requireBootstrapPins && (!allowedProfile(offer, 'INTERACTION_PROFILE_ID', interactionProfileId)
     || !allowedProfile(offer, 'THEME_PROFILE_ID', themeProfileId)
-    || !allowedProfile(offer, 'AUTH_PROFILE_ID', authProfileId)) return null
+    || !allowedProfile(offer, 'AUTH_PROFILE_ID', authProfileId))) return null
   return {
     id, label, interactionProfileId, themeProfileId, authProfileId,
     configuration: structuredClone({
@@ -137,7 +138,7 @@ async function resolveProfile(
   }
 }
 
-/** Both published and owned profiles must match all three pins before becoming choices. */
+/** Offer pins describe starter defaults; owned configurations can evolve independently. */
 export async function resolveReviewedWorkspaceProfiles(
   offer: CustomerOfferSummary,
   customerId: string,
@@ -170,7 +171,7 @@ export async function resolveReviewedWorkspaceProfiles(
       profileVersion: installation.authProfileVersion,
       interactionPolicy: enumValue(installation.interactionPolicy),
       configuration: installation.authConfiguration,
-    }, Object.prototype.hasOwnProperty.call(installation.configuration, 'theme'))
+    }, Object.prototype.hasOwnProperty.call(installation.configuration, 'theme'), false)
     if (choice && !choices.some((item) => item.id === choice.id)) choices.push(choice)
   }
   return choices
@@ -180,26 +181,26 @@ export function reviewedWorkspaceRequest(
   offer: CustomerOfferSummary,
   profile: ReviewedWorkspaceProfile,
   input: Pick<SaveAIWorkspaceInstallationRequest,
-    'consumerId' | 'displayName' | 'appSlug' | 'customDomains' | 'allowedOrigins' | 'rowVersion'>,
+    'consumerId' | 'displayName' | 'appSlug' | 'customDomains' | 'allowedOrigins' | 'rowVersion'>
+    & { deliveryMode?: 'standalone' | 'embedded' },
 ): SaveAIWorkspaceInstallationRequest {
-  if (!allowedProfile(offer, 'INTERACTION_PROFILE_ID', profile.interactionProfileId)
-    || !allowedProfile(offer, 'THEME_PROFILE_ID', profile.themeProfileId)
-    || !allowedProfile(offer, 'AUTH_PROFILE_ID', profile.authProfileId)) {
-    throw new Error('This configuration is no longer included in the reviewed product offer.')
-  }
-  const title = offer.settings.find((item) => item.setting === 'APP_TITLE')
+  if (offer.entitlement.status !== 'ACTIVE') throw new Error('The current customer entitlement is unavailable.')
   const displayName = input.displayName.trim()
-  if (!title || !displayName || displayName.length > title.maxLength
-    || (title.type === 'CHOICE' && !title.allowedValues.includes(displayName))) {
-    throw new Error('The app name is not allowed by the reviewed product offer.')
+  if (!displayName || displayName.length > 255) {
+    throw new Error('The app name must contain between 1 and 255 characters.')
   }
+  const deliveryMode = input.deliveryMode ?? profile.configuration.deliveryMode
+  if (deliveryMode !== 'standalone' && deliveryMode !== 'embedded') throw new Error('Select a supported delivery option.')
+  if (deliveryMode === 'embedded' && input.allowedOrigins.length === 0) throw new Error('Add at least one exact HTTPS website origin.')
+  if (deliveryMode === 'standalone' && !input.appSlug?.trim()) throw new Error('Enter an address for the standalone app.')
   return {
     ...structuredClone(profile.configuration),
+    deliveryMode,
     consumerId: input.consumerId,
     displayName,
-    appSlug: input.appSlug,
-    customDomains: [...input.customDomains],
-    allowedOrigins: [...input.allowedOrigins],
+    appSlug: deliveryMode === 'standalone' ? input.appSlug?.trim() : undefined,
+    customDomains: deliveryMode === 'standalone' ? [...input.customDomains] : [],
+    allowedOrigins: deliveryMode === 'embedded' ? [...input.allowedOrigins] : [],
     ...(input.rowVersion == null ? {} : { rowVersion: input.rowVersion }),
   }
 }

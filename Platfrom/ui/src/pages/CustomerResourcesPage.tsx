@@ -18,7 +18,13 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
   }
   const view = new URLSearchParams(location.search).get('view')
   if (view === 'manage' || view === 'setup') {
-    if (mode === 'apps') return <AIWorkspacesPage initialConsumerId={new URLSearchParams(location.search).get('consumerId') ?? undefined} />
+    if (mode === 'apps') {
+      const params = new URLSearchParams(location.search)
+      const delivery = params.get('delivery')
+      return <AIWorkspacesPage key={location.search} initialConsumerId={params.get('consumerId') ?? undefined}
+        sourceInstallationId={params.get('sourceInstallationId') ?? undefined}
+        initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} />
+    }
     return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
       : <CustomerDeploymentConsole session={session} />
   }

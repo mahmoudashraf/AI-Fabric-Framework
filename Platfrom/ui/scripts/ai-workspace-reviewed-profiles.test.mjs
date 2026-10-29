@@ -129,14 +129,19 @@ test('matches the server structured pins without replacing optional configuratio
   assert.equal(original.configuration.page.maxChars, 2500)
 })
 
-test('rejects changed interaction, theme, and authentication even when labels and versions still match', async () => {
+test('owned configurations remain available after changes from their bootstrap defaults', async () => {
   const original = installation()
   const offer = offerFor(original)
   const changed = [structuredClone(original), structuredClone(original), structuredClone(original)]
   changed[0].configuration.page.maxChars = 1800
   changed[1].configuration.theme.darkMode = false
   changed[2].authConfiguration.methods.push('magic-link')
-  assert.deepEqual(await resolveReviewedWorkspaceProfiles(offer, 'customer-one', changed), [])
+  changed.forEach((item, index) => { item.installationId = `owned-${index}` })
+  const profiles = await resolveReviewedWorkspaceProfiles(offer, 'customer-one', changed)
+  assert.equal(profiles.length, 3)
+  assert.deepEqual(profiles[0].configuration.configuration, changed[0].configuration)
+  assert.deepEqual(profiles[1].configuration.configuration.theme, changed[1].configuration.theme)
+  assert.deepEqual(profiles[2].configuration.authConfiguration, changed[2].authConfiguration)
 })
 
 test('never takes payloads or entitlements from a different customer', async () => {
@@ -155,7 +160,7 @@ test('opaque IDs with no available payload do not produce invented defaults', as
   assert.deepEqual(await resolveReviewedWorkspaceProfiles(offerFor(installation()), 'customer-one', []), [])
   const offer = offerFor(installation())
   offer.settings[0].type = 'TEXT'
-  assert.deepEqual(await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [installation()]), [])
+  assert.equal((await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [installation()])).length, 1)
 })
 
 test('preserves absent theme and extra approved fields rather than adding form defaults', async () => {
@@ -171,20 +176,70 @@ test('preserves absent theme and extra approved fields rather than adding form d
   assert.equal('detailBasePath' in request.configuration.presentation, false)
 })
 
-test('rechecks published pins and title rules before producing a request', async () => {
+test('app updates use the execution name contract rather than bootstrap offer restrictions', async () => {
   const original = installation()
   const offer = offerFor(original)
   const [profile] = await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [original])
   const changed = structuredClone(offer)
   changed.settings[0].allowedValues = []
-  assert.throws(() => reviewedWorkspaceRequest(changed, profile, input), /no longer included/)
+  assert.equal(reviewedWorkspaceRequest(changed, profile, input).displayName, 'My support app')
   assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, displayName: ' ' }), /app name/)
-  assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, displayName: 'a'.repeat(121) }), /app name/)
+  assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, displayName: 'a'.repeat(256) }), /app name/)
   const title = offer.settings.find(rule => rule.setting === 'APP_TITLE')
   title.type = 'CHOICE'
   title.allowedValues = ['Approved app']
-  assert.throws(() => reviewedWorkspaceRequest(offer, profile, input), /app name/)
+  assert.equal(reviewedWorkspaceRequest(offer, profile, input).displayName, 'My support app')
   assert.equal(reviewedWorkspaceRequest(offer, profile, { ...input, displayName: 'Approved app' }).displayName, 'Approved app')
+})
+
+test('one deployment supports standalone and embedded installations without mutating either configuration', async () => {
+  const original = installation()
+  const offer = offerFor(original)
+  const [profile] = await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [original])
+  const before = structuredClone(profile)
+  const standalone = reviewedWorkspaceRequest(offer, profile, input)
+  const embedded = reviewedWorkspaceRequest(offer, profile, { ...input,
+    deliveryMode: 'embedded', allowedOrigins: ['https://www.example.test'], rowVersion: undefined,
+  })
+  assert.equal(standalone.consumerId, embedded.consumerId)
+  assert.equal(standalone.deliveryMode, 'standalone')
+  assert.equal(standalone.appSlug, input.appSlug)
+  assert.deepEqual(standalone.allowedOrigins, [])
+  assert.equal(embedded.deliveryMode, 'embedded')
+  assert.equal(embedded.appSlug, undefined)
+  assert.deepEqual(embedded.customDomains, [])
+  assert.deepEqual(embedded.allowedOrigins, ['https://www.example.test'])
+  assert.equal('rowVersion' in embedded, false)
+  assert.deepEqual(standalone.configuration, embedded.configuration)
+  assert.deepEqual(standalone.authConfiguration, embedded.authConfiguration)
+  assert.deepEqual(profile, before)
+  embedded.configuration.toolGroups[0].label = 'Website only'
+  assert.equal(standalone.configuration.toolGroups[0].label, 'Support')
+  assert.equal(original.configuration.toolGroups[0].label, 'Support')
+})
+
+test('an embedded app can seed a standalone app while each channel keeps its own origins', async () => {
+  const original = installation()
+  original.deliveryMode = 'embedded'
+  const offer = offerFor(installation())
+  const [profile] = await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [original])
+  assert.ok(profile)
+  const request = reviewedWorkspaceRequest(offer, profile, { ...input, deliveryMode: 'standalone',
+    allowedOrigins: ['https://website.example.test'], rowVersion: undefined })
+  assert.equal(request.deliveryMode, 'standalone')
+  assert.deepEqual(request.allowedOrigins, [])
+  assert.equal(request.appSlug, 'support-app')
+  assert.deepEqual(request.configuration.toolGroups, original.configuration.toolGroups)
+})
+
+test('delivery requires a supported channel and its required installation fields', async () => {
+  const original = installation()
+  const offer = offerFor(original)
+  const [profile] = await resolveReviewedWorkspaceProfiles(offer, 'customer-one', [original])
+  assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, deliveryMode: 'both' }), /supported delivery/)
+  assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, deliveryMode: 'embedded' }), /HTTPS website origin/)
+  assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, appSlug: '' }), /address/)
+  assert.throws(() => reviewedWorkspaceRequest({ ...offer, entitlement: { status: 'REVOKED' } }, profile, input), /entitlement/)
 })
 
 test('creates the first app from published normalized profiles with no existing installations', async () => {

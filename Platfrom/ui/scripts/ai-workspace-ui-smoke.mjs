@@ -216,8 +216,8 @@ try {
     throw new Error('Customer switch retained a row from the previous customer.')
   }
 
-  await page.getByRole('button', { name: 'Create AI App' }).click()
-  await page.getByRole('heading', { name: 'Create AI App' }).waitFor()
+  await page.getByRole('button', { name: 'Create Engage app' }).click()
+  await page.getByRole('heading', { name: 'Create Engage app' }).waitFor()
   await page.getByLabel('Workspace name').fill('Beta Second Workspace')
   await page.getByLabel('App slug').fill('beta-second')
   await page.getByLabel('Interaction policy').click()

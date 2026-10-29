@@ -7,6 +7,7 @@ import CloseRounded from '@mui/icons-material/CloseRounded'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import AddRounded from '@mui/icons-material/AddRounded'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
+import CodeRounded from '@mui/icons-material/CodeRounded'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import { appResource, deploymentResource, releaseEnvironment, releaseIssues, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
@@ -106,6 +107,12 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
           deploymentId: selected.id, ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
         })}`}>Versions & updates</Button> : null}
         {selected.kind === 'app' && safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}
+        {assignedApp?.deliveryMode === 'embedded' ? <Button startIcon={<CodeRounded />} onClick={() => openConfiguration()}>Installation script</Button> : null}
+        {assignedApp ? <Button component={RouterLink} startIcon={assignedApp.deliveryMode === 'standalone' ? <CodeRounded /> : <AddRounded />}
+          to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', sourceInstallationId: assignedApp.installationId,
+            delivery: assignedApp.deliveryMode === 'standalone' ? 'embedded' : 'standalone' })}`}>
+          {assignedApp.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}
+        </Button> : null}
         {selected.deploymentId && deskRelease?.targetProfileId ? <CustomerDeskLink target={{ deploymentId: selected.deploymentId,
           targetProfileId: deskRelease.targetProfileId, releaseId: deskRelease.id }} /> : null}
       </Stack>
