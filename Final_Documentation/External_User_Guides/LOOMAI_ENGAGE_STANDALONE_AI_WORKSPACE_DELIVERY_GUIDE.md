@@ -54,17 +54,18 @@ same identity provider. Shared staff API keys are not a customer sign-in mechani
    then explicitly save the binding. Verification never automatically retries a
    rejected credential save. Mounted folders are for approved small/demo data,
    not a LoomAI-managed customer object-storage product.
-3. Publish the reviewed configuration and deploy to customer staging. Open
-   **Engage apps** to create the app from a starter or existing configuration,
-   verify its address and connect it to the verified staging assignment. App
-   branding and experience configuration use the existing installation editor.
+3. Open deployment details and **Connect Engage app**, or create an app from
+   **Engage apps** and **Connect deployment**. Select the owned deployment and
+   environment by name. A configuration-only connection can save the app draft
+   before a release exists. Publish/deploy the configuration to customer
+   staging, select its verified release and resolve readiness before activation.
 4. Use **Manage deployment** to select the resource before opening Knowledge,
    **Inbox & Integrations**, or another deployment-scoped view. Navigation keeps
    the selected deployment in its URL; do not substitute another deployment or
    target release when investigating a failure.
 5. Test the app's indexed knowledge, sign-in/protected capabilities, confirmed
-   actions and human handover as applicable. The Basic Inbox is reached through
-   **Inbox & Integrations** with separately authorized operator credentials.
+   actions and human handover as applicable. Enabled human support is reached
+   through **LoomAI Desk** with deployment-scoped agent authorization.
    **Action Reviews** concerns governed action approval, not human-chat replies.
    It is available only when the deployment enables the corresponding review
    extension. An unavailable/error response must not be read as an empty inbox;
@@ -123,15 +124,18 @@ PLATFORM_AI_WORKSPACE_STANDALONE_BASE_DOMAIN=apps.loomai.pro
 PLATFORM_AI_WORKSPACE_STANDALONE_SHELL_BASE_URL=https://engage.loomai.pro
 ```
 
-The base domain creates Platform-provided app addresses. The shell URL is the
-stable CNAME target shown for customer-owned domains. Neither value grants an
-installation access to a deployment.
+The base domain creates Platform-provided app addresses. The shell URL must
+first have working public DNS, a preserved shared-service route and valid
+HTTPS. It is then the stable CNAME target shown for customer-owned domains.
+Neither value grants an installation access to a deployment. An empty target
+in Console is a Platform configuration issue, not usable DNS instructions.
 
 ## 2. Create An AI App
 
 In **AI Workspaces**, choose **Create AI App** and supply:
 
-1. the customer and active consumer assignment;
+1. **Connect deployment**, selecting the owned deployment and environment
+   (staff tools also expose the underlying consumer assignment);
 2. a reviewed experience pack and immutable version;
 3. `Standalone AI app` delivery and a unique DNS-safe app slug;
 4. the connection profile;
@@ -158,7 +162,8 @@ TXT    _loomai-workspace.<customer-host> = loomai-workspace-verification=<token>
 CNAME  <customer-host>                   = <standalone-shell-host>
 ```
 
-Then select **Verify domain**. The Platform performs this ordered workflow:
+Console provides copy controls for each actual generated record. Then select
+**Verify domain**. The Platform performs this ordered workflow:
 
 1. prove the exact TXT ownership token;
 2. add only that owned hostname to the shared Coolify frontend route set;

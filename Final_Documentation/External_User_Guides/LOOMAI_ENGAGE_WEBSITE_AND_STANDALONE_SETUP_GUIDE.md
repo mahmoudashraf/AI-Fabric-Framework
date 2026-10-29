@@ -9,8 +9,10 @@ another runtime, vector index or business database.
 ## Embed On Your Website
 
 1. Sign in to [Console](https://console.loomai.pro/) and open **Engage apps**.
-2. Choose **Create Engage app**, select your active consumer assignment and a
-   starter or existing **Experience configuration**. Select **Embed on my website**.
+2. Choose **Create Engage app**, then **Connect deployment**. Select your AI
+   deployment and environment, and use its verified release or configure a
+   draft before deploying. Choose a starter or existing **Experience
+   configuration** and **Embed on my website**. You do not need an assignment ID.
 3. Enter your exact HTTPS website origins, for example
    `https://www.example.com`. Include the apex origin separately if used.
    Paths and wildcards are not origins.
@@ -38,14 +40,34 @@ script into your website.
 
 ## Add A Standalone App
 
-Choose **Create Engage app** and **Standalone app**. Select the same consumer
-assignment and experience configuration, then enter a unique app slug and any
+Choose **Create Engage app** and **Standalone app**. Connect the same deployment,
+environment and release and choose an experience configuration, then enter a unique app slug and any
 optional custom domains. Save, verify the address, resolve readiness and
 activate. The resulting app uses the shared Engage frontend at its own HTTPS
 address; it requires no script in a customer page.
 
 See the [standalone delivery guide](LOOMAI_ENGAGE_STANDALONE_AI_WORKSPACE_DELIVERY_GUIDE.md)
 for custom-domain DNS and visitor sign-in details.
+
+## Connect Or Change Deployment
+
+From a deployment's details, choose **Connect Engage app**, then create an app
+or select an existing app. From an app, choose **Change deployment**. Both open
+the same deployment/environment/release picker. Names and readiness are shown;
+technical assignment references remain in **Advanced**.
+
+Selecting an existing connection does not rebind it. Moving one app uses a
+destination connection, preserving the other apps on the original assignment.
+Your branding, authentication, tools and delivery settings stay in the app;
+review any readiness differences before activating. Unsaved appearance edits
+also survive opening the connection panel.
+
+A deployment/environment connection without a release supports configuration
+and saving a draft, not runtime access. When the runtime is ready, select its
+verified release, save, refresh readiness and activate. An active installation
+must first be explicitly disabled for editing. If a connection is created but
+app saving fails, it remains available for selection; do not create another
+connection to retry the same save.
 
 ## Use Both
 
@@ -71,13 +93,22 @@ the workspace name identifies the installation in your account.
 Change the assistant name, HTTPS logo image URL, brand colour, light/dark/system
 appearance, welcome message and input placeholder. The preview updates without
 saving. Switch between Website dock, MAX workspace and Standalone app, desktop
-and phone, and sample welcome/conversation/human-support screens. On a smaller
+and phone, and sample welcome/conversation/result screens. On a smaller
 screen, use the Settings and Preview tabs.
 
-The canvas uses sample content and shared widget presentation components. It
+The canvas uses the live pack's presentation defaults, configured default and
+contextual tool groups, icons, tool rail and registered result renderers.
+**Attached context** lets you inspect contextual tools without capturing a real
+page. Available samples include sources, confirmations and receipts; human
+support samples and intake controls follow the assigned runtime's safe
+capability projection. Sign-in samples follow the selected interaction profile.
+Unknown runtime capabilities and unsupported extensions are shown as limitations,
+not simulated as working integrations. Private adapter responses are not called.
+
+The canvas uses synthetic content and shared widget presentation components. It
 does not call AI, execute actions, open visitor conversations, or change your
 deployment. A sample human-support screen does not enable human support.
-Only the appearance controls are saved; preview view/device/sample switches
+Only configuration edits are saved; preview view/device/sample/sign-in switches
 do not change delivery or capabilities.
 
 Logos must be publicly browser-loadable HTTPS images without embedded
@@ -89,6 +120,19 @@ An active app can be previewed safely. To publish changes, explicitly choose
 **Disable for editing**, confirm, save the draft, check readiness and activate
 again. Viewing or closing the preview never changes an active app. Changes
 apply to this installation only; a second delivery channel remains independent.
+
+## Custom Domain Records
+
+For a standalone app, save an exact custom hostname. Its domain panel shows
+copyable **TXT ownership** and **CNAME routing** records. Add both at your DNS
+provider, then select **Verify domain**. Route/HTTPS pending is not yet verified.
+If the CNAME target is missing, this is a Platform setup issue, not a value the
+customer should guess. A website embed on your existing site needs no CNAME/TXT.
+
+After verification, resolve any runtime-origin readiness checks through the
+normal publish/apply flow, then activate explicitly. For magic links or OAuth,
+also configure the exact new address in your identity provider's redirects.
+Domain verification does not modify that external provider on your behalf.
 
 ## Configuration And Access
 

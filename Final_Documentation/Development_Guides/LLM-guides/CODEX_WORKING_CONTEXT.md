@@ -10969,3 +10969,28 @@ test is being called hosted acceptance. UI extraction remains last.
 - Phases C1 connection, P1 parity, D1 domains, R1 scoped hosted release. Avoid
   new services/framework release/versioning or recovery machinery. Independent
   hard extensions are recorded rather than widening the basic customer journey.
+
+### 2026-10-29 Engage 010.52 SOURCE IMPLEMENTED, HOSTED ACCEPTANCE IN PROGRESS
+
+- Latest execution supersedes planned-only entry: backend `51e036467`, pack/
+  widget preview `16009ccc3`, Console integration `afabb4ce9`; pushed branch
+  Platform-V11. CI40964601088 in progress when recorded, not yet deployment proof.
+- Shared customer connection panel creates an internal deterministic assignment
+  through existing owned target/binding authorization. Configuration-only drafts
+  do not require a release; activation still does. App-only moves use destination
+  assignment, not shared-consumer rebind. Existing active edit lifecycle retained.
+- Safe exact-release handover capability/intake read endpoint; preview carries
+  only allowlisted display state. Actual pack default/context tools/rail/renderers
+  now shared, with domain fixtures inside packs. Unknown/private extension cases
+  are visible limitations, not working-integration claims.
+- 183 backend / 61 Console focused tests passed; widget/packs/Console builds
+  passed. Local CUA connection->draft save and preview context/tool checks passed.
+- Domain canary DRAFT awi_pub_be622d27062f1320bfb872757d8bd5d9, hostname
+  engage-canary.loomai.pro. Source Northfield standalone/embed apps unchanged.
+  Owner asked for engage A46.225.162.106, engage-canary CNAMEengage.loomai.pro,
+  and exact generated ownership TXT (question/private receipt). DNS/TLS/full
+  custom-origin activation still unqualified. No runtime/framework change.
+- Receipts ~/.codex/private/loomai-onboarding-01049/production/engage-01052-domain/;
+  local screenshot output/engage-01052/. Scoped backend rollout helper
+  engage-01052-backend-rollout.mjs has a fresh receipt directory. Do not reuse
+  old fixed receipt folders or retry native deployment after unknown outcomes.

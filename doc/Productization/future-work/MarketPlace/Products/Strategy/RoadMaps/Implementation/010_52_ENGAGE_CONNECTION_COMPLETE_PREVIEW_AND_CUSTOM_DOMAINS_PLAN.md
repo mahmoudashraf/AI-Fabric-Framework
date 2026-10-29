@@ -1,7 +1,8 @@
 # 010.52 Engage Connection, Complete Preview And Custom Domains
 
 Date: 2026-10-29.
-Status: planned; implementation and hosted acceptance are not complete.
+Status: source implemented and pushed; hosted rollout/acceptance in progress.
+Custom-domain acceptance awaits the owner's DNS records.
 Predecessors: [010.50 delivery setup](010_50_ENGAGE_EMBEDDED_AND_STANDALONE_CUSTOMER_SETUP.md)
 and [010.51 appearance preview](010_51_ENGAGE_CUSTOMER_APPEARANCE_AND_VISUAL_PREVIEW.md).
 
@@ -301,3 +302,40 @@ plan instead of broadening the basic product journey.
 
 No application, deployment, DNS, assignment or authentication setting was
 changed when creating this plan.
+
+### Execution Checkpoint: 2026-10-29
+
+- Backend source `51e036467`: atomic owned connection composition reuses the
+  existing consumer/binding history and exact target authorization. Null release
+  supports configuration-only connections; a supplied release still requires
+  normal verified binding. A read-only capability projection shares the public
+  handover projection, including intake and allowed user transitions.
+- Preview source `16009ccc3`: canonical object groups, shared live pack
+  presentation resolvers, all supported tool groups/rail, registered renderers
+  and pack-owned fixtures, auth/history/sources/attachment/handover samples.
+  No live controller, credentials, requests, storage or customer scripts inside
+  the opaque preview frame. Page attachment remains dock-only, matching MAX.
+- Console integration source `afabb4ce9`: shared connection picker from both
+  resource sides, draft/activation command split, owned destination connection
+  rather than shared consumer rebind, appearance preservation, Advanced IDs,
+  complete supported preview props and copyable domain instructions.
+- Focused verification: 183 backend tests and 61 Console tests passed. Widget,
+  both packs and Console production builds passed. Existing size/runtime-config
+  build warnings remain; no new framework release or broad matrix was run.
+- CUA local acceptance: deployment-first picker, exact environment/release,
+  configuration-only connection plus draft save, default/contextual switching,
+  more than eight configured tools, retained attachment while browsing and
+  conditional support samples. Synthetic fixture is
+  `verification-support/engage-01052/local-fixture.mjs`.
+- CI `40964601088` publishes only affected backend/Console images from
+  `afabb4ce954e2c85cb513f817aa08de0e6688e26`; its final result and hosted
+  acceptance are not yet recorded here.
+- Separate inactive production domain-qualification app created:
+  `awi_pub_be622d27062f1320bfb872757d8bd5d9`, custom host
+  `engage-canary.loomai.pro`. The original Northfield apps/assignments were not
+  changed. Requested exact A/CNAME/TXT records from owner; no ownership, TLS,
+  runtime-origin or activation success is claimed until those checks pass.
+- Preview limitations remain explicit: automatic page inference uses a safe
+  synthetic page; private adapter responses and custom scripts are not invoked;
+  unsupported renderer/mapping extensions need bundled fixtures. Runtime
+  handover configuration is authoritative, not an ignored pack-only flag.
