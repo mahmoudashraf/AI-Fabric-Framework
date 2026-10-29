@@ -180,10 +180,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
 
   const customers = customersQuery.data ?? []
   const customer = customers.find((item) => item.id === customerId) ?? null
-  commandContext.current = customerScopeLocked && offersQuery.isSuccess && portfolioQuery.isSuccess
-    && customersQuery.isSuccess && !offersQuery.isFetching && !portfolioQuery.isFetching && !customersQuery.isFetching
+  commandContext.current = customerScopeLocked && portfolioQuery.isSuccess
+    && customersQuery.isSuccess && !portfolioQuery.isFetching && !customersQuery.isFetching
     ? { actorId: auth.session?.actorId, customerId, consumers: customer?.consumers ?? [],
-      offers: offersQuery.data, deployments: portfolioQuery.data } : null
+      deployments: portfolioQuery.data } : null
   const prepareCommand = async (consumerIds: string | string[]) => {
     if (customerScopeLocked) await prepareCustomerEngageCommand(
       () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession,
@@ -211,16 +211,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const reviewedOffer = offersQuery.data?.find((item) => item.id === reviewedDeployment?.offerId
     && item.fingerprint === reviewedDeployment.offerFingerprint
     && item.entitlement.customerId === customerId && item.entitlement.status === 'ACTIVE')
-  const reviewedTarget = reviewedOffer?.targets.find((item) => item.id === consumer?.boundTargetProfileId)
   const reviewedScopeReady = Boolean(consumer?.customerId === customerId && consumer.status === 'ACTIVE'
-    && reviewedTarget?.capabilities.includes('APP_CONFIGURE')
-    && reviewedTarget.capabilities.includes('AUTH_CONFIGURE') && reviewedTarget.capabilities.includes('DOMAIN_CONFIGURE'))
+    && reviewedDeployment && consumer.boundTargetProfileId && consumer.boundReleaseId)
   const reviewedProfilesQuery = useQuery({
     queryKey: ['ai-workspace-reviewed-profiles', customerId, reviewedOffer?.id, reviewedOffer?.fingerprint,
       reviewedOffer?.settings, reviewedOffer?.workspaceProfiles,
       installations.map((item) => [item.installationId, item.rowVersion])],
-    queryFn: () => resolveReviewedWorkspaceProfiles(reviewedOffer!, customerId, installations),
-    enabled: customerScopeLocked && editing != null && reviewedScopeReady && Boolean(reviewedOffer)
+    queryFn: () => resolveReviewedWorkspaceProfiles(reviewedOffer ?? null, customerId, installations),
+    enabled: customerScopeLocked && editing != null && reviewedScopeReady
       && installationsQuery.isSuccess,
     retry: false,
   })
@@ -397,12 +395,12 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const submit = () => {
     setConfigurationError(null)
     if (customerScopeLocked) {
-      if (!reviewedOffer || !reviewedScopeReady || !reviewedProfile) {
+      if (!reviewedScopeReady || !reviewedProfile) {
         setConfigurationError('Select an available starter or existing app configuration before saving.')
         return
       }
       try {
-        const payload = reviewedWorkspaceRequest(reviewedOffer, reviewedProfile, {
+        const payload = reviewedWorkspaceRequest(reviewedOffer ?? null, reviewedProfile, {
           consumerId: form.consumerId,
           displayName: form.displayName,
           deliveryMode: effectiveDeliveryMode as 'standalone' | 'embedded',
@@ -645,12 +643,12 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                     </MenuItem>
                   ))}
                 </TextField>
-                {offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching ? (
+                {portfolioQuery.isFetching || reviewedProfilesQuery.isFetching ? (
                   <Typography variant="body2" color="text.secondary">Loading experience configurations...</Typography>
-                ) : offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
-                  <Alert severity="error">{errorText(offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
+                ) : portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
+                  <Alert severity="error">{errorText(portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
                 ) : !reviewedScopeReady ? (
-                  <Alert severity="warning">The selected assignment needs a current reviewed offer and an entitled deployment target before configuring an app.</Alert>
+                  <Alert severity="warning">Select an active assignment connected to one of your deployments before configuring an app.</Alert>
                 ) : reviewedProfiles.length === 0 ? (
                   <Alert severity="warning">
                     No starter or existing app configuration is available for this deployment.
@@ -658,6 +656,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 ) : !reviewedProfile ? (
                   <Alert severity="warning">Select a starter or existing app configuration before saving.</Alert>
                 ) : null}
+                {offersQuery.isError ? <Alert severity="warning">Starter configurations could not be loaded. Your existing app configurations remain available.</Alert> : null}
                 {reviewedProfile ? (
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Tooltip title={reviewedProfile.interactionProfileId}><Chip label={reviewedProfile.configuration.experiencePackCode} variant="outlined" /></Tooltip>
@@ -802,8 +801,8 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
             || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
             || (effectiveDeliveryMode === 'embedded' && lines(form.origins).length === 0)
             || (customerScopeLocked
-              ? !reviewedProfile || !reviewedScopeReady || offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching
-                || offersQuery.isError || portfolioQuery.isError || reviewedProfilesQuery.isError || installationsQuery.isError
+              ? !reviewedProfile || !reviewedScopeReady || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching
+                || portfolioQuery.isError || reviewedProfilesQuery.isError || installationsQuery.isError
               : !form.profileCode || (form.packCode === 'dealership' && Boolean(detailSlugMappings.error))
                 || (form.authProfileCode === 'supabase' && (!form.supabaseProjectUrl.trim() || !form.supabasePublishableKey.trim()
                   || (!form.supabaseEmailPassword && !form.supabaseMagicLink))))}>Save draft</Button>

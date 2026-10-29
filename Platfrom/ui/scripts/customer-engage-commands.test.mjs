@@ -21,7 +21,7 @@ test('checks the current account and exact assigned target without placement or 
   const state = fixture(); let reads = 0
   await prepareCustomerEngageCommand(() => state, 'chosen', async () => { reads++; return account() })
   assert.equal(reads, 1)
-  state.offers[0].targets[1].capabilities = ['READ']
+  state.consumers[0].boundTargetProfileId = null
   await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read')))
 })
 test('missing, foreign and inactive assignments stop before an account read', async () => {
@@ -31,9 +31,18 @@ test('missing, foreign and inactive assignments stop before an account read', as
     await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read')))
   }
 })
-test('revoked entitlement, changed offer and forbidden target remain forbidden', async () => {
+test('bootstrap offer provenance does not restrict later owned-app commands', async () => {
   for (const change of [state => { state.offers[0].entitlement.status = 'REVOKED' },
-    state => { state.offers[0].fingerprint = 'changed' }, state => { state.offers[0].targets[1].capabilities = ['READ'] }]) {
+    state => { state.offers[0].fingerprint = 'changed' }, state => { state.offers[0].targets[1].capabilities = ['READ'] },
+    state => { state.offers = [] }]) {
+    const state = fixture(); change(state)
+    await prepareCustomerEngageCommand(() => state, 'chosen', async () => account())
+  }
+})
+test('missing deployment or incomplete assignment stops before an account read', async () => {
+  for (const change of [state => { state.deployments = [] },
+    state => { state.consumers[0].boundDeploymentId = 'foreign' },
+    state => { state.consumers[0].boundReleaseId = null }]) {
     const state = fixture(); change(state)
     await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read')))
   }
@@ -43,10 +52,10 @@ test('a failed authenticated account read propagates without a retry or write', 
   await assert.rejects(prepareCustomerEngageCommand(fixture, 'chosen', async () => { calls++; throw new Error('Denied') }), /Denied/)
   assert.equal(calls, 1)
 })
-test('assignment, actor and entitlement changes during the check stop the command', async () => {
+test('assignment and actor changes during the check stop the command', async () => {
   for (const change of [state => { state.actorId = 'different' }, state => { state.customerId = 'foreign' },
     state => { state.consumers[0].bindingRevision++ }, state => { state.consumers[0].boundReleaseId = 'other' },
-    state => { state.offers[0].entitlement.revision++ }]) {
+    state => { state.consumers[0].boundTargetProfileId = 'staging' }]) {
     const state = fixture()
     await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => { change(state); return account() }))
   }

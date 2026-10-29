@@ -1,4 +1,4 @@
-import type { CustomerDeploymentSummary, CustomerOfferSummary, PlatformAuthSessionSummary, PlatformConsumerSummary } from '../../api/platformApi'
+import type { CustomerDeploymentSummary, PlatformAuthSessionSummary, PlatformConsumerSummary } from '../../api/platformApi'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
 export type CustomerEngageCommandContext = {
@@ -6,23 +6,18 @@ export type CustomerEngageCommandContext = {
   customerId: string
   consumers: PlatformConsumerSummary[]
   deployments: CustomerDeploymentSummary[]
-  offers: CustomerOfferSummary[]
 }
 
 function commandScope(context: CustomerEngageCommandContext, consumerId: string) {
   const consumer = context.consumers.find(item => item.consumerId === consumerId
     && item.customerId === context.customerId && item.status === 'ACTIVE')
   const deployment = context.deployments.find(item => item.deploymentId === consumer?.boundDeploymentId)
-  const offer = context.offers.find(item => item.id === deployment?.offerId
-    && item.fingerprint === deployment.offerFingerprint && item.entitlement.customerId === context.customerId
-    && item.entitlement.status === 'ACTIVE')
-  const target = offer?.targets.find(item => item.id === consumer?.boundTargetProfileId)
-  if (!context.actorId || !consumer || !deployment || !offer || !target?.capabilities.includes('APP_CONFIGURE')) {
-    throw new Error('This app assignment is not available for configuration under the current product offer.')
+  if (!context.actorId || !consumer || !deployment || !consumer.boundTargetProfileId || !consumer.boundReleaseId) {
+    throw new Error('Select an active app assignment belonging to this customer account.')
   }
+  // Current ownership and assignment scope the command; the server authorizes the actual target and operation.
   return { actorId: context.actorId, customerId: context.customerId, consumerId,
-    deploymentId: deployment.deploymentId, offerId: offer.id, fingerprint: offer.fingerprint,
-    entitlementRevision: offer.entitlement.revision, targetProfileId: target.id,
+    deploymentId: deployment.deploymentId, targetProfileId: consumer.boundTargetProfileId,
     releaseId: consumer.boundReleaseId, bindingRevision: consumer.bindingRevision }
 }
 

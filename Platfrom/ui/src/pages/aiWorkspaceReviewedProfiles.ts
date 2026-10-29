@@ -93,7 +93,7 @@ function publicJson(value: unknown): boolean {
 }
 
 async function resolveProfile(
-  offer: CustomerOfferSummary, id: string, label: string,
+  offer: CustomerOfferSummary | null, id: string, label: string,
   interaction: unknown, theme: unknown, authentication: unknown, includeTheme = true,
   requireBootstrapPins = true,
 ): Promise<ReviewedWorkspaceProfile | null> {
@@ -116,7 +116,7 @@ async function resolveProfile(
   const interactionProfileId = await profileId('workspace', interaction)
   const themeProfileId = await profileId('theme', theme)
   const authProfileId = await profileId('auth', authentication)
-  if (requireBootstrapPins && (!allowedProfile(offer, 'INTERACTION_PROFILE_ID', interactionProfileId)
+  if (requireBootstrapPins && (!offer || !allowedProfile(offer, 'INTERACTION_PROFILE_ID', interactionProfileId)
     || !allowedProfile(offer, 'THEME_PROFILE_ID', themeProfileId)
     || !allowedProfile(offer, 'AUTH_PROFILE_ID', authProfileId))) return null
   return {
@@ -140,13 +140,14 @@ async function resolveProfile(
 
 /** Offer pins describe starter defaults; owned configurations can evolve independently. */
 export async function resolveReviewedWorkspaceProfiles(
-  offer: CustomerOfferSummary,
+  offer: CustomerOfferSummary | null,
   customerId: string,
   installations: AIWorkspaceInstallationSummary[],
 ): Promise<ReviewedWorkspaceProfile[]> {
-  if (offer.entitlement.customerId !== customerId || offer.entitlement.status !== 'ACTIVE') return []
   const choices: ReviewedWorkspaceProfile[] = []
-  for (const profile of offer.workspaceProfiles ?? []) {
+  const starters = offer?.entitlement.customerId === customerId && offer.entitlement.status === 'ACTIVE'
+    ? offer.workspaceProfiles ?? [] : []
+  for (const profile of starters) {
     if (!record(profile) || !exactFields(profile, ['id', 'label', 'interaction', 'theme', 'authentication'])
       || !text(profile.id) || !text(profile.label, 200) || !(record(profile.theme) || profile.theme === null)) continue
     const id = `offer:${profile.id}`
@@ -178,13 +179,12 @@ export async function resolveReviewedWorkspaceProfiles(
 }
 
 export function reviewedWorkspaceRequest(
-  offer: CustomerOfferSummary,
+  _offer: CustomerOfferSummary | null,
   profile: ReviewedWorkspaceProfile,
   input: Pick<SaveAIWorkspaceInstallationRequest,
     'consumerId' | 'displayName' | 'appSlug' | 'customDomains' | 'allowedOrigins' | 'rowVersion'>
     & { deliveryMode?: 'standalone' | 'embedded' },
 ): SaveAIWorkspaceInstallationRequest {
-  if (offer.entitlement.status !== 'ACTIVE') throw new Error('The current customer entitlement is unavailable.')
   const displayName = input.displayName.trim()
   if (!displayName || displayName.length > 255) {
     throw new Error('The app name must contain between 1 and 255 characters.')

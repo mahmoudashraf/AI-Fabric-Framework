@@ -197,7 +197,7 @@ try {
   })
 
   await page.goto(`${uiBaseUrl}/ai-workspaces`, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'AI Workspaces' }).waitFor()
+  await page.getByRole('heading', { name: 'Engage apps' }).waitFor()
   await page.getByText('Alpha Workspace', { exact: true }).waitFor()
   if (await page.getByText('Beta Workspace', { exact: true }).count()) {
     throw new Error('Customer-scoped installation list leaked a second customer row.')

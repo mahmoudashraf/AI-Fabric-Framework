@@ -151,9 +151,9 @@ test('never takes payloads or entitlements from a different customer', async () 
     { ...original, customerId: 'customer-two' },
   ]), [])
   assert.deepEqual(await resolveReviewedWorkspaceProfiles(offer, 'customer-two', [original]), [])
-  assert.deepEqual(await resolveReviewedWorkspaceProfiles({
+  assert.equal((await resolveReviewedWorkspaceProfiles({
     ...offer, entitlement: { ...offer.entitlement, status: 'REVOKED' },
-  }, 'customer-one', [original]), [])
+  }, 'customer-one', [original])).length, 1)
 })
 
 test('opaque IDs with no available payload do not produce invented defaults', async () => {
@@ -239,7 +239,16 @@ test('delivery requires a supported channel and its required installation fields
   assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, deliveryMode: 'both' }), /supported delivery/)
   assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, deliveryMode: 'embedded' }), /HTTPS website origin/)
   assert.throws(() => reviewedWorkspaceRequest(offer, profile, { ...input, appSlug: '' }), /address/)
-  assert.throws(() => reviewedWorkspaceRequest({ ...offer, entitlement: { status: 'REVOKED' } }, profile, input), /entitlement/)
+  assert.equal(reviewedWorkspaceRequest(null, profile, input).consumerId, input.consumerId)
+})
+
+test('owned configurations work without a current bootstrap offer, while foreign installations stay excluded', async () => {
+  const original = installation()
+  const profiles = await resolveReviewedWorkspaceProfiles(null, 'customer-one', [original,
+    { ...original, customerId: 'customer-two', installationId: 'foreign' }])
+  assert.equal(profiles.length, 1)
+  assert.equal(profiles[0].id, original.installationId)
+  assert.deepEqual(reviewedWorkspaceRequest(null, profiles[0], input).configuration, original.configuration)
 })
 
 test('creates the first app from published normalized profiles with no existing installations', async () => {
