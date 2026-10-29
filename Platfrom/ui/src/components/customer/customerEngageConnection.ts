@@ -1,4 +1,13 @@
-import type { DeploymentReleaseSummary, PlatformConsumerSummary } from '../../api/platformApi'
+import type { DeploymentReleaseSummary, DeploymentTargetProfileSummary, PlatformConsumerSummary } from '../../api/platformApi'
+
+export function initialConnectionTarget(targets: DeploymentTargetProfileSummary[], currentTargetId?: string | null,
+  bootstrapTargetId?: string | null) {
+  const available = targets.filter(item => item.active)
+  // Preserve explicit environment intent; never substitute staging for an unavailable production target.
+  if (currentTargetId) return available.some(item => item.id === currentTargetId) ? currentTargetId : ''
+  if (bootstrapTargetId) return available.some(item => item.id === bootstrapTargetId) ? bootstrapTargetId : ''
+  return available.length === 1 ? available[0].id : ''
+}
 
 export function matchingEngageConnections(consumers: PlatformConsumerSummary[], customerId: string,
   deploymentId: string, targetProfileId: string, releaseId: string | null) {

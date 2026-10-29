@@ -6,7 +6,7 @@ import { createAIWorkspaceConnection, fetchDeploymentReleases, fetchDeploymentTa
   fetchPlatformAuthSession, type AIWorkspaceInstallationSummary, type CustomerDeploymentSummary,
   type PlatformConsumerSummary } from '../../api/platformApi'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
-import { connectableRelease, initialConnectionRelease, matchingEngageConnections } from './customerEngageConnection'
+import { connectableRelease, initialConnectionRelease, initialConnectionTarget, matchingEngageConnections } from './customerEngageConnection'
 
 export function CustomerEngageConnectionPanel({ open, onClose, customerId, actorId, deployments, consumers, apps,
   initialDeploymentId, currentConsumerId, currentApp, chooseApp = false, onConnected, onManageApp }: {
@@ -42,8 +42,11 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
     queryFn: () => fetchDeploymentReleases(deploymentId), enabled: open && Boolean(deploymentId), retry: false })
   useEffect(() => {
     if (!targets.isSuccess || !releases.isSuccess) return
-    if (!targetId && targets.data.length === 1) {
-      const id = targets.data[0].id; setTargetId(id)
+    if (!targetId) {
+      const id = initialConnectionTarget(targets.data, current?.boundTargetProfileId,
+        deployments.find(item => item.deploymentId === deploymentId)?.bootstrapTargetProfileId)
+      if (!id) return
+      setTargetId(id)
       setReleaseId(initialConnectionRelease(releases.data, id, current))
     }
   }, [targets.data, releases.data, targetId])
