@@ -14,13 +14,13 @@ This is more than renaming a knowledge chatbot. A specialist has a bounded purpo
 
 **Do not add a fourth deployment behavior type, a SUPPORT plugin type, a separate Product Profile, or a new orchestration engine.** Reuse TEMPLATE, SPECIALIST, ACTION, DATA/knowledge contributions, inference/runtime profiles, Engage installations, managed Desk and the existing draft/version/release lifecycle. Support is a reusable customer solution composed from those primitives.
 
-Keep **CONVERSATIONAL as the customer-facing behavior**, with an explicitly implemented optional specialist-assistance composition capability. The conceptual name `SPECIALIST_ASSISTANCE` in this appendix is proposed, not an existing extension ID. Its purpose is to allow reviewed specialist bundles and bounded specialist/chain invocation inside a normal owner-controlled conversation, while retaining current Conversation Handover.
+Keep **CONVERSATIONAL as the customer-facing behavior**, with the optional `SPECIALIST_ASSISTANCE` composition extension now implemented in Platform/runtime. It allows reviewed specialist bundles and bounded specialist/chain invocation inside a normal owner-controlled conversation, while retaining Conversation Handover. Exact source, hosted evidence and remaining release gates are tracked in [the execution record](010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md); implementation is not a claim of production qualification.
 
 Do not change the widget to call the existing `/api/agentic/v1` endpoint and claim equivalent support behavior. That endpoint is fixed-purpose today and does not supply the canonical support conversation or Desk handover lifecycle.
 
 ## 2. What Exists and What Does Not
 
-### Source baseline
+### Pre-implementation source baseline (2026-10-30)
 
 Platform's current runtime parent POM declares AI Fabric **0.8.41**. This analysis inspected its published [execution sources from Maven Central](https://repo.maven.apache.org/maven2/io/github/loom-ai-labs/ai-fabric-execution/0.8.41/ai-fabric-execution-0.8.41-sources.jar), not only the older sibling framework checkout. Artifact SHA256: `43cb3cb19ff776c97e28670b34af3571dea5558f6605720bf8e685690cb9b323`.
 
@@ -37,7 +37,9 @@ This is a source/API assessment, not a new claim about hosted framework versions
 
 Important chain constraints: managers do not themselves retrieve or execute actions; workers are read-only, non-interactive and conversation-isolated. Independent parallel fan-in is `ALL_REQUIRED`, not best effort. Declarative worker input mapping supports chain input and manager objective, not arbitrary structured prior-worker-output mappings. Earlier results can inform the bounded manager decision; do not promise a general dataflow/DAG language.
 
-### Current LoomAI restrictions
+### Restrictions identified before implementation
+
+These findings explain the changes required by this plan, not the current deployed feature inventory. The compiler, published resource loader, optional Conversational composition and shared capability editor have since been implemented; use the dated execution record for verification status.
 
 - [DeploymentBehaviorCatalogService](../../../../../../../../Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/behavior/DeploymentBehaviorCatalogService.java) gives Conversational zero required specialist bundles and currently rejects additional bundles. Agentic requires the specific deployment-intelligence bundle rather than any customer-defined team.
 - [DeploymentIntelligenceTeamService](../../../../../../../../ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/agentic/DeploymentIntelligenceTeamService.java) invokes the hard-coded `deployment-intelligence-team@1`. Its sample runtime-state worker describes the AI runtime itself, not the requesting customer's selected deployment. It is not a substitute for the authorized support diagnostic facade.
@@ -46,13 +48,13 @@ Important chain constraints: managers do not themselves retrieve or execute acti
 - Conversation Handover is currently compatible with Conversational, not Agentic Specialist Team. Human Review on Agentic is a different feature.
 - [BehaviorPage](../../../../../../../../Platfrom/ui/src/pages/BehaviorPage.tsx), Marketplace and deployment-wide Prompts editors are reusable surfaces, but do not yet provide support-area, per-specialist instruction or resolution-capability configuration.
 
-**Consequence:** this is genuine generic productization work. Existing framework primitives make it plausible without a new engine, but publishing a template alone cannot enable it. Do not label it configuration-only or already available.
+**Consequence:** this required genuine generic productization work, not template configuration alone. The implementation uses the existing framework primitives without a new engine. Do not infer hosted or production availability from publication alone.
 
 ## 3. Template and Instance Separation
 
 ### Reusable template
 
-Proposed catalogue code `ai-support-workspace`, human name **AI Support Workspace**. Record a normal Marketplace TEMPLATE version and its dependency versions. This code is not yet registered.
+Catalogue code `ai-support-workspace`, human name **AI Support Workspace**, is registered and published on staging as a normal Marketplace TEMPLATE. Revision `1.0.1` bootstraps editable area/resolution defaults while deferring assistance until the required knowledge connection is configured. Production storage and public-offer qualification remain separate gates.
 
 The template contributes:
 

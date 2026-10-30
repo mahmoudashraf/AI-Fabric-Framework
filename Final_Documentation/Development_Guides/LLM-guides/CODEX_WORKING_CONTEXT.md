@@ -11337,3 +11337,42 @@ test is being called hosted acceptance. UI extraction remains last.
   corrected-runtime applies, actualsupport UI->knowledge/reads->human/resolve/
   return/reopen/isolation, second-company qualification. ProductionS3support
   prerequisite remains owner-pending inRequired for production. No completion claim.
+
+### 2026-10-30 22:30 UTC 010.54 Current Execution Status
+
+- Supersedes the 20:00 checkpoint. Staging backend13752669e and Consoleb1c571502
+  are native-source-verified healthy; sharedDesk29dbc119. Framework remains
+  published0.8.41. Production Platform/Console are not upgraded for010.54.
+- Existing connected deployments: internaldep-a2706601/ver-8ea974d5/
+  rel-56cf8fad and Acmedep-86fef557/ver-04965bc8/rel-f10ef491 are both
+  APPLIED_VERIFIED on runtime07e49132/artifactdsa-ab07f149. Both existing Engage
+  installations retain their IDs and are ACTIVE on the latest verified bindings.
+- Actual Console support form/knowledge/consent denial+read/human handover/
+  Deskcontext/reply/return/caseResolve/Reopen/Cancel/terminalnewEpisode passed.
+  SUP-930E511F-FA9 retains two episodes; its second was explicitly created empty,
+  not an intake replay. Acme separate standaloneapp/sign-in/knowledge/Deskreply/
+  return passed with contextNOT_CONFIGURED, not a LoomAI case-provider dependency.
+  A separate Acme request to sharedLoomAIsupport completed; both known requesters
+  receive404 for each other's cases. Actual customer editor save/restore passed.
+- TEMPLATE1.0.1 published/readback and freshownedtenant bootstrapdep-fc33edc4
+  passed. RequiredS3 remains configuration-required. Mountedcanaries prove only
+  explicitly labelled staging mechanics, not production customer storage.
+- Worker READ planning corrected in13752669e: declaredREAD workers useexecutor,
+  docs-onlynavigator_deep, managerresolver; exactscope/write ceilings unchanged.
+  Real Acme two-workerchain completed with independent workspace+service READs.
+- Internalchain requestedCLARIFICATION_REQUIRED, not hidden/success. Its wrapper
+  discarded SDKpublic explanation; narrow runtimefix23eaf650c is committed/pushed
+  with41focused invoker/budget/control testsPASS. Immutable runtime image build
+  and exact hosted correction are still pending at this checkpoint. No framework
+  release, semantic textmatching, automatic retry or recovery redesign.
+- Private operations/evidence: ~/.codex/private/loomai-support-01054/; current
+  runtime-artifact-staging.private.json, connected-*-final.private.json,
+  read-worker-configurations.private.json, ui-case-terminal.private.json,
+  ui-case-new-episode-empty.private.json, acme-quality-read-planning.private.json,
+  shared-support-requester.private.json and shared-support-isolation.private.json.
+  Credentials only in ignored identities/managed-secret references, never tracked.
+- Next: qualify23eaf650c runtime on these same versions/targets, rebind unchanged
+  Engageapps, final UI/error/knowledge/READ checks and screenshots, close source
+  runbooks. Production awaits isolated supportS3 private configuration and normal
+  support binding/staff/offer qualification. Required for production owns that
+  external prerequisite. Do not mark010.54 complete or silently use dealershipS3.

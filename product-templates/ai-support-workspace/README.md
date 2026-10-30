@@ -6,6 +6,10 @@ confirmed its staging GET returns `404`. Both source snapshots stay unchanged.
 The corrected ACTION `1.0.1` and mounted mechanics TEMPLATEs were separately
 published and read back on staging on 2026-10-30. See `catalog.json` and the
 010.54 execution record; publication is not hosted journey qualification.
+Reusable TEMPLATE `1.0.1` also passed a fresh owned-tenant bootstrap on staging;
+its S3 dependency correctly remains configuration-required. The two connected
+staging installations use separately labelled mounted mechanics sources, not a
+substitution for production customer-owned storage.
 This package adds no service, database, execution engine or plugin type.
 
 ## Product Contract
@@ -106,6 +110,12 @@ explicit read-planner allowlist: `consult_specialist` plus only area-selected,
 installed eligible READ actions. Unrelated installed actions, writes and wildcard
 authority are not added. Nested workers retain their own narrower declared READ
 catalogue and caller-scope checks.
+Workers with declared READ tools use the existing `executor` mode, enabling its
+bounded cooperative READ planning. Documentation-only workers use
+`navigator_deep`; managers use `resolver`. A worker never gains another area's
+tools or WRITE authority, and a documentation question does not force live reads.
+Changing this generated configuration requires a new normal publish/apply;
+existing immutable versions are not rewritten.
 
 The existing release verifier runs pack `conversational-specialist-assistance-v1`
 through check `runtime_specialist_assistance_matches_expected`. It compares the

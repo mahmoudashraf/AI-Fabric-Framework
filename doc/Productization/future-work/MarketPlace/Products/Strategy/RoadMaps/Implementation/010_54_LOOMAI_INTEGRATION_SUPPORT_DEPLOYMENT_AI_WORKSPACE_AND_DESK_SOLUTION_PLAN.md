@@ -10,7 +10,7 @@
 
 **Owner decision (2026-10-30):** implement fully, including generic structural Platform/runtime changes required for a reusable configurable support template. Use LoomAI Platform, authenticated Engage and LoomAI Desk for the first installation. Track incremental implementation and hosted evidence in [the execution record](010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md); design approval is not proof of completion.
 
-**Relationship to 010.53:** this is the proposed replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). Preserve its lightweight entry points, request tracking and consent principles. Replace its separate staff discussion/triage experience with our deployment, Engage and Desk products. If approved, 010.54 becomes canonical; do not implement both designs.
+**Relationship to 010.53:** after owner approval, this is the canonical replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). It preserves lightweight entry points, request tracking and consent principles, replacing the separate staff discussion/triage experience with deployment, Engage and Desk products. Do not implement both designs.
 
 ## 1. Recommendation and Product Outcome
 
