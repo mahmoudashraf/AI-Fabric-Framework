@@ -14,8 +14,10 @@ import ai.fabric.execution.specialist.client.SpecialistClientFactory;
 import ai.fabric.execution.specialist.client.SpecialistInvocation;
 import ai.fabric.intent.action.*;
 import ai.fabric.intent.orchestration.control.OrchestrationControlException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -132,7 +134,7 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                 verifyParent(context);
                 data.put("executionRef", result.invocationId());
                 data.put("status", result.status().name());
-                data.put("findings", result.output() == null ? Map.of() : result.output());
+                data.put("findings", result.output() == null ? Map.of() : plainJson(result.output()));
                 data.put("evidence", result.evidence());
                 data.put("observedAt", result.completedAt() == null ? Instant.now() : result.completedAt());
                 if (!result.succeeded()) return ActionResult.builder().success(false)
@@ -147,6 +149,15 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
         @Override public ActionResult handleError(Exception failure, ActionContext context) {
             if (failure instanceof OrchestrationControlException control) throw control;
             return failure("SPECIALIST_INVOCATION_FAILED", "The configured diagnostic capability could not complete.");
+        }
+    }
+
+    private Object plainJson(JsonNode value) {
+        // The framework sanitizer treats JsonNode as Iterable rather than named JSON fields.
+        try {
+            return mapper.readerFor(Object.class).with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(value);
+        } catch (IOException failure) {
+            throw new IllegalStateException("Could not convert structured specialist findings.", failure);
         }
     }
 

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.config.ResponseSanitizationProperties;
 import ai.fabric.execution.chain.*;
 import ai.fabric.execution.context.*;
 import ai.fabric.execution.gateway.*;
@@ -12,11 +13,16 @@ import ai.fabric.execution.specialist.SpecialistId;
 import ai.fabric.execution.specialist.client.*;
 import ai.fabric.intent.action.*;
 import ai.fabric.intent.orchestration.OrchestrationContext;
+import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.control.OrchestrationControlException;
 import ai.fabric.intent.orchestration.control.OrchestrationTurnGuard;
 import ai.fabric.intent.orchestration.pipeline.PipelineContext;
 import ai.fabric.intent.orchestration.request.*;
+import ai.fabric.privacy.pii.PIIDetectionService;
+import ai.fabric.security.ResponseSanitizer;
 import com.fasterxml.jackson.databind.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -224,6 +230,106 @@ class SpecialistAssistanceActionContributorTest {
             .isInstanceOf(OrchestrationControlException.class);
         verify(chains).cancel("chain-check-1", context.pipelineContext().getOrchestrationRequest().trustedExecutionContext());
         verifyNoInteractions(clients);
+    }
+
+    @Test void rawJsonNodeIsRetainedByTheContractButTreatedAsIterableByTheFrameworkSanitizer() throws Exception {
+        var output = mapper.readTree("{\"answer\":\"Approved guidance\"}");
+        var payload = ActionResultContracts.object(Map.of("findings", output));
+        assertThat(payload.toMap().get("findings")).isSameAs(output);
+
+        var raw = ActionResult.builder().success(true).data(payload).build();
+        assertThat(sanitizedWire(raw).at("/data/actionResult/data/findings"))
+            .isEqualTo(mapper.readTree("[[]]"));
+    }
+
+    @Test void structuredDirectFindingsRetainKeysAndNativeTypesThroughContractSanitizationAndHttpSerialization() throws Exception {
+        JsonNode output = mapper.readerFor(JsonNode.class).with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue("""
+            {"answer":"Approved guidance","verified":true,"changed":false,"count":2,
+             "longCount":9007199254740993,"largeCount":123456789012345678901234567890,
+             "ratio":0.12345678901234567890123456789,
+             "steps":[{"label":"Check DNS","ready":false,"attempts":3},["next",7,true]],
+             "emptyObject":{},"emptyArray":[]}
+            """);
+        var result = directResult(output);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getData().toMap().get("findings")).isInstanceOf(Map.class);
+        var findings = (Map<?, ?>) result.getData().toMap().get("findings");
+        assertThat(findings.get("answer")).isEqualTo("Approved guidance");
+        assertThat(findings.get("verified")).isEqualTo(true);
+        assertThat(findings.get("changed")).isEqualTo(false);
+        assertThat(findings.get("count")).isEqualTo(2);
+        assertThat(findings.get("longCount")).isEqualTo(9007199254740993L);
+        assertThat(findings.get("largeCount")).isEqualTo(new BigInteger("123456789012345678901234567890"));
+        assertThat(findings.get("ratio")).isEqualTo(new BigDecimal("0.12345678901234567890123456789"));
+        assertThat(sanitizedWire(result).at("/data/actionResult/data/findings")).isEqualTo(output);
+    }
+
+    @Test void directFindingsAlsoPreserveArrayAndScalarJsonShapes() throws Exception {
+        for (String json : List.of("[1,{\"ready\":false},[\"next\",true]]", "\"Guidance\"", "false", "42", "[]", "{}")) {
+            JsonNode output = mapper.readTree(json);
+            assertThat(sanitizedWire(directResult(output)).at("/data/actionResult/data/findings"))
+                .as("structured output %s", json).isEqualTo(output);
+        }
+    }
+
+    @Test void directFindingsPreserveExplicitNullAtTheActionContractBoundary() throws Exception {
+        var result = directResult(mapper.readTree("{\"answer\":\"Guidance\",\"missing\":null,\"values\":[null,false]}"));
+        assertThat(result.getData().toMap().get("findings")).isInstanceOf(Map.class);
+        var findings = (Map<?, ?>) result.getData().toMap().get("findings");
+        assertThat(findings.containsKey("missing")).isTrue();
+        assertThat(findings.get("missing")).isNull();
+        assertThat(findings.get("values")).isEqualTo(Arrays.asList(null, false));
+    }
+
+    @Test void officialChainProjectionRecordsKeepStructuredFactsEvidenceAndLineage() throws Exception {
+        var projections = List.of(
+            new SpecialistChainResultView("result-setup", "assist-area-setup@1", "worker-setup", "Check setup",
+                Map.of("ready", "false", "attempts", "3"), List.of("guide-setup"), "b".repeat(64), Instant.parse("2026-10-30T19:00:00Z")),
+            new SpecialistChainResultView("result-policy", "assist-area-policy@1", "worker-policy", "Check policy",
+                Map.of("status", "CURRENT"), List.of("guide-policy"), "c".repeat(64), Instant.parse("2026-10-30T19:00:01Z")));
+        var completed = new SpecialistChainExecutionResult("chain-check-1", SpecialistChainId.parse("assist-chain-setup@1"),
+            "a".repeat(64), SpecialistChainExecutionStatus.COMPLETED, "Checks completed", null, projections, List.of(),
+            null, 0, null, false, true, Instant.now(), Instant.now());
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(completed));
+
+        var result = handler("[]", true).executeAction(
+            Map.of("capabilityId", "setup", "question", "Check setup and policy"), context(Set.of(), null));
+
+        assertThat(result.getData().toMap().get("findings")).isEqualTo(projections);
+        var wire = sanitizedWire(result).at("/data/actionResult/data/findings");
+        assertThat(wire).hasSize(2);
+        assertThat(wire.at("/0/summary").asText()).isEqualTo("Check setup");
+        assertThat(wire.at("/0/facts")).isEqualTo(mapper.valueToTree(Map.of("ready", "false", "attempts", "3")));
+        assertThat(wire.at("/0/evidenceReferenceIds")).isEqualTo(mapper.valueToTree(List.of("guide-setup")));
+        assertThat(wire.at("/0/resultId").asText()).isEqualTo("result-setup");
+        assertThat(wire.at("/0/workerInvocationId").asText()).isEqualTo("worker-setup");
+        assertThat(wire.at("/1/facts/status").asText()).isEqualTo("CURRENT");
+        assertThat(wire.at("/1/resultHash").asText()).isEqualTo("c".repeat(64));
+        assertThat(wire.at("/1/completedAt").asText()).isEqualTo("2026-10-30T19:00:01Z");
+    }
+
+    private ActionResult directResult(JsonNode output) throws Exception {
+        SpecialistClient<JsonNode, JsonNode> client = mock(SpecialistClient.class);
+        when(clients.bind(SpecialistId.parse("assist-area-setup@1"), JsonNode.class, JsonNode.class)).thenReturn(client);
+        var handle = mock(ExecutionHandle.class);
+        when(handle.invocationId()).thenReturn("structured-check");
+        when(client.submit(any(SpecialistInvocation.class))).thenReturn(handle);
+        var completed = new AIExecutionResult<>("structured-check", SpecialistId.parse("assist-area-setup@1"),
+            AIExecutionStatus.SUCCEEDED, output, List.of(), Map.of(), null, Instant.now(), Instant.now());
+        when(client.find(eq("structured-check"), any())).thenReturn(Optional.of(new SpecialistExecutionSnapshot<>(handle, completed)));
+        return handler("[]").executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+    }
+
+    private JsonNode sanitizedWire(ActionResult result) throws Exception {
+        var properties = new ResponseSanitizationProperties();
+        properties.setEnabled(true);
+        var sanitizer = new ResponseSanitizer(beans.getBeanProvider(PIIDetectionService.class), properties);
+        var response = sanitizer.sanitize(OrchestrationResult.builder().success(true).data(Map.of("actionResult", result)).build(), "test-session");
+        var httpMapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        return mapper.readerFor(JsonNode.class).with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .readValue(httpMapper.writeValueAsBytes(response));
     }
 
     private SpecialistChainExecutionHandle chainHandle() {
