@@ -119,10 +119,15 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                 data.put("status", result.status().name());
                 data.put("findings", result.projectedResults());
                 data.put("observedAt", result.completedAt() == null ? Instant.now() : result.completedAt());
-                if (!result.succeeded()) return ActionResult.builder().success(false)
-                    .errorCode(result.failure() == null ? "SPECIALIST_CHAIN_INCOMPLETE" : result.failure().reason())
-                    .message("Resolution checks did not complete. Do not describe the failed checks as successful.")
-                    .data(ActionResultContracts.object(data)).build();
+                if (!result.succeeded()) {
+                    var failure = result.failure();
+                    if (failure != null) data.put("retryable", failure.retryable());
+                    return ActionResult.builder().success(false)
+                        .errorCode(failure == null ? "SPECIALIST_CHAIN_INCOMPLETE" : failure.reason())
+                        .message(publicFailureMessage(failure == null ? null : failure.publicMessage(), result.message(),
+                            "The resolution checks could not be completed."))
+                        .data(ActionResultContracts.object(data)).build();
+                }
             } else {
                 var factory = clients.getIfAvailable();
                 if (factory == null) return failure("SPECIALIST_UNAVAILABLE", "The configured specialist is unavailable.");
@@ -137,10 +142,15 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                 data.put("findings", result.output() == null ? Map.of() : plainJson(result.output()));
                 data.put("evidence", result.evidence());
                 data.put("observedAt", result.completedAt() == null ? Instant.now() : result.completedAt());
-                if (!result.succeeded()) return ActionResult.builder().success(false)
-                    .errorCode(result.failure() == null ? "SPECIALIST_INCOMPLETE" : result.failure().reason())
-                    .message("The specialist check did not complete. Explain the limitation without inventing findings.")
-                    .data(ActionResultContracts.object(data)).build();
+                if (!result.succeeded()) {
+                    var failure = result.failure();
+                    if (failure != null) data.put("retryable", failure.retryable());
+                    return ActionResult.builder().success(false)
+                        .errorCode(failure == null ? "SPECIALIST_INCOMPLETE" : failure.reason())
+                        .message(publicFailureMessage(failure == null ? null : failure.publicMessage(), null,
+                            "The specialist check could not be completed."))
+                        .data(ActionResultContracts.object(data)).build();
+                }
             }
             return ActionResult.builder().success(true).message("Configured resolution checks completed.")
                 .data(ActionResultContracts.object(data)).build();
@@ -150,6 +160,13 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
             if (failure instanceof OrchestrationControlException control) throw control;
             return failure("SPECIALIST_INVOCATION_FAILED", "The configured diagnostic capability could not complete.");
         }
+    }
+
+    private static String publicFailureMessage(String declaredMessage, String resultMessage, String defaultMessage) {
+        String message = declaredMessage;
+        if (message == null || message.isBlank()) message = resultMessage;
+        if (message == null || message.isBlank()) message = defaultMessage;
+        return message.length() <= 1000 ? message : message.substring(0, 1000);
     }
 
     private Object plainJson(JsonNode value) {

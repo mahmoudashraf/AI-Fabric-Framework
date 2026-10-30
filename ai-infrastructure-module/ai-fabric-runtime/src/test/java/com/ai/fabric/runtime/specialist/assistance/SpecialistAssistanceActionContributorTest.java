@@ -207,8 +207,118 @@ class SpecialistAssistanceActionContributorTest {
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getErrorCode()).isEqualTo("WORKER_FAILED");
-        assertThat(result.getMessage()).contains("Do not describe the failed checks as successful");
+        assertThat(result.getMessage()).isEqualTo("Worker did not complete");
+        assertThat(result.getData().toMap()).containsEntry("status", "FAILED").containsEntry("retryable", false);
+        verify(chains).submit(any(SpecialistChainExecutionRequest.class));
+        verify(chains, never()).cancel(anyString(), any());
         verifyNoInteractions(clients);
+    }
+
+    @Test void chainClarificationPreservesTheDeclaredPublicExplanationWithoutRetryOrInventingFindings() throws Exception {
+        String explanation = "Which application and deployment should I investigate?";
+        var failed = chainResult(SpecialistChainExecutionStatus.FAILED,
+            new SpecialistChainFailure("CLARIFICATION_REQUIRED", explanation, true));
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(failed));
+
+        var result = handler("[]", true).executeAction(
+            Map.of("capabilityId", "setup", "question", "Investigate setup"), context(Set.of(), null));
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorCode()).isEqualTo("CLARIFICATION_REQUIRED");
+        assertThat(result.getMessage()).isEqualTo(explanation);
+        assertThat(result.getData().toMap()).containsEntry("status", "FAILED").containsEntry("retryable", true);
+        assertThat(result.getData().toMap().get("findings")).isEqualTo(List.of());
+        var wire = sanitizedWire(result).at("/data/actionResult");
+        assertThat(wire.path("message").asText()).isEqualTo(explanation);
+        assertThat(wire.at("/data/retryable").isBoolean()).isTrue();
+        assertThat(wire.at("/data/retryable").asBoolean()).isTrue();
+        assertThat(wire.path("steps").isMissingNode()).isTrue();
+        verify(chains).submit(any(SpecialistChainExecutionRequest.class));
+        verify(chains).findResult(eq("chain-check-1"), any());
+        verify(chains, never()).cancel(anyString(), any());
+        verifyNoInteractions(clients);
+    }
+
+    @Test void defensiveChainProjectionUsesOnlyABoundedPublicResultMessageOrNeutralDefault() throws Exception {
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        var action = handler("[]", true);
+        for (String message : Arrays.asList("Which application should I investigate?", "x".repeat(1200), " ", null)) {
+            // Official failed results require failure details; mock only this defensive missing-details case.
+            var incomplete = mock(SpecialistChainExecutionResult.class);
+            when(incomplete.executionId()).thenReturn("chain-check-1");
+            when(incomplete.status()).thenReturn(SpecialistChainExecutionStatus.FAILED);
+            when(incomplete.message()).thenReturn(message);
+            when(incomplete.projectedResults()).thenReturn(List.of());
+            when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(incomplete));
+            var result = action.executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getErrorCode()).isEqualTo("SPECIALIST_CHAIN_INCOMPLETE");
+            assertThat(result.getData().toMap()).containsEntry("status", "FAILED").doesNotContainKey("retryable");
+            assertThat(result.getMessage()).isEqualTo(message == null || message.isBlank()
+                ? "The resolution checks could not be completed." : message.substring(0, Math.min(1000, message.length())));
+        }
+        verify(chains, times(4)).submit(any(SpecialistChainExecutionRequest.class));
+        verify(chains, never()).cancel(anyString(), any());
+        verifyNoInteractions(clients);
+    }
+
+    @Test void directSpecialistFailuresPreservePublicExplanationAndRetryabilityWithoutExposingDiagnostics() throws Exception {
+        for (boolean retryable : List.of(false, true)) {
+            String explanation = "The current service status is unavailable. Please provide the service identifier.";
+            var failed = new AIExecutionResult<JsonNode>("structured-check", SpecialistId.parse("assist-area-setup@1"),
+                AIExecutionStatus.FAILED, null, List.of(), Map.of("exception", "private exception details"),
+                new AIExecutionFailure("CLARIFICATION_REQUIRED", explanation, retryable), Instant.now(), Instant.now());
+
+            var result = directResult(failed);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getErrorCode()).isEqualTo("CLARIFICATION_REQUIRED");
+            assertThat(result.getMessage()).isEqualTo(explanation);
+            assertThat(result.getData().toMap()).containsEntry("status", "FAILED").containsEntry("retryable", retryable);
+            assertThat(result.getData().toMap().get("findings")).isEqualTo(Map.of());
+            var wire = sanitizedWire(result).at("/data/actionResult");
+            assertThat(wire.path("message").asText()).isEqualTo(explanation);
+            assertThat(wire.at("/data/retryable").isBoolean()).isTrue();
+            assertThat(wire.at("/data/retryable").asBoolean()).isEqualTo(retryable);
+            assertThat(wire.toString()).doesNotContain("private exception details", "diagnostics");
+        }
+        verifyNoInteractions(chains);
+    }
+
+    @Test void directFailureExplanationIsBoundedAndMissingDetailsDoNotInventClarificationOrRetryability() throws Exception {
+        var oversized = new AIExecutionResult<JsonNode>("structured-check", SpecialistId.parse("assist-area-setup@1"),
+            AIExecutionStatus.FAILED, null, List.of(), Map.of(), new AIExecutionFailure("CHECK_FAILED", "x".repeat(1200), false),
+            Instant.now(), Instant.now());
+        assertThat(directResult(oversized).getMessage()).isEqualTo("x".repeat(1000));
+
+        // Official failed results require failure details; mock only this defensive missing-details case.
+        AIExecutionResult<JsonNode> unspecified = mock(AIExecutionResult.class);
+        when(unspecified.invocationId()).thenReturn("structured-check");
+        when(unspecified.status()).thenReturn(AIExecutionStatus.FAILED);
+        when(unspecified.evidence()).thenReturn(List.of());
+        when(unspecified.diagnostics()).thenReturn(Map.of("exception", "private failure"));
+        var result = directResult(unspecified);
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorCode()).isEqualTo("SPECIALIST_INCOMPLETE");
+        assertThat(result.getMessage()).isEqualTo("The specialist check could not be completed.");
+        assertThat(result.getData().toMap()).containsEntry("status", "FAILED").doesNotContainKey("retryable");
+        assertThat(sanitizedWire(result).toString()).doesNotContain("private failure");
+        verifyNoInteractions(chains);
+    }
+
+    @Test void parentBudgetAndHumanControlFailuresAreNeverConvertedIntoSpecialistExplanations() throws Exception {
+        var action = handler("[]", true);
+        for (String code : List.of("PROVIDER_BUDGET_INTERRUPTED", "AI_TURN_REVOKED")) {
+            var control = new OrchestrationControlException(code, "The parent turn cannot continue.");
+            OrchestrationTurnGuard guard = mock(OrchestrationTurnGuard.class);
+            doThrow(control).when(guard).verifyBeforeOrchestration();
+            var context = context(Set.of(), guard);
+            assertThatThrownBy(() -> action.executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context))
+                .isSameAs(control);
+            assertThatThrownBy(() -> action.handleError(control, context)).isSameAs(control);
+        }
+        verifyNoInteractions(chains, clients);
     }
 
     @Test void humanTakeoverWhileAwaitingChainCancelsItAndDiscardsItsResult() throws Exception {
@@ -311,15 +421,22 @@ class SpecialistAssistanceActionContributorTest {
     }
 
     private ActionResult directResult(JsonNode output) throws Exception {
+        return directResult(new AIExecutionResult<>("structured-check", SpecialistId.parse("assist-area-setup@1"),
+            AIExecutionStatus.SUCCEEDED, output, List.of(), Map.of(), null, Instant.now(), Instant.now()));
+    }
+
+    private ActionResult directResult(AIExecutionResult<JsonNode> completed) throws Exception {
         SpecialistClient<JsonNode, JsonNode> client = mock(SpecialistClient.class);
         when(clients.bind(SpecialistId.parse("assist-area-setup@1"), JsonNode.class, JsonNode.class)).thenReturn(client);
         var handle = mock(ExecutionHandle.class);
         when(handle.invocationId()).thenReturn("structured-check");
         when(client.submit(any(SpecialistInvocation.class))).thenReturn(handle);
-        var completed = new AIExecutionResult<>("structured-check", SpecialistId.parse("assist-area-setup@1"),
-            AIExecutionStatus.SUCCEEDED, output, List.of(), Map.of(), null, Instant.now(), Instant.now());
         when(client.find(eq("structured-check"), any())).thenReturn(Optional.of(new SpecialistExecutionSnapshot<>(handle, completed)));
-        return handler("[]").executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+        var result = handler("[]").executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+        verify(client).submit(any(SpecialistInvocation.class));
+        verify(client).find(eq("structured-check"), any());
+        verify(client, never()).cancel(anyString(), any());
+        return result;
     }
 
     private JsonNode sanitizedWire(ActionResult result) throws Exception {
