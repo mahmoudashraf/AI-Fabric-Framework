@@ -2,12 +2,14 @@ package com.ai.fabric.runtime.specialist.assistance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +20,7 @@ public final class SpecialistAssistanceBundle {
     private static final int MAX_BYTES = 65_536;
     private final JsonNode content;
     private final String contentHash;
+    private final List<Map<String, Object>> invocations;
 
     public SpecialistAssistanceBundle(ObjectMapper mapper,
         @Value("${LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64:}") String encoded,
@@ -26,6 +29,7 @@ public final class SpecialistAssistanceBundle {
             if (expectedHash != null && !expectedHash.isBlank()) throw new IllegalStateException("Specialist bundle content is missing.");
             content = mapper.createObjectNode();
             contentHash = null;
+            invocations = List.of();
             return;
         }
         try {
@@ -52,6 +56,7 @@ public final class SpecialistAssistanceBundle {
             }
             content = parsed;
             contentHash = hash;
+            invocations = mapper.convertValue(parsed.path("invocations"), new TypeReference<>() {});
         } catch (Exception invalid) {
             throw new IllegalStateException("Specialist assistance requires a bounded hash-verified published bundle.", invalid);
         }
@@ -60,4 +65,5 @@ public final class SpecialistAssistanceBundle {
     public boolean enabled() { return contentHash != null; }
     public JsonNode content() { return content.deepCopy(); }
     public String contentHash() { return contentHash; }
+    public List<Map<String, Object>> invocationCatalogue() { return invocations; }
 }

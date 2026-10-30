@@ -140,12 +140,23 @@ class RuntimeSpecialistAssistanceStartupTest {
             .containsExactlyInAnyOrder("product-setup", "service-policy", "setup-and-support");
         assertThat(status.status()).containsEntry("enabled", true).containsEntry("ready", true)
             .containsEntry("contractVersion", SpecialistAssistanceBundle.CONTRACT)
-            .containsEntry("contentHash", bundle.contentHash())
-            .containsEntry("invocations", FIXTURE.path("compiled").path("invocations"));
+            .containsEntry("contentHash", bundle.contentHash());
+        assertThat(new ObjectMapper().valueToTree(status.status()).path("invocations"))
+            .isEqualTo(FIXTURE.path("compiled").path("invocations"));
         assertThat(health.health().getStatus().getCode()).isEqualTo("UP");
         assertThat(health.health().getDetails()).containsEntry("enabled", true)
             .containsEntry("contentHash", bundle.contentHash());
         assertThat(PROVIDER_REQUESTS.get()).as("registration and readiness must not invoke AI").isZero();
+    }
+
+    @Test
+    void exposesTheExactCatalogueThroughTheBootHttpSerializer() throws Exception {
+        var httpMapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        var wire = new ObjectMapper().readTree(httpMapper.writeValueAsBytes(status.status()));
+        assertThat(wire.path("invocations").isArray()).isTrue();
+        assertThat(wire.path("invocations")).hasSize(3)
+            .isEqualTo(FIXTURE.path("compiled").path("invocations"));
+        assertThat(wire.path("ready").asBoolean()).isTrue();
     }
 
     @AfterAll

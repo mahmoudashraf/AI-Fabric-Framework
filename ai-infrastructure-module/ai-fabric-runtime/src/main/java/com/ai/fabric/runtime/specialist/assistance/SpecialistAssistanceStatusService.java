@@ -30,6 +30,6 @@ public class SpecialistAssistanceStatusService {
             }
         }
         return Map.of("enabled", true, "ready", ready, "contractVersion", SpecialistAssistanceBundle.CONTRACT,
-            "contentHash", bundle.contentHash(), "invocations", bundle.content().path("invocations"));
+            "contentHash", bundle.contentHash(), "invocations", bundle.invocationCatalogue());
     }
 }
