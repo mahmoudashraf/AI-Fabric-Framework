@@ -59,10 +59,17 @@ Content-Type: application/json
 {"reviewNotes":"Approved catalog revision; hosted readiness remains separately tracked."}
 ```
 
-Verify with `GET /api/marketplace/plugins/{pluginId}/versions/1.0.0`. No direct
+Verify with `GET /api/marketplace/plugins/{pluginId}/versions/{manifest.version}`. No direct
 database seed, hand-authored install rows or bypass of publisher review is needed.
 Do not resubmit an existing immutable plugin/version: inspect it or publish a new
 revision when the actual configuration changes.
+
+Acme ACTION `1.0.0` is published staging history. Main did not publish internal
+ACTION `1.0.0` and confirmed staging GET returns `404`. Keep both snapshots unchanged. Publish the new
+`1.0.1` files listed by `catalog.json`, not corrected bytes under `1.0.0`.
+The mounted mechanics TEMPLATE entries use release channel `DEMO`; the dry-run
+preserves that field. Publish corrected ACTIONs before their matching TEMPLATE.
+The existing mounted DATA dependency is read back, not republished or changed.
 
 ## 2. Bootstrap The Reusable Template
 
@@ -70,10 +77,13 @@ revision when the actual configuration changes.
 POST /api/marketplace/templates/mkp-template-ai-support-workspace/bootstrap
 Content-Type: application/json
 
-{"pluginVersion":"1.0.0","name":"My support workspace","environment":"staging","vectorProvisioningMode":"EXTERNAL_EXISTING","customerId":"OWNED_CUSTOMER_ID","tenantId":"OWNED_TENANT_ID"}
+{"pluginVersion":"1.0.0","name":"My support workspace","environment":"staging","vectorProvisioningMode":"LOCAL_MANAGED","customerId":"OWNED_CUSTOMER_ID","tenantId":"OWNED_TENANT_ID"}
 ```
 
-The full fixture is `fixtures/requests/bootstrap.json`. Select owned vector and
+The full fixture is `fixtures/requests/bootstrap.json`. Its neutral Lucene starter
+uses `LOCAL_MANAGED` vectors; S3 source files are a separate storage integration.
+An external vector backend can be selected in the ordinary draft before publish.
+Select owned vector and
 AI-state storage/provider settings through normal deployment configuration; the
 example does not supply infrastructure credentials. Bootstrap's DATA dependency
 may be configuration-required until the storage binding is supplied. That is
@@ -103,24 +113,18 @@ Content-Type: application/json
 ```
 
 For the generic conversation-first product, keep the default areas with empty
-`readActions`; no case provider is required. For a connected variant, install its
-ACTION plugin before applying the corresponding specialist overlay:
-
-```http
-POST /api/deployments/{deploymentId}/marketplace-installs
-Content-Type: application/json
-
-{"pluginId":"mkp-action-acme-cloud-support-reads","pluginVersion":"1.0.0","config":{"workspaceStatusUrl":"${MANAGED_ACME_WORKSPACE_STATUS_URL}","serviceStatusUrl":"${MANAGED_ACME_SERVICE_STATUS_URL}"},"secretRefs":{"adapterServiceKey":"ACME_SUPPORT_ADAPTER_SERVICE_KEY"}}
-```
-
-`fixtures/requests/loomai-diagnostics-install.json` is the internal alternative.
-Secret names are references only. Register actual values using the authorized
-secret workflow; never include them in the manifest or browser configuration.
-Verify managed endpoint references are actually projected to the connector. The
-fixtures alone do not project those values into a connector. For the second
-hosted proof, deploy the explicitly simulated stateless upstream using
-[`fixtures/service/README.md`](fixtures/service/README.md). It provides the two
-real endpoint paths for these bindings; it is not a production customer adapter.
+`readActions`; no case provider is required. Connected internal/Acme mechanics
+use the separate normal-offer path in [Mounted Demo Qualification](MOUNTED_DEMO_QUALIFICATION.md).
+The offer includes a reviewed `EXTERNAL_SERVICE` slot and matching profile for
+its ACTION `1.0.1`; normal bootstrap initializes its symbolic install fields.
+Leave ACTION defaults empty, then approve exact endpoints and bind the server
+credential through existing external-integration APIs after version publication.
+Do not directly submit the compiler-only `*-install.json` fixtures as a substitute
+for that profile. Those fixtures test compilation but do not project endpoints.
+No raw service credential belongs in a manifest, draft, public helper or browser.
+The explicitly simulated upstream in [`fixtures/service/README.md`](fixtures/service/README.md)
+provides the two Acme paths; reuse its existing deployment for qualification,
+not another service. It is not a production customer adapter.
 
 Install changes use the existing draft compilation. Inspect install warnings and
 resolve missing fields rather than replacing generated action routing. The
@@ -144,6 +148,14 @@ with the approved Supabase project and use the exact Engage HTTPS origin. Keep
 `externalIdentityAudience=authenticated`, `externalIdentityRequireVerifiedEmail=true`,
 issuer `https://<project>.supabase.co/auth/v1` and JWKS
 `https://<project>.supabase.co/auth/v1/.well-known/jwks.json`.
+Set `externalIdentitySupabasePublicKey` to the same project's publishable or
+legacy anon key. Engage's normal deployment update supplies it from the selected
+authentication profile when verified email is required. The runtime verifies the
+signed JWT first, then reads the provider-owned `/auth/v1/user` record and checks
+the exact subject and email confirmation. Editable `user_metadata` is never
+confirmation evidence. Revoked identity, provider outage and missing lookup
+configuration stay explicit; do not disable email verification to hide them.
+See the [Supabase user contract](https://supabase.com/docs/reference/javascript/auth-getuser).
 
 `externalIdentityGrantedScopes` is an explicit server authorization policy. The
 provided CSVs contain chat/handover scopes, `vector:document`, exact versioned

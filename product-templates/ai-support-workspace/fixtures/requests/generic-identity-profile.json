@@ -8,6 +8,7 @@
     "externalIdentityJwkSetUri": "https://project-ref.supabase.co/auth/v1/.well-known/jwks.json",
     "externalIdentityAudience": "authenticated",
     "externalIdentityRequireVerifiedEmail": true,
+    "externalIdentitySupabasePublicKey": "sb_publishable_replace_with_your_project_public_key",
     "externalIdentityGrantedScopes": "chat:query,chat:suggestions,chat:conversations,chat:messages,chat:handover:request,chat:handover:control,chat:handover:read,vector:document,specialist:assist-area-product-setup@1,specialist:assist-area-service-policy@1,specialist:assist-manager-setup-and-support@1",
     "corsAllowedOrigins": "https://support.example.invalid",
     "corsAllowCredentials": false

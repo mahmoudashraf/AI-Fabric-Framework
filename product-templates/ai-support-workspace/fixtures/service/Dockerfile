@@ -1,4 +1,5 @@
 FROM node:22-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
 COPY --chown=node:node fixtures/acme-read-observations.json ./fixtures/acme-read-observations.json
 COPY --chown=node:node fixtures/service/server.mjs ./fixtures/service/server.mjs

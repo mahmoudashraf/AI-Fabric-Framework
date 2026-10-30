@@ -14,7 +14,7 @@ const catalog = read('catalog.json');
 const requests = catalog.entries.map(entry => ({
   method: 'POST',
   path: '/api/marketplace/publishers/{verifiedPublisherId}/submissions',
-  body: { pluginSlug: entry.pluginSlug, releaseChannel: 'EARLY_ACCESS', manifest: read(entry.manifest) },
+  body: { pluginSlug: entry.pluginSlug, releaseChannel: entry.releaseChannel ?? 'EARLY_ACCESS', manifest: read(entry.manifest) },
   usage: entry.usage,
 }));
 const scriptCheck = spawnSync(process.execPath, ['--test', resolve(root, 'scripts/compose-draft.test.mjs'), resolve(root, 'fixtures/service/server.test.mjs')], {
@@ -38,7 +38,7 @@ if (check.status !== 0) {
 process.stdout.write(JSON.stringify({
   dryRun: true,
   networkApiCalls: 0,
-  validatedBy: 'MarketplaceManifestService + SpecialistAssistanceCompiler via SupportWorkspaceProductTemplateTest',
+  validatedBy: 'MarketplaceManifestService + ExternalIntegrationPolicy + SpecialistAssistanceCompiler via SupportWorkspaceProductTemplateTest',
   draftCompositionTests: 4,
   simulatedServiceTests: 2,
   status: catalog.status,

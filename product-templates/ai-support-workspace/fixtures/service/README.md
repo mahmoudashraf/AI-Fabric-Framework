@@ -31,16 +31,15 @@ fixture timestamp as a fresh production observation. A delayed fictional import
 and degraded fictional service are intentional so the specialist can distinguish
 documentation from observations. Every response carries `X-Acme-Simulation: true`.
 
-Bind the deployed HTTPS base URL through trusted provisioning:
-
-```text
-MANAGED_ACME_WORKSPACE_STATUS_URL=https://<fixture-host>/api/support/workspace-status
-MANAGED_ACME_SERVICE_STATUS_URL=https://<fixture-host>/api/support/service-status
-```
-
-Then install the existing Acme ACTION manifest using
-`../requests/acme-reads-install.json`. No generated routing/Coolify patch or
-browser-side secret is needed. Approved text files may be copied into the
+Bind the existing deployed HTTPS endpoints through the normal external profile:
+`workspaceStatusUrl=https://<fixture-host>/api/support/workspace-status` and
+`serviceStatusUrl=https://<fixture-host>/api/support/service-status`. Include the
+exact host in the reviewed profile's `allowedHosts`. The Acme ACTION `1.0.1`
+and its mounted mechanics TEMPLATE use normal offer bootstrap, endpoint approval
+and credential binding; the initializer generates the hashed environment aliases.
+Do not set custom Coolify environment variables or submit the offline compiler
+fixture as a projection mechanism. See `../../MOUNTED_DEMO_QUALIFICATION.md`.
+No generated routing patch or browser-side secret is needed. Approved text files may be copied into the
 customer-owned document source; serving them here does not itself index them.
 
 The simulator authenticates the dedicated connector, not real Acme end users.

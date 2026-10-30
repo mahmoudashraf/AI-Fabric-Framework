@@ -1,6 +1,6 @@
 {
   "pluginId": "mkp-action-loomai-support-diagnostics",
-  "pluginVersion": "1.0.0",
+  "pluginVersion": "1.0.1",
   "config": {
     "caseSummaryUrl": "${MANAGED_SUPPORT_CASE_SUMMARY_URL}",
     "deploymentStatusUrl": "${MANAGED_SUPPORT_DEPLOYMENT_STATUS_URL}",

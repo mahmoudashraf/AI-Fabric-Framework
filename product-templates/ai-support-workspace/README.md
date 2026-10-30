@@ -1,8 +1,11 @@
 # AI Support Workspace
 
-Reusable Marketplace support configuration for 010.54. This package is a
-reviewable source candidate, not a published catalog entry or hosted proof.
-It adds no service, database, execution engine or plugin type.
+Reusable Marketplace support configuration for 010.54. Acme ACTION `1.0.0` was
+published on staging. Main explicitly skipped internal ACTION `1.0.0` and
+confirmed its staging GET returns `404`. Both source snapshots stay unchanged.
+The corrected ACTION `1.0.1` and mounted mechanics TEMPLATEs are new unpublished
+source candidates. See `catalog.json`; source validation is not hosted proof.
+This package adds no service, database, execution engine or plugin type.
 
 ## Product Contract
 
@@ -22,10 +25,17 @@ It adds no service, database, execution engine or plugin type.
   documentation areas and one sequential resolution. READ slots start empty.
 - `manifests/support-documents.manifest.json`: normal `DATA`; customer-owned
   S3-compatible documents, deployment-only derived index, explicit approval.
-- `manifests/loomai-support-diagnostics.manifest.json`: normal `ACTION` overlay
+- `manifests/loomai-support-diagnostics.1.0.1.manifest.json`: normal `ACTION` overlay
   for the internal LoomAI support instance; four consented, case-scoped reads.
-- `manifests/acme-cloud-support-reads.manifest.json`: a second, fictional
+- `manifests/acme-cloud-support-reads.1.0.1.manifest.json`: a second, fictional
   company's own `ACTION` integration; no LoomAI diagnostic authority.
+- The two unversioned ACTION filenames retain their immutable `1.0.0` contents;
+  they are history, not the next publication payloads. `1.0.1` adds only explicit
+  `adapterType: connector-http` and the version increment.
+- `manifests/*-support-mounted-mechanics.manifest.json`: two separate `DEMO`
+  TEMPLATE variants for normal staging offer bootstrap. Each requires the
+  existing mounted DATA plugin and only its own corrected ACTION. Neither
+  replaces or modifies the reusable S3 template.
 - `overlays/`: ordinary specialist-assistance values and shell configuration.
   Each connected variant has two distinct areas and a cross-area parallel-capable
   resolution. Publication generates official resources; these are not chain DSLs.
@@ -55,8 +65,10 @@ option. If real contract validation fails, it exits unsuccessfully and emits no
 claim that the package is valid. Maven may need a separate ordinary dependency
 resolution step on a fresh machine; the dry-run does not turn online mode on.
 
-The test invokes `MarketplaceManifestService`, the existing action-contribution
-compiler, the install-backed authority resolver and `SpecialistAssistanceCompiler`.
+The test invokes `MarketplaceManifestService`, `ExternalIntegrationPolicy`, the
+existing action-contribution compiler, the install-backed authority resolver and
+`SpecialistAssistanceCompiler`. It checks immutable ACTION `1.0.0` and S3 source
+bytes, the metadata-only `1.0.1` corrections, and both mounted TEMPLATE contracts.
 It also deserializes request fixtures into the actual Platform API record types.
 This is offline contract evidence, not provider, storage, authentication or Desk
 qualification.
@@ -108,13 +120,16 @@ customer secret, internal LoomAI route or runtime credential. Its required DATA
 install remains configuration-required until the owner supplies their storage
 binding. Do not publish around that unresolved state.
 
-The READ plugins declare `managedUrlField` and `secretRef` slots. Current Platform
+The corrected READ plugins declare explicit `connector-http`, `managedUrlField`
+and `secretRef` slots. Current Platform
 action compilation requires `${MANAGED_...}` endpoint references, not arbitrary
 literal URLs in install configuration. The connector must receive those reviewed
 endpoint values and deployment-scoped credential references through trusted
 provisioning before apply. No fixture creates an endpoint, resolves a secret or
-provisions an adapter. Missing managed-value projection is an integration gap to
-close explicitly, not permission to modify generated routing by hand.
+provisions an adapter. Use the existing reviewed external-integration profile,
+offer bootstrap, endpoint approval and credential binding. Offer-less manual
+canaries do not receive this projection. The mounted runbook describes the
+normal path; do not modify generated routing or inject Coolify environment values.
 
 Generic/Acme hosted proofs use the existing Supabase identity broker with explicit
 reviewed server grants; see runbook section 3.1 and the `*-identity-profile.json`

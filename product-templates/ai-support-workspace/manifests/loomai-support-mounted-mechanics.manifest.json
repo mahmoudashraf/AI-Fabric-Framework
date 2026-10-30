@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-loomai-support-mounted-mechanics",
+  "version": "1.0.0",
+  "pluginType": "TEMPLATE",
+  "displayName": "LoomAI Support - Non-production Mounted Mechanics",
+  "description": "Internal staging mechanics only: operator-mounted guides and case-scoped diagnostic reads. Not customer S3/storage qualification or a production support offer.",
+  "compatibility": {"requiredCapabilities": ["templates"], "supportedDeploymentTargets": ["custom-start-from-scratch"], "supportedAuthModes": ["PRIVATE_RUNTIME_BACKEND_MEDIATED", "PUBLIC_RUNTIME_AUTHENTICATED"]},
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesTemplate": true, "contributesShellPresentation": true},
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "curatedModuleId": "default",
+      "requiredPluginRefs": ["mkp-data-document-knowledge-mounted-demo@1.0.0", "mkp-action-loomai-support-diagnostics@1.0.1"],
+      "requiredPluginInstallDefaults": {
+        "mkp-action-loomai-support-diagnostics@1.0.1": {"config": {}, "secretRefs": {}}
+      },
+      "recommendedPluginIds": ["mkp-integration-loomai-desk"],
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "verificationPackIds": ["conversational-behavior-v1"],
+        "allowedChannelBindings": ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"],
+        "allowedExecutionExtensions": ["SPECIALIST_ASSISTANCE", "CONVERSATION_HANDOVER"],
+        "defaultExecutionExtensions": []
+      },
+      "shell": {
+        "greeting": {"title": "LoomAI support staging mechanics", "message": "Non-production validation with operator-mounted approved guides. Knowledge, diagnostics and human support require their configured integrations."},
+        "enabledModuleIds": ["support", "docs"],
+        "defaultConversationMode": "executor"
+      }
+    }
+  }
+}

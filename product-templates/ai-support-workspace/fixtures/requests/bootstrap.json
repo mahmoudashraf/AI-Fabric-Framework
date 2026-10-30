@@ -2,7 +2,7 @@
   "pluginVersion": "1.0.0",
   "name": "My support workspace",
   "environment": "staging",
-  "vectorProvisioningMode": "EXTERNAL_EXISTING",
+  "vectorProvisioningMode": "LOCAL_MANAGED",
   "customerId": "REPLACE_OWNED_CUSTOMER_ID",
   "tenantId": "REPLACE_OWNED_TENANT_ID"
 }
