@@ -11144,3 +11144,52 @@ test is being called hosted acceptance. UI extraction remains last.
   domain-auto-{backend,ui}/. Screenshots output/engage-01052/. Local5187 stopped,
   test account logged out; relevant browser tabs retained. No needed exec jobs
   remain running. No further implementation blocker for this automation flow.
+
+## 2026-10-30 Hidden UI Visit Counts LIVE; AI Fabric Site Publish Pending
+
+- User requested Supabase-only statistics with hidden frontend visit events,
+  no new analytics UI/counters. Implemented self-hosted first-party JS sending
+  only a fixed page category and coarse viewport to Supabase `ui-visits`.
+  No cookies, storage, visitor IDs, account/chat/form contents, referrer, user
+  agent, query/hash or private nested paths are sent. DNT/GPC skip collection;
+  failures are silent/non-blocking. App hosts aggregate as apps.loomai.pro.
+- Source aa5a92e2743a92b7cbebc51565233bdb3b55d81c pushed Platform-V11.
+  Supabase project xazkenhomhtpejjjqtsy: function v1 ACTIVE; private RLS schema
+  loomai_web_analytics, service-role-only atomic write RPC and daily 90-day
+  retention cron active. No raw event/identity rows, no public statistics API.
+  Valid event204, foreign403, extra field400, public GET405, anon RPC401;
+  anon/authenticated schema/write privileges absent. Stats via Supabase SQL
+  Editor only; queries and rollback in web-analytics/README.md.
+- CI40994608917 core images PASS/backend skipped; Engage40994608940 and
+  Desk40994608902 PASS. Eight analytics tests + one site-server regression and
+  all seven affected frontend production builds PASS. Seven generated assets
+  identical SHA256 dcc23dcb990bdcf83e46fe812102eaa5035fd8dec2ecea6667c3964059d613a9.
+- Production native jobs finished/health+source+asset+settings PASS:
+  public site y12t77gy0upulx89kiyxc0uh;
+  Console i11vmlwynncqlcnctg8h3h2y (OCI06a94cc97c8bb9f82bd1395e5f7fea3c0f967b13e5f62cfd5bcbebf57237f026);
+  Partners ntzpaysh63j25sohgdyaja5w;
+  Bridge evc3rppeitsk11q5uogwwg2y;
+  Engage flaq25kkjdkh861l7zumbfwe (OCI1589d3c621733c9ac8e77882699c305b11baf9f5b8901b7348a9a7fda8265b69);
+  Desk cqms0t6z95swiqhf5bht2po8 (OCI2384d5d0d8d8e1d3f3cb0753be2c46c17056c9daac05505e93965a5cf6038340).
+  Console/Engage/Desk first qualified on staging jobs k2x9mxhn5cluywbpz23hwpqn,
+  ytf0t5kdqwdnpof7ntmdk76m, rlssmwvn79hp2mzsxubjusw7. Routes/resources/auth/
+  assignments unchanged. Desk/Bridge Java source and POM unchanged from their
+  prior live sources; no framework/runtime/backend source changes or AI queries.
+- Actual browser counts confirmed for public root/products, Console ai-workspaces,
+  Desk, Partners root/login, Bridge, Engage custom domain and grouped apps host.
+  These are QA views, NOT unique/organic visitors. Normal UI remains unchanged;
+  screenshots output/ui-visits/. Closed five temporary tabs, cancelled preview
+  without saving; original Console/custom-domain tabs retained.
+- AI Fabric website source213fdf8 pushed mahmoudashraf/aifabric main, build PASS;
+  old usePageTracking raw writer removed in source, historical read-only article
+  counters/data preserved. HOSTED NOT QUALIFIED: ai-fabric.dev new asset404;
+  not managed by either Coolify environment. Asked user for current publisher
+  (possibly Lovable) project/access. Next publish that source, verify client
+  asset and one real browser event; do not claim live tracking there yet.
+- Integration support: scoped search found no dedicated plan; 010_53_REQUEST_
+  INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md created, commit00b82ed27 pushed,
+  DRAFT FOR OWNER REVIEW. Console global Help + contextual shortcuts + short
+  durable request/triage journey proposed; not visitor handover/Desk activation.
+  No support-feature implementation approved/performed in this task.
+- Private deploy/function/verification/native receipts:
+  ~/.codex/private/loomai-ui-visits/receipts/. No required exec process remains.

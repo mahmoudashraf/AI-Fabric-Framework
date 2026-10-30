@@ -49,13 +49,13 @@ origin to `connect-src`; script policy, authentication and API routes stay intac
   undercounting. Origins can be spoofed by non-browser clients; counts are not
   authenticated business activity, billing, security or capacity evidence.
 - Body size is bounded, page labels have fixed cardinality, and a counter caps
-  at100,000 per host/page/viewport/hour. This is not comprehensive bot protection
+  at 100,000 per host/page/viewport/hour. This is not comprehensive bot protection
   or a guarantee against invocation costs.
 - Analytics failure is silent, non-blocking, and never retried automatically.
   Supabase may retain normal platform/network logs independently; this code does
   not persist IP addresses or request contents. Minimization is not a legal
   compliance certification.
-- Hourly aggregates expire after90 days via the dedicated daily Supabase Cron
+- Hourly aggregates expire after 90 days via the dedicated daily Supabase Cron
   job `loomai-ui-visits-retention`. No existing jobs/data/auth settings change.
 
 ## Read Statistics In Supabase Only
@@ -122,6 +122,41 @@ uses its platform-provided service credential solely for the restricted write RP
 Rollback collection by removing the snippet or disabling only `ui-visits`.
 Retain recorded aggregates unless deletion is explicitly requested. Removing
 collection must never affect sign-in, chat, support or application navigation.
+
+## Hosted Qualification: 2026-10-30
+
+- Supabase `ui-visits` version 1 is ACTIVE. Both scoped migrations are applied;
+  the dedicated 90-day retention job is active. Valid events increment private
+  counters; unknown origins, extra fields and public reads are rejected. Direct
+  anonymous RPC calls are denied, and anonymous/authenticated roles have no
+  schema or write-function access.
+- Analytics source `aa5a92e2743a92b7cbebc51565233bdb3b55d81c` is pushed on
+  `Platform-V11`. Production public site, Console, Partners, Shopify Bridge,
+  shared Engage and Desk all serve the exact client asset. Console, Engage and
+  Desk images were first qualified on staging. Existing service settings,
+  routes, authentication and customer deployment assignments were preserved.
+- Real browser loads/navigation produced aggregate rows for `loomai.pro`,
+  `console.loomai.pro`, `desk.loomai.pro`, `partners.loomai.pro`,
+  `shopify-bridge.loomai.pro`, `engage-canary.loomai.pro` and the grouped
+  `apps.loomai.pro`. Console query parameters and individual app slugs are absent
+  from the stored rows. These initial counts are verification traffic, not
+  evidence of organic visitors or unique people.
+- Eight analytics tests plus the public-site production-server regression pass;
+  all seven affected frontend builds pass, and seven mirrored client assets
+  match. Native rollout health, source and asset checks pass. No Java source,
+  AI runtime, framework version or customer binding changed. Screenshots of the
+  unchanged product UI are in ignored `output/ui-visits/`.
+- **AI Fabric website publication remains pending.** Source `213fdf8` is pushed
+  to `mahmoudashraf/aifabric` main and its production build passes. The old raw
+  visit writer is removed in that source, but the hosted `ai-fabric.dev` still
+  returns HTTP 404 for the new client asset. Its current publisher is not a
+  Coolify application in either managed environment. Publishing access/project
+  identification has been requested; do not claim that domain is collecting
+  these new counts until its new asset and an actual browser event are verified.
+
+Private deployment receipts live under
+`~/.codex/private/loomai-ui-visits/receipts/`; they are not public build inputs.
+Disabling collection is independent of the pending integration-support proposal.
 
 Primary references: [Supabase function deployment](https://supabase.com/docs/guides/functions/deploy),
 [public-function authentication](https://supabase.com/docs/guides/functions/auth),
