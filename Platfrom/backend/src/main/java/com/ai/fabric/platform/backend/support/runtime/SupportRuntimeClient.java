@@ -15,6 +15,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.*;
 
@@ -22,6 +23,7 @@ import static org.springframework.http.HttpStatus.*;
 public class SupportRuntimeClient {
     private final HttpClient http;
     private final ObjectMapper mapper;
+    @Autowired
     public SupportRuntimeClient(ObjectMapper mapper) {
         this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(5)).build(), mapper);
     }
