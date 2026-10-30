@@ -11204,3 +11204,27 @@ test is being called hosted acceptance. UI extraction remains last.
   No browser errors or visible analytics UI. Two QA page views, not unique or
   organic visitors. Earlier hosted404/publisher blocker is resolved. No further
   source/deployment/schema changes were needed; temporary browser tab closed.
+
+## 2026-10-30 Integration Support Deployment Proposal: Review Only
+
+- Owner proposed using our own conversational deployment, embedded Engage and
+  Desk for integration support: ticket form becomes first user message, AI
+  uses approved docs/read actions, then optional human handover. Created
+  010_54_LOOMAI_INTEGRATION_SUPPORT_DEPLOYMENT_AI_WORKSPACE_AND_DESK_SOLUTION_PLAN.md;
+  01053 now links to it as the proposed successor, not a parallel build stream.
+- Proposed one LoomAI-owned support deployment per environment, fixed internal
+  tenant/Desk binding, case-specific opaque conversation principals, existing
+  Console auth and a narrow private adapter. Requesting customer ownership is
+  rechecked in Platform; never infer it from the runtime's LoomAI owner defaults.
+  New case registry stays in existing Platform PostgreSQL, transcript/control
+  in runtime AI state, human-channel projections in existing shared Desk. No
+  per-request/customer database, customer business-system copy or new inbox.
+- Source-confirmed gaps recorded: generic widget existing-conversation resume/
+  receipt and first-result rendering; safe runtime completed-turn presentation
+  read projection over existing encrypted interaction receipts (history currently
+  restores text only); case-scoped adapter/facade with consent; Desk trusted
+  external-case context. Its handover history is a bounded snapshot,
+  not continuous full AI history; Desk Close is not case resolution. Framework
+  release not assumed. Five implementation phases with focused acceptance.
+- Documentation only; no support service/deployment/DB/plugin installation,
+  API implementation, provider query or customer data access performed.

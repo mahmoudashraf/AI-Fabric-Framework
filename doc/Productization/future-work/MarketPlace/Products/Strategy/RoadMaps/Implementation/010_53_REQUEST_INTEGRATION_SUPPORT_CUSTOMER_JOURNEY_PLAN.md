@@ -4,6 +4,8 @@
 
 **Created:** 2026-10-30
 
+**New architecture proposal:** [010.54 LoomAI Integration Support Deployment and Workspace Solution Plan](010_54_LOOMAI_INTEGRATION_SUPPORT_DEPLOYMENT_AI_WORKSPACE_AND_DESK_SOLUTION_PLAN.md) responds to the owner's deployment + Engage + Desk vision. Review that successor before implementation. This earlier Console-first proposal remains historical design context, not a parallel implementation stream.
+
 **Scope:** Product proposal only. No implementation, schema, release or operational change is approved by this document.
 
 ## 1. Verdict
