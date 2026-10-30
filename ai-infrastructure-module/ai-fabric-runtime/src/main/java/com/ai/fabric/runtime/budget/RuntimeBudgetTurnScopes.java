@@ -108,6 +108,26 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         if (current.get() != null || indexing.get() != null) throw new IllegalStateException("RUNTIME_BUDGET_NESTED_TURN_UNSUPPORTED");
     }
 
+    /** Explicit child-task propagation; shares the paid turn, never admits another chat. */
+    public Runnable propagateTask(Runnable task) {
+        Turn parent = current.get();
+        if (parent == null) return task;
+        return () -> {
+            requireNoScope();
+            Turn child = new Turn(parent.receipt, parent.delegate, parent.interruption);
+            current.set(child);
+            try (child) {
+                try {
+                    child.verifyBeforeOrchestration();
+                    task.run();
+                } catch (RuntimeException failure) {
+                    if (task instanceof java.util.concurrent.Future<?> future) future.cancel(false);
+                    throw failure;
+                }
+            }
+        };
+    }
+
     private static OrchestrationControlException control(BudgetException denied) {
         return new OrchestrationControlException("PROVIDER_BUDGET_" + denied.code().name(), "Provider budget admission was denied.");
     }
@@ -148,11 +168,16 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         private final Thread owner = Thread.currentThread();
         private final ChatReceipt receipt;
         private final OrchestrationTurnGuard delegate;
-        private final AtomicReference<BudgetInterruption> interruption = new AtomicReference<>();
+        private final AtomicReference<BudgetInterruption> interruption;
 
         private Turn(ChatReceipt receipt, OrchestrationTurnGuard delegate) {
+            this(receipt, delegate, new AtomicReference<>());
+        }
+
+        private Turn(ChatReceipt receipt, OrchestrationTurnGuard delegate, AtomicReference<BudgetInterruption> interruption) {
             this.receipt = receipt;
             this.delegate = delegate;
+            this.interruption = interruption;
         }
 
         public Optional<ChatReceipt> chatReceipt() { return Optional.ofNullable(receipt); }

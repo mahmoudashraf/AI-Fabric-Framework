@@ -151,7 +151,8 @@ class RuntimeRetirementFrameworkWorkersTest {
         properties.getAsync().setCorePoolSize(3);
         properties.getAsync().setMaxPoolSize(3);
         var executor = new RuntimeRetirementExecutionConfiguration().retirementExecutionTaskExecutor(properties,
-            beans(f).getBeanProvider(RuntimeTargetRetirementService.class), f.coverage);
+            beans(f).getBeanProvider(RuntimeTargetRetirementService.class), f.coverage,
+            beans(f).getBeanProvider(com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes.class));
         executor.initialize();
         return executor;
     }

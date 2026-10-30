@@ -2,11 +2,16 @@ package com.ai.fabric.runtime.handover;
 
 import static com.ai.fabric.runtime.handover.ConversationHandoverContracts.*;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import ai.fabric.chat.control.ConversationControlGateway;
 import ai.fabric.chat.control.ConversationControlState;
 import ai.fabric.chat.control.DefaultConversationControlGateway;
 import ai.fabric.chat.control.JdbcConversationControlStore;
+import ai.fabric.chat.control.ConversationMessageCommand;
+import ai.fabric.chat.control.ConversationParticipantRole;
+import ai.fabric.chat.control.ConversationControlViolationException;
+import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
@@ -21,6 +26,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.sql.Connection;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -162,15 +171,54 @@ class RuntimeConversationHandoverTransactionPostgresTest {
         assertCommittedHandover();
     }
 
+    @Test
+    void takeoverBetweenGatewayLeaseCheckAndStoreAppendRollsBackTheAnswerAndReceipt() throws Exception {
+        var store = spy(new JdbcConversationControlStore(dataSource, mapper, false, transactionManager));
+        var racingGateway = new DefaultConversationControlGateway(store);
+        var racingService = new RuntimeConversationHandoverService(racingGateway, repository, properties, security, mapper, Clock.systemUTC());
+        var owner = owner();
+        var user = racingService.appendUserMessage(owner, "conversation-1", "race", "Check my app", Map.of());
+        racingService.claimAiInteraction(owner, "conversation-1", "race", user.messageId(), Map.of("query", "Check my app"));
+        var turn = racingService.beginAiTurn(owner, "conversation-1", user.sequence(), "race");
+        var beforeLock = new CountDownLatch(1);
+        var takeoverCommitted = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            ConversationMessageCommand command = invocation.getArgument(0);
+            if (command.role() == ConversationParticipantRole.AI) {
+                beforeLock.countDown();
+                if (!takeoverCommitted.await(10, TimeUnit.SECONDS)) throw new AssertionError("Takeover timed out");
+            }
+            return invocation.callRealMethod();
+        }).when(store).appendMessage(any(ConversationMessageCommand.class), any(Instant.class));
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var future = executor.submit(() -> racingService.commitAiInteraction(turn, "race", 200,
+                ChatQueryResponse.builder().success(true).answer("Must not appear").build()));
+            assertThat(beforeLock.await(10, TimeUnit.SECONDS)).isTrue();
+            racingService.request(owner, "conversation-1", "human-wins",
+                new HandoverRequest("USER_REQUESTED", true, Map.of(), List.of()));
+            takeoverCommitted.countDown();
+            assertThatThrownBy(() -> future.get(10, TimeUnit.SECONDS))
+                .hasCauseInstanceOf(ConversationControlViolationException.class);
+        } finally {
+            takeoverCommitted.countDown();
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE participant_role = 'AI'", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_conversation_ai_interaction", String.class)).isEqualTo("IN_PROGRESS");
+        assertThat(racingService.view(owner, "conversation-1", 0).controlState()).isEqualTo(ConversationControlState.HUMAN_PENDING);
+    }
+
     private HandoverAdmission request(String key) {
-        var owner = RuntimeResolvedIdentity.builder().authContext(RuntimeAuthContext.builder()
+        return service.request(owner(), "conversation-1", key,
+            new HandoverRequest("USER_REQUESTED", true, Map.of(), List.of()));
+    }
+
+    private RuntimeResolvedIdentity owner() {
+        return RuntimeResolvedIdentity.builder().authContext(RuntimeAuthContext.builder()
             .subjectId("owner-1").subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
             .authMode(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS).callerType(RuntimeAuthCallerType.PUBLIC_BROWSER)
             .deploymentId("deployment-1").customerId("customer-1").tenantId("tenant-1").sessionId("owner-1")
             .grantedScopes(List.of("chat:messages", "chat:handover:request", "chat:handover:control")).build())
             .warnings(List.of()).build();
-        return service.request(owner, "conversation-1", key,
-            new HandoverRequest("USER_REQUESTED", true, Map.of(), List.of()));
     }
 
     private void persistProbe(String id) {

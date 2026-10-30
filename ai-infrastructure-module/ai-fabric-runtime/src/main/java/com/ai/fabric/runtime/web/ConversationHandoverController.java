@@ -191,28 +191,17 @@ public class ConversationHandoverController {
             return response;
         }
         try {
-            handoverService.appendAiMessage(
-                turn,
-                idempotencyKey + ":ai",
-                StringUtils.hasText(payload.getAnswer()) ? payload.getAnswer() : "The AI request completed.",
-                Map.of(
-                    "providerRequestId", payload.getProviderRequestId() == null ? "" : payload.getProviderRequestId(),
-                    "resultType", payload.getType() == null ? "" : payload.getType()
-                )
-            );
-            return completeInteraction(identity, conversationId, idempotencyKey, response);
+            handoverService.commitAiInteraction(turn, idempotencyKey, response.getStatusCode().value(), payload);
+            return response;
         } catch (ConversationControlViolationException exception) {
             ConversationView current = handoverService.view(identity, conversationId, 0);
             if ((current.controlState() == ConversationControlState.HUMAN_PENDING
                 || current.controlState() == ConversationControlState.HUMAN_ACTIVE)
                 && StringUtils.hasText(current.handoverId())) {
-                String answer = StringUtils.hasText(payload.getAnswer())
-                    ? payload.getAnswer()
-                    : "Your conversation is being transferred to a human.";
                 return completeInteraction(identity, conversationId, idempotencyKey, ResponseEntity.accepted().body(controlResponse(
                     conversationId,
                     "HANDOVER_REQUESTED",
-                    answer,
+                    "Your conversation is being transferred to a human.",
                     current
                 )));
             }

@@ -22,7 +22,8 @@
   ],
   "supportedExecutionExtensions": [
     "HUMAN_REVIEW",
-    "CONVERSATION_HANDOVER"
+    "CONVERSATION_HANDOVER",
+    "SPECIALIST_ASSISTANCE"
   ],
   "capabilities": [
     "ai-fabric-chat-session",
@@ -54,6 +55,9 @@
     "jdbc-specialist-chain-state",
     "smart-brain-durable-operations",
     "specialist-chains",
+    "published-specialist-assistance-v1",
+    "conversational-specialist-assistance",
+    "completed-turn-presentations-v1",
     "provider-webhook-ingress"
   ],
   "endpointClasses": [
@@ -118,6 +122,7 @@
   "verificationPackIds": [
     "agentic-specialist-team-v1",
     "conversational-behavior-v1",
+    "conversational-specialist-assistance-v1",
     "human-review-action-proposal-v1",
     "smart-brain-behavior-v1"
     ,"conversation-handover-v1"

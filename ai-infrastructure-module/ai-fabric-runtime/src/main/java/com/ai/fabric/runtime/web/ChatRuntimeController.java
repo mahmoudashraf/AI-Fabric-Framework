@@ -1926,6 +1926,7 @@ public class ChatRuntimeController {
             .lastInteractionAt(toUtcDateTime(summary.lastInteractionAt()))
             .authContext(toResponseAuthContext(identity))
             .turns(List.of())
+            .completedTurns(requiredConversationHandoverService().completedPresentations(identity, summary.conversationId()))
             .participantMessages(conversation.messages().stream()
                 .map(this::toParticipantMessageResponse)
                 .toList())

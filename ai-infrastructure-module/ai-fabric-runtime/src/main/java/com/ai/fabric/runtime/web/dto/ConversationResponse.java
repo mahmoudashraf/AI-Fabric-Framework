@@ -17,4 +17,5 @@ public class ConversationResponse {
     private RuntimeAuthContextResponse authContext;
     private List<TurnResponse> turns;
     private List<ConversationParticipantMessageResponse> participantMessages;
+    private List<CompletedConversationTurnResponse> completedTurns;
 }

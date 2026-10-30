@@ -30,6 +30,24 @@ import org.junit.jupiter.api.Test;
 
 class RuntimeBudgetTurnScopesTest extends RuntimeBudgetFixture.TestScope {
     @Test
+    void explicitChildPropagationSharesTheParentReceiptAndDenialWithoutAnotherChatAdmission() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        try (var parent = turns.openChat(chatIdentity(), null);
+             var executor = Executors.newSingleThreadExecutor()) {
+            var task = turns.propagateTask(() -> {
+                var captured = turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+                captured.observer().onDenied(failure(captured));
+            });
+            executor.submit(task).get(5, TimeUnit.SECONDS);
+            executor.submit(() -> assertUnscopedDenied(turns)).get(5, TimeUnit.SECONDS);
+            assertThat(parent.interruption()).isPresent();
+            assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(1);
+        }
+        assertUnscopedDenied(turns);
+    }
+
+    @Test
     void newChatAdmissionDenialIsTypedBeforeAnyEffects() throws Exception {
         var fixture = new RuntimeBudgetFixture();
         var approval = new Approval(APPROVAL.id(), SCOPE, new Limits(0, 100_000, 2_000_000_000L), APPROVAL.expiresAt());

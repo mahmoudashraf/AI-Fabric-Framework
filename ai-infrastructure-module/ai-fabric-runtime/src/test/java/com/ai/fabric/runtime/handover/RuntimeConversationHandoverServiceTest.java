@@ -181,6 +181,49 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void completionAfterHumanTakeoverDoesNotPersistAnAiMessageOrSuccessReceipt() {
+        var user = service.appendUserMessage(owner, CONVERSATION_ID, "slow-check", "Check my setup", Map.of());
+        service.claimAiInteraction(owner, CONVERSATION_ID, "slow-check", user.messageId(), Map.of("query", "Check my setup"));
+        var turn = service.beginAiTurn(owner, CONVERSATION_ID, user.sequence(), "slow-check");
+        requestAnonymous("takeover-before-completion");
+        var response = ChatQueryResponse.builder().success(true).answer("Stale AI answer").build();
+
+        assertThatThrownBy(() -> service.commitAiInteraction(turn, "slow-check", 200, response))
+            .isInstanceOf(ConversationControlViolationException.class);
+        assertThat(service.history(owner, CONVERSATION_ID).messages())
+            .noneMatch(message -> "Stale AI answer".equals(message.content()));
+        assertThat(service.claimAiInteraction(owner, CONVERSATION_ID, "slow-check", user.messageId(),
+            Map.of("query", "Check my setup")).outcome()).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void acceptedCompletionStoresCanonicalMessageAndReplayTogether() {
+        var user = service.appendUserMessage(owner, CONVERSATION_ID, "accepted-check", "Check my setup", Map.of());
+        var request = Map.of("query", "Check my setup");
+        service.claimAiInteraction(owner, CONVERSATION_ID, "accepted-check", user.messageId(), request);
+        var turn = service.beginAiTurn(owner, CONVERSATION_ID, user.sequence(), "accepted-check");
+        var response = ChatQueryResponse.builder().success(true).type("INFORMATION_PROVIDED")
+            .answer("Accepted AI answer").sources(List.of(Map.of("title", "Setup guide")))
+            .metadata(Map.of("debug", "private prompt")).authenticationRequirement(Map.of("token", "not restored")).build();
+
+        service.commitAiInteraction(turn, "accepted-check", 200, response);
+
+        assertThat(service.history(owner, CONVERSATION_ID).messages())
+            .anyMatch(message -> "Accepted AI answer".equals(message.content()));
+        var replay = service.claimAiInteraction(owner, CONVERSATION_ID, "accepted-check", user.messageId(), request);
+        assertThat(replay.outcome()).isEqualTo("COMPLETED_REPLAY");
+        assertThat(replay.response().getAnswer()).isEqualTo("Accepted AI answer");
+        var presentation = service.completedPresentations(owner, CONVERSATION_ID);
+        assertThat(presentation).hasSize(1);
+        assertThat(presentation.getFirst().userMessageId()).isEqualTo(user.messageId());
+        assertThat(presentation.getFirst().response().getSources()).hasSize(1);
+        assertThat(presentation.getFirst().response().getMetadata()).isEmpty();
+        assertThat(presentation.getFirst().response().getAuthenticationRequirement()).isEmpty();
+        assertThatThrownBy(() -> service.completedPresentations(identity("foreign-owner"), CONVERSATION_ID))
+            .isInstanceOf(ConversationControlViolationException.class);
+    }
+
+    @Test
     void blankOptionalAiMetadataDoesNotDiscardTheActualResponse() {
         ConversationMessage user = service.appendUserMessage(owner, CONVERSATION_ID,
             "metadata-message", "Show current stock.", Map.of());

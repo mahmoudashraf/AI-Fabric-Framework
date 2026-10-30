@@ -2,13 +2,16 @@ package com.ai.fabric.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import ai.fabric.chat.control.ConversationControlState;
+import ai.fabric.chat.control.ConversationControlViolationException;
 import ai.fabric.chat.control.ConversationMessage;
 import ai.fabric.chat.control.ConversationParticipantRole;
 import ai.fabric.chat.control.ConversationScope;
@@ -129,15 +132,37 @@ class ConversationHandoverControllerTest {
             RuntimeScopeCatalog.CHAT_MESSAGES,
             "/api/chat/me/conversations/{conversationId}/messages"
         );
-        verify(handoverService).appendAiMessage(
-            turn,
-            IDEMPOTENCY_KEY + ":ai",
-            payload.getAnswer(),
-            Map.of("providerRequestId", "", "resultType", payload.getType())
-        );
-        verify(handoverService).completeAiInteraction(
-            identity, CONVERSATION_ID, IDEMPOTENCY_KEY, HttpStatus.OK.value(), payload
-        );
+        verify(handoverService).commitAiInteraction(turn, IDEMPOTENCY_KEY, HttpStatus.OK.value(), payload);
+        verify(handoverService, never()).completeAiInteraction(any(), any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void rejectedAiCompletionNeverLeaksGeneratedTextOrCardsIntoHandoverReceipt() {
+        ChatQueryRequest body = query("Check my app.");
+        var turn = mock(RuntimeConversationTurn.class);
+        var user = new ConversationMessage("user-1", new ConversationScope(
+            "tenant-1", "deployment-1", CONVERSATION_ID, "anon-owner-1"), 1,
+            ConversationParticipantRole.USER, "anon-owner-1", body.getQuery(), IDEMPOTENCY_KEY,
+            Map.of(), Instant.now());
+        when(handoverService.view(identity, CONVERSATION_ID, 0)).thenReturn(
+            view(ConversationControlState.AI_ACTIVE), view(ConversationControlState.HUMAN_ACTIVE));
+        when(handoverService.appendUserMessage(eq(identity), eq(CONVERSATION_ID), eq(IDEMPOTENCY_KEY), any(), any()))
+            .thenReturn(user);
+        when(handoverService.claimAiInteraction(identity, CONVERSATION_ID, IDEMPOTENCY_KEY, user.messageId(), body))
+            .thenReturn(new AiInteractionAdmission("CLAIMED", null, null, null));
+        when(handoverService.beginAiTurn(identity, CONVERSATION_ID, 1, IDEMPOTENCY_KEY)).thenReturn(turn);
+        var stale = ChatQueryResponse.builder().success(true).answer("Rejected diagnostic findings")
+            .sources(List.of(Map.of("title", "stale source"))).build();
+        when(chatRuntimeController.controlledQuery(body, request, turn)).thenReturn(ResponseEntity.ok(stale));
+        doThrow(new ConversationControlViolationException("AI_TURN_REVOKED", "Human takeover"))
+            .when(handoverService).commitAiInteraction(turn, IDEMPOTENCY_KEY, 200, stale);
+
+        var response = controller.message(CONVERSATION_ID, IDEMPOTENCY_KEY, body, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(response.getBody().getAnswer()).isEqualTo("Your conversation is being transferred to a human.");
+        assertThat(response.getBody().getSources()).isEmpty();
+        verify(handoverService).completeAiInteraction(identity, CONVERSATION_ID, IDEMPOTENCY_KEY, 202, response.getBody());
     }
 
     @Test

@@ -281,6 +281,25 @@ final class RuntimeConversationHandoverRepository {
         );
     }
 
+    List<CompletedPresentationRecord> completedPresentations(ConversationScope scope) {
+        return jdbc.query("""
+            SELECT i.user_message_id, m.message_id AS ai_message_id, i.protected_response, i.updated_at
+              FROM ai_conversation_ai_interaction i
+              JOIN ai_conversation_message m
+                ON m.tenant_id = i.tenant_id AND m.deployment_id = i.deployment_id
+               AND m.conversation_id = i.conversation_id AND m.owner_id = i.owner_id
+               AND m.client_message_id = i.idempotency_key || ':ai' AND m.participant_role = 'AI'
+             WHERE i.tenant_id = ? AND i.deployment_id = ? AND i.conversation_id = ?
+               AND i.owner_id = ? AND i.status = 'COMPLETED'
+             ORDER BY i.updated_at DESC LIMIT 20
+            """, (rows, index) -> new CompletedPresentationRecord(
+                rows.getString("user_message_id"), rows.getString("ai_message_id"), security.decrypt(rows.getString("protected_response")),
+                rows.getTimestamp("updated_at").toInstant()),
+            scope.tenantId(), scope.deploymentId(), scope.conversationId(), scope.ownerId());
+    }
+
+    record CompletedPresentationRecord(String userMessageId, String aiMessageId, String responseJson, Instant completedAt) { }
+
     private Optional<InteractionRecord> findInteraction(
         ConversationScope scope,
         String idempotencyKey

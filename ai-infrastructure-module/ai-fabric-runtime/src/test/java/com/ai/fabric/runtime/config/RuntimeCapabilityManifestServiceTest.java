@@ -20,7 +20,7 @@ class RuntimeCapabilityManifestServiceTest {
         assertThat(strings(manifest.path("supportedBehaviorTypes")))
             .containsExactly("AGENTIC_SPECIALIST_TEAM", "CONVERSATIONAL", "SMART_BRAIN");
         assertThat(strings(manifest.path("supportedExecutionExtensions")))
-            .containsExactly("CONVERSATION_HANDOVER", "HUMAN_REVIEW");
+            .containsExactly("CONVERSATION_HANDOVER", "HUMAN_REVIEW", "SPECIALIST_ASSISTANCE");
         assertThat(strings(manifest.path("capabilities"))).contains(
             "specialist-chains",
             "jdbc-specialist-chain-state",
@@ -35,6 +35,9 @@ class RuntimeCapabilityManifestServiceTest {
             ,"deployment-local-provider-budget-v1"
             ,"deployment-local-provider-budget-validity-extension-v1"
             ,"runtime-release-scoped-drain-v1"
+            ,"published-specialist-assistance-v1"
+            ,"conversational-specialist-assistance"
+            ,"completed-turn-presentations-v1"
         );
         assertThat(strings(manifest.path("migrationIds"))).contains(
             "ai-specialist-chain-execution-v1",
@@ -55,6 +58,7 @@ class RuntimeCapabilityManifestServiceTest {
             "conversation-handover-v1"
             ,"provider-budget-hard-limit-v1"
             ,"provider-budget-validity-extension-v1"
+            ,"conversational-specialist-assistance-v1"
         );
         assertThat(strings(manifest.path("endpointClasses"))).contains("provider-budget-administration", "runtime-release-scoped-drain");
         assertThat(strings(manifest.path("endpointClasses"))).doesNotContain("runtime-cold-maintenance-generation-adoption");

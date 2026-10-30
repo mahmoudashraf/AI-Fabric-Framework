@@ -307,6 +307,28 @@ public class RuntimeConversationHandoverService {
         );
     }
 
+    public void commitAiInteraction(
+        RuntimeConversationTurn turn,
+        String idempotencyKey,
+        int responseHttpStatus,
+        ChatQueryResponse response
+    ) {
+        String key = requireIdempotency(idempotencyKey);
+        repository.transactional(() -> {
+            appendAiMessage(turn, key + ":ai",
+                StringUtils.hasText(response.getAnswer()) ? response.getAnswer() : "The AI request completed.",
+                Map.of(
+                    "providerRequestId", response.getProviderRequestId() == null ? "" : response.getProviderRequestId(),
+                    "resultType", response.getType() == null ? "" : response.getType()
+                ));
+            // The JDBC append holds the conversation row lock until this transaction commits.
+            // Rechecking here rolls back a stale append if takeover won the lock first.
+            controlGateway.verifyAiTurnLease(turn.lease());
+            repository.completeInteraction(turn.scope(), key, responseHttpStatus, writeJson(response));
+            return true;
+        });
+    }
+
     public void failAiInteraction(
         RuntimeResolvedIdentity identity,
         String conversationId,
@@ -318,6 +340,33 @@ public class RuntimeConversationHandoverService {
             requireIdempotency(idempotencyKey),
             failureCode
         );
+    }
+
+    public List<com.ai.fabric.runtime.web.dto.CompletedConversationTurnResponse> completedPresentations(
+        RuntimeResolvedIdentity identity, String conversationId
+    ) {
+        ConversationScope scope = scope(identity, conversationId);
+        controlGateway.status(scope);
+        List<com.ai.fabric.runtime.web.dto.CompletedConversationTurnResponse> result = new ArrayList<>();
+        int remainingCharacters = 256_000;
+        for (var record : repository.completedPresentations(scope)) {
+            if (record.responseJson() == null || record.responseJson().length() > remainingCharacters) continue;
+            remainingCharacters -= record.responseJson().length();
+            ChatQueryResponse stored = readJson(record.responseJson(), ChatQueryResponse.class);
+            // Only already-public presentation fields; no diagnostic metadata, identity,
+            // authentication requirements, pending confirmation or executable suggestions.
+            if (!Set.of("INFORMATION_PROVIDED", "ACTION_EXECUTED", "ACTION_DENIED", "COMPOUND_HANDLED",
+                "OUT_OF_SCOPE", "ERROR").contains(stored.getType() == null ? "" : stored.getType())) continue;
+            ChatQueryResponse safe = ChatQueryResponse.builder()
+                .success(stored.isSuccess()).type(stored.getType()).conversationId(conversationId)
+                .answer(stored.getAnswer()).safeSummary(stored.getSafeSummary())
+                .sources(stored.getSources()).ragResponse(stored.getRagResponse())
+                .actions(stored.getActions()).results(stored.getResults()).fallbackReason(stored.getFallbackReason())
+                .build();
+            result.add(new com.ai.fabric.runtime.web.dto.CompletedConversationTurnResponse(
+                record.userMessageId(), record.aiMessageId(), safe, record.completedAt()));
+        }
+        return List.copyOf(result);
     }
 
     public HumanMessageAcceptance appendHumanBoundUserMessage(

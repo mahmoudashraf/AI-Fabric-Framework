@@ -19,23 +19,28 @@ public class RuntimeRetirementExecutionConfiguration {
     @Bean(name = "aiFabricExecutionTaskExecutor", destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "aiFabricExecutionTaskExecutor")
     ThreadPoolTaskExecutor retirementExecutionTaskExecutor(AIExecutionProperties properties,
-        ObjectProvider<RuntimeTargetRetirementService> service, RuntimeRetirementFencingCoverage coverage) {
+        ObjectProvider<RuntimeTargetRetirementService> service, RuntimeRetirementFencingCoverage coverage,
+        ObjectProvider<com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes> budgetTurns) {
         var executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("ai-fabric-execution-");
         executor.setCorePoolSize(properties.getAsync().getCorePoolSize());
         executor.setMaxPoolSize(properties.getAsync().getMaxPoolSize());
         executor.setQueueCapacity(properties.getAsync().getQueueCapacity());
         executor.setWaitForTasksToCompleteOnShutdown(false);
-        executor.setTaskDecorator(task -> () -> {
+        executor.setTaskDecorator(task -> {
+            var turns = budgetTurns.getIfAvailable();
+            Runnable guarded = turns == null ? task : turns.propagateTask(task);
+            return () -> {
             try {
                 service.getObject().withObservedWorkerBoundary("specialist-execution", true, () -> {
-                    task.run();
+                    guarded.run();
                     return null;
                 });
             } catch (ResponseStatusException blocked) {
                 if (!"RUNTIME_TARGET_AUTHORITY_FENCED".equals(blocked.getReason())) throw blocked;
                 if (task instanceof Future<?> future) future.cancel(false);
             }
+            };
         });
         coverage.installed("aiFabricExecutionTaskExecutor.attempts");
         return executor;

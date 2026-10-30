@@ -40,6 +40,9 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RuntimeAdminOverviewController {
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ai.fabric.runtime.specialist.assistance.SpecialistAssistanceStatusService specialistAssistanceStatus;
+
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
@@ -183,6 +186,8 @@ public class RuntimeAdminOverviewController {
         body.put("runtimeCapabilityManifestHash", runtimeCapabilityManifestService.manifestHash());
         body.put("runtimeCapabilityManifest", runtimeCapabilityManifestService.manifestProjection());
         body.put("specialistChains", specialistChainDiagnostics(specialistChainStatusProvider.getIfAvailable()));
+        body.put("specialistAssistance", specialistAssistanceStatus == null
+            ? Map.of("enabled", false, "ready", true) : specialistAssistanceStatus.status());
         body.put("runtimeMigrations", runtimeMigrationDiagnostics(flywayProvider.getIfAvailable()));
         body.put("productSourceCommit", blankToUnknown(productSourceCommit));
         body.put("productBuildTime", blankToUnknown(productBuildTime));
