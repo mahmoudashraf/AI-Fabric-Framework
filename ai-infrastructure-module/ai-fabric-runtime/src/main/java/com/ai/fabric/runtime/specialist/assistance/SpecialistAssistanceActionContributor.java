@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -106,8 +107,9 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
             if ("CHAIN".equals(invocation.path("targetType").asText())) {
                 SpecialistChainGateway gateway = chains.getIfAvailable();
                 if (gateway == null) return failure("SPECIALIST_CHAIN_UNAVAILABLE", "The configured resolution chain is unavailable.");
+                // Each action invocation owns one chain request; polling reuses its execution handle.
                 var handle = gateway.submit(new SpecialistChainExecutionRequest<>(SpecialistChainId.parse(target), input,
-                    trusted, null, deadline, null));
+                    trusted, null, deadline, "specialist-assistance-" + UUID.randomUUID()));
                 var result = awaitResult(() -> gateway.findResult(handle.executionId(), trusted),
                     () -> gateway.cancel(handle.executionId(), trusted), context, deadline);
                 verifyParent(context);
