@@ -8,6 +8,7 @@ import type { MaxModeController } from "@/hooks/useMaxModeController";
 
 export function MaxModeMainContent({ controller }: { controller: MaxModeController }) {
   const {
+    showUtilityPanel,
     isPanelVisible,
     setIsPanelVisible,
     contextDocuments,
@@ -155,7 +156,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
       />
 
       <MobileNewDocsPreviewPanel
-        isOpen={isNewDocsPreviewOpen}
+        isOpen={showUtilityPanel && isNewDocsPreviewOpen}
         newDocuments={newDocuments}
         onClose={handleCloseNewDocsPreview}
         onSelectDocument={(doc) => {

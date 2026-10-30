@@ -67,7 +67,7 @@ export function MobileNewDocsPreviewPanel({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-                    New Products
+                    New sources
                   </h3>
                   <p className="text-[10px] text-muted-foreground">
                     {newDocuments.length} {newDocuments.length === 1 ? "item" : "items"}
