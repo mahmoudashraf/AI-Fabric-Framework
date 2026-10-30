@@ -522,10 +522,12 @@ frontend; no framework release, new per-customer service or recovery engine.
 - [x] Review generated origins/identity and any unrelated draft changes, then
   publish the exact reviewed draft and apply using the assigned target/image.
   Connect the verified update only through the normal explicit binding command.
-- [ ] Finish canonical engage.loomai.pro shared route/HTTPS and Platform setting,
+- [x] Finish canonical engage.loomai.pro shared route/HTTPS and Platform setting,
   preserving existing native routes. DNS A/CNAME/TXT are now visible.
-- [ ] Focused tests, staged rollout, actual custom-domain canary, origin/auth/
-  activation and exact cleanup evidence. No broad unrelated release matrix.
+- [x] Focused tests, staged rollout, actual custom-domain canary, origin/auth/
+  activation evidence. No broad unrelated release matrix.
+- [ ] Retire only the exact qualification app and its two temporary hostnames
+  after review; it is deliberately retained live for the owner to inspect.
 
 Implementation evidence before rollout:
 
@@ -548,3 +550,54 @@ Implementation evidence before rollout:
   runtime image, automatically select another environment, or activate an app.
   Customer-owned OAuth/email-link redirect settings remain explicit external
   work. Hosted canary/rollout still pending at this checkpoint.
+
+### Hosted Domain Automation Acceptance: 2026-10-30 Passed
+
+- Feature source `25f761030c603e2d7b2329a52bc3e9e179deb977` committed/pushed;
+  image CI `40985735294` passed. Backend OCI
+  `96e3cb667d5431fcabe49344e5c01f0eccbc760b59f337258da7f29b10bc02b5`
+  and Console OCI
+  `6d95ab523324a623cd0f14fafdf4701e6249faafafcf25054b160bc53c8860b3`
+  are identical on both hosts. Backend jobs stage `d5icj7f69m9h2fzkrqusouu3` /
+  production `yaxbgps8b0pi2v29kfsym9j0`; Console jobs stage
+  `i20r19z3w4qvtgl3h8h8wx8z` / production `hreuxq6zskm3xewoicxcswqy`.
+  Native source/health/settings PASS, zero restarts, schema remains217.
+- Canonical target is active and reported in the actual customer domain panel.
+  One **Verify and prepare** click verified both qualification addresses after
+  native route job `vxetx8q0w6aycvqlbmrfbza1`, generation31/applied31. Audit
+  records show two initial verifications and two automatic completion events;
+  no second Verify click. The app remained DRAFT and its manifest returned403
+  despite trusted custom-domain HTTPS health200.
+- Actual customer review showed only Security changes: the two exact origins
+  and managed-origin bookkeeping. No unrelated sections. The customer UI
+  published/applied version `ver-73bc5b03`, release `rel-4163ea35`, through the
+  existing mechanism. Release APPLIED_VERIFIED/PASSED. Original target
+  `dtp-coolify-production-behavior` and source `dsa-9302c94d` retained; no runtime
+  code/image or framework upgrade. Cold replacement took approximately
+  13 minutes including connector restart and bootstrap-credential removal.
+- **Use verified update** explicitly rebound the existing shared consumer;
+  **Activate app** was then a separate click. Canary
+  `awi_pub_be622d27062f1320bfb872757d8bd5d9` is ACTIVE/ready at
+  `https://engage-canary.loomai.pro`. Both domains VERIFIED. Original standalone
+  and embedded apps remain ACTIVE/ready with their full configuration,
+  authentication, origins and row versions preserved; only their shared
+  assignment advanced as reviewed. Native unrelated routes and canonical host
+  are preserved.
+- Custom-origin manifest200, runtime OPTIONS200 with exact allow-origin;
+  foreign manifest/runtime-origin403, unknown app host403. Workspace and pack
+  SRI digests matched. Actual browser anonymous inventory query returned Aster
+  E1 and Morrow C2 with typed vehicle results. Supabase email/password sign-in,
+  a separate authenticated inventory query and logout passed on the custom
+  hostname. Only three read-only AI queries were sent; no business write.
+- Separate observed quality issue: the delivery-policy question returned no
+  current indexed policy evidence. This task does not claim a policy/RAG
+  quality pass and makes no prompt, routing, indexing or framework workaround.
+  OAuth/magic-link redirect configuration remains external-provider work if
+  those methods are enabled; this installation uses email/password only.
+- Screenshots `output/engage-01052/production-domain-{update-review,active-ready}.png`
+  and `custom-domain-{anonymous,authenticated}-inventory.png`. Private receipts
+  under `production/engage-01052-domain-automation-proof/`, staged backend/UI
+  receipts `engage-01052-domain-auto-{backend,ui}/`. Local fixture is stopped;
+  no broad resource cleanup. Canary and temporary DNS intentionally remain for
+  owner review, not silently removed. Keep canonical engage.loomai.pro when
+  retiring the exact canary later.

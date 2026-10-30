@@ -11110,3 +11110,37 @@ test is being called hosted acceptance. UI extraction remains last.
 - Source unchanged runtime/framework/schema; no new per-customer service/DB.
   Local5187 stopped. Next commit scoped files, stage then production backend/UI,
   qualify canary awi_pub_be622d27062f1320bfb872757d8bd5d9 via reviewed normal flow.
+
+## 2026-10-30 Engage 010.52 Domain Automation: Live Acceptance Passed
+
+- Source25f761030c603e2d7b2329a52bc3e9e179deb977, CI40985735294 PASS.
+  Same backend OCI96e3cb667d5431fcabe49344e5c01f0eccbc760b59f337258da7f29b10bc02b5
+  and UI OCI6d95ab523324a623cd0f14fafdf4701e6249faafafcf25054b160bc53c8860b3
+  on BOTH hosts; source/health/settings verified, zero restarts, schema217.
+  Stage backendd5icj7f69m9h2fzkrqusouu3/UIi20r19z3w4qvtgl3h8h8wx8z;
+  production backendyaxbgps8b0pi2v29kfsym9j0/UIhreuxq6zskm3xewoicxcswqy.
+- Canonical engage.loomai.pro HTTPS+Platform target active. One actual customer
+  Verify-and-prepare ->2 domains VERIFIED automatically, routejob
+  vxetx8q0w6aycvqlbmrfbza1/gen31. App stayedDRAFT/manifest403 until explicit
+  activation. Review showed ONLY expected two origins/Security bookkeeping.
+- Reviewed normal publish/apply ver-73bc5b03/rel-4163ea35 PASSED, same target
+  dtp-coolify-production-behavior/source dsa-9302c94d. Explicit Use verified
+  update moved existing consumer, then separate Activate. No framework/runtime
+  image upgrade, no alternate environment or per-customer frontend/DB added.
+- Canary awi_pub_be622d27062f1320bfb872757d8bd5d9 ACTIVE/ready at
+  https://engage-canary.loomai.pro. Original two apps ACTIVE/ready, settings/
+  auth/origins/rowVersions preserved, shared assignment intentionally advanced.
+  Foreign origins/unknown host denied, valid CORS/SRI/TLS passed. Actual browser
+  anonymous inventory and authenticated inventory returned2 live vehicles;
+  Supabase email/password sign-in and logout passed. Three read-only AIqueries,
+  no writes. POLICY QUESTION returned no current indexed evidence: separate
+  quality observation, no policy/RAG quality claim or workaround here.
+- 131 backend+84 Console focused tests and UI build passed before rollout.
+  01052/setup+standalone guides updated. OAuth/email-link provider redirects
+  remain manual if enabled; canary uses email/password only.
+- Canary retained live for owner review; exact fixture/DNS retirement deferred,
+  not broad cleanup. Canonical host must remain. Private receipts production/
+  engage-01052-domain-automation-proof and {staging,production}/engage-01052-
+  domain-auto-{backend,ui}/. Screenshots output/engage-01052/. Local5187 stopped,
+  test account logged out; relevant browser tabs retained. No needed exec jobs
+  remain running. No further implementation blocker for this automation flow.

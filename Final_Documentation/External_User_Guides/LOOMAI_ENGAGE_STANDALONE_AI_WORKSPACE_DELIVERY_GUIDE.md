@@ -163,7 +163,8 @@ CNAME  <customer-host>                   = <standalone-shell-host>
 ```
 
 Console provides copy controls for each actual generated record. Then select
-**Verify domain**. The Platform performs this ordered workflow:
+**Verify and prepare**, or **Verify domain** for a single address. The Platform
+performs this ordered workflow:
 
 1. prove the exact TXT ownership token;
 2. add only that owned hostname to the shared Coolify frontend route set;
@@ -174,6 +175,24 @@ Console provides copy controls for each actual generated record. Then select
 Removing or rebinding a domain updates the Platform-owned route set while
 preserving unrelated service domains. A route or certificate that is still
 settling remains `ROUTING_PENDING`; it is not treated as active.
+Once explicit verification has proved ownership, Platform continues the route
+and HTTPS checks automatically. The Console refreshes pending status without a
+second Verify click. A changed ownership token requires a fresh explicit check;
+disabled or removed apps are not revived by this worker.
+
+The normal CNAME routing target is `engage.loomai.pro`, a shared frontend host,
+not a customer runtime. The browser keeps the custom address and resolves its
+installation and assigned deployment. Direct-mode chat traffic goes from the
+browser to that deployment.
+
+When readiness requires origins or identity changes, **Apply required deployment
+update** reviews the exact editable draft, including unrelated edits and all
+apps using the runtime. After approval it publishes and applies through the
+existing release flow using the currently assigned target and image. After
+verification, **Use verified update** explicitly changes the app connection.
+Activation is a separate customer action. Inspect the deployment change view
+before approving a draft with unrelated edits; this flow never silently replaces
+an incompatible image or selects another environment.
 
 ## 4. Authentication
 
