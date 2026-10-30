@@ -1,0 +1,4 @@
+project_id = "xazkenhomhtpejjjqtsy"
+
+[functions.ui-visits]
+verify_jwt = false

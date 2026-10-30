@@ -66,7 +66,7 @@ function normalizeInstallationId(value) {
 }
 
 function configuredConnectSources() {
-  const sources = new Set(["'self'"])
+  const sources = new Set(["'self'", 'https://xazkenhomhtpejjjqtsy.supabase.co'])
   for (const candidate of [dealershipDemoApiBaseUrl, aiWorkspacePlatformBaseUrl, ...aiWorkspaceConnectOrigins]) {
     if (!candidate) continue
     try {
