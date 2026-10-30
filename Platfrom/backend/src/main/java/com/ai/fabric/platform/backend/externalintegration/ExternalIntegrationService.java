@@ -117,8 +117,9 @@ public class ExternalIntegrationService {
         Map<String, String> references = new LinkedHashMap<>(), revisions = new LinkedHashMap<>();
         for (String field : context.profile().secretFields()) {
             String name = ExternalIntegrationCompilerResolver.secretName(id, context.scope(), field);
-            vault.upsertManagedSecret(name, credentials.get(field), Map.of("deploymentId", deploymentId, "targetProfileId", request.targetProfileId(),
-                "versionId", request.versionId(), "externalIntegrationBindingId", id));
+            vault.upsertTargetManagedSecret(name, credentials.get(field), deploymentId, request.targetProfileId(),
+                Map.of("deploymentId", deploymentId, "targetProfileId", request.targetProfileId(),
+                    "versionId", request.versionId(), "externalIntegrationBindingId", id));
             references.put(field, name);
         }
         // Read persisted timestamp precision, not a managed JPA entity's pre-round-trip Instant.

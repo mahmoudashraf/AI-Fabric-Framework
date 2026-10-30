@@ -22,7 +22,8 @@ class ExternalIntegrationRuntimeWiringTest {
         when(fixture.bindings.releaseEnvironmentForProvisioning(fixture.deployment, fixture.version, fixture.release))
             .thenReturn(new ReleaseEnvironment(Map.of("MANAGED_EXTERNAL_INTEGRATION_CONFIG", "https://provider.example.com"),
                 Map.of("MANAGED_EXTERNAL_INTEGRATION_CREDENTIAL", "SCOPED_CREDENTIAL_REFERENCE")));
-        when(fixture.vault.resolveSecret("SCOPED_CREDENTIAL_REFERENCE")).thenReturn("synthetic-private-value");
+        when(fixture.vault.resolveSecretForDeployment("SCOPED_CREDENTIAL_REFERENCE", fixture.deployment.getId(),
+            fixture.release.getTargetProfileId())).thenReturn("synthetic-private-value");
         var env = new LinkedHashMap<String, CoolifyEnvVar>();
         fixture.provider.mergeFrozenExternalIntegrationEnvironment(fixture.deployment, fixture.version, fixture.release, "runtime", env);
         assertThat(env).isEmpty();
@@ -32,6 +33,9 @@ class ExternalIntegrationRuntimeWiringTest {
         assertThat(env.get("MANAGED_EXTERNAL_INTEGRATION_CREDENTIAL").shownOnce()).isTrue();
         assertThat(env.get("MANAGED_EXTERNAL_INTEGRATION_CREDENTIAL").value()).isEqualTo("synthetic-private-value");
         assertThat(env.values().stream().map(CoolifyEnvVar::value)).doesNotContain("SCOPED_CREDENTIAL_REFERENCE");
+        verify(fixture.vault).resolveSecretForDeployment("SCOPED_CREDENTIAL_REFERENCE", fixture.deployment.getId(),
+            fixture.release.getTargetProfileId());
+        verify(fixture.vault, never()).resolveSecret(anyString());
     }
 
     @Test void missingCredentialOrCollidingAliasStopsEnvironmentGeneration() {

@@ -25,7 +25,11 @@ class ExternalIntegrationServiceTest {
         assertThat(result.status()).isEqualTo("CONFIGURED_LOCAL_CREDENTIALS");
         assertThat(f.bindings).hasSize(1); assertThat(f.commandRows).hasSize(1); assertThat(f.secretRows).hasSize(1);
         verify(f.secrets).flush();
-        verify(f.vault, times(1)).upsertManagedSecret(anyString(), eq("synthetic-customer-key"), anyMap());
+        var binding = f.bindings.values().iterator().next().value();
+        verify(f.vault, times(1)).upsertTargetManagedSecret(binding.secretReferences().get("apiKey"), "synthetic-customer-key",
+            f.deployment.getId(), request.targetProfileId(), Map.of("deploymentId", f.deployment.getId(),
+                "targetProfileId", f.target.getId(), "versionId", f.version.getId(), "externalIntegrationBindingId", binding.id()));
+        verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
         verify(f.vault, never()).resolveSecret("ZILLIZ_CLOUD_API_KEY");
         assertThat(f.dnsCalls).hasValue(0);
         String safe = f.codec.write(result) + f.codec.write(f.bindings.values().iterator().next().value())
@@ -46,7 +50,7 @@ class ExternalIntegrationServiceTest {
             request.approvalId(), request.expectedEntitlementRevision(), "new-bind-operation", request.credentials());
         assertThatThrownBy(() -> f.service.bind("offer-generic", f.deployment.getId(), newOperation)).hasMessageContaining("IMMUTABLE_BINDING_EXISTS");
         assertThat(f.bindings.values().iterator().next().value()).isEqualTo(original);
-        verify(f.vault, times(1)).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verify(f.vault, times(1)).upsertTargetManagedSecret(anyString(), anyString(), eq(f.deployment.getId()), eq(f.target.getId()), anyMap());
     }
 
     @Test void customerCannotSubmitUrlsAccountConfigCredentialReferencesOrNontextualCredentials() throws Exception {
@@ -58,7 +62,7 @@ class ExternalIntegrationServiceTest {
             var invalid = new BindRequest(request.versionId(), request.targetProfileId(), request.bindingSlotId(), request.selectedProfileId(), request.approvalId(),
                 3L, request.operationKey(), credentials);
             assertThatThrownBy(() -> f.service.bind("offer-generic", f.deployment.getId(), invalid));
-            verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+            verify(f.vault, never()).upsertTargetManagedSecret(anyString(), anyString(), anyString(), anyString(), anyMap());
             assertThat(f.bindings).isEmpty();
         }
     }
@@ -82,7 +86,7 @@ class ExternalIntegrationServiceTest {
                 case "signature" -> f.approvals.put(approvalId, new ExternalIntegrationStore.Row<>(f.approvals.get(approvalId).value(), "0".repeat(64), "APPROVED", 0));
             }
             assertThatThrownBy(() -> f.service.bind("offer-generic", f.deployment.getId(), request));
-            verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+            verify(f.vault, never()).upsertTargetManagedSecret(anyString(), anyString(), anyString(), anyString(), anyMap());
         }
     }
 
@@ -117,6 +121,6 @@ class ExternalIntegrationServiceTest {
         var changed = new ApprovalRequest(request.versionId(), request.targetProfileId(), request.bindingSlotId(), request.selectedProfileId(),
             f.mapper.createObjectNode().put("endpointUrl", "https://provider.example.com/different-path"), request.accountScope(), request.reviewReference(), request.operationKey());
         assertThatThrownBy(() -> f.service.approve("offer-generic", f.deployment.getId(), changed)).hasMessageContaining("OPERATION_KEY_CONFLICT");
-        verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verify(f.vault, never()).upsertTargetManagedSecret(anyString(), anyString(), anyString(), anyString(), anyMap());
     }
 }

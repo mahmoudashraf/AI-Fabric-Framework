@@ -490,6 +490,7 @@ class ExternalIntegrationReadAuthorizationTest {
             verify(f.store, never()).insertApproval(any(), anyString()); verify(f.store, never()).insertBinding(any(), anyString());
             verify(f.store, never()).revokeBinding(anyString(), anyLong(), anyString());
             verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+            verify(f.vault, never()).upsertTargetManagedSecret(anyString(), anyString(), anyString(), anyString(), anyMap());
             verify(f.vault, never()).clearManagedSecret(anyString(), anyMap());
             verify(f.vault, never()).resolveSecret(startsWith("MANAGED_EXTERNAL_INTEGRATION"));
             verifyNoInteractions(f.commands, f.audit, f.secrets);

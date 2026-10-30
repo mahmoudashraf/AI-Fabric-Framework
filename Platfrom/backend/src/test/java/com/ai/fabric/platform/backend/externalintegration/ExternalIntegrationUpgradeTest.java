@@ -39,6 +39,7 @@ class ExternalIntegrationUpgradeTest {
         verify(f.store, never()).insertApproval(any(), anyString());
         verify(f.store, never()).insertBinding(any(), anyString());
         verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verify(f.vault, never()).upsertTargetManagedSecret(anyString(), anyString(), anyString(), anyString(), anyMap());
         verifyNoInteractions(f.composition);
         verify(f.entitlements, never()).requireEntitlement(anyString(), anyString(), any(), anyBoolean());
     }

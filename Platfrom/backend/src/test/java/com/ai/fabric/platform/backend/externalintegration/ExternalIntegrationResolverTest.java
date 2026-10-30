@@ -103,6 +103,9 @@ class ExternalIntegrationResolverTest {
         var prod = f.resolver.resolveLocal(f.deployment.getId(), f.version.getId(), production.getId()).getFirst();
         assertThat(prod.secretEnvironment()).isNotEqualTo(stage.secretEnvironment());
         assertThat(f.bindings).hasSize(2); assertThat(f.secretRows).hasSize(2);
+        verify(f.vault).upsertTargetManagedSecret(anyString(), eq("synthetic-customer-key"), eq(f.deployment.getId()), eq(f.target.getId()), anyMap());
+        verify(f.vault).upsertTargetManagedSecret(anyString(), eq("synthetic-production-key"), eq(f.deployment.getId()), eq(production.getId()), anyMap());
+        verify(f.vault, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
     }
 
     @Test void releaseIsFrozenAgainstRuntimeAuthorityAndGenerationReturnsTypedSecretReferencesOnly() throws Exception {
