@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -71,8 +72,10 @@ class RuntimeExternalIdentityBrokerServiceTest {
         JwtDecoder decoder = mock(JwtDecoder.class);
         when(decoder.decode("external-token")).thenReturn(jwt(false));
         HttpServletRequest request = request("https://app.customer.example");
+        var users = mock(RuntimeSupabaseUserVerifier.class);
+        when(users.confirmed(properties.getExternalIdentityBroker(), "external-token", "customer-user-1")).thenReturn(true);
         RuntimeExternalIdentityBrokerService service =
-            new RuntimeExternalIdentityBrokerService(properties, tokenService, decoder);
+            new RuntimeExternalIdentityBrokerService(properties, tokenService, decoder, Clock.systemUTC(), users);
 
         var brokered = service.authenticate(request, "Bearer external-token");
         RuntimeAuthContext context = tokenService.validateBearerToken("Bearer " + brokered.issued().token());
@@ -85,6 +88,21 @@ class RuntimeExternalIdentityBrokerServiceTest {
         assertThat(context.getTenantId()).isEqualTo("tenant-1");
         assertThat(context.getGrantedScopes()).containsExactly("chat:query", "chat:conversations");
         assertThat(brokered.email()).isEqualTo("user@example.com");
+        verify(users).confirmed(properties.getExternalIdentityBroker(), "external-token", "customer-user-1");
+    }
+
+    @Test
+    void neverReplacesProviderOwnedConfirmationWithAClaimOrEditableMetadata() {
+        var properties = properties();
+        var decoder = mock(JwtDecoder.class);
+        when(decoder.decode("external-token")).thenReturn(jwt(false));
+        var users = mock(RuntimeSupabaseUserVerifier.class);
+        when(users.confirmed(properties.getExternalIdentityBroker(), "external-token", "customer-user-1")).thenReturn(false);
+        var service = new RuntimeExternalIdentityBrokerService(properties, new RuntimePublicTokenService(properties), decoder,
+            Clock.systemUTC(), users);
+        assertThatThrownBy(() -> service.authenticate(request("https://app.customer.example"), "Bearer external-token"))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 
     @Test

@@ -107,6 +107,7 @@ class RailwayProvisioningPlanServiceTest {
             .put("externalIdentityAudience", "authenticated").put("corsAllowedOrigins", "https://workspace.example");
         String identityScopes = "chat:query,chat:conversations,chat:handover:request,vector:document,acme:support:read,specialist:assist-area-example@1";
         security.put("externalIdentityGrantedScopes", identityScopes);
+        security.put("externalIdentityRequireVerifiedEmail", true).put("externalIdentitySupabasePublicKey", "sb_publishable_fixture");
         version.setSecurityConfigJson(security.toString());
         var behavior = mapper.createObjectNode().put("type", "CONVERSATIONAL").put("schemaVersion", "loomai-deployment-behavior-v1").put("contractVersion", 1);
         behavior.putArray("executionExtensions").add("CONVERSATION_HANDOVER");
@@ -134,6 +135,7 @@ class RailwayProvisioningPlanServiceTest {
             when(desk.connection(targetId)).thenReturn(new com.ai.fabric.platform.backend.desk.DeskServiceClient.Connection("https://desk-" + targetId + ".example", "service-key"));
             var plan = service.buildPlan(deployment, version, null, targetId);
             assertThat(envMap(plan.services().runtime().env()))
+                .containsEntry("AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_SUPABASE_PUBLIC_KEY", "sb_publishable_fixture")
                 .containsEntry("AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES", identityScopes)
                 .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES", identityScopes)
                 .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES", identityScopes)

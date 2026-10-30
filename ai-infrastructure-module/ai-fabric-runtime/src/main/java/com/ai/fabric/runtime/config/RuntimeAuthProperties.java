@@ -106,6 +106,7 @@ public class RuntimeAuthProperties {
         private String jwkSetUri;
         private String audience = "authenticated";
         private boolean requireVerifiedEmail = false;
+        private String supabasePublicKey;
         private List<String> allowedOrigins = new ArrayList<>();
         private List<String> grantedScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
         private int maxRequestsPerWindow = 30;

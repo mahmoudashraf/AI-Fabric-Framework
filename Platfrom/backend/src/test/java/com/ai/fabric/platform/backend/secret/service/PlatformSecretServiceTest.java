@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.secret.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,125 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 class PlatformSecretServiceTest {
+
+    @Test
+    void targetManagedSecretPersistsExactOwnerAndNeverReportsTheValue() {
+        var repository = mock(PlatformSecretRepository.class);
+        var audit = mock(PlatformAuditService.class);
+        var service = new PlatformSecretService(repository, audit, new MockEnvironment());
+        var summary = service.upsertTargetManagedSecret("MANAGED_SUPPORT_DIAGNOSTICS_STAGE", "test-only-support-key",
+            "dep-support", "target-stage", Map.of("source", "test"));
+        var saved = org.mockito.ArgumentCaptor.forClass(PlatformSecretEntity.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue().getDeploymentId()).isEqualTo("dep-support");
+        assertThat(saved.getValue().getTargetProfileId()).isEqualTo("target-stage");
+        assertThat(saved.getValue().getScopeType()).isEqualTo(PlatformSecretScopeType.DEPLOYMENT_MANAGED);
+        assertThat(summary.targetProfileId()).isEqualTo("target-stage");
+        assertThat(summary.toString()).doesNotContain("test-only-support-key");
+        verify(audit).record("MANAGED_SECRET_UPDATED", "PLATFORM_SECRET", "MANAGED_SUPPORT_DIAGNOSTICS_STAGE",
+            Map.of("source", "test", "deploymentId", "dep-support", "targetProfileId", "target-stage"));
+    }
+
+    @Test
+    void targetManagedSecretDeniesForeignDeploymentWrongOrMissingTargetBeforeReturningItsValue() {
+        var repository = mock(PlatformSecretRepository.class);
+        var entity = targetSecret();
+        when(repository.findById(entity.getName())).thenReturn(Optional.of(entity));
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+        assertThat(service.resolveSecretForDeployment(entity.getName(), "dep-support", "target-stage")).isEqualTo("test-only-support-key");
+        for (String[] scope : new String[][]{{"dep-other", "target-stage"}, {"dep-support", "target-production"},
+            {"dep-support", null}, {null, "target-stage"}}) {
+            assertThatThrownBy(() -> service.resolveSecretForDeployment(entity.getName(), scope[0], scope[1]))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("SECRET_MATERIALIZATION_SCOPE_MISMATCH")
+                .hasMessageNotContaining("test-only-support-key");
+        }
+    }
+
+    @Test
+    void scopedResolutionCannotRereadANewlyBoundCredentialThroughTheGlobalResolver() {
+        var repository = mock(PlatformSecretRepository.class);
+        var entity = targetSecret();
+        when(repository.findById(entity.getName())).thenReturn(Optional.empty(), Optional.of(entity));
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+
+        assertThat(service.resolveSecretForDeployment(entity.getName(), "dep-other", "target-stage")).isNull();
+        verify(repository).findById(entity.getName());
+    }
+
+    @Test
+    void deploymentOnlyManagedBindingsAndDeliberateSharedOpenaiFallbackRemainAvailable() {
+        var repository = mock(PlatformSecretRepository.class);
+        var entity = targetSecret();
+        entity.setTargetProfileId(null);
+        when(repository.findById(entity.getName())).thenReturn(Optional.of(entity));
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class),
+            new MockEnvironment().withProperty("OPENAI_API_KEY", "shared-provider-test-key"));
+        assertThat(service.resolveSecretForDeployment(entity.getName(), "dep-support", "target-production")).isEqualTo("test-only-support-key");
+        assertThat(service.resolveSecretForDeployment("OPENAI_API_KEY", "dep-other", "target-stage")).isEqualTo("shared-provider-test-key");
+        assertThatThrownBy(() -> service.resolveSecretForDeployment(entity.getName(), "dep-other", "target-stage"))
+            .hasMessageContaining("SECRET_MATERIALIZATION_SCOPE_MISMATCH");
+    }
+
+    @Test
+    void scopedMissingValueCannotFallBackToAnUnscopedEnvironmentValue() {
+        var repository = mock(PlatformSecretRepository.class);
+        var entity = targetSecret();
+        entity.setName("OPENAI_API_KEY");
+        entity.setSecretValue("");
+        when(repository.findById(entity.getName())).thenReturn(Optional.of(entity));
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class),
+            new MockEnvironment().withProperty("OPENAI_API_KEY", "must-not-be-used"));
+        assertThat(service.resolveSecretForDeployment(entity.getName(), "dep-support", "target-stage")).isNull();
+    }
+
+    @Test
+    void rotationPreservesTargetBindingAndCannotReassignItsOwner() {
+        var repository = mock(PlatformSecretRepository.class);
+        var entity = targetSecret();
+        when(repository.findById(entity.getName())).thenReturn(Optional.of(entity));
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+        service.upsertManagedSecret(entity.getName(), "rotated-test-key", Map.of("source", "admin-rotation"));
+        assertThat(entity.getDeploymentId()).isEqualTo("dep-support");
+        assertThat(entity.getTargetProfileId()).isEqualTo("target-stage");
+        assertThatThrownBy(() -> service.upsertTargetManagedSecret(entity.getName(), "other", "dep-other", "target-stage", Map.of()))
+            .hasMessageContaining("ownership cannot be reassigned");
+        assertThatThrownBy(() -> service.upsertTargetManagedSecret(entity.getName(), "other", "dep-support", "target-production", Map.of()))
+            .hasMessageContaining("ownership cannot be reassigned");
+        assertThatThrownBy(() -> service.upsertManagedSecret(entity.getName(), "other",
+            Map.of("deploymentId", "dep-support", "targetProfileId", "target-production")))
+            .hasMessageContaining("ownership cannot be reassigned");
+        assertThat(entity.getSecretValue()).isEqualTo("rotated-test-key");
+    }
+
+    @Test
+    void explicitTargetStorageRequiresBothCoordinatesAndValidManagedOwnership() {
+        var repository = mock(PlatformSecretRepository.class);
+        var service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+        assertThatThrownBy(() -> service.upsertTargetManagedSecret("MANAGED_SUPPORT", "value", "dep-support", " ", Map.of()))
+            .hasMessageContaining("require deploymentId and targetProfileId");
+        assertThatThrownBy(() -> service.upsertTargetManagedSecret("MANAGED_SUPPORT", "value", null, "target-stage", Map.of()))
+            .hasMessageContaining("require deploymentId and targetProfileId");
+        var entity = targetSecret();
+        entity.setOwnerType(PlatformSecretOwnerType.PLATFORM);
+        when(repository.findById(entity.getName())).thenReturn(Optional.of(entity));
+        assertThatThrownBy(() -> service.resolveSecretForDeployment(entity.getName(), "dep-support", "target-stage"))
+            .hasMessageContaining("SECRET_MATERIALIZATION_SCOPE_MISMATCH");
+    }
+
+    private PlatformSecretEntity targetSecret() {
+        var entity = new PlatformSecretEntity();
+        entity.setName("MANAGED_SUPPORT_DIAGNOSTICS_STAGE");
+        entity.setSecretValue("test-only-support-key");
+        entity.setDeploymentId("dep-support");
+        entity.setTargetProfileId("target-stage");
+        entity.setScopeType(PlatformSecretScopeType.DEPLOYMENT_MANAGED);
+        entity.setOwnerType(PlatformSecretOwnerType.PLATFORM_MANAGED);
+        entity.setManagedByPlatform(true);
+        return entity;
+    }
 
     @Test
     void milvusTokenMetadataAndAuditNeverIncludeRawCredential() {

@@ -2138,6 +2138,8 @@ public class RailwayProvisioningPlanService {
                 "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_REQUIRE_VERIFIED_EMAIL",
                 Boolean.toString(ManagedDeploymentProfileCatalog.externalIdentityRequireVerifiedEmail(securityConfig))
             ));
+            addOptionalEnv(runtimeEnv, "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_SUPABASE_PUBLIC_KEY",
+                ManagedDeploymentProfileCatalog.externalIdentitySupabasePublicKey(securityConfig));
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ALLOWED_ORIGINS",
                 effectiveCorsAllowedOrigins(securityConfig)
@@ -2470,7 +2472,9 @@ public class RailwayProvisioningPlanService {
         }
         if (node.isTextual()) {
             java.util.regex.Matcher matcher = DEPLOYMENT_SECRET_PLACEHOLDER_PATTERN.matcher(node.asText());
-            if (matcher.matches() && !matcher.group(1).startsWith("MANAGED_")) {
+            // Managed symbols belong to their binding resolver; persisted credentials still need scoped materialization.
+            if (matcher.matches() && (!matcher.group(1).startsWith("MANAGED_")
+                || platformSecretService.isSecretPresent(matcher.group(1)))) {
                 refs.add(matcher.group(1));
             }
             return;

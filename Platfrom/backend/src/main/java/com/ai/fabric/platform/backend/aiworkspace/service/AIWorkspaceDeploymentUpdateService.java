@@ -29,7 +29,8 @@ import static org.springframework.http.HttpStatus.*;
 public class AIWorkspaceDeploymentUpdateService {
     private static final Set<String> WORKSPACE_SECURITY = Set.of("corsAllowedOrigins", "aiWorkspaceManagedCorsOrigins",
         "aiWorkspaceManagedExternalIdentity", "externalIdentityBrokerEnabled", "externalIdentityProvider",
-        "externalIdentityIssuer", "externalIdentityJwkSetUri", "externalIdentityAudience", "externalIdentityGrantedScopes");
+        "externalIdentityIssuer", "externalIdentityJwkSetUri", "externalIdentityAudience", "externalIdentityGrantedScopes",
+        "externalIdentitySupabasePublicKey");
     private final AIWorkspaceInstallationRepository installations;
     private final PlatformConsumerRepository consumers;
     private final DeploymentRepository deployments;

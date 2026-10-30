@@ -2691,6 +2691,15 @@ public class DeploymentDraftValidationService {
             }
             validateRequiredHttpsUrl(securityNode, "externalIdentityIssuer", "security", issues);
             validateRequiredHttpsUrl(securityNode, "externalIdentityJwkSetUri", "security", issues);
+            if (ManagedDeploymentProfileCatalog.externalIdentityRequireVerifiedEmail(securityNode)) {
+                try {
+                    com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAuthenticationProfileRegistry.validatePublicKey(
+                        ManagedDeploymentProfileCatalog.externalIdentitySupabasePublicKey(securityNode));
+                } catch (org.springframework.web.server.ResponseStatusException invalid) {
+                    issues.add(error("security", "EXTERNAL_IDENTITY_PUBLIC_KEY_REQUIRED", "$.externalIdentitySupabasePublicKey",
+                        "Verified Supabase email requires the project's publishable or legacy anon key for its authenticated user lookup."));
+                }
+            }
             validateSecurityTokenIdentifier(
                 ManagedDeploymentProfileCatalog.externalIdentityAudience(securityNode),
                 "$.externalIdentityAudience", "EXTERNAL_IDENTITY_AUDIENCE_INVALID", issues);

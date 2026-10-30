@@ -220,11 +220,20 @@ public class AIWorkspaceReadinessService {
             ManagedDeploymentProfileCatalog.externalIdentityProvider(securityConfig))
             && expectedIssuer.equals(ManagedDeploymentProfileCatalog.externalIdentityIssuer(securityConfig))
             && expectedJwkSetUri.equals(ManagedDeploymentProfileCatalog.externalIdentityJwkSetUri(securityConfig))
-            && "authenticated".equals(ManagedDeploymentProfileCatalog.externalIdentityAudience(securityConfig));
+            && "authenticated".equals(ManagedDeploymentProfileCatalog.externalIdentityAudience(securityConfig))
+            && verifiedEmailLookupConfigured(securityConfig);
         check(matches, checks,
             "EXTERNAL_IDENTITY_BINDING",
             "Assigned runtime identity validation matches the installation authentication profile.",
-            "Assigned runtime identity issuer, JWK set, audience, or provider does not match the installation authentication profile.");
+            "Assigned runtime identity issuer, JWK set, audience, provider, or verified-email lookup configuration is not ready.");
+    }
+
+    private boolean verifiedEmailLookupConfigured(JsonNode securityConfig) {
+        if (!ManagedDeploymentProfileCatalog.externalIdentityRequireVerifiedEmail(securityConfig)) return true;
+        try {
+            AIWorkspaceAuthenticationProfileRegistry.validatePublicKey(ManagedDeploymentProfileCatalog.externalIdentitySupabasePublicKey(securityConfig));
+            return true;
+        } catch (org.springframework.web.server.ResponseStatusException invalid) { return false; }
     }
 
     private void validateMode(AIWorkspaceConnectionMode mode,

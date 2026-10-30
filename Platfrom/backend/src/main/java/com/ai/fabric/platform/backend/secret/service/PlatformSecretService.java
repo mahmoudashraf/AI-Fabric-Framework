@@ -72,17 +72,16 @@ public class PlatformSecretService {
     }
 
     public String resolveSecret(String name) {
+        return resolveSecretValue(name, platformSecretRepository.findById(name).orElse(null));
+    }
+
+    private String resolveSecretValue(String name, PlatformSecretEntity stored) {
         SecretDefinition definition = SUPPORTED_SECRETS.get(name);
-        if (definition == null) {
-            PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
-            if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
-                return stored.getSecretValue();
-            }
-            return null;
-        }
-        PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
         if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
             return stored.getSecretValue();
+        }
+        if (definition == null) {
+            return null;
         }
         String envValue = environment.getProperty(name);
         if (envValue != null && !envValue.isBlank()) {
@@ -92,6 +91,22 @@ public class PlatformSecretService {
             return null;
         }
         return null;
+    }
+
+    /** Prevent a customer-authored reference from exporting another deployment or target's credential. */
+    public String resolveSecretForDeployment(String name, String deploymentId, String targetProfileId) {
+        PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
+        if (stored != null && (stored.getDeploymentId() != null || stored.getTargetProfileId() != null)) {
+            if (deploymentId == null || !deploymentId.equals(stored.getDeploymentId())
+                || stored.getTargetProfileId() != null && (!stored.getTargetProfileId().equals(targetProfileId)
+                    || stored.getScopeType() != PlatformSecretScopeType.DEPLOYMENT_MANAGED
+                    || stored.getOwnerType() != PlatformSecretOwnerType.PLATFORM_MANAGED || !stored.isManagedByPlatform())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SECRET_MATERIALIZATION_SCOPE_MISMATCH");
+            }
+            // A missing owned value must never fall through to an identically named global environment value.
+            return stored.getSecretValue() == null || stored.getSecretValue().isBlank() ? null : stored.getSecretValue();
+        }
+        return resolveSecretValue(name, stored);
     }
 
     public boolean isManagedSecretName(String name) {
@@ -124,18 +139,49 @@ public class PlatformSecretService {
 
     @Transactional
     public PlatformSecretSummary upsertManagedSecret(String name, String value, Map<String, ?> auditDetails) {
+        return storeManagedSecret(name, value, normalize(auditDetails == null ? null : auditDetails.get("deploymentId")),
+            null, auditDetails);
+    }
+
+    @Transactional
+    public PlatformSecretSummary upsertTargetManagedSecret(String name, String value, String deploymentId,
+                                                           String targetProfileId, Map<String, ?> auditDetails) {
+        String owner = normalize(deploymentId);
+        String target = normalize(targetProfileId);
+        if (owner == null || owner.length() > 64 || target == null || target.length() > 128) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Managed target secrets require deploymentId and targetProfileId.");
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        if (auditDetails != null) details.putAll(auditDetails);
+        details.put("deploymentId", owner);
+        details.put("targetProfileId", target);
+        return storeManagedSecret(name, value, owner, target, details);
+    }
+
+    private PlatformSecretSummary storeManagedSecret(String name, String value, String deploymentId,
+                                                      String targetProfileId, Map<String, ?> auditDetails) {
         if (!isManagedSecretName(name)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
+        }
+        PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
+        String reportedTarget = normalize(auditDetails == null ? null : auditDetails.get("targetProfileId"));
+        if (entity.getName() != null && (entity.getScopeType() != PlatformSecretScopeType.DEPLOYMENT_MANAGED
+            || entity.getDeploymentId() != null && deploymentId != null && !entity.getDeploymentId().equals(deploymentId)
+            || entity.getTargetProfileId() != null && (targetProfileId != null && !entity.getTargetProfileId().equals(targetProfileId)
+                || reportedTarget != null && !entity.getTargetProfileId().equals(reportedTarget)))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Managed secret ownership cannot be reassigned.");
         }
         if (value == null || value.isBlank()) {
             return clearManagedSecret(name, auditDetails);
         }
 
-        PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
+        String retainedDeploymentId = entity.getDeploymentId();
         entity.setName(name);
         entity.setSecretValue(value.trim());
         entity.setUpdatedAt(Instant.now());
         applyManagedMetadata(entity, name, auditDetails);
+        entity.setDeploymentId(deploymentId == null ? retainedDeploymentId : deploymentId);
+        if (targetProfileId != null) entity.setTargetProfileId(targetProfileId);
         platformSecretRepository.save(entity);
         platformAuditService.record(
             "MANAGED_SECRET_UPDATED",
@@ -207,13 +253,15 @@ public class PlatformSecretService {
                 : stored.getSecretPurpose(),
             stored != null ? stored.getDeploymentId() : null,
             stored != null && stored.isManagedByPlatform(),
-            stored == null || stored.getCleanupPolicy() == null ? inferredCleanupPolicy(name).name() : stored.getCleanupPolicy().name()
+            stored == null || stored.getCleanupPolicy() == null ? inferredCleanupPolicy(name).name() : stored.getCleanupPolicy().name(),
+            stored == null ? null : stored.getTargetProfileId()
         );
     }
 
     private void applyGlobalMetadata(PlatformSecretEntity entity, String name) {
         entity.setScopeType(PlatformSecretScopeType.GLOBAL_PLATFORM);
         entity.setDeploymentId(null);
+        entity.setTargetProfileId(null);
         entity.setSecretPurpose(name);
         entity.setOwnerType(PlatformSecretOwnerType.PLATFORM);
         entity.setManagedByPlatform(false);

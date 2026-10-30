@@ -189,15 +189,16 @@ public class DeploymentProviderSecretResolutionService {
         if (!StringUtils.hasText(normalizedPrimary)) {
             return unresolved(deploymentId, definition, bindingMode, fallbackUsed, reasonCode, message);
         }
-        String primaryValue = trimToNull(platformSecretService.resolveSecret(normalizedPrimary));
-        boolean primaryPresent = platformSecretService.isSecretPresent(normalizedPrimary) || StringUtils.hasText(primaryValue);
+        // This deployment-only contract has no trusted target: target-bound credentials must fail closed.
+        String primaryValue = trimToNull(platformSecretService.resolveSecretForDeployment(normalizedPrimary, deploymentId, null));
+        boolean primaryPresent = StringUtils.hasText(primaryValue);
         if (definition.paired()) {
             String normalizedSecondary = trimToNull(secondarySecretName);
             if (!StringUtils.hasText(normalizedSecondary)) {
                 return unresolved(deploymentId, definition, bindingMode, fallbackUsed, reasonCode, message);
             }
-            String secondaryValue = trimToNull(platformSecretService.resolveSecret(normalizedSecondary));
-            boolean secondaryPresent = platformSecretService.isSecretPresent(normalizedSecondary) || StringUtils.hasText(secondaryValue);
+            String secondaryValue = trimToNull(platformSecretService.resolveSecretForDeployment(normalizedSecondary, deploymentId, null));
+            boolean secondaryPresent = StringUtils.hasText(secondaryValue);
             if (!primaryPresent || !secondaryPresent) {
                 return unresolved(deploymentId, definition, bindingMode, fallbackUsed, reasonCode, message);
             }

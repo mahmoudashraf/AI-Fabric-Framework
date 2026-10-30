@@ -77,6 +77,15 @@ class AIWorkspaceReadinessServiceTest {
             assertThat(check.status()).isEqualTo("PASSED");
         });
 
+        var verifiedEmailSecurity = (com.fasterxml.jackson.databind.node.ObjectNode) matching.securityConfig();
+        verifiedEmailSecurity.put("externalIdentityRequireVerifiedEmail", true);
+        assertThat(service().evaluate(installation).checks()).anySatisfy(check -> {
+            assertThat(check.code()).isEqualTo("EXTERNAL_IDENTITY_BINDING");
+            assertThat(check.status()).isEqualTo("BLOCKED");
+        });
+        verifiedEmailSecurity.put("externalIdentitySupabasePublicKey", "sb_publishable_another_valid_project_alias");
+        assertThat(service().evaluate(installation).ready()).isTrue();
+
         when(domains.deliveryAvailable(installation.getId())).thenReturn(false);
         var deliveryFailure = service().evaluate(installation);
         assertThat(deliveryFailure.ready()).isFalse();

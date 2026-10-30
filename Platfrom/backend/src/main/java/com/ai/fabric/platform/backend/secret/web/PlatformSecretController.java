@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.secret.model.PlatformDeploymentOverrideSecretSummary;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.model.UpdatePlatformSecretRequest;
+import com.ai.fabric.platform.backend.secret.model.UpsertManagedPlatformSecretRequest;
 import com.ai.fabric.platform.backend.secret.model.UpsertPlatformDeploymentOverrideSecretRequest;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -74,7 +75,11 @@ public class PlatformSecretController {
     @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public PlatformSecretSummary upsertManagedSecret(@PathVariable String name,
-                                                     @RequestBody UpdatePlatformSecretRequest request) {
+                                                     @RequestBody UpsertManagedPlatformSecretRequest request) {
+        if (request.deploymentId() != null || request.targetProfileId() != null) {
+            return platformSecretService.upsertTargetManagedSecret(name, request.value(), request.deploymentId(),
+                request.targetProfileId(), Map.of("source", "PLATFORM_SECRET_API"));
+        }
         return platformSecretService.upsertManagedSecret(
             name,
             request.value(),

@@ -313,6 +313,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     finalPlan.services().runtime(),
                     verificationProperties.runtimeHealthPath(),
                     deployment,
+                    release.getTargetProfileId(),
                     runtimeServiceBaseUrl,
                     connectorServiceBaseUrl
                 );
@@ -331,6 +332,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     finalPlan.services().restConnector(),
                     verificationProperties.connectorHealthPath(),
                     deployment,
+                    release.getTargetProfileId(),
                     runtimeServiceBaseUrl,
                     connectorServiceBaseUrl
                 );
@@ -351,6 +353,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                         runnerPlan,
                         verificationProperties.runtimeHealthPath(),
                         deployment,
+                        release.getTargetProfileId(),
                         runtimeServiceBaseUrl,
                         connectorServiceBaseUrl
                     );
@@ -510,6 +513,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           RailwayServicePlanSummary plan,
                                           String healthcheckPath,
                                           DeploymentEntity deployment,
+                                          String targetProfileId,
                                           String runtimeBaseUrl,
                                           String connectorBaseUrl) {
         railwayGraphqlClient.connectServiceToRepository(
@@ -528,7 +532,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             projectId,
             environmentId,
             serviceId,
-            toEnvVarInputs(plan.env(), runtimeBaseUrl, connectorBaseUrl)
+            toEnvVarInputs(plan.env(), deployment.getId(), targetProfileId, runtimeBaseUrl, connectorBaseUrl)
         );
     }
 
@@ -838,7 +842,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             project.id(),
             environment.id(),
             workerService.id(),
-            toEnvVarInputs(workerEnv, null, null)
+            toEnvVarInputs(workerEnv, deployment.getId(), scope.targetProfileId(), null, null)
         );
         if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
             railwayGraphqlClient.commitStagedChanges(environment.id());
@@ -1032,32 +1036,36 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     private List<RailwayGraphqlClient.RailwayEnvVarInput> toEnvVarInputs(List<RailwayEnvVarSummary> envVars,
+                                                                         String deploymentId,
+                                                                         String targetProfileId,
                                                                          String runtimeBaseUrl,
                                                                          String connectorBaseUrl) {
         return envVars.stream()
             .map(item -> new RailwayGraphqlClient.RailwayEnvVarInput(
                 item.key(),
-                resolveEnvVarValue(item, runtimeBaseUrl, connectorBaseUrl)
+                resolveEnvVarValue(item, deploymentId, targetProfileId, runtimeBaseUrl, connectorBaseUrl)
             ))
             .toList();
     }
 
     private String resolveEnvVarValue(RailwayEnvVarSummary envVar,
+                                      String deploymentId,
+                                      String targetProfileId,
                                       String runtimeBaseUrl,
                                       String connectorBaseUrl) {
         String serviceBaseUrl = resolveServiceBaseUrl(envVar.key(), runtimeBaseUrl, connectorBaseUrl);
         if (serviceBaseUrl != null) {
             return serviceBaseUrl;
         }
-        return resolveSecretPlaceholder(envVar.value());
+        return resolveSecretPlaceholder(envVar.value(), deploymentId, targetProfileId);
     }
 
-    private String resolveSecretPlaceholder(String value) {
+    private String resolveSecretPlaceholder(String value, String deploymentId, String targetProfileId) {
         if (value == null || !value.startsWith("${secret:") || !value.endsWith("}")) {
             return value;
         }
         String secretName = value.substring("${secret:".length(), value.length() - 1).trim();
-        String resolved = platformSecretService.resolveSecret(secretName);
+        String resolved = platformSecretService.resolveSecretForDeployment(secretName, deploymentId, targetProfileId);
         if (resolved == null || resolved.isBlank()) {
             throw new RailwayProvisioningConfigurationException(
                 "Missing platform secret '" + secretName + "' required for Railway provisioning."

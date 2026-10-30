@@ -2473,7 +2473,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 putEnv(
                     env,
                     serviceEnv.key(),
-                    resolveEnvVarValue(serviceEnv, runtimeBaseUrl, connectorBaseUrl),
+                    resolveEnvVarValue(serviceEnv, deployment.getId(), release.getTargetProfileId(), runtimeBaseUrl, connectorBaseUrl),
                     secretPlaceholderName(serviceEnv.value()) != null
                 );
             }
@@ -2620,16 +2620,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             : SERVICE_ROLE_RUNTIME.equals(serviceRole) ? plan.runtime() : Map.of();
         values.forEach((key, value) -> {
             String secretName = secretPlaceholderName(value);
-            putEnv(env, key, resolveAuthorityEnvironmentValue(secretName, value), secretName != null);
+            putEnv(env, key, resolveAuthorityEnvironmentValue(secretName, value, deployment.getId(), release.getTargetProfileId()), secretName != null);
         });
     }
 
-    private String resolveAuthorityEnvironmentValue(String secretName, String value) {
+    private String resolveAuthorityEnvironmentValue(String secretName, String value, String deploymentId, String targetProfileId) {
         if (secretName == null) return value;
         if (platformSecretService == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Platform secret service is unavailable for target authority provisioning.");
         }
-        String resolved = platformSecretService.resolveSecret(secretName);
+        String resolved = platformSecretService.resolveSecretForDeployment(secretName, deploymentId, targetProfileId);
         if (!StringUtils.hasText(resolved)) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -2651,7 +2651,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         });
         plan.secretEnvironment().forEach((name, reference) -> {
             if (env.containsKey(name)) throw new IllegalStateException("EXTERNAL_INTEGRATION_ENVIRONMENT_COLLISION");
-            putEnv(env, name, resolveAuthorityEnvironmentValue(reference, null), true);
+            putEnv(env, name, resolveAuthorityEnvironmentValue(reference, null, deployment.getId(), release.getTargetProfileId()), true);
         });
     }
 
@@ -2688,7 +2688,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return new CoolifyEnvVar(key, value, false, true, false, sensitive);
     }
 
-    private String resolveEnvVarValue(RailwayEnvVarSummary envVar, String runtimeBaseUrl, String connectorBaseUrl) {
+    private String resolveEnvVarValue(RailwayEnvVarSummary envVar, String deploymentId, String targetProfileId,
+                                      String runtimeBaseUrl, String connectorBaseUrl) {
         String serviceBaseUrl = RailwayApiProvisioningProvider.resolveServiceBaseUrl(
             envVar.key(),
             runtimeBaseUrl,
@@ -2704,7 +2705,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (platformSecretService == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Platform secret service is unavailable for Coolify provisioning.");
         }
-        String resolved = platformSecretService.resolveSecret(secretName);
+        String resolved = platformSecretService.resolveSecretForDeployment(secretName, deploymentId, targetProfileId);
         if (!StringUtils.hasText(resolved)) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,

@@ -270,6 +270,7 @@ class CoolifyDeploymentProviderTest {
             .isEqualTo("resolved-target-secret")
             .doesNotContain("TARGET_KEY", "${secret:");
         assertThat(environment.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY").shownOnce()).isTrue();
+        verify(secrets).resolveSecretForDeployment("TARGET_KEY", "dep-123", "dtp-coolify-staging");
     }
 
     @Test
@@ -2674,6 +2675,10 @@ class CoolifyDeploymentProviderTest {
         DeploymentManagedVectorResourceService vectorResources, CoolifyTargetProfileResolver resolver,
         CoolifyApiClient api, PlatformSecretService secrets, PlatformCustomerRepository customers,
         DeploymentExecutionSecretService executionSecrets, ObjectMapper mapper) {
+        if (secrets != null) {
+            when(secrets.resolveSecretForDeployment(anyString(), anyString(), nullable(String.class)))
+                .thenAnswer(call -> secrets.resolveSecret(call.getArgument(0)));
+        }
         var provider = new CoolifyDeploymentProvider(targets, handles, artifacts, plans, vectorProvisioning, vectorResources,
             resolver, api, secrets, customers, executionSecrets, mapper);
         ReflectionTestUtils.setField(provider, "releaseArtifacts", new ReleaseArtifactResolver(artifacts));

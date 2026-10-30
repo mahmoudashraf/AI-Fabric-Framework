@@ -100,6 +100,7 @@ ai:
           jwk-set-uri: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_JWK_SET_URI:}
           audience: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_AUDIENCE:authenticated}
           require-verified-email: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_REQUIRE_VERIFIED_EMAIL:false}
+          supabase-public-key: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_SUPABASE_PUBLIC_KEY:}
           allowed-origins: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ALLOWED_ORIGINS:}
           granted-scopes: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES:chat:query,chat:suggestions,chat:conversations}
           max-requests-per-window: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_MAX_REQUESTS_PER_WINDOW:30}

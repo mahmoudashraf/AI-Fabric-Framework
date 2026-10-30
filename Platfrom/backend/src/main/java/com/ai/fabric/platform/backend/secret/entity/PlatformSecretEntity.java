@@ -30,6 +30,9 @@ public class PlatformSecretEntity {
     @Column(name = "deployment_id", length = 64)
     private String deploymentId;
 
+    @Column(name = "target_profile_id", length = 128)
+    private String targetProfileId;
+
     @Column(name = "secret_purpose", length = 128)
     private String secretPurpose;
 
@@ -82,6 +85,14 @@ public class PlatformSecretEntity {
 
     public void setDeploymentId(String deploymentId) {
         this.deploymentId = deploymentId;
+    }
+
+    public String getTargetProfileId() {
+        return targetProfileId;
+    }
+
+    public void setTargetProfileId(String targetProfileId) {
+        this.targetProfileId = targetProfileId;
     }
 
     public String getSecretPurpose() {

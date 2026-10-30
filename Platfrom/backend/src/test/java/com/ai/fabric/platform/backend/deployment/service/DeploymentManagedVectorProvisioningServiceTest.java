@@ -87,6 +87,8 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void sameNamePineconeWithManagedSecretStillCannotBeAdopted() throws Exception {
         var secret=mock(PlatformSecretService.class);
         when(secret.resolveSecret("PINECONE_API_KEY")).thenReturn("synthetic-management");
+        when(secret.resolveSecretForDeployment("PINECONE_API_KEY", ManagedResourceOwnershipFixture.SCOPE.deploymentId(), null))
+            .thenReturn("synthetic-management");
         when(secret.resolveSecret(managedSecret("PINECONE_API_KEY"))).thenReturn("synthetic-retained-secret");
         var http=mock(HttpClient.class);
         var pinecone=mock(PineconeControlPlaneClient.class);
@@ -184,6 +186,8 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void ensureProvisionedCreatesManagedPineconeIndexAndInjectsResolvedHost() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pinecone-secret");
+        when(secretService.resolveSecretForDeployment("PINECONE_API_KEY", ManagedResourceOwnershipFixture.SCOPE.deploymentId(), null))
+            .thenReturn("pinecone-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> describeMissing = mock(HttpResponse.class);
@@ -320,6 +324,8 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void ensureProvisionedUsesConfiguredSharedQdrantRuntimeSecretForManagedCollections() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("shared-qdrant-secret");
+        when(secretService.resolveSecretForDeployment("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", ManagedResourceOwnershipFixture.SCOPE.deploymentId(), null))
+            .thenReturn("shared-qdrant-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> missing = mock(HttpResponse.class);
@@ -384,6 +390,8 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void ensureProvisionedReusesPlatformManagedSharedQdrantRootWhenHostIsPreconfigured() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("shared-qdrant-secret");
+        when(secretService.resolveSecretForDeployment("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", ManagedResourceOwnershipFixture.SCOPE.deploymentId(), null))
+            .thenReturn("shared-qdrant-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> missing = mock(HttpResponse.class);

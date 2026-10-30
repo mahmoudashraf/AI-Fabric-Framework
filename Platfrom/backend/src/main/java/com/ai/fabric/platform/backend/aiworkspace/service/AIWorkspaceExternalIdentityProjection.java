@@ -58,6 +58,18 @@ public class AIWorkspaceExternalIdentityProjection {
         // Publish only after profile, multi-installation, ownership and drift checks all succeed.
         for (String field : FIELDS) copyField(updated, security, field);
         copyField(updated, security, MANAGED_FIELD);
+        // This public lookup key accompanies the retained manual email policy, not app-owned scope grants.
+        if (desired != null && ManagedDeploymentProfileCatalog.externalIdentityRequireVerifiedEmail(security)) {
+            for (var installation : installations) {
+                if (!installation.getInteractionPolicy().requiresAuthenticationProfile()) continue;
+                try {
+                    var profile = authenticationProfiles.resolve(installation.getAuthProfileCode(), installation.getAuthProfileVersion(),
+                        installation.getInteractionPolicy(), objectMapper.readTree(installation.getAuthConfigurationJson()));
+                    security.put("externalIdentitySupabasePublicKey", profile.publicConfiguration().path("publishableKey").asText());
+                    break;
+                } catch (Exception invalid) { throw conflict(); }
+            }
+        }
     }
 
     private ObjectNode desiredIdentity(List<AIWorkspaceInstallationEntity> installations, JsonNode behavior) {

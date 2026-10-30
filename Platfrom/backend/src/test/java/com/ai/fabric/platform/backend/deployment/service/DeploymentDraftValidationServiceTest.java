@@ -22,6 +22,20 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void verifiedSupabaseEmailNeedsOnlyAnUnprivilegedProviderLookupKey() {
+        var security = new ObjectMapper().createObjectNode().put("externalIdentityBrokerEnabled", true)
+            .put("externalIdentityProvider", "SUPABASE").put("externalIdentityIssuer", "https://identity.example/auth/v1")
+            .put("externalIdentityJwkSetUri", "https://identity.example/auth/v1/.well-known/jwks.json")
+            .put("externalIdentityRequireVerifiedEmail", true).put("corsAllowedOrigins", "https://workspace.example");
+        for (String key : java.util.List.of("", "sb_secret_privileged-key", "sb_publishable_fixture")) {
+            security.put("externalIdentitySupabasePublicKey", key);
+            var result = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", "{}", security.toString()));
+            if (key.equals("sb_publishable_fixture")) assertThat(result.issues()).extracting("code").doesNotContain("EXTERNAL_IDENTITY_PUBLIC_KEY_REQUIRED");
+            else assertThat(result.issues()).extracting("code").contains("EXTERNAL_IDENTITY_PUBLIC_KEY_REQUIRED");
+        }
+    }
+
+    @Test
     void tokenDraftRequiresExplicitModeAndRetainedBindingButNotUnresolvedSecretReferences() {
         var provider = new ObjectMapper().createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai")
             .put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")

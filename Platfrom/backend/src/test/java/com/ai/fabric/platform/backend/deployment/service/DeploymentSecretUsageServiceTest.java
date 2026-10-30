@@ -51,7 +51,7 @@ class DeploymentSecretUsageServiceTest {
         var secrets = mock(PlatformSecretService.class);
         when(secrets.listSecrets()).thenReturn(List.of(new PlatformSecretSummary(
             "MILVUS_TOKEN", "Milvus token", "Fake global credential", false, true, "DATABASE", null,
-            "GLOBAL", "PLATFORM", "MILVUS_TOKEN", null, false, "KEEP")));
+            "GLOBAL", "PLATFORM", "MILVUS_TOKEN", null, false, "KEEP", null)));
         var resolutions = mock(DeploymentProviderSecretResolutionService.class);
         var service = new DeploymentSecretUsageService(secrets, resolutions, new DeploymentSecretPurposeCatalog(),
             new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)), new ObjectMapper(),
@@ -201,7 +201,8 @@ class DeploymentSecretUsageServiceTest {
             null,
             "dep-test",
             true,
-            "DELETE_WITH_DEPLOYMENT"
+            "DELETE_WITH_DEPLOYMENT",
+            null
         ));
 
         DeploymentSecretUsageService service = new DeploymentSecretUsageService(
@@ -365,7 +366,7 @@ class DeploymentSecretUsageServiceTest {
                 "name".equals(changed) ? "DIFFERENT_REFERENCE" : reference, "private-metadata", "private-metadata", false,
                 !"absent".equals(changed), "DATABASE", null,
                 "scope".equals(changed) ? "GLOBAL_PLATFORM" : "DEPLOYMENT_MANAGED", "PLATFORM_MANAGED", null,
-                "deployment".equals(changed) ? "dep-other" : fixture.deployment.getId(), !"managed".equals(changed), "DELETE_ON_HARD_DELETE"));
+                "deployment".equals(changed) ? "dep-other" : fixture.deployment.getId(), !"managed".equals(changed), "DELETE_ON_HARD_DELETE", null));
         }
         fixture.assertDependencySecrets(fixture.scopedSummary(), false);
         fixture.verifyLocalOnly();
@@ -600,7 +601,7 @@ class DeploymentSecretUsageServiceTest {
         private final List<String> purposes = List.of("api", "db", "management");
         private final List<String> references = List.of("MANAGED_TEST_SOURCE_A", "MANAGED_TEST_SOURCE_B", "MANAGED_TEST_SOURCE_C");
         private final PlatformSecretSummary openai = new PlatformSecretSummary("OPENAI_API_KEY", "OpenAI", "Synthetic", true,
-            true, "DATABASE", null, "GLOBAL_PLATFORM", "PLATFORM", "OPENAI_API_KEY", null, false, "KEEP");
+            true, "DATABASE", null, "GLOBAL_PLATFORM", "PLATFORM", "OPENAI_API_KEY", null, false, "KEEP", null);
         private final DeploymentSecretUsageService service;
         private ManagedDependencySpec spec;
 
@@ -649,7 +650,7 @@ class DeploymentSecretUsageServiceTest {
                 when(secrets.isManagedSecretName(reference)).thenReturn(true);
                 when(secrets.describeSecret(reference)).thenReturn(new PlatformSecretSummary(reference, "private-metadata", "private-metadata",
                     false, true, "DATABASE", null, "DEPLOYMENT_MANAGED", "PLATFORM_MANAGED", null,
-                    deployment.getId(), true, "DELETE_ON_HARD_DELETE"));
+                    deployment.getId(), true, "DELETE_ON_HARD_DELETE", null));
             }
             when(secrets.listSecrets()).thenReturn(List.of(openai));
             when(graphs.find(deployment.getId(), "target-synthetic")).thenReturn(Optional.of(graph));
@@ -689,7 +690,7 @@ class DeploymentSecretUsageServiceTest {
             var catalog = new java.util.ArrayList<PlatformSecretSummary>();
             catalog.add(openai);
             names.forEach(name -> catalog.add(new PlatformSecretSummary(name, "Synthetic shadow", "Synthetic", false, true,
-                "ENV", null, "GLOBAL_PLATFORM", "PLATFORM", name, null, false, "KEEP")));
+                "ENV", null, "GLOBAL_PLATFORM", "PLATFORM", name, null, false, "KEEP", null)));
             when(secrets.listSecrets()).thenReturn(catalog);
         }
 
@@ -748,9 +749,9 @@ class DeploymentSecretUsageServiceTest {
             when(bindings.resolveLocal(eq(deployment), eq(version), any(), eq("target-staging"))).thenReturn(effectiveConfig);
             when(secrets.listSecrets()).thenReturn(List.of(
                 new PlatformSecretSummary("OPENAI_API_KEY", "OpenAI", "Synthetic metadata", true, true, "DATABASE", null,
-                    "GLOBAL_PLATFORM", "PLATFORM", "OPENAI_API_KEY", null, false, "KEEP"),
+                    "GLOBAL_PLATFORM", "PLATFORM", "OPENAI_API_KEY", null, false, "KEEP", null),
                 new PlatformSecretSummary(purpose, "Milvus", "Synthetic global metadata", false, true, "DATABASE", null,
-                    "GLOBAL_PLATFORM", "PLATFORM", purpose, null, false, "KEEP")));
+                    "GLOBAL_PLATFORM", "PLATFORM", purpose, null, false, "KEEP", null)));
             service = new DeploymentSecretUsageService(secrets, resolutions, new DeploymentSecretPurposeCatalog(),
                 new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)), mapper, bindings,
                 mock(ManagedDependencyGraphStore.class), new ManagedDependencySpecValidator(mapper), mock(ManagedDependencySpecRepository.class));

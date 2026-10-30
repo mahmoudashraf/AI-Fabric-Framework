@@ -375,6 +375,10 @@ public final class ManagedDeploymentProfileCatalog {
         return securityConfig != null && securityConfig.path("externalIdentityRequireVerifiedEmail").asBoolean(false);
     }
 
+    public static String externalIdentitySupabasePublicKey(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "externalIdentitySupabasePublicKey");
+    }
+
     public static String externalIdentityGrantedScopes(JsonNode securityConfig) {
         String value = trimmedText(securityConfig, "externalIdentityGrantedScopes");
         return value.isBlank() ? "chat:query,chat:suggestions,chat:conversations" : value;

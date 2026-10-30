@@ -47,7 +47,8 @@ class AIWorkspaceExternalIdentityProjectionTest {
         assertThat(security.path("externalIdentityAudience").asText()).isEqualTo("authenticated");
         assertThat(security.path("externalIdentityGrantedScopes").asText()).isEqualTo(BASE_SCOPES);
         assertThat(security.path("privateRuntimeAcceptedIssuers").asText()).isEqualTo("private-original");
-        assertThat(security.toString()).doesNotContain("sb_publishable_fixture", "publishableKey", "methods");
+        assertThat(security.path("externalIdentitySupabasePublicKey").asText()).isEqualTo("sb_publishable_fixture");
+        assertThat(security.toString()).doesNotContain("publishableKey", "methods");
         assertThat(security.path(MANAGED).path("previous").path("externalIdentityBrokerEnabled").booleanValue()).isFalse();
         assertThat(security.path(MANAGED).path("previous").has("externalIdentityIssuer")).isFalse();
     }
@@ -96,6 +97,7 @@ class AIWorkspaceExternalIdentityProjectionTest {
         security.put("externalIdentityGrantedScopes", BASE_SCOPES + ",chat:messages");
         security.put("externalIdentityRequireVerifiedEmail", true);
         ObjectNode before = security.deepCopy();
+        before.put("externalIdentitySupabasePublicKey", "sb_publishable_fixture");
 
         projection.project(security, List.of(auth("https://example.supabase.co")), null);
         projection.project(security, List.of(), null);
@@ -139,6 +141,7 @@ class AIWorkspaceExternalIdentityProjectionTest {
         security.put("corsAllowedOrigins", "https://new-app.example");
         before.put("privateRuntimeAcceptedIssuers", "reviewed-new-private");
         before.put("corsAllowedOrigins", "https://new-app.example");
+        before.put("externalIdentitySupabasePublicKey", "sb_publishable_fixture");
 
         projection.project(security, List.of(), null);
 
@@ -153,6 +156,7 @@ class AIWorkspaceExternalIdentityProjectionTest {
         ObjectNode before = security.deepCopy();
         projection.project(security, List.of(auth("https://example.supabase.co")), null);
         projection.project(security, List.of(), null);
+        before.put("externalIdentitySupabasePublicKey", "sb_publishable_fixture");
         assertThat(security).isEqualTo(before);
     }
 

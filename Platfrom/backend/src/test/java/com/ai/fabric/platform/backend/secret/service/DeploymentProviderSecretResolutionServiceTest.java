@@ -35,8 +35,7 @@ class DeploymentProviderSecretResolutionServiceTest {
         binding.setBindingMode(DeploymentProviderSecretBindingMode.ALLOW_STANDARD_PRECEDENCE);
         binding.setSecretName("DEPLOYMENT_OPENAI_OVERRIDE");
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "OPENAI_API_KEY")).thenReturn(Optional.of(binding));
-        when(platformSecretService.isSecretPresent("DEPLOYMENT_OPENAI_OVERRIDE")).thenReturn(true);
-        when(platformSecretService.resolveSecret("DEPLOYMENT_OPENAI_OVERRIDE")).thenReturn("override-value");
+        when(platformSecretService.resolveSecretForDeployment("DEPLOYMENT_OPENAI_OVERRIDE", "dep-123", null)).thenReturn("override-value");
 
         PlatformSecretEntity entity = new PlatformSecretEntity();
         entity.setName("DEPLOYMENT_OPENAI_OVERRIDE");
@@ -66,8 +65,7 @@ class DeploymentProviderSecretResolutionServiceTest {
         );
 
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "PINECONE_API_KEY")).thenReturn(Optional.empty());
-        when(platformSecretService.isSecretPresent("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn(true);
-        when(platformSecretService.resolveSecret("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn("managed-value");
+        when(platformSecretService.resolveSecretForDeployment("MANAGED_PINECONE_API_KEY_DEP_DEP_123", "dep-123", null)).thenReturn("managed-value");
 
         DeploymentSecretResolutionSummary summary =
             service.summarize("dep-123", "PINECONE_API_KEY", "MANAGED_PINECONE_API_KEY_DEP_DEP_123");
@@ -96,9 +94,7 @@ class DeploymentProviderSecretResolutionServiceTest {
         binding.setBindingMode(DeploymentProviderSecretBindingMode.ALLOW_STANDARD_PRECEDENCE);
         binding.setSecretName("DEPLOYMENT_WEAVIATE_OVERRIDE");
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "WEAVIATE_API_KEY")).thenReturn(Optional.of(binding));
-        when(platformSecretService.isSecretPresent("DEPLOYMENT_WEAVIATE_OVERRIDE")).thenReturn(false);
-        when(platformSecretService.isSecretPresent("WEAVIATE_API_KEY")).thenReturn(true);
-        when(platformSecretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("global-value");
+        when(platformSecretService.resolveSecretForDeployment("WEAVIATE_API_KEY", "dep-123", null)).thenReturn("global-value");
         PlatformSecretEntity entity = new PlatformSecretEntity();
         entity.setName("WEAVIATE_API_KEY");
         entity.setScopeType(com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType.GLOBAL_PLATFORM);
@@ -131,7 +127,6 @@ class DeploymentProviderSecretResolutionServiceTest {
         binding.setBindingMode(DeploymentProviderSecretBindingMode.REQUIRE_OVERRIDE);
         binding.setSecretName("DEPLOYMENT_OPENAI_OVERRIDE");
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "OPENAI_API_KEY")).thenReturn(Optional.of(binding));
-        when(platformSecretService.isSecretPresent("DEPLOYMENT_OPENAI_OVERRIDE")).thenReturn(false);
 
         DeploymentSecretResolutionSummary summary = service.summarize("dep-123", "OPENAI_API_KEY");
 
@@ -152,8 +147,7 @@ class DeploymentProviderSecretResolutionServiceTest {
         );
 
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "MILVUS_RUNTIME_CREDENTIALS")).thenReturn(Optional.empty());
-        when(platformSecretService.isSecretPresent("MILVUS_USERNAME")).thenReturn(true);
-        when(platformSecretService.isSecretPresent("MILVUS_PASSWORD")).thenReturn(false);
+        when(platformSecretService.resolveSecretForDeployment("MILVUS_USERNAME", "dep-123", null)).thenReturn("username");
 
         DeploymentSecretResolutionSummary summary = service.summarize("dep-123", "MILVUS_RUNTIME_CREDENTIALS");
 
@@ -174,8 +168,7 @@ class DeploymentProviderSecretResolutionServiceTest {
         );
 
         when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "QDRANT_API_KEY")).thenReturn(Optional.empty());
-        when(platformSecretService.isSecretPresent("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(true);
-        when(platformSecretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("managed-qdrant-key");
+        when(platformSecretService.resolveSecretForDeployment("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123", "dep-123", null)).thenReturn("managed-qdrant-key");
 
         PlatformSecretEntity entity = new PlatformSecretEntity();
         entity.setName("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");

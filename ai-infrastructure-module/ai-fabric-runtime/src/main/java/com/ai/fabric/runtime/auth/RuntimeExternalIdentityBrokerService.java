@@ -31,6 +31,7 @@ public class RuntimeExternalIdentityBrokerService {
     private final RuntimeAuthProperties properties;
     private final RuntimePublicTokenService tokenService;
     private final Clock clock;
+    private final RuntimeSupabaseUserVerifier supabaseUsers;
     private final Map<String, Deque<Instant>> rateLimitBuckets = new ConcurrentHashMap<>();
     private volatile JwtDecoder decoder;
 
@@ -47,10 +48,16 @@ public class RuntimeExternalIdentityBrokerService {
 
     RuntimeExternalIdentityBrokerService(RuntimeAuthProperties properties, RuntimePublicTokenService tokenService,
                                          JwtDecoder decoder, Clock clock) {
+        this(properties, tokenService, decoder, clock, new RuntimeSupabaseUserVerifier());
+    }
+
+    RuntimeExternalIdentityBrokerService(RuntimeAuthProperties properties, RuntimePublicTokenService tokenService,
+                                         JwtDecoder decoder, Clock clock, RuntimeSupabaseUserVerifier supabaseUsers) {
         this.properties = properties != null ? properties : new RuntimeAuthProperties();
         this.tokenService = tokenService;
         this.decoder = decoder;
         this.clock = clock;
+        this.supabaseUsers = supabaseUsers;
     }
 
     public BrokeredIdentity authenticate(HttpServletRequest request, String authorizationHeader) {
@@ -74,7 +81,8 @@ public class RuntimeExternalIdentityBrokerService {
         if (Boolean.TRUE.equals(jwt.getClaim("is_anonymous"))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Anonymous provider identities cannot obtain authenticated runtime access.");
         }
-        if (config.isRequireVerifiedEmail() && !verifiedEmail(jwt)) {
+        if (config.isRequireVerifiedEmail() && !("SUPABASE".equalsIgnoreCase(config.getProvider())
+            ? supabaseUsers.confirmed(config, token, jwt.getSubject()) : verifiedEmail(jwt))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A verified customer email is required.");
         }
         String subject = trim(jwt.getSubject());

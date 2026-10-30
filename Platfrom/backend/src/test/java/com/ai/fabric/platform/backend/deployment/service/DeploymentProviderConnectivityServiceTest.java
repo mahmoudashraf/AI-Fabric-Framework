@@ -20,6 +20,9 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -85,7 +88,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksPineconeControlPlaneReadyWhenCredentialWorks() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pinecone-secret");
+        when(secretService.resolveSecretForDeployment(eq("PINECONE_API_KEY"), anyString(), isNull())).thenReturn("pinecone-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -131,7 +134,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksQdrantCollectionsApiReadyWhenClusterResponds() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("qdrant-secret");
+        when(secretService.resolveSecretForDeployment(eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED"), anyString(), isNull())).thenReturn("qdrant-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -171,7 +174,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksWeaviateReadyApiFailedWhenReadinessAndMetadataEndpointsReturnNotFound() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+        when(secretService.resolveSecretForDeployment(eq("WEAVIATE_API_KEY"), anyString(), isNull())).thenReturn("weaviate-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> readinessResponse = mock(HttpResponse.class);
@@ -223,7 +226,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksWeaviateReadyWhenMetadataEndpointSucceedsAfterReadinessNotFound() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+        when(secretService.resolveSecretForDeployment(eq("WEAVIATE_API_KEY"), anyString(), isNull())).thenReturn("weaviate-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> readinessResponse = mock(HttpResponse.class);
@@ -400,7 +403,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksLlmEndpointReadyOnlyAfterAuthenticatedChatResponse() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("llm-key");
+        when(secretService.resolveSecretForDeployment(eq("OPENAI_API_KEY"), anyString(), isNull())).thenReturn("llm-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -458,7 +461,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeUsesAnthropicMessagesApiForCanonicalProviderRoot() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("ANTHROPIC_API_KEY")).thenReturn("anthropic-key");
+        when(secretService.resolveSecretForDeployment(eq("ANTHROPIC_API_KEY"), anyString(), isNull())).thenReturn("anthropic-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -515,7 +518,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksLlmEndpointFailedWhenAuthenticatedChatProbeReturnsUnauthorized() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-llm-key");
+        when(secretService.resolveSecretForDeployment(eq("OPENAI_API_KEY"), anyString(), isNull())).thenReturn("bad-llm-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -598,7 +601,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksEmbeddingEndpointReadyOnlyAfterAuthenticatedEmbeddingResponse() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("emb-key");
+        when(secretService.resolveSecretForDeployment(eq("OPENAI_API_KEY"), anyString(), isNull())).thenReturn("emb-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -651,7 +654,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeGeminiEmbeddingEndpointUsesCurrentModelAndDeploymentVectorDimensions() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("GEMINI_API_KEY")).thenReturn("gemini-key");
+        when(secretService.resolveSecretForDeployment(eq("GEMINI_API_KEY"), anyString(), isNull())).thenReturn("gemini-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -715,7 +718,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksEmbeddingEndpointFailedWhenAuthenticatedProbeReturnsUnauthorized() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-key");
+        when(secretService.resolveSecretForDeployment(eq("OPENAI_API_KEY"), anyString(), isNull())).thenReturn("bad-key");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);

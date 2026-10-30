@@ -13,6 +13,7 @@ public record PlatformSecretSummary(
     String secretPurpose,
     String deploymentId,
     boolean managedByPlatform,
-    String cleanupPolicy
+    String cleanupPolicy,
+    String targetProfileId
 ) {
 }

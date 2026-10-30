@@ -111,7 +111,10 @@ public class AIWorkspaceAuthenticationProfileRegistry {
         return new AuthenticationProfile(SUPABASE, VERSION, "loomai-workspace-auth-supabase-v1", publicConfiguration);
     }
 
-    private void validatePublicKey(String key) {
+    public static void validatePublicKey(String key) {
+        if (key == null || key.length() > 2048 || key.chars().anyMatch(Character::isWhitespace)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Supabase publishableKey is invalid.");
+        }
         if (key.startsWith("sb_publishable_") && key.length() > "sb_publishable_".length()) return;
         // Legacy keys are JWTs: inspect the role only to prevent publishing a privileged credential.
         // This is not token authentication; the identity provider still verifies its signature.
