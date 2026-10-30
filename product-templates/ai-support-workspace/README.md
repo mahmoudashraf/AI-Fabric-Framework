@@ -3,8 +3,9 @@
 Reusable Marketplace support configuration for 010.54. Acme ACTION `1.0.0` was
 published on staging. Main explicitly skipped internal ACTION `1.0.0` and
 confirmed its staging GET returns `404`. Both source snapshots stay unchanged.
-The corrected ACTION `1.0.1` and mounted mechanics TEMPLATEs are new unpublished
-source candidates. See `catalog.json`; source validation is not hosted proof.
+The corrected ACTION `1.0.1` and mounted mechanics TEMPLATEs were separately
+published and read back on staging on 2026-10-30. See `catalog.json` and the
+010.54 execution record; publication is not hosted journey qualification.
 This package adds no service, database, execution engine or plugin type.
 
 ## Product Contract
@@ -161,7 +162,8 @@ safe for anonymous guide access. Private account data, transcripts, cases,
 diagnostic responses and private handoffs must never enter this collection.
 
 `fixtures/knowledge-sets.json` lists source categories and publication metadata.
-Set `originalFilename` to the approved object's basename when registering it.
+The server derives `originalFilename` from the object; do not submit that reserved
+metadata field. Supply only approved source metadata such as `sourceCategory`.
 Preview, explicitly approve initial indexing, reconcile completion and verify
 retrieval. A plugin install does not upload or index these files automatically.
 Removing the index never deletes customer source objects.

@@ -1,6 +1,6 @@
 # 010.54 LoomAI Integration Support Deployment and Workspace Solution Plan
 
-**Status: DRAFT FOR OWNER REVIEW**
+**Status: APPROVED - IMPLEMENTATION IN PROGRESS**
 
 **Created:** 2026-10-30
 
@@ -8,7 +8,7 @@
 
 **Capability and productization specification:** [Support template, specialists and resolution capabilities](010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md) is part of this plan. It records the owner's expanded scope: reusable customer-selectable support template, domain specialists, bounded resolution checks and configuration UI. Its source assessment distinguishes existing framework primitives from missing Platform/runtime product bindings.
 
-**Decision requested:** use LoomAI Platform, an authenticated Engage workspace and LoomAI Desk to deliver LoomAI's own customer integration support as the first installation of a reusable AI Support Workspace template. This is a solution and implementation proposal, not authorization to implement, provision or publish it.
+**Owner decision (2026-10-30):** implement fully, including generic structural Platform/runtime changes required for a reusable configurable support template. Use LoomAI Platform, authenticated Engage and LoomAI Desk for the first installation. Track incremental implementation and hosted evidence in [the execution record](010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md); design approval is not proof of completion.
 
 **Relationship to 010.53:** this is the proposed replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). Preserve its lightweight entry points, request tracking and consent principles. Replace its separate staff discussion/triage experience with our deployment, Engage and Desk products. If approved, 010.54 becomes canonical; do not implement both designs.
 

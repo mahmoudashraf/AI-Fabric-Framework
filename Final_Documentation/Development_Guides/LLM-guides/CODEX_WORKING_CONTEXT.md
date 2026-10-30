@@ -11271,3 +11271,69 @@ test is being called hosted acceptance. UI extraction remains last.
   Existing form/chat/Desk layouts retained; public execution checks stay compact
   and evidence-backed, not agent topology/thoughts. Documentation/mockups only;
   no runtime/framework/backend/UI implementation, AI test queries or deployment.
+
+### 2026-10-30 010.54 Support Workspace Implementation In Progress
+
+- Owner approved full generic implementation, including necessary structural work.
+  Active tracker: Implementation/010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md.
+  No 010.54 source commit or hosted deployment yet; do not treat local tests as live proof.
+- Runtime source uses existing AI Fabric0.8.41 public specialist/chain gateways,
+  exact compiled resources/hashes and native bounded READ consult_specialist.
+  Parent control is checked during child waiting; original provider-budget turn
+  propagates explicitly. No framework release, semantic text matching or routing fallback.
+- Canonical AI append, post-lock lease check and encrypted success receipt now
+  share one transaction. PostgreSQL takeover race proves rejected AI prose/cards
+  are not committed or returned. Owner-authorized GET restores safe completed
+  presentations by exact canonical message IDs, never query replay.
+- Internal support case registry/private adapter, consent-bound diagnostic reads,
+  Console Engage iframe and optional generic Desk external context implemented.
+  Current source permission work includes actual Desk SUPPORT introspection and
+  readonly team-intake UI, not a second inbox/transcript store. Shared customer
+  specialist editor and normal Marketplace template fixtures being finalized.
+- 55 focused runtime tests and 169 compiler tests passed. First full runtime run:
+  558 tests/1 stale capability-list assertion; corrected assertion passed focused
+  rerun. Combined support tests caught missing SSE Last-Event-ID CORS and stored
+  config emission validation; main fixed both, rerun in progress.
+- Existing S3 material is dealership-scoped/read-only; no support uploader or
+  support binding established. Required-for-production recorded exact gap.
+  Existing mounted-folder source may qualify only own small internal/demo docs;
+  generic customer template remains BYO object storage. No customer storage or
+  ingestion success claim. Continue combined tests, coherent commits/builds,
+  exact staged/production and differently configured second-customer journeys.
+
+### 2026-10-30 20:00 UTC 010.54 Authoritative Hosted Checkpoint
+
+- Supersedes the earlier no-commit/no-deployment checkpoint above. Source pushed
+  through3c3307105825300e25ce854d987d3e6e182b3870; framework remains0.8.41.
+  Staging backend193047a63/native healthy, Console4112a9f5; Desk29dbc119 on both
+  hosts. Production Platform backend/Console are not upgraded for010.54.
+- Generic docs canarydep-c6f54ae6/rel-c02d93ae APPLIED_VERIFIED, fourACTIVE guides
+  and realOpenAI direct-specialist answers. Explicit chain failed because runtime
+  omitted the mandatory idempotency key; bounded3c3307105 fix has13focused tests
+  and CI41116981329PASS, artifactdsa-007e453b/source3c/digest1be4070b...
+  registeredstaging. Hosted corrected-chain proof remains pending. One iterative
+  followup unnecessarily asked source clarification; recorded, not hidden.
+- First connected LoomAIdep-a2706601/rel-c58157af and Acmedep-86fef557/
+  rel-bdb84cd5 are now APPLIED_VERIFIED after normal indexing/recheck. FourLoomAI
+  and threeAcme guides ACTIVE. First empty-dataset failures preserved; actual
+  rechecks vrf-b4c98501/vrf-def9160a each30PASS/0FAIL/4SKIP. Not AIjourney proof.
+- Normal offers/bootstrap/external endpoint approval/customer credential binding
+  used. New target-scoped secret materialization, provider-probe boundaries and
+  credential cloning are enforced (f8daba860/193047a63). CorrectedACTION1.0.1+
+  separate mountedDEMO templates published/readback; genericS3 template unchanged.
+- SharedDesk enable created internaldesk-851df7d743dcc79c9732a2681cd0fae9 and
+  Acmedesk-8fe629bd16739818d4a8fd99bd1f30c4. ExactDesk applies rel-5a5aa472 /
+  rel-b6d5afbd are stillPROVISIONING. Owners explicitly self-assignedSUPPORT via
+  realDesk API, not inferredOWNER privilege. No human reply/context proof yet.
+- Latest prepared finalversions internalver-9ef521f1 / Acmever-70cd051e select
+  corrected3c runtime for nextnormal apply. Internalprivatecase path intentionally
+  usesALLOW_VERIFIED with publicbootstrap/brokerdisabled; originalcase/requester/
+  membership/consent and signedtarget authority remain. Not applied yet.
+- Backend support settings/target-bounddiag+distinctDeskcontext keys prepared in
+  Coolify but not restarted/active yet. InternalEngage installation stillneeds
+  normalcreate/activate+serverIDsetting. First generic fixture runtime/connector
+  stopped after its completed proof; DB/evidence retained. No blanket cleanup.
+- Remaining criticalpath: finishDesk applies, activate serverconfig/Engage,
+  corrected-runtime applies, actualsupport UI->knowledge/reads->human/resolve/
+  return/reopen/isolation, second-company qualification. ProductionS3support
+  prerequisite remains owner-pending inRequired for production. No completion claim.

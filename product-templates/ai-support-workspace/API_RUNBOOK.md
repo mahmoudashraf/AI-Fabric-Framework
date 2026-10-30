@@ -223,6 +223,12 @@ compiled scopes only after owner/case authorization and binding to the fixed
 internal tenant. The diagnostic facade must still verify a registered case,
 selected-resource ownership and current consent on every diagnostic read. Do not
 replace this path with the generic/Acme static broker profile or anonymous grants.
+For this private-only case adapter, configure `authzMode=ALLOW_VERIFIED`,
+`publicRuntimeBootstrapEnabled=false` and `externalIdentityBrokerEnabled=false`.
+Retain target-scoped trusted-backend credentials and exact signed assertion
+issuer/audience/expiry. An unconfigured `REMOTE_HTTP` authorization endpoint is
+not a valid substitute. `ALLOW_VERIFIED` does not grant case or diagnostic access;
+those permissions are checked independently by the adapter and upstream facade.
 
 ## 4. Customize, Publish And Apply
 
