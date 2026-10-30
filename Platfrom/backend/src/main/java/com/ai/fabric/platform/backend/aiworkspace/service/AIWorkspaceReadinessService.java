@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMod
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessCheck;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessSummary;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
@@ -23,7 +24,6 @@ import java.util.List;
 public class AIWorkspaceReadinessService {
 
     private static final String PUBLIC_SIGNING_KEY = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
-    private static final String PRIVATE_SIGNING_KEY = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
 
     private final PlatformConsumerRepository consumerRepository;
     private final AIWorkspaceAssignmentService assignmentService;
@@ -33,6 +33,7 @@ public class AIWorkspaceReadinessService {
     private final AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry;
     private final AIWorkspaceDomainService domainService;
     private final PlatformSecretService secretService;
+    private final DeploymentRuntimeAuthorityService runtimeAuthorityService;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -44,6 +45,7 @@ public class AIWorkspaceReadinessService {
                                        AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry,
                                        AIWorkspaceDomainService domainService,
                                        PlatformSecretService secretService,
+                                       DeploymentRuntimeAuthorityService runtimeAuthorityService,
                                        PlatformAIWorkspaceProperties properties,
                                        ObjectMapper objectMapper) {
         this.consumerRepository = consumerRepository;
@@ -54,6 +56,7 @@ public class AIWorkspaceReadinessService {
         this.authenticationProfileRegistry = authenticationProfileRegistry;
         this.domainService = domainService;
         this.secretService = secretService;
+        this.runtimeAuthorityService = runtimeAuthorityService;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -158,7 +161,7 @@ public class AIWorkspaceReadinessService {
 
         if (assignment != null) {
             validateEndpoint(assignment.runtimeBaseUrl(), checks);
-            validateMode(installation.getConnectionMode(), assignment.securityConfig(), origins, checks);
+            validateMode(installation.getConnectionMode(), assignment, origins, checks);
             if (interactionPolicy.requiresAuthenticationProfile()) {
                 check(ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(assignment.securityConfig()), checks,
                     "EXTERNAL_IDENTITY_BROKER", "Assigned runtime enables the deployment-local external identity broker.",
@@ -237,9 +240,10 @@ public class AIWorkspaceReadinessService {
     }
 
     private void validateMode(AIWorkspaceConnectionMode mode,
-                              JsonNode securityConfig,
+                              AIWorkspaceAssignmentService.Assignment assignment,
                               List<String> origins,
                               List<AIWorkspaceReadinessCheck> checks) {
+        JsonNode securityConfig = assignment.securityConfig();
         if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS) {
             check(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig), checks,
                 "ANONYMOUS_BOOTSTRAP", "Anonymous runtime bootstrap is enabled.",
@@ -250,14 +254,15 @@ public class AIWorkspaceReadinessService {
             validatePublicToken(securityConfig, checks);
             validateRuntimeOrigins(securityConfig, origins, checks);
         } else {
-            boolean issuerReady = !ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig).isBlank();
-            boolean audienceReady = !ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig).isBlank();
-            check(secretService.isSecretPresent(PRIVATE_SIGNING_KEY), checks,
-                "PRIVATE_ASSERTION_KEY", "Private assertion signing material is configured.",
-                "Private assertion signing material is unavailable.");
-            check(issuerReady && audienceReady, checks,
-                "PRIVATE_ASSERTION_POLICY", "Private runtime issuer and audience policies are explicit.",
-                "Private runtime issuer and audience policies are incomplete.");
+            try {
+                runtimeAuthorityService.requireReleaseUnchangedForProvisioning(
+                    assignment.deployment(), assignment.version(), assignment.release());
+                passed(checks, "PRIVATE_ASSERTION_KEY", "Assigned target signing material is owned, present, and unchanged.");
+                passed(checks, "PRIVATE_ASSERTION_POLICY", "Assigned release private issuer and audience match its frozen target authority.");
+            } catch (RuntimeException ex) {
+                blocked(checks, "PRIVATE_ASSERTION_KEY", "Assigned target signing material could not be verified.");
+                blocked(checks, "PRIVATE_ASSERTION_POLICY", "Assigned release frozen target authority is invalid: " + ex.getMessage());
+            }
         }
     }
 

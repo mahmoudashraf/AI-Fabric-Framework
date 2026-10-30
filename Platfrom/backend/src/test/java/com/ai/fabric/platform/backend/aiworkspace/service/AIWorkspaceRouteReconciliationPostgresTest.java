@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.*;
@@ -181,7 +182,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         when(assets.health()).thenReturn(new AIWorkspaceAssetCatalogService.CatalogHealth(false, "NOT_READY", "1"));
         var readiness = new AIWorkspaceReadinessService(consumers, mock(AIWorkspaceAssignmentService.class), assets,
             packs, connections, new AIWorkspaceAuthenticationProfileRegistry(mapper), domains,
-            mock(PlatformSecretService.class), properties, mapper);
+            mock(PlatformSecretService.class), mock(DeploymentRuntimeAuthorityService.class), properties, mapper);
         var offers = mock(CustomerSelfServiceOperationBoundary.class);
         when(offers.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
         when(offers.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");

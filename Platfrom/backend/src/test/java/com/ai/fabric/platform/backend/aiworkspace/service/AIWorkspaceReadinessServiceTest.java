@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainSummary
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -132,6 +133,7 @@ class AIWorkspaceReadinessServiceTest {
             new AIWorkspaceAuthenticationProfileRegistry(objectMapper),
             domains,
             secrets,
+            mock(DeploymentRuntimeAuthorityService.class),
             properties,
             objectMapper
         );
