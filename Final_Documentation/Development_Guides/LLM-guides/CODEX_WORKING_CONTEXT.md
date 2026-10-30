@@ -11094,3 +11094,19 @@ test is being called hosted acceptance. UI extraction remains last.
   first.png; private rollout evidence {staging,production}/engage-01052-
   deployment-first/. Local5187 stopped, temporary tabs closed; original Console
   tab retained. DNS/custom-domain gate remains separate and pending.
+
+## 2026-10-30 Engage 010.52 Domain Automation: Source Qualified, Rollout Next
+
+- User approved Verify-and-prepare, automatic route/TLS completion and reviewed
+  deployment update; explicit connection/activation preserved. All DNS ready.
+- 131 focused backend tests and84 Console tests PASS, UI build PASS. Local
+  browser oneVerify/review/publish/apply/bind, automaticVERIFIED, DRAFT app and
+  zeroactivate. Exact-draft fingerprint and same assigned target/source reused;
+  full deployment diff link and unrelated/shared-runtime changes disclosed.
+- engage.loomai.pro trusted HTTPS health UP, same shared frontend image and old
+  routes preserved. Nativejob uobdexflnxnuf30p0c9sxkko PASS. Canonical backend env
+  saved but activation awaits backend rollout. Private evidence production/
+  engage-01052-canonical-host/. Source hosted rollout and actual canary pending.
+- Source unchanged runtime/framework/schema; no new per-customer service/DB.
+  Local5187 stopped. Next commit scoped files, stage then production backend/UI,
+  qualify canary awi_pub_be622d27062f1320bfb872757d8bd5d9 via reviewed normal flow.

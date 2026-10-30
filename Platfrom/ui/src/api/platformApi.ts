@@ -5970,6 +5970,23 @@ export function fetchAIWorkspacePreviewCapabilities(customerId: string, consumer
   return request<AIWorkspacePreviewCapabilities>(`/api/platform/customers/${encodeURIComponent(customerId)}/ai-workspaces/connections/${encodeURIComponent(consumerId)}/preview-capabilities`)
 }
 
+export type AIWorkspaceDeploymentUpdateReview = {
+  customerId: string; installationId: string; consumerId: string; deploymentId: string; deploymentName: string
+  environment: string; draftId: string; fingerprint: string; expectedBindingRevision: number; releaseId: string
+  targetProfileId: string; sourceArtifactId: string | null; changedSections: string[]; changedSecurityFields: string[]
+  addedOrigins: string[]; removedOrigins: string[]; affectedApps: string[]; unrelatedChanges: boolean
+}
+
+export function reviewAIWorkspaceDeploymentUpdate(customerId: string, installationId: string) {
+  return request<AIWorkspaceDeploymentUpdateReview>(`/api/platform/customers/${encodeURIComponent(customerId)}/ai-workspace-installations/${encodeURIComponent(installationId)}/deployment-update/review`, { method: 'POST' })
+}
+
+export function publishAIWorkspaceDeploymentUpdate(review: AIWorkspaceDeploymentUpdateReview) {
+  return request<DeploymentVersionSummary>(`/api/platform/customers/${encodeURIComponent(review.customerId)}/ai-workspace-installations/${encodeURIComponent(review.installationId)}/deployment-update/publish`, {
+    method: 'POST', body: JSON.stringify({ draftId: review.draftId, fingerprint: review.fingerprint, expectedBindingRevision: review.expectedBindingRevision }),
+  })
+}
+
 export function fetchDeploymentSourceArtifacts(serviceName?: string) {
   const suffix = serviceName ? `?serviceName=${encodeURIComponent(serviceName)}` : ''
   return request<DeploymentSourceArtifactSummary[]>(`/api/deployment-provider/source-artifacts${suffix}`)

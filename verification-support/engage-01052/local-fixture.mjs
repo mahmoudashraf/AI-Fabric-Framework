@@ -22,6 +22,18 @@ let installation = { id: 'preview-id', installationId: 'preview-installation', c
   interactionPolicy: 'public-with-protected-capabilities', authProfileCode: 'supabase', authProfileVersion: '1.0.0', authConfiguration: { projectUrl: 'https://example.supabase.co', publishableKey: 'synthetic-public-key', methods: ['email-password'] },
   domains: [], deploymentId: 'preview-deployment', releaseId: 'prod-release', assignmentRevision: '1', ready: true, readinessChecks: [], rowVersion: 1, createdAt: now, updatedAt: now }
 const mutations = []
+const domainScenario = process.env.ENGAGE_DOMAIN_FIXTURE === 'true'
+let verificationReads = 0, releaseReads = 0, updateRelease = null
+if (domainScenario) installation = { ...installation, status: 'DRAFT', deliveryMode: 'standalone',
+  appSlug: 'synthetic-domain', appUrl: 'https://synthetic-domain.apps.example.com',
+  domains: [{hostname:'ai.example.com', type:'CUSTOMER_CUSTOM', status:'PENDING', dnsRecordName:'_loomai-workspace.ai.example.com',
+    dnsRecordValue:'loomai-workspace-verification=synthetic-token', routingRecordName:'ai.example.com',routingRecordValue:'engage.example.com'}],
+  readinessChecks: [{code:'RUNTIME_CORS',status:'BLOCKED',message:'Runtime origins require an update.'}], ready:false }
+const review = {customerId,installationId:'preview-installation',consumerId,deploymentId:'preview-deployment',
+  deploymentName:'Knowledge workspace',environment:'production',draftId:'reviewed-draft',fingerprint:'a'.repeat(64),
+  expectedBindingRevision:1,releaseId:'prod-release',targetProfileId:'prod-image',sourceArtifactId:'same-runtime-image',
+  changedSections:['Security','Providers'],changedSecurityFields:['corsAllowedOrigins'],addedOrigins:['https://ai.example.com'],
+  removedOrigins:[],affectedApps:['Support workspace','Other website'],unrelatedChanges:true}
 const server = await createServer({ root: new URL('../../Platfrom/ui', import.meta.url).pathname,
   server: { host: '127.0.0.1', port: 5187, strictPort: true }, plugins: [{ name: 'engage-connection-fixture', configureServer(server) {
     server.middlewares.use(async (req, res, next) => {
@@ -33,6 +45,24 @@ const server = await createServer({ root: new URL('../../Platfrom/ui', import.me
       if (req.method !== 'GET') {
         let body = ''; for await (const part of req) body += part
         const payload = body ? JSON.parse(body) : {}; mutations.push({ method: req.method, path, payload })
+        if(domainScenario){
+          if(path.endsWith('/deployment-update/review'))return json(review)
+          if(path.endsWith('/deployment-update/publish'))return json({id:'updated-version',deploymentId:'preview-deployment',sourceDraftId:'reviewed-draft'})
+          if(path.endsWith('/apply/updated-version')){
+            updateRelease={id:'updated-release',deploymentId:'preview-deployment',deploymentVersionId:'updated-version',targetProfileId:'prod-image',
+              status:'APPLY_REQUESTED',verificationStatus:'PENDING',createdAt:now,currentStepDescription:'Applying the reviewed configuration.'}
+            return json(updateRelease)
+          }
+          if(path.endsWith('/consumers/'+consumerId+'/binding')){
+            consumers[0]={...consumers[0],boundReleaseId:payload.releaseId,bindingRevision:2}
+            installation={...installation,releaseId:payload.releaseId,assignmentRevision:'2',readinessChecks:[],ready:true}
+            return json(consumers[0])
+          }
+          if(path.endsWith('/verify')){
+            installation.domains=installation.domains.map(domain=>({...domain,status:'ROUTING_PENDING'}))
+            return json(installation.domains[0])
+          }
+        }
         if (path.endsWith('/connections')) {
           const consumer = { ...consumers[0], consumerId: `engage-fixture-${payload.operationKey}`, boundDeploymentId: payload.deploymentId,
             boundDeploymentName: deployments.find(item => item.deploymentId === payload.deploymentId)?.name,
@@ -50,6 +80,11 @@ const server = await createServer({ root: new URL('../../Platfrom/ui', import.me
       if (path === '/api/platform/customers') return json([{ id: customerId, name: 'Preview workspace', slug: 'preview', status: 'ACTIVE', consumers, tenants: [] }])
       if (path === '/api/customer-self-service/deployments') return json(deployments)
       if (path === '/api/customer-self-service/catalogue') return json([])
+      if(domainScenario && path.endsWith('/compatible-source-artifacts'))return json([{id:'same-runtime-image'}])
+      if(domainScenario && path.endsWith('/releases') && updateRelease){
+        if(++releaseReads>=2)updateRelease={...updateRelease,status:'APPLIED_VERIFIED',verificationStatus:'PASSED',currentStepDescription:'Verified.'}
+        return json([updateRelease])
+      }
       if (path.endsWith('/preview-capabilities')) return json({ runtimeConfigured: true, handover: { enabled: true, userCanCancelPending: true, userCanResumeAi: true, intake: { anonymousAllowed: true, fields: [{ key: 'email', label: 'Email', type: 'EMAIL', required: true, purpose: 'Reply to your request', maxLength: 254, options: [] }] } } })
       if (path.endsWith('/target-profiles')) return json(targets)
       if (path.endsWith('/releases')) return json(path.includes('draft-deployment') ? [] : [
@@ -57,7 +92,11 @@ const server = await createServer({ root: new URL('../../Platfrom/ui', import.me
         { id: 'prod-release', deploymentId: 'preview-deployment', targetProfileId: 'prod-image', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: now },
         { id: 'old-prod-release', deploymentId: 'preview-deployment', targetProfileId: 'prod-git', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: '2026-10-01T00:00:00Z' },
       ])
-      if (path === `/api/platform/customers/${customerId}/ai-workspace-installations`) return json([installation])
+      if (path === `/api/platform/customers/${customerId}/ai-workspace-installations`) {
+        if(domainScenario && installation.domains.some(domain=>domain.status==='ROUTING_PENDING') && ++verificationReads>=2)
+          installation.domains=installation.domains.map(domain=>({...domain,status:'VERIFIED',lastVerificationError:null}))
+        return json([installation])
+      }
       if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, assetStatus: 'READY', experiencePacks: [{ code: 'generic-workspace', version: '1.0.0', name: 'Generic workspace', enabled: true }], connectionProfiles: [{ code: 'public-anonymous', version: '1.0.0', name: 'Public anonymous', mode: 'public-runtime-anonymous', enabled: true }], authenticationProfiles: [{ code: 'supabase', version: '1.0.0', name: 'Supabase', enabled: true }] })
       res.statusCode = 404; return json({ message: `Unimplemented fixture read: ${path}` })
     })

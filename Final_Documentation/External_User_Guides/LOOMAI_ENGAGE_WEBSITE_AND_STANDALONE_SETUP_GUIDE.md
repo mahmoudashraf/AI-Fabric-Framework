@@ -131,14 +131,33 @@ apply to this installation only; a second delivery channel remains independent.
 
 For a standalone app, save an exact custom hostname. Its domain panel shows
 copyable **TXT ownership** and **CNAME routing** records. Add both at your DNS
-provider, then select **Verify domain**. Route/HTTPS pending is not yet verified.
+provider, then select **Verify and prepare** (or **Verify domain** for one
+address). After ownership passes, Platform provisions the route and continues
+checking HTTPS automatically. Route/HTTPS pending is not yet verified; keep the
+app details open to see verification complete without another Verify click.
 If the CNAME target is missing, this is a Platform setup issue, not a value the
 customer should guess. A website embed on your existing site needs no CNAME/TXT.
 
-After verification, resolve any runtime-origin readiness checks through the
-normal publish/apply flow, then activate explicitly. For magic links or OAuth,
+If runtime origins or identity settings need updating, select **Apply required
+deployment update**. Inspect the proposed origins, affected apps and changed
+configuration sections. **Inspect deployment changes** opens the existing
+deployment change view, including unrelated draft edits. Confirm **Publish and
+apply update** only when all included changes are intended. Platform reuses the
+assigned environment and runtime image through its normal release mechanism;
+it does not choose a newer image or move the app to another environment.
+
+After the release is verified, choose **Use verified update** to update the
+shared app connection. Apps sharing that connection will use the verified
+release. Review readiness, then **Activate app** explicitly. Domain verification,
+release completion and app activation are separate steps. For magic links or OAuth,
 also configure the exact new address in your identity provider's redirects.
 Domain verification does not modify that external provider on your behalf.
+
+The routing record normally points to `engage.loomai.pro`, LoomAI's shared
+Engage frontend. Visitors remain on your custom hostname; their branding and
+assigned deployment are resolved for that hostname. This is not a separate AI
+runtime or customer database. In direct-runtime mode the browser talks to the
+assigned AI deployment, not through the shared frontend server.
 
 ## Configuration And Access
 

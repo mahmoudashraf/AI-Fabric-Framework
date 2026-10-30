@@ -508,3 +508,43 @@ change was made before the DNS prerequisite. UI/source work is delivered, but
   receipts `{staging,production}/engage-01052-deployment-first/` under the
   existing private onboarding evidence root. Backend/runtime/framework and
   customer assignments unchanged. No fresh AI or domain qualification claim.
+
+### Domain Automation Follow-Up: 2026-10-30 In Progress
+
+Approved customer journey: Add domain -> DNS -> Verify and prepare -> reviewed
+deployment update when required -> explicit activation. Reuse the current app
+assignment, existing draft/publish/apply/verify/binding services and shared
+frontend; no framework release, new per-customer service or recovery engine.
+
+- [x] Automatically finish owned ROUTING_PENDING domains after the native route
+  is applied and TLS passes, without a second Verify click. Disabled/deleted
+  installations must not be revived; explicit activation stays separate.
+- [x] Review generated origins/identity and any unrelated draft changes, then
+  publish the exact reviewed draft and apply using the assigned target/image.
+  Connect the verified update only through the normal explicit binding command.
+- [ ] Finish canonical engage.loomai.pro shared route/HTTPS and Platform setting,
+  preserving existing native routes. DNS A/CNAME/TXT are now visible.
+- [ ] Focused tests, staged rollout, actual custom-domain canary, origin/auth/
+  activation and exact cleanup evidence. No broad unrelated release matrix.
+
+Implementation evidence before rollout:
+
+- **131 focused backend tests passed**, zero failures/errors/skips; **84 focused
+  Console tests passed** and TypeScript/Vite production build passed. Review
+  guards bind approval to the exact draft, app and assignment; replay uses the
+  normal existing published version. The original source draft is used for
+  comparison, not compiled prompt artifacts. All apps sharing the runtime are
+  disclosed, including apps on other customer connections to that deployment.
+- Local browser exercised one Verify, one review, one publish, one apply and
+  one explicit connection update. Domain became VERIFIED automatically; app
+  remained DRAFT with Activate enabled. No automatic activation command.
+  Screenshot `output/engage-01052/local-domain-automation-verified.png`.
+- Canonical shared host operational setup passed: native job
+  `uobdexflnxnuf30p0c9sxkko`, trusted HTTPS health UP, existing routes/image/
+  resources preserved. Platform canonical-target setting saved in production
+  Coolify but not active until the backend rollout. Native private receipts
+  `production/engage-01052-canonical-host/` under the private onboarding root.
+- Source does not release a framework/runtime upgrade, replace an incompatible
+  runtime image, automatically select another environment, or activate an app.
+  Customer-owned OAuth/email-link redirect settings remain explicit external
+  work. Hosted canary/rollout still pending at this checkpoint.

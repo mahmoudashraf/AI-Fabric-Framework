@@ -71,6 +71,7 @@ import { EngageAppearanceFields } from '../components/customer/EngageAppearanceF
 import { EngageAppearancePreview } from '../components/customer/EngageAppearancePreview'
 import { CustomerEngageConnectionPanel } from '../components/customer/CustomerEngageConnectionPanel'
 import { EngageDomainInstructions } from '../components/customer/EngageDomainInstructions'
+import { EngageDeploymentUpdatePanel } from '../components/customer/EngageDeploymentUpdatePanel'
 import { applyWorkspaceAppearance, readWorkspaceAppearance, workspaceAppearanceError, type WorkspaceAppearance } from './aiWorkspaceAppearance'
 import type { PreviewInteractionPolicy } from '../components/customer/buildWorkspacePreviewConfiguration'
 
@@ -186,6 +187,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     queryKey: ['ai-workspace-installations', customerId],
     queryFn: () => fetchAIWorkspaceInstallations(customerId),
     enabled: Boolean(customerId),
+    refetchInterval: query => query.state.data?.some(item => item.domains.some(domain => domain.status === 'ROUTING_PENDING')) ? 4000 : false,
   })
   const offersQuery = useQuery({
     queryKey: ['customer-self-service-catalogue', customerId],
@@ -961,6 +963,13 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
       verifyAIWorkspaceDomain(installation.customerId, installation.installationId, hostname, operationKey),
     onSuccess: () => void refresh(),
   })
+  const prepareDomains = useMutation({
+    mutationFn: async () => {
+      for (const domain of installation.domains.filter(item => item.status !== 'VERIFIED')) {
+        await verifyAIWorkspaceDomain(installation.customerId, installation.installationId, domain.hostname, crypto.randomUUID())
+      }
+    }, onSuccess: () => void refresh(),
+  })
   const snippet = `<script\n  async\n  src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js"\n  data-installation-id="${installation.installationId}">\n</script>`
   const copyInstallation = async () => {
     setCopyError(null)
@@ -1005,6 +1014,9 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
           {installation.deliveryMode === 'standalone' ? (
             <>
               <Typography component="a" href={installation.appUrl ?? undefined} target="_blank" rel="noreferrer" sx={{ fontWeight: 750 }}>{installation.appUrl ?? 'App address unavailable'}</Typography>
+              <Button size="small" startIcon={<CheckCircleRoundedIcon />} disabled={prepareDomains.isPending || verifyMutation.isPending}
+                onClick={() => prepareDomains.mutate()} sx={{ alignSelf: 'flex-start', mt: 1 }}>Verify and prepare</Button>
+              {prepareDomains.error ? <Alert severity="error">{prepareDomains.error instanceof Error ? prepareDomains.error.message : 'Domain preparation failed.'}</Alert> : null}
               <Stack spacing={1.5} sx={{ mt: 2 }}>
                 {installation.domains.map((domain) => (
                   <EngageDomainInstructions key={domain.hostname} domain={domain} pending={verifyMutation.isPending}
@@ -1031,6 +1043,7 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Readiness</Typography>
+          <EngageDeploymentUpdatePanel key={installation.installationId} installation={installation} refresh={refresh} />
           <Stack spacing={1}>
             {installation.readinessChecks.map((check) => (
               <Stack key={check.code} direction="row" spacing={1} alignItems="flex-start">
