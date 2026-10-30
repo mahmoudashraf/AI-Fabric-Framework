@@ -115,7 +115,10 @@ public final class SpecialistAssistanceCompiler {
             require(!actions.contains(ACTION), "Specialist assistance cannot recursively invoke consult_specialist.");
             Set<String> scopes = new LinkedHashSet<>();
             spaces.forEach(space -> scopes.add("vector:" + space));
-            actions.forEach(action -> scopes.addAll(authority.readActionScopes().get(action)));
+            actions.forEach(action -> {
+                scopes.add("action:" + action);
+                scopes.addAll(authority.readActionScopes().get(action));
+            });
             String ref = "assist-area-" + id;
             scopes.add("specialist:" + ref + "@1");
             scopesByArea.put(id, Set.copyOf(scopes));

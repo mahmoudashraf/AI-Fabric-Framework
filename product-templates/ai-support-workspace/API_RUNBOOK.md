@@ -159,7 +159,11 @@ See the [Supabase user contract](https://supabase.com/docs/reference/javascript/
 
 `externalIdentityGrantedScopes` is an explicit server authorization policy. The
 provided CSVs contain chat/handover scopes, `vector:document`, exact versioned
-specialist refs and, for Acme only, `acme:support:read`. Compare the reviewed
+specialist refs and, for Acme only, `acme:support:read` plus
+`action:acme_get_workspace_status` and `action:acme_get_service_status`.
+Framework specialist action authority requires those exact `action:<name>`
+grants in addition to the adapter's domain scope. Compilation reports these
+requirements; it does not grant them to a caller. Compare the reviewed
 list with the published `specialistAssistance.compiled.invocations[].requiredScopes`
 after any area, resolution or tool change. There is no wildcard, automatic
 scope derivation at invocation time, or grant merely because a tool is installed.

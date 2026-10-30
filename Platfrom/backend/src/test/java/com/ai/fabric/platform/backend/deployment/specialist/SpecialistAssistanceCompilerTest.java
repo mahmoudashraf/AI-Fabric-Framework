@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.specialist;
 
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -44,7 +45,7 @@ class SpecialistAssistanceCompilerTest {
         assertThat(invocation.path("targetRef").asText()).isEqualTo("assist-chain-investigate@1");
         assertThat(invocation.path("deadlineSeconds").asInt()).isEqualTo(75);
         assertThat(mapper.convertValue(invocation.path("requiredScopes"), List.class)).containsExactly(
-            "account:read", "specialist:assist-area-account@1", "specialist:assist-area-setup@1",
+            "account:read", "action:get_account_status", "specialist:assist-area-account@1", "specialist:assist-area-setup@1",
             "specialist:assist-manager-investigate@1", "vector:product-guide");
         JsonNode chain = resource(compiled, "SpecialistChain", "assist-chain-investigate");
         assertThat(chain.at("/spec/conversationPolicy").asText()).isEqualTo("DISABLED");
@@ -68,6 +69,24 @@ class SpecialistAssistanceCompilerTest {
         assertThat(worker.at("/spec/grounding/requirement").asText()).isEqualTo("WHEN_CAPABILITY_USED");
         assertThat(worker.at("/spec/capabilities/actions/requestableReads/0").asText()).isEqualTo("get_account_status");
         assertThat(compiled.path("invocations")).hasSize(1);
+        assertThat(mapper.convertValue(compiled.path("invocations").get(0).path("requiredScopes"), List.class))
+            .containsExactly("account:read", "action:get_account_status", "specialist:assist-area-account@1");
+    }
+
+    @Test
+    void reportsOnlySelectedExactReadPrerequisitesWithoutGrantingOtherInstalledActions() {
+        var authority = new SpecialistAssistanceCompiler.Authority(
+            Map.of("get_account_status", Set.of("account:read"), "get_unrelated_status", Set.of("unrelated:read")),
+            Set.of("product-guide"));
+        JsonNode compiled = compiler.compileBehavior(SpecialistAssistanceFixtures.behavior(mapper), authority)
+            .at("/specialistAssistance/compiled");
+        for (JsonNode invocation : compiled.path("invocations")) {
+            List<String> scopes = mapper.convertValue(invocation.path("requiredScopes"), new TypeReference<>() { });
+            assertThat(scopes).doesNotContain("action:*", "action:get_unrelated_status", "unrelated:read");
+        }
+        assertThat(mapper.convertValue(compiled.path("invocations").get(0).path("requiredScopes"), List.class))
+            .containsExactly("specialist:assist-area-setup@1", "vector:product-guide");
+        assertThat(authority.readActionScopes().get("get_account_status")).containsExactly("account:read");
     }
 
     @Test
