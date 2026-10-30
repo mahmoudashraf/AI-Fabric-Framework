@@ -11193,3 +11193,14 @@ test is being called hosted acceptance. UI extraction remains last.
   No support-feature implementation approved/performed in this task.
 - Private deploy/function/verification/native receipts:
   ~/.codex/private/loomai-ui-visits/receipts/. No required exec process remains.
+
+### 2026-10-30 AI Fabric Website Visit Tracking LIVE CLOSED
+
+- Owner published the website. Final recheck: ai-fabric.dev asset HTTP200 and
+  SHA256 dcc23dcb990bdcf83e46fe812102eaa5035fd8dec2ecea6667c3964059d613a9,
+  matching the committed client. Live HTML includes the tracker. Real browser
+  home load and Course link navigation each incremented the private Supabase
+  daily counter (site ai-fabric, hostname ai-fabric.dev, pages / and /course).
+  No browser errors or visible analytics UI. Two QA page views, not unique or
+  organic visitors. Earlier hosted404/publisher blocker is resolved. No further
+  source/deployment/schema changes were needed; temporary browser tab closed.

@@ -146,13 +146,13 @@ collection must never affect sign-in, chat, support or application navigation.
   match. Native rollout health, source and asset checks pass. No Java source,
   AI runtime, framework version or customer binding changed. Screenshots of the
   unchanged product UI are in ignored `output/ui-visits/`.
-- **AI Fabric website publication remains pending.** Source `213fdf8` is pushed
-  to `mahmoudashraf/aifabric` main and its production build passes. The old raw
-  visit writer is removed in that source, but the hosted `ai-fabric.dev` still
-  returns HTTP 404 for the new client asset. Its current publisher is not a
-  Coolify application in either managed environment. Publishing access/project
-  identification has been requested; do not claim that domain is collecting
-  these new counts until its new asset and an actual browser event are verified.
+- **AI Fabric website publication is verified.** After the owner published the
+  site, `ai-fabric.dev` serves the exact client asset from source `213fdf8`
+  (SHA256 `dcc23dcb990bdcf83e46fe812102eaa5035fd8dec2ecea6667c3964059d613a9`).
+  The published HTML includes the tracker; a real browser load and Course link
+  navigation produced private Supabase counters for `/` and `/course` without
+  browser errors or visible analytics UI. This closes the earlier 404/publisher
+  gap. These two initial views are verification traffic, not organic visitors.
 
 Private deployment receipts live under
 `~/.codex/private/loomai-ui-visits/receipts/`; they are not public build inputs.
