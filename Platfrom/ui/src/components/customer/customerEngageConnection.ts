@@ -1,5 +1,34 @@
 import type { DeploymentReleaseSummary, DeploymentTargetProfileSummary, PlatformConsumerSummary } from '../../api/platformApi'
 
+export function initialDeploymentConnection(targets: DeploymentTargetProfileSummary[], releases: DeploymentReleaseSummary[],
+  consumers: PlatformConsumerSummary[], customerId: string, deploymentId: string,
+  currentConsumerId?: string | null, bootstrapTargetId?: string | null) {
+  const available = targets.filter(item => item.active)
+  const current = consumers.find(item => item.consumerId === currentConsumerId && item.customerId === customerId
+    && item.boundDeploymentId === deploymentId)
+  const assignments = current ? [current] : consumers.filter(item => item.customerId === customerId
+    && item.boundDeploymentId === deploymentId && item.status === 'ACTIVE')
+  const distinct = new Set(assignments.map(item => JSON.stringify([item.boundTargetProfileId, item.boundReleaseId ?? null])))
+  if (distinct.size > 1) return { targetId: '', releaseId: '', issue: 'This deployment has multiple connections. Choose the connection you want to use.' }
+  const assigned = assignments[0]
+  if (assigned) {
+    const target = available.find(item => item.id === assigned.boundTargetProfileId)
+    const release = releases.find(item => item.id === assigned.boundReleaseId && item.targetProfileId === target?.id
+      && item.deploymentId === deploymentId)
+    return { targetId: target?.id ?? '', releaseId: assigned.boundReleaseId ?? '',
+      issue: assigned.status !== 'ACTIVE' || !target || (assigned.boundReleaseId && !release)
+        ? 'The assigned connection is unavailable. Choose another connection explicitly.' : null }
+  }
+  const deployed = releases.filter(item => item.deploymentId === deploymentId
+    && available.some(target => target.id === item.targetProfileId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const environments = new Set(deployed.map(item => available.find(target => target.id === item.targetProfileId)!.environmentName))
+  if (environments.size > 1) return { targetId: '', releaseId: '', issue: 'This deployment has releases in multiple environments. Choose the connection you want to use.' }
+  if (deployed.length) return { targetId: deployed[0].targetProfileId!, releaseId: deployed[0].id, issue: null }
+  const targetId = initialConnectionTarget(targets, null, bootstrapTargetId)
+  return { targetId, releaseId: '', issue: targetId ? null : 'Choose a connection for this deployment.' }
+}
+
 export function connectionEnvironments(targets: DeploymentTargetProfileSummary[]) {
   const names = [...new Set(targets.filter(item => item.active).map(item => item.environmentName))]
   return names.sort((a, b) => a.localeCompare(b)).map(name => ({

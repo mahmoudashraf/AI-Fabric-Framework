@@ -2,7 +2,7 @@
 import { createServer } from '../../Platfrom/ui/node_modules/vite/dist/node/index.js'
 const customerId = 'preview-customer', consumerId = 'preview-consumer', now = new Date().toISOString()
 const consumers = [{ customerId, consumerId, displayName: 'Knowledge connection', status: 'ACTIVE', boundDeploymentId: 'preview-deployment',
-  boundDeploymentName: 'Knowledge workspace', boundDeploymentEnvironment: 'STAGING', boundReleaseId: 'preview-release', boundTargetProfileId: 'preview-target', bindingRevision: 1 }]
+  boundDeploymentName: 'Knowledge workspace', boundDeploymentEnvironment: 'PRODUCTION', boundReleaseId: 'prod-release', boundTargetProfileId: 'prod-image', bindingRevision: 1 }]
 const deployments = ['preview-deployment', 'draft-deployment'].map((deploymentId, index) => ({ deploymentId,
   name: index ? 'New knowledge deployment' : 'Knowledge workspace', environmentName: 'STAGING', status: 'ACTIVE', tenantId: 'tenant', bootstrapTargetProfileId: 'preview-target' }))
 const targets = [
@@ -20,7 +20,7 @@ let installation = { id: 'preview-id', installationId: 'preview-installation', c
   experiencePackCode: 'generic-workspace', experiencePackVersion: '1.0.0', connectionMode: 'public-runtime-anonymous', connectionProfileCode: 'public-anonymous', connectionProfileVersion: '1.0.0',
   connectionConfiguration: {}, allowedOrigins: ['https://example.com'], configuration, deliveryMode: 'embedded', appSlug: null, appUrl: null,
   interactionPolicy: 'public-with-protected-capabilities', authProfileCode: 'supabase', authProfileVersion: '1.0.0', authConfiguration: { projectUrl: 'https://example.supabase.co', publishableKey: 'synthetic-public-key', methods: ['email-password'] },
-  domains: [], deploymentId: 'preview-deployment', releaseId: 'preview-release', assignmentRevision: '1', ready: true, readinessChecks: [], rowVersion: 1, createdAt: now, updatedAt: now }
+  domains: [], deploymentId: 'preview-deployment', releaseId: 'prod-release', assignmentRevision: '1', ready: true, readinessChecks: [], rowVersion: 1, createdAt: now, updatedAt: now }
 const mutations = []
 const server = await createServer({ root: new URL('../../Platfrom/ui', import.meta.url).pathname,
   server: { host: '127.0.0.1', port: 5187, strictPort: true }, plugins: [{ name: 'engage-connection-fixture', configureServer(server) {
@@ -35,6 +35,8 @@ const server = await createServer({ root: new URL('../../Platfrom/ui', import.me
         const payload = body ? JSON.parse(body) : {}; mutations.push({ method: req.method, path, payload })
         if (path.endsWith('/connections')) {
           const consumer = { ...consumers[0], consumerId: `engage-fixture-${payload.operationKey}`, boundDeploymentId: payload.deploymentId,
+            boundDeploymentName: deployments.find(item => item.deploymentId === payload.deploymentId)?.name,
+            boundDeploymentEnvironment: targets.find(item => item.id === payload.targetProfileId)?.environmentName,
             boundTargetProfileId: payload.targetProfileId, boundReleaseId: payload.releaseId, bindingRevision: 1 }
           consumers.push(consumer); return json(consumer)
         }

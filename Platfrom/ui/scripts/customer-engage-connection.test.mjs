@@ -5,7 +5,7 @@ import ts from 'typescript'
 const source = await readFile(new URL('../src/components/customer/customerEngageConnection.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
 const { matchingEngageConnections, connectableRelease, initialConnectionRelease, initialConnectionTarget,
-  connectionEnvironments, connectionEnvironmentSelection } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
+  connectionEnvironments, connectionEnvironmentSelection, initialDeploymentConnection } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const connection = { consumerId: 'one', customerId: 'customer', status: 'ACTIVE', boundDeploymentId: 'deployment', boundTargetProfileId: 'staging', boundReleaseId: null }
 const release = { id: 'release', deploymentId: 'deployment', targetProfileId: 'staging', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', createdAt: '2026-10-28' }
 test('target selection preserves current intent, then explicit bootstrap intent, never another environment', () => {
@@ -93,4 +93,63 @@ test('ambiguous drafts require configuration, never the first target in the list
   ambiguous[4].defaultForRuntime = true
   assert.deepEqual(connectionEnvironmentSelection('production', ambiguous, [], undefined, 'stage-image'),
     { targetId: 'prod-image-2', releaseId: '' })
+})
+
+const productionAssignment = { ...connection, boundTargetProfileId: 'prod-image', boundReleaseId: 'assigned-prod' }
+const productionRelease = { ...release, id: 'assigned-prod', targetProfileId: 'prod-image' }
+const newerStagingRelease = { ...release, id: 'new-stage', targetProfileId: 'stage-image', createdAt: '2026-10-29' }
+test('normal creation follows the deployment assignment, not bootstrap staging or the newest release', () => {
+  assert.deepEqual(initialDeploymentConnection(profiles, [productionRelease, newerStagingRelease],
+    [productionAssignment], 'customer', 'deployment', null, 'stage-image'),
+  { targetId: 'prod-image', releaseId: 'assigned-prod', issue: null })
+})
+test('an existing app keeps its exact connection even when another assignment or newer release exists', () => {
+  const other = { ...connection, consumerId: 'another', boundTargetProfileId: 'stage-image', boundReleaseId: 'new-stage' }
+  assert.deepEqual(initialDeploymentConnection(profiles, [productionRelease, newerStagingRelease],
+    [other, productionAssignment], 'customer', 'deployment', 'one', 'stage-image'),
+  { targetId: 'prod-image', releaseId: 'assigned-prod', issue: null })
+})
+test('a new app with genuinely different assignments asks for an explicit choice', () => {
+  const other = { ...productionAssignment, consumerId: 'another', boundReleaseId: 'another-release' }
+  const selected = initialDeploymentConnection(profiles, [productionRelease], [other, productionAssignment],
+    'customer', 'deployment', null, 'stage-image')
+  assert.equal(selected.targetId, '')
+  assert.match(selected.issue, /multiple connections/)
+})
+test('duplicate assignment aliases do not invent an environment ambiguity', () => {
+  assert.deepEqual(initialDeploymentConnection(profiles, [productionRelease],
+    [productionAssignment, { ...productionAssignment, consumerId: 'alias' }], 'customer', 'deployment'),
+  { targetId: 'prod-image', releaseId: 'assigned-prod', issue: null })
+})
+test('pre-release and existing configuration-only drafts retain their configured target', () => {
+  assert.deepEqual(initialDeploymentConnection(profiles, [], [], 'customer', 'deployment', null, 'stage-image'),
+    { targetId: 'stage-image', releaseId: '', issue: null })
+  assert.deepEqual(initialDeploymentConnection(profiles, [productionRelease, newerStagingRelease],
+    [{ ...productionAssignment, boundReleaseId: null }], 'customer', 'deployment', 'one', 'stage-image'),
+  { targetId: 'prod-image', releaseId: '', issue: null })
+})
+test('without an assignment only a single released environment can be selected automatically', () => {
+  assert.deepEqual(initialDeploymentConnection(profiles, [productionRelease], [], 'customer', 'deployment', null, 'stage-image'),
+    { targetId: 'prod-image', releaseId: 'assigned-prod', issue: null })
+  const selected = initialDeploymentConnection(profiles, [productionRelease, newerStagingRelease], [], 'customer', 'deployment')
+  assert.equal(selected.targetId, '')
+  assert.match(selected.issue, /multiple environments/)
+})
+test('failed or missing assigned releases are never silently replaced with a draft or older success', () => {
+  const failed = { ...productionRelease, status: 'FAILED' }
+  assert.deepEqual(initialDeploymentConnection(profiles, [failed], [productionAssignment], 'customer', 'deployment', 'one'),
+    { targetId: 'prod-image', releaseId: 'assigned-prod', issue: null })
+  assert.equal(connectableRelease(failed), false)
+  const missing = initialDeploymentConnection(profiles, [], [productionAssignment], 'customer', 'deployment', 'one')
+  assert.equal(missing.releaseId, 'assigned-prod')
+  assert.match(missing.issue, /unavailable/)
+  const latestFailed = { ...newerStagingRelease, targetProfileId: 'prod-image', status: 'FAILED' }
+  assert.equal(initialDeploymentConnection(profiles, [productionRelease, latestFailed], [], 'customer', 'deployment').releaseId, 'new-stage')
+})
+test('foreign and unrelated assignments/releases do not select an environment for a new deployment', () => {
+  const all = [{ ...productionAssignment, customerId: 'foreign' }, { ...productionAssignment, boundDeploymentId: 'other' },
+    { ...productionAssignment, status: 'DISABLED' }]
+  assert.deepEqual(initialDeploymentConnection(profiles, [{ ...productionRelease, deploymentId: 'other' }],
+    all, 'customer', 'deployment', null, 'stage-image'), { targetId: 'stage-image', releaseId: '', issue: null })
+  assert.match(initialDeploymentConnection(profiles, [productionRelease], all, 'customer', 'deployment', 'one').issue, /unavailable/)
 })
