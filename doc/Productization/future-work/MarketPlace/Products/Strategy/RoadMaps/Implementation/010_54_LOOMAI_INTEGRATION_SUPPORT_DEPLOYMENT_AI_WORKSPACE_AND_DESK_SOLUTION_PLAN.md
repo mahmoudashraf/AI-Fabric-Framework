@@ -4,6 +4,8 @@
 
 **Created:** 2026-10-30
 
+**UI review:** [Three proposed Console and Desk screens](designs/010_54_integration_support/README.md) illustrate the form, AI assistance and human handover. These are generated design mockups, not deployed UI or live diagnostic evidence.
+
 **Decision requested:** use LoomAI Platform, an authenticated Engage workspace and LoomAI Desk to deliver LoomAI's own customer integration support. This is a solution and implementation proposal, not authorization to implement, provision or publish it.
 
 **Relationship to 010.53:** this is the proposed replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). Preserve its lightweight entry points, request tracking and consent principles. Replace its separate staff discussion/triage experience with our deployment, Engage and Desk products. If approved, 010.54 becomes canonical; do not implement both designs.
