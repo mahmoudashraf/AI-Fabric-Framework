@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-ai-support-workspace",
+  "version": "1.0.1",
+  "pluginType": "TEMPLATE",
+  "displayName": "AI Support Workspace",
+  "description": "A configurable support conversation using approved knowledge, optional read-only specialists and optional LoomAI Desk handover.",
+  "compatibility": {
+    "requiredCapabilities": [
+      "templates"
+    ]
+  },
+  "pricing": {
+    "pricingModel": "FREE"
+  },
+  "permissions": {
+    "contributesTemplate": true,
+    "contributesShellPresentation": true
+  },
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "curatedModuleId": "default",
+      "requiredPluginRefs": [
+        "mkp-data-ai-support-documents@1.0.0"
+      ],
+      "recommendedPluginIds": [
+        "mkp-integration-loomai-desk"
+      ],
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "verificationPackIds": [
+          "conversational-behavior-v1"
+        ],
+        "allowedChannelBindings": [
+          "BACKEND_API",
+          "DOCKED_COMPOSER",
+          "MAX_MODE",
+          "INLINE_ASSISTANT",
+          "QUERY_ONCE"
+        ],
+        "allowedExecutionExtensions": [
+          "SPECIALIST_ASSISTANCE",
+          "CONVERSATION_HANDOVER"
+        ],
+        "defaultExecutionExtensions": [],
+        "specialistAssistance": {
+          "enabled": false,
+          "areas": [
+            {
+              "id": "product-setup",
+              "name": "Product setup",
+              "purpose": "Explain documented setup, connections and customer-facing workspace configuration.",
+              "instructions": "Use approved setup guides to suggest the next diagnostic step. Distinguish documentation from current observations. Ask for missing non-secret details. Never request passwords, access keys, session tokens or raw environment files. Do not claim that configuration was changed.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": []
+            },
+            {
+              "id": "service-policy",
+              "name": "Service and support policy",
+              "purpose": "Explain approved service procedures, support boundaries and escalation options.",
+              "instructions": "Answer from the installed company's approved policy documents. Do not invent entitlements, service guarantees, refunds or human availability. Explain which facts remain unverified. A human handover is an outer conversation operation, never a specialist chain handoff.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": []
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "setup-and-support",
+              "name": "Setup and support investigation",
+              "objective": "Combine relevant setup guidance and service policy only when both are needed. Clarify missing facts and separate supported steps from unverified assumptions.",
+              "areaIds": [
+                "product-setup",
+                "service-policy"
+              ],
+              "allowParallel": false
+            }
+          ],
+          "limits": {
+            "maxDecisions": 4,
+            "maxWorkerInvocations": 2,
+            "maxParallelWorkers": 2,
+            "deadlineSeconds": 75
+          }
+        }
+      },
+      "shell": {
+        "greeting": {
+          "title": "How can we help?",
+          "message": "Ask about setup or approved support policies. Current account checks and human support are available only when connected."
+        },
+        "enabledModuleIds": [
+          "support",
+          "docs"
+        ],
+        "starterPrompts": [
+          {
+            "id": "setup-help",
+            "label": "Setup help",
+            "query": "Help me understand the documented setup steps. Ask what you need to know."
+          },
+          {
+            "id": "support-options",
+            "label": "Support options",
+            "query": "What support options are described in the approved documentation?"
+          }
+        ],
+        "defaultConversationMode": "executor"
+      }
+    }
+  }
+}

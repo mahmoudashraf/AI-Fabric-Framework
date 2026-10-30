@@ -77,7 +77,7 @@ The existing mounted DATA dependency is read back, not republished or changed.
 POST /api/marketplace/templates/mkp-template-ai-support-workspace/bootstrap
 Content-Type: application/json
 
-{"pluginVersion":"1.0.0","name":"My support workspace","environment":"staging","vectorProvisioningMode":"LOCAL_MANAGED","customerId":"OWNED_CUSTOMER_ID","tenantId":"OWNED_TENANT_ID"}
+{"pluginVersion":"1.0.1","name":"My support workspace","environment":"staging","vectorProvisioningMode":"LOCAL_MANAGED","customerId":"OWNED_CUSTOMER_ID","tenantId":"OWNED_TENANT_ID"}
 ```
 
 The full fixture is `fixtures/requests/bootstrap.json`. Its neutral Lucene starter
@@ -88,6 +88,12 @@ AI-state storage/provider settings through normal deployment configuration; the
 example does not supply infrastructure credentials. Bootstrap's DATA dependency
 may be configuration-required until the storage binding is supplied. That is
 expected, not a successful publish-ready deployment.
+Use a fresh owned tenant: an existing deployment's tenant cannot be rebound.
+Template `1.0.1` retains the two configured areas and resolution but leaves
+assistance disabled until the required document connection is enabled. After
+binding knowledge, explicitly enable assistance in the capability editor or
+apply the reviewed draft overlay. This preserves prerequisite checks rather
+than compiling authority for an unconfigured source. `1.0.0` is immutable history.
 
 For the LoomAI internal instance, use its fixed internal owner/tenant and the
 reviewed Console support identity adapter. For Acme, create a separate owned

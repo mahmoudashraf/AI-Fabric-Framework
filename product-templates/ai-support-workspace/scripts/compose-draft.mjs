@@ -16,9 +16,10 @@ if (!draft.providerConfig || typeof draft.providerConfig !== 'object' || Array.i
   throw new Error('The saved draft must include its existing providerConfig so provider settings are preserved.');
 }
 const read = name => JSON.parse(readFileSync(resolve(root, 'overlays', variant, name), 'utf8'));
-const template = JSON.parse(readFileSync(resolve(root, 'manifests/ai-support-workspace.manifest.json'), 'utf8')).contributions.template;
+const template = JSON.parse(readFileSync(resolve(root, 'manifests/ai-support-workspace.1.0.1.manifest.json'), 'utf8')).contributions.template;
 const behaviorConfig = structuredClone(draft.behaviorConfig);
 behaviorConfig.specialistAssistance = variant === 'generic' ? template.deploymentBehavior.specialistAssistance : read('specialist-assistance.json');
+behaviorConfig.specialistAssistance.enabled = true;
 behaviorConfig.executionExtensions = [...new Set([...(behaviorConfig.executionExtensions ?? []), 'SPECIALIST_ASSISTANCE'])];
 const providerConfig = structuredClone(draft.providerConfig);
 const settings = JSON.parse(readFileSync(resolve(root, 'fixtures/orchestration-settings.json'), 'utf8'));

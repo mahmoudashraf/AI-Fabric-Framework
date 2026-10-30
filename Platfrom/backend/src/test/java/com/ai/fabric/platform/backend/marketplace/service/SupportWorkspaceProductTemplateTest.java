@@ -39,6 +39,31 @@ class SupportWorkspaceProductTemplateTest {
     private final MarketplaceManifestService manifests = new MarketplaceManifestService(mapper);
 
     @Test
+    void reusableStarterDefersAssistanceWithoutDiscardingConfigurationUntilStorageIsConnected() throws Exception {
+        JsonNode previous = read("manifests/ai-support-workspace.manifest.json");
+        JsonNode current = read("manifests/ai-support-workspace.1.0.1.manifest.json");
+        assertThat(previous.path("version").asText()).isEqualTo("1.0.0");
+        assertThat(current.path("version").asText()).isEqualTo("1.0.1");
+        JsonNode oldTemplate = previous.at("/contributions/template");
+        JsonNode template = current.at("/contributions/template");
+        assertThat(template.path("requiredPluginRefs")).isEqualTo(oldTemplate.path("requiredPluginRefs"));
+        assertThat(template.at("/deploymentBehavior/defaultExecutionExtensions")).isEmpty();
+        assertThat(template.at("/deploymentBehavior/specialistAssistance/enabled").asBoolean()).isFalse();
+        assertThat(template.at("/deploymentBehavior/specialistAssistance/areas"))
+            .isEqualTo(oldTemplate.at("/deploymentBehavior/specialistAssistance/areas"));
+        ObjectNode behavior = ((ObjectNode) template.path("deploymentBehavior")).deepCopy();
+        behavior.set("executionExtensions", mapper.createArrayNode());
+        JsonNode compiled = new SpecialistAssistanceCompiler(mapper).compileBehavior(behavior,
+            new SpecialistAssistanceCompiler.Authority(java.util.Map.of(), Set.of()));
+        assertThat(compiled.at("/specialistAssistance/compiled").isMissingNode()).isTrue();
+        behavior.with("specialistAssistance").put("enabled", true);
+        behavior.withArray("executionExtensions").add("SPECIALIST_ASSISTANCE");
+        assertThatThrownBy(() -> new SpecialistAssistanceCompiler(mapper).compileBehavior(behavior,
+            new SpecialistAssistanceCompiler.Authority(java.util.Map.of(), Set.of())))
+            .hasMessageContaining("source not declared");
+    }
+
+    @Test
     void approvedIdentityProfilesCoverExactCompiledScopesWithoutInternalLoomaiAuthority() throws Exception {
         JsonNode generic = new SpecialistAssistanceCompiler(mapper).compileBehavior(baseBehavior(),
             new SpecialistAssistanceCompiler.Authority(java.util.Map.of(), Set.of("document")))
@@ -243,11 +268,15 @@ class SupportWorkspaceProductTemplateTest {
             for (JsonNode action : corrected.at("/contributions/actions")) ((ObjectNode) action).remove("adapterType");
             assertThat(corrected).isEqualTo(read("manifests/" + file + ".manifest.json"));
         }
-        assertThat(read("catalog.json").path("immutableHistory")).hasSize(2);
+        var publicationHistory = java.util.Map.of(
+            "manifests/ai-support-workspace.manifest.json", "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED",
+            "manifests/loomai-support-diagnostics.manifest.json", "NOT_FOUND_STAGING_404_CONFIRMED_BY_MAIN",
+            "manifests/acme-cloud-support-reads.manifest.json", "PUBLISHED_REPORTED_BY_COORDINATOR");
+        assertThat(read("catalog.json").path("immutableHistory")).hasSize(publicationHistory.size());
         for (JsonNode history : read("catalog.json").path("immutableHistory")) {
             assertThat(history.path("stagingPublication").asText()).isEqualTo(
-                history.path("manifest").asText().contains("loomai-support-diagnostics")
-                    ? "NOT_FOUND_STAGING_404_CONFIRMED_BY_MAIN" : "PUBLISHED_REPORTED_BY_COORDINATOR");
+                publicationHistory.get(history.path("manifest").asText()));
+            assertThat(history.path("republish").asBoolean()).isFalse();
         }
     }
 

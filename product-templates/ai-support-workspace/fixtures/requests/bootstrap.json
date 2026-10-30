@@ -1,5 +1,5 @@
 {
-  "pluginVersion": "1.0.0",
+  "pluginVersion": "1.0.1",
   "name": "My support workspace",
   "environment": "staging",
   "vectorProvisioningMode": "LOCAL_MANAGED",

@@ -22,8 +22,10 @@ This package adds no service, database, execution engine or plugin type.
 
 ## Contents
 
-- `manifests/ai-support-workspace.manifest.json`: normal `TEMPLATE`; two editable
-  documentation areas and one sequential resolution. READ slots start empty.
+- `manifests/ai-support-workspace.1.0.1.manifest.json`: normal `TEMPLATE`; two
+  editable documentation areas and one sequential resolution. READ slots start
+  empty; assistance is explicitly enabled after storage is connected. The
+  unversioned filename retains the immutable `1.0.0` snapshot.
 - `manifests/support-documents.manifest.json`: normal `DATA`; customer-owned
   S3-compatible documents, deployment-only derived index, explicit approval.
 - `manifests/loomai-support-diagnostics.1.0.1.manifest.json`: normal `ACTION` overlay
