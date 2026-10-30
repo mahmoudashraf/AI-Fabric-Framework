@@ -1,0 +1,9 @@
+{
+  "status": "SOURCE_REVIEW_CANDIDATE_NOT_PUBLISHED_OR_HOSTED",
+  "entries": [
+    {"manifest": "manifests/support-documents.manifest.json", "pluginSlug": "ai-support-documents", "usage": "Reusable customer-owned storage connection; configure before enabling."},
+    {"manifest": "manifests/ai-support-workspace.manifest.json", "pluginSlug": "ai-support-workspace", "usage": "Reusable public template; publish its data dependency first."},
+    {"manifest": "manifests/loomai-support-diagnostics.manifest.json", "pluginSlug": "loomai-support-diagnostics", "usage": "Internal LoomAI instance only. Upstream caller/case/consent enforcement and managed endpoint bindings are required."},
+    {"manifest": "manifests/acme-cloud-support-reads.manifest.json", "pluginSlug": "acme-cloud-support-reads", "usage": "Fictional second-customer validation adapter contract; not a deployed Acme service."}
+  ]
+}

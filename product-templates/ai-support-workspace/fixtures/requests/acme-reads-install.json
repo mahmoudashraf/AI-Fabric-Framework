@@ -1,0 +1,9 @@
+{
+  "pluginId": "mkp-action-acme-cloud-support-reads",
+  "pluginVersion": "1.0.0",
+  "config": {
+    "workspaceStatusUrl": "${MANAGED_ACME_WORKSPACE_STATUS_URL}",
+    "serviceStatusUrl": "${MANAGED_ACME_SERVICE_STATUS_URL}"
+  },
+  "secretRefs": {"adapterServiceKey": "ACME_SUPPORT_ADAPTER_SERVICE_KEY"}
+}

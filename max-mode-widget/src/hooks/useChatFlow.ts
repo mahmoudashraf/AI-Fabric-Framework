@@ -19,6 +19,7 @@ import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountCo
 import { extractWorkspaceAuthenticationRequirement, dispatchWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 import { getWidgetConfig } from "@/config";
 import { resolveChatRequestSemantics } from "@/requestSemantics";
+import { updateWorkspaceHost } from "../workspaceHost";
 
 export function useChatFlow({
   chatQuery,
@@ -71,6 +72,15 @@ export function useChatFlow({
     ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
+      if (getWidgetConfig().host?.readOnly) return;
+      const hostControl = getWidgetConfig().workspaceHost;
+      const controlled = Boolean(getWidgetConfig().hostSession);
+      const hostState = hostControl?.getState();
+      if (controlled && (!currentConversationId || !hostState?.ready || hostState.busy
+        || hostState.status !== "ready" || hostState.conversationId !== currentConversationId)) return;
+      const hostIsCurrent = () => !controlled || (hostControl?.getState().status !== "destroyed"
+        && hostControl?.getState().conversationId === currentConversationId);
+      if (controlled && hostControl) updateWorkspaceHost(hostControl, { busy: true });
 
       const effectiveConversationId = currentConversationId
         ?? (usesCanonicalConversationMessages() ? createConversationId() : null);
@@ -154,6 +164,7 @@ export function useChatFlow({
           mode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
         }, mergedRequestContext);
+        if (!hostIsCurrent()) return;
 
         setLastRequestData({
           endpoint: resolvedChatMessageUrl(effectiveConversationId || undefined),
@@ -166,6 +177,7 @@ export function useChatFlow({
         const { data, status, durationMs } = await postChatQuery(requestPayload, {
           idempotencyKey: `message-${userMessage.id}`,
         });
+        if (!hostIsCurrent()) return;
 
         setLastResponseData({
           timestamp: new Date().toISOString(),
@@ -287,6 +299,7 @@ export function useChatFlow({
             data.conversationId || effectiveConversationId, emitEvent);
         }
       } catch (error) {
+        if (!hostIsCurrent()) return;
         if (isPublicRuntimeSessionInvalidatedError(error)) {
           return;
         }
@@ -303,6 +316,7 @@ export function useChatFlow({
         };
         setChatMessages((prev) => [...prev, errorMessage]);
       } finally {
+        if (controlled && hostControl && hostIsCurrent()) updateWorkspaceHost(hostControl, { busy: false });
         setIsLoading(false);
       }
     },

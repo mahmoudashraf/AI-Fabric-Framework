@@ -71,5 +71,8 @@ export {
 } from "@/authenticationRequirement";
 
 export type { WorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
+export { createWorkspaceHost, WorkspaceHostError } from "../workspaceHost";
+export type { WorkspaceHostApi, WorkspaceHostSession, WorkspaceOpenConversationOptions, WorkspaceState } from "../workspaceHost";
+export type { CompletedConversationTurn, StoredChatQueryResponse } from "@/types";
 
 // Style import path hint (actual import is '@loom-ai-labs/max-mode-widget/styles.css')

@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractIssue;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
@@ -617,6 +619,17 @@ public class MarketplaceManifestService {
             version,
             template.path("deploymentBehavior")
         );
+        JsonNode assistance = template.path("deploymentBehavior").path(SpecialistAssistanceCompiler.FIELD);
+        if (!assistance.isMissingNode() && !assistance.isNull()) {
+            ObjectNode assistanceBehavior = objectMapper.createObjectNode().put("type", behavior.type());
+            assistanceBehavior.set("executionExtensions", template.path("deploymentBehavior").path("defaultExecutionExtensions"));
+            assistanceBehavior.set(SpecialistAssistanceCompiler.FIELD, assistance);
+            try {
+                new SpecialistAssistanceCompiler(objectMapper).validateConfiguration(assistanceBehavior);
+            } catch (ResponseStatusException ex) {
+                throw invalid(plugin, version, ex.getReason());
+            }
+        }
         List<String> requiredPluginRefs = readStringList(template.path("requiredPluginRefs"));
         requiredPluginRefs.forEach(ref -> {
             if (!PLUGIN_REF_PATTERN.matcher(ref).matches()) {

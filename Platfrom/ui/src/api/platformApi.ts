@@ -4684,6 +4684,8 @@ async function request<T>(path: string, init?: RequestInit, policy: 'default' | 
   return response.json() as Promise<T>
 }
 
+export { request as platformRequest }
+
 export function fetchPlatformAuthSession() {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/session')
 }
@@ -6319,6 +6321,10 @@ export function createDeploymentBundleImport(payload: DeploymentBundleImportRequ
 
 export function fetchDeploymentVersions(deploymentId: string) {
   return request<DeploymentVersionSummary[]>(`/api/deployments/${deploymentId}/versions`)
+}
+
+export function fetchDeploymentVersionManifest(deploymentId: string, versionId: string) {
+  return request<unknown>(`/api/deployments/${encodeURIComponent(deploymentId)}/versions/${encodeURIComponent(versionId)}/artifacts/deployment-manifest.json`)
 }
 
 export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: string) {

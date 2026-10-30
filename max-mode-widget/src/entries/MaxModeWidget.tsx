@@ -8,6 +8,7 @@ import React, { useEffect, useLayoutEffect, useMemo } from "react";
 
 import {
   setWidgetConfig,
+  getWidgetStorageKey,
   type MaxModeApiConfig,
   type MaxModeIntegrationMode,
   type MaxModeFeatures,
@@ -21,6 +22,8 @@ import { MaxModePage } from "@/components/MaxModePage";
 import { ToastContainer } from "@/ui/toast-container";
 import { applyThemeToElement, bindWidgetColorScheme } from "@/theme";
 import { bindWidgetViewport } from "@/viewport";
+import type { WorkspaceHostApi, WorkspaceHostSession } from "../workspaceHost";
+import { resetRuntimeCredentialCache } from "../api/client";
 
 // Import widget styles
 import "@/styles/index.css";
@@ -34,6 +37,9 @@ export interface MaxModeWidgetProps {
   apiConfig: MaxModeApiConfig;
   /** Integration/auth posture */
   integrationMode?: MaxModeIntegrationMode;
+  storageNamespace?: string;
+  hostSession?: WorkspaceHostSession;
+  workspaceHost?: WorkspaceHostApi;
   /** Items to pre-attach to the chat */
   initialAttachments?: SharedAttachment[];
   /** Host UX, routing, and optional current-page attachment configuration */
@@ -51,6 +57,9 @@ export function MaxModeWidget({
   onClose,
   apiConfig,
   integrationMode,
+  storageNamespace,
+  hostSession,
+  workspaceHost,
   initialAttachments,
   host,
   features,
@@ -64,16 +73,25 @@ export function MaxModeWidget({
   const resolvedConfig = useMemo<MaxModeWidgetConfig>(() => ({
     apiConfig,
     integrationMode,
+    storageNamespace,
+    hostSession,
+    workspaceHost,
     features,
     theme,
     host: resolvedHost,
     onEvent,
     onClose,
-  }), [apiConfig, features, integrationMode, onClose, onEvent, resolvedHost, theme]);
+  }), [apiConfig, features, integrationMode, storageNamespace, hostSession, workspaceHost, onClose, onEvent, resolvedHost, theme]);
 
   // API helpers still read the singleton; layout timing precedes controller effects.
+  const credentialScope = React.useRef<string | null>(null);
   useLayoutEffect(() => {
     setWidgetConfig(resolvedConfig);
+    const scope = getWidgetStorageKey("runtime-scope", resolvedConfig);
+    if (scope !== credentialScope.current) {
+      resetRuntimeCredentialCache();
+      credentialScope.current = scope;
+    }
   }, [resolvedConfig]);
 
   // Theme container ref
@@ -92,7 +110,7 @@ export function MaxModeWidget({
 
   return (
     <div ref={containerRef} className="max-mode-widget-root">
-      <MaxModeProvider>
+      <MaxModeProvider config={resolvedConfig} key={JSON.stringify([storageNamespace, hostSession?.namespace, hostSession?.accountKey])}>
         <MaxModePage isOpen={isOpen} onClose={onClose} widgetConfig={resolvedConfig} />
         <ToastContainer />
       </MaxModeProvider>

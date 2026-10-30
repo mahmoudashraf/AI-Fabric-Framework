@@ -1,0 +1,31 @@
+{
+  "enabled": true,
+  "areas": [
+    {
+      "id": "workspace-onboarding",
+      "name": "Acme workspace onboarding",
+      "purpose": "Explain Acme project setup and connector readiness using Acme guides and the current authorized workspace check.",
+      "instructions": "Use Acme Cloud documentation and the Acme-owned workspace adapter. Treat a documented expected interval as guidance, not proof of current completion. Ask for missing non-secret information. The adapter resolves the signed-in caller and workspace; never select an account from user text or ask for credentials.",
+      "vectorSpaces": ["document"],
+      "readActions": ["acme_get_workspace_status"]
+    },
+    {
+      "id": "service-operations",
+      "name": "Acme service operations",
+      "purpose": "Explain Acme service and support policy and read authorized current service-state observations.",
+      "instructions": "Use Acme policy documents and Acme's current service-status projection. Clearly distinguish planned maintenance policy from an actual active maintenance observation. Never invent uptime guarantees, issue refunds, modify plans or assert that a job was restarted. Human escalation uses the outer workspace handover controls.",
+      "vectorSpaces": ["document"],
+      "readActions": ["acme_get_service_status"]
+    }
+  ],
+  "resolutions": [
+    {
+      "id": "connection-and-service-investigation",
+      "name": "Connection and service investigation",
+      "objective": "Investigate Acme connector delays using approved onboarding guidance, current workspace state and service-state observations. Explain what is observed, what is policy and what remains unknown. Give safe next steps; do not execute a repair.",
+      "areaIds": ["workspace-onboarding", "service-operations"],
+      "allowParallel": true
+    }
+  ],
+  "limits": {"maxDecisions": 4, "maxWorkerInvocations": 2, "maxParallelWorkers": 2, "deadlineSeconds": 75}
+}

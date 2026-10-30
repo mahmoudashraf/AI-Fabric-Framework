@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceVerificationPack;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
@@ -528,6 +530,10 @@ public class DeploymentReleaseVerificationService {
                 "Connector actions overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_config_matches_expected",
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
+            if (SpecialistAssistanceCompiler.enabled(expectations.behaviorConfig())) {
+                addSkippedCheck(checks, SpecialistAssistanceVerificationPack.RELEASE_CHECK,
+                    "Specialist assistance qualification requires a live runtime, not stub provisioning.");
+            }
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_knowledge_sources_match_expected",
@@ -590,6 +596,7 @@ public class DeploymentReleaseVerificationService {
         JsonProbeResult runtimeOverview = settledOverviews.runtimeOverview();
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
+        validateSpecialistAssistance(checks, runtimeOverview, expectations);
 
         JsonProbeResult runtimeAuthOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
@@ -1374,9 +1381,11 @@ public class DeploymentReleaseVerificationService {
             expectedActionNamesWithPresentationHints(actionsConfig.path("actions"))
         );
         expectedActionNamesWithPresentationHints.addAll(expectedServerOwnedRuntimeActionNames);
+        expectedActionNamesWithPresentationHints.remove(SpecialistAssistanceCompiler.ACTION);
         Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
         Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
-        Set<String> expectedActionNamesWithProvenance = Set.copyOf(expectedActionNames);
+        Set<String> expectedActionNamesWithProvenance = new LinkedHashSet<>(expectedActionNames);
+        expectedActionNamesWithProvenance.remove(SpecialistAssistanceCompiler.ACTION);
         Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
         Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
         int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
@@ -1438,6 +1447,7 @@ public class DeploymentReleaseVerificationService {
             shellConfig,
             marketplaceDatasetConfig,
             securityConfig,
+            behaviorConfig,
             expectedActionNames,
             expectedConfirmationInterceptorNames,
             expectedEntityTypes,
@@ -1530,6 +1540,20 @@ public class DeploymentReleaseVerificationService {
         } catch (Exception ex) {
             return fallback;
         }
+    }
+
+    private void validateSpecialistAssistance(ArrayNode checks,
+                                               JsonProbeResult probe,
+                                               VerificationExpectations expectations) {
+        if (!SpecialistAssistanceCompiler.enabled(expectations.behaviorConfig())) return;
+        JsonNode overview = probe.success() && probe.body() != null ? probe.body() : objectMapper.createObjectNode();
+        var qualification = new SpecialistAssistanceVerificationPack(objectMapper).qualify(expectations.behaviorConfig(), overview);
+        addCheck(checks, SpecialistAssistanceVerificationPack.RELEASE_CHECK,
+            qualification.passed() ? "PASSED" : "FAILED",
+            qualification.passed()
+                ? "Runtime specialist assistance matches the immutable compiled bundle and registered invocation catalogue."
+                : "Runtime specialist assistance does not match the published bundle, capability contract or ready invocation catalogue.",
+            qualification.details());
     }
 
     private void validateRuntimeOverview(ArrayNode checks,
@@ -2978,6 +3002,8 @@ public class DeploymentReleaseVerificationService {
                 == probe.body().path("deploymentBehavior").path("specialistChainsEnabled").asBoolean(false)
             && (!expectations.expectedSpecialistChainsEnabled()
                 || probe.body().path("specialistChains").path("ready").asBoolean(false))
+            && (!SpecialistAssistanceCompiler.enabled(expectations.behaviorConfig())
+                || new SpecialistAssistanceVerificationPack(objectMapper).qualify(expectations.behaviorConfig(), probe.body()).passed())
             && textSet(probe.body().path("runtimeMigrations").path("appliedMigrationIds"))
                 .containsAll(expectations.expectedRuntimeMigrationIds())
             && optionalExpectedValueMatches(
@@ -3009,19 +3035,25 @@ public class DeploymentReleaseVerificationService {
 
     static boolean expectsSpecialistChains(JsonNode behaviorConfig) {
         return behaviorConfig != null
-            && "AGENTIC_SPECIALIST_TEAM".equals(behaviorConfig.path("type").asText(""));
+            && ("AGENTIC_SPECIALIST_TEAM".equals(behaviorConfig.path("type").asText(""))
+                || (SpecialistAssistanceCompiler.enabled(behaviorConfig)
+                    && !behaviorConfig.path(SpecialistAssistanceCompiler.FIELD).path("resolutions").isEmpty()));
     }
 
     static Set<String> serverOwnedRuntimeActionNames(JsonNode behaviorConfig) {
         if (behaviorConfig == null) {
             return Set.of();
         }
-        JsonNode actionBinding = behaviorConfig.path("conversationHandover").path("actionBinding");
-        if (!"SERVER_OWNED_RUNTIME_ACTION".equals(actionBinding.path("implementation").asText(""))) {
-            return Set.of();
+        Set<String> actions = new LinkedHashSet<>();
+        if (SpecialistAssistanceCompiler.enabled(behaviorConfig)) {
+            actions.add(SpecialistAssistanceCompiler.ACTION);
         }
-        String actionId = actionBinding.path("actionId").asText("").trim();
-        return actionId.isEmpty() ? Set.of() : Set.of(actionId);
+        JsonNode actionBinding = behaviorConfig.path("conversationHandover").path("actionBinding");
+        if ("SERVER_OWNED_RUNTIME_ACTION".equals(actionBinding.path("implementation").asText(""))) {
+            String actionId = actionBinding.path("actionId").asText("").trim();
+            if (!actionId.isEmpty()) actions.add(actionId);
+        }
+        return Set.copyOf(actions);
     }
 
     static boolean hasExternalDocumentDataset(JsonNode marketplaceDatasetConfig) {
@@ -3842,6 +3874,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode shellConfig,
         JsonNode marketplaceDatasetConfig,
         JsonNode securityConfig,
+        JsonNode behaviorConfig,
         Set<String> expectedActionNames,
         Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,

@@ -173,6 +173,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {props.dataObservedAt ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>Resource data loaded {new Date(props.dataObservedAt).toLocaleTimeString()}. This is not a runtime health probe.</Typography> : null}
     </Box>
     {compact ? <Drawer anchor="right" open={Boolean(selected)} onClose={close} PaperProps={{ sx: { width: '100%' } }}>{inspector}</Drawer> : selected ? <Box sx={{ width: 425, borderLeft: 1, borderColor: 'divider', flexShrink: 0, position: 'sticky', top: 62, height: 'calc(100vh - 62px)' }}>{inspector}</Box> : null}
-    <CustomerConfigurationPanel open={Boolean(selected && props.configuration && params.get('editor') === 'configuration')} scopeKey={selected ? `${selected.kind}:${selected.id}` : ''} title={selected ? `${selected.name} / Configuration` : 'Configuration'} initialSection={params.get('editorSection') === 'advanced' ? 'advanced' : 'configuration'} notices={resourceNotices ? <Box sx={{ mb: 2 }}>{resourceNotices}</Box> : null} onClose={closeConfiguration}>{props.configuration}</CustomerConfigurationPanel>
+    <CustomerConfigurationPanel open={Boolean(selected && props.configuration && params.get('editor') === 'configuration')} scopeKey={selected ? `${selected.kind}:${selected.id}` : ''} title={selected ? `${selected.name} / Configuration` : 'Configuration'} initialSection={params.get('editorSection') === 'advanced' ? 'advanced' : 'configuration'} notices={resourceNotices ? <Box sx={{ mb: 2 }}>{resourceNotices}</Box> : null} onClose={closeConfiguration}
+      deploymentId={selected?.kind === 'deployment' ? selected.id : undefined}>{props.configuration}</CustomerConfigurationPanel>
   </Box>
 }

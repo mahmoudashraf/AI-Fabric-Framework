@@ -128,7 +128,7 @@ function runtimeCacheKey(baseUrl: string): string {
   const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl)
     ?? `${baseUrl}/public/chat/session`;
   const renewUrl = trimToNull(runtimeAuth?.renewUrl) ?? `${bootstrapUrl.replace(/\/$/, "")}/renew`;
-  return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}|${renewUrl}`;
+  return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}|${renewUrl}|${getWidgetStorageKey("runtime-scope")}`;
 }
 
 function loadPersistedPublicRuntimeSessionBinding(): PublicRuntimeSessionBinding | undefined {
@@ -251,6 +251,11 @@ function clearCachedPublicRuntimeToken(): void {
   delete publicRuntimeTokenState.expiresAt;
   delete publicRuntimeTokenState.sessionId;
   delete publicRuntimeTokenState.runtimeKey;
+}
+
+/** A new mount restores credentials only from its own scoped storage partition. */
+export function resetRuntimeCredentialCache(): void {
+  clearCachedPublicRuntimeToken();
 }
 
 function notifyPublicRuntimeSessionInvalidation(event: PublicRuntimeSessionInvalidation): void {
@@ -400,6 +405,9 @@ async function performAnonymousRuntimeRenewal(baseUrl: string, expectedRuntimeKe
       [authorizationHeader]: normalizeTokenHeader(currentToken, tokenScheme),
     },
   });
+  if (runtimeCacheKey(baseUrl) !== expectedRuntimeKey) {
+    throw new PublicRuntimeSessionInvalidatedError("identity-changed");
+  }
   if (response.status === 401 || response.status === 403) {
     invalidatePublicRuntimeSession("unauthorized");
     throw new PublicRuntimeSessionInvalidatedError("unauthorized");
@@ -444,7 +452,8 @@ async function resolveSecureRuntimeHeaders(
     return headers;
   }
 
-  if (mode === "public-runtime-authenticated" || mode === "public-runtime-anonymous") {
+  // A reviewed private adapter may also require the host's rotating browser identity token.
+  if (runtimeAuth?.getBearerToken) {
     const hostToken = await runtimeAuth?.getBearerToken?.();
     const normalizedHostToken = trimToNull(hostToken);
     if (normalizedHostToken) {
@@ -488,16 +497,24 @@ async function resolveRequestHeaders(init?: RequestInit, baseUrl?: string): Prom
 }
 
 async function performFetch(path: string, init?: RequestInit, baseUrl?: string): Promise<Response> {
+  const requestConfig = getWidgetConfig();
+  const scopeKey = getWidgetStorageKey("request-scope", requestConfig);
   const base = baseUrl ?? getChatBaseUrl();
   const headers = await resolveRequestHeaders(init, base);
+  if (requestConfig.hostSession && scopeKey !== getWidgetStorageKey("request-scope")) {
+    throw new PublicRuntimeSessionInvalidatedError("identity-changed");
+  }
   const requestUrl = isAbsoluteUrl(path) ? path : `${base}${path}`;
   const response = await fetch(requestUrl, {
     ...init,
-    credentials: init?.credentials ?? getFetchCredentials(),
+    credentials: init?.credentials ?? requestConfig.apiConfig.fetchCredentials,
     headers,
   });
 
-  const mode = getWidgetConfig().integrationMode ?? "backend-mediated-private-runtime";
+  if (requestConfig.hostSession && scopeKey !== getWidgetStorageKey("request-scope")) {
+    throw new PublicRuntimeSessionInvalidatedError("identity-changed");
+  }
+  const mode = requestConfig.integrationMode ?? "backend-mediated-private-runtime";
   if (response.status === 401 && mode === "public-runtime-anonymous") {
     const body = await response.clone().json().catch(() => null);
     if (!extractWorkspaceAuthenticationRequirement(body)) {

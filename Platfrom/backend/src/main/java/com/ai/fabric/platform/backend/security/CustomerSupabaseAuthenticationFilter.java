@@ -26,6 +26,8 @@ public class CustomerSupabaseAuthenticationFilter extends OncePerRequestFilter {
             || path.startsWith("/api/public/") || path.startsWith("/api/merchant/") || path.startsWith("/api/vectorization/runner/")
             || path.equals("/api/platform/auth/customer-config") || path.equals("/api/platform/auth/customer-link")
             || path.equals("/api/platform/auth/customer-onboarding")
+            || path.equals("/api/integrations/support/desk/context")
+            || path.equals("/api/support/staff/intake")
             || path.equals("/api/platform/auth/login") || path.equals("/api/platform/auth/logout");
     }
 

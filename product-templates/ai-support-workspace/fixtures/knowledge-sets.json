@@ -1,0 +1,19 @@
+{
+  "loomai": {
+    "ownership": "LoomAI-owned approved support source storage; separate prefix per target",
+    "documents": [
+      {"path": "documents/loomai/01-deployments-and-releases.txt", "metadata": {"sourceCategory": "release-guidance", "publicationStatus": "PUBLIC_APPROVED"}},
+      {"path": "documents/loomai/02-engage-installation-and-domains.txt", "metadata": {"sourceCategory": "workspace-setup", "publicationStatus": "PUBLIC_APPROVED"}},
+      {"path": "documents/loomai/03-knowledge-and-freshness.txt", "metadata": {"sourceCategory": "knowledge-operations", "publicationStatus": "PUBLIC_APPROVED"}},
+      {"path": "documents/loomai/04-human-support-and-consent.txt", "metadata": {"sourceCategory": "support-policy", "publicationStatus": "PUBLIC_APPROVED"}}
+    ]
+  },
+  "acme-cloud": {
+    "ownership": "Fictional Acme-owned source storage; never reuse the internal support storage binding",
+    "documents": [
+      {"path": "documents/acme-cloud/01-project-and-connector-setup.txt", "metadata": {"sourceCategory": "project-setup", "publicationStatus": "PUBLIC_APPROVED"}},
+      {"path": "documents/acme-cloud/02-service-status-and-maintenance.txt", "metadata": {"sourceCategory": "service-operations", "publicationStatus": "PUBLIC_APPROVED"}},
+      {"path": "documents/acme-cloud/03-support-and-escalation.txt", "metadata": {"sourceCategory": "support-policy", "publicationStatus": "PUBLIC_APPROVED"}}
+    ]
+  }
+}

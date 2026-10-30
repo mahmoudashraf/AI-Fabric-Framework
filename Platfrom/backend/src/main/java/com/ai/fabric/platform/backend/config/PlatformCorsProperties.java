@@ -15,6 +15,7 @@ public class PlatformCorsProperties {
         "Authorization",
         "Content-Type",
         "Idempotency-Key",
+        "Last-Event-ID",
         "Origin",
         "X-Bridge-API-KEY",
         "X-MCP-GATEWAY-API-KEY",

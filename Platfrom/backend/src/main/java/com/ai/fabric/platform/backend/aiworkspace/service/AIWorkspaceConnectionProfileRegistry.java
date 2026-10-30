@@ -5,6 +5,9 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMod
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -20,11 +23,19 @@ public class AIWorkspaceConnectionProfileRegistry {
     public static final String ANONYMOUS = "runtime-anonymous-direct";
     public static final String AUTHENTICATED = "runtime-authenticated-broker";
     public static final String SHOPIFY = "shopify-storefront-bridge";
+    public static final String SUPPORT_CASE_HOST = "platform-support-case-host";
 
     private final PlatformAIWorkspaceProperties properties;
+    private final Environment environment;
 
     public AIWorkspaceConnectionProfileRegistry(PlatformAIWorkspaceProperties properties) {
+        this(properties, new StandardEnvironment());
+    }
+
+    @Autowired
+    public AIWorkspaceConnectionProfileRegistry(PlatformAIWorkspaceProperties properties, Environment environment) {
         this.properties = properties;
+        this.environment = environment;
     }
 
     public ConnectionProfile resolve(String code,
@@ -46,6 +57,11 @@ public class AIWorkspaceConnectionProfileRegistry {
                 true, null, null, Map.of()
             );
             case SHOPIFY -> shopifyProfile(configuration);
+            case SUPPORT_CASE_HOST -> new ConnectionProfile(
+                SUPPORT_CASE_HOST, VERSION, "Console support host", AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME,
+                "host-controlled-private-runtime", "loomai-support-case-host-v1",
+                environment.getProperty("platform.support.enabled", Boolean.class, false), null, "omit", Map.of()
+            );
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection profile.");
         };
         if (profile.mode() != mode) {
@@ -55,6 +71,13 @@ public class AIWorkspaceConnectionProfileRegistry {
             throw new ResponseStatusException(BAD_REQUEST, "Selected connection profile is not configured on this Platform.");
         }
         return profile;
+    }
+
+    public void requireCustomer(String code, String customerId) {
+        if (SUPPORT_CASE_HOST.equals(code) && (customerId == null
+            || !customerId.equals(environment.getProperty("platform.support.customer-id")))) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Support host requires its configured internal owner.");
+        }
     }
 
     private void validateConfiguration(String code, JsonNode configuration) {

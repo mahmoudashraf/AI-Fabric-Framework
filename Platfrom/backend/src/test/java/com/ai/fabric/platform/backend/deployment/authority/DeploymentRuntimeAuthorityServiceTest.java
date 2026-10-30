@@ -328,6 +328,23 @@ class DeploymentRuntimeAuthorityServiceTest {
             "different", "session-anon", true, List.of("chat:query"), Duration.ofMinutes(1))).hasMessageContaining("inconsistent");
     }
 
+    @Test void reviewedIntegrationSessionUsesExactTargetKeysAndSupportsVersionedSpecialistScopes() throws Exception {
+        var frozen = release("staging", "release-stage");
+        var selectedRelease = releases.findById(frozen.releaseId()).orElseThrow();
+        var version = versions.findById(selectedRelease.getDeploymentVersionId()).orElseThrow();
+        clearInvocations(access);
+        var headers = service.issueReviewedIntegrationSessionHeaders(deployment, version, selectedRelease,
+            "opaque-case-principal", List.of("chat:messages", "specialist:assist-area-setup@1"));
+        var claims = payload(headers.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(claims.path("sub").asText()).isEqualTo("opaque-case-principal");
+        assertThat(claims.path("sessionId").asText()).isEqualTo("opaque-case-principal");
+        assertThat(claims.path("subjectType").asText()).isEqualTo("END_USER");
+        assertThat(claims.path("scopes").toString()).contains("specialist:assist-area-setup@1");
+        verifyNoInteractions(access);
+        assertThatThrownBy(() -> service.issueReviewedIntegrationSessionHeaders(deployment, version, selectedRelease,
+            "opaque-case-principal", List.of("bad\nscope"))).hasMessageContaining("Explicit verified identity scopes");
+    }
+
     @Test void workerVerificationUsesOnlyFixedReadScopesAndBoundedAssertionsWithoutOperatorAuthority() throws Exception {
         var frozen = release("staging", "release-stage");
         var release = releases.findById(frozen.releaseId()).orElseThrow();

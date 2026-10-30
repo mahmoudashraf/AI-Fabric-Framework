@@ -1,0 +1,14 @@
+{
+  "connectionMode": "public-runtime-anonymous",
+  "connectionProfileCode": "runtime-anonymous-direct",
+  "connectionProfileVersion": "1.0.0",
+  "connectionConfiguration": {},
+  "interactionPolicy": "public-with-protected-capabilities",
+  "authProfileCode": "supabase",
+  "authProfileVersion": "1.0.0",
+  "authConfiguration": {
+    "projectUrl": "https://project-ref.supabase.co",
+    "publishableKey": "sb_publishable_REPLACE_WITH_REAL_PUBLIC_KEY",
+    "methods": ["email-password"]
+  }
+}

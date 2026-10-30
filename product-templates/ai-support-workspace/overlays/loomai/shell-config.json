@@ -1,0 +1,10 @@
+{
+  "greeting": {"title": "LoomAI integration support", "message": "Describe what you are trying to connect. I can use approved guides, check selected-resource status with your permission, or help you reach human support when available."},
+  "modules": [],
+  "cards": [],
+  "starterPrompts": [
+    {"id": "embed-workspace", "label": "Install my workspace", "query": "How do I add my Engage workspace to my website, and can I also keep its standalone app?"},
+    {"id": "knowledge-freshness", "label": "Check knowledge freshness", "query": "My workspace is answering with older policy information. Explain what needs checking and ask for any missing non-secret details."}
+  ],
+  "defaultConversationMode": "executor"
+}

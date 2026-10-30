@@ -349,6 +349,7 @@ public class AIWorkspaceInstallationService {
     }
 
     private void authorizeConfiguration(PlatformConsumerEntity consumer, ValidatedInput input, String operationKey) {
+        connectionProfileRegistry.requireCustomer(input.profileCode(), consumer.getCustomerId());
         authorizeConfiguration(input, (operation, settings) ->
             offerBoundary.requireConsumer(consumer, operation, operationKey, settings));
     }

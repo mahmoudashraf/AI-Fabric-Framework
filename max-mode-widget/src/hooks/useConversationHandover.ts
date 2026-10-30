@@ -14,6 +14,7 @@ import {
 } from "@/api/handover";
 import { createConversationId } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
+import { getWidgetConfig } from "@/config";
 import type { ChatMessage, ConversationControlView, RuntimeConversationMessage } from "@/types";
 
 type ToastFn = (opts: any) => void;
@@ -43,9 +44,16 @@ export function useConversationHandover({
   const latestMessageSequence = useRef(0);
   const eventCursor = useRef<string | null>(null);
   const previousConversationId = useRef<string | null>(currentConversationId);
+  const activeConversation = useRef(currentConversationId);
+  const acceptedControl = useRef<ConversationControlView | null>(null);
+  activeConversation.current = currentConversationId;
 
   const applyControl = useCallback((view: ConversationControlView | null | undefined) => {
     if (!view?.conversationId || !view.controlState) return;
+    if (view.conversationId !== activeConversation.current) return;
+    if (acceptedControl.current?.conversationId === view.conversationId
+      && acceptedControl.current.controlVersion > view.controlVersion) return;
+    acceptedControl.current = view;
     setControl(view);
     const runtimeMessages = Array.isArray(view.messages) ? view.messages : [];
     for (const message of runtimeMessages) {
@@ -63,7 +71,9 @@ export function useConversationHandover({
 
   const ensureConversationId = useCallback(() => {
     if (currentConversationId) return currentConversationId;
+    if (getWidgetConfig().hostSession) return null;
     const created = createConversationId();
+    activeConversation.current = created;
     setCurrentConversationId(created);
     return created;
   }, [currentConversationId, setCurrentConversationId]);
@@ -80,8 +90,9 @@ export function useConversationHandover({
     consentedFields: string[],
     continueAnonymously: boolean,
   ) => {
-    if (!enabled) return;
+    if (!enabled || getWidgetConfig().host?.readOnly) return;
     const conversationId = ensureConversationId();
+    if (!conversationId) return;
     setIsBusy(true);
     try {
       const admission = await requestConversationHandover(conversationId, {
@@ -114,7 +125,8 @@ export function useConversationHandover({
   }, [applyControl, enabled, ensureConversationId, toast]);
 
   const openHandover = useCallback(() => {
-    if (!enabled || isBusy) return;
+    if (!enabled || isBusy || getWidgetConfig().host?.readOnly) return;
+    if (getWidgetConfig().hostSession && !currentConversationId) return;
     if (control?.controlState && control.controlState !== "AI_ACTIVE") {
       setIsDialogOpen(true);
       return;
@@ -127,10 +139,10 @@ export function useConversationHandover({
       return;
     }
     void submitHandover({}, [], configured?.anonymousAllowed !== false);
-  }, [control?.controlState, enabled, ensureConversationId, isBusy, submitHandover]);
+  }, [control?.controlState, currentConversationId, enabled, ensureConversationId, isBusy, submitHandover]);
 
   const cancelHandover = useCallback(async () => {
-    if (!currentConversationId || !control?.handoverId || isBusy) return;
+    if (!currentConversationId || !control?.handoverId || isBusy || getWidgetConfig().host?.readOnly) return;
     setIsBusy(true);
     try {
       applyControl(await cancelConversationHandover(currentConversationId, control.handoverId));
@@ -150,7 +162,7 @@ export function useConversationHandover({
   }, [applyControl, control?.handoverId, currentConversationId, isBusy, toast]);
 
   const resumeAi = useCallback(async () => {
-    if (!currentConversationId || isBusy) return;
+    if (!currentConversationId || isBusy || getWidgetConfig().host?.readOnly) return;
     setIsBusy(true);
     try {
       applyControl(await resumeAiConversation(currentConversationId));
@@ -170,7 +182,7 @@ export function useConversationHandover({
   }, [applyControl, currentConversationId, isBusy, toast]);
 
   const retryHandover = useCallback(async () => {
-    if (!currentConversationId || !control?.handoverId || isBusy) return;
+    if (!currentConversationId || !control?.handoverId || isBusy || getWidgetConfig().host?.readOnly) return;
     setIsBusy(true);
     try {
       applyControl(await retryConversationHandover(currentConversationId, control.handoverId));
@@ -259,7 +271,7 @@ export function useConversationHandover({
     || controlState === "AI_RESUME_PENDING";
 
   return useMemo(() => ({
-    handoverEnabled: enabled,
+    handoverEnabled: enabled && !getWidgetConfig().host?.readOnly,
     conversationControl: control,
     conversationControlState: controlState,
     handoverBlocksAi: blocksAi,

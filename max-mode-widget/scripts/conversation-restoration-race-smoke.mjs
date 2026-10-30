@@ -35,6 +35,7 @@ const modules = {
  '\0client-api': 'export const isPublicRuntimeSessionInvalidatedError = () => false;'
 }
 const output = await build({ configFile:false, root:fileURLToPath(new URL('..',import.meta.url)),publicDir:false,logLevel:'error',
+ resolve:{alias:{'@/config':fileURLToPath(new URL('../src/config.ts',import.meta.url))}},
  define:{'process.env.NODE_ENV':JSON.stringify('production')},
  plugins:[{name:'conversation-race-fixture',enforce:'pre',resolveId(id){
   if(id==='fixture'||id.endsWith('/fixture'))return '\0fixture.jsx';

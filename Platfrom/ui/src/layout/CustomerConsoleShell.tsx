@@ -18,6 +18,7 @@ import MenuRounded from '@mui/icons-material/MenuRounded'
 import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined'
+import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
 import { isCustomerSession } from '../auth/customerSession'
 import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio } from '../api/platformApi'
@@ -36,6 +37,7 @@ const navigation = [
   { path: '/human-review', label: 'Action reviews', icon: FactCheckOutlined },
   { path: '/notifications', label: 'Activity & alerts', icon: HistoryOutlined },
   { path: '/users', label: 'Account & team', icon: PeopleOutline },
+  { path: '/support', label: 'Help & requests', icon: HelpOutlineRounded },
 ] as const
 
 type CustomerShellProps = {
@@ -82,7 +84,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
   const [menuOpen, setMenuOpen] = useState(false)
   const color = useCustomerColorPreference()
-  const active = navigation.find(item => item.path === location.pathname)
+  const active = navigation.find(item => item.path === location.pathname || (item.path === '/support' && location.pathname.startsWith('/support/')))
   const accountName = session?.customerName ?? 'Customer account'
   const accountInitial = accountName.charAt(0).toUpperCase()
   const nav = <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1.75 }}>
@@ -96,10 +98,10 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         <Typography sx={{ fontSize: 10 }} color="text.secondary">Customer workspace</Typography></Box>
     </Stack>
     <List component="nav" aria-label="Customer navigation" disablePadding>
-      {navigation.filter(item => (expandedNavigation || ['/home', '/deployments', '/ai-workspaces', '/users'].includes(item.path))
+      {navigation.filter(item => (expandedNavigation || ['/home', '/deployments', '/ai-workspaces', '/users', '/support'].includes(item.path))
         && (item.path !== '/human-support' || humanSupportAvailable)).map(item => <ListItemButton key={item.path} component={Link}
         to={isDeploymentWorkspacePath(item.path) ? buildWorkspacePath(item.path) : item.path}
-        selected={location.pathname === item.path} onClick={() => setMenuOpen(false)}
+        selected={active?.path === item.path} onClick={() => setMenuOpen(false)}
         sx={{ borderRadius: 1, mb: 0.5, px: 1.25, py: 0.75, minHeight: 37,
           '&.Mui-selected': { bgcolor: 'action.selected', color: 'primary.main' } }}>
         <ListItemIcon sx={{ minWidth: 29, color: 'inherit' }}><item.icon sx={{ fontSize: 18 }} /></ListItemIcon>

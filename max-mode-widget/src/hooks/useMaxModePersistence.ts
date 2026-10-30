@@ -20,6 +20,7 @@ export function useMaxModePersistence({
   contextDocuments,
   setContextDocuments,
   hostInitialAttachments,
+  restoreConversation = true,
 }: {
   chatMessages: ChatMessage[];
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
@@ -34,6 +35,7 @@ export function useMaxModePersistence({
   contextDocuments: Document[];
   setContextDocuments: Dispatch<SetStateAction<Document[]>>;
   hostInitialAttachments: Array<{ type: string; data: any }>;
+  restoreConversation?: boolean;
 }) {
   const maxModeContext = useMaxModeContextOptional();
   const hasLoadedPersistedState = useRef(false);
@@ -42,7 +44,7 @@ export function useMaxModePersistence({
   useEffect(() => {
     if (hasLoadedPersistedState.current) return;
     hasLoadedPersistedState.current = true;
-    if (!maxModeContext) {
+    if (!maxModeContext || !restoreConversation) {
       setHasHydratedPersistedState(true);
       return;
     }
@@ -94,10 +96,11 @@ export function useMaxModePersistence({
     setCurrentMode,
     setCurrentPosition,
     hostInitialAttachments,
+    restoreConversation,
   ]);
 
   useEffect(() => {
-    if (!maxModeContext || !hasHydratedPersistedState) return;
+    if (!maxModeContext || !hasHydratedPersistedState || !restoreConversation) return;
 
     maxModeContext.updateMaxModeState({
       chatMessages,
@@ -116,6 +119,7 @@ export function useMaxModePersistence({
     currentPosition,
     hasHydratedPersistedState,
     maxModeContext,
+    restoreConversation,
   ]);
 
   return hasHydratedPersistedState;

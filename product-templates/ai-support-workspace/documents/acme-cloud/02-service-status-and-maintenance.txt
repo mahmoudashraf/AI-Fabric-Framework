@@ -1,0 +1,10 @@
+Title: Acme Cloud connector delays and maintenance
+Audience: Fictional Acme Cloud example customers. Demonstration policy, not a real service schedule.
+
+This fictional Acme Cloud service normally schedules planned connector maintenance on the first Tuesday of a month from 02:00 to 03:00 UTC. The schedule is documentation, not a live incident observation. A delayed import outside that window can still have another cause.
+
+The authorized service status check returns state, plannedMaintenanceActive, publicMessage and observedAt. An active maintenance claim must come from a current observation, not a calendar inference. The workspace check separately reports the caller's connector state and last successful import. Neither status alone establishes every cause of a delayed import.
+
+For a compound question about a delayed connector and a possible outage, consult onboarding guidance, the current workspace observation and the current service observation when authorized. State which facts each source establishes. If one independent check fails, identify the missing result rather than reporting a complete investigation.
+
+Support may explain safe dashboard checks or transfer the conversation to the configured human team. It cannot silently rerun imports, change source credentials, increase quotas or claim that an incident has been resolved. The example provides no automatic service credit or uptime guarantee.

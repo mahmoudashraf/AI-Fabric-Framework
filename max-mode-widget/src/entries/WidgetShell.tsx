@@ -22,7 +22,7 @@ interface WidgetShellProps {
 
 export function WidgetShell({ config, isOpen, onOpenChange }: WidgetShellProps) {
   return (
-    <MaxModeProvider>
+    <MaxModeProvider config={config}>
       <WidgetShellContent config={config} isOpen={isOpen} onOpenChange={onOpenChange} />
     </MaxModeProvider>
   );
@@ -40,6 +40,7 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
   const showUtilityPanel = config.host?.showUtilityPanel ?? true;
   const controller = useMaxModeController({
     isOpen: isOpen || showCompanionDock,
+    isWorkspaceVisible: isOpen,
     assistantLabel,
     showUtilityPanel,
     widgetConfig: config,

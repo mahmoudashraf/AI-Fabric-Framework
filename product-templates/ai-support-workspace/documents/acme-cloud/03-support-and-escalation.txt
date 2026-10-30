@@ -1,0 +1,10 @@
+Title: Acme Cloud support and handover
+Audience: Fictional Acme Cloud example customers. Demonstration support procedure.
+
+Documentation questions may be answered without a case-management integration. In conversation-first mode, the conversation is the support reference; do not invent a ticket number or say that an external helpdesk received a request. If Acme later connects a helpdesk, that system remains the authoritative case record.
+
+Current account checks require Acme sign-in and service-authenticated calls to Acme's own adapter. The adapter verifies the caller's current access independently of any model-selected action. The Acme integration does not use LoomAI's internal support case principal, diagnostic service credential or customer-account permissions.
+
+A user may request a human agent through the enabled workspace controls or the configured handover action. Queueing is not the same as an agent joining. Human support is provided only when the Acme deployment's assigned support team and channel are configured. The example promises no fixed response time.
+
+The assigned agent can read the authorized conversation, reply and explicitly return it to AI. The AI does not respond while the human controls the conversation. Support documents and observed current status remain useful after return to AI, but a conversation transition does not authorize an infrastructure change.

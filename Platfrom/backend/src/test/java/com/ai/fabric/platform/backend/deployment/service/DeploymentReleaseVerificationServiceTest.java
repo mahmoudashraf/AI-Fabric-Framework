@@ -62,6 +62,63 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void specialistAssistanceExpectationsIncludeOnlyItsNativeReadAndConfiguredChains() {
+        var behavior = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper);
+        var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));
+        var version = runtimeOnlyImageVersion();
+        version.setBehaviorConfigJson(behavior.toString());
+        Object expected = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version, runtimeOnlyImageRelease(), artifactBundle(), null);
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expected, "expectedActionNames")).containsExactly("consult_specialist");
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expected, "expectedRoutingActions")).isEmpty();
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expected, "expectedActionNamesWithPresentationHints")).isEmpty();
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expected, "expectedActionNamesWithProvenance")).isEmpty();
+        assertThat(DeploymentReleaseVerificationService.expectsSpecialistChains(behavior)).isTrue();
+        ((ObjectNode) behavior.path("specialistAssistance")).putArray("resolutions");
+        assertThat(DeploymentReleaseVerificationService.expectsSpecialistChains(behavior)).isFalse();
+        assertThat(DeploymentReleaseVerificationService.serverOwnedRuntimeActionNames(behavior)).containsExactly("consult_specialist");
+    }
+
+    @Test
+    void specialistReleaseCheckUsesHttpOverviewAndPersistsExactReadbackQualification() throws Exception {
+        var compiler = new com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler(objectMapper);
+        var behavior = compiler.compileBehavior(
+            com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper),
+            com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.authority());
+        var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));
+        var version = runtimeOnlyImageVersion(); version.setBehaviorConfigJson(behavior.toString());
+        Object expectations = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version, runtimeOnlyImageRelease(), artifactBundle(), null);
+        ObjectNode overview = objectMapper.createObjectNode().put("success", true);
+        var status = overview.putObject("specialistAssistance").put("enabled", true).put("ready", true)
+            .put("contractVersion", "LOOMAI_SPECIALIST_ASSISTANCE_V1")
+            .put("contentHash", behavior.at("/specialistAssistance/contentHash").asText());
+        status.set("invocations", behavior.at("/specialistAssistance/compiled/invocations"));
+        var manifest = overview.putObject("runtimeCapabilityManifest");
+        manifest.putArray("capabilities").add("conversational-specialist-assistance");
+        manifest.putArray("supportedExecutionExtensions").add("SPECIALIST_ASSISTANCE");
+        manifest.putArray("verificationPackIds").add("conversational-specialist-assistance-v1");
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/overview", exchange -> writeJson(exchange, 200, overview.toString()));
+        server.start();
+        try {
+            for (boolean stale : List.of(false, true)) {
+                if (stale) status.put("contentHash", "sha256:" + "0".repeat(64));
+                Object probe = ReflectionTestUtils.invokeMethod(service, "probeJson",
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "/api/admin/overview", Map.of());
+                var checks = objectMapper.createArrayNode();
+                ReflectionTestUtils.invokeMethod(service, "validateSpecialistAssistance", checks, probe, expectations);
+                assertThat(checks.get(0).path("name").asText()).isEqualTo("runtime_specialist_assistance_matches_expected");
+                assertThat(checks.get(0).path("status").asText()).isEqualTo(stale ? "FAILED" : "PASSED");
+                assertThat(checks.get(0).at("/details/verificationPackId").asText()).isEqualTo("conversational-specialist-assistance-v1");
+            }
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void exactImmutableArtifactControlsSourceExpectationsWithoutRewritingReleaseProvenance() {
         var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
         var artifacts = mock(DeploymentSourceArtifactService.class);

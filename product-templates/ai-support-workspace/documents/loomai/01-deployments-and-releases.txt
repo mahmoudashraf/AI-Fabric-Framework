@@ -1,0 +1,12 @@
+Title: Understanding a LoomAI deployment and release
+Audience: LoomAI customers. Approved customer-safe support guidance.
+
+A deployment is the customer's configured AI solution. Templates provide an initial configuration; they do not permanently lock its model, runtime version, plugins or settings. The deployment connects to customer systems through approved integrations. It must not become a replacement inventory database, CRM or other customer system of record.
+
+Configuration changes follow draft, validate, publish, apply and verify. Editing a draft does not change the running service. Publishing creates an immutable configuration version. Applying that version targets a selected environment and executable runtime artifact. A published version alone does not prove that the runtime has been updated or that verification passed.
+
+When investigating a deployment, identify its selected target and applied release. A production-owned Engage app may reference customer staging during testing. The Platform account's location is not proof that the assigned runtime is in production. Keep the app's explicit deployment assignment and target visible while testing.
+
+If a change seems absent, compare the edited draft, published version, applied release and verification result. Record the time, visible error and selected deployment. Ask support to inspect a consented status projection when available. Do not send passwords, API keys, connection strings, raw environment files or unrestricted server logs.
+
+An AI support answer may explain a procedure or report an authorized status check. It does not mean that a restart, deployment apply, promotion, rollback or permission change has occurred. Perform such operations through the authorized Console controls. Support must state which observations it actually obtained and which conclusions remain uncertain.

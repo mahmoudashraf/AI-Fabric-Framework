@@ -1,0 +1,10 @@
+{
+  "greeting": {"title": "Acme Cloud support", "message": "Get help with Acme projects, connector setup and service procedures. Account checks require Acme sign-in. This is a fictional integration example."},
+  "modules": [],
+  "cards": [],
+  "starterPrompts": [
+    {"id": "first-import", "label": "My first import", "query": "How long should the first Acme connector import take, and how do I check its progress?"},
+    {"id": "service-help", "label": "Connection and service help", "query": "My Acme connector is behind. Help me distinguish a setup issue from planned service maintenance."}
+  ],
+  "defaultConversationMode": "executor"
+}

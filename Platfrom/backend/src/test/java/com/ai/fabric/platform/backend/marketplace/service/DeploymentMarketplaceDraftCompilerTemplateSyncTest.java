@@ -150,6 +150,29 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     }
 
     @Test
+    void specialistTemplateBootstrapsDefaultsButKeepsCustomerEditsAndDisabling() throws Exception {
+        var version = catalog.requirePluginVersionEntityById(TEMPLATE_ID + "-version-1");
+        ObjectNode manifest = (ObjectNode) mapper.readTree(version.getManifestJson());
+        ObjectNode templateBehavior = (ObjectNode) manifest.at("/contributions/template/deploymentBehavior");
+        templateBehavior.withArray("defaultExecutionExtensions").add("SPECIALIST_ASSISTANCE");
+        templateBehavior.set("specialistAssistance", com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(mapper)
+            .path("specialistAssistance"));
+        version.setManifestJson(manifest.toString());
+
+        var bootstrapped = compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
+        assertThat(bootstrapped.behaviorConfig().at("/specialistAssistance/enabled").asBoolean()).isTrue();
+        assertThat(bootstrapped.behaviorConfig().path("executionExtensions")).extracting(JsonNode::asText)
+            .contains("SPECIALIST_ASSISTANCE");
+        ((ObjectNode) draft.behaviorConfig().at("/specialistAssistance/areas/0")).put("instructions", "Our own support instructions.");
+        var customized = sync(true);
+        assertThat(customized.behaviorConfig().at("/specialistAssistance/areas/0/instructions").asText())
+            .isEqualTo("Our own support instructions.");
+        ((ObjectNode) draft.behaviorConfig().path("specialistAssistance")).put("enabled", false);
+        ((ObjectNode) draft.behaviorConfig()).putArray("executionExtensions");
+        assertThat(sync(true).behaviorConfig().path("executionExtensions")).isEmpty();
+    }
+
+    @Test
     void initialBootstrapComposesTemplateEntityShellExecutionDefaultsAndRequiredPluginRefs() {
         DeploymentDraftResponse bootstrapped = compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
 

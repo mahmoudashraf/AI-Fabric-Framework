@@ -1,9 +1,11 @@
 import type { GenericWorkspaceConfig, GenericWorkspaceController, GenericWorkspaceMountContext } from './types'
 import { resolveGenericWorkspacePresentation } from './presentation'
+import { registerCapabilityCheckPresentationElement, withCapabilityCheckPresentation } from './capability-check-presentation'
 import './browser-globals'
 
 export * from './types'
 export { resolveGenericWorkspacePresentation } from './presentation'
+export { capabilityCheckMapping, capabilityCheckActionPresentationConfig, registerCapabilityCheckPresentationElement, withCapabilityCheckPresentation } from './capability-check-presentation'
 
 export const code = 'generic-workspace'
 export const version = '1.0.0'
@@ -16,8 +18,10 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
   const standalone = context.deliveryMode === 'standalone'
   const page = config.page || {}
   const presentation = resolveGenericWorkspacePresentation(config)
+  registerCapabilityCheckPresentationElement()
   context.maxMode.init({
     ...context.widgetConfig,
+    hostSession: context.hostSession || context.widgetConfig.hostSession,
     features: {
       ...(context.widgetConfig.features || {}),
       cart: false,
@@ -35,6 +39,7 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
       starterSuggestions: presentation.copy.starterSuggestions,
       toolGroups: presentation.toolGroups,
       toolRail: presentation.toolRail,
+      actionPresentation: withCapabilityCheckPresentation(context.widgetConfig.host?.actionPresentation),
       requestContext: {
         ...(config.requestContext || {}),
         workspaceInstallationId: context.installationId,
@@ -61,9 +66,30 @@ export async function mountInstallation(context: GenericWorkspaceMountContext): 
     },
   })
   if (standalone) context.maxMode.open()
+  let destroyed = false
+  const ensureActive = () => {
+    if (destroyed || activeController !== controller) throw new Error('This workspace controller is no longer active.')
+  }
+  const subscriptions = new Set<() => void>()
   const controller: GenericWorkspaceController = {
     installationId: context.installationId,
+    getState() { ensureActive(); return context.maxMode.getState() },
+    async whenReady() { ensureActive(); const state = await context.maxMode.whenReady(); ensureActive(); return state },
+    async openConversation(id, options) { ensureActive(); const state = await context.maxMode.openConversation(id, options); ensureActive(); return state },
+    async refreshConversation() { ensureActive(); const state = await context.maxMode.refreshConversation(); ensureActive(); return state },
+    onStateChange(listener) {
+      ensureActive()
+      const unsubscribe = context.maxMode.onStateChange(state => { if (!destroyed) listener(state) })
+      const release = () => { unsubscribe(); subscriptions.delete(release) }
+      subscriptions.add(release)
+      return release
+    },
     destroy() {
+      if (destroyed) return
+      destroyed = true
+      for (const release of subscriptions) release()
+      subscriptions.clear()
+      if (activeController !== controller) return
       context.maxMode.destroy()
       if (activeController === controller) activeController = undefined
     },

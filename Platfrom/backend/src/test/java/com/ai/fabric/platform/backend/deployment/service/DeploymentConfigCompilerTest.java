@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -18,6 +20,34 @@ class DeploymentConfigCompilerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
     private final DeploymentConfigCompiler compiler = new DeploymentConfigCompiler(objectMapper);
+
+    @Test
+    void publicationCompilesSpecialistsIntoImmutableBehaviorAndManifestWithoutMutatingDraft() throws Exception {
+        var authority = org.mockito.Mockito.mock(SpecialistAssistanceAuthorityService.class);
+        var compiler = new DeploymentConfigCompiler(objectMapper, new EntityConfigContractService(objectMapper), null, "0.8.41", authority);
+        var deployment = deployment();
+        var draft = draft("{\"actions\":[]}", "{}", "{}");
+        draft.setBehaviorConfigJson(SpecialistAssistanceFixtures.behavior(objectMapper).toString());
+        String originalDraft = draft.getBehaviorConfigJson();
+        org.mockito.Mockito.when(authority.resolve(org.mockito.ArgumentMatchers.eq(deployment.getId()),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(SpecialistAssistanceFixtures.authority());
+        var first = compiler.compile(deployment, draft, "v1", "v1", false);
+        var second = compiler.compile(deployment, draft, "v2", "v2", false);
+        JsonNode behavior = objectMapper.readTree(first.behaviorConfigJson());
+        assertThat(behavior.at("/specialistAssistance/compiled/resources")).hasSize(11);
+        assertThat(objectMapper.readTree(first.manifestJson()).path("behaviorConfig")).isEqualTo(behavior);
+        assertThat(objectMapper.readTree(first.compositionProvenanceJson()).path("verificationPackIds"))
+            .contains(objectMapper.getNodeFactory().textNode("conversational-specialist-assistance-v1"));
+        assertThat(first.behaviorConfigJson()).isEqualTo(second.behaviorConfigJson());
+        assertThat(draft.getBehaviorConfigJson()).isEqualTo(originalDraft);
+        ObjectNode modified = objectMapper.readTree(originalDraft).deepCopy();
+        ((ObjectNode) modified.at("/specialistAssistance/areas/0")).put("instructions", "Different customer-configured instructions.");
+        draft.setBehaviorConfigJson(modified.toString());
+        var changed = compiler.compile(deployment, draft, "v3", "v3", false);
+        assertThat(changed.configHash()).isNotEqualTo(first.configHash());
+        assertThat(objectMapper.readTree(changed.behaviorConfigJson()).at("/specialistAssistance/contentHash"))
+            .isNotEqualTo(behavior.at("/specialistAssistance/contentHash"));
+    }
 
     @Test
     void compileProjectsInlineActionRouteIntoRoutingArtifact() throws Exception {

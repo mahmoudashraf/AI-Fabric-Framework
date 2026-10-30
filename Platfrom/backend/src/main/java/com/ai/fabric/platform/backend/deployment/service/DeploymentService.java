@@ -1497,7 +1497,7 @@ public class DeploymentService {
         version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         version.setShellConfigJson(draft.getShellConfigJson());
         version.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
-        version.setBehaviorConfigJson(draft.getBehaviorConfigJson());
+        version.setBehaviorConfigJson(compiled.behaviorConfigJson());
         version.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());

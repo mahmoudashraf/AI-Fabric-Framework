@@ -1,0 +1,6 @@
+{
+  "pluginVersion": "1.0.0",
+  "status": "ENABLED",
+  "config": {"documentStorageBindingRef": "REPLACE_OWNED_DOCUMENT_STORAGE_BINDING_REF"},
+  "secretRefs": {}
+}

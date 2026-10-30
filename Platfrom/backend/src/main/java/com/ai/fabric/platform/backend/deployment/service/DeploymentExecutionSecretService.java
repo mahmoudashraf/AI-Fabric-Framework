@@ -53,7 +53,9 @@ public class DeploymentExecutionSecretService {
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             names.add(connectorInvocationApiKeyName(deployment.getId()));
         }
-        if ("AGENTIC_SPECIALIST_TEAM".equals(behaviorType)) {
+        if ("AGENTIC_SPECIALIST_TEAM".equals(behaviorType)
+            || (com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler.enabled(behavior)
+                && !behavior.path("specialistAssistance").path("resolutions").isEmpty())) {
             names.add(chainEncryptionSecretName(deployment.getId()));
             names.add(chainFingerprintSecretName(deployment.getId()));
         }

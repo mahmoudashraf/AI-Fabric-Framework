@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ChatMessage, Conversation, ConversationDetail, RuntimeConversationMessage } from "@/types";
+import type { ChatMessage, Conversation, ConversationDetail } from "@/types";
+import { toChatMessages } from "../conversationHistory";
+import { WorkspaceHostError } from "../workspaceHost";
 
 import { deleteConversation, getConversation, listConversations } from "@/api/conversations";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 
 export function useConversationsController({
   enabled = true,
+  autoRestoreRecent = true,
   isPersistenceHydrated,
   isOpen,
   chatMessagesLength,
@@ -21,6 +24,7 @@ export function useConversationsController({
   toast,
 }: {
   enabled?: boolean;
+  autoRestoreRecent?: boolean;
   isPersistenceHydrated: boolean;
   isOpen: boolean;
   chatMessagesLength: number;
@@ -39,6 +43,12 @@ export function useConversationsController({
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isViewingOldConversation, setIsViewingOldConversation] = useState(false);
   const [oldConversationLocked, setOldConversationLocked] = useState(false);
+  const [loadedConversation, setLoadedConversation] = useState<ConversationDetail | null>(null);
+  const historyRequest = useRef<{ revision: number; abort?: AbortController }>({ revision: 0 });
+  useEffect(() => () => {
+    historyRequest.current.revision++;
+    historyRequest.current.abort?.abort();
+  }, []);
 
   const loadConversations = useCallback(async () => {
     if (!enabled) {
@@ -65,6 +75,9 @@ export function useConversationsController({
   }, [enabled, toast]);
 
   const resetConversation = useCallback(() => {
+    historyRequest.current.revision++;
+    historyRequest.current.abort?.abort();
+    setLoadedConversation(null);
     setChatMessages([]);
     setCurrentConversationId(null);
     setIsViewingOldConversation(false);
@@ -91,45 +104,61 @@ export function useConversationsController({
     }
   }, [beforeNewConversation, resetConversation, setIsLoading, toast]);
 
-  const openConversation = useCallback(
-    async (conversationId: string) => {
+  const loadConversation = useCallback(
+    async (conversationId: string, refresh = false): Promise<ConversationDetail> => {
+      const revision = ++historyRequest.current.revision;
+      historyRequest.current.abort?.abort();
+      const abort = new AbortController();
+      const deadline = setTimeout(() => abort.abort(), 30_000);
+      historyRequest.current.abort = abort;
+      setIsLoading(true);
+      if (!refresh) {
+        setChatMessages([]);
+        setCurrentConversationId(null);
+        setLoadedConversation(null);
+        setAttachedItems([]);
+        setSuggestions([]);
+        setContextDocuments([]);
+      }
       try {
-        setIsLoading(true);
-        const data = await getConversation(conversationId);
+        const data = await getConversation(conversationId, abort.signal);
+        if (revision !== historyRequest.current.revision || abort.signal.aborted) {
+          throw new WorkspaceHostError("CONVERSATION_SUPERSEDED", "Another conversation selection superseded this request.");
+        }
+        if (data.id !== conversationId) {
+          throw new WorkspaceHostError("CONVERSATION_MISMATCH", "The server returned a different conversation.");
+        }
 
         const messages = toChatMessages(data, conversationId);
 
         setChatMessages(messages);
         setCurrentConversationId(conversationId);
+        setLoadedConversation(data);
         setIsViewingOldConversation(true);
         const isLocked = data.status === "LOCKED"
           || data.status === "CLOSED"
           || data.controlState === "CLOSED";
         setOldConversationLocked(isLocked);
         setIsConversationsOpen(false);
-        setAttachedItems([]);
-        setSuggestions([]);
-
-        toast({
-          title: "Conversation Loaded",
-          description: isLocked ? "This conversation is locked (read-only)" : "You can continue this conversation",
-        });
-      } catch (error) {
-        if (isPublicRuntimeSessionInvalidatedError(error)) {
-          return;
-        }
-        console.error("Failed to open conversation:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load conversation",
-          variant: "destructive",
-        });
+        return data;
       } finally {
-        setIsLoading(false);
+        clearTimeout(deadline);
+        if (revision === historyRequest.current.revision) setIsLoading(false);
       }
     },
-    [setAttachedItems, setChatMessages, setCurrentConversationId, setIsLoading, setSuggestions, toast],
+    [setAttachedItems, setChatMessages, setContextDocuments, setCurrentConversationId, setIsLoading, setSuggestions],
   );
+
+  const openConversation = useCallback(async (conversationId: string) => {
+    try {
+      const data = await loadConversation(conversationId);
+      toast({ title: "Conversation Loaded", description: data.status === "LOCKED" || data.status === "CLOSED" || data.controlState === "CLOSED"
+        ? "This conversation is locked (read-only)" : "You can continue this conversation" });
+    } catch (error) {
+      if (isPublicRuntimeSessionInvalidatedError(error) || (error instanceof WorkspaceHostError && error.code === "CONVERSATION_SUPERSEDED")) return;
+      toast({ title: "Error", description: "Failed to load conversation", variant: "destructive" });
+    }
+  }, [loadConversation, toast]);
 
   const handleDeleteConversation = useCallback(
     async (conversationId: string, e: any) => {
@@ -171,7 +200,7 @@ export function useConversationsController({
   const hasLoadedRecentConversation = useRef(false);
   useEffect(() => {
     if (!isPersistenceHydrated) return;
-    if (!enabled) {
+    if (!enabled || !autoRestoreRecent) {
       hasLoadedRecentConversation.current = true;
       return;
     }
@@ -217,7 +246,7 @@ export function useConversationsController({
 
     void loadRecentConversation();
     return () => { cancelled = true; };
-  }, [chatMessagesLength, currentConversationId, enabled, isOpen, isPersistenceHydrated, setChatMessages, setCurrentConversationId]);
+  }, [autoRestoreRecent, chatMessagesLength, currentConversationId, enabled, isOpen, isPersistenceHydrated, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,
@@ -228,50 +257,11 @@ export function useConversationsController({
     oldConversationLocked,
     loadConversations,
     openConversation,
+    loadConversation,
+    loadedConversation,
     handleDeleteConversation,
     startNewConversation,
     resetConversation,
     openConversationsPanel,
   } as const;
-}
-
-function toChatMessages(data: ConversationDetail, conversationId: string): ChatMessage[] {
-  if (Array.isArray(data.participantMessages) && data.participantMessages.length > 0) {
-    return [...data.participantMessages]
-      .sort((left, right) => left.sequence - right.sequence)
-      .map(toChatMessage);
-  }
-
-  const messages: ChatMessage[] = [];
-  for (const [index, turn] of (data.turns ?? []).entries()) {
-    messages.push({
-      id: `${conversationId}-user-${index}`,
-      type: "user",
-      content: turn.userQuery,
-      timestamp: turn.timestamp,
-    });
-    messages.push({
-      id: `${conversationId}-ai-${index}`,
-      type: "ai",
-      participantRole: "ai",
-      content: turn.aiResponse,
-      timestamp: turn.timestamp,
-    });
-  }
-  return messages;
-}
-
-function toChatMessage(message: RuntimeConversationMessage): ChatMessage {
-  const role = message.role.toLowerCase() as "user" | "ai" | "human" | "system";
-  return {
-    id: message.messageId,
-    type: role === "user" ? "user" : "ai",
-    ...(role === "user" ? {} : { participantRole: role }),
-    ...(message.participantDisplayName
-      ? { participantDisplayName: message.participantDisplayName }
-      : {}),
-    content: message.content,
-    timestamp: message.createdAt,
-    success: true,
-  };
 }

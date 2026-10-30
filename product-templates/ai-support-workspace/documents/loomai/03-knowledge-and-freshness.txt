@@ -1,0 +1,14 @@
+Title: Keeping approved document knowledge current
+Audience: LoomAI customers. Approved customer-safe support guidance.
+
+Document knowledge is derived from approved files in a configured storage connection. Customer deployments normally connect to customer-owned object storage with a deployment-specific read-only binding. A small demo mount is not a managed customer storage offering. The source files remain the system of record; the vector index is derived and rebuildable.
+
+Source access, document discovery, preview, indexing submission and indexing completion are separate stages. A reachable bucket does not prove that a file is indexed. An accepted indexing request does not prove that its work completed. Inspect the selected target's document work and reconciliation status before relying on updated knowledge.
+
+Review source content before initial indexing. Only approved customer-safe support guides and policies belong in a public support knowledge set. Do not index private handoff notes, access keys, customer cases, transcripts, raw diagnostic responses or unrelated business records into a shared support index.
+
+When replacing a policy, preview and index the new content first, reconcile its work and verify retrieval before switching the active version or retiring the prior index. Source-object deletion is not part of this support package. Removing derived knowledge does not authorize deleting a file from the customer's storage.
+
+For an older answer, record which app, target, source and document version are relevant. Check the last successful source observation, latest indexing work, current assignment and cited evidence. Do not silently search an unauthorized source or claim that an empty action result establishes a policy fact. If evidence is missing or a read fails, the assistant should explain the limitation and ask for useful non-secret details or offer human support.
+
+Support checks are read-only observations. They do not refresh, reindex or repair a connection by themselves. Current status and an actual retrieval answer are separate evidence; both are useful when diagnosing freshness.

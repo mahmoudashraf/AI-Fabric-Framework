@@ -22,6 +22,29 @@ class DeploymentSourceCapabilityManifestServiceTest {
         new DeploymentSourceCapabilityManifestService(objectMapper);
 
     @Test
+    void conversationalSpecialistAssistanceRequiresItsRealRuntimeMarkerNotAFabricatedPackagedBundle() {
+        var config = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper);
+        var requirements = new DeploymentBehaviorCatalogService(objectMapper).releaseRequirements(config);
+        var manifest = objectMapper.createObjectNode().put("schemaVersion", DeploymentSourceCapabilityManifestService.SCHEMA_VERSION)
+            .put("aiFabricVersion", "0.8.41");
+        manifest.set("supportedBehaviorTypes", objectMapper.valueToTree(List.of("CONVERSATIONAL")));
+        manifest.set("supportedActivationSources", objectMapper.valueToTree(requirements.activationSources()));
+        manifest.set("supportedChannelBindings", objectMapper.valueToTree(requirements.channelBindings()));
+        manifest.set("supportedExecutionExtensions", objectMapper.valueToTree(requirements.executionExtensions()));
+        manifest.set("capabilities", objectMapper.valueToTree(requirements.capabilities().stream()
+            .filter(value -> !value.equals("conversational-specialist-assistance")).toList()));
+        manifest.set("endpointClasses", objectMapper.valueToTree(requirements.endpointClasses()));
+        manifest.set("migrationIds", objectMapper.valueToTree(requirements.migrationIds()));
+        manifest.set("verificationPackIds", objectMapper.valueToTree(requirements.verificationPackIds()));
+        manifest.putArray("specialistBundles");
+        assertThatThrownBy(() -> service.requireSupports(service.normalize(manifest).manifest(), requirements))
+            .hasMessageContaining("conversational-specialist-assistance");
+        manifest.withArray("capabilities").add("conversational-specialist-assistance");
+        service.requireSupports(service.normalize(manifest).manifest(), requirements);
+        assertThat(requirements.specialistBundles()).isEmpty();
+    }
+
+    @Test
     void normalizationIsDeterministicAcrossInputOrdering() throws Exception {
         JsonNode first = manifest(AGENTIC_BUNDLE_HASH);
         JsonNode second = objectMapper.readTree(objectMapper.writeValueAsString(first));

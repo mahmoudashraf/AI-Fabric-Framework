@@ -112,6 +112,7 @@ public class AIWorkspaceReadinessService {
 
         JsonNode connectionConfiguration = readJson(installation.getConnectionConfigurationJson());
         try {
+            connectionProfileRegistry.requireCustomer(installation.getConnectionProfileCode(), installation.getCustomerId());
             connectionProfileRegistry.resolve(
                 installation.getConnectionProfileCode(),
                 installation.getConnectionProfileVersion(),

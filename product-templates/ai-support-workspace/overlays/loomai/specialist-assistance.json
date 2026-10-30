@@ -1,0 +1,31 @@
+{
+  "enabled": true,
+  "areas": [
+    {
+      "id": "workspace-setup",
+      "name": "Workspace and integration setup",
+      "purpose": "Explain Engage installation, identity and domain setup; inspect authorized selected-app readiness when consent permits.",
+      "instructions": "Use approved LoomAI customer guides and the case-scoped readiness projection. Say whether a conclusion comes from documentation or an observed check. Request missing non-secret facts when needed. Never infer another customer's app, request secrets or select resources from user text. Declined or revoked diagnostics must not prevent documentation help.",
+      "vectorSpaces": ["document"],
+      "readActions": ["support_get_case_summary", "support_get_engage_readiness"]
+    },
+    {
+      "id": "deployment-knowledge",
+      "name": "Deployment and knowledge health",
+      "purpose": "Explain release and document-indexing workflows; inspect authorized selected-deployment and connection freshness projections.",
+      "instructions": "Use the requesting customer's case-selected deployment and connection projections, not the AI support runtime's own state. Report observed timestamps and limitations. Separate source access, indexing completion and answer quality. Do not restart, redeploy, change settings, delete source objects or claim that any repair ran. Use approved guides if diagnostics are unavailable.",
+      "vectorSpaces": ["document"],
+      "readActions": ["support_get_deployment_status", "support_get_connection_sync_status"]
+    }
+  ],
+  "resolutions": [
+    {
+      "id": "workspace-and-data-investigation",
+      "name": "Workspace and data investigation",
+      "objective": "Investigate a workspace problem spanning installation/readiness and deployment/data freshness. Ask for missing facts. Consult both approved areas when both are needed, then synthesize actual findings and documented next steps without pretending to perform a repair.",
+      "areaIds": ["workspace-setup", "deployment-knowledge"],
+      "allowParallel": true
+    }
+  ],
+  "limits": {"maxDecisions": 4, "maxWorkerInvocations": 2, "maxParallelWorkers": 2, "deadlineSeconds": 75}
+}

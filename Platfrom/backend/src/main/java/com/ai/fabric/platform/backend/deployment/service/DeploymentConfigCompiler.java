@@ -3,9 +3,12 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,20 +42,30 @@ public class DeploymentConfigCompiler {
     private final EntityConfigContractService entityConfigContractService;
     private final DeploymentCompositionProvenanceService deploymentCompositionProvenanceService;
     private final String aiFabricFrameworkVersion;
+    private final SpecialistAssistanceAuthorityService specialistAuthority;
 
     public DeploymentConfigCompiler(ObjectMapper objectMapper) {
         this(objectMapper, new EntityConfigContractService(objectMapper), null, "0.8.41");
+    }
+
+    public DeploymentConfigCompiler(ObjectMapper objectMapper,
+                                    EntityConfigContractService entityConfigContractService,
+                                    DeploymentCompositionProvenanceService deploymentCompositionProvenanceService,
+                                    @Value("${platform.ai-fabric.framework-version:0.8.41}") String aiFabricFrameworkVersion) {
+        this(objectMapper, entityConfigContractService, deploymentCompositionProvenanceService, aiFabricFrameworkVersion, null);
     }
 
     @Autowired
     public DeploymentConfigCompiler(ObjectMapper objectMapper,
                                     EntityConfigContractService entityConfigContractService,
                                     DeploymentCompositionProvenanceService deploymentCompositionProvenanceService,
-                                    @Value("${platform.ai-fabric.framework-version:0.8.41}") String aiFabricFrameworkVersion) {
+                                    @Value("${platform.ai-fabric.framework-version:0.8.41}") String aiFabricFrameworkVersion,
+                                    SpecialistAssistanceAuthorityService specialistAuthority) {
         this.objectMapper = objectMapper;
         this.entityConfigContractService = entityConfigContractService;
         this.deploymentCompositionProvenanceService = deploymentCompositionProvenanceService;
         this.aiFabricFrameworkVersion = aiFabricFrameworkVersion;
+        this.specialistAuthority = specialistAuthority;
         this.yamlMapper = new ObjectMapper(
             YAMLFactory.builder()
                 .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
@@ -77,6 +90,9 @@ public class DeploymentConfigCompiler {
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
             JsonNode behaviorNode = objectMapper.readTree(draft.getBehaviorConfigJson());
+            behaviorNode = new SpecialistAssistanceCompiler(objectMapper).compileBehavior(behaviorNode,
+                SpecialistAssistanceCompiler.enabled(behaviorNode) && specialistAuthority != null
+                    ? specialistAuthority.resolve(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
             JsonNode effectiveRoutingNode = compileRoutingConfig(
                 actionsNode,
                 routingNode,
@@ -134,7 +150,8 @@ public class DeploymentConfigCompiler {
             sectionHashes.put("behavior", sha256(canonicalJson(behaviorNode)));
             compositionProvenance.set(
                 "verificationPackIds",
-                behaviorNode.path("runtimeRequirements").path("verificationPackIds").deepCopy()
+                objectMapper.valueToTree(new DeploymentBehaviorCatalogService(objectMapper)
+                    .releaseRequirements(behaviorNode).verificationPackIds())
             );
             compositionProvenance.set(
                 "marketplaceInstalls",
@@ -202,7 +219,8 @@ public class DeploymentConfigCompiler {
                 objectMapper.writeValueAsString(shellNode),
                 objectMapper.writeValueAsString(compositionProvenance),
                 manifestJson,
-                configHash
+                configHash,
+                objectMapper.writeValueAsString(behaviorNode)
             );
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to compile deployment configuration: " + ex.getMessage(), ex);
@@ -671,6 +689,11 @@ public class DeploymentConfigCompiler {
             String expectedEntityHash = sha256(canonicalJson(expectedRuntimeConfig));
             requireManifestText(manifest, "entityConfigHash", expectedEntityHash, issues);
             JsonNode persistedBehavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (SpecialistAssistanceCompiler.enabled(persistedBehavior)) {
+                var assistance = persistedBehavior.path(SpecialistAssistanceCompiler.FIELD);
+                new SpecialistAssistanceCompiler(objectMapper).verifyCompiled(
+                    assistance.path("compiled"), assistance.path("contentHash").asText());
+            }
             if (!canonicalJson(persistedBehavior).equals(canonicalJson(manifest.path("behaviorConfig")))) {
                 issues.add("Manifest behaviorConfig does not match the persisted behavior contract.");
             }
@@ -816,8 +839,15 @@ public class DeploymentConfigCompiler {
         String shellArtifactJson,
         String compositionProvenanceJson,
         String manifestJson,
-        String configHash
+        String configHash,
+        String behaviorConfigJson
     ) {
+        public CompiledDeploymentVersion(String actionsArtifactYaml, String entityArtifactYaml, String routingArtifactYaml,
+                                         String promptArtifactJson, String knowledgeSourceArtifactJson, String shellArtifactJson,
+                                         String compositionProvenanceJson, String manifestJson, String configHash) {
+            this(actionsArtifactYaml, entityArtifactYaml, routingArtifactYaml, promptArtifactJson, knowledgeSourceArtifactJson,
+                shellArtifactJson, compositionProvenanceJson, manifestJson, configHash, "{}");
+        }
         public CompiledDeploymentVersion(String actionsArtifactYaml,
                                          String entityArtifactYaml,
                                          String routingArtifactYaml,

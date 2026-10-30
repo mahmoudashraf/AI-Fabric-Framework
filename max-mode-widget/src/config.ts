@@ -9,6 +9,7 @@
 import type { RuntimeShellConfigSummary } from "@/types";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { MaxModeActionPresentationConfig } from "@/actionPresentation";
+import type { WorkspaceHostApi, WorkspaceHostSession } from "./workspaceHost";
 
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
@@ -41,7 +42,7 @@ export interface MaxModeApiConfig {
   runtimeRoutes?: MaxModeRuntimeRouteConfig;
   /** Safe, public conversation-handover behavior advertised by the assigned runtime. */
   conversationHandover?: MaxModeConversationHandoverConfig;
-  /** Optional public-runtime auth helpers for secure browser-facing modes */
+  /** Browser identity supplier and optional public-runtime auth helpers. */
   runtimeAuth?: MaxModeRuntimeAuthConfig;
   /**
    * When true, probe the runtime shell-config route when the widget opens.
@@ -103,9 +104,9 @@ export interface MaxModeConversationHandoverConfig {
 }
 
 export interface MaxModeRuntimeAuthConfig {
-  /** Authorization header name used by the runtime public token surface */
+  /** Authorization header name used by public runtimes or a reviewed private adapter. */
   authorizationHeader?: string;
-  /** Token scheme prefix used by the runtime public token surface */
+  /** Token scheme prefix used by public runtimes or a reviewed private adapter. */
   tokenScheme?: string;
   /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
   bootstrapUrl?: string;
@@ -126,7 +127,10 @@ export interface MaxModeRuntimeAuthConfig {
   /**
    * Optional host-provided bearer token supplier.
    *
-   * If present, secure public modes will prefer this before anonymous bootstrap.
+   * Called for each request, including SSE reconnects, in public and backend-mediated
+   * modes when no explicit authorization header is present. Supply the current browser
+   * identity token, never a server-only runtime assertion. Throw if identity is unavailable
+   * and the adapter must not fall back to cookie authentication.
    */
   getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
   /**
@@ -329,6 +333,8 @@ export type MaxModeHostRequestContextProvider = () =>
   | Promise<Record<string, any> | undefined | null>;
 
 export interface MaxModeHostConfig {
+  /** Host-owned read-only view. Server authorization still enforces message/control writes. */
+  readOnly?: boolean;
   /** Host-specific full-screen experience. Defaults to the generic Max Mode workspace. */
   experience?: "default" | "shopify-shopping-workspace";
   /** Visible launcher label for storefront/product hosts */
@@ -398,6 +404,10 @@ export interface MaxModeWidgetConfig {
    * runtime-session state. Platform installations set this automatically.
    */
   storageNamespace?: string;
+  /** Host-controlled conversation selection. Remount on namespace/account changes. */
+  hostSession?: WorkspaceHostSession;
+  /** Generic host controls; create with createWorkspaceHost() for React consumers. */
+  workspaceHost?: WorkspaceHostApi;
   /**
    * Integration/auth posture.
    *
@@ -519,6 +529,9 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
 let _config: MaxModeWidgetConfig = { ...DEFAULT_CONFIG };
 
 export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
+  if (config.hostSession && (!config.hostSession.namespace?.trim() || !config.hostSession.accountKey?.trim() || !config.workspaceHost)) {
+    throw new Error("Host-controlled sessions require a namespace, opaque account key and workspace host controller.");
+  }
   _config = {
     ...DEFAULT_CONFIG,
     ...config,
@@ -559,8 +572,10 @@ export function getWidgetConfig(): MaxModeWidgetConfig {
   return _config;
 }
 
-export function getWidgetStorageKey(baseKey: string): string {
-  const namespace = _config.storageNamespace?.trim();
+export function getWidgetStorageKey(baseKey: string, config: Partial<MaxModeWidgetConfig> = _config): string {
+  const host = config.hostSession;
+  if (host) return `${baseKey}:host:${JSON.stringify([config.storageNamespace || "", host.namespace, host.accountKey])}`;
+  const namespace = config.storageNamespace?.trim();
   return namespace ? `${baseKey}:${namespace}` : baseKey;
 }
 

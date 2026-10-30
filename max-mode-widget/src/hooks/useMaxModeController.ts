@@ -70,6 +70,7 @@ import { useMaxModeViewSync } from "./useMaxModeViewSync";
 import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
 import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
+import { useWorkspaceHost } from "./useWorkspaceHost";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
 const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
@@ -654,11 +655,14 @@ function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | unde
 
 export function useMaxModeController({
   isOpen,
+  isWorkspaceVisible,
   assistantLabel,
   showUtilityPanel,
   widgetConfig: providedWidgetConfig,
 }: {
   isOpen: boolean;
+  /** Overlay visibility; the companion dock may keep the controller active while closed. */
+  isWorkspaceVisible?: boolean;
   assistantLabel?: string;
   showUtilityPanel?: boolean;
   widgetConfig?: MaxModeWidgetConfig;
@@ -667,7 +671,7 @@ export function useMaxModeController({
   const widgetConfig = providedWidgetConfig ?? getWidgetConfig();
   const hostConfig = widgetConfig.host;
   const debugEnabled = widgetConfig.features?.debug === true;
-  const conversationsEnabled = widgetConfig.features?.conversations ?? true;
+  const conversationsEnabled = !widgetConfig.hostSession && (widgetConfig.features?.conversations ?? true);
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
@@ -909,6 +913,7 @@ export function useMaxModeController({
     contextDocuments,
     setContextDocuments,
     hostInitialAttachments,
+    restoreConversation: !widgetConfig.hostSession,
   });
 
   const {
@@ -920,12 +925,15 @@ export function useMaxModeController({
     oldConversationLocked,
     loadConversations,
     openConversation,
+    loadConversation,
+    loadedConversation,
     handleDeleteConversation,
     startNewConversation,
     resetConversation,
     openConversationsPanel,
   } = useConversationsController({
     enabled: conversationsEnabled,
+    autoRestoreRecent: !widgetConfig.hostSession,
     isPersistenceHydrated,
     isOpen,
     chatMessagesLength: chatMessages.length,
@@ -976,6 +984,35 @@ export function useMaxModeController({
     setSuggestions,
     setShowSuggestions,
     toast,
+  });
+
+  const clearHostTransientState = useCallback(() => {
+    setChatQuery("");
+    setConfirmationStatus({});
+    setFocusedMessageId(null);
+    setExpandedActions({});
+    setLastRequestData(null);
+    setLastResponseData(null);
+    setSelectedDebugMessage(null);
+    setShownSuggestions(new Set());
+    setShowSuggestions(false);
+    setNewDocuments([]);
+    setIsNewDocsPreviewOpen(false);
+    setViewedDocumentIds(new Set());
+    savePendingPrompts([]);
+    maxModeContext?.clearPendingAttachments();
+  }, [maxModeContext, setShowSuggestions, setShownSuggestions]);
+
+  useWorkspaceHost({
+    api: widgetConfig.workspaceHost,
+    hydrated: isPersistenceHydrated,
+    isOpen: isWorkspaceVisible ?? isOpen,
+    busy: isLoading,
+    conversationId: currentConversationId,
+    loadedConversation,
+    control: handoverController.conversationControl,
+    loadConversation,
+    clearTransientState: clearHostTransientState,
   });
 
   const { handleChatQuery } = useChatFlow({
@@ -1030,6 +1067,7 @@ export function useMaxModeController({
   });
 
   useEffect(() => {
+    if (widgetConfig.hostSession) return;
     if (!isOpen) {
       return;
     }
@@ -1061,7 +1099,7 @@ export function useMaxModeController({
     return () => {
       cancelled = true;
     };
-  }, [handleProgrammaticPrompt, isOpen]);
+  }, [handleProgrammaticPrompt, isOpen, widgetConfig.hostSession]);
 
   useEffect(() => {
     consumePendingAttachments(attachedItems);
@@ -1069,6 +1107,7 @@ export function useMaxModeController({
 
   useEffect(() => {
     function onProgrammaticPrompt(event: Event) {
+      if (widgetConfig.hostSession) return;
       const detail = (event as CustomEvent<PendingPrompt>).detail;
       if (!detail || !detail.message?.trim() || !isOpen) {
         return;
@@ -1081,7 +1120,7 @@ export function useMaxModeController({
     return () => {
       window.removeEventListener("maxmode:send-message", onProgrammaticPrompt as EventListener);
     };
-  }, [handleProgrammaticPrompt, isOpen]);
+  }, [handleProgrammaticPrompt, isOpen, widgetConfig.hostSession]);
 
   const { handleClarificationSubmit } = useClarificationFlow({
     attachedItems,
@@ -1280,7 +1319,7 @@ export function useMaxModeController({
     setIsNewDocsPreviewOpen,
     setViewedDocumentIds,
     welcomeContent: deriveWelcomeMessage(hostConfig, runtimeShellConfig),
-    isPersistenceHydrated,
+    isPersistenceHydrated: isPersistenceHydrated && !widgetConfig.hostSession,
   });
 
   const {
@@ -1606,7 +1645,7 @@ export function useMaxModeController({
     conversations,
     isLoadingConversations,
     isViewingOldConversation,
-    oldConversationLocked,
+    oldConversationLocked: oldConversationLocked || hostConfig?.readOnly === true || Boolean(widgetConfig.hostSession && !currentConversationId),
     confirmationStatus,
     setConfirmationStatus,
     selectedProduct,

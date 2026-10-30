@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-action-loomai-support-diagnostics",
+  "version": "1.0.0",
+  "pluginType": "ACTION",
+  "displayName": "LoomAI support diagnostics",
+  "description": "Safe current-resource projections from the LoomAI support adapter. Service authentication, case ownership and current diagnostic consent are enforced upstream.",
+  "compatibility": {"requiredCapabilities": ["actions"]},
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesActions": true, "requiresExternalHttpExecution": true, "requiresDeploymentSecrets": true},
+  "installForm": [
+    {"id": "caseSummaryUrl", "label": "Approved case summary endpoint binding", "type": "url", "required": true},
+    {"id": "deploymentStatusUrl", "label": "Approved deployment status endpoint binding", "type": "url", "required": true},
+    {"id": "engageReadinessUrl", "label": "Approved workspace readiness endpoint binding", "type": "url", "required": true},
+    {"id": "connectionSyncUrl", "label": "Approved connection sync endpoint binding", "type": "url", "required": true},
+    {"id": "diagnosticServiceKey", "label": "Diagnostic service credential reference", "type": "secretRef", "required": true}
+  ],
+  "contributions": {
+    "actions": [
+      {"actionId": "support_get_case_summary", "description": "Read the authorized support case summary and selected resource references. Requires current diagnostic consent.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "route": {"method": "POST", "managedUrlField": "caseSummaryUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_deployment_status", "description": "Read safe applied-version and release status for case-selected owned deployments. This is not the AI runtime's own deployment snapshot.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "route": {"method": "POST", "managedUrlField": "deploymentStatusUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_engage_readiness", "description": "Read safe readiness information for case-selected owned Engage apps, without tokens or private configuration.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "route": {"method": "POST", "managedUrlField": "engageReadinessUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_connection_sync_status", "description": "Read safe freshness and indexing status for case-selected owned connections. Never return source records, raw logs or credentials.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "route": {"method": "POST", "managedUrlField": "connectionSyncUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}}
+    ]
+  }
+}

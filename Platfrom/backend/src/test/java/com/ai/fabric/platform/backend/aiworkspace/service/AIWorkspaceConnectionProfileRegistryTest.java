@@ -33,4 +33,23 @@ class AIWorkspaceConnectionProfileRegistryTest {
             mapper.createObjectNode().put("shopDomain", "test.myshopify.com").put("accessToken", "private-token")))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Unknown connection configuration field");
     }
+
+    @Test void supportCaseHostIsExplicitInternalAndNeverOfferedAsAPublicScriptProfile() {
+        var enabled = new AIWorkspaceConnectionProfileRegistry(
+            new PlatformAIWorkspaceProperties(null, false, 0, null, null, null, null, null),
+            new org.springframework.mock.env.MockEnvironment().withProperty("platform.support.enabled", "true")
+                .withProperty("platform.support.customer-id", "internal-owner"));
+        var profile = enabled.resolve(AIWorkspaceConnectionProfileRegistry.SUPPORT_CASE_HOST, "1.0.0",
+            AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME, mapper.createObjectNode());
+        assertThat(profile.handler()).isEqualTo("host-controlled-private-runtime");
+        assertThat(profile.endpoint()).isNull();
+        assertThat(enabled.summaries()).noneMatch(item -> AIWorkspaceConnectionProfileRegistry.SUPPORT_CASE_HOST.equals(item.code()));
+        enabled.requireCustomer(profile.code(), "internal-owner");
+        assertThatThrownBy(() -> enabled.requireCustomer(profile.code(), "another-customer"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("internal owner");
+        assertThatThrownBy(() -> registry.resolve(profile.code(), "1.0.0", profile.mode(), mapper.createObjectNode()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("not configured");
+        assertThatThrownBy(() -> enabled.resolve(profile.code(), "1.0.0", profile.mode(), mapper.createObjectNode().put("caseId", "sup-1")))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Unknown connection configuration field");
+    }
 }

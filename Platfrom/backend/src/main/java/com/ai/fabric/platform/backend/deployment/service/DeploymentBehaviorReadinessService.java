@@ -2,6 +2,9 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorReadinessLookup;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceVerificationPack;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentBehaviorReadinessEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -191,7 +194,8 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
         }
         String compositionHash = requireHash(provenance.path("compositionHash").asText(null), "compositionHash");
         TemplateOrigin template = requirePublishedTemplateOrigin(provenance, behaviorType);
-        List<String> verificationPackIds = requireVerificationPacks(provenance, template.manifest());
+        JsonNode behaviorConfig = readObject(version.getBehaviorConfigJson(), "published behavior config");
+        List<String> verificationPackIds = requireVerificationPacks(provenance, template.manifest(), behaviorConfig);
         ArrayNode behaviorProofs = requireBehaviorProofs(
             behaviorType,
             verificationPackIds,
@@ -212,6 +216,9 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
         }
         requireImmutablePromotedArtifact(artifact, version, behaviorType, verificationPackIds, environment);
         DeploymentVerificationRunEntity verification = requirePassedVerificationRun(release);
+        if (verificationPackIds.contains(SpecialistAssistanceVerificationPack.ID)) {
+            requireSpecialistAssistanceQualification(version, verification, behaviorConfig);
+        }
         Instant now = Instant.now();
         Instant expiresAt = requireExpiry(request.expiresAt(), now, DEFAULT_EVIDENCE_TTL);
         String materialHash = materialHash(
@@ -412,14 +419,47 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
         return new TemplateOrigin(plugin, version, manifest, expectedManifestHash);
     }
 
-    private List<String> requireVerificationPacks(JsonNode provenance, JsonNode templateManifest) {
+    private List<String> requireVerificationPacks(JsonNode provenance, JsonNode templateManifest, JsonNode behaviorConfig) {
         List<String> actual = stringList(provenance.path("verificationPackIds"));
-        List<String> expected = stringList(templateManifest.path("contributions").path("template")
+        List<String> templatePacks = stringList(templateManifest.path("contributions").path("template")
             .path("deploymentBehavior").path("verificationPackIds"));
-        if (actual.isEmpty() || !new LinkedHashSet<>(actual).equals(new LinkedHashSet<>(expected))) {
-            throw new ResponseStatusException(CONFLICT, "Published verification packs must exactly match the template contract.");
+        List<String> expected = new DeploymentBehaviorCatalogService(objectMapper)
+            .releaseRequirements(behaviorConfig).verificationPackIds();
+        if (actual.isEmpty() || !new LinkedHashSet<>(actual).equals(new LinkedHashSet<>(expected))
+            || !expected.containsAll(templatePacks)) {
+            throw new ResponseStatusException(CONFLICT,
+                "Published verification packs must exactly match the configured behavior and include the template baseline contract.");
         }
         return actual.stream().distinct().sorted().toList();
+    }
+
+    private void requireSpecialistAssistanceQualification(DeploymentVersionEntity version,
+                                                         DeploymentVerificationRunEntity verification,
+                                                         JsonNode behaviorConfig) {
+        String expectedHash = behaviorConfig.path(SpecialistAssistanceCompiler.FIELD).path("contentHash").asText("");
+        new SpecialistAssistanceCompiler(objectMapper).verifyCompiled(
+            behaviorConfig.path(SpecialistAssistanceCompiler.FIELD).path("compiled"), expectedHash);
+        JsonNode checks;
+        try {
+            checks = objectMapper.readTree(verification.getChecksJson());
+        } catch (Exception invalid) {
+            throw new ResponseStatusException(CONFLICT, "Specialist assistance requires persisted runtime bundle qualification.");
+        }
+        if (version.getId().equals(verification.getDeploymentVersionId()) && checks != null && checks.isArray()) {
+            for (JsonNode check : checks) {
+                JsonNode details = check.path("details");
+                if (SpecialistAssistanceVerificationPack.RELEASE_CHECK.equals(check.path("name").asText())
+                    && "PASSED".equals(check.path("status").asText())
+                    && SpecialistAssistanceVerificationPack.ID.equals(details.path("verificationPackId").asText())
+                    && expectedHash.equals(details.path("expectedContentHash").asText())
+                    && expectedHash.equals(details.path("actualContentHash").asText())
+                    && details.path("compiledBundleHashMatches").asBoolean(false)
+                    && details.path("specialistCapabilityReady").asBoolean(false)
+                    && details.path("exactInvocationCatalogue").asBoolean(false)) return;
+            }
+        }
+        throw new ResponseStatusException(CONFLICT,
+            "Specialist assistance requires passed exact-version bundle hash, capability readiness and invocation qualification.");
     }
 
     private ArrayNode requireBehaviorProofs(
@@ -447,9 +487,11 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
             );
         }
 
-        Set<String> requiredChecks = REQUIRED_BEHAVIOR_CHECKS.getOrDefault(behaviorType, Set.of());
         ArrayNode result = objectMapper.createArrayNode();
         byPack.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            Set<String> requiredChecks = SpecialistAssistanceVerificationPack.ID.equals(entry.getKey())
+                ? SpecialistAssistanceVerificationPack.REQUIRED_CHECKS
+                : REQUIRED_BEHAVIOR_CHECKS.getOrDefault(behaviorType, Set.of());
             DeploymentBehaviorVerificationProofInput input = entry.getValue();
             Set<String> checks = input.passedChecks().stream()
                 .map(this::normalizeCode)

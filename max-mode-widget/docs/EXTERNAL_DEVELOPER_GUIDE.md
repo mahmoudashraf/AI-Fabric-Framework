@@ -709,3 +709,10 @@ domain without changing widget core. It may provide:
 The first implementation is `@loom-ai-labs/dealership-experience-pack`. Its
 reviewed package includes `docs/EXTERNAL_DEVELOPER_GUIDE.md`. When a pack owns
 initialization, do not also call `MaxMode.init()` directly.
+
+## Host-Controlled Conversation Integration
+
+For a host that already owns an authorized conversation and initial-message delivery,
+use [Host-Controlled Conversations](HOST_CONTROLLED_CONVERSATIONS.md). It documents the
+promise-based open/refresh/readiness APIs, account-scoped mounts and safe GET-only
+restoration of retained source/read-result presentations.

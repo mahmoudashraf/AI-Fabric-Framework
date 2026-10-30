@@ -17,10 +17,11 @@
  */
 
 import type { MaxModeWidgetConfig } from "@/config";
-import { getWidgetStorageKey } from "@/config";
+import { getWidgetConfig, getWidgetStorageKey } from "@/config";
 import type { SharedAttachment } from "@/context";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
-import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget } from "@/mount";
+import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget, isWidgetMounted } from "@/mount";
+import { createWorkspaceHost, destroyWorkspaceHost, WorkspaceHostError, type WorkspaceHostApi } from "../workspaceHost";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
 const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
@@ -43,7 +44,7 @@ export interface MaxModeQueuedPrompt {
   attachments?: SharedAttachment[];
 }
 
-export interface MaxModeAPI {
+export interface MaxModeAPI extends WorkspaceHostApi {
   /** Initialize and mount the widget */
   init: (config: Partial<MaxModeWidgetConfig> & { apiConfig: MaxModeWidgetConfig["apiConfig"] }) => void;
   /** Open the widget */
@@ -66,6 +67,8 @@ export interface MaxModeAPI {
   version: string;
 }
 
+let workspaceHost = createWorkspaceHost();
+
 const MaxModeInstance: MaxModeAPI = {
   version: "1.0.0",
 
@@ -74,9 +77,26 @@ const MaxModeInstance: MaxModeAPI = {
       console.error("[MaxMode] apiConfig.chatBaseUrl is required");
       return;
     }
-    // Mount with full config
-    mountWidget(config as MaxModeWidgetConfig);
+    if (config.hostSession && (!config.hostSession.namespace?.trim() || !config.hostSession.accountKey?.trim())) {
+      throw new WorkspaceHostError("INVALID_HOST_SESSION", "Host sessions require a namespace and an opaque account key.");
+    }
+    if (isWidgetMounted()) {
+      console.warn("[MaxMode] Widget already mounted. Call MaxMode.destroy() first.");
+      return;
+    }
+    destroyWorkspaceHost(workspaceHost);
+    workspaceHost = createWorkspaceHost();
+    mountWidget({ ...config, workspaceHost } as MaxModeWidgetConfig);
   },
+
+  getState: () => workspaceHost.getState(),
+  onStateChange: (listener) => workspaceHost.onStateChange(listener),
+  whenReady: () => workspaceHost.whenReady(),
+  openConversation(id, options) {
+    if (options?.open !== false) openWidget();
+    return workspaceHost.openConversation(id, options);
+  },
+  refreshConversation: () => workspaceHost.refreshConversation(),
 
   open() {
     openWidget();
@@ -112,6 +132,9 @@ const MaxModeInstance: MaxModeAPI = {
   },
 
   sendMessage(message, options) {
+    if (getWidgetConfig().hostSession) {
+      throw new WorkspaceHostError("HOST_CONTROLS_INTAKE", "Host-controlled sessions do not queue messages. Deliver initial intake through your authorized backend adapter.");
+    }
     const normalized = typeof message === "string" ? message.trim() : "";
     if (!normalized) {
       console.warn("[MaxMode] sendMessage() requires a non-empty message");
@@ -137,6 +160,7 @@ const MaxModeInstance: MaxModeAPI = {
 
   destroy() {
     destroyWidget();
+    destroyWorkspaceHost(workspaceHost);
   },
 };
 

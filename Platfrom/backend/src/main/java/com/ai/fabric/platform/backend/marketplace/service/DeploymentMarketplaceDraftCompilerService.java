@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationCompositionService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
@@ -533,6 +535,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                 configuredDefaults.forEach(value -> {
                     String normalized = value.asText("").trim();
                     if (hasText(normalized)
+                        && (!SpecialistAssistanceCompiler.EXTENSION.equals(normalized) || SpecialistAssistanceCompiler.enabled(behaviorRoot))
                         && (!("CONVERSATION_HANDOVER".equals(normalized))
                             || (conversationChannelReady && conversationHandoverActionReady))) {
                         defaults.add(normalized);
@@ -631,6 +634,13 @@ public class DeploymentMarketplaceDraftCompilerService {
             "channelBindings",
             toStringArray(parsed.contributions().templateAllowedChannelBindings())
         );
+        JsonNode assistanceDefaults = parsed.manifest().path("contributions").path("template")
+            .path("deploymentBehavior").path(SpecialistAssistanceCompiler.FIELD);
+        if (assistanceDefaults.isObject() && !behaviorRoot.has(SpecialistAssistanceCompiler.FIELD)) {
+            ObjectNode defaults = assistanceDefaults.deepCopy();
+            defaults.remove(List.of("compiled", "contentHash"));
+            behaviorRoot.set(SpecialistAssistanceCompiler.FIELD, defaults);
+        }
     }
 
     private void applyInferenceProfile(ObjectNode providerRoot,

@@ -1,0 +1,14 @@
+Title: Engage installation, branding and domain checks
+Audience: LoomAI customers. Approved customer-safe support guidance.
+
+LoomAI Engage offers an embedded website workspace and a standalone app. A customer can use both for the same configured app when those installation modes are enabled. Branding, workspace tools, identity mode and the connected deployment are app configuration, not copied AI logic inside the customer's website.
+
+For an embedded installation, use the installation snippet supplied by Console and its opaque installation ID. Register the website's allowed origin. Do not put a deployment API key, private runtime assertion, provider credential or service token in the script or page source. The installation resolves the assigned runtime; customers should not hardcode a temporary runtime address as their long-term integration contract.
+
+Anonymous direct-runtime installations obtain their session at the assigned runtime. Protected actions may need sign-in. Authenticated direct-runtime installations require a supported identity connection. Backend-mediated private installations use a trusted server adapter; private runtime credentials never belong in the browser. A support template does not automatically create an external company's identity broker.
+
+For a custom Engage address, add the hostname to the app and follow the ownership TXT and CNAME instructions shown by Console. The shared Engage frontend serves the customer's branded configuration under that hostname. It is not a separate customer AI runtime or business database. DNS propagation, ownership, routing, HTTPS and runtime-origin readiness are distinct checks.
+
+Use Verify and prepare, review any required deployment update, apply through the normal release workflow, then explicitly activate when ready. External authentication-provider redirect settings may need separate changes. Do not promise immediate DNS propagation or say that verification activates an app automatically.
+
+If the app does not connect, capture its hostname, time, visible readiness state and whether it is embedded or standalone. Check the active assignment, allowed origin and actual applied release. A documentation answer cannot establish live readiness. An authorized readiness check must report its observation time and missing checks.

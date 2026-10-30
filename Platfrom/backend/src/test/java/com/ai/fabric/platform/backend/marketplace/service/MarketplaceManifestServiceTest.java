@@ -19,6 +19,25 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void templateUsesTheSameSpecialistAssistanceContractWithoutArbitraryResourceLoading() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree("""
+            {"schemaVersion":1,"pluginType":"TEMPLATE",
+             "compatibility":{"requiredCapabilities":["templates"]},"pricing":{"pricingModel":"FREE"},
+             "contributions":{"template":{"templateId":"custom-start-from-scratch",
+              "deploymentBehavior":{"type":"CONVERSATIONAL","contractVersion":1,
+               "defaultExecutionExtensions":["SPECIALIST_ASSISTANCE"]}}}}
+            """);
+        ObjectNode behavior = (ObjectNode) manifest.at("/contributions/template/deploymentBehavior");
+        behavior.set("specialistAssistance", com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper)
+            .path("specialistAssistance"));
+        var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+        assertThat(parsed.contributions().templateAllowedExecutionExtensions()).contains("SPECIALIST_ASSISTANCE");
+        ((ObjectNode) behavior.at("/specialistAssistance/areas/0")).put("resourceUrl", "https://untrusted.invalid/custom.json");
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .hasMessageContaining("Unsupported area field");
+    }
+
+    @Test
     void templateMayDeclareOnlyReviewedNativeTokenAuthenticationWithoutCredentials() throws Exception {
         ObjectNode manifest = (ObjectNode) objectMapper.readTree("""
             {"schemaVersion":1,"pluginType":"TEMPLATE",

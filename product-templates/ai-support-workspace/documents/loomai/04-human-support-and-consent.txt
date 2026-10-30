@@ -1,0 +1,16 @@
+Title: Working with AI support, diagnostics and a human agent
+Audience: LoomAI customers. Approved customer-safe support guidance.
+
+Describe the outcome you want, what you tried and the visible problem. Select the relevant resource when the support form offers that option. Do not include credentials, tokens, payment details or unrestricted logs. Optional diagnostic permission applies to current selected-resource status checks; it is not blanket permission to inspect the customer's account or business data.
+
+The support adapter checks current requester membership, case ownership, selected-resource ownership and diagnostic consent before each protected read. Revoking consent stops future protected reads. It does not erase observations already sent in the conversation. Documentation help may continue without diagnostic consent.
+
+When a connected human channel is available, use the handover control or ask the AI to request human help. The configured handover action may request confirmation or contact information. The interface must distinguish a request being saved, a handover being queued and an agent actually joining. None of those events guarantees an immediate response or a particular response time.
+
+During human ownership, human messages use the same canonical conversation. The AI must not continue producing competing answers. Return to AI is an explicit authorized transition. A specialist chain's internal handoff terminology is not a transfer to a human agent.
+
+LoomAI Desk assignments are scoped to a deployment binding. A customer owner or Platform administrator is not automatically an active SUPPORT agent for every conversation. The actual assigned agent's identity and permissions govern access and replies.
+
+Resolving a support case and closing a Desk conversation are different actions. A reopened case whose old conversation is terminal may need a new conversation episode. Prior episode references remain history; reopening is not permission to replay old write actions or resend the original form automatically.
+
+The initial support package explains approved guides and performs authorized READ checks only. It does not automatically change infrastructure or execute a repair. Human support should make the next step and remaining uncertainty clear.

@@ -274,6 +274,12 @@ export function MessageBubble({
             );
           })()}
 
+          {message.type === "ai" && message.participantRole === "ai" && message.historyPresentationUnavailable && (
+            <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              Rich details are unavailable in this history view. The conversation text is preserved.
+            </p>
+          )}
+
           {message.type === "ai" && message.customerAccountConnect && (
             <div className="mt-4 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-3 shadow-sm dark:border-blue-900/60 dark:from-blue-950/40 dark:to-indigo-950/30">
               <div className="flex items-start gap-3">

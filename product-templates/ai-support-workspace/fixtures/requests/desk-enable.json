@@ -1,0 +1,6 @@
+{
+  "targetProfileId": "REPLACE_OWNED_TARGET_PROFILE_ID",
+  "releaseId": "REPLACE_VERIFIED_RELEASE_ID",
+  "operationKey": "support-workspace-desk-enable-001",
+  "enableReviews": false
+}

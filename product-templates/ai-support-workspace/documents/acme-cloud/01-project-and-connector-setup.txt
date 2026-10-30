@@ -1,0 +1,10 @@
+Title: Acme Cloud project and connector onboarding
+Audience: Fictional Acme Cloud example customers. Demonstration policy, not a LoomAI service promise.
+
+In this example, a project contains one or more customer-managed data connectors. A project owner creates a connector in the Acme dashboard, selects an approved source and completes the source provider's authorization flow. Never paste the source password or API token into the support workspace.
+
+The first connector import is expected to become visible within 15 minutes after authorization in this fictional service. This is an onboarding expectation, not proof that a particular import completed. Later imports normally run on a five-minute schedule. The workspace status check reports connectionState, firstImportState, lastSuccessfulSyncAt and syncState for the signed-in caller's authorized workspace.
+
+If the first import is not visible, check whether authorization completed and whether firstImportState is PENDING, RUNNING, COMPLETED or FAILED. A CONNECTED state confirms the connection, not import completion. Record the visible state and observation time. Do not restart a job or reconnect a source merely because 15 minutes passed.
+
+If a current status check is unavailable, support can still explain this procedure. It must not fabricate live account information. Only the Acme-owned adapter resolves which project the signed-in caller may inspect; a project name or identifier in a chat message grants no authority.

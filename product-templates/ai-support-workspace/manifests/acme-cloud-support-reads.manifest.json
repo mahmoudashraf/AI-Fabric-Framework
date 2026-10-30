@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-action-acme-cloud-support-reads",
+  "version": "1.0.0",
+  "pluginType": "ACTION",
+  "displayName": "Acme Cloud support checks",
+  "description": "Fictional second-customer integration. The Acme-owned adapter authenticates its service and resolves each signed-in caller's own workspace and service account.",
+  "compatibility": {"requiredCapabilities": ["actions"]},
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesActions": true, "requiresExternalHttpExecution": true, "requiresDeploymentSecrets": true},
+  "installForm": [
+    {"id": "workspaceStatusUrl", "label": "Acme workspace status endpoint binding", "type": "url", "required": true},
+    {"id": "serviceStatusUrl", "label": "Acme service status endpoint binding", "type": "url", "required": true},
+    {"id": "adapterServiceKey", "label": "Acme adapter credential reference", "type": "secretRef", "required": true}
+  ],
+  "contributions": {
+    "actions": [
+      {"actionId": "acme_get_workspace_status", "description": "Read the signed-in caller's authorized Acme workspace connection status. Workspace ownership is resolved by the Acme adapter, never from model-supplied IDs.",
+       "category": "acme-support", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["acme:support:read"], "params": [],
+       "route": {"method": "GET", "managedUrlField": "workspaceStatusUrl", "managedHeaderSecretRefFields": {"X-ACME-SUPPORT-SERVICE-KEY": "adapterServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "acme_get_service_status", "description": "Read current service-state and safe maintenance information for the caller's authorized Acme account. Return observedAt and explicit unavailable state when current data is unavailable.",
+       "category": "acme-support", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["acme:support:read"], "params": [],
+       "route": {"method": "GET", "managedUrlField": "serviceStatusUrl", "managedHeaderSecretRefFields": {"X-ACME-SUPPORT-SERVICE-KEY": "adapterServiceKey"}, "response": {"success-http-status": [200]}}}
+    ]
+  }
+}

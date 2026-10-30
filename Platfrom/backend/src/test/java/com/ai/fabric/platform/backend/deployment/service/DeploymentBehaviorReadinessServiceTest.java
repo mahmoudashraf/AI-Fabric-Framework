@@ -63,6 +63,48 @@ class DeploymentBehaviorReadinessServiceTest {
         new DeploymentSourceCapabilityManifestService(objectMapper);
 
     @Test
+    void specialistPackRequiresItsOwnChecksAsWellAsTheExistingConversationProof() {
+        String pack = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceVerificationPack.ID;
+        var incomplete = List.of(new DeploymentBehaviorVerificationProofInput(pack, "PASSED", "fixture:readback",
+            List.of("AUTHENTICATED_QUERY", "CONTINUATION", "STRUCTURED_RESULT")));
+        assertThatThrownBy(() -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "requireBehaviorProofs",
+            "CONVERSATIONAL", List.of(pack), incomplete)).hasMessageContaining("missing required checks");
+        var complete = List.of(new DeploymentBehaviorVerificationProofInput(pack, "PASSED", "fixture:readback",
+            List.copyOf(com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceVerificationPack.REQUIRED_CHECKS)));
+        JsonNode result = org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "requireBehaviorProofs",
+            "CONVERSATIONAL", List.of(pack), complete);
+        assertThat(result.get(0).path("verificationPackId").asText()).isEqualTo(pack);
+    }
+
+    @Test
+    void specialistReadinessRequiresPersistedExactVersionQualificationNotOnlySubmittedLabels() throws Exception {
+        var behavior = new com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler(objectMapper).compileBehavior(
+            com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper),
+            com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.authority());
+        String hash = behavior.at("/specialistAssistance/contentHash").asText();
+        var version = new DeploymentVersionEntity(); version.setId("version-exact");
+        var run = new DeploymentVerificationRunEntity(); run.setDeploymentVersionId(version.getId());
+        var checks = objectMapper.createArrayNode();
+        var check = checks.addObject().put("name", "runtime_specialist_assistance_matches_expected").put("status", "PASSED");
+        var details = check.putObject("details").put("verificationPackId", "conversational-specialist-assistance-v1")
+            .put("expectedContentHash", hash).put("actualContentHash", hash)
+            .put("compiledBundleHashMatches", true).put("specialistCapabilityReady", true).put("exactInvocationCatalogue", true);
+        run.setChecksJson(checks.toString());
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "requireSpecialistAssistanceQualification", version, run, behavior);
+        details.put("actualContentHash", "sha256:" + "0".repeat(64));
+        run.setChecksJson(checks.toString());
+        assertThatThrownBy(() -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(),
+            "requireSpecialistAssistanceQualification", version, run, behavior)).hasMessageContaining("exact-version");
+        details.put("actualContentHash", hash);
+        run.setChecksJson(checks.toString()); run.setDeploymentVersionId("another-version");
+        assertThatThrownBy(() -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(),
+            "requireSpecialistAssistanceQualification", version, run, behavior)).hasMessageContaining("exact-version");
+        run.setDeploymentVersionId(version.getId()); run.setChecksJson("[]");
+        assertThatThrownBy(() -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(),
+            "requireSpecialistAssistanceQualification", version, run, behavior)).hasMessageContaining("exact-version");
+    }
+
+    @Test
     void evaluateCreatesHostedProofOnlyFromExactPublishedTemplateAndVerifiedImmutableRelease() throws Exception {
         Fixture fixture = verifiedFixture("staging");
         when(readinessRepository.findByMaterialHash(any())).thenReturn(Optional.empty());
@@ -362,6 +404,8 @@ class DeploymentBehaviorReadinessServiceTest {
         version.setDeploymentId(deployment.getId());
         version.setStatus("PUBLISHED");
         version.setAiFabricFrameworkVersion("0.8.41");
+        version.setBehaviorConfigJson(new com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService(objectMapper)
+            .defaultConfig("CONVERSATIONAL").toString());
         version.setCompositionProvenanceJson("""
             {
               "deploymentBehaviorType": "CONVERSATIONAL",

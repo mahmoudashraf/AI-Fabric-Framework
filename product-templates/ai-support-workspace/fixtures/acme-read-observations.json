@@ -1,0 +1,14 @@
+{
+  "simulation": true,
+  "description": "Offline adapter observations for a fictional company. Not real service health and not a credential or authority source.",
+  "acme_get_workspace_status": {
+    "observedAt": "2026-10-30T10:00:00Z",
+    "availability": "CURRENT",
+    "workspace": {"displayName": "Acme example project", "connectionState": "CONNECTED", "firstImportState": "COMPLETED", "lastSuccessfulSyncAt": "2026-10-30T09:40:00Z", "syncState": "DELAYED"}
+  },
+  "acme_get_service_status": {
+    "observedAt": "2026-10-30T10:00:00Z",
+    "availability": "CURRENT",
+    "service": {"state": "DEGRADED", "plannedMaintenanceActive": false, "publicMessage": "Connector imports are delayed. The service team is investigating."}
+  }
+}

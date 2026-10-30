@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.deployment.behavior;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentExecutionExtensionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSpecialistBundleSummary;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceVerificationPack;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -232,6 +234,11 @@ public class DeploymentBehaviorCatalogService {
         );
         if (!specialistBundles.valid()) {
             return specialistBundles;
+        }
+        try {
+            new SpecialistAssistanceCompiler(objectMapper).validateConfiguration(config);
+        } catch (ResponseStatusException ex) {
+            return Validation.invalid("SPECIALIST_ASSISTANCE_INVALID", ex.getReason());
         }
         JsonNode authority = config.path("authority");
         if (!authority.path("trustedContextRequired").asBoolean(false)
@@ -763,7 +770,7 @@ public class DeploymentBehaviorCatalogService {
             "Authoring is available. Hosted and market-ready claims are shown only when an exact template release has current stored evidence.",
             List.of("AUTHENTICATED_INTERACTIVE"),
             List.of("BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"),
-            List.of("GOVERNED_RESOLVER", "HUMAN_REVIEW", "CONVERSATION_HANDOVER"),
+            List.of("GOVERNED_RESOLVER", "HUMAN_REVIEW", "CONVERSATION_HANDOVER", SpecialistAssistanceCompiler.EXTENSION),
             "OPTIONAL_BACKEND_SESSION",
             List.of("ai-fabric-core", "ai-fabric-chat-session"),
             List.of("chat-query", "query-once", "session-management"),
@@ -847,6 +854,18 @@ public class DeploymentBehaviorCatalogService {
 
     private Map<String, ExecutionExtensionContract> buildExtensionContracts() {
         Map<String, ExecutionExtensionContract> result = new LinkedHashMap<>();
+        result.put(SpecialistAssistanceCompiler.EXTENSION, new ExecutionExtensionContract(
+            SpecialistAssistanceCompiler.EXTENSION,
+            "Specialist Assistance",
+            "One canonical conversation can consult configured read-only specialists and bounded official specialist chains.",
+            "PLATFORM_SELECTABLE",
+            "Apply requires a runtime attesting the compiled specialist assistance contract and canonical conversation completion boundary.",
+            List.of(DeploymentBehaviorType.CONVERSATIONAL),
+            List.of("ai-fabric-execution", SpecialistAssistanceCompiler.CAPABILITY, "specialist-chains", "jdbc-specialist-chain-state"),
+            List.of(),
+            List.of("ai-specialist-chain-execution-v1"),
+            List.of(SpecialistAssistanceVerificationPack.ID)
+        ));
         result.put("GOVERNED_RESOLVER", new ExecutionExtensionContract(
             "GOVERNED_RESOLVER",
             "Governed Resolver",

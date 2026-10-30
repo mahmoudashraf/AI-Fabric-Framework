@@ -485,7 +485,7 @@ verify_conversational() {
   local first_body second_body conversation_id
   first_body='{"query":"Write a concise welcome message for a new user.","authPath":"PLATFORM_PRIVATE"}'
   behavior_request_with_retry "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-chat/query" "${first_body}" "conversational first query"
-  json_assert "conversational first query" $'assert (data or {}).get("success") is True\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == "conversational", result\nassert (data or {}).get("conversationId")'
+  EXPECTED_CHAT_MODE="${EXPECTED_CHAT_MODE}" json_assert "conversational first query" $'import os\nassert (data or {}).get("success") is True\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == os.environ["EXPECTED_CHAT_MODE"], result\nassert (data or {}).get("conversationId")'
   conversation_id="$(json_value 'result = (data or {}).get("conversationId", "")')"
   second_body="$(python3 - <<'PY' "${conversation_id}"
 import json, sys
@@ -497,8 +497,20 @@ print(json.dumps({
 PY
 )"
   behavior_request_with_retry "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-chat/query" "${second_body}" "conversational continuation"
-  CONVERSATION_ID_EXPECTED="${conversation_id}" json_assert "conversational continuation" $'import os\nassert (data or {}).get("success") is True\nassert (data or {}).get("conversationId") == os.environ["CONVERSATION_ID_EXPECTED"]\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == "conversational", result'
+  EXPECTED_CHAT_MODE="${EXPECTED_CHAT_MODE}" CONVERSATION_ID_EXPECTED="${conversation_id}" json_assert "conversational continuation" $'import os\nassert (data or {}).get("success") is True\nassert (data or {}).get("conversationId") == os.environ["CONVERSATION_ID_EXPECTED"]\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == os.environ["EXPECTED_CHAT_MODE"], result'
   pass "authenticated conversational query, structured result, and continuation"
+}
+
+verify_specialist_assistance() {
+  platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/verification-runs"
+  assert_status "200" "specialist assistance persisted qualification"
+  RELEASE_ID_EXPECTED="${RELEASE_ID}" VERSION_ID_EXPECTED="${VERSION_ID}" json_assert "specialist assistance exact compiled readback" $'import os\nruns = [run for run in (data or []) if run.get("releaseId") == os.environ["RELEASE_ID_EXPECTED"] and run.get("deploymentVersionId") == os.environ["VERSION_ID_EXPECTED"] and run.get("status") == "PASSED"]\nchecks = [check for run in runs for check in (run.get("checks") or []) if check.get("name") == "runtime_specialist_assistance_matches_expected" and check.get("status") == "PASSED"]\nassert checks, "No persisted exact-release specialist qualification"\nfor check in checks:\n    detail = check.get("details") or {}\n    assert detail.get("verificationPackId") == "conversational-specialist-assistance-v1"\n    assert detail.get("expectedContentHash", "").startswith("sha256:")\n    assert detail.get("expectedContentHash") == detail.get("actualContentHash")\n    assert detail.get("compiledBundleHashMatches") is True\n    assert detail.get("specialistCapabilityReady") is True\n    assert detail.get("exactInvocationCatalogue") is True'
+  PASSED_CHECKS_JSON="$(python3 - <<'PY' "${PASSED_CHECKS_JSON}"
+import json, sys
+print(json.dumps(json.loads(sys.argv[1]) + ["COMPILED_BUNDLE_HASH", "SPECIALIST_CAPABILITY_READY", "EXACT_INVOCATION_CATALOGUE"]))
+PY
+)"
+  pass "specialist assistance exact compiled hash, capability readiness and invocation catalogue"
 }
 
 build_readiness_payload() {
@@ -596,7 +608,9 @@ pass "draft is publish-ready"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/draft"
 assert_status "200" "deployment draft verification-pack fetch"
-VERIFICATION_PACKS_JSON="$(json_value 'result = (((data or {}).get("behaviorConfig") or {}).get("runtimeRequirements") or {}).get("verificationPackIds") or []')"
+VERIFICATION_PACKS_JSON="$(json_value $'behavior = (data or {}).get("behaviorConfig") or {}\nresult = list((behavior.get("runtimeRequirements") or {}).get("verificationPackIds") or [])\nif (behavior.get("specialistAssistance") or {}).get("enabled") is True:\n    result = list(dict.fromkeys(result + ["conversational-specialist-assistance-v1"]))')"
+EXPECTED_CHAT_MODE="$(json_value 'result = ((data or {}).get("shellConfig") or {}).get("defaultConversationMode") or "conversational"')"
+SPECIALIST_ASSISTANCE_ENABLED="$(json_value 'result = ((data or {}).get("behaviorConfig") or {}).get("specialistAssistance", {}).get("enabled") is True')"
 [[ "${VERIFICATION_PACKS_JSON}" != "[]" ]] || fail "Behavior template did not compile verification packs into the draft."
 
 platform_request "POST" "/api/deployment-drafts/${DRAFT_ID}/publish"
@@ -624,6 +638,10 @@ case "${BEHAVIOR_TYPE}" in
   AGENTIC_SPECIALIST_TEAM) seed_agentic_verification_evidence; verify_agentic ;;
   SMART_BRAIN) verify_smart_brain ;;
 esac
+
+if [[ "${SPECIALIST_ASSISTANCE_ENABLED}" == "true" ]]; then
+  verify_specialist_assistance
+fi
 
 if [[ -z "${BEHAVIOR_EVIDENCE_REF}" ]]; then
   BEHAVIOR_EVIDENCE_REF="live-verifier:${DEPLOYMENT_ID}:${RELEASE_ID}:$(date -u +%Y%m%dT%H%M%SZ)"

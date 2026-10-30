@@ -16,6 +16,8 @@ import { CustomerResourcesPage } from './pages/CustomerResourcesPage'
 import { CustomerKnowledgeConnectionsPage } from './pages/CustomerKnowledgeConnectionsPage'
 import { CustomerActionReviewsPage } from './pages/CustomerActionReviewsPage'
 import { CustomerAccountPage } from './pages/CustomerAccountPage'
+import { CustomerSupportPage } from './pages/CustomerSupportPage'
+import { SupportTeamIntakePage } from './pages/SupportTeamIntakePage'
 import { CustomerDeploymentAdvanced } from './components/customer/CustomerDeploymentAdvanced'
 import { ActionsPage } from './pages/ActionsPage'
 import { AIWorkspacesPage } from './pages/AIWorkspacesPage'
@@ -64,6 +66,7 @@ export default function App() {
 
   // Identity-provider consent is available to Desk agents without Console membership.
   if (window.location.pathname === '/auth/desk/authorize') return <DeskOAuthAuthorizationPage />
+  if (location.pathname === '/support/team-intake') return <SupportTeamIntakePage />
   if (window.location.pathname === '/auth/callback') return <CustomerAuthCallbackPage />
   if (window.location.pathname === '/auth/recovery') return <CustomerAuthRecoveryPage />
 
@@ -157,6 +160,8 @@ export default function App() {
               <Route path="/behavior-operations" element={<Alert severity="warning">Behaviour operations are not available under the customer console contract. No staff operation was requested.</Alert>} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/users" element={<CustomerAccountPage />} />
+              <Route path="/support" element={<CustomerSupportPage />} />
+              <Route path="/support/:caseId" element={<CustomerSupportPage />} />
               <Route path="*" element={<Navigate to="/deployments" replace />} />
             </>
           ) : (

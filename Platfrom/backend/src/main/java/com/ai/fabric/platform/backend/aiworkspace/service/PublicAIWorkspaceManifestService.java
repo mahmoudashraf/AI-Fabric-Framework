@@ -335,7 +335,8 @@ public class PublicAIWorkspaceManifestService {
     private Optional<AIWorkspaceInstallationEntity> findActiveInstallation(String installationId) {
         if (installationId == null || !installationId.matches("awi_pub_[a-f0-9]{32}")) return Optional.empty();
         return repository.findByInstallationId(installationId)
-            .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE);
+            .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE)
+            .filter(installation -> !AIWorkspaceConnectionProfileRegistry.SUPPORT_CASE_HOST.equals(installation.getConnectionProfileCode()));
     }
 
     private String normalizeRequestOrigin(String value) {

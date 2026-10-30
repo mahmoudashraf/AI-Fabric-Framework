@@ -99,6 +99,7 @@ export interface ChatMessage {
   searchCategory?: string;
   participantRole?: "ai" | "human" | "system";
   participantDisplayName?: string;
+  historyPresentationUnavailable?: boolean;
 }
 
 export type ConversationControlState =
@@ -185,6 +186,29 @@ export interface ConversationTurn {
 export interface ConversationDetail extends Conversation {
   turns?: ConversationTurn[];
   participantMessages?: RuntimeConversationMessage[];
+  controlVersion?: number;
+  /** Owner-authorized GET projection of retained, sanitized completed responses. */
+  completedTurns?: CompletedConversationTurn[];
+}
+
+export interface CompletedConversationTurn {
+  userMessageId: string;
+  aiMessageId: string;
+  completedAt: string;
+  /** Server allowlisted public response: no debug/auth metadata, proposals or writes. */
+  response: StoredChatQueryResponse;
+}
+
+export interface StoredChatQueryResponse {
+  success: boolean;
+  type?: ResultType;
+  answer?: string;
+  safeSummary?: string;
+  conversationId?: string;
+  sources?: unknown[];
+  ragResponse?: Record<string, unknown>;
+  actions?: unknown[];
+  results?: unknown[];
 }
 
 export interface RuntimeAuthContextSummary {

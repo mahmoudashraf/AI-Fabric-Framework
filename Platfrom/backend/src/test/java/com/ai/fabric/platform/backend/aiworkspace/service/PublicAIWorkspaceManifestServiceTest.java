@@ -48,6 +48,16 @@ class PublicAIWorkspaceManifestServiceTest {
         Path.of("."), false, 120, Duration.ofSeconds(60), null, "https://shopify-bridge.loomai.pro",
         "apps.loomai.test", "https://workspace.loomai.test");
 
+    @Test void internalSupportHostNeverExposesAPublicScriptManifest() {
+        var installation = installation();
+        installation.setConnectionProfileCode(AIWorkspaceConnectionProfileRegistry.SUPPORT_CASE_HOST);
+        when(repository.findByInstallationId(installation.getInstallationId())).thenReturn(Optional.of(installation));
+        assertThatThrownBy(() -> service().resolve(installation.getInstallationId(), "https://dealer.example"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+        assertThat(service().isOriginAllowed(installation.getInstallationId(), "https://dealer.example")).isFalse();
+        org.mockito.Mockito.verifyNoInteractions(consumers, consumerService, assignments);
+    }
+
     @Test
     void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin() throws Exception {
         AIWorkspaceInstallationEntity installation = installation();

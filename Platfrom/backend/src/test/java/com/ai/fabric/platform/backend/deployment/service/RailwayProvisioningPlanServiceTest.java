@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleS
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -40,6 +42,47 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void specialistAssistanceUsesExactPublicationBytesAndExistingRuntimeWithoutRebuild() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), mapper);
+        var version = version();
+        var behavior = new SpecialistAssistanceCompiler(mapper).compileBehavior(
+            SpecialistAssistanceFixtures.behavior(mapper), SpecialistAssistanceFixtures.authority());
+        version.setBehaviorConfigJson(behavior.toString());
+        version.setActionsConfigJson("""
+            {"actions":[
+              {"name":"get_account_status","accessMode":"READ","groundingEligible":true,"readActionResolutionEligible":true},
+              {"name":"other_installed_read","accessMode":"READ","groundingEligible":true,"readActionResolutionEligible":true}
+            ]}
+            """);
+        var plan = service.buildPlan(deployment(), version);
+        var env = envMap(plan.services().runtime().env());
+        byte[] bundle = java.util.Base64.getDecoder().decode(env.get("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64"));
+        assertThat(bundle).isEqualTo(mapper.writeValueAsBytes(behavior.at("/specialistAssistance/compiled")));
+        assertThat(env).containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", behavior.at("/specialistAssistance/contentHash").asText())
+            .containsEntry("AI_EXECUTION_MANIFESTS_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_MAX_MANAGER_DECISIONS", "4")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_MAX_DURATION", "PT75S")
+            .containsEntry("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", "get_account_status")
+            .containsEntry("LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS", "consult_specialist,get_account_status,other_installed_read")
+            .containsEntry("AI_EXECUTION_CAPABILITIES_REGISTERED_VECTOR_SPACES", "document,product-guide")
+            .containsEntry("AI_EXECUTION_MANIFEST_LOCATIONS", "classpath:ai-specialists/deployment-knowledge-specialist.yml");
+        assertThat(plan.services().runtime().dockerfilePath()).isEqualTo("ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
+        assertThat(env.keySet()).noneMatch(key -> key.contains("AUTH") && key.contains("SCOPES"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) behavior.at("/specialistAssistance/compiled/invocations/0")).put("targetRef", "outside@1");
+        version.setBehaviorConfigJson(behavior.toString());
+        assertThatThrownBy(() -> service.buildPlan(deployment(), version)).hasMessageContaining("hash mismatch");
+    }
+
+    @Test
     void deskUsesTargetRegisteredSecretsBeforeCoolifyResolutionAndNeverPromotesStageCredentials() {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
@@ -47,6 +90,7 @@ class RailwayProvisioningPlanServiceTest {
             "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
         var mapper = new ObjectMapper();
         var secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
         var service = new RailwayProvisioningPlanService(properties(),
             new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
             artifacts, new DeploymentSourceResolver(properties()), secretService, mapper);
@@ -57,6 +101,13 @@ class RailwayProvisioningPlanServiceTest {
         ReflectionTestUtils.setField(service, "deskTargetConfigurationResolver", resolver);
         var deployment = deployment();
         var version = version(); version.setDeploymentId(deployment.getId());
+        var security = mapper.createObjectNode().put("externalIdentityBrokerEnabled", true)
+            .put("externalIdentityProvider", "SUPABASE").put("externalIdentityIssuer", "https://identity.example/auth/v1")
+            .put("externalIdentityJwkSetUri", "https://identity.example/auth/v1/.well-known/jwks.json")
+            .put("externalIdentityAudience", "authenticated").put("corsAllowedOrigins", "https://workspace.example");
+        String identityScopes = "chat:query,chat:conversations,chat:handover:request,vector:document,acme:support:read,specialist:assist-area-example@1";
+        security.put("externalIdentityGrantedScopes", identityScopes);
+        version.setSecurityConfigJson(security.toString());
         var behavior = mapper.createObjectNode().put("type", "CONVERSATIONAL").put("schemaVersion", "loomai-deployment-behavior-v1").put("contractVersion", 1);
         behavior.putArray("executionExtensions").add("CONVERSATION_HANDOVER");
         var handover = behavior.putObject("conversationHandover").put("enabled", true)
@@ -83,9 +134,16 @@ class RailwayProvisioningPlanServiceTest {
             when(desk.connection(targetId)).thenReturn(new com.ai.fabric.platform.backend.desk.DeskServiceClient.Connection("https://desk-" + targetId + ".example", "service-key"));
             var plan = service.buildPlan(deployment, version, null, targetId);
             assertThat(envMap(plan.services().runtime().env()))
+                .containsEntry("AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES", identityScopes)
+                .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES", identityScopes)
+                .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES", identityScopes)
                 .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID", "desk-" + targetId)
                 .containsEntry("LOOMAI_CONVERSATION_HANDOVER_DISPATCH_MAX_ATTEMPTS", "8")
                 .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET", "${secret:" + binding.getRuntimeCallbackKeyRef() + "}");
+            assertThat(envMap(plan.services().runtime().env()).get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES"))
+                .doesNotContain("vector:", "specialist:", "acme:", "support:diagnostics:");
+            assertThat(plan.services().runtime().env().stream()
+                .filter(value -> "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES".equals(value.key())).count()).isEqualTo(1);
             var connector = envMap(plan.services().restConnector().env());
             assertThat(connector).containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "desk-" + targetId)
                 .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "https://desk-" + targetId + ".example")

@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContra
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -88,6 +90,7 @@ public class DeploymentDraftValidationService {
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final EntityConfigContractService entityConfigContractService;
     private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
+    private final SpecialistAssistanceAuthorityService specialistAuthority;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
         this(
@@ -122,17 +125,28 @@ public class DeploymentDraftValidationService {
         );
     }
 
-    @Autowired
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
                                             PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
                                             PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
                                             EntityConfigContractService entityConfigContractService,
                                             DeploymentBehaviorCatalogService deploymentBehaviorCatalogService) {
+        this(objectMapper, platformManagedInferenceEndpointService, platformManagedInferenceServiceService,
+            entityConfigContractService, deploymentBehaviorCatalogService, null);
+    }
+
+    @Autowired
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
+                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
+                                            EntityConfigContractService entityConfigContractService,
+                                            DeploymentBehaviorCatalogService deploymentBehaviorCatalogService,
+                                            SpecialistAssistanceAuthorityService specialistAuthority) {
         this.objectMapper = objectMapper;
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.entityConfigContractService = entityConfigContractService;
         this.deploymentBehaviorCatalogService = deploymentBehaviorCatalogService;
+        this.specialistAuthority = specialistAuthority;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
@@ -171,6 +185,14 @@ public class DeploymentDraftValidationService {
                 issues
             );
             validateBehavior(behaviorNode, expectedBehaviorType, issues);
+            if (SpecialistAssistanceCompiler.enabled(behaviorNode)) {
+                try {
+                    new SpecialistAssistanceCompiler(objectMapper).compileBehavior(behaviorNode,
+                        specialistAuthority == null ? null : specialistAuthority.resolve(draft.getDeploymentId(), actionsNode, knowledgeSourceNode));
+                } catch (org.springframework.web.server.ResponseStatusException ex) {
+                    issues.add(error("behavior", "SPECIALIST_ASSISTANCE_INVALID", "$.behaviorConfig.specialistAssistance", ex.getReason()));
+                }
+            }
             validateMarketplaceRequirements(behaviorNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
@@ -2672,7 +2694,7 @@ public class DeploymentDraftValidationService {
             validateSecurityTokenIdentifier(
                 ManagedDeploymentProfileCatalog.externalIdentityAudience(securityNode),
                 "$.externalIdentityAudience", "EXTERNAL_IDENTITY_AUDIENCE_INVALID", issues);
-            validateSecurityTokenIdentifierCsv(
+            validateSecurityScopeCsv(
                 ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(securityNode),
                 "$.externalIdentityGrantedScopes", "EXTERNAL_IDENTITY_SCOPE_INVALID", issues);
             if (allowedOrigins.isBlank()) {
@@ -2967,6 +2989,15 @@ public class DeploymentDraftValidationService {
         for (String item : splitCsv(csv)) {
             if (!isOriginPattern(item)) {
                 issues.add(error("security", "CORS_ALLOWED_ORIGIN_PATTERN_INVALID", path, "Invalid CORS allowed origin pattern: " + item));
+            }
+        }
+    }
+
+    private void validateSecurityScopeCsv(String csv, String path, String code, List<DraftValidationIssue> issues) {
+        for (String scope : splitCsv(csv)) {
+            // Exact specialist resource scopes contain a version suffix, e.g. specialist:area@1.
+            if (!scope.matches("[A-Za-z0-9._:@/-]{1,200}")) {
+                issues.add(error("security", code, path, "Invalid runtime public token scope: " + scope));
             }
         }
     }

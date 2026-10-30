@@ -366,6 +366,17 @@ public class DeploymentRuntimeAuthorityService {
             requiredIdentity(sessionId), false, grantedScopes, ttl);
     }
 
+    /** Server integration only, after its own verified owner/session authorization. */
+    @Transactional
+    public Map<String, String> issueReviewedIntegrationSessionHeaders(DeploymentEntity deployment,
+        DeploymentVersionEntity version, DeploymentReleaseEntity release, String subjectId,
+        List<String> grantedScopes) {
+        var checked = requireReleaseUnchangedForProvisioning(deployment, version, release);
+        requireProvisioned(workerRelease(release.getId()));
+        return headers(checked.binding(), requiredIdentity(subjectId), "END_USER", requiredIdentity(subjectId),
+            false, grantedScopes, Duration.ofMinutes(2));
+    }
+
     /** Called only after the Desk bridge authenticates the person and rechecks the target assignment. */
     @Transactional
     public Map<String, String> issueDeskReviewerHeaders(DeploymentEntity deployment, DeploymentVersionEntity version,
@@ -611,7 +622,7 @@ public class DeploymentRuntimeAuthorityService {
         if (lifetime.isNegative() || lifetime.isZero() || lifetime.compareTo(Duration.ofMinutes(10)) > 0) {
             throw new ResponseStatusException(BAD_REQUEST, "Target assertion lifetime must be positive and at most ten minutes.");
         }
-        if (scopes == null || scopes.isEmpty() || scopes.stream().anyMatch(s -> s == null || !s.matches("[a-z0-9][a-z0-9:_-]{0,127}"))) {
+        if (scopes == null || scopes.isEmpty() || scopes.stream().anyMatch(s -> s == null || !s.matches("[A-Za-z0-9][A-Za-z0-9:._@/-]{0,159}"))) {
             throw new ResponseStatusException(BAD_REQUEST, "Explicit verified identity scopes are required.");
         }
         var authority = workerAuthority(binding.deploymentId(), binding.targetProfileId());

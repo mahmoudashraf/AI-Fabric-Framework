@@ -1,0 +1,10 @@
+{
+  "executor": {
+    "vectorSpaceSelectionRequired": false,
+    "readActionResolution": {
+      "planningMode": "ITERATIVE",
+      "maxIterations": 2,
+      "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+    }
+  }
+}

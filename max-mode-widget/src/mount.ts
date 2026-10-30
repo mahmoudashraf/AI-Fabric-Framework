@@ -11,6 +11,8 @@ import { setWidgetConfig, getWidgetConfig, type MaxModeWidgetConfig } from "./co
 import { bindWidgetColorScheme, buildThemeCSS } from "./theme";
 import { WidgetShell } from "./entries/WidgetShell";
 import { bindWidgetViewport } from "./viewport";
+import { updateWorkspaceHost } from "./workspaceHost";
+import { resetRuntimeCredentialCache } from "./api/client";
 
 const WIDGET_CONTAINER_ID = "max-mode-widget-container";
 const SHADOW_HOST_ID = "max-mode-widget-shadow-host";
@@ -23,6 +25,10 @@ let _widgetStyleText = "";
 let _releaseViewport: (() => void) | null = null;
 let _releaseColorScheme: (() => void) | null = null;
 
+export function isWidgetMounted(): boolean {
+  return Boolean(document.getElementById(SHADOW_HOST_ID));
+}
+
 export function mountWidget(config: MaxModeWidgetConfig): void {
   // Prevent double mount
   if (document.getElementById(SHADOW_HOST_ID)) {
@@ -31,6 +37,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   }
 
   setWidgetConfig(config);
+  resetRuntimeCredentialCache();
   _currentConfig = config;
 
   // Create Shadow DOM host
@@ -68,7 +75,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   const container = document.createElement("div");
   container.id = WIDGET_CONTAINER_ID;
   container.className = "max-mode-widget-root";
-  container.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;";
+  container.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;font-family:var(--mxw-font-family,Inter,system-ui,sans-serif);color:hsl(var(--mxw-foreground));line-height:1.5;";
   _shadowRoot.appendChild(container);
   _releaseColorScheme = bindWidgetColorScheme(container, config.theme?.darkMode);
 
@@ -94,16 +101,19 @@ function renderWidget() {
 
 export function openWidget(): void {
   _isOpen = true;
+  if (_currentConfig?.workspaceHost) updateWorkspaceHost(_currentConfig.workspaceHost, { isOpen: true });
   renderWidget();
 }
 
 export function closeWidget(): void {
   _isOpen = false;
+  if (_currentConfig?.workspaceHost) updateWorkspaceHost(_currentConfig.workspaceHost, { isOpen: false });
   renderWidget();
 }
 
 export function toggleWidget(): void {
   _isOpen = !_isOpen;
+  if (_currentConfig?.workspaceHost) updateWorkspaceHost(_currentConfig.workspaceHost, { isOpen: _isOpen });
   renderWidget();
 }
 

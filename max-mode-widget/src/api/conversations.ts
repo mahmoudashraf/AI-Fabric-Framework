@@ -49,8 +49,8 @@ export function listConversations() {
   return apiFetchJson<Conversation[]>(conversationsBasePath());
 }
 
-export function getConversation(conversationId: string) {
-  return apiFetchJson<ConversationDetail>(conversationItemPath(conversationId));
+export function getConversation(conversationId: string, signal?: AbortSignal) {
+  return apiFetchJson<ConversationDetail>(conversationItemPath(conversationId), { signal });
 }
 
 export async function deleteConversation(conversationId: string) {

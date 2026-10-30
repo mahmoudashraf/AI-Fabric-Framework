@@ -16,7 +16,9 @@
     "smoke:ai-workspace": "node scripts/ai-workspace-ui-smoke.mjs",
     "smoke:customer-workspace": "node scripts/customer-workspace-ui-smoke.mjs --customer-layout",
     "smoke:customer-layout": "node scripts/customer-layout-parity-smoke.mjs",
-    "smoke:customer-scope": "node scripts/customer-ui-scope-regressions.mjs"
+    "smoke:customer-scope": "node scripts/customer-ui-scope-regressions.mjs",
+    "smoke:customer-support": "node scripts/customer-support-ui-smoke.mjs",
+    "smoke:support-team-intake": "node scripts/support-team-intake-ui-smoke.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

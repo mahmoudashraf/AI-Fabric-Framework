@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-data-ai-support-documents",
+  "version": "1.0.0",
+  "pluginType": "DATA",
+  "displayName": "Approved support documents",
+  "description": "Deployment-scoped, explicitly approved support guides in customer-owned read-only object storage.",
+  "compatibility": {"requiredCapabilities": ["knowledgeSources"]},
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesKnowledgeSources": true, "requiresSharedDatasetAccess": true},
+  "installForm": [
+    {"id": "documentStorageBindingRef", "label": "Document storage connection", "type": "text", "required": true,
+     "description": "Owned S3-compatible document storage binding reference. Do not enter access keys or a bucket URL here."}
+  ],
+  "contributions": {
+    "entityConfig": {
+      "ai-entities": {
+        "document": {
+          "indexing": {"enabled": true, "max-characters": 8000},
+          "searchable-fields": [
+            {"name": "content", "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"], "required": true, "priority": 100}
+          ],
+          "metadata-fields": [
+            {"name": "originalFilename", "data-type": "STRING", "destinations": ["VECTOR_METADATA", "LLM_CONTEXT", "API_RESPONSE"], "required": true},
+            {"name": "sourceCategory", "data-type": "STRING", "destinations": ["VECTOR_METADATA", "LLM_CONTEXT", "API_RESPONSE"], "required": true},
+            {"name": "publicationStatus", "data-type": "STRING", "destinations": ["VECTOR_METADATA", "LLM_CONTEXT"], "required": true},
+            {"name": "tenantId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "required": true},
+            {"name": "customerId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "required": true},
+            {"name": "deploymentId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "required": true},
+            {"name": "datasetId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "required": true},
+            {"name": "knowledgeSourceHandleRef", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "required": true}
+          ]
+        }
+      }
+    },
+    "datasets": [
+      {
+        "datasetId": "support-documents",
+        "entityType": "document",
+        "storageScope": "CUSTOMER_MANAGED",
+        "sharingScope": "DEPLOYMENT_ONLY",
+        "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE",
+        "updateStrategy": "VERSIONED_REPLACE",
+        "vectorizationProfile": "ai-support-documents",
+        "handleTemplate": "documents/{deploymentId}/approved-support",
+        "sourceConnector": {
+          "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
+          "storageOwnership": "CUSTOMER_MANAGED",
+          "bindingRefField": "documentStorageBindingRef",
+          "allowedOperations": ["LIST", "READ", "HEAD"],
+          "deleteSourceOnRemoval": false
+        },
+        "documentPolicy": {
+          "allowedMediaTypes": ["text/plain", "application/json"],
+          "allowedExtensions": [".txt", ".json"],
+          "jsonContentKeys": ["content", "text", "body"],
+          "maxSourceBytes": 1048576,
+          "maxSources": 100,
+          "maxTotalIndexedBytes": 104857600,
+          "maxChunksPerSource": 100,
+          "maxChunkCharacters": 8000,
+          "maxTotalCharacters": 250000,
+          "previewMaxChunks": 10,
+          "previewMaxCharactersPerChunk": 500,
+          "evidenceRetentionDays": 30,
+          "commandRetentionDays": 30,
+          "retentionBatchSize": 100,
+          "allowedMetadataKeys": ["originalFilename", "locale", "sourceCategory", "publicationStatus"],
+          "initialIndexRequiresConfirmation": true,
+          "trustedAutoIndexingAllowed": false
+        }
+      }
+    ],
+    "knowledgeSources": [
+      {
+        "sourceKey": "approved-support-documents",
+        "sourceType": "deployment-private-vector",
+        "adapterType": "deployment-private-vector",
+        "datasetRef": "support-documents",
+        "entityType": "document",
+        "attributionLabel": "Approved support guides and policies",
+        "filters": {"datasetId": "support-documents", "publicationStatus": "PUBLIC_APPROVED"},
+        "authModes": ["PRIVATE_RUNTIME_BACKEND_MEDIATED", "PUBLIC_RUNTIME_AUTHENTICATED", "PUBLIC_RUNTIME_ANONYMOUS"]
+      }
+    ]
+  }
+}

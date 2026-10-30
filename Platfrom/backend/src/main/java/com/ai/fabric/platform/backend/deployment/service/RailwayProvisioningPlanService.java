@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformInferenceProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
@@ -371,13 +373,39 @@ public class RailwayProvisioningPlanService {
                 Double.toString(executorRagSimilarityThreshold)
             ));
         }
+        boolean specialistAssistanceEnabled = SpecialistAssistanceCompiler.enabled(behaviorConfig);
         boolean structuredBehavior = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
-            || "SMART_BRAIN".equals(deploymentBehaviorType);
+            || "SMART_BRAIN".equals(deploymentBehaviorType) || specialistAssistanceEnabled;
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS",
             structuredBehavior ? "2" : "1"
         ));
-        boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType);
+        boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
+            || (specialistAssistanceEnabled && !behaviorConfig.path("specialistAssistance").path("resolutions").isEmpty());
+        if (specialistAssistanceEnabled) {
+            SpecialistAssistanceCompiler compiler = new SpecialistAssistanceCompiler(objectMapper);
+            JsonNode assistance = behaviorConfig.path(SpecialistAssistanceCompiler.FIELD);
+            JsonNode compiled = assistance.path("compiled");
+            String hash = assistance.path("contentHash").asText();
+            compiler.verifyCompiled(compiled, hash);
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64",
+                java.util.Base64.getEncoder().encodeToString(compiler.serialized(compiled).getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", hash));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_MANIFESTS_ENABLED", "true"));
+            JsonNode limits = assistance.path("limits");
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_DURATION", "PT" + limits.path("deadlineSeconds").asInt() + "S"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_MANAGER_DECISIONS", limits.path("maxDecisions").asText()));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_WORKER_INVOCATIONS", limits.path("maxWorkerInvocations").asText()));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_PARALLEL_WORKERS", limits.path("maxParallelWorkers").asText()));
+            LinkedHashSet<String> spaces = new LinkedHashSet<>(List.of("document"));
+            LinkedHashSet<String> reads = new LinkedHashSet<>();
+            for (JsonNode area : assistance.path("areas")) {
+                area.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
+                area.path("readActions").forEach(value -> reads.add(value.asText()));
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_REGISTERED_VECTOR_SPACES", String.join(",", spaces)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", String.join(",", reads)));
+        }
         boolean deploymentKnowledgeSpecialistEnabled = !"SMART_BRAIN".equals(deploymentBehaviorType);
         boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
         boolean conversationHandoverEnabled = contains(
@@ -521,14 +549,16 @@ public class RailwayProvisioningPlanService {
                 "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES",
                 handoverChatScopes
             ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES",
-                handoverChatScopes
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES",
-                handoverChatScopes
-            ));
+            if (!ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(securityConfig)) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES",
+                    handoverChatScopes
+                ));
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES",
+                    handoverChatScopes
+                ));
+            }
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID",
                 requireReleaseMetadata("conversationHandover.channelBindingId", conversationHandover.path("channelBindingId").asText(""))
@@ -612,7 +642,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeOrchestrationModeOverrides(runtimeEnv, providerConfig);
-        addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig);
+        addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig, behaviorConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(
             runtimeEnv,
             entityConfig,
@@ -1214,12 +1244,10 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addRuntimeReadActionResolutionEnv(List<RailwayEnvVarSummary> runtimeEnv,
-                                                   JsonNode actionsConfig) {
-        if (actionsConfig == null || !actionsConfig.path("actions").isArray()) {
-            return;
-        }
+                                                   JsonNode actionsConfig,
+                                                   JsonNode behaviorConfig) {
         LinkedHashSet<String> eligibleActions = new LinkedHashSet<>();
-        for (JsonNode action : actionsConfig.path("actions")) {
+        for (JsonNode action : actionsConfig == null ? objectMapper.createArrayNode() : actionsConfig.path("actions")) {
             if (action == null
                 || !action.path("groundingEligible").asBoolean(false)
                 || !action.path("readActionResolutionEligible").asBoolean(false)) {
@@ -1233,6 +1261,9 @@ public class RailwayProvisioningPlanService {
             if (StringUtils.hasText(actionName)) {
                 eligibleActions.add(actionName.trim());
             }
+        }
+        if (SpecialistAssistanceCompiler.enabled(behaviorConfig)) {
+            eligibleActions.add(SpecialistAssistanceCompiler.ACTION);
         }
         if (eligibleActions.isEmpty()) {
             return;
@@ -2114,6 +2145,14 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES",
                 ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(securityConfig)
+            ));
+            // Only the owner's explicit identity policy grants scopes; compiled specialists never extend it.
+            String authenticatedScopes = ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(securityConfig);
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES", authenticatedScopes
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES", authenticatedScopes
             ));
         }
     }
