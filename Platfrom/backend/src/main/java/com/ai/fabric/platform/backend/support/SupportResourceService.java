@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallation
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceReadinessService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -26,12 +27,14 @@ public class SupportResourceService {
     private final VectorizationSourceConnectionRepository connections;
     private final VectorizationPlanRepository plans;
     private final VectorizationRunRepository runs;
+    private final SupportDocumentStatusService documents;
 
     public SupportResourceService(DeploymentRepository deployments, DeploymentReleaseRepository releases,
         AIWorkspaceInstallationRepository apps, PlatformConsumerRepository consumers, AIWorkspaceReadinessService readiness,
-        VectorizationSourceConnectionRepository connections, VectorizationPlanRepository plans, VectorizationRunRepository runs) {
+        VectorizationSourceConnectionRepository connections, VectorizationPlanRepository plans, VectorizationRunRepository runs,
+        SupportDocumentStatusService documents) {
         this.deployments = deployments; this.releases = releases; this.apps = apps; this.consumers = consumers;
-        this.readiness = readiness; this.connections = connections; this.plans = plans; this.runs = runs;
+        this.readiness = readiness; this.connections = connections; this.plans = plans; this.runs = runs; this.documents = documents;
     }
 
     public void requireOwned(Requester owner, List<ResourceRef> refs) {
@@ -45,8 +48,12 @@ public class SupportResourceService {
     }
 
     public ResourceDiagnostic read(Requester owner, ResourceRef ref) {
+        return read(owner, ref, List.of(), null);
+    }
+
+    public ResourceDiagnostic read(Requester owner, ResourceRef ref, List<ResourceRef> selected, String principalId) {
         return switch (ref.type()) {
-            case DEPLOYMENT -> deploymentStatus(owner, ref);
+            case DEPLOYMENT -> deploymentStatus(owner, ref, selected, principalId);
             case ENGAGE_APP -> engageReadiness(owner, ref);
             case CONNECTION -> connectionStatus(owner, ref);
         };
@@ -69,7 +76,7 @@ public class SupportResourceService {
         if (!Objects.equals(deployment.getTenantId(), source.getTenantId())) throw SupportPolicy.denied();
         return source;
     }
-    private ResourceDiagnostic deploymentStatus(Requester owner, ResourceRef ref) {
+    private ResourceDiagnostic deploymentStatus(Requester owner, ResourceRef ref, List<ResourceRef> selected, String principalId) {
         var d = deployment(owner, ref.id());
         var facts = new LinkedHashMap<String, Object>();
         facts.put("observationBasis", "PLATFORM_PERSISTED_STATE");
@@ -87,6 +94,22 @@ public class SupportResourceService {
             return Map.copyOf(release);
         }).toList());
         facts.put("liveHealthProbed", false);
+        if (principalId != null) {
+            // Only a selected app supplies target/release authority; never follow the latest release or global runtime URL.
+            var targets = new LinkedHashSet<DeploymentTargetReference>();
+            for (var resource : selected) {
+                if (resource.type() != ResourceType.ENGAGE_APP) continue;
+                var selectedApp = app(owner, resource.id());
+                var consumer = consumers.findById(selectedApp.getConsumerEntityId()).orElseThrow(SupportPolicy::denied);
+                if (d.getId().equals(consumer.getBoundDeploymentId()) && consumer.getBoundTargetProfileId() != null
+                    && consumer.getBoundReleaseId() != null) {
+                    targets.add(new DeploymentTargetReference(d.getId(), consumer.getBoundTargetProfileId(), consumer.getBoundReleaseId()));
+                }
+            }
+            facts.put("documentIndexing", targets.isEmpty()
+                ? List.of(Map.of("availability", "NOT_APPLICABLE", "code", "SELECT_CONNECTED_APP_FOR_EXACT_TARGET"))
+                : targets.stream().map(target -> documents.read(d, target, principalId)).toList());
+        }
         put(facts, "stateUpdatedAt", d.getUpdatedAt());
         return new ResourceDiagnostic(ref, recent.isEmpty() ? Availability.INCOMPLETE : Availability.CURRENT, Map.copyOf(facts));
     }

@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
+import java.util.Objects;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -61,6 +62,21 @@ public class DeploymentTargetContextService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
         if (mutate) access.requireDeploymentOperatorAccess(deployment);
         else access.requireDeploymentAccess(deployment);
+        return resolve(deployment, targetProfileId, releaseId);
+    }
+
+    /** Internal read integration after its own session/consent checks; never infers an owner or target. */
+    @Transactional(readOnly = true)
+    public Context resolveOwnedRead(String deploymentId, String targetProfileId, String releaseId,
+                                    String customerId, String tenantId) {
+        DeploymentEntity deployment = deployments.findById(required(deploymentId, "deploymentId"))
+            .filter(value -> StringUtils.hasText(customerId) && StringUtils.hasText(tenantId)
+                && Objects.equals(customerId, value.getCustomerId()) && Objects.equals(tenantId, value.getTenantId()))
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        return resolve(deployment, targetProfileId, releaseId);
+    }
+
+    private Context resolve(DeploymentEntity deployment, String targetProfileId, String releaseId) {
         if (deployment.getArchivedAt() != null || "ARCHIVED".equals(deployment.getStatus())) {
             throw conflict("Archived deployment cannot be administered.");
         }

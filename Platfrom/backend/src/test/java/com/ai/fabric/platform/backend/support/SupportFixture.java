@@ -48,6 +48,7 @@ class SupportFixture {
     final VectorizationSourceConnectionRepository connections = mock(VectorizationSourceConnectionRepository.class);
     final VectorizationPlanRepository plans = mock(VectorizationPlanRepository.class);
     final VectorizationRunRepository runs = mock(VectorizationRunRepository.class);
+    final SupportDocumentStatusService documents = mock(SupportDocumentStatusService.class);
     final PlatformSecretService secrets = mock(PlatformSecretService.class);
     final Map<String, PlatformUserEntity> directory = new HashMap<>();
     final Map<String, PlatformCustomerIdentityLinkEntity> identityLinks = new HashMap<>();
@@ -80,7 +81,7 @@ class SupportFixture {
         when(targets.existsById("staging-target")).thenReturn(true);
         settings = new SupportSettings(env, deployments, targets);
         requesters = new SupportRequesterService(users, links, new PlatformCustomerAccessService(users, customers));
-        resources = new SupportResourceService(deployments, releases, apps, consumers, readiness, connections, plans, runs);
+        resources = new SupportResourceService(deployments, releases, apps, consumers, readiness, connections, plans, runs, documents);
         store = new SupportCaseStore(jdbc, json);
         service = transactional(new SupportCaseService(store, requesters, resources, settings));
         authentication = new SupportDiagnosticAuthentication(settings, secrets);

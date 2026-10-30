@@ -82,6 +82,31 @@ class DeploymentTargetContextServiceTest {
     }
 
     @Test
+    void ownedReadReusesExactTargetEvidenceWithoutImpersonatingBrowserOperator() {
+        deployment.setCustomerId("customer-a"); deployment.setTenantId("tenant-a");
+        var context = service.resolveOwnedRead("dep-1", "stage", "rel-stage", "customer-a", "tenant-a");
+        assertThat(context.runtimeBaseUrl()).isEqualTo("https://stage.example");
+        verifyNoInteractions(access);
+    }
+
+    @Test
+    void ownedReadDeniesForeignCustomerAndTenantBeforeLookingUpRelease() {
+        deployment.setCustomerId("customer-a"); deployment.setTenantId("tenant-a");
+        assertThatThrownBy(() -> service.resolveOwnedRead("dep-1", "stage", "rel-stage", "customer-b", "tenant-a"))
+            .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.resolveOwnedRead("dep-1", "stage", "rel-stage", "customer-a", "tenant-b"))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(releases, profiles, versions, handles, access);
+    }
+
+    @Test
+    void ownedReadStillRejectsStaleRuntimeGeneration() {
+        deployment.setCustomerId("customer-a"); deployment.setTenantId("tenant-a"); handle.setReleaseId("superseded");
+        assertThatThrownBy(() -> service.resolveOwnedRead("dep-1", "stage", "rel-stage", "customer-a", "tenant-a"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("generation");
+    }
+
+    @Test
     void crossTargetReleaseIsRejected() {
         assertThatThrownBy(() -> service.resolve("dep-1", "production", "rel-stage", false))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("requested target");

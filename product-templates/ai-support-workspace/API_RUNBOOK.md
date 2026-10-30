@@ -242,6 +242,40 @@ those permissions are checked independently by the adapter and upstream facade.
 
 ## 4. Customize, Publish And Apply
 
+### Customer Console Path
+
+Select the deployment resource, then **Configure -> Support capabilities**.
+After connecting the required knowledge source, enable **Specialist assistance**.
+Use **Edit support area** to change its name, purpose, instructions and installed
+knowledge/READ bindings. **Resolution plans** selects participating areas and
+whether independent checks may run in parallel. The answer preview is explicitly
+synthetic: changing it neither calls AI nor runs diagnostics.
+
+**Save support capabilities** updates only the draft. **Versions & updates**
+uses the existing publish/apply/verify flow; a template does not pin later
+customization, models or runtime upgrades. Advanced shows execution limits and
+published-resource information. No separate operator account or support-only
+configuration service is required to edit an owned deployment.
+
+Workers with declared READ tools compile to the existing `executor` mode;
+documentation-only workers retain `navigator_deep`, and chain managers use
+`resolver`. Each worker still sees only its declared tools under the caller's
+exact grants, with WRITE disabled. Relevant observation guidance is not a rule
+to run tools on every documentation question. Existing published definitions
+change only after a new normal configuration publication/apply.
+
+For LoomAI's internal diagnostic adapter, the deployment-status response also
+contains bounded `documentIndexing` observations. Select the connected Engage
+app as well as its deployment: that app's actual assignment supplies the exact
+target/release. No latest-release or global-runtime URL is guessed. The facade
+reads only registered source lifecycle/active-candidate counts and timestamps;
+it never exposes document text, filenames, locators, raw errors or credentials.
+It does not probe source storage or certify that no newer object exists.
+Missing target context or an unavailable runtime stays explicitly incomplete.
+The separate connection-sync action reports selected integration connections,
+not document-file source versions. All reads still require current request
+consent, membership and owned selected resources.
+
 ```http
 GET /api/deployments/{deploymentId}/draft
 ```

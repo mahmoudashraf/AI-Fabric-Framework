@@ -40,11 +40,12 @@
     "smoke:conversation-restoration": "node scripts/conversation-restoration-race-smoke.mjs",
     "smoke:workspace-host": "node scripts/workspace-host-smoke.mjs",
     "smoke:workspace-host-contract": "node scripts/workspace-host-contract-smoke.mjs",
+    "smoke:pending-status": "node scripts/ai-thinking-animation-smoke.mjs",
     "smoke:conversation-history": "node scripts/conversation-history-smoke.mjs",
     "smoke:private-adapter": "node scripts/private-adapter-browser-smoke.mjs",
     "smoke:viewport": "node scripts/viewport-smoke.mjs",
     "smoke:accessibility": "node scripts/accessibility-browser-smoke.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context && npm run smoke:semantic-boundary && npm run smoke:compound-result && npm run smoke:authentication-requirement && npm run smoke:credential-broker && npm run smoke:conversation-restoration && npm run smoke:private-adapter && npm run smoke:viewport && npm run smoke:accessibility"
+    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context && npm run smoke:semantic-boundary && npm run smoke:compound-result && npm run smoke:authentication-requirement && npm run smoke:credential-broker && npm run smoke:conversation-restoration && npm run smoke:private-adapter && npm run smoke:pending-status && npm run smoke:viewport && npm run smoke:accessibility"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.support;
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.*;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.*;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static com.ai.fabric.platform.backend.support.SupportContracts.*;
 import static org.assertj.core.api.Assertions.*;
@@ -50,6 +52,39 @@ class SupportResourceServiceTest {
         assertThat(f.json.writeValueAsString(result)).contains("ASSIGNMENT", "BLOCKED").doesNotContain("DO_NOT_DISCLOSE", "private.example");
         assertThat(result.availability()).isEqualTo(Availability.INCOMPLETE);
         verify(f.readiness, never()).evaluate(app);
+    }
+
+    @Test void documentStatusUsesOnlyAnOwnedSelectedAppsExactBindingAndRespectsConsent() {
+        var f = new SupportFixture(); var d = SupportFixture.deployment("dep-a", "customer-a", "tenant-a");
+        when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
+        var app = new AIWorkspaceInstallationEntity(); app.setInstallationId("app-a"); app.setCustomerId("customer-a"); app.setConsumerEntityId("consumer-a");
+        var consumer = new PlatformConsumerEntity(); consumer.setId("consumer-a"); consumer.setCustomerId("customer-a");
+        consumer.setBoundDeploymentId(d.getId()); consumer.setBoundReleaseId("rel-exact"); consumer.setBoundTargetProfileId("stage");
+        when(f.apps.findByCustomerIdAndInstallationId("customer-a", "app-a")).thenReturn(Optional.of(app));
+        when(f.consumers.findById("consumer-a")).thenReturn(Optional.of(consumer));
+        var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()), new ResourceRef(ResourceType.ENGAGE_APP, "app-a"));
+        var owned = f.service.requireOwnedCase(c.id());
+        var target = new DeploymentTargetReference(d.getId(), "stage", "rel-exact");
+        when(f.documents.read(d, target, owned.principalId())).thenReturn(Map.of("availability", "CURRENT", "registeredSourceCount", 4));
+        var result = f.diagnostics.read("support_get_deployment_status", f.headers(owned));
+        assertThat(result.resources().getFirst().facts().get("documentIndexing"))
+            .isEqualTo(List.of(Map.of("availability", "CURRENT", "registeredSourceCount", 4)));
+        verify(f.documents).read(d, target, owned.principalId());
+        f.service.consent(c.id(), new ConsentChange(false, c.consent().version()));
+        clearInvocations(f.documents);
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_deployment_status", f.headers(owned)))
+            .hasMessageContaining("SUPPORT_ACCESS_DENIED");
+        verifyNoInteractions(f.documents);
+    }
+
+    @Test void missingSelectedAppDoesNotGuessDocumentTargetFromLatestRelease() {
+        var f = new SupportFixture(); var d = SupportFixture.deployment("dep-a", "customer-a", "tenant-a");
+        when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
+        var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()));
+        var result = f.diagnostics.read("support_get_deployment_status", f.headers(f.service.requireOwnedCase(c.id())));
+        assertThat(result.resources().getFirst().facts().get("documentIndexing"))
+            .isEqualTo(List.of(Map.of("availability", "NOT_APPLICABLE", "code", "SELECT_CONNECTED_APP_FOR_EXACT_TARGET")));
+        verifyNoInteractions(f.documents);
     }
 
     @Test void connectionProjectsOnlyObservedSyncFactsNotBusinessRecordsOrProviderErrors() throws Exception {

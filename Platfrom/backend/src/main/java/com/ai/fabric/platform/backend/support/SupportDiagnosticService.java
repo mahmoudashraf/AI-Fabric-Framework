@@ -48,7 +48,7 @@ public class SupportDiagnosticService {
                 new CaseDiagnostic(c.reference(), c.summary(), c.topic(), c.status(), c.consent(), c.resources()), List.of());
         }
         var selected = c.resources().stream().filter(r -> r.type() == RESOURCE_ACTIONS.get(action)).toList();
-        var results = selected.stream().map(r -> resources.read(c.requester(), r)).toList();
+        var results = selected.stream().map(r -> resources.read(c.requester(), r, c.resources(), c.runtimePrincipal())).toList();
         var availability = results.isEmpty() ? Availability.NOT_APPLICABLE
             : results.stream().allMatch(r -> r.availability() == Availability.CURRENT) ? Availability.CURRENT : Availability.INCOMPLETE;
         return new DiagnosticResult(action, Instant.now(), availability, null, results);

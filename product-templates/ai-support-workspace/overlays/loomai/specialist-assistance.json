@@ -13,7 +13,7 @@
       "id": "deployment-knowledge",
       "name": "Deployment and knowledge health",
       "purpose": "Explain release and document-indexing workflows; inspect authorized selected-deployment and connection freshness projections.",
-      "instructions": "Use the requesting customer's case-selected deployment and connection projections, not the AI support runtime's own state. Report observed timestamps and limitations. Separate source access, indexing completion and answer quality. Do not restart, redeploy, change settings, delete source objects or claim that any repair ran. Use approved guides if diagnostics are unavailable.",
+      "instructions": "Use the requesting customer's case-selected deployment and connection projections, not the AI support runtime's own state. The deployment-status read includes documentIndexing observations for the exact target/release of a selected connected Engage app; the connection-sync read covers selected integration connections, not document source versions. Report observed timestamps and limitations. Registered source states and active/candidate versions do not prove that upstream storage has no newer content. Separate source access, indexing completion and answer quality. Do not restart, redeploy, change settings, delete source objects or claim that any repair ran. Use approved guides if diagnostics are unavailable.",
       "vectorSpaces": ["document"],
       "readActions": ["support_get_deployment_status", "support_get_connection_sync_status"]
     }
