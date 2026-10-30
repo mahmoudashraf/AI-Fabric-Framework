@@ -197,7 +197,8 @@ function SupportCaseDetail({ caseId, customerId, actorId }: { caseId: string; cu
       </Stack>
     </Stack>
     {[consent.error, status.error, saveResources.error, start.error].filter(Boolean).map((error, index) => <Alert key={index} severity="error">{errorText(error)}</Alert>)}
-    {location.state?.supportDeliveryError && <Alert severity="warning">Request saved. Initial conversation delivery returned: {String(location.state.supportDeliveryError)}</Alert>}
+    {location.state?.supportDeliveryError && supportCase.initialMessageDelivery !== 'COMPLETED'
+      && <Alert severity="warning">Request saved. Initial conversation delivery returned: {String(location.state.supportDeliveryError)}</Alert>}
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', lg: 'minmax(0,1fr) 290px' }, gap: 3, alignItems: 'start' }}>
       <Box sx={{ minWidth: 0 }}>
         {supportCase.initialMessageDelivery === 'PENDING' && <Alert severity="info" action={<Button disabled={pending || supportCase.status !== 'OPEN'} onClick={() => start.mutate()}>Start conversation</Button>}>Your request is saved. Its initial message has not been delivered yet.</Alert>}

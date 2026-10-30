@@ -20,7 +20,6 @@ import com.ai.fabric.platform.backend.deployment.service.*;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
@@ -182,7 +181,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         when(assets.health()).thenReturn(new AIWorkspaceAssetCatalogService.CatalogHealth(false, "NOT_READY", "1"));
         var readiness = new AIWorkspaceReadinessService(consumers, mock(AIWorkspaceAssignmentService.class), assets,
             packs, connections, new AIWorkspaceAuthenticationProfileRegistry(mapper), domains,
-            mock(PlatformSecretService.class), mock(DeploymentRuntimeAuthorityService.class), properties, mapper);
+            mock(DeploymentRuntimeAuthorityService.class), properties, mapper);
         var offers = mock(CustomerSelfServiceOperationBoundary.class);
         when(offers.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
         when(offers.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");

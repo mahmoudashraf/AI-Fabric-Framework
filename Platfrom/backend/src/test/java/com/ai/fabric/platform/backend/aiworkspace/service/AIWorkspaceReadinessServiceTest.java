@@ -9,10 +9,10 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPo
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +37,7 @@ class AIWorkspaceReadinessServiceTest {
     private final AIWorkspaceAssetCatalogService assets = mock(AIWorkspaceAssetCatalogService.class);
     private final AIWorkspaceExperiencePackRegistry packs = mock(AIWorkspaceExperiencePackRegistry.class);
     private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
-    private final PlatformSecretService secrets = mock(PlatformSecretService.class);
+    private final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
     private final PlatformAIWorkspaceProperties properties = new PlatformAIWorkspaceProperties(
         Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
         "apps.loomai.test", "https://workspace.loomai.test");
@@ -60,7 +60,7 @@ class AIWorkspaceReadinessServiceTest {
             "VERIFIED", "", "", null, null, null, Instant.now())));
         when(domains.deliveryAvailable(installation.getId())).thenReturn(true);
 
-        when(secrets.isSecretPresent(any())).thenReturn(true);
+        when(authority.requireReleaseUnchangedForRead(any(), any(), any())).thenReturn(mock(RuntimeAuthorityBinding.Snapshot.class));
 
         var matching = assignment(security("https://example.supabase.co/auth/v1"));
         when(assignments.resolveTarget(consumer, "dep-1", "rel-1")).thenReturn(matching);
@@ -132,8 +132,7 @@ class AIWorkspaceReadinessServiceTest {
             new AIWorkspaceConnectionProfileRegistry(properties),
             new AIWorkspaceAuthenticationProfileRegistry(objectMapper),
             domains,
-            secrets,
-            mock(DeploymentRuntimeAuthorityService.class),
+            authority,
             properties,
             objectMapper
         );

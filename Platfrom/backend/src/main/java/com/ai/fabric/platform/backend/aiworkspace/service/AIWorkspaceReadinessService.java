@@ -7,7 +7,6 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessSumm
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -23,8 +22,6 @@ import java.util.List;
 @Service
 public class AIWorkspaceReadinessService {
 
-    private static final String PUBLIC_SIGNING_KEY = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
-
     private final PlatformConsumerRepository consumerRepository;
     private final AIWorkspaceAssignmentService assignmentService;
     private final AIWorkspaceAssetCatalogService assetCatalogService;
@@ -32,7 +29,6 @@ public class AIWorkspaceReadinessService {
     private final AIWorkspaceConnectionProfileRegistry connectionProfileRegistry;
     private final AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry;
     private final AIWorkspaceDomainService domainService;
-    private final PlatformSecretService secretService;
     private final DeploymentRuntimeAuthorityService runtimeAuthorityService;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
@@ -44,7 +40,6 @@ public class AIWorkspaceReadinessService {
                                        AIWorkspaceConnectionProfileRegistry connectionProfileRegistry,
                                        AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry,
                                        AIWorkspaceDomainService domainService,
-                                       PlatformSecretService secretService,
                                        DeploymentRuntimeAuthorityService runtimeAuthorityService,
                                        PlatformAIWorkspaceProperties properties,
                                        ObjectMapper objectMapper) {
@@ -55,7 +50,6 @@ public class AIWorkspaceReadinessService {
         this.connectionProfileRegistry = connectionProfileRegistry;
         this.authenticationProfileRegistry = authenticationProfileRegistry;
         this.domainService = domainService;
-        this.secretService = secretService;
         this.runtimeAuthorityService = runtimeAuthorityService;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -248,10 +242,10 @@ public class AIWorkspaceReadinessService {
             check(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig), checks,
                 "ANONYMOUS_BOOTSTRAP", "Anonymous runtime bootstrap is enabled.",
                 "Assigned release does not enable anonymous runtime bootstrap.");
-            validatePublicToken(securityConfig, checks);
+            validatePublicToken(assignment, checks);
             validateRuntimeOrigins(securityConfig, origins, checks);
         } else if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED) {
-            validatePublicToken(securityConfig, checks);
+            validatePublicToken(assignment, checks);
             validateRuntimeOrigins(securityConfig, origins, checks);
         } else {
             try {
@@ -266,16 +260,16 @@ public class AIWorkspaceReadinessService {
         }
     }
 
-    private void validatePublicToken(JsonNode securityConfig, List<AIWorkspaceReadinessCheck> checks) {
-        boolean policy = !ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig).isBlank()
-            && !ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig).isBlank()
-            && !ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig).isBlank();
-        check(secretService.isSecretPresent(PUBLIC_SIGNING_KEY), checks,
-            "PUBLIC_TOKEN_KEY", "Signed public runtime token material is configured.",
-            "Signed public runtime token material is unavailable.");
-        check(policy, checks,
-            "PUBLIC_TOKEN_POLICY", "Public runtime issuer and audience policies are explicit.",
-            "Public runtime issuer or audience policy is incomplete.");
+    private void validatePublicToken(AIWorkspaceAssignmentService.Assignment assignment, List<AIWorkspaceReadinessCheck> checks) {
+        try {
+            runtimeAuthorityService.requireReleaseUnchangedForRead(
+                assignment.deployment(), assignment.version(), assignment.release());
+            passed(checks, "PUBLIC_TOKEN_KEY", "Assigned target public signing material is owned, present, and unchanged.");
+            passed(checks, "PUBLIC_TOKEN_POLICY", "Assigned release public issuer and audience match its frozen target authority.");
+        } catch (RuntimeException ex) {
+            blocked(checks, "PUBLIC_TOKEN_KEY", "Assigned target public signing material could not be verified.");
+            blocked(checks, "PUBLIC_TOKEN_POLICY", "Assigned release frozen target authority is invalid: " + ex.getMessage());
+        }
     }
 
     private void validateRuntimeOrigins(JsonNode securityConfig,

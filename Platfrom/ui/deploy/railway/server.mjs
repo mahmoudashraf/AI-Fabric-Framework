@@ -10,6 +10,17 @@ const distDir = path.join(__dirname, 'dist')
 const indexPath = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const apiBaseUrl = (process.env.PLATFORM_UI_API_BASE_URL || process.env.VITE_PLATFORM_API_BASE_URL || '').trim()
+const workspaceScriptSource = workspaceAssetSource(apiBaseUrl)
+
+function workspaceAssetSource(base) {
+  if (!base || base.startsWith('/')) return ''
+  const url = new URL(base)
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  if (url.username || url.password || (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) {
+    throw new Error('Platform API must use HTTPS or local development HTTP')
+  }
+  return ` ${url.origin}/api/public/ai-workspace/assets/`
+}
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -57,7 +68,7 @@ function securityHeaders(isStaticAsset) {
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Content-Security-Policy': [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${workspaceScriptSource}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",

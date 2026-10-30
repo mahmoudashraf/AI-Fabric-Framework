@@ -12,7 +12,6 @@ import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpo
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,15 +33,12 @@ import static org.mockito.Mockito.*;
 
 class AIWorkspacePrivateReadinessTest {
     private static final String ORIGIN = "https://customer.example";
-    private static final String PUBLIC_KEY = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
-    private static final String PRIVATE_KEY = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private final ObjectMapper mapper = new ObjectMapper();
     private final PlatformConsumerRepository consumers = mock(PlatformConsumerRepository.class);
     private final AIWorkspaceAssignmentService assignments = mock(AIWorkspaceAssignmentService.class);
     private final AIWorkspaceAssetCatalogService assets = mock(AIWorkspaceAssetCatalogService.class);
     private final AIWorkspaceExperiencePackRegistry packs = mock(AIWorkspaceExperiencePackRegistry.class);
     private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
-    private final PlatformSecretService secrets = mock(PlatformSecretService.class);
     private final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
     private final PlatformConsumerEntity consumer = new PlatformConsumerEntity();
     private final DeploymentEntity deployment = new DeploymentEntity();
@@ -58,7 +54,7 @@ class AIWorkspacePrivateReadinessTest {
             .withProperty("platform.support.customer-id", "customer-1");
         service = new AIWorkspaceReadinessService(consumers, assignments, assets, packs,
             new AIWorkspaceConnectionProfileRegistry(properties, environment),
-            new AIWorkspaceAuthenticationProfileRegistry(mapper), domains, secrets, authority, properties, mapper);
+            new AIWorkspaceAuthenticationProfileRegistry(mapper), domains, authority, properties, mapper);
         consumer.setId("consumer-1"); consumer.setCustomerId("customer-1"); consumer.setConsumerId("customer-web");
         consumer.setBoundDeploymentId("dep-1"); consumer.setBoundReleaseId("rel-1"); consumer.setBoundTargetProfileId("target-stage");
         deployment.setId("dep-1"); deployment.setCustomerId("customer-1"); deployment.setTenantId("tenant-1");
@@ -80,13 +76,8 @@ class AIWorkspacePrivateReadinessTest {
 
     @ParameterizedTest @ValueSource(strings = {AIWorkspaceConnectionProfileRegistry.SUPPORT_CASE_HOST, AIWorkspaceConnectionProfileRegistry.SHOPIFY})
     void privateProfilesUseAssignedFrozenTargetWithoutLegacyGlobalConfiguration(String profile) {
-        var binding = new RuntimeAuthorityBinding("customer-1", "tenant-1", deployment.getId(), release.getTargetProfileId(),
-            version.getId(), "config-hash", 1, "platform-target:target-stage", "runtime-private:target-stage",
-            "public-target:target-stage", "runtime-public:target-stage", false, false, List.of(),
-            Map.of(RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY,
-                new RuntimeAuthorityBinding.SecretRevision("MANAGED_RTA_PRIVATE_TARGET_STAGE", "target-key-revision")));
         when(authority.requireReleaseUnchangedForRead(deployment, version, release))
-            .thenReturn(new RuntimeAuthorityBinding.Snapshot("snapshot-1", release.getId(), "fingerprint-1", binding));
+            .thenReturn(frozenSnapshot());
         var installation = installation(AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME, profile);
 
         var readiness = service.evaluate(installation);
@@ -97,15 +88,14 @@ class AIWorkspacePrivateReadinessTest {
         assertThat(service.evaluateLocal(installation).ready()).isTrue();
         verify(authority, times(2)).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
         verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
-        verifyNoInteractions(secrets, domains);
+        verifyNoInteractions(domains);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"missing snapshot", "missing target key", "stale release", "foreign target", "foreign owner", "invalid integrity"})
-    void invalidFrozenAuthorityBlocksEvenWhenLegacyGlobalSettingsAreComplete(String failure) {
+    void invalidPrivateFrozenAuthorityBlocksDespiteLegacyPolicy(String failure) {
         security.put("privateRuntimeAcceptedIssuers", "legacy-global-issuer")
             .put("privateRuntimeAcceptedAudiences", "legacy-global-audience");
-        when(secrets.isSecretPresent(PRIVATE_KEY)).thenReturn(true);
         when(authority.requireReleaseUnchangedForRead(deployment, version, release))
             .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, failure));
 
@@ -121,38 +111,78 @@ class AIWorkspacePrivateReadinessTest {
         });
         verify(authority).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
         verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
-        verifyNoInteractions(secrets);
     }
 
     @ParameterizedTest @EnumSource(value = AIWorkspaceConnectionMode.class,
         names = {"PUBLIC_RUNTIME_ANONYMOUS", "PUBLIC_RUNTIME_AUTHENTICATED"})
-    void publicModesKeepTheirExistingTokenPolicyAndCorsChecks(AIWorkspaceConnectionMode mode) {
+    void publicModesUseFrozenTargetWithoutLegacyPolicyAndKeepBootstrapAndCorsChecks(AIWorkspaceConnectionMode mode) {
         var installation = installation(mode, mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS
             ? AIWorkspaceConnectionProfileRegistry.ANONYMOUS : AIWorkspaceConnectionProfileRegistry.AUTHENTICATED);
-        security.put("publicRuntimeBootstrapEnabled", true).put("publicRuntimeAcceptedIssuers", "public-issuer")
-            .put("publicRuntimeAcceptedAudiences", "public-audience").put("publicRuntimeDefaultAudience", "public-audience")
+        security.put("publicRuntimeBootstrapEnabled", true)
             .put("corsAllowedOrigins", ORIGIN);
-        when(secrets.isSecretPresent(PUBLIC_KEY)).thenReturn(true);
-        assertThat(service.evaluate(installation).ready()).isTrue();
+        when(authority.requireReleaseUnchangedForRead(deployment, version, release)).thenReturn(frozenSnapshot());
+        var readiness = service.evaluate(installation);
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.checks()).filteredOn(check -> check.code().startsWith("PUBLIC_TOKEN_"))
+            .hasSize(2).allSatisfy(check -> assertThat(check.status()).isEqualTo("PASSED"));
+        assertThat(service.evaluateLocal(installation).ready()).isTrue();
 
-        when(secrets.isSecretPresent(PUBLIC_KEY)).thenReturn(false);
-        assertThat(service.evaluate(installation).checks()).anySatisfy(check -> {
-            assertThat(check.code()).isEqualTo("PUBLIC_TOKEN_KEY");
-            assertThat(check.status()).isEqualTo("BLOCKED");
-        });
-        when(secrets.isSecretPresent(PUBLIC_KEY)).thenReturn(true);
-        security.put("publicRuntimeDefaultAudience", "");
-        assertThat(service.evaluate(installation).checks()).anySatisfy(check -> {
-            assertThat(check.code()).isEqualTo("PUBLIC_TOKEN_POLICY");
-            assertThat(check.status()).isEqualTo("BLOCKED");
-        });
-        security.put("publicRuntimeDefaultAudience", "public-audience").put("corsAllowedOrigins", "https://other.example");
+        security.put("corsAllowedOrigins", "https://other.example");
         assertThat(service.evaluate(installation).checks()).anySatisfy(check -> {
             assertThat(check.code()).isEqualTo("RUNTIME_CORS");
             assertThat(check.status()).isEqualTo("BLOCKED");
         });
-        verifyNoInteractions(authority);
-        verify(secrets, never()).isSecretPresent(PRIVATE_KEY);
+        security.put("corsAllowedOrigins", ORIGIN).put("publicRuntimeBootstrapEnabled", false);
+        var withoutBootstrap = service.evaluate(installation);
+        if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS) {
+            assertThat(withoutBootstrap.ready()).isFalse();
+            assertThat(withoutBootstrap.checks()).anySatisfy(check -> {
+                assertThat(check.code()).isEqualTo("ANONYMOUS_BOOTSTRAP");
+                assertThat(check.status()).isEqualTo("BLOCKED");
+            });
+        } else assertThat(withoutBootstrap.ready()).isTrue();
+        verify(authority, times(4)).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
+        verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
+        verifyNoInteractions(domains);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing snapshot", "missing public target key", "stale release", "foreign target", "foreign owner", "invalid public key integrity"})
+    void invalidPublicFrozenAuthorityBlocksBothModesDespiteCompleteLegacyPolicy(String failure) {
+        security.put("publicRuntimeBootstrapEnabled", true).put("corsAllowedOrigins", ORIGIN)
+            .put("publicRuntimeAcceptedIssuers", "legacy-global-issuer")
+            .put("publicRuntimeAcceptedAudiences", "legacy-global-audience")
+            .put("publicRuntimeDefaultAudience", "legacy-global-audience");
+        when(authority.requireReleaseUnchangedForRead(deployment, version, release))
+            .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, failure));
+        for (AIWorkspaceConnectionMode mode : List.of(AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS,
+            AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED)) {
+            var readiness = service.evaluate(installation(mode, mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS
+                ? AIWorkspaceConnectionProfileRegistry.ANONYMOUS : AIWorkspaceConnectionProfileRegistry.AUTHENTICATED));
+            assertThat(readiness.ready()).isFalse();
+            assertThat(readiness.checks()).filteredOn(check -> check.code().startsWith("PUBLIC_TOKEN_"))
+                .hasSize(2).allSatisfy(check -> assertThat(check.status()).isEqualTo("BLOCKED"));
+            assertThat(readiness.checks()).anySatisfy(check -> {
+                assertThat(check.code()).isEqualTo("PUBLIC_TOKEN_POLICY");
+                assertThat(check.message()).contains(failure);
+            });
+        }
+        verify(authority, times(2)).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
+        verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
+    }
+
+    private RuntimeAuthorityBinding.Snapshot frozenSnapshot() {
+        var binding = new RuntimeAuthorityBinding("customer-1", "tenant-1", deployment.getId(), release.getTargetProfileId(),
+            version.getId(), "config-hash", 1, "platform-target:target-stage", "runtime-private:target-stage",
+            "runtime-public:target-stage", "runtime-public:target-stage", security.path("publicRuntimeBootstrapEnabled").asBoolean(false),
+            false, List.of(ORIGIN), Map.of(
+                RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY,
+                new RuntimeAuthorityBinding.SecretRevision("MANAGED_RTA_BACKEND_TARGET_STAGE", "target-key-revision"),
+                RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY,
+                new RuntimeAuthorityBinding.SecretRevision("MANAGED_RTA_PRIVATE_TARGET_STAGE", "target-key-revision"),
+                RuntimeAuthorityPurpose.PUBLIC_TOKEN_SIGNING_KEY,
+                new RuntimeAuthorityBinding.SecretRevision("MANAGED_RTA_PUBLIC_TARGET_STAGE", "target-key-revision")));
+        return new RuntimeAuthorityBinding.Snapshot("snapshot-1", release.getId(), "fingerprint-1", binding);
     }
 
     private AIWorkspaceInstallationEntity installation(AIWorkspaceConnectionMode mode, String profile) {
