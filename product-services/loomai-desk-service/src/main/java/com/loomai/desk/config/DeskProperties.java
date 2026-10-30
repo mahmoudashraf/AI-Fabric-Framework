@@ -20,6 +20,24 @@ public class DeskProperties {
   private int maxCallbackAttempts = 8;
   private Duration callbackRetryDelay = Duration.ofSeconds(5);
   private Duration retention = Duration.ofDays(30);
+  private List<String> conversationContextAllowedOrigins = List.of();
+  private boolean conversationContextAllowInsecureLoopback;
+
+  public List<String> getConversationContextAllowedOrigins() {
+    return conversationContextAllowedOrigins;
+  }
+
+  public void setConversationContextAllowedOrigins(List<String> v) {
+    conversationContextAllowedOrigins = v == null ? List.of() : List.copyOf(v);
+  }
+
+  public boolean isConversationContextAllowInsecureLoopback() {
+    return conversationContextAllowInsecureLoopback;
+  }
+
+  public void setConversationContextAllowInsecureLoopback(boolean v) {
+    conversationContextAllowInsecureLoopback = v;
+  }
 
   public String getServiceKey() {
     return serviceKey;

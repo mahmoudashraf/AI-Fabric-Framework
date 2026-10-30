@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { api, bindingPath, commandKey, errorMessage, post } from "./api";
+import { ConversationExternalContext } from "./ConversationExternalContext";
 import {
   Avatar,
   DataFields,
@@ -644,6 +645,12 @@ function Thread({
               onClick={onToggleInspector}
             />
           </header>
+          <ConversationExternalContext
+            root={root}
+            bindingId={binding.bindingId}
+            handoverId={handoverId}
+            accessFresh={accessFresh && !detail.isError}
+          />
           <section>
             <Avatar name={conversation.safeCustomerLabel} tone="coral" />
             <h3>{conversation.safeCustomerLabel || "Visitor"}</h3>
@@ -784,7 +791,7 @@ function Thread({
         >
           <p>
             {confirmation === "close"
-              ? "This ends the human support session. The transcript remains available."
+              ? "This closes the runtime conversation. It does not resolve an external case. The transcript remains available."
               : "The AI will resume handling this conversation after the deployment accepts the transition."}
           </p>
           {error && <ErrorNotice message={error} />}

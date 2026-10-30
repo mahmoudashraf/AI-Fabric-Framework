@@ -1243,6 +1243,53 @@ code,
   padding: 20px;
   color: var(--muted);
 }
+.external-context-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.external-context-reference {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 10px 0 6px;
+  overflow-wrap: anywhere;
+}
+.external-context ul {
+  margin: 0;
+  padding-left: 16px;
+}
+.external-context p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.external-context-observations {
+  margin-top: 20px;
+}
+.external-context-observations > div {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+}
+.external-context-observations .status {
+  justify-self: start;
+}
+.external-context-observations time {
+  color: var(--muted);
+  font-size: 10px;
+}
+.external-context-resolution {
+  margin-top: 16px;
+}
+.external-context-resolution .button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .context-note svg {
   min-width: 17px;
   color: var(--teal);

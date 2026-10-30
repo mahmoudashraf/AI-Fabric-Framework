@@ -53,4 +53,11 @@ Unchanged `POST /api/conversation-channel/v1/dispatches`, header `X-LoomAI-Inbox
 
 OAuth registration ID is `supabase`; callback URLs are `https://loomai-desk.46.224.145.148.sslip.io/login/oauth2/code/supabase` and `https://desk.loomai.pro/login/oauth2/code/supabase`. Supabase's central authorization UI is configured separately by Platform at `https://console.loomai.pro/auth/desk/authorize`. Desk never changes Supabase Site URL or existing redirects itself.
 
-UI is owned separately; this service does not write `ui/` or static assets. Frontend build-to-static integration is intentionally coordinated separately.
+The UI is built separately and bundled into the same service image. Browser identity and credentials remain governed by the session contract above.
+
+## Optional External Conversation Context
+
+The reviewed per-binding context provider, browser projection and explicit case
+resolution callback are specified in [External Conversation Context](EXTERNAL_CONVERSATION_CONTEXT.md).
+They use the actual agent's SUPPORT assignment and do not replace the generic
+human channel, action review or runtime conversation-control lifecycle.

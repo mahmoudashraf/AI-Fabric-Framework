@@ -11,6 +11,16 @@ Shared human-support integration for multiple customers and deployment targets. 
 
 See [API_CONTRACT.md](API_CONTRACT.md) for exact HTTP inputs/outputs and Platform/UI coordination.
 
+## Optional External Conversation Context
+
+An existing binding may use a reviewed authenticated context provider to show an
+external case reference, selected resources, diagnostic consent and observations
+in the conversation inspector. An explicitly enabled resolve callback updates
+that external system only; it neither closes the runtime conversation nor returns
+it to AI. Current SUPPORT access is required on every read and command, and only
+server-configured endpoints/credentials are used. Desk stores configuration, not
+external cases or another transcript. See the [integration contract](EXTERNAL_CONVERSATION_CONTEXT.md).
+
 ## Configuration
 
 Required server-only configuration:

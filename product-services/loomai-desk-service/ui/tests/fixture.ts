@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import type { ExternalConversationContext } from "../src/ConversationExternalContext";
 import type {
   DecisionResult,
   Message,
@@ -220,6 +221,12 @@ export function fixtureState() {
       retryEligible: boolean;
     }[],
     failDetail: false,
+    externalContext: {
+      state: "NOT_CONFIGURED",
+      context: null,
+    } as ExternalConversationContext,
+    failContext: false,
+    failResolve: false,
     expire: false,
   };
 }
@@ -303,6 +310,30 @@ export async function mockDesk(page: Page, state = fixtureState()) {
         },
         messages: state.messages,
       });
+      if (operation === "context") {
+        if (method === "GET")
+          return state.failContext
+            ? json(
+                route,
+                { message: "Context provider is temporarily unavailable." },
+                502,
+              )
+            : json(route, state.externalContext);
+        if (resource.endsWith("/context/resolve")) {
+          if (state.failResolve)
+            return json(
+              route,
+              { message: "Case provider did not confirm the response." },
+              502,
+            );
+          if (state.externalContext.context) {
+            state.externalContext.context.status = "RESOLVED";
+            state.externalContext.context.version++;
+            state.externalContext.context.resolveAction = null;
+          }
+          return json(route, state.externalContext);
+        }
+      }
       if (method === "GET")
         return state.failDetail
           ? json(

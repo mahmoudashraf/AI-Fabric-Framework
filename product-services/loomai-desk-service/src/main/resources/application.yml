@@ -54,5 +54,6 @@ loomai:
     max-callback-attempts: 8
     callback-retry-delay: 5s
     retention: 30d
+    conversation-context-allowed-origins: ${DESK_CONTEXT_ALLOWED_ORIGINS:}
 ai:
   enabled: false

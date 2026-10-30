@@ -48,3 +48,84 @@ Local `docker build --progress=plain -f product-services/loomai-desk-service/dep
 - `README.md`, `API_CONTRACT.md`, this verification record.
 
 UI source, central authorization UI, Platform bridge/activation, CI workflow, hosted configuration, customer migration and old Inbox retirement are separately owned. Original per-deployment Inbox resources must not be deleted based solely on this backend qualification.
+
+## 010.54 Optional External Context Verification
+
+Date: 2026-10-30. Scope: this Desk service only, including its existing UI. No
+commit, deployment, Platform/runtime/framework change or new auth flow was made.
+The internal Platform support provider is a separate integration responsibility;
+local HTTP peers here validate the published callback contract, not a hosted case
+integration.
+
+Qualified locally:
+
+- Full `mvn verify` with required H2 + disposable PostgreSQL 16: **18 tests,
+  zero failures/errors/skips**, executable jar packaged. After the final transport
+  cancellation refinement, the five new context/endpoint tests were rerun with
+  required PostgreSQL through `verify` and passed, with packaging.
+- `npm run build`: TypeScript and production Vite build passed.
+- Full `npm test`: **48 passed**, including five context tests and existing
+  human-channel, agent authorization, review and conversation-layout regressions.
+- `git diff --check`: passed. Light/dark desktop and narrow-screen context
+  screenshots were inspected; no markup execution or horizontal overflow.
+
+The context integration tests prove absent configuration, trusted administration,
+encrypted credentials, actual signed agent JWT propagation, OWNER/REVIEWER denial,
+foreign binding/unknown handover/expired token denial before provider lookup,
+server-derived conversation/owner scope, exact response scope correlation,
+allowlisted projection without private extra fields, per-binding read-only mode,
+idempotent resolve forwarding and unchanged conversation/outbox control. Invalid,
+oversized, missing-version, redirected and unavailable responses remain visible;
+revocation during lookup prevents late disclosure. Removing this configuration
+leaves the existing human channel usable.
+
+Endpoint tests cover exact origins, HTTPS, URL/path restrictions, metadata/private
+and mixed DNS answers, IPv4/IPv6 and explicit test-only loopback. The HTTP client
+validates DNS again at the actual connection resolver, retains TLS verification,
+and does not follow redirects, discover proxies or automatically retry writes.
+Projection failure cancels the request rather than draining an unbounded body.
+
+UI tests prove lazy context lookup, consent/observations, explicit resolve
+confirmation, stable idempotency on uncertain retry, frozen confirmation version,
+no case resolution through human-control buttons, plain-text rendering, read-only
+providers and visible context outage without blocking chat replies. The external
+system remains responsible for authoritative case permission, version checks and
+mutation receipts, as specified in [the callback contract](EXTERNAL_CONVERSATION_CONTEXT.md).
+
+Reproduction (the PostgreSQL port is supplied by a disposable local instance):
+
+```sh
+mvn -B -ntp -Ddesk.test.postgres.url=jdbc:postgresql://127.0.0.1:<test-port>/desk \
+  -Ddesk.test.postgres.required=true verify
+```
+
+From `ui/`, run `npm run build` and `npm test`. The dedicated local test database
+container is removed after qualification. No hosted verification is claimed.
+
+### Changed Path Inventory
+
+Paths below are relative to `product-services/loomai-desk-service/`; no prior
+dirty file outside this directory was changed by this task.
+
+```text
+API_CONTRACT.md
+BACKEND_VERIFICATION.md
+EXTERNAL_CONVERSATION_CONTEXT.md
+README.md
+pom.xml
+src/main/java/com/loomai/desk/config/DeskProperties.java
+src/main/java/com/loomai/desk/model/ConversationContextContracts.java
+src/main/java/com/loomai/desk/service/ConversationContextClient.java
+src/main/java/com/loomai/desk/service/ConversationContextEndpointPolicy.java
+src/main/java/com/loomai/desk/service/DeskConversationContextService.java
+src/main/java/com/loomai/desk/web/ConversationContextController.java
+src/main/resources/application.yml
+src/main/resources/db/desk-migration/V2__external_conversation_context.sql
+src/test/java/com/loomai/desk/DeskConversationContextTest.java
+src/test/java/com/loomai/desk/service/ConversationContextEndpointPolicyTest.java
+ui/src/ConversationExternalContext.tsx
+ui/src/Conversations.tsx
+ui/src/styles.css
+ui/tests/conversation-context.spec.ts
+ui/tests/fixture.ts
+```
