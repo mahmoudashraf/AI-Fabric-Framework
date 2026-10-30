@@ -11233,3 +11233,41 @@ test is being called hosted acceptance. UI extraction remains last.
   view. Built-in image generation, current Console shell/theme reference,
   fictional data. README records prompt briefs and consent progression. Linked
   from 01054; visual proposals only, no live UI implementation/deployment.
+
+### 2026-10-30 Support Template Specialists and Resolution Scope: Review Only
+
+- Owner expanded01054 to a reusable customer-selectable support template with
+  meaningful support-area specialists and resolution capabilities; LoomAI is
+  its first real installation, not a separate hard-coded engine. Added normative
+  appendix010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md
+  and aligned main scope, architecture, gaps, shared UI and six phases.
+- Source confirmed current Platform runtime POM0.8.41. Inspected official Central
+  execution source JAR (SHA25643cb3cb19ff776c97e28670b34af3571dea5558f6605720bf8e685690cb9b323)
+  in ignored output/support-template-01054/analysis/. Sibling framework checkout
+  is older0.8.36/dirty and was NOT modified or treated as current adopted API.
+- Current Conversational rejects specialist bundles; Agentic uses a hard-coded
+  deployment-intelligence bundle and lacks Conversation Handover compatibility.
+  Template-only configuration cannot ship the new requirement. Proposed generic
+  optional specialist assistance on Conversational, official declarative resources,
+  exact bounded READ invocation, publication/hash/runtime delivery and shared
+  Support areas/Resolution plans editors. No SUPPORT behavior/plugin enum or DSL.
+- Distinguish indexed guidance, direct specialist and adaptive SpecialistChain.
+  Fixed Java ExecutionPlan rejects INTERACTIVE in0.8.41; no source relabeling
+  workaround. Chain workers are non-interactive/read-only; parallelALL_REQUIRED,
+  no invented prior-result mapping/nested arbitrary plans. No mandatory framework
+  release demonstrated for conversation-disabled child READ delegation.
+- Qualification must preserve parent human control. Agent source review noted
+  current handover-response path may reuse generated prose after AI append is
+  refused. Atomic canonical/presentation/response/receipt acceptance needs focused
+  race tests and a narrow host/runtime gate, not just unlocked pre/post checks or
+  global draining. No automatic inherited parent guard in chain request DTOs.
+- LoomAI defaults: Workspace/integration setup, Deployment/release health,
+  Knowledge/data freshness. Customers configure their own areas/docs/tools/Desk
+  identities and external case integration; no inheritance of private LoomAI
+  diagnostic authority or new customer business database. Must prove a second
+  differently configured customer installation before reusable-product claim.
+- Added04-template-capabilities.png to the existing design review: customer
+  configuration depth/sliding area editor, synthetic illustrative draft only.
+  Existing form/chat/Desk layouts retained; public execution checks stay compact
+  and evidence-backed, not agent topology/thoughts. Documentation/mockups only;
+  no runtime/framework/backend/UI implementation, AI test queries or deployment.

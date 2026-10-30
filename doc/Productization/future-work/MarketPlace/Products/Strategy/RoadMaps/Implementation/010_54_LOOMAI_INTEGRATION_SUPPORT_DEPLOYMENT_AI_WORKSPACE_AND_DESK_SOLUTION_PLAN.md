@@ -4,9 +4,11 @@
 
 **Created:** 2026-10-30
 
-**UI review:** [Three proposed Console and Desk screens](designs/010_54_integration_support/README.md) illustrate the form, AI assistance and human handover. These are generated design mockups, not deployed UI or live diagnostic evidence.
+**UI review:** [Proposed Console, Desk and template-configuration screens](designs/010_54_integration_support/README.md) illustrate the form, AI assistance, human handover and customer support-capability editor. These are generated design mockups, not deployed UI or live diagnostic evidence.
 
-**Decision requested:** use LoomAI Platform, an authenticated Engage workspace and LoomAI Desk to deliver LoomAI's own customer integration support. This is a solution and implementation proposal, not authorization to implement, provision or publish it.
+**Capability and productization specification:** [Support template, specialists and resolution capabilities](010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md) is part of this plan. It records the owner's expanded scope: reusable customer-selectable support template, domain specialists, bounded resolution checks and configuration UI. Its source assessment distinguishes existing framework primitives from missing Platform/runtime product bindings.
+
+**Decision requested:** use LoomAI Platform, an authenticated Engage workspace and LoomAI Desk to deliver LoomAI's own customer integration support as the first installation of a reusable AI Support Workspace template. This is a solution and implementation proposal, not authorization to implement, provision or publish it.
 
 **Relationship to 010.53:** this is the proposed replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). Preserve its lightweight entry points, request tracking and consent principles. Replace its separate staff discussion/triage experience with our deployment, Engage and Desk products. If approved, 010.54 becomes canonical; do not implement both designs.
 
@@ -16,7 +18,9 @@ Proceed with the idea. A customer submits a small integration-support form; the 
 
 This is a real internal customer of our products, not a simulated showcase. It exercises deployment publishing, knowledge indexing, action plugins, authenticated workspace installation, conversation continuity and managed human support. Successful support is the primary goal; product validation is a measured benefit, not a reason to add unnecessary features.
 
-Use **one LoomAI-owned conversational support deployment per operating environment**, serving many requesting customer accounts. Do not provision an AI deployment, business database or inbox service for each support request or each customer. The support deployment does not replace, take ownership of, or gain general access to customers' existing deployments.
+The template defines supported knowledge/read capabilities, meaningful area specialists, bounded resolution configurations, experience and human-support bindings. LoomAI's own installation supplies Platform-specific expertise and diagnostic integrations. Another customer can select the same template, customize its areas/knowledge/tools and create their own support deployment; they do not inherit LoomAI's private tools or integration team. Reusable productization is part of this plan's completion scope, not just a later marketing claim.
+
+Use **one LoomAI-owned conversational support deployment per operating environment**, serving many requesting customer accounts. Do not provision an AI deployment, business database or inbox service for each incoming LoomAI support request or requester. A customer independently selecting the reusable template gets their own normal deployment for their own end users. Neither case grants general access to existing customer deployments or business systems.
 
 Keep a small **support-case registry in the existing Platform database**. It supplies the durable reference, ownership, selected resources, consent and resolution status. The runtime owns the canonical conversation; Desk owns human-channel handling. A deployment is the AI service, not a general-purpose ticket database.
 
@@ -30,6 +34,8 @@ Keep a small **support-case registry in the existing Platform database**. It sup
 - Embedded generic Engage workspace on the support page, with LoomAI branding and existing AI/human state controls.
 - Answers from approved LoomAI product/setup/troubleshooting documents with sources.
 - Optional customer-authorized read-only checks of the request's selected deployment, Engage app or connection.
+- Configurable support areas and direct specialist assistance; at least two genuinely different areas and one bounded cross-area resolution capability must be qualified before claiming reusable specialist support.
+- A reusable Marketplace support template, definition/publication contract and shared customer configuration surfaces; prove a differently configured customer installation as well as LoomAI's own instance.
 - Customer-requested and explicitly configured AI-initiated handover to LoomAI's integration team in the existing managed Desk service.
 - A minimal My requests list, reopen/resolve/cancel controls and staff case context next to the existing Desk conversation.
 - Real browser/customer/staff acceptance and an ordinary staged release of the support deployment.
@@ -40,7 +46,7 @@ Here **read-only** means no AI changes to customer infrastructure, configuration
 
 Infrastructure-changing actions, approved remote assistance, automatic fixes, action reviews where appropriate, richer document uploads, email/push notifications, account-team case sharing, SLAs, scheduling, commercial support packages and third-party helpdesk export. A separately branded public support site or standalone Engage app can use the same products later; authenticated Console support comes first.
 
-Do not add Smart Brain, specialist chains, autonomous remediation, new operator workforce management, arbitrary website browsing or a new omnichannel ticket engine to this release.
+The owner's expanded requirement replaces the earlier exclusion of specialist chains: bounded official specialist/chain composition is now included where it improves support. Do not add Smart Brain, autonomous remediation, a custom workflow engine, new operator workforce management, arbitrary website browsing or a new omnichannel ticket engine. Application-only fixed ExecutionPlan jobs are not disguised as chat resolution plans.
 
 ## 3. Customer and Staff Journeys
 
@@ -80,6 +86,10 @@ flowchart LR
     K[Approved LoomAI documents\nin LoomAI-owned source storage] --> I[Document/Data plugin indexing]
     I --> V[(Derived support vector index)]
     R --> V
+    R --> AS[Configured specialist-assistance READ capability]
+    AS --> SC[Official specialist or bounded SpecialistChain]
+    SC --> V
+    SC --> X
     R --> X[Reviewed Action plugin and connector]
     X --> D[Platform support diagnostic facade\ncustomer and resource authorization]
     D --> C
@@ -91,7 +101,7 @@ flowchart LR
 
 **Platform control plane:** ordinary template/plugin configuration, draft/publish/apply/verify, assignment and installation management. The new support module owns case intake, authorization, the reviewed private adapter and safe diagnostic projections. It does not implement RAG, intent classification, a second AI turn engine or a second conversation-control state machine.
 
-**Support deployment:** ordinary CONVERSATIONAL runtime with approved model/prompt/knowledge/action configuration, conversation state and handover extension. It decides semantically when documentation, read actions, clarification or configured handover are useful. It cannot authorize access by making that decision.
+**Support deployment:** CONVERSATIONAL front door with approved model/prompt/knowledge/action configuration, conversation state and handover extension. The proposed generic specialist-assistance composition adds configured domain specialists and bounded resolution capabilities without a second conversation owner. It decides semantically when direct documentation, read actions, specialists, clarification or configured handover are useful. It cannot authorize access by making that decision. This optional composition is product work, not already enabled by today's behavior catalogue.
 
 **Engage:** the generic customer conversation experience, sources, read-action presentations, history, reconnect and human/AI controls. The support page supplies form/case presentation and selected-resource labels. Support-specific concepts must not be hardcoded into generic chat components.
 
@@ -101,16 +111,20 @@ flowchart LR
 
 ## 5. Deployment Composition Using Existing Primitives
 
-Create a reviewed internal bootstrap template, proposed code `loomai-integration-support`. The code is a proposed catalogue entry, not an existing installed product.
+Create a reviewed reusable Marketplace template, proposed code `ai-support-workspace`, human name **AI Support Workspace**. LoomAI's internal `loomai-integration-support` deployment is its first configured instance. These codes are proposed, not existing installed products. The [capability appendix](010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md) defines customer customization and the exact source-confirmed gaps.
 
 - **Deployment type:** CONVERSATIONAL, one internal LoomAI owner/customer record and a fixed internal tenant per environment.
 - **Runtime/model profile:** a supported published runtime and reviewed provider/model profile; use existing usage accounting and a practical support budget. A provider outage or exhausted allowance must not erase the case or fabricate an answer.
 - **Knowledge/Data plugin:** approved support documents indexed through the existing document-ingestion capability. Use a customer-owned source profile where LoomAI is that customer: LoomAI supplies its own source storage and access credentials.
 - **Action plugin:** small diagnostic read catalogue with an approved upstream connection to the support facade. READ actions are not forced to declare a grounding vector space when they do not retrieve indexed data.
+- **Specialist contribution:** reviewed official schemas/prompt/specialist/chain resources. LoomAI defaults cover Workspace setup, Deployment health and Knowledge freshness; customers installing the reusable template can define their own areas and approved tools/sources. The generic configuration-to-published-resource contract must be implemented; current bundles are packaged/catalogued, not freely editable customer definitions.
+- **Resolution capabilities:** direct domain-specialist checks plus bounded multi-specialist investigation through the official chain gateway. Keep simple questions direct. Parent chat remains the canonical owner; specialist HANDOFF is not human handover. Do not use fixed ExecutionPlan for an interactive request or relabel the source to bypass its restriction.
 - **Conversation extension:** current conversation handover and its registered action, with the supported model-initiated policy explicitly configured. The human-channel destination is the existing Desk integration.
 - **Experience:** generic workspace pack configured with LoomAI copy, sources, optional suggested questions and the advertised handover UI. Do not introduce a support-only fork of the widget or a dealership dependency.
 - **Installation:** an ordinary Platform-managed embedded Engage installation, exact Console origin and `backend-mediated-private-runtime` connection profile for the case-scoped adapter.
 - **Release lifecycle:** use the existing draft -> publish -> apply -> verify flow. Templates supply defaults, not permanent upgrade restrictions. Preserve case, app and conversation identities during normal in-place upgrades. Never silently replay an active case into a different deployment after reassignment.
+
+For a different customer's installation, knowledge, tools, identity, case-system adapter and Desk destination are customer-owned bindings. Platform's internal support-case registry and diagnostic facade do not automatically become that customer's hosted business backend. Conversation-first support is explicit when no case system is connected.
 
 No public anonymous session is needed for this customer-specific support experience. Public documentation and a later public assistant can be a separate explicit installation without diagnostic authority.
 
@@ -208,6 +222,7 @@ Source files remain authoritative; vector/chunk data is derived and rebuildable.
 
 ### Prompt and orchestration policy
 
+- Specialist/source/plan selection uses the real deployed catalogue and guided model output. Do not create a domain keyword router, invoke every expert by default or hide chain failures with substitutions. The appendix specifies direct, sequential and independent-parallel behavior and current `ALL_REQUIRED` limits.
 - Guide the model with the actual authorized knowledge-source and action catalogues, clear action descriptions, structured output fields and examples. Use supported curated prompt mechanisms before inventing another prompt system.
 - Answer from sources and current action evidence, cite what was used and distinguish a configuration suggestion from a completed fix. Ask a concise clarification when useful information is missing.
 - A question can need documentation and a read action together. Use the existing supported read-action/RAG cooperation settings and a bounded iterative profile if qualification shows it helps. Do not automatically search all sources or silently broaden access.
@@ -224,6 +239,8 @@ Proposed action codes below are new configuration, not existing Platform endpoin
 - **`support_get_deployment_status`:** selected owned deployment's current applied/release/verification state and safe classified problem codes. No environment variables, raw config, private URLs, credentials or unrestricted logs.
 - **`support_get_engage_readiness`:** the selected app's connection/domain/readiness outcomes and applicable public setup steps. No auth tokens, private manifests or arbitrary hostname inspection.
 - **`support_get_connection_sync_status`:** selected connection/source's last successful sync/indexing observation, current coarse work/error state and approved remediation guidance. No retrieved business records or provider payloads.
+
+The specialist-assistance READ boundary is an additional **runtime execution integration**, not an HTTP business-system read endpoint in this facade. It invokes only exact configured specialists/chains through public framework APIs, with original case authority and parent human-control checks. Area workers use the same approved facade/sources; they do not receive broader access because a manager selected them.
 
 Each result reports when it was observed and whether it is current, unavailable or incomplete. Empty/not-applicable results are not evidence that the system is healthy. The model may explain the limitation and continue with useful authorized documents; it must not fabricate diagnostic success.
 
@@ -308,11 +325,15 @@ Use the existing Console identity/theme. Basic narrow-screen navigation is suffi
 
 ### Generic workspace work
 
-Extend only the host-controlled conversation-open/resume/readiness interface and any missing safe case-isolated mount behavior. Support form fields, customer IDs, ticket lifecycle, diagnostic consent and Platform resource lookups remain host/backend concerns. Tools and labels are injected through configuration. The same generic change must be demonstrably usable by a non-support host.
+Extend the host-controlled conversation-open/resume/readiness interface and any missing safe case-isolated mount behavior. Add a compact generic execution-check presentation only where actual safe execution receipts support it. Keep a collapsed **Resolution checks** block rather than an always-visible agent dashboard; no internal reasoning or fabricated completed steps. Support form fields, customer IDs, ticket lifecycle, diagnostic consent and Platform resource lookups remain host/backend concerns. Tools/labels are injected through configuration. The same generic changes must be usable by a non-support host.
+
+### Template and capability configuration
+
+Keep the proposed customer form/chat and Desk layouts. Add capability configuration in the existing selected deployment's Configure panel, with **Support areas** and **Resolution plans** alongside existing knowledge/tools/human-support settings. Rows open sliding editors; Advanced exposes exact official resource references and bounds. Reuse existing source/action/prompt/publication editors rather than copying them. The [capability appendix](010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md#9-ui-integration-without-crowding-the-conversation) specifies the simple/advanced layout and synthetic Engage preview. This is shared customer configuration, not a separate internal-admin product shell.
 
 ### Desk work
 
-Reuse its layout and human conversation controls. Add one optional context section plus a safe link/status command contract for external case systems. Do not make every Desk customer install a support-case integration. The service's current human-in-loop function must continue unchanged when no external context is configured.
+Reuse its layout and human conversation controls. Add one optional context section plus a safe link/status command contract for external case systems. The same panel can show **AI checks so far** from safe specialist/plan outcomes, with unavailable states and references rather than worker thought transcripts. Do not make every Desk customer install a support-case integration. The service's current human-in-loop function must continue unchanged when no external context is configured.
 
 ## 13. Existing Evidence and Real Implementation Gaps
 
@@ -336,14 +357,17 @@ These are local source contracts, not a fresh hosted support-deployment readines
 4. Case-bound diagnostic facade, read Action plugin and consent enforcement. Forwarded context alone is not authorization.
 5. Desk's generic trusted external-case context integration, narrow staff authorization and honest status/close mapping. No automatic complete-transcript synchronization is assumed.
 6. Internal ownership and staff assignments, curated knowledge corpus, actual deployment/installation provisioning and end-to-end acceptance.
+7. Generic specialist-assistance composition for Conversational, approved specialist/chain READ invocation under parent turn control, customer-configurable official resource publication/delivery and support capability editors. Today's hard-coded Agentic bundle is not a reusable support engine; current Conversational rejects specialist bundles. Qualify atomic parent completion/receipt acceptance relative to handover, including the current stale-answer response path identified in the appendix. Detailed sources and the adopted Maven artifact assessment are in that appendix.
+8. Reusable Marketplace template qualification using a different customer's knowledge/tools/identity/case integration and human team, without LoomAI-private resource or credential inheritance.
 
-**Framework release is not an assumed prerequisite.** The needed AI, indexing, read-action and handover primitives already have product implementations. Expected work is Platform integration, generic workspace host APIs, the bounded private-runtime presentation projection, Desk integration and deployment configuration. The presentation projection is a LoomAI runtime API over existing data, not a new framework AI capability. If qualification exposes a genuinely missing framework primitive, name it with evidence before requesting a change; do not add a workaround or manufacture a blocker from an assumed endpoint.
+**Framework release is not an assumed prerequisite, but configuration-only delivery is no longer a valid assessment.** Framework specialist/chain primitives exist; generic Platform/runtime composition and publication bindings are missing. Expected work includes those bindings, the canonical chat/child control integration, shared specialist/capability editors, the safe runtime presentation projection and Desk context. Fixed ExecutionPlan rejects interactive requests in the inspected adopted artifact; use the supported specialist/chain path, not an execution-source workaround. If qualification exposes a genuinely missing reusable framework contract, record exact evidence before requesting a release.
 
 ## 14. Failure Behavior and Scope Limits
 
 - **Form storage fails:** preserve input; do not show a ticket reference or send the model a request that has no durable case.
 - **Case saves but AI/runtime is unavailable:** keep it visible as Request saved / Conversation unavailable. Staff can see it in the case registry. Retrying delivery uses the same operation identity; do not pretend Desk received a handover while its runtime channel is down.
 - **Knowledge/action unavailable:** distinguish the missing evidence, answer only from useful available authorized evidence and offer explicit human help. Do not invent health or a completed repair.
+- **Specialist/chain failure:** show incomplete diagnostic checks. Do not fabricate worker results, count guidance as executed steps or silently replace a failed all-required parallel group with best-effort/sequential execution. Preserve parent handover and output control; a slow child read cannot emit an AI reply after a human takes over.
 - **No staff available:** show pending honestly, allow supported cancellation/return-to-AI, and retain the case. Queue timeout is not business resolution. No guaranteed response time or offline notification is implied.
 - **Consent revoked:** stop future diagnostic reads immediately; explain that already-shared messages/snapshots require the separate correction/removal process. Do not retroactively claim they were never shared.
 - **Account/role changes:** current authorization wins. No inherited access through stale tabs, previous active account, cached diagnostics or Desk links.
@@ -355,9 +379,9 @@ Do not build a generic drain/recovery/admission platform, cross-provider session
 
 ### Phase 1: Freeze contracts and configure the internal product
 
-Specify case ownership/principal mapping, the private adapter routes, canonical initial-message behavior and minimal generic workspace resume API. Prove two customers cannot use each other's case/conversation or forwarded diagnostic identity. Configure the internal LoomAI owner, staging support deployment, approved knowledge source and Desk binding with actual registered staff. Freeze source/plugin/profile configuration through the ordinary publish workflow.
+Specify case ownership/principal mapping, private adapter routes, canonical initial-message behavior and generic workspace resume API. Freeze the generic Conversational specialist-assistance contribution/publication/invocation contract. Prove one real child specialist can run without creating a second conversation owner, and handover prevents late output. Prove two customers cannot use each other's case/conversation or diagnostic identity. Configure the internal owner, staging support deployment, knowledge source and Desk binding with actual staff through the ordinary publish workflow.
 
-**Exit:** authenticated staging knowledge query works, Desk binding is valid, case adapter and widget contract fixtures prove exact-owner resume and idempotent first-message admission. No need to release a new framework if existing contracts suffice.
+**Exit:** authenticated staging knowledge query and a real specialist delegation work; Desk binding is valid; contract tests prove exact-owner resume, idempotent first-message admission and child/parent handover control, including canonical append, outbound answer and replay receipt acceptance during a handover race. Any unsupported composition boundary is named, not bypassed. No framework release is required merely to register the template.
 
 ### Phase 2: Form to persistent AI support
 
@@ -367,9 +391,9 @@ Implement the case registry and Console support entry/form/list/detail. Deliver 
 
 ### Phase 3: Authorized diagnostics and useful answers
 
-Add the read facade/action plugin and previewed/revocable consent. Start with deployment and Engage readiness; add connection/indexing status through the same bounded contract. Tune prompts/catalogues/model using measured examples, not keyword matching.
+Add the read facade/action plugin and previewed/revocable consent. Start with deployment and Engage readiness; add connection/indexing status through the same bounded contract. Define genuinely different area specialists over these capabilities, then qualify one cross-area official SpecialistChain with a sequential control before optional independent parallelism. Tune prompts/catalogues/model using measured examples, not keyword matching. Do not block the simpler form/chat path on enabling every planned area.
 
-**Exit:** the assistant can combine a cited setup explanation with the selected resource's current safe status. Consent declined/revoked, missing membership, unselected resources, foreign account IDs and unavailable upstreams behave honestly and safely.
+**Exit:** direct and cross-area assistance combine cited setup guidance with current safe status. At least two distinct area definitions and one real coordinated investigation are proven without changing the template into a demo-only service. Consent declined/revoked, missing membership, unselected resources, foreign account IDs and unavailable upstreams behave honestly and safely. Parallel all-required failure remains visible.
 
 ### Phase 4: Desk handover and explicit case completion
 
@@ -377,11 +401,17 @@ Add the optional Desk case context. Verify user-button and natural-language acti
 
 **Exit:** the actual customer/support-agent browser journey completes through the existing managed Desk, without a second operator messenger or AI output during human ownership. Desk Close and case Resolve cannot be confused or silently equated.
 
-### Phase 5: Production dogfooding and reusable-product evidence
+### Phase 5: Customer-selectable template and shared capability configuration
 
-Release the same reviewed shape to production with the existing lifecycle; verify the Console installation and actual internal staff assignment. Seed only approved real support knowledge. Record the end-to-end proof and residual limitations, then allow real customer support use with named queue coverage. Add customer-safe developer guidance for the generic host and external-case integration contracts.
+Publish the reusable AI Support Workspace template and shared Support areas/Resolution plans configuration panels, using existing Marketplace/bootstrap/draft/publication/editor machinery. Qualify a differently configured customer installation with its own source/tool/identity/channel bindings and explicit case-system adapter or conversation-first mode. Prove customizations publish/apply as new exact resources, and resetting defaults does not erase credentials or business data. Add the safe configuration preview without extra automatic AI calls.
 
-**Exit:** production customer submits -> cited AI answer -> consented diagnostic read -> asks for human -> Desk reply -> return to AI -> resolve/reopen all work on actual hosted routes. Readiness is not inferred from a healthy container alone.
+**Exit:** another customer selects the template, changes areas/instructions/source/tool bindings, creates Engage, chats and uses their own Desk agents through the same contracts. No LoomAI internal customer/diagnostic/secret binding is inherited; no customer business database is created. Customer and staff can distinguish supported specialist/chain semantics from fixed application plans.
+
+### Phase 6: Production dogfooding and full journey evidence
+
+Release LoomAI's own instance from the same reviewed template contract with the ordinary lifecycle; verify the Console installation and real internal staff assignment. Seed only approved support knowledge. Record full journey proof, resource/latency/provider observations and residual limitations. Allow real customer support use with named queue coverage. Publish customer-safe developer guidance for generic host, specialist/configuration and external-case integration contracts.
+
+**Exit:** production customer submits -> cited direct or appropriate specialist/chain assistance -> consented diagnostics -> human request -> Desk reply -> explicit return to AI -> resolve/reopen works on actual hosted routes. The second customer installation is independently proven, not inferred from a healthy container or a branded copy of LoomAI's setup.
 
 ## 16. Focused Quality and Product Validation
 
@@ -399,6 +429,9 @@ Use a bounded repeatable scenario set against the actual support configuration:
 10. Double submit, uncertain response, reload, case/account switch and revoked staff assignment preserve isolation and avoid duplicate turns.
 11. Case resolution, human return-to-AI and conversation close remain distinct; explicit reopening preserves history references.
 12. Knowledge/provider/runtime/channel outages keep the durable request and report actual availability.
+13. Simple questions use the direct path; cross-area questions use only relevant enabled specialists. No keyword routing or mandatory full-team invocation.
+14. Specialist/chain results retain approved evidence through final answer, execution-check presentation and reload; parallel failures and handover during a slow child execution are honest and safe.
+15. A second customer configures and publishes the same template using different areas, sources/tools and Desk staff, without LoomAI's internal access. Template defaults can be reset to a draft without replacing external bindings or existing data.
 
 Record task completion, source correctness/freshness, useful diagnostic results, handover continuity and unnecessary escalations. Compare semantic quality separately from strict security invariants. Do not require universal semantic perfection or add text-matched answers to make a gate green. Customer data is not a training/evaluation corpus by default; use synthetic cases or explicitly authorized/redacted samples.
 
@@ -415,7 +448,9 @@ Recommended defaults for owner approval:
 5. Existing Desk queue with a generic external-case context panel, not another operator inbox.
 6. Both user-directed and configured AI-initiated handover, explicit return to AI and explicit case resolution.
 7. Form/resume and two-customer security proof before wider diagnostics and production exposure.
+8. Reusable support-template productization is included: meaningful configurable area specialists, official bounded resolution composition and shared simple/advanced configuration surfaces. Keep the public conversation Conversational; add generic specialist assistance rather than switching to today's fixed Agentic demo contract.
+9. Another customer must be able to create their own support deployment/Engage/team from the same template. LoomAI's case registry is our own business integration, not a newly implied managed customer-helpdesk database.
 
 Before launch, name the receiving staff, approve disclosure/retention text and practical support expectations. Exact host API and staff-context endpoint names belong in implementation contract tests, not assumptions about existing endpoints.
 
-**Bottom line:** LoomAI's own integration support should be a real deployment-backed product experience. Keep only intake/ownership/status in Platform; let our deployed AI help, let Engage present it and let Desk bring in the team. Use this as a focused production validation of our products, not a reason to build a second platform inside the support feature.
+**Bottom line:** make LoomAI integration support the first real installation of a reusable AI Support Workspace template. Its configured knowledge, read tools, area specialists and bounded resolution capabilities help the user; Engage presents one conversation and Desk brings in the team. Keep business intake ownership in the appropriate host/case integration, and validate both our own support and a differently configured customer deployment through the same product contracts.

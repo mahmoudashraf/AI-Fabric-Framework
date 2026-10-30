@@ -37,6 +37,23 @@ The proposed external-case panel shows verified case context. Return to AI
 and Mark case resolved remain distinct operations. AI is paused while the
 conversation is human-owned.
 
+## 4. Customer Configures the Reusable Support Template
+
+![Support areas and resolution capabilities configuration](04-template-capabilities.png)
+
+This proposed customer-owned deployment uses the AI Support Workspace template
+with its own Product setup and Account help areas. A selected area opens a
+sliding editor for purpose, instructions, knowledge, read tools and model
+profile. The resolution capability shows adaptive specialist coordination, not
+a fixed workflow that the current framework cannot declare. Changes stay in a
+draft until the ordinary publish/apply flow. This is not already available UI.
+
+See the [capability specification](../../010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md)
+for current product gaps and the shared editor/configuration contract. These
+sample area names are not mandatory LoomAI Platform concepts for every customer.
+The original three customer/staff screens remain the baseline; optional executed
+checks stay collapsed within the conversation, not a permanent agent dashboard.
+
 ## Prompt Set
 
 Common direction: high-fidelity, edge-to-edge desktop product screenshots;
@@ -60,6 +77,12 @@ secret/log output or device frames. Keep the existing product shell recognizable
   Show the same case, AI handover history, an agent reply, current consent,
   Open app in Console, Return to AI and separate Mark case resolved. Customer
   and AI on the left, human agent on the right; no new per-customer inbox.
+- **Template-configuration prompt:** preserve the Console shell, select
+  Deployments for a fictional Acme Cloud customer, show an Acme Support draft
+  created from AI Support Workspace, support-area rows, one adaptive resolution
+  capability and a sliding area editor for purpose/instructions/source/read-tool
+  bindings. Retain Configuration/Advanced depth and a synthetic appearance
+  preview link; no mandatory topology canvas or real execution.
 
 The images are review aids, not final pixel specifications. Exact responsive
 layout, field contracts, generic widget placement and Desk context integration
