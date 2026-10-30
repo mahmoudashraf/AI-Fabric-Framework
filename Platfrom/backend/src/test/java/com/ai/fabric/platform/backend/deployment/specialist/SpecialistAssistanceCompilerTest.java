@@ -33,8 +33,10 @@ class SpecialistAssistanceCompilerTest {
             assertThat(resource.path("kind").asText()).isIn("Specialist", "SpecialistSchema", "SpecialistPromptProfile", "SpecialistChain");
             if ("Specialist".equals(resource.path("kind").asText())) {
                 assertThat(resource.at("/spec/mode").asText()).isEqualTo(
-                    resource.at("/metadata/name").asText().startsWith("assist-manager-") ? "resolver" : "navigator_deep");
+                    resource.at("/metadata/name").asText().startsWith("assist-manager-") ? "resolver"
+                        : resource.at("/spec/capabilities/actions/requestableReads").isEmpty() ? "navigator_deep" : "executor");
                 assertThat(resource.at("/spec/execution/writePolicy").asText()).isEqualTo("DISABLED");
+                assertThat(resource.at("/spec/capabilities/actions/proposableWrites")).isEmpty();
                 assertThat(resource.at("/spec/conversation/binding").asText()).isEqualTo("DISABLED");
                 assertThat(resource.at("/spec/conversation/recordValidatedTurns").asBoolean()).isFalse();
                 assertThat(resource.at("/spec/conversation/interactionCapability").asText()).isEqualTo("NON_INTERACTIVE");
@@ -65,12 +67,50 @@ class SpecialistAssistanceCompilerTest {
         ((ObjectNode) behavior.path("specialistAssistance")).putArray("resolutions");
         JsonNode compiled = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority()).at("/specialistAssistance/compiled");
         JsonNode worker = resource(compiled, "Specialist", "assist-area-account");
+        assertThat(worker.at("/spec/mode").asText()).isEqualTo("executor");
         assertThat(worker.at("/spec/capabilities/retrieval/enabled").asBoolean()).isFalse();
         assertThat(worker.at("/spec/grounding/requirement").asText()).isEqualTo("WHEN_CAPABILITY_USED");
         assertThat(worker.at("/spec/capabilities/actions/requestableReads/0").asText()).isEqualTo("get_account_status");
         assertThat(compiled.path("invocations")).hasSize(1);
         assertThat(mapper.convertValue(compiled.path("invocations").get(0).path("requiredScopes"), List.class))
             .containsExactly("account:read", "action:get_account_status", "specialist:assist-area-account@1");
+    }
+
+    @Test
+    void selectsWorkerModesAndObservationGuidanceFromDeclaredReadsOnly() {
+        ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
+        JsonNode compiled = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority())
+            .at("/specialistAssistance/compiled");
+        JsonNode docs = resource(compiled, "Specialist", "assist-area-setup");
+        JsonNode read = resource(compiled, "Specialist", "assist-area-account");
+        JsonNode manager = resource(compiled, "Specialist", "assist-manager-investigate");
+        assertThat(docs.at("/spec/mode").asText()).isEqualTo("navigator_deep");
+        assertThat(read.at("/spec/mode").asText()).isEqualTo("executor");
+        assertThat(manager.at("/spec/mode").asText()).isEqualTo("resolver");
+        assertThat(read.at("/spec/execution/strategy").asText()).isEqualTo("SINGLE_PASS");
+        assertThat(mapper.convertValue(read.at("/spec/capabilities/actions/visible"), List.class))
+            .containsExactly("get_account_status");
+        assertThat(read.at("/spec/capabilities/actions/requestableReads"))
+            .isEqualTo(read.at("/spec/capabilities/actions/visible"));
+        assertThat(manager.at("/spec/capabilities/actions/visible")).isEmpty();
+        String readPrompt = resource(compiled, "SpecialistPromptProfile", "assist-area-account").at("/spec/constraints").asText();
+        assertThat(readPrompt).startsWith(behavior.at("/specialistAssistance/areas/1/instructions").asText())
+            .contains("When the question needs current observations", "within caller authority",
+                "Documentation-only questions do not require live reads", "checks were not performed or failed");
+        assertThat(resource(compiled, "SpecialistPromptProfile", "assist-area-setup").at("/spec/constraints").asText())
+            .doesNotContain("When the question needs current observations");
+        assertThat(resource(compiled, "SpecialistPromptProfile", "assist-manager-investigate").at("/spec/constraints").asText())
+            .doesNotContain("When the question needs current observations");
+
+        ((ObjectNode) behavior.at("/specialistAssistance/areas/1")).putArray("readActions");
+        JsonNode withoutReads = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority())
+            .at("/specialistAssistance/compiled");
+        assertThat(resource(withoutReads, "Specialist", "assist-area-account").at("/spec/mode").asText())
+            .isEqualTo("navigator_deep");
+        assertThat(resource(withoutReads, "SpecialistPromptProfile", "assist-area-account").at("/spec/constraints").asText())
+            .doesNotContain("When the question needs current observations");
+        assertThat(mapper.convertValue(withoutReads.path("invocations").get(1).path("requiredScopes"), List.class))
+            .containsExactly("specialist:assist-area-account@1");
     }
 
     @Test

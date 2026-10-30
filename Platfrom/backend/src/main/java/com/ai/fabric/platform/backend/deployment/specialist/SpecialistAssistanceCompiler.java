@@ -123,7 +123,13 @@ public final class SpecialistAssistanceCompiler {
             scopes.add("specialist:" + ref + "@1");
             scopesByArea.put(id, Set.copyOf(scopes));
             areasById.put(id, area);
-            resources.add(prompt(ref, area.path("instructions").asText(),
+            String instructions = area.path("instructions").asText();
+            if (!actions.isEmpty()) {
+                instructions += "\nWhen the question needs current observations, use relevant declared READ capabilities within caller authority. "
+                    + "Documentation-only questions do not require live reads. Distinguish documentation from observed results, "
+                    + "and state which relevant checks were not performed or failed; never invent current status.";
+            }
+            resources.add(prompt(ref, instructions,
                 "Return {\"answer\":\"...\"}. Use only approved evidence and observed read results. State uncertainty when evidence is absent."));
             resources.add(specialist(ref, area.path("name").asText(), area.path("purpose").asText(),
                 INPUT, OUTPUT, spaces, actions, false, config.path("limits")));
@@ -207,7 +213,8 @@ public final class SpecialistAssistanceCompiler {
                                   List<String> spaces, List<String> actions, boolean manager, JsonNode limits) {
         ObjectNode result = resource("Specialist", name);
         ((ObjectNode) result.path("metadata")).put("displayName", displayName).put("description", objective);
-        ObjectNode spec = result.putObject("spec").put("mode", manager ? "resolver" : "navigator_deep");
+        String mode = manager ? "resolver" : actions.isEmpty() ? "navigator_deep" : "executor";
+        ObjectNode spec = result.putObject("spec").put("mode", mode);
         spec.putObject("instructions").put("objective", objective).put("promptProfileRef", name + "@1");
         spec.putObject("execution").put("strategy", "SINGLE_PASS").put("writePolicy", "DISABLED");
         ObjectNode capabilities = spec.putObject("capabilities");

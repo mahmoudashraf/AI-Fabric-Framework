@@ -170,6 +170,12 @@ class SupportWorkspaceProductTemplateTest {
             new SpecialistAssistanceCompiler.Authority(java.util.Map.of(), Set.of("document")));
         assertThat(compiled.at("/specialistAssistance/compiled/invocations")).hasSize(3);
         assertThat(compiled.toString()).doesNotContain("caseProvider", "support_get_", "databaseUrl");
+        for (JsonNode resource : compiled.at("/specialistAssistance/compiled/resources")) {
+            if ("Specialist".equals(resource.path("kind").asText())) {
+                assertThat(resource.at("/spec/mode").asText()).isEqualTo(
+                    resource.at("/metadata/name").asText().startsWith("assist-manager-") ? "resolver" : "navigator_deep");
+            }
+        }
     }
 
     @Test
@@ -179,8 +185,30 @@ class SupportWorkspaceProductTemplateTest {
         assertThat(loomai.toString()).contains("support_get_engage_readiness", "support:diagnostics:read");
         assertThat(acme.toString()).contains("acme_get_workspace_status", "acme:support:read")
             .doesNotContain("support_get_", "support:diagnostics:read", "LOOMAI_SUPPORT_DIAGNOSTIC_SERVICE_KEY");
-        for (JsonNode compiled : List.of(loomai, acme)) {
+        for (var variant : java.util.Map.of("loomai", loomai, "acme-cloud", acme).entrySet()) {
+            JsonNode compiled = variant.getValue();
+            var readsByWorker = new java.util.HashMap<String, JsonNode>();
+            for (JsonNode area : read("overlays/" + variant.getKey() + "/specialist-assistance.json").path("areas")) {
+                readsByWorker.put("assist-area-" + area.path("id").asText(), area.path("readActions"));
+            }
             assertThat(compiled.path("invocations")).hasSize(3);
+            int workers = 0;
+            for (JsonNode resource : compiled.path("resources")) {
+                if ("Specialist".equals(resource.path("kind").asText())) {
+                    boolean manager = resource.at("/metadata/name").asText().startsWith("assist-manager-");
+                    assertThat(resource.at("/spec/mode").asText()).isEqualTo(manager ? "resolver" : "executor");
+                    assertThat(resource.at("/spec/execution/writePolicy").asText()).isEqualTo("DISABLED");
+                    assertThat(resource.at("/spec/capabilities/actions/proposableWrites")).isEmpty();
+                    assertThat(resource.at("/spec/capabilities/actions/visible"))
+                        .isEqualTo(resource.at("/spec/capabilities/actions/requestableReads"));
+                    if (!manager) {
+                        workers++;
+                        assertThat(resource.at("/spec/capabilities/actions/requestableReads"))
+                            .isEqualTo(readsByWorker.get(resource.at("/metadata/name").asText()));
+                    }
+                }
+            }
+            assertThat(workers).isEqualTo(2);
             assertThat(compiled.path("resources")).anySatisfy(resource -> {
                 assertThat(resource.path("kind").asText()).isEqualTo("SpecialistChain");
                 assertThat(resource.at("/spec/conversationPolicy").asText()).isEqualTo("DISABLED");
