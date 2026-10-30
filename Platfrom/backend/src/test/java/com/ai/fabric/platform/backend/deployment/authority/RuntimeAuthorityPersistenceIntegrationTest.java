@@ -57,9 +57,9 @@ class RuntimeAuthorityPersistenceIntegrationTest {
     @MockBean PlatformAuditService audit;
     @MockBean DeploymentAccessService access;
     @MockBean com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
-    private String deploymentId;
-    private String versionId;
-    private String targetId;
+    protected String deploymentId;
+    protected String versionId;
+    protected String targetId;
 
     @BeforeEach void fixture() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);

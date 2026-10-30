@@ -242,6 +242,21 @@ public class DeploymentRuntimeAuthorityService {
     public Snapshot requireReleaseUnchangedForProvisioning(DeploymentEntity deployment,
                                                             DeploymentVersionEntity version,
                                                             DeploymentReleaseEntity release) {
+        return requirePersistedReleaseUnchanged(deployment, version, release, true);
+    }
+
+    /** Read-only inspection after caller-owned assignment authorization; domain denials must not poison the caller's read transaction. */
+    @Transactional(readOnly = true, noRollbackFor = ResponseStatusException.class)
+    public Snapshot requireReleaseUnchangedForRead(DeploymentEntity deployment,
+                                                  DeploymentVersionEntity version,
+                                                  DeploymentReleaseEntity release) {
+        return requirePersistedReleaseUnchanged(deployment, version, release, false);
+    }
+
+    private Snapshot requirePersistedReleaseUnchanged(DeploymentEntity deployment,
+                                                       DeploymentVersionEntity version,
+                                                       DeploymentReleaseEntity release,
+                                                       boolean forUpdate) {
         if (deployment == null || version == null || release == null
             || deployment.getId() == null || version.getId() == null || release.getId() == null
             || !deployment.getId().equals(release.getDeploymentId())
@@ -252,10 +267,16 @@ public class DeploymentRuntimeAuthorityService {
             || release.getRuntimeAuthorityFingerprint() == null) {
             throw conflict("Release lacks complete frozen target authority evidence.");
         }
-        DeploymentEntity locked = lock(deployment.getId(), release.getTargetProfileId(), true, false);
+        required(deployment.getId());
+        required(release.getTargetProfileId());
+        DeploymentEntity locked = forUpdate ? lock(deployment.getId(), release.getTargetProfileId(), true, false) : null;
         // JDBC joins this transaction but bypasses JPA's pre-fence identity map. Never clear or
         // refresh outer managed entities: provisioning may have pending mutable provider state.
-        DeploymentEntity current = workerRow(DeploymentEntity.class, "select * from platform_deployments where id=?", () -> locked, locked.getId());
+        DeploymentEntity current = workerRow(DeploymentEntity.class, "select * from platform_deployments where id=?",
+            () -> forUpdate ? locked : deployments.findById(deployment.getId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found.")), deployment.getId());
+        required(current.getCustomerId());
+        required(current.getTenantId());
         var target = workerRow(com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity.class,
             "select * from deployment_target_profiles where id=?", () -> targets.findById(release.getTargetProfileId()).orElseThrow(), release.getTargetProfileId());
         if (!target.isActive() || current.getArchivedAt() != null || "ARCHIVED".equals(current.getStatus())) throw conflict("Target authority is unavailable for an inactive target or archived deployment.");

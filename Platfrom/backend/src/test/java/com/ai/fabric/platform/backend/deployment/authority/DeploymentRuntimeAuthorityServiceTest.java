@@ -314,6 +314,48 @@ class DeploymentRuntimeAuthorityServiceTest {
             .hasMessageContaining("does not match");
     }
 
+    @Test void readValidationSharesFrozenChecksWithoutTakingTheProvisioningFence() {
+        var frozen = release("staging", "read-release");
+        var release = releases.findById(frozen.releaseId()).orElseThrow();
+        clearInvocations(deployments, secrets, audit);
+
+        assertThat(service.requireReleaseUnchangedForRead(deployment, version, release)).isEqualTo(frozen);
+
+        verify(deployments, never()).findByIdForUpdate(anyString());
+        verify(secrets, never()).save(any());
+        verifyNoInteractions(audit);
+        assertThat(service.requireReleaseUnchangedForProvisioning(deployment, version, release)).isEqualTo(frozen);
+        verify(deployments).findByIdForUpdate(deployment.getId());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"target", "version", "integrity", "missing-key", "stale"})
+    void readValidationRejectsInvalidTargetEvidenceDespiteConfiguredGlobalKeys(String fault) {
+        var frozen = release("staging", "read-release");
+        var requested = new DeploymentReleaseEntity();
+        org.springframework.beans.BeanUtils.copyProperties(releases.findById(frozen.releaseId()).orElseThrow(), requested);
+        var candidate = new DeploymentVersionEntity();
+        org.springframework.beans.BeanUtils.copyProperties(version, candidate);
+        String reference = frozen.binding().secrets().get(PRIVATE_ASSERTION_SIGNING_KEY).reference();
+        switch (fault) {
+            case "target" -> requested.setTargetProfileId("production");
+            case "version" -> candidate.setId("foreign-version");
+            case "integrity" -> secretRows.get(reference).setSecretValue("tampered-with-unchanged-revision");
+            case "missing-key" -> secretRows.remove(reference);
+            case "stale" -> candidate.setConfigHash("stale-version-config");
+            default -> throw new AssertionError(fault);
+        }
+        clearInvocations(deployments, secrets, audit);
+
+        assertThatThrownBy(() -> service.requireReleaseUnchangedForRead(deployment, candidate, requested))
+            .isInstanceOf(ResponseStatusException.class);
+
+        verify(deployments, never()).findByIdForUpdate(anyString());
+        verify(secrets, never()).findById(RuntimePrivateAssertionSigningService.SECRET_NAME);
+        verify(secrets, never()).save(any());
+        verifyNoInteractions(audit);
+    }
+
     @Test void anonymousAndSignedInPrivateSessionWireClaimsArePreserved() throws Exception {
         var frozen = release("staging", "release-stage");
         var anonymous = service.issueBackendSessionHeaders("dep-1", "staging", "release-stage", frozen.fingerprint(),
@@ -466,6 +508,7 @@ class DeploymentRuntimeAuthorityServiceTest {
 
     private DeploymentEntity deployment(String id, String customer, String tenant) {
         var entity = new DeploymentEntity(); entity.setId(id); entity.setCustomerId(customer); entity.setTenantId(tenant); entity.setBehaviorType("CONVERSATIONAL");
+        when(deployments.findById(id)).thenReturn(Optional.of(entity));
         when(deployments.findByIdForUpdate(id)).thenReturn(Optional.of(entity)); return entity;
     }
     private DeploymentVersionEntity version(String id, String deploymentId) {

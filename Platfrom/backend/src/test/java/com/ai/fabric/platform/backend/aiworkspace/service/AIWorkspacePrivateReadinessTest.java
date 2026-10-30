@@ -85,7 +85,7 @@ class AIWorkspacePrivateReadinessTest {
             "public-target:target-stage", "runtime-public:target-stage", false, false, List.of(),
             Map.of(RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY,
                 new RuntimeAuthorityBinding.SecretRevision("MANAGED_RTA_PRIVATE_TARGET_STAGE", "target-key-revision")));
-        when(authority.requireReleaseUnchangedForProvisioning(deployment, version, release))
+        when(authority.requireReleaseUnchangedForRead(deployment, version, release))
             .thenReturn(new RuntimeAuthorityBinding.Snapshot("snapshot-1", release.getId(), "fingerprint-1", binding));
         var installation = installation(AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME, profile);
 
@@ -95,7 +95,8 @@ class AIWorkspacePrivateReadinessTest {
         assertThat(readiness.checks()).filteredOn(check -> check.code().startsWith("PRIVATE_ASSERTION_"))
             .hasSize(2).allSatisfy(check -> assertThat(check.status()).isEqualTo("PASSED"));
         assertThat(service.evaluateLocal(installation).ready()).isTrue();
-        verify(authority, times(2)).requireReleaseUnchangedForProvisioning(same(deployment), same(version), same(release));
+        verify(authority, times(2)).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
+        verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
         verifyNoInteractions(secrets, domains);
     }
 
@@ -105,7 +106,7 @@ class AIWorkspacePrivateReadinessTest {
         security.put("privateRuntimeAcceptedIssuers", "legacy-global-issuer")
             .put("privateRuntimeAcceptedAudiences", "legacy-global-audience");
         when(secrets.isSecretPresent(PRIVATE_KEY)).thenReturn(true);
-        when(authority.requireReleaseUnchangedForProvisioning(deployment, version, release))
+        when(authority.requireReleaseUnchangedForRead(deployment, version, release))
             .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, failure));
 
         var readiness = service.evaluate(installation(AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME,
@@ -118,7 +119,8 @@ class AIWorkspacePrivateReadinessTest {
             assertThat(check.code()).isEqualTo("PRIVATE_ASSERTION_POLICY");
             assertThat(check.message()).contains(failure);
         });
-        verify(authority).requireReleaseUnchangedForProvisioning(same(deployment), same(version), same(release));
+        verify(authority).requireReleaseUnchangedForRead(same(deployment), same(version), same(release));
+        verify(authority, never()).requireReleaseUnchangedForProvisioning(any(), any(), any());
         verifyNoInteractions(secrets);
     }
 

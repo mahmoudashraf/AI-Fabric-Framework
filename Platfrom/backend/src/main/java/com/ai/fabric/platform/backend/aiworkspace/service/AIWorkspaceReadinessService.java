@@ -255,7 +255,7 @@ public class AIWorkspaceReadinessService {
             validateRuntimeOrigins(securityConfig, origins, checks);
         } else {
             try {
-                runtimeAuthorityService.requireReleaseUnchangedForProvisioning(
+                runtimeAuthorityService.requireReleaseUnchangedForRead(
                     assignment.deployment(), assignment.version(), assignment.release());
                 passed(checks, "PRIVATE_ASSERTION_KEY", "Assigned target signing material is owned, present, and unchanged.");
                 passed(checks, "PRIVATE_ASSERTION_POLICY", "Assigned release private issuer and audience match its frozen target authority.");
