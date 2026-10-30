@@ -465,3 +465,46 @@ change was made before the DNS prerequisite. UI/source work is delivered, but
   releases/return to the current production release checked, then cancelled
   without saving. Screenshots `output/engage-01052/*-environments.png`.
   No backend, runtime, framework, target-profile or customer-assignment changes.
+
+### Deployment-First Engage Connection: 2026-10-30
+
+- Supersedes exposing Environment/Runtime release as normal setup fields. The
+  default customer panel selects only the deployment, then shows a read-only
+  environment badge and runtime/draft status. **Change connection** explicitly
+  opens the grouped environment and exact release controls for intentional
+  staging/production changes or another release.
+- Preserve the current app's exact assignment. For new apps, reuse the selected
+  deployment's unambiguous active customer assignment, not its historical
+  bootstrap target or the newest unrelated release. Aliases with the same target
+  and release do not invent an environment ambiguity. Differing assignments or
+  unassigned releases in multiple environments require an explicit choice.
+- A fresh undeployed configuration uses its configured bootstrap target and
+  remains a draft. Invalid/missing assigned releases are shown rather than
+  silently downgraded to drafts. Selection is captured for the current app/
+  deployment interaction; data refresh does not move it to a newer release.
+  Promotion/activation and active-app disable-before-edit remain explicit.
+- Source `c9207df7cc959c7755a1c41d002d99ad4706f970` committed/pushed, setup guide
+  updated. Focused Console tests **76 passed**, TypeScript/Vite build passed.
+  Local browser confirmed zero Environment/Runtime release selectors in the
+  default panel, assigned production retained despite staging bootstrap,
+  automatic null-release staging draft command, and deliberate alternate-release
+  command using that release's exact Git target. Local fixture stopped; no
+  hosted app/connection commands were executed. Hosted acceptance pending at
+  this checkpoint; custom-domain DNS qualification remains a separate gate.
+- Hosted acceptance CLOSED: CI `40977427601` passed, backend skipped. Identical
+  Console image `sha256:fd5078e97b388de3f827f2e7fa9fcbfc129792f2fb11675b65550d08706af4ac`
+  on staging job `ue3pdtyzy2scaoi5ounm520i` and production job
+  `q390hhj91ym1zhqak6u33381`. Native source/health/routes/settings preserved,
+  zero restarts. Actual staging new-app journey selected the knowledge
+  deployment, derived Staging/Configuration draft, enabled connection and
+  showed zero normal environment/release selectors. Advanced controls expanded
+  explicitly. No staging connection/app was saved.
+- Production Add standalone app reused the existing embedded app's production
+  connection. The normal panel showed Production/Verified runtime, zero
+  environment/release selectors; **Use this deployment** returned to the editor
+  with the same deployment and configuration. Unsaved app cancelled; no new
+  app/connection or runtime was created. Screenshots
+  `output/engage-01052/{staging,production}-deployment-first.png`. Private native
+  receipts `{staging,production}/engage-01052-deployment-first/` under the
+  existing private onboarding evidence root. Backend/runtime/framework and
+  customer assignments unchanged. No fresh AI or domain qualification claim.

@@ -11068,3 +11068,29 @@ test is being called hosted acceptance. UI extraction remains last.
   then cancelled, no hosted app/connection writes. Screenshots output/engage-
   01052/{staging,production}-environments.png. Local5187 fixture stopped.
   Backend/runtime/framework unchanged; 01052 domain gate still awaits DNS.
+
+### 2026-10-30 Engage Deployment-First Setup LIVE CLOSED
+
+- Normal Connect deployment now selects only the deployment. Environment is a
+  read-only badge with verified/draft status; Change connection explicitly opens
+  environment/release overrides. Preserve the current app assignment, or reuse
+  the deployment's unambiguous owned active assignment for a new app. Do not
+  infer current production from bootstrap staging or auto-follow newer releases.
+  Genuinely different assignments/unassigned multi-environment releases need an
+  explicit choice. Pre-release drafts retain configured bootstrap targets.
+- Source c9207df7cc959c7755a1c41d002d99ad4706f970 committed/pushed;
+  CI40977427601 PASS/backend skipped. UI OCI
+  fd5078e97b388de3f827f2e7fa9fcbfc129792f2fb11675b65550d08706af4ac
+  live BOTH hosts: stageue3pdtyzy2scaoi5ounm520i/prodq390hhj91ym1zhqak6u33381.
+  Native source/health/routes/settings PASS, zero restarts. 76 focused Console
+  tests and TS/Vite build PASS; setup guide and01052 progress updated.
+- Local browser: no normal environment/release controls, production assignment
+  retained, automatic staging null-release draft command and explicit older
+  release exact-target command passed. Hosted staging new-app draft and opt-in
+  overrides passed without saving. Hosted production Add standalone app reused
+  current production connection through Use this deployment; unsaved app then
+  cancelled. Existing apps/assignments unchanged. No backend/runtime/framework
+  changes or new runtime/AI query. Screenshots output/engage-01052/*-deployment-
+  first.png; private rollout evidence {staging,production}/engage-01052-
+  deployment-first/. Local5187 stopped, temporary tabs closed; original Console
+  tab retained. DNS/custom-domain gate remains separate and pending.
