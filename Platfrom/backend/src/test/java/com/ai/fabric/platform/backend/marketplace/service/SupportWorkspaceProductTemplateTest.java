@@ -224,6 +224,27 @@ class SupportWorkspaceProductTemplateTest {
     }
 
     @Test
+    void explicitDiagnosticEvidenceUsesTheExistingFrameworkFactsContractWithoutNewAuthority() throws Exception {
+        var manifest = read("manifests/loomai-support-diagnostics.1.0.2.manifest.json");
+        manifests.parseAndValidate(plugin(manifest), version(manifest));
+        var install = install(manifest, "loomai");
+        var request = read("fixtures/requests/loomai-diagnostics-evidence-install.json");
+        install.setConfigJson(request.path("config").toString()); install.setSecretRefsJson(request.path("secretRefs").toString());
+        var compiler = new DeploymentMarketplaceDraftCompilerService(null, null, null, null, null, null,
+            manifests, null, null, null, null, mapper, null);
+        for (JsonNode action : manifest.at("/contributions/actions")) {
+            JsonNode compiled = compiler.compileActionContribution(action, install, plugin(manifest), version(manifest));
+            assertThat(compiled.path("llmFacts")).isEqualTo(action.path("llmFacts"));
+            assertThat(action.path("params")).isEmpty();
+            assertThat(action.path("requiredScopes")).containsExactly(mapper.getNodeFactory().textNode("support:diagnostics:read"));
+            assertThat(action.path("readOnly").asBoolean()).isTrue();
+            assertThat(action.path("llmFacts").path("rankRules").isMissingNode()).isTrue();
+        }
+        assertThat(compileVariant("loomai", "manifests/loomai-support-diagnostics.1.0.2.manifest.json",
+            "fixtures/requests/loomai-diagnostics-evidence-install.json").path("invocations")).hasSize(3);
+    }
+
+    @Test
     void dataPluginUsesOwnedReadOnlyStorageAndExplicitApprovalNotInlinePrivateDocuments() throws Exception {
         JsonNode manifest = read("manifests/support-documents.manifest.json");
         var parsed = manifests.parseAndValidate(plugin(manifest), version(manifest));
@@ -297,6 +318,7 @@ class SupportWorkspaceProductTemplateTest {
             assertThat(corrected).isEqualTo(read("manifests/" + file + ".manifest.json"));
         }
         var publicationHistory = java.util.Map.of(
+            "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "PUBLISHED_SCALAR_ONLY_DEFAULT_EVIDENCE_RECORDED",
             "manifests/ai-support-workspace.manifest.json", "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED",
             "manifests/loomai-support-diagnostics.manifest.json", "NOT_FOUND_STAGING_404_CONFIRMED_BY_MAIN",
             "manifests/acme-cloud-support-reads.manifest.json", "PUBLISHED_REPORTED_BY_COORDINATOR");

@@ -3,12 +3,13 @@
   "entries": [
     {"manifest": "manifests/support-documents.manifest.json", "pluginSlug": "ai-support-documents", "usage": "Reusable customer-owned storage connection; configure before enabling."},
     {"manifest": "manifests/ai-support-workspace.1.0.1.manifest.json", "pluginSlug": "ai-support-workspace", "usage": "Reusable template 1.0.1; preserves configured areas but defers assistance until required storage is connected."},
-    {"manifest": "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "pluginSlug": "loomai-support-diagnostics", "usage": "Published staging 1.0.1 correction for external-profile binding. Internal LoomAI instance only; upstream case/consent authorization remains required."},
+    {"manifest": "manifests/loomai-support-diagnostics.1.0.2.manifest.json", "pluginSlug": "loomai-support-diagnostics", "usage": "Explicit official LLM evidence mappings for nested status responses. Internal LoomAI instance only; upstream case/consent authorization remains required."},
     {"manifest": "manifests/acme-cloud-support-reads.1.0.1.manifest.json", "pluginSlug": "acme-cloud-support-reads", "usage": "Published staging 1.0.1 correction for external-profile binding; fictional second-customer adapter, not production proof."},
     {"manifest": "manifests/loomai-support-mounted-mechanics.manifest.json", "pluginSlug": "loomai-support-mounted-mechanics", "releaseChannel": "DEMO", "usage": "Published internal staging-only TEMPLATE for normal offer bootstrap; not customer storage qualification."},
     {"manifest": "manifests/acme-support-mounted-mechanics.manifest.json", "pluginSlug": "acme-support-mounted-mechanics", "releaseChannel": "DEMO", "usage": "Published fictional staging-only TEMPLATE for normal offer bootstrap; not customer storage qualification."}
   ],
   "immutableHistory": [
+    {"manifest": "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "version": "1.0.1", "stagingPublication": "PUBLISHED_SCALAR_ONLY_DEFAULT_EVIDENCE_RECORDED", "republish": false},
     {"manifest": "manifests/ai-support-workspace.manifest.json", "version": "1.0.0", "stagingPublication": "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED", "republish": false},
     {"manifest": "manifests/loomai-support-diagnostics.manifest.json", "version": "1.0.0", "stagingPublication": "NOT_FOUND_STAGING_404_CONFIRMED_BY_MAIN", "republish": false},
     {"manifest": "manifests/acme-cloud-support-reads.manifest.json", "version": "1.0.0", "stagingPublication": "PUBLISHED_REPORTED_BY_COORDINATOR", "republish": false}

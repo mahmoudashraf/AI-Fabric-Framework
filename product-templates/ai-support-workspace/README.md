@@ -144,6 +144,32 @@ offer bootstrap, endpoint approval and credential binding. Offer-less manual
 canaries do not receive this projection. The mounted runbook describes the
 normal path; do not modify generated routing or inject Coolify environment values.
 
+Internal diagnostics ACTION `1.0.2` also declares the framework's existing
+`llmFacts` mappings. An unconfigured compact object response does not preserve
+arbitrary nested status fields. Template/action authors must explicitly project
+the safe fields a model needs, for example:
+
+```json
+{
+  "llmFacts": {
+    "rootPath": "data",
+    "copyFields": ["observedAt", "availability"],
+    "lists": [{
+      "sourcePath": "resources",
+      "target": "statusObservations",
+      "maxItems": 8,
+      "includeFields": ["resource.id", "availability", "facts.syncState"]
+    }]
+  }
+}
+```
+
+This uses the existing ACTION/compiler contract; it adds no query matching,
+model answer substitution, new permission or framework fork. See the runbook
+for bounded index/readiness projections and the published-JAR facts probe in
+`scripts/probe-published-0.8.41-llm-facts.mjs`. Published earlier ACTION snapshots
+remain immutable evidence, not the recommended live configuration.
+
 Generic/Acme hosted proofs use the existing Supabase identity broker with explicit
 reviewed server grants; see runbook section 3.1 and the `*-identity-profile.json`
 fixtures. Configure this policy before Engage creates its managed identity

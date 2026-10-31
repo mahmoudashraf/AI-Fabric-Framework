@@ -276,6 +276,25 @@ The separate connection-sync action reports selected integration connections,
 not document-file source versions. All reads still require current request
 consent, membership and owned selected resources.
 
+Use internal ACTION `1.0.2` and
+`fixtures/requests/loomai-diagnostics-evidence-install.json` for this projection.
+It declares the framework's existing `llmFacts` copy/list/object mappings; the
+unconfigured scalar-only compact view is insufficient for nested diagnostics.
+These are explicit evidence fields, not query matching, response substitution or
+new scopes. The current Console form selects one deployment, one app and one
+connection. The mapping includes all bounded index-target observations for that
+selected deployment; the recent-release list is bounded to three observations,
+not an assertion that the latest attempted release is serving. Broader API batch
+resource forms need their own explicit evidence layout before being advertised.
+Readiness keeps the authoritative overall local result and a separately bounded
+checklist. The published framework can shorten a long checklist to five entries
+with explicit omission metadata; a later blocker's code may therefore be absent.
+`localReadinessPassed=false` and incomplete availability must remain visible even
+when the displayed subset contains only passing checks. The full app readiness
+screen remains the source for all reasons. Do not claim that all checks or live
+delivery/HTTPS verification were shown. No dummy action parameter, query-term
+matching or framework change is needed to display this honest bounded result.
+
 ```http
 GET /api/deployments/{deploymentId}/draft
 ```

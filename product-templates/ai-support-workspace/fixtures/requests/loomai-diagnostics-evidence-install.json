@@ -1,0 +1,11 @@
+{
+  "pluginId": "mkp-action-loomai-support-diagnostics",
+  "pluginVersion": "1.0.2",
+  "config": {
+    "caseSummaryUrl": "${MANAGED_SUPPORT_CASE_SUMMARY_URL}",
+    "deploymentStatusUrl": "${MANAGED_SUPPORT_DEPLOYMENT_STATUS_URL}",
+    "engageReadinessUrl": "${MANAGED_SUPPORT_ENGAGE_READINESS_URL}",
+    "connectionSyncUrl": "${MANAGED_SUPPORT_CONNECTION_SYNC_URL}"
+  },
+  "secretRefs": {"diagnosticServiceKey": "LOOMAI_SUPPORT_DIAGNOSTIC_SERVICE_KEY"}
+}

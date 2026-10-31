@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-action-loomai-support-diagnostics",
+  "version": "1.0.2",
+  "pluginType": "ACTION",
+  "displayName": "LoomAI support diagnostics",
+  "description": "Consent-bound status projections with explicit framework LLM evidence mappings. No source records, raw documents or credentials are exposed.",
+  "compatibility": {"requiredCapabilities": ["actions"]},
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesActions": true, "requiresExternalHttpExecution": true, "requiresDeploymentSecrets": true},
+  "installForm": [
+    {"id": "caseSummaryUrl", "label": "Approved case summary endpoint binding", "type": "url", "required": true},
+    {"id": "deploymentStatusUrl", "label": "Approved deployment status endpoint binding", "type": "url", "required": true},
+    {"id": "engageReadinessUrl", "label": "Approved workspace readiness endpoint binding", "type": "url", "required": true},
+    {"id": "connectionSyncUrl", "label": "Approved connection sync endpoint binding", "type": "url", "required": true},
+    {"id": "diagnosticServiceKey", "label": "Diagnostic service credential reference", "type": "secretRef", "required": true}
+  ],
+  "contributions": {
+    "actions": [
+      {"actionId": "support_get_case_summary", "adapterType": "connector-http", "description": "Read the authorized support case summary and selected resource references. Targets are selected on the case, not inferred from chat identifiers. Requires current diagnostic consent.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "llmFacts": {"rootPath": "data", "copyFields": ["observedAt", "availability"],
+         "objects": [{"sourcePath": "supportCase", "target": "caseSummary", "includeFields": ["reference", "summary", "status", "consent.granted", "resources"]}]},
+       "route": {"method": "POST", "managedUrlField": "caseSummaryUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_deployment_status", "adapterType": "connector-http", "description": "Read release status and registered-document index observations for case-selected owned deployments. Select the connected Engage app for exact target/release index observations. No attached item or model-supplied identifier is required. Registered index state does not prove upstream storage freshness.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "llmFacts": {"rootPath": "data", "copyFields": ["observedAt", "availability"],
+         "lists": [
+           {"sourcePath": "resources", "target": "deploymentObservations", "maxItems": 8, "includeFields": ["resource.id", "availability", "facts.deploymentStatus", "facts.liveHealthProbed", "facts.stateUpdatedAt"]},
+           {"sourcePath": "resources.0.facts.releases", "target": "releaseObservations", "maxItems": 3, "includeFields": ["releaseId", "targetProfileId", "status", "verificationStatus", "appliedAt", "observedAt"]},
+           {"sourcePath": "resources.0.facts.documentIndexing", "target": "documentIndexSummary", "maxItems": 8, "includeFields": ["availability", "code", "targetProfileId", "releaseId", "registeredSourceCount", "sourcesByStatus", "sourcesWithActiveVersion", "sourcesWithNewerCandidate", "latestSourceStateUpdatedAt", "observedAt", "observationBasis", "upstreamStorageProbed", "guidance"]}
+         ]},
+       "route": {"method": "POST", "managedUrlField": "deploymentStatusUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_engage_readiness", "adapterType": "connector-http", "description": "Read safe local readiness information for case-selected owned Engage apps. The overall localReadinessPassed value covers the local checks; a bounded checklist may omit detail and cannot prove full readiness. This does not verify live delivery or HTTPS. No attached item or model-supplied identifier is required.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "llmFacts": {"rootPath": "data", "copyFields": ["observedAt", "availability"],
+         "lists": [
+           {"sourcePath": "resources", "target": "readinessObservations", "maxItems": 8, "includeFields": ["resource.id", "availability", "facts.installationStatus", "facts.localReadinessPassed", "facts.deliveryProbed", "facts.guidance"]},
+           {"sourcePath": "resources.0.facts.checks", "target": "readinessCheckSummary", "maxItems": 40, "includeFields": ["code", "status"]}
+         ]},
+       "route": {"method": "POST", "managedUrlField": "engageReadinessUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}},
+      {"actionId": "support_get_connection_sync_status", "adapterType": "connector-http", "description": "Read recorded sync status for case-selected owned integration connections, not document-file versions. No attached item or model-supplied identifier is required. Never return source records, raw logs or credentials.",
+       "category": "support-diagnostics", "readOnly": true, "anonymousAllowed": false, "confirmationRequired": false,
+       "groundingEligible": true, "readActionResolutionEligible": true, "requiredScopes": ["support:diagnostics:read"], "params": [],
+       "llmFacts": {"rootPath": "data", "copyFields": ["observedAt", "availability"],
+         "lists": [{"sourcePath": "resources", "target": "syncObservations", "maxItems": 8, "includeFields": ["resource.id", "availability", "facts.connectionStatus", "facts.connectionUpdatedAt", "facts.code", "facts.syncState", "facts.stateUpdatedAt", "facts.lastRunStatus", "facts.lastRunCompletedAt", "facts.lastSuccessfulSyncAt", "facts.liveProviderProbed"]}]},
+       "route": {"method": "POST", "managedUrlField": "connectionSyncUrl", "managedHeaderSecretRefFields": {"X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"}, "response": {"success-http-status": [200]}}}
+    ]
+  }
+}
