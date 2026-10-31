@@ -25,6 +25,23 @@ class TenantScopedVectorHandleResolverTest {
     }
 
     @Test
+    void weaviateTenantFitsProviderLimitWithoutTruncatingTheTargetIdentityHash() {
+        var deployment = deployment("customer-a", "dep-a");
+        var provider = mapper.createObjectNode().put("vectorStoragePosture", "SHARED").put("vectorStrategy", "weaviate");
+        var bound = resolver.targetScopedProviderConfig(deployment, provider, "stage");
+        var identity = mapper.createObjectNode().put("customer", "customer-a").put("tenant", "tenant-a")
+            .put("deployment", "dep-a").put("target", "stage");
+        var expectedHash = DeploymentEvidenceFingerprint.hash(mapper, identity);
+        assertThat(bound.path("weaviateTenantName").asText()).isEqualTo(expectedHash).hasSize(64)
+            .matches("[a-f0-9]{64}");
+        assertThat(resolver.resolveWeaviateTenantName(deployment, bound)).isEqualTo(expectedHash);
+        var otherTenant = deployment("customer-a", "dep-a");
+        otherTenant.setTenantId("tenant-b");
+        assertThat(resolver.targetScopedProviderConfig(otherTenant, provider, "stage").path("weaviateTenantName").asText())
+            .isNotEqualTo(expectedHash);
+    }
+
+    @Test
     void sharedStorageNeverInfersTargetOrOwner() {
         var provider = mapper.createObjectNode().put("vectorStoragePosture", "SHARED").put("vectorStrategy", "pinecone");
         assertThatThrownBy(() -> resolver.targetScopedProviderConfig(deployment("customer-a", "dep-a"), provider, null))

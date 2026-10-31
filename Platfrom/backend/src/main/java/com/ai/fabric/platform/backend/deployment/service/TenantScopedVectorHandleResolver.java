@@ -31,7 +31,7 @@ public class TenantScopedVectorHandleResolver {
             case "milvus" -> bound.put("milvusCollectionPrefix", boundedBase(resolveMilvusCollectionPrefix(deployment, providerConfig)) + scope + "__");
             case "weaviate" -> {
                 bound.put("weaviateClassPrefix", boundedBase(resolveWeaviateClassPrefix(deployment, providerConfig)) + "Scope" + scope);
-                bound.put("weaviateTenantName", "scope-" + scope);
+                bound.put("weaviateTenantName", scope);
             }
             default -> throw new IllegalStateException("Selected vector backend does not support reviewed target-scoped shared storage.");
         }
