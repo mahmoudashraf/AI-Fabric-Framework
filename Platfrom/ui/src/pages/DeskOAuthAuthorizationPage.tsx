@@ -19,15 +19,21 @@ export function DeskOAuthAuthorizationPage() {
   const [existingRedirect, setExistingRedirect] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [selectedIdentity, setSelectedIdentity] = useState<string | null>(null)
+  const currentIdentity = auth.customerConfig && auth.supabaseSession
+    ? `${auth.customerConfig.projectUrl}:${auth.supabaseSession.user.id}` : null
   const reviewed = useRef<{ identity: string; details: DeskAuthorizationDetails } | null>(null)
   useEffect(() => {
     let active = true
     setDetails(null); setExistingRedirect(null); setError(null)
     if (!authorizationId) { setError('Missing OAuth authorization request. Open LoomAI Desk again.'); return }
     if (!auth.supabase || !auth.supabaseSession || !auth.customerConfig) return
-    setBusy(true)
     const client = auth.supabase, config = auth.customerConfig
     const identity = `${config.projectUrl}:${auth.supabaseSession.user.id}`
+    // Reading a previously consented request can consume it, so account choice
+    // must precede even the authorization-details request.
+    if (selectedIdentity !== identity) return
+    setBusy(true)
     void (async () => {
       try {
         // Reading an already-consented request can itself consume it. Deduplicate
@@ -60,7 +66,14 @@ export function DeskOAuthAuthorizationPage() {
       finally { if (active) setBusy(false) }
     })()
     return () => { active = false }
-  }, [authorizationId, auth.supabase, auth.supabaseSession?.user.id, auth.customerConfig])
+  }, [authorizationId, auth.supabase, auth.supabaseSession?.user.id, auth.customerConfig, selectedIdentity])
+
+  const useAnotherAccount = async () => {
+    setBusy(true); setError(null); setSelectedIdentity(null)
+    try { await auth.signOut() }
+    catch (ex) { setError(ex instanceof Error ? ex.message : 'Sign-out failed. Try again.') }
+    finally { setBusy(false) }
+  }
 
   const cancel = async () => {
     if (!auth.supabase || !auth.customerConfig) return
@@ -80,11 +93,14 @@ export function DeskOAuthAuthorizationPage() {
       <Typography variant="h5">Open LoomAI Desk</Typography>
       {auth.customerAuthLoading ? <CircularProgress /> : !auth.customerConfig?.enabled ? <Alert severity="warning">Desk sign-in is not configured.</Alert>
         : !auth.supabaseSession ? <><SupabaseIdentityForm allowRegistration /><Button href="/">Cancel</Button></> : <>
-          <Typography color="text.secondary">Signed in as {auth.supabaseSession.user.email}</Typography>
+          <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>Signed in as {auth.supabaseSession.user.email}</Typography>
+          {selectedIdentity !== currentIdentity && <Button variant="contained" sx={{ overflowWrap: 'anywhere' }} disabled={busy || !authorizationId} onClick={() => {
+            setSelectedIdentity(currentIdentity)
+          }}>Continue as {auth.supabaseSession.user.email}</Button>}
           {details && <Typography>Share your verified identity with LoomAI Desk ({details.scope}). Deployment access is managed separately.</Typography>}
           {(details || existingRedirect) && !error && <Typography>Opening your authorized Desk workspace...</Typography>}
           {details && <Button disabled={busy} onClick={() => { void cancel() }}>Cancel</Button>}
-          <Button disabled={busy} onClick={() => { void auth.signOut() }}>Use another account</Button>
+          <Button disabled={busy} onClick={() => { void useAnotherAccount() }}>Use another account</Button>
         </>}
       {busy && <CircularProgress size={24} />}
       {error && <Alert severity="error">{error}</Alert>}

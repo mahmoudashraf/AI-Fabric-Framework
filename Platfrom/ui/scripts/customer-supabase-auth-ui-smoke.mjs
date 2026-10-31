@@ -26,9 +26,9 @@ let server, browser
 const cacheDir = await mkdtemp(join(tmpdir(), 'loomai-auth-smoke-'))
 const results = []
 const timestamp = Math.floor(Date.now() / 1000)
-const jwt = suffix => `${Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: 'subject-agent', iss: 'https://auth.example.test/auth/v1', role: 'authenticated', aud: 'authenticated', exp: timestamp + 3600, iat: timestamp, suffix })).toString('base64url')}.fixture-signature`
+const jwt = (suffix, subject = 'subject-agent') => `${Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: subject, iss: 'https://auth.example.test/auth/v1', role: 'authenticated', aud: 'authenticated', exp: timestamp + 3600, iat: timestamp, suffix })).toString('base64url')}.fixture-signature`
 const user = { id: 'subject-agent', aud: 'authenticated', role: 'authenticated', email: 'agent@example.test', email_confirmed_at: '2026-01-01T00:00:00Z', app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' }
-const sbSession = suffix => ({ access_token: jwt(suffix), refresh_token: 'fixture-refresh-token', token_type: 'bearer', expires_in: 3600, expires_at: timestamp + 3600, user })
+const sbSession = (suffix, identity = user) => ({ access_token: jwt(suffix, identity.id), refresh_token: 'fixture-refresh-token', token_type: 'bearer', expires_in: 3600, expires_at: timestamp + 3600, user: identity })
 const anonymous = { enabled: true, authenticated: false, headerName: 'X-PLATFORM-API-KEY', sessionAuthEnabled: true, apiKeyAuthEnabled: true }
 const customer = { ...anonymous, authenticated: true, role: 'CUSTOMER_ADMIN', actorId: 'stable-owner@example.test', authenticationMode: 'SUPABASE', customerId: 'customer-fixture', customerName: 'Fixture' }
 const staff = { ...anonymous, authenticated: true, role: 'PLATFORM_ADMIN', actorId: 'staff@example.test', authenticationMode: 'SESSION' }
@@ -39,6 +39,7 @@ async function scenario(name, action, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
   const calls = [], errors = []
   let local = anonymous, refreshed = false, linked = false, onboarded = false, enrolled = false
+  let currentUser = user
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
   page.setDefaultTimeout(15000)
@@ -58,14 +59,18 @@ async function scenario(name, action, options = {}) {
     }
     if (url.hostname === 'auth.example.test') {
       calls.push({ path: url.pathname, method: req.method(), authorization: headers.authorization, body: req.postDataJSON(), query: url.search })
-      if (url.pathname === '/auth/v1/token') { refreshed = url.searchParams.get('grant_type') === 'refresh_token'; return respond(sbSession(refreshed ? 'refreshed' : 'signed-in')) }
+      if (url.pathname === '/auth/v1/token') {
+        refreshed = url.searchParams.get('grant_type') === 'refresh_token'
+        if (options.otherAccount && req.postDataJSON().email === options.otherAccount.email) currentUser = { ...user, ...options.otherAccount }
+        return respond(sbSession(refreshed ? 'refreshed' : 'signed-in', currentUser))
+      }
       if (url.pathname === '/auth/v1/signup') return respond({ user: { ...user, email_confirmed_at: null }, session: null })
       if (url.pathname === '/auth/v1/recover') return respond({})
       if (url.pathname === '/auth/v1/verify') return options.verifyFailure
         ? respond({ code: 'otp_expired', message: 'Email link is invalid or has expired' }, 403) : respond(sbSession('email-hash-verified'))
       if (url.pathname === '/auth/v1/otp' || url.pathname === '/auth/v1/resend') return options.mailFailure
         ? respond({ code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded. Please try again later.' }, 429) : respond({})
-      if (url.pathname === '/auth/v1/user') return respond(user)
+      if (url.pathname === '/auth/v1/user') return respond(currentUser)
       if (url.pathname === '/auth/v1/logout') return respond({})
       if (url.pathname.endsWith('/consent')) {
         if (options.approvalFailure && req.postDataJSON().action === 'approve') return respond({ message: 'Desk consent unavailable' }, 503)
@@ -74,7 +79,7 @@ async function scenario(name, action, options = {}) {
       if (url.pathname.includes('/oauth/authorizations/')) {
         const reads = calls.filter(call => call.path === url.pathname && call.method === 'GET').length
         if (options.oneUseDetails && reads > 1) return respond({ message: 'authorization request cannot be processed' }, 400)
-        return respond(options.returning ? { redirect_url: 'https://desk.example.test/auth/callback?code=already-consented&state=fixture' } : { ...details, ...options.details })
+        return respond(options.returning ? { redirect_url: 'https://desk.example.test/auth/callback?code=already-consented&state=fixture' } : { ...details, user: { id: currentUser.id, email: currentUser.email }, ...options.details })
       }
       throw new Error(`Unexpected Supabase route ${url.pathname}`)
     }
@@ -155,12 +160,53 @@ try {
   }, { localCustomer: true })
   await scenario('desk_only_agent_consent_reuses_supabase_without_console_membership', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/consent') && call.body.action === 'approve').length, 1)
     assert.equal(calls.filter(call => call.path === '/auth/v1/token').length, 0)
   }, { seed: true, deskOnly: true })
+  await scenario('cached_desk_entry_waits_for_account_choice_instead_of_silently_reusing_identity', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/sign-in/desk-fixture`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).waitFor()
+    await page.waitForTimeout(350)
+    assert.equal(calls.filter(call => call.deskCallback || call.path.includes('/oauth/authorizations/')).length, 0)
+    assert.equal(await page.getByLabel(/^Email/).count(), 0)
+    await page.getByRole('button', { name: 'Use another account', exact: true }).click()
+    await page.getByLabel(/^Email/).waitFor()
+    assert.equal(await page.getByLabel(/^Email/).inputValue(), '')
+    assert.equal(calls.filter(call => call.path === '/auth/v1/logout').length, 1)
+    assert.equal(calls.filter(call => call.deskCallback).length, 0)
+  }, { seed: true, deskOnly: true })
+  await scenario('returning_oauth_request_is_not_consumed_until_the_account_is_chosen', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).waitFor()
+    await page.waitForTimeout(350)
+    assert.equal(calls.filter(call => call.deskCallback || call.path.includes('/oauth/authorizations/')).length, 0)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
+  }, { seed: true, returning: true, oneUseDetails: true })
+  await scenario('switch_account_authorizes_only_the_newly_selected_identity', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Use another account', exact: true }).click()
+    await page.getByLabel(/^Email/).fill('other-agent@example.test')
+    await page.getByLabel(/^Password/).fill('DifferentPassword')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).last().click()
+    await page.getByRole('button', { name: 'Continue as other-agent@example.test', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/')).length, 0)
+    assert.equal(calls.filter(call => call.deskCallback).length, 0)
+    await page.getByRole('button', { name: 'Continue as other-agent@example.test', exact: true }).click()
+    await page.getByText('Desk callback received').waitFor()
+    const approval = calls.find(call => call.path.endsWith('/consent') && call.body.action === 'approve')
+    assert.ok(approval)
+    assert.equal(JSON.parse(Buffer.from(approval.authorization.split('.')[1], 'base64url')).sub, 'subject-other-agent')
+    assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 1)
+  }, { seed: true, deskOnly: true, otherAccount: { id: 'subject-other-agent', email: 'other-agent@example.test' } })
   await scenario('failed_oauth_is_not_retried_and_can_be_cancelled_explicitly', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Supabase authorization failed (503). Open LoomAI Desk again to start a new request.').waitFor()
     await page.getByRole('button', { name: 'Cancel', exact: true }).click(); await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/consent') && call.body.action === 'approve').length, 1)
@@ -168,23 +214,27 @@ try {
   }, { seed: true, deskOnly: true, approvalFailure: true })
   await scenario('unknown_oauth_client_is_rejected', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('This authorization request is not for a configured LoomAI Desk client.').waitFor()
     assert.equal(await page.getByRole('button', { name: 'Continue to LoomAI Desk' }).count(), 0)
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { seed: true, details: { client: { id: 'foreign-app' } } })
-  await scenario('returning_consent_automatically_uses_only_allowlisted_callback', async ({ page, calls, base }) => {
+  await scenario('returning_consent_requires_account_choice_then_uses_only_allowlisted_callback', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { seed: true, returning: true })
   await scenario('linked_console_owner_consumes_one_use_returning_authorization_once', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { seed: true, returning: true, oneUseDetails: true })
   await scenario('customer_role_arrival_does_not_replay_one_use_callback_navigation', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
     assert.equal(calls.filter(call => call.deskCallback).length, 1)
@@ -192,6 +242,7 @@ try {
   }, { seed: true, returning: true, oneUseDetails: true, delayedCustomerAuthorizationTransition: true })
   await scenario('customer_role_arrival_does_not_replay_first_consent_callback_navigation', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.includes('/oauth/authorizations/') && call.method === 'GET').length, 1)
     assert.equal(calls.filter(call => call.deskCallback).length, 1)
@@ -209,6 +260,7 @@ try {
     assert.equal(signup.body.code_challenge_method, 's256')
     assert.ok(signup.body.code_challenge)
     await page.goto(`${base}/auth/callback?code=verified-email-code`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/customer-link')).length, 0)
   }, { deskOnly: true })
@@ -336,6 +388,7 @@ try {
     assert.ok(request.body.code_challenge)
     assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk&desk_client=desk-fixture`)
     await page.goto(`${base}/auth/callback?code=magic-link-code&flow=desk`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.find(call => call.deskCallback).path, '/oauth2/authorization/supabase')
     assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding')).length, 0)
@@ -367,6 +420,7 @@ try {
   }, { seed: true, deskOnly: true })
   await scenario('emailed_token_hash_signs_in_without_local_pkce_or_console_membership', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/callback?flow=desk&token_hash=fresh-email-fixture&type=email`)
+    await page.getByRole('button', { name: 'Continue as agent@example.test', exact: true }).click()
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.filter(call => call.path === '/auth/v1/verify').length, 1)
     assert.equal(calls.filter(call => call.path === '/auth/v1/token').length, 0)

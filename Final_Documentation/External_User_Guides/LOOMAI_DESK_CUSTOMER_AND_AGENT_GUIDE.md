@@ -51,7 +51,9 @@ delivery-policy retrieval limitation remains visible in the recording.
    separately assigned reviewers. Platform publishes, applies and verifies a new
    configuration using the normal deployment lifecycle.
 4. Wait for **Enabled**, then select **Open LoomAI Desk**. The normal first-party
-   sign-in flow reuses the Console identity without another password prompt.
+   sign-in flow offers **Continue as [email]** to reuse the Console identity
+   without another password prompt, or **Use another account** to sign in as a
+   different person.
 5. In **Agents & access**, assign registered agents to this deployment and
    environment. Assign yourself explicitly if you will also handle conversations
    or reviews.
@@ -105,6 +107,17 @@ One shared Desk application/store serves the customers in each environment.
 Ordinary AI chat still goes directly to the deployment. During handover, the
 deployment connector sends the support conversation to Desk, and signed Desk
 callbacks carry human replies back through that connector to the visitor.
+
+### Switching Accounts
+
+Desk and Console have separate sessions. **Sign out** in Desk clears its local
+session; it does not silently sign every LoomAI product out. On the next Desk
+sign-in, review **Continue as [email]**. Choose **Use another account** if that
+is not the person who should handle the conversations, then sign in with that
+person's password or email link. Desk does not reuse the Console account until
+you explicitly continue. An already signed-in Desk still opens its current
+account; sign out first to switch it. Switching accounts never copies or grants
+deployment permissions.
 
 Existing deployments get their target choices from their current authorized
 deployment, not the original template's catalogue availability. Retiring an old
