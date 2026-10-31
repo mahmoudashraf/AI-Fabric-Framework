@@ -1,15 +1,21 @@
 # AI Support Workspace
 
-Reusable Marketplace support configuration for 010.54. Acme ACTION `1.0.0` was
-published on staging. Main explicitly skipped internal ACTION `1.0.0` and
-confirmed its staging GET returns `404`. Both source snapshots stay unchanged.
-The corrected ACTION `1.0.1` and mounted mechanics TEMPLATEs were separately
-published and read back on staging on 2026-10-30. See `catalog.json` and the
-010.54 execution record; publication is not hosted journey qualification.
-Reusable TEMPLATE `1.0.1` also passed a fresh owned-tenant bootstrap on staging;
-its S3 dependency correctly remains configuration-required. The two connected
-staging installations use separately labelled mounted mechanics sources, not a
-substitution for production customer-owned storage.
+Reusable Marketplace support configuration for 010.54. The customer starter is
+TEMPLATE `1.0.1` with the required S3 DATA `1.0.0`. The internal LoomAI instance
+adds its separately reviewed diagnostics ACTION `1.0.3`; customers do not inherit
+LoomAI's case integration or credentials. Both templates are published in the
+production catalogue; catalogue availability is not automatic enrollment in a
+public self-service offer.
+
+As of 2026-10-31, internal staging and production use 13 real, approved LoomAI
+guides from isolated S3 prefixes. The differently configured Acme staging
+installation uses three fictional guides, its own source binding and an isolated
+vector service. All three assigned releases and active Engage installations
+passed normal verification. The earlier mounted mechanics templates and immutable
+ACTION revisions remain historical evidence, not the current storage setup.
+See the [execution record](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md)
+for exact identities, hosted journeys and known limitations. A new customer's
+S3 dependency stays configuration-required until that customer connects it.
 This package adds no service, database, execution engine or plugin type.
 
 ## Product Contract
@@ -56,7 +62,8 @@ This package adds no service, database, execution engine or plugin type.
 - [Real LoomAI Support Knowledge Library](SUPPORT_KNOWLEDGE_LIBRARY.md): 13
   source-reviewed customer help guides in `documents/loomai-support/`, with
   maintainer provenance, an exact upload manifest and 18 prepared review questions.
-  This package is prepared, not proof of upload or indexing completion.
+  Packaging alone is not indexing proof; the dated execution record separately
+  records the internal staging/production upload, ACTIVE versions and live answers.
 - `documents/loomai/` and `documents/acme-cloud/`: the earlier four LoomAI staging
   mechanics guides and three explicitly fictional Acme guides, kept separate
   from the new real support library.

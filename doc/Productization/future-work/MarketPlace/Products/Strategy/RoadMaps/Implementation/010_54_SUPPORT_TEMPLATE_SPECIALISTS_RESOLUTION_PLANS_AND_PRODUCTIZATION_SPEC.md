@@ -1,8 +1,8 @@
 # 010.54 Support Template Specialists and Resolution Capability Specification
 
-**Status: IMPLEMENTED AND STAGING REUSE VERIFIED - PRODUCTION QUALIFICATION OPEN**
+**Status: IMPLEMENTED - STAGING REUSE AND PRODUCTION JOURNEY VERIFIED**
 
-**Updated:** 2026-10-30
+**Updated:** 2026-10-31
 
 **Parent and implementation authority:** [010.54 Integration Support Solution Plan](010_54_LOOMAI_INTEGRATION_SUPPORT_DEPLOYMENT_AI_WORKSPACE_AND_DESK_SOLUTION_PLAN.md). This is its normative capability/productization appendix, not another independently implemented plan.
 
@@ -54,7 +54,7 @@ These findings explain the changes required by this plan, not the current deploy
 
 ### Reusable template
 
-Catalogue code `ai-support-workspace`, human name **AI Support Workspace**, is registered and published on staging as a normal Marketplace TEMPLATE. Revision `1.0.1` bootstraps editable area/resolution defaults while deferring assistance until the required knowledge connection is configured. Production storage and public-offer qualification remain separate gates.
+Catalogue code `ai-support-workspace`, human name **AI Support Workspace**, is registered and published on staging and production as a normal Marketplace TEMPLATE. Revision `1.0.1` bootstraps editable area/resolution defaults while deferring assistance until the required knowledge connection is configured. Internal LoomAI staging/production and the independently configured Acme staging installation now qualify real S3 bindings and ACTIVE indexes. Catalogue publication does not automatically add this template to every public self-service offer. The internal S3 instance template and diagnostics remain separate from customer defaults; exact releases, customer journeys and residual quality/operations follow-ups are in the execution record.
 
 The template contributes:
 

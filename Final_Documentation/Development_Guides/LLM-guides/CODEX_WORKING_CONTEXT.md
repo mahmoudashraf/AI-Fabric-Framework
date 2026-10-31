@@ -11478,3 +11478,78 @@ test is being called hosted acceptance. UI extraction remains last.
   secrets underbindingRequest; neverprintthem/useuploaderforruntime. Authindex
   ~/.codex/private/loomai-support-01054/AUTH_MATERIAL_INDEX.private.json.
   Productionowner/deploymentstillnotcreated; normalproductionjourneyremainsopen.
+
+### 2026-10-31 010.54 Production Continuation, Identifier Fix Pending
+
+- Supersedes the storage/production-owner pending state above. Required for
+  production completed isolated S3 and29exactuploadedobjects; normal production
+  owner/offer/bootstrap createddep757bc5bc/ten4bd57f28. ProductionConsoleb1c571502
+  nativehealthy, runtimeartifactdsa44e5074f attests unchanged23eaf650c/0.8.41.
+- Sourceca38d3346 adds internal S3 TEMPLATEloomai-support-workspace1.0.0,
+  preserving genericcustomerTEMPLATE1.0.1. Published productionwithS3DATA1.0.0
+  andinternalACTION1.0.3only. Template14tests/Node9/dryrun7manifestsPASS.
+- Newpersistentauthenticatedsupport-vectorservices existperenvironment.
+  Privatecredentials/proof under ~/.codex/private/loomai-support-01054/
+  managed-vectors/. GlobalWEAVIATE_API_KEY unchanged; ownedREQUIRE_OVERRIDE
+  credentialsnormallybound. No Free01transfer, paidcloudcluster orbusinessDB.
+- Exactproductionrel45ba6608/vere1bbd4b2appliedbutverificationfailedonlyempty
+  approveddataset initially28PASS/1FAIL/5SKIP.13guidesdiscovered/registered/
+  previewedbutallindexattemptsFAILED withVECTOR_UPSERT_FAILED. Actualcause:
+  Platformgenerated70charWeaviatetenantnamelimit64. Noactive13sourceclaim.
+- Boundedfix9b6762b3cretainsfull64hexidentityhashwithoutscope-prefix;26focused
+  resolver/scoping/templatePASS. CI41219916625inprogress, notdeployed/retriedyet.
+  No frameworkrelease, semanticfallback, secret/globalproviderpatch orSQLmutation.
+- Stageinternalrel42088f39/ ver516b99faAPPLIED_VERIFICATION_FAILED; firstbadendpoint
+  rela53b761dPRE_APPLY_BLOCKED retained. Acmerel53ab942eFAILEDpropercrosscustomer
+  sharedhostboundary. AgentpreparingseparateAcmevectorservice; do notweakencheck.
+- Mainhelpersnew: bootstrap-production, prepare-production-binding,
+  configure-s3-vectors, apply-support-release, s3-documents, production-desk.
+  Journals/privatefailedattemptsretained. Production supportstilldisabled;
+  Desk/Engage/staffactualproductionjourneyand13guidequalitychecksremainopen.
+  See01054executionrecordnewproductioncheckpointbeforecontinuing.
+
+### 2026-10-31 010.54 Production Journey Verified
+
+- Supersedes earlier storage/index/disabled checkpoints. Backend9b6762b3c and
+  Console7277fe3c7 native healthy on BOTH hosts; Desk29dbc1199 unchanged.
+  Runtime23eaf650c/AI Fabric0.8.41 unchanged; no framework release.
+  CI41219916625/41222162970 PASS; identifier fix26focusedtestsPASS.
+- Approved isolated S3/29objects/read-denial/checksums qualified. Actual normal
+  ingestion/retrieval:13ACTIVErealguides each internal env,3AcmeS3guides.
+  Separate authenticated vector endpoints/customer keys/volumes; full64hex
+  target digest meets provider limit, globalkey unchanged. Failed releases/work
+  retained; explicit known-failure retry only, no SQL mutation or hidden fallback.
+- Exact verified/ACTIVE assignments: internal stage dep-a2706601/ver-516b99fa/
+  rel-e3b9b047; Acme stage dep-86fef557/ver-4c5c9960/rel-445df66c; production
+  dep-757bc5bc/ver-9f587862/rel-f0e0a54a. Prod app
+  awi_pub_bb57aa3822a176ee770d93cf2e8a31e7 ready, support enabled. Prod Desk
+  desk-cebf701ee60f47a6f03382996d05a2e5 uses distinct target-owned diagnostic/
+  context keys, native SSO and explicit SUPPORT assignment.
+- Actual prod Console caseSUP-42DC9B96-2AA: one initial USER/AI pair afterreload,
+  cited docs; no-consent403/consented200 exact13ACTIVE; two-worker chain+READs;
+  natural handover, Desk claim/async reply, customerreply with NO AIturn; explicit
+  AIreturn+usefulfollowup; Resolve/Reopen revokesconsent; buttonhandover; Desk
+  Close leavescaseOPEN; newepisode starts0messages/0turns/nointakereplay.
+  Clean naturalhandover acknowledgedcorrectly; cancelledexplicitly, docswork
+  withconsentfalse. Secondary prod Acme requester SUP-A3CC4CB4-2B9 reachedsame
+  queue; actualstaff context/reply/return/resolve passed withoutdiagnostics.
+  Owncase200/foreign404 bothways, knownforeignconversation404. No second
+  production deployment needed for requesters of our shared support solution.
+- Acme's independent support PRODUCT still uses its own3guides/actions/Desk
+  configuration, no LoomAI case-provider dependency; actualS3appanswerPASS.
+  Catalogue availability does not silently enroll all public users in newoffers.
+- Limits: compound outeranswer confused deploymentDRAFT withindexstatus despite
+  correct13ACTIVEworker; explicitfollowupcorrect. First naturalhandover transient
+  widgeterror despite durableCOMPLETED/202+successfultransfer; cleanepisodePASS,
+  rootcause NOTestablished/fixed. Boundedrichhistory canomitolderpresentations.
+  Existingpartialclarifications/Desklogout406 remain, notall18scenariosgreen.
+- Ownerapproved best-effort queue/360daytarget, notautomaticcross-storeerasure;
+  Operationsrunbook/disclosurecommitted7277. Realnative supportfixtureaccount
+  qualifiedstaff; Mahmoud additional personalagent assignment awaits exactemail/
+  reference in Required for production (already registered on Northfield).
+  Do not ask for storage again or bypass this identity check.
+- Privateproof: ~/.codex/private/loomai-support-01054/final-readback-20261031,
+  production-case-*, production-support-isolation, production-external-requester,
+  production-diagnostics-{allowed,denied}, native rollouts. See01054executionrecord
+  for fullproof/latency/pointload/qualityfollowups. Source docs reflect implementation
+  and live qualification, not a universal SLA or enterprise-ready certification.

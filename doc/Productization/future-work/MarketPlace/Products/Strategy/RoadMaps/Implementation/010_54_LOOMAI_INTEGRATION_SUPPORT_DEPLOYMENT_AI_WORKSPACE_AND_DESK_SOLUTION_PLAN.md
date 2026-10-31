@@ -1,6 +1,6 @@
 # 010.54 LoomAI Integration Support Deployment and Workspace Solution Plan
 
-**Status: IMPLEMENTED AND STAGING JOURNEY VERIFIED - PRODUCTION QUALIFICATION OPEN**
+**Status: IMPLEMENTED - STAGING AND PRODUCTION JOURNEYS VERIFIED**
 
 **Created:** 2026-10-30
 
@@ -10,7 +10,9 @@
 
 **Owner decision (2026-10-30):** implement fully, including generic structural Platform/runtime changes required for a reusable configurable support template. Use LoomAI Platform, authenticated Engage and LoomAI Desk for the first installation. Track incremental implementation and hosted evidence in [the execution record](010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md); design approval is not proof of completion.
 
-**Latest evidence (2026-10-31):** the generic authoring/compiler, Conversational specialist/chain integration, canonical conversation handling, Console support application and optional Desk case integration are implemented. Both the internal support installation and a differently configured fictional Acme installation passed hosted staging journeys on published AI Fabric `0.8.41`, without a framework release. The final internal ACTION `1.0.3` also produced a correct live index-status answer, not merely a raw API response. Isolated approved production support storage and the production support/app/staff journey remain unqualified; the healthy production backend keeps support disabled. This is not a production-launch completion claim.
+**Latest evidence (2026-10-31):** implementation and the main hosted acceptance path are complete on published AI Fabric `0.8.41`, without a framework release. Isolated S3 readers and actual retrieval qualify 13 real LoomAI guides on both environments and three separately bound fictional Acme guides on staging. Production support is enabled with an ACTIVE ordinary Engage installation and verified release `rel-f0e0a54a`. Actual Console intake, cited assistance, consent-bound diagnostics, a two-area resolution, Desk claim/two-way replies, explicit AI return, resolve/reopen and a fresh episode without intake replay were observed. A second production customer also reached the same support team without granting diagnostic access; ordinary cross-customer case/conversation access remained denied.
+
+**Completion scope:** this closes the planned implementation and main production journey, not universal answer quality or an enterprise SLA. One compound summary confused deployment-record and index state despite correct worker evidence; a precise follow-up was correct. One transient error banner accompanied a successfully recorded handover; a clean-episode natural handover acknowledged correctly. These remain recorded quality/observability follow-ups, not hidden retries. Assigned native support test staff qualified the queue; Mahmoud's additional personal Desk assignment awaits identification of his existing registered account in Required for production. Owner-approved best-effort staffing and a 360-day retention target are documented in [Operations](../../../../../../../../product-templates/ai-support-workspace/OPERATIONS.md), explicitly without an automated cross-store erasure guarantee. See the execution record for exact evidence and limitations.
 
 **Relationship to 010.53:** after owner approval, this is the canonical replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). It preserves lightweight entry points, request tracking and consent principles, replacing the separate staff discussion/triage experience with deployment, Engage and Desk products. Do not implement both designs.
 
