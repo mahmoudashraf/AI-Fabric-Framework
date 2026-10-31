@@ -108,6 +108,13 @@ Ordinary AI chat still goes directly to the deployment. During handover, the
 deployment connector sends the support conversation to Desk, and signed Desk
 callbacks carry human replies back through that connector to the visitor.
 
+Existing deployments get their target choices from their current authorized
+deployment, not the original template's catalogue availability. Retiring an old
+bootstrap template does not hide an existing production target. Go-live evidence
+has a freshness window: an expired activation check is not a live health result.
+Use **Verify production release** before a new activation when fresh evidence is
+required; merely opening this screen does not deploy or switch the app.
+
 ### Switching Accounts
 
 Desk and Console have separate sessions. **Sign out** in Desk clears its local
@@ -119,12 +126,30 @@ you explicitly continue. An already signed-in Desk still opens its current
 account; sign out first to switch it. Switching accounts never copies or grants
 deployment permissions.
 
-Existing deployments get their target choices from their current authorized
-deployment, not the original template's catalogue availability. Retiring an old
-bootstrap template does not hide an existing production target. Go-live evidence
-has a freshness window: an expired activation check is not a live health result.
-Use **Verify production release** before a new activation when fresh evidence is
-required; merely opening this screen does not deploy or switch the app.
+Email sign-in links are for existing accounts. If using a new email, select
+**Create account** and complete verification first, then request a sign-in link.
+
+### Agent Profile
+
+Open **Profile** beside your Desk identity to edit your display name and upload,
+replace or remove your photo. Preview the changes, then select **Save profile**.
+Registered agents without a deployment assignment can use **Edit profile** on
+the registration-complete screen. Email, agent reference and permissions are
+not editable in this form.
+
+The profile is shared across your assigned deployments in that Desk environment,
+not copied into each deployment. Saved names survive sign-in and are used for
+new human replies; existing transcript names remain historical records. Photos
+appear in Desk's identity, team list and conversation view. They are private to
+the agent and people sharing an enabled deployment, not public image URLs.
+The current visitor-chat contract carries the human reply name, not the Desk
+profile photo; this feature does not change that runtime contract.
+
+Upload JPG, PNG or WebP files up to 5 MB. The browser prepares a square preview;
+the server independently validates and re-encodes it as a small 256-pixel JPEG,
+discarding original image metadata. The result is stored in the existing shared
+Desk database. No customer bucket, new database or per-deployment service is
+created. Changing a profile never grants Support, Reviewer or Owner access.
 
 ## Authentication Between Desk And A Deployment
 

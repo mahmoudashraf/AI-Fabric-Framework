@@ -25,9 +25,22 @@ public final class DeskContracts {
     }
   }
 
-  public record Operator(String id, String displayName, String email, String agentReference) {}
+  public record Operator(
+      String id, String displayName, String email, String agentReference, String avatarUrl) {}
 
   public record RegistrationInput(String displayName) {}
+
+  public record ProfileInput(String displayName, String photoDataUrl, Boolean removePhoto) {
+    public ProfileInput {
+      removePhoto = Boolean.TRUE.equals(removePhoto);
+    }
+    @Override
+    public String toString() {
+      return "ProfileInput[photoSupplied=" + (photoDataUrl != null) + ",removePhoto=" + removePhoto + "]";
+    }
+  }
+
+  public record AgentProfile(String agentId, String displayName, String avatarUrl) {}
 
   public record OwnerInput(String issuer, String subject, String email, String displayName) {}
 
@@ -89,7 +102,12 @@ public final class DeskContracts {
   public record AssignmentInput(String email, String agentReference, Set<Role> roles) {}
 
   public record AgentView(
-      String agentId, String agentReference, String displayName, String email, List<Role> roles) {}
+      String agentId,
+      String agentReference,
+      String displayName,
+      String email,
+      List<Role> roles,
+      String avatarUrl) {}
 
   public record SessionView(
       boolean authenticated,

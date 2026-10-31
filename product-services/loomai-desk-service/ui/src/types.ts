@@ -15,6 +15,7 @@ export interface Session {
     displayName: string;
     email: string;
     agentReference?: string;
+    avatarUrl?: string | null;
   } | null;
   bindings: Binding[];
   registered?: boolean;
@@ -79,8 +80,14 @@ export interface Agent {
   displayName?: string;
   email?: string;
   agentReference?: string;
+  avatarUrl?: string | null;
   roles: Role[];
   createdAt?: string;
+}
+export interface AgentProfile {
+  agentId: string;
+  displayName: string;
+  avatarUrl?: string | null;
 }
 export type ReviewTaskStatus =
   | "WAITING_FOR_REVIEW"

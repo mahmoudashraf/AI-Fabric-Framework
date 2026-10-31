@@ -291,7 +291,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
             </span>
           </div>
           <div className="identity-row">
-            <Avatar small name={operator.displayName} tone="teal" />
+            <Avatar small name={operator.displayName} src={operator.avatarUrl} tone="teal" />
             <div>
               <strong title={operator.displayName}>
                 {operator.displayName}
@@ -415,7 +415,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
         </Modal>
       )}
       {profileOpen && (
-        <Modal title="Your account" onClose={() => setProfileOpen(false)}>
+        <Modal title="Your profile" onClose={() => setProfileOpen(false)}>
           <Account config={config.data!} session={session.data} />
         </Modal>
       )}

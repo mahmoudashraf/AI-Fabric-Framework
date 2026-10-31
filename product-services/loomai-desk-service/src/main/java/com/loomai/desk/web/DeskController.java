@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -88,7 +89,29 @@ public class DeskController {
               identity.emailVerified(),
               identity.accessToken());
     }
-    return directory.register(identity);
+    Operator registered = directory.register(identity);
+    return input != null && input.displayName() != null
+        ? directory.updateProfile(registered, new ProfileInput(input.displayName(), null, false))
+        : registered;
+  }
+
+  @PutMapping("/profile")
+  public Operator updateProfile(Authentication auth, @RequestBody ProfileInput input) {
+    return directory.updateProfile(operator(auth), input);
+  }
+
+  @GetMapping("/agents/{agentId}/photo")
+  public ResponseEntity<byte[]> photo(Authentication auth, @PathVariable String agentId) {
+    return ResponseEntity.ok()
+        .contentType(MediaType.IMAGE_JPEG)
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(directory.photo(operator(auth), agentId));
+  }
+
+  @GetMapping("/bindings/{bindingId}/agent-profiles")
+  public List<AgentProfile> profiles(Authentication auth, @PathVariable String bindingId) {
+    return directory.profiles(bindingId, operator(auth));
   }
 
   private Operator operator(Authentication auth) {

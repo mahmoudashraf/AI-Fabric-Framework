@@ -52,6 +52,7 @@ export function fixtureState() {
         displayName: "Morgan Reed",
         email: "morgan@example.test",
         agentReference: "agent-morgan",
+        avatarUrl: null as string | null,
       },
       bindings: [
         {
@@ -179,6 +180,7 @@ export function fixtureState() {
         email: "morgan@example.test",
         roles: ["SUPPORT", "REVIEWER"],
         createdAt: ago(720),
+        avatarUrl: null as string | null,
       },
       {
         agentId: "assignment-2",
@@ -187,6 +189,7 @@ export function fixtureState() {
         email: "sam@example.test",
         roles: ["SUPPORT"],
         createdAt: ago(1440),
+        avatarUrl: null as string | null,
       },
     ],
     reviews,
@@ -210,6 +213,9 @@ export function fixtureState() {
       csrf: string | undefined;
     }[],
     failReply: false,
+    failProfile: false,
+    profilePhoto: "",
+    profileRevision: 0,
     callbacks: [] as {
       callbackId: string;
       handoverId: string;
@@ -268,9 +274,34 @@ export async function mockDesk(page: Page, state = fixtureState()) {
       state.session.registered = true;
       return json(route, { agentReference: "agent-morgan" });
     }
+    if (url.pathname.endsWith("/profile") && method === "PUT") {
+      if (state.failProfile) return json(route, { message: "Profile could not be saved. Please try again." }, 503);
+      state.session.operator.displayName = String(body?.displayName);
+      if (body?.removePhoto) {
+        state.profilePhoto = "";
+        state.session.operator.avatarUrl = null;
+      } else if (body?.photoDataUrl) {
+        state.profilePhoto = String(body.photoDataUrl).split(",")[1]!;
+        state.session.operator.avatarUrl = `/api/desk/v1/agents/agent-1/photo?v=${++state.profileRevision}`;
+      }
+      for (const agent of state.agents.filter(agent => agent.agentReference === state.session.operator.agentReference)) {
+        agent.displayName = state.session.operator.displayName;
+        agent.avatarUrl = state.session.operator.avatarUrl;
+      }
+      return json(route, state.session.operator);
+    }
+    if (url.pathname === "/api/desk/v1/agents/agent-1/photo") {
+      return state.profilePhoto ? route.fulfill({ contentType: "image/jpeg", body: Buffer.from(state.profilePhoto, "base64") })
+        : json(route, { message: "Photo not found" }, 404);
+    }
     const match = url.pathname.match(/\/bindings\/([^/]+)\/(.+)/);
     if (!match) return json(route, { message: "Unknown fixture path" }, 404);
     const [, binding, resource] = match;
+    if (resource === "agent-profiles") return json(route, [
+      { agentId: state.session.operator.id, displayName: state.session.operator.displayName, avatarUrl: state.session.operator.avatarUrl },
+      ...state.agents.filter(agent => agent.agentReference !== state.session.operator.agentReference)
+        .map(agent => ({ agentId: agent.agentId, displayName: agent.displayName, avatarUrl: agent.avatarUrl })),
+    ]);
     if (binding === "support-stage" && resource === "conversations")
       return json(route, [
         {
@@ -397,6 +428,7 @@ export async function mockDesk(page: Page, state = fixtureState()) {
           email: String(body?.email ?? body?.agentReference),
           roles: body?.roles as string[],
           createdAt: stamp,
+          avatarUrl: null,
         });
       return json(route, { assigned: true });
     }

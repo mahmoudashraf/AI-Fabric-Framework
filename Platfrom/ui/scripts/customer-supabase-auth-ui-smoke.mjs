@@ -51,7 +51,8 @@ async function scenario(name, action, options = {}) {
   }, { session: options.seed ? sbSession('initial') : null, origin: server.resolvedUrls.local[0].replace(/\/$/, '') })
   await context.route('**/*', async route => {
     const req = route.request(), url = new URL(req.url()), headers = req.headers()
-    const respond = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    const respond = (body, status = 200) => route.fulfill({ status, contentType: 'application/json',
+      headers: { 'x-supabase-api-version': '2024-01-01', 'access-control-expose-headers': 'x-supabase-api-version' }, body: JSON.stringify(body) })
     if (url.hostname === 'desk.example.test') {
       calls.push({ path: url.pathname, method: req.method(), deskCallback: true })
       if (options.delayedCustomerAuthorizationTransition) await new Promise(resolve => setTimeout(resolve, 1200))
@@ -68,6 +69,7 @@ async function scenario(name, action, options = {}) {
       if (url.pathname === '/auth/v1/recover') return respond({})
       if (url.pathname === '/auth/v1/verify') return options.verifyFailure
         ? respond({ code: 'otp_expired', message: 'Email link is invalid or has expired' }, 403) : respond(sbSession('email-hash-verified'))
+      if (url.pathname === '/auth/v1/otp' && options.unknownOtpEmail) return respond({ code: 'otp_disabled', message: 'Signups not allowed for otp' }, 422)
       if (url.pathname === '/auth/v1/otp' || url.pathname === '/auth/v1/resend') return options.mailFailure
         ? respond({ code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded. Please try again later.' }, 429) : respond({})
       if (url.pathname === '/auth/v1/user') return respond(currentUser)
@@ -412,6 +414,17 @@ try {
     assert.equal(await page.getByText(/a sign-in link has been requested/).count(), 0)
     assert.equal(calls.filter(call => call.path === '/auth/v1/otp').length, 1)
   }, { mailFailure: true })
+  await scenario('new_email_link_request_explains_registration_without_enabling_automatic_signup', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/sign-in?method=email`)
+    await page.getByLabel(/^Email/).fill('new-agent@example.test')
+    await page.getByRole('button', { name: 'Send sign-in link', exact: true }).click()
+    await page.getByText('Email sign-in is for existing accounts. Create an account first, then request a sign-in link.').waitFor()
+    assert.equal(await page.getByText('Signups not allowed for otp', { exact: true }).count(), 0)
+    const request = calls.find(call => call.path === '/auth/v1/otp')
+    assert.equal(request.body.create_user, false)
+    assert.equal(calls.filter(call => call.path === '/auth/v1/signup').length, 0)
+    assert.equal(await page.getByRole('button', { name: 'Create account', exact: true }).count(), 1)
+  }, { unknownOtpEmail: true })
   await scenario('expired_fragment_link_cannot_use_an_unrelated_existing_session', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/callback?flow=desk#error=access_denied&error_description=Email+link+expired`)
     await page.getByText('Email link expired').waitFor()

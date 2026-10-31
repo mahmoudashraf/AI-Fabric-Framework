@@ -38,6 +38,7 @@ import {
   Status,
 } from "./components";
 import type {
+  AgentProfile,
   Binding,
   CallbackOperation,
   CommandResult,
@@ -304,6 +305,12 @@ function Thread({
   const nearBottom = useRef(true);
   const root = `${bindingPath(binding.bindingId)}/conversations/${encodeURIComponent(handoverId)}`;
   const key = ["binding", binding.bindingId, "conversation", handoverId];
+  const profiles = useQuery({
+    queryKey: ["binding", binding.bindingId, "agent-profiles"],
+    queryFn: ({ signal }) => api<AgentProfile[]>(`${bindingPath(binding.bindingId)}/agent-profiles`, { signal }),
+    enabled: accessFresh,
+    refetchInterval: 30000,
+  });
   const detail = useQuery({
     queryKey: key,
     queryFn: ({ signal }) => api<ConversationDetail>(root, { signal }),
@@ -544,6 +551,7 @@ function Thread({
                 key={message.messageId}
                 message={message}
                 previous={messages[index - 1]}
+                avatarUrl={profiles.data?.find(agent => agent.agentId === message.actorRef)?.avatarUrl}
               />
             ))
           ) : (
@@ -804,9 +812,11 @@ function Thread({
 function MessageRow({
   message,
   previous,
+  avatarUrl,
 }: {
   message: Message;
   previous?: Message;
+  avatarUrl?: string | null;
 }) {
   const role = message.participantRole.toUpperCase();
   const agent = ["OPERATOR", "AGENT", "HUMAN_AGENT", "HUMAN"].includes(role);
@@ -849,7 +859,7 @@ function MessageRow({
               <Bot size={17} />
             </span>
           ) : (
-            <Avatar name={author} small tone={agent ? "teal" : "neutral"} />
+            <Avatar name={author} src={agent ? avatarUrl : null} small tone={agent ? "teal" : "neutral"} />
           ))}
       </div>
       <div className="message-body">

@@ -17,6 +17,8 @@ import { Brand } from "./App";
 import { errorMessage, post } from "./api";
 import { ErrorNotice, Loading, Notice } from "./components";
 import { identityPortalLink } from "./identityPortal";
+import { Account } from "./Account";
+import { Modal } from "./components";
 import type { DeskConfig, Session } from "./types";
 
 export function Auth({
@@ -174,6 +176,7 @@ export function Unassigned({
   const recoveryLink = identityPortalLink(config, "recovery");
   const verificationLink = identityPortalLink(config, "verify");
   const [busy, setBusy] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(
     session.registered ?? !!session.operator,
@@ -254,6 +257,7 @@ export function Unassigned({
         )}
         {error && <ErrorNotice message={error} />}
         {logoutError && <ErrorNotice message={logoutError} />}
+        {registered && session.operator && <button className="text-button" onClick={() => setProfileOpen(true)}>Edit profile</button>}
         {recoveryLink && (
           <a className="text-button" href={recoveryLink}>
             Change password
@@ -267,6 +271,9 @@ export function Unassigned({
         <button className="text-button muted" onClick={onLogout}>
           Sign out
         </button>
+        {profileOpen && <Modal title="Your profile" onClose={() => setProfileOpen(false)}>
+          <Account config={config} session={session} />
+        </Modal>}
       </main>
     </div>
   );

@@ -50,7 +50,11 @@ export function SupabaseIdentityForm({ linking = false, allowRegistration = fals
         await auth.signInCustomer(address, password)
       }
       setPassword('')
-    } catch (ex) { setError(ex instanceof Error ? ex.message : 'Sign-in failed.') }
+    } catch (ex) {
+      const existingAccountOnly = mode === 'email' && ex && typeof ex === 'object' && 'code' in ex && ex.code === 'otp_disabled'
+      setError(existingAccountOnly ? 'Email sign-in is for existing accounts. Create an account first, then request a sign-in link.'
+        : ex instanceof Error ? ex.message : 'Sign-in failed.')
+    }
     finally { setBusy(false) }
   }
   return <Stack component="form" spacing={2} onSubmit={submit}>

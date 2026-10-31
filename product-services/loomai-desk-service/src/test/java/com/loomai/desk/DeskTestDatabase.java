@@ -18,6 +18,10 @@ final class DeskTestDatabase implements AutoCloseable {
   final String password;
 
   DeskTestDatabase(String engine) {
+    this(engine, null);
+  }
+
+  DeskTestDatabase(String engine, String target) {
     schema = "desk_" + UUID.randomUUID().toString().replace("-", "");
     if (engine.equals("postgres")) {
       String source =
@@ -51,11 +55,11 @@ final class DeskTestDatabase implements AutoCloseable {
       config.setMaximumPoolSize(4);
       dataSource = new HikariDataSource(config);
     }
-    Flyway.configure()
+    var migration = Flyway.configure()
         .dataSource(dataSource)
-        .locations("classpath:db/desk-migration")
-        .load()
-        .migrate();
+        .locations("classpath:db/desk-migration");
+    if (target != null) migration.target(target);
+    migration.load().migrate();
   }
 
   @Override

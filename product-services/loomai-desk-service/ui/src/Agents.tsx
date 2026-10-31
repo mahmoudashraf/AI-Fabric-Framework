@@ -134,6 +134,7 @@ export function Agents({
                     <div className="team-person">
                       <Avatar
                         name={agent.displayName || agent.email || "Agent"}
+                        src={agent.avatarUrl}
                         tone="teal"
                       />
                       <div>
@@ -376,6 +377,7 @@ function AssignModal({
           <div className="team-person">
             <Avatar
               name={agent.displayName || agent.email || "Agent"}
+              src={agent.avatarUrl}
               tone="teal"
             />
             <div>

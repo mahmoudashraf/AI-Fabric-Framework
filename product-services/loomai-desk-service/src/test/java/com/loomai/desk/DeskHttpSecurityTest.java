@@ -362,6 +362,13 @@ class DeskHttpSecurityTest {
           .andExpect(status().isOk());
       mvc.perform(post("/logout").session(session).with(authentication(authentication)))
           .andExpect(status().isForbidden());
+      mvc.perform(put("/api/desk/v1/profile").session(session).with(authentication(authentication))
+              .contentType("application/json").content("{\"displayName\":\"My Desk Name\"}"))
+          .andExpect(status().isForbidden());
+      mvc.perform(put("/api/desk/v1/profile").session(session).with(authentication(authentication))
+              .contentType("application/json").content("{\"displayName\":\"My Desk Name\"}")
+              .header(state.path("csrfHeaderName").asText(), state.path("csrfToken").asText()))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.displayName").value("My Desk Name"));
       OAuth2AuthorizedClient retained = store.loadAuthorizedClient("supabase", "owner");
       assertThat(retained).isNotNull();
       mvc.perform(

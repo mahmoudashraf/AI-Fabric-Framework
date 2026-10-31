@@ -7,7 +7,7 @@ test("assigned agent profile exposes their email, reference and shared password 
   const state = await mockDesk(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Profile", exact: true }).click();
-  const profile = page.getByRole("dialog", { name: "Your account" });
+  const profile = page.getByRole("dialog", { name: "Your profile" });
   await expect(
     profile.getByText("morgan@example.test", { exact: true }),
   ).toBeVisible();

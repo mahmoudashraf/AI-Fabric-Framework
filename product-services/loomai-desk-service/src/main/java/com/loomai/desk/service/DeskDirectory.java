@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -44,7 +45,7 @@ public class DeskDirectory {
     Operator operator =
         profile(identity.issuer(), identity.subject(), identity.email(), identity.displayName());
     jdbc.update(
-        "UPDATE desk_operator SET registered=TRUE,email=?,display_name=? WHERE operator_id=?",
+        "UPDATE desk_operator SET registered=TRUE,email=?,display_name=CASE WHEN profile_name_customized THEN display_name ELSE ? END WHERE operator_id=?",
         identity.email().toLowerCase(Locale.ROOT),
         identity.displayName(),
         operator.id());
@@ -97,7 +98,66 @@ public class DeskDirectory {
         rs.getString("operator_id"),
         rs.getString("display_name"),
         rs.getString("email"),
-        rs.getString("operator_id"));
+        rs.getString("operator_id"),
+        avatarUrl(rs.getString("operator_id"), rs.getString("avatar_revision")));
+  }
+
+  private String avatarUrl(String id, String revision) {
+    return revision == null ? null : "/api/desk/v1/agents/" + id + "/photo?v=" + revision;
+  }
+
+  @Transactional
+  public Operator updateProfile(Operator self, ProfileInput input) {
+    String name = input.displayName() == null ? null : input.displayName().trim();
+    require(name, 160, "display name");
+    if (input.removePhoto() && input.photoDataUrl() != null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a new photo or remove it, not both.");
+    byte[] photo = input.photoDataUrl() == null ? null : DeskProfilePhotos.normalize(input.photoDataUrl());
+    int updated = jdbc.update(
+        "UPDATE desk_operator SET display_name=?,profile_name_customized=TRUE WHERE operator_id=? AND registered=TRUE",
+        name, self.id());
+    if (updated != 1)
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Register your Desk agent profile first.");
+    if (input.removePhoto() || photo != null) {
+      jdbc.update(
+          "UPDATE desk_operator SET avatar_bytes=?,avatar_revision=? WHERE operator_id=?",
+          photo,
+          photo == null ? null : secrets.sha256(Base64.getEncoder().encodeToString(photo)),
+          self.id());
+    }
+    audit(null, null, self.id(), "AGENT_PROFILE_UPDATE", self.id());
+    return operator(self.id());
+  }
+
+  public List<AgentProfile> profiles(String bindingId, Operator viewer) {
+    Binding binding = binding(bindingId);
+    if (!binding.enabled() || roles(binding, viewer.id()).isEmpty())
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This deployment permission is not assigned.");
+    return jdbc.query(
+        "SELECT DISTINCT o.* FROM desk_operator o JOIN desk_assignment a ON a.operator_id=o.operator_id WHERE a.binding_id=? ORDER BY o.display_name,o.operator_id",
+        (rs, n) -> {
+          Operator agent = operator(rs);
+          return new AgentProfile(agent.id(), agent.displayName(), agent.avatarUrl());
+        }, bindingId);
+  }
+
+  public byte[] photo(Operator viewer, String agentId) {
+    // Photos are private to the agent and people sharing an enabled deployment.
+    if (!viewer.id().equals(agentId)
+        && jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM desk_binding b WHERE b.enabled=TRUE
+              AND (EXISTS(SELECT 1 FROM desk_assignment a WHERE a.binding_id=b.binding_id AND a.operator_id=?)
+                OR EXISTS(SELECT 1 FROM desk_owner o WHERE o.customer_id=b.customer_id AND o.operator_id=?))
+              AND (EXISTS(SELECT 1 FROM desk_assignment a WHERE a.binding_id=b.binding_id AND a.operator_id=?)
+                OR EXISTS(SELECT 1 FROM desk_owner o WHERE o.customer_id=b.customer_id AND o.operator_id=?))
+            """, Long.class, viewer.id(), viewer.id(), agentId, agentId) == 0)
+      throw notFound();
+    List<byte[]> found = jdbc.query(
+        "SELECT avatar_bytes FROM desk_operator WHERE operator_id=? AND avatar_bytes IS NOT NULL",
+        (rs, n) -> rs.getBytes(1), agentId);
+    if (found.isEmpty()) throw notFound();
+    return found.getFirst();
   }
 
   @Transactional
@@ -331,7 +391,8 @@ public class DeskDirectory {
                         "SELECT role FROM desk_assignment WHERE binding_id=? AND operator_id=? ORDER BY role",
                         (rs, n) -> Role.valueOf(rs.getString(1)),
                         binding,
-                        o.id())))
+                        o.id()),
+                    o.avatarUrl()))
         .toList();
   }
 
@@ -378,7 +439,8 @@ public class DeskDirectory {
         agent.agentReference(),
         agent.displayName(),
         agent.email(),
-        input.roles().stream().sorted().toList());
+        input.roles().stream().sorted().toList(),
+        agent.avatarUrl());
   }
 
   @Transactional

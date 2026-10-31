@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -82,19 +83,24 @@ export function initials(name = "") {
 }
 export function Avatar({
   name,
+  src,
   small = false,
   tone = "neutral",
 }: {
   name: string;
+  src?: string | null;
   small?: boolean;
   tone?: string;
 }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   return (
     <span
       aria-hidden="true"
       className={`avatar ${small ? "small" : ""} ${tone}`}
     >
-      {initials(name)}
+      {src && failedSrc !== src ? (
+        <img src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} />
+      ) : initials(name)}
     </span>
   );
 }
