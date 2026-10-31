@@ -11601,3 +11601,44 @@ test is being called hosted acceptance. UI extraction remains last.
   evidence: ~/.codex/private/loomai-support-01054/account-access-20261031/.
   Live screenshots output/account-access-20261031/. No customer runtime rebuilt,
   no new deployment/database, no broad cleanup or authentication-policy bypass.
+
+### 2026-10-31 Personal Production SUPPORT Assignment Complete
+
+- Supersedes the personal-registration/assignment blocker above. Owner supplied
+  the newly registered personal agent reference; normal native sign-in as the
+  existing binding owner and the public Desk owner assignment API completed
+  SUPPORT-only assignment to production LoomAI customer support, deployment
+  dep-757bc5bc, binding desk-cebf701ee60f47a6f03382996d05a2e5.
+- Independent agent-list API readback verified the exact registered reference
+  and email, roles exactly [SUPPORT], and all unrelated assignments unchanged.
+  No REVIEWER/OWNER grant, personal-account login, SQL mutation, auth bypass,
+  code change or rollout. The temporary owner session was signed out normally.
+- Private before/assignment/after receipt:
+  ~/.codex/private/loomai-support-01054/production-personal-staff-support-assigned-1793476737782.private.json.
+  Personal identity details remain in that private evidence, not this document.
+
+### 2026-10-31 Desk Explicit Account Choice Verified
+
+- Owner reported an earlier fixture account opening automatically. Desk's local
+  cookie and Console's separate Supabase session can both persist; signing out
+  of Desk alone did not prevent the next sign-in from silently reusing Console's
+  identity. No fixture email is prefilled in the Desk/Console application source.
+- Console source7b93661bc now requires Continue as [email] or Use another account
+  at Desk entry and OAuth authorization. Account choice precedes even the OAuth
+  details read because an already-consented request can be consumed by that read.
+  Native sign-out, exact registered-client/callback validation, one-use exchange
+  deduplication and deployment authorization remain intact. No provider policy,
+  personal password, agent grant, backend, Desk or runtime change was required.
+- CI41238077336 passed with backend skipped. Both staging and production Console
+  containers are native healthy on7b93661bc04803fdb36df79302bc053ba0329928.
+  Focused TypeScript,11auth-policy tests and29synthetic browser scenarios passed.
+- Actual password-based fixture journeys passed on BOTH environments: explicit
+  account choice, Desk local logout, cached-identity pause, switch to another
+  verified identity, and no inherited binding access. Staging's second profile
+  matched its own grants; production's unregistered second identity correctly
+  had no profile/access. Both temporary browser sessions signed out normally.
+  Personal browser/account was not accessed or signed out by these tests.
+- Already-authenticated Desk tabs still use their existing account until the
+  visitor signs out; the correction applies to the subsequent sign-in. User
+  guide updated. Private live receipts/screenshots:
+  ~/.codex/private/loomai-support-01054/account-access-20261031/account-choice-*.
