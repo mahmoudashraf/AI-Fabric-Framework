@@ -140,8 +140,11 @@ not editable in this form.
 The profile is shared across your assigned deployments in that Desk environment,
 not copied into each deployment. Saved names survive sign-in and are used for
 new human replies; existing transcript names remain historical records. Photos
-appear in Desk's identity, team list and conversation view. They are private to
-the agent and people sharing an enabled deployment, not public image URLs.
+appear in Desk's identity, team list and conversation view. An authorized
+customer-facing integration can also show the assigned Support agents' safe
+names and photos, such as the integration-team row in Console support. That
+projection does not expose account email, permissions or a public image URL;
+the configured service and current customer membership authorize each read.
 The current visitor-chat contract carries the human reply name, not the Desk
 profile photo; this feature does not change that runtime contract.
 
