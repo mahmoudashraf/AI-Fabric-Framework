@@ -61,6 +61,8 @@ async function scenario(name, action, options = {}) {
       if (url.pathname === '/auth/v1/token') { refreshed = url.searchParams.get('grant_type') === 'refresh_token'; return respond(sbSession(refreshed ? 'refreshed' : 'signed-in')) }
       if (url.pathname === '/auth/v1/signup') return respond({ user: { ...user, email_confirmed_at: null }, session: null })
       if (url.pathname === '/auth/v1/recover') return respond({})
+      if (url.pathname === '/auth/v1/verify') return options.verifyFailure
+        ? respond({ code: 'otp_expired', message: 'Email link is invalid or has expired' }, 403) : respond(sbSession('email-hash-verified'))
       if (url.pathname === '/auth/v1/otp' || url.pathname === '/auth/v1/resend') return options.mailFailure
         ? respond({ code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded. Please try again later.' }, 429) : respond({})
       if (url.pathname === '/auth/v1/user') return respond(user)
@@ -332,7 +334,7 @@ try {
     assert.equal(request.body.create_user, false)
     assert.equal(request.body.code_challenge_method, 's256')
     assert.ok(request.body.code_challenge)
-    assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk`)
+    assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk&desk_client=desk-fixture`)
     await page.goto(`${base}/auth/callback?code=magic-link-code&flow=desk`)
     await page.getByText('Desk callback received').waitFor()
     assert.equal(calls.find(call => call.deskCallback).path, '/oauth2/authorization/supabase')
@@ -363,5 +365,26 @@ try {
     assert.equal(calls.filter(call => call.deskCallback || call.path.endsWith('/consent')).length, 0)
     assert.equal(await page.getByRole('link', { name: 'Return to sign in' }).getAttribute('href'), '/auth/desk/sign-in')
   }, { seed: true, deskOnly: true })
+  await scenario('emailed_token_hash_signs_in_without_local_pkce_or_console_membership', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/callback?flow=desk&token_hash=fresh-email-fixture&type=email`)
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path === '/auth/v1/verify').length, 1)
+    assert.equal(calls.filter(call => call.path === '/auth/v1/token').length, 0)
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding')).length, 0)
+  }, { deskOnly: true })
+  await scenario('failed_email_hash_never_reuses_an_existing_session_or_retries_the_credential', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/callback?flow=desk&token_hash=expired-email-fixture&type=email`)
+    await page.getByText('Email link is invalid or has expired').waitFor()
+    assert.equal(calls.filter(call => call.path === '/auth/v1/verify').length, 1)
+    assert.equal(calls.filter(call => call.deskCallback || call.path.endsWith('/consent')).length, 0)
+    assert.equal(new URL(page.url()).searchParams.has('token_hash'), false)
+  }, { seed: true, deskOnly: true, verifyFailure: true })
+  await scenario('recovery_hash_establishes_the_account_before_showing_password_controls', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/recovery?flow=desk&token_hash=recovery-email-fixture&type=recovery`)
+    await page.getByLabel(/^New password/).waitFor()
+    assert.equal(calls.filter(call => call.path === '/auth/v1/verify').length, 1)
+    assert.equal(await page.getByRole('button', { name: 'Update password' }).isEnabled(), true)
+    assert.equal(new URL(page.url()).searchParams.has('token_hash'), false)
+  }, { deskOnly: true })
   console.log(JSON.stringify({ ok: true, scope: 'offline browser; synthetic identities; no live configuration or credentials', checks: results }, null, 2))
 } finally { await browser?.close(); await server?.close(); await rm(cacheDir, { recursive: true, force: true }) }

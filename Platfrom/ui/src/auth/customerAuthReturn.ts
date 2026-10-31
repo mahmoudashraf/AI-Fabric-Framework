@@ -40,7 +40,7 @@ export function consumeCustomerAuthReturn() {
   if (intent?.purpose === 'desk') return `/auth/desk/authorize?authorization_id=${encodeURIComponent(intent.authorizationId!)}`
   if (intent?.purpose === 'link') return '/staff/sign-in?link=customer'
   if (intent?.purpose === 'desk-entry') return '/auth/desk/sign-in' + (intent.deskClientId ? '/' + intent.deskClientId : '')
-  if ((!intent || intent.purpose === 'customer') && new URLSearchParams(window.location.search).get('flow') === 'desk') return '/auth/desk/sign-in'
+  if ((!intent || intent.purpose === 'customer') && new URLSearchParams(window.location.search).get('flow') === 'desk') return deskEntryFromEmail()
   return intent?.purpose === 'customer'
     ? ['platform', 'engage', 'desk'].includes(intent.product ?? '') ? `/start?product=${intent!.product}` : '/start'
     : '/'
@@ -49,12 +49,20 @@ export function consumeCustomerAuthReturn() {
 export function identityEmailRedirect(recovery = false) {
   const desk = window.location.pathname.startsWith('/auth/desk/')
     || new URLSearchParams(window.location.search).get('flow') === 'desk'
-  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' : ''}`
+  const clientId = window.location.pathname.startsWith('/auth/desk/sign-in/')
+    ? window.location.pathname.slice('/auth/desk/sign-in/'.length) : new URLSearchParams(window.location.search).get('desk_client')
+  const client = clientId && /^[a-zA-Z0-9_-]{1,128}$/.test(clientId) ? `&desk_client=${encodeURIComponent(clientId)}` : ''
+  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : ''}`
+}
+
+function deskEntryFromEmail() {
+  const client = new URLSearchParams(window.location.search).get('desk_client')
+  return '/auth/desk/sign-in' + (client && /^[a-zA-Z0-9_-]{1,128}$/.test(client) ? '/' + client : '')
 }
 
 export function identitySignInPath() {
   const intent = customerAuthReturn()
   return new URLSearchParams(window.location.search).get('flow') === 'desk'
     || intent?.purpose === 'desk' || intent?.purpose === 'desk-entry'
-    ? '/auth/desk/sign-in' + (intent?.purpose === 'desk-entry' && intent.deskClientId ? '/' + intent.deskClientId : '') : '/sign-in'
+    ? intent?.purpose === 'desk-entry' && intent.deskClientId ? '/auth/desk/sign-in/' + intent.deskClientId : deskEntryFromEmail() : '/sign-in'
 }

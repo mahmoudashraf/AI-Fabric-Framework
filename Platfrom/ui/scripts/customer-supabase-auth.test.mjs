@@ -16,6 +16,7 @@ const { requireDeskAuthorization, requireDeskCallback } = await load('../src/aut
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
 const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath } = await load('../src/auth/customerAuthReturn.ts')
 const { deskSignInUrl, deskIdentityClient, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
+const { readEmailLink, verifyEmailLinkOnce } = await load('../src/auth/emailLinkVerification.ts')
 const config = { enabled: true, deskClients: [{ clientId: 'desk-prod', redirectUris: ['https://desk.example.test/auth/callback'] }] }
 const details = { authorization_id: 'auth-1', client: { id: 'desk-prod' }, redirect_uri: 'https://desk.example.test/auth/callback', scope: 'openid profile email' }
 
@@ -134,9 +135,14 @@ test('Desk email links return to a fresh Desk entry without creating Console mem
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
     window.location.pathname = '/auth/desk/sign-in/desk-staging'
     rememberCustomerAuthReturn(false)
+    assert.equal(identityEmailRedirect(), 'https://console.example.test/auth/callback?flow=desk&desk_client=desk-staging')
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in/desk-staging')
     window.location.pathname = '/auth/desk/sign-in'
     window.location.search = '?flow=desk&next=https://evil.test'
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
+    window.location.search = '?flow=desk&desk_client=desk-staging'
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in/desk-staging')
+    window.location.search = '?flow=desk&desk_client=https://evil.test'
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
     window.location.search = '?flow=evil'
@@ -164,4 +170,21 @@ test('Desk entry is explicitly configured and trusted, not selected from arbitra
   assert.throws(() => deskSignInUrl(shared, 'untrusted'), /not configured/)
   assert.equal(deskIdentityClient('/auth/desk/sign-in/desk-staging'), 'desk-staging')
   assert.throws(() => deskIdentityClient('/auth/desk/sign-in/https://evil.test'))
+})
+
+test('email token hashes use the provider verifier once without requiring browser-local PKCE state', async () => {
+  const link = readEmailLink('?token_hash=one-use-fixture&type=email', 'email')
+  let calls = 0
+  const client = { auth: { verifyOtp: async input => {
+    calls++; assert.deepEqual(input, { token_hash: 'one-use-fixture', type: 'email' })
+    return { data: { user: { id: 'verified-user' }, session: { user: { id: 'verified-user' } } }, error: null }
+  } } }
+  const first = verifyEmailLinkOnce(client, 'https://auth.example.test', link)
+  assert.equal(first, verifyEmailLinkOnce(client, 'https://auth.example.test', link))
+  assert.equal(await first, 'verified-user'); assert.equal(calls, 1)
+  assert.equal(readEmailLink('?code=pkce-legacy', 'email'), null)
+  assert.throws(() => readEmailLink('?token_hash=fixture&type=recovery', 'email'))
+  const denied = { auth: { verifyOtp: async () => ({ data: {}, error: new Error('Link expired') }) } }
+  await assert.rejects(verifyEmailLinkOnce(denied, 'https://auth.example.test', { tokenHash: 'expired', type: 'email' }), /Link expired/)
+  await assert.rejects(verifyEmailLinkOnce(client, 'https://auth.example.test', { tokenHash: 'expired', type: 'email' }), /Link expired/)
 })

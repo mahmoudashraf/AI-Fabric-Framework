@@ -34,11 +34,11 @@ export function SupabaseIdentityForm({ linking = false, allowRegistration = fals
         const { error } = await auth.supabase.auth.signInWithOtp({ email: address,
           options: { shouldCreateUser: false, emailRedirectTo: identityEmailRedirect() } })
         if (error) throw error
-        setMessage('If this email has an account, a sign-in link has been requested. Open the newest email in this browser. Check spam too.')
+        setMessage('If this email has an account, a sign-in link has been requested. Open the newest email. Check spam too.')
       } else if (mode === 'recovery') {
         const { error } = await auth.supabase.auth.resetPasswordForEmail(address, { redirectTo: identityEmailRedirect(true) })
         if (error) throw error
-        setMessage('If this email has an account, a password reset link has been requested. Open the newest email in this browser. Check spam too.')
+        setMessage('If this email has an account, a password reset link has been requested. Open the newest email. Check spam too.')
       } else if (mode === 'verify') {
         const { error } = await auth.supabase.auth.resend({ type: 'signup', email: address, options: { emailRedirectTo: identityEmailRedirect() } })
         if (error) throw error

@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Paper, Stack, Typography } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 import { deskIdentityClient, deskSignInUrl, identityMethod } from '../auth/identityNavigation'
@@ -12,10 +12,12 @@ export function DeskIdentitySignInPage() {
     catch { return { id: null, error: 'The Desk sign-in client is invalid.' } }
   })
   const [error, setError] = useState<string | null>(null)
+  const navigating = useRef(false)
   const continueToDesk = () => {
     try {
       if (client.error) throw new Error(client.error)
-      window.location.replace(deskSignInUrl(auth.customerConfig, client.id))
+      const target = deskSignInUrl(auth.customerConfig, client.id)
+      if (!navigating.current) { navigating.current = true; window.location.replace(target) }
     }
     catch (ex) { setError(ex instanceof Error ? ex.message : 'Desk sign-in is unavailable.') }
   }

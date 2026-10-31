@@ -52,15 +52,22 @@ OAuth callback origin. No user-provided `next` URL is accepted.
 
 Supabase email redirects must allow both `/auth/callback` and `/auth/recovery`,
 including the exact `?flow=desk` variants, on each deployed Console origin.
-The existing `ConfirmationURL` email templates and SDK PKCE exchange are retained.
-Open the newest link in the browser where it was requested; expired/failed links
-show an explicit error and a route to request another. Console Account & team also
+Console confirmation, passwordless and recovery templates use Supabase's standard
+`TokenHash` callback with `verifyOtp`. Verification is one-use, clears the credential
+from the address bar, and must establish the matching session before continuation.
+This supports email opened on a different browser and avoids a provider verification
+URL being consumed merely by a link preview. Existing `ConfirmationURL`/PKCE links
+remain accepted; those older links need their original browser's verifier. Unrelated
+application email redirects retain their own templates. Expired/failed links show
+an explicit error and a route to request another. Console Account & team also
 provides Change password for signed-in Supabase users. Password changes do not
 claim to revoke every existing Desk/OIDC session.
 
 Delivery qualification must include mailbox placement, not just an HTTP 200 from
 Supabase. An authenticated LoomAI-domain SMTP sender is needed to qualify reliable
 inbox delivery; changing UI controls alone cannot correct spam placement.
+
+Reference: [Supabase passwordless email and TokenHash verification](https://supabase.com/docs/guides/auth/auth-email-passwordless).
 
 Self-service template availability is configured on the **backend** with
 `PLATFORM_CUSTOMER_ONBOARDING_TEMPLATE_OFFER_IDS` (comma-separated existing

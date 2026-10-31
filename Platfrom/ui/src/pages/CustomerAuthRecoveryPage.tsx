@@ -1,22 +1,25 @@
-import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Paper, Stack, TextField, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { identitySignInPath } from '../auth/customerAuthReturn'
 import { emailCallbackError } from '../auth/identityNavigation'
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
+import { useEmailLinkVerification } from '../auth/useEmailLinkVerification'
 
 export function CustomerAuthRecoveryPage() {
   const auth = usePlatformAuth()
+  const link = useEmailLinkVerification('recovery')
   const [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false), [completed, setCompleted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [callbackError] = useState(() => emailCallbackError(window.location.search, window.location.hash))
-  const linkError = callbackError || auth.customerAuthError?.message
+  const linkError = callbackError || link.error || auth.customerAuthError?.message
+  const sessionReady = !!auth.supabaseSession && !link.pending && (!link.present || link.subject === auth.supabaseSession.user.id)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError(null)
     try {
       if (!password || password !== confirmation) throw new Error('Enter the same new password in both fields.')
-      if (!auth.supabase || !auth.supabaseSession || linkError) throw new Error('Open a valid password recovery email first.')
+      if (!auth.supabase || !sessionReady || linkError) throw new Error('Open a valid password recovery email first.')
       const result = await auth.supabase.auth.updateUser({ password })
       if (result.error) throw result.error
       await auth.signOut()
@@ -29,14 +32,14 @@ export function CustomerAuthRecoveryPage() {
       <Typography variant="h5">Choose a new password</Typography>
       {error && <Alert severity="error">{error}</Alert>}
       {completed ? <><Alert severity="success">Password updated. Sign in with your new password.</Alert><Button href={identitySignInPath()}>Return to sign in</Button></>
-        : linkError || (!auth.customerAuthLoading && !auth.supabaseSession) ? <>
+        : link.pending || auth.customerAuthLoading ? <CircularProgress /> : linkError || !sessionReady ? <>
           <Alert severity="warning">{linkError || 'Open your recovery email to continue, or request a new link below.'}</Alert>
           <SupabaseIdentityForm initialMode="recovery" />
         </> : <Stack component="form" spacing={3} onSubmit={submit}>
           {auth.supabaseSession?.user.email && <Typography color="text.secondary">For {auth.supabaseSession.user.email}</Typography>}
           <TextField required autoComplete="new-password" label="New password" type="password" value={password} onChange={event => setPassword(event.target.value)} />
           <TextField required autoComplete="new-password" label="Confirm new password" type="password" value={confirmation} onChange={event => setConfirmation(event.target.value)} />
-          <Button type="submit" variant="contained" disabled={busy || !auth.supabaseSession}>Update password</Button>
+          <Button type="submit" variant="contained" disabled={busy || !sessionReady}>Update password</Button>
         </Stack>}
       {!completed && <Button href={identitySignInPath()}>Return to sign in</Button>}
     </Stack></Paper>

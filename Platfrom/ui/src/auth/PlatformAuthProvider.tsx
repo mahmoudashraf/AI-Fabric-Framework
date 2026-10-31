@@ -61,6 +61,9 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     let active = true
     if (window.location.pathname === '/auth/callback' && customerAuthReturn()?.purpose === 'link') {
       sessionStorage.setItem(modeKey, 'link')
+    } else if (['/auth/callback', '/auth/recovery'].includes(window.location.pathname)
+      && (new URLSearchParams(window.location.search).has('code') || new URLSearchParams(window.location.search).has('token_hash'))) {
+      prepareCustomerIdentity(false)
     }
     const client = createClient(configured.projectUrl, configured.publicKey, { auth: {
       flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true,
