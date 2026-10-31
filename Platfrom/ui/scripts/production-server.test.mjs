@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
 import { once } from 'node:events'
+import { chromium } from 'playwright'
 
 test('SPA routes that share asset-directory names never stream directories or crash the production server', { timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'loomai-production-server-'))
@@ -38,6 +39,29 @@ test('SPA routes that share asset-directory names never stream directories or cr
     assert.equal(image.headers.get('content-type'), 'image/webp')
     assert.equal(await image.text(), 'test-image-bytes')
     assert.equal((await fetch(origin + '/health')).status, 200)
+    const headers = (await fetch(origin + '/support')).headers
+    const csp = headers.get('content-security-policy')
+    assert.match(csp, /img-src 'self' data: blob: https:/)
+    assert.match(csp, /object-src 'none'/)
+    assert.ok(!csp.split('; ').find(value => value.startsWith('script-src')).includes('blob:'))
+    const browser = await chromium.launch({ headless: true })
+    try {
+      const page = await browser.newPage()
+      await page.goto(origin + '/support')
+      const rendered = await page.evaluate(async () => {
+        const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8
+        canvas.getContext('2d').fillRect(0, 0, 8, 8)
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'))
+        const url = URL.createObjectURL(blob)
+        try {
+          const image = new Image()
+          const result = new Promise(resolve => { image.onload = () => resolve(image.naturalWidth === 8); image.onerror = () => resolve(false) })
+          image.src = url; document.body.append(image)
+          return await result
+        } finally { URL.revokeObjectURL(url) }
+      })
+      assert.equal(rendered, true, 'The real production CSP must allow authenticated JPEG Blob previews')
+    } finally { await browser.close() }
     assert.equal(child.exitCode, null)
     assert.ok(!output.includes('EISDIR'))
   } finally {
