@@ -11553,3 +11553,51 @@ test is being called hosted acceptance. UI extraction remains last.
   production-diagnostics-{allowed,denied}, native rollouts. See01054executionrecord
   for fullproof/latency/pointload/qualityfollowups. Source docs reflect implementation
   and live qualification, not a universal SLA or enterprise-ready certification.
+
+## 2026-10-31 Shared Console/Desk Account Access
+
+- Owner request implemented: passwordless email link, verification resend,
+  email-only password recovery, signed-in password change and Desk Profile
+  (verified account email/reference). Desk reuses shared identity UI, not a
+  second browser auth engine. Normal Desk logout now204; CSRF, session/cookie
+  invalidation and OAuth credential removal remain. No framework/runtime release.
+- Source62566b556 backend/Desk and3c25d067c Console native healthy BOTH hosts.
+  CI41231856629/41231856638/41234175057 passed. Console correction19a81c732
+  was qualified before final3c25; never infer current source from old entries.
+- Both Desk environments use Supabase's ONE configured Console OAuth authority.
+  `/auth/desk/sign-in/{registeredClientId}` preserves the trusted destination;
+  never select a caller-supplied return URL or assume staging-origin and prod-
+  origin Supabase sessions represent the same identity. Initial negative live
+  cross-origin account selection was preserved, corrected, then actual Acme
+  staging and LoomAI production mailbox-link->correctDesk identity/roles passed.
+- New Console email templates use documented TokenHash/verifyOtp for signup,
+  passwordless and recovery; one-use exchange is deduplicated, URL credential
+  removed, verified subject must match the session before continuation. Old
+  PKCE callbacks remain accepted; non-Console template branches unchanged.
+  Exact callback/recovery URLs including registeredDeskclient variants allowed.
+- Native public signup+resend delivered Inbox; resent activation succeeded in a
+  browser without signup's PKCE state and showed the exact new identity. Replay
+  rejected despite an existing session. Actual new TokenHash recovery and normal
+  fixture password change passed; old password rejected/new accepted. Personal
+  password unchanged; no admin-confirm/generated-link/identity or role bypass.
+- Tests: Console11policy/26browser, Desk50browser/15productionbundle, backend
+  8controller/config passed. Auth integration15passed ONLY with H2ddl-auto=update
+  isolation: default H2testfixture already lacks platform_secrets.target_profile_id.
+  This is NOT migration qualification; production schema was not altered here.
+- Delivery: older recovery mail hit Spam; new activation/resend/passwordless/
+  recovery mail observed Inbox. SMTP still Gmail-based/Brevo-rewritten; reliable
+  authenticated LoomAI-domain delivery remains unqualified, collected in Required
+  for production. Do not rotate SMTP or disable confirmations speculatively.
+- Correction to prior personal-agent inference: owner-confirmed email has one
+  confirmed Supabase identity but ZERO production Desk operators by exactemail
+  AND subject at diagnosis. Northfield's cached session was not proof of that
+  identity. No personal Desk role was assigned. Actual profile registration is
+  still required before a normal SUPPORT assignment; no need to activate again.
+- Owner-requested personal passwordless email sent through normal existing-user
+  OTP API; exact-recipient Gmail metadata confirms Inbox, body/link NOT read or
+  followed. Personal password unchanged. Owner can open the newest email and
+  complete Desk profile registration; a normal role assignment can follow.
+- Private qualification/config snapshots/native fixtures/negativelegacyresend
+  evidence: ~/.codex/private/loomai-support-01054/account-access-20261031/.
+  Live screenshots output/account-access-20261031/. No customer runtime rebuilt,
+  no new deployment/database, no broad cleanup or authentication-policy bypass.

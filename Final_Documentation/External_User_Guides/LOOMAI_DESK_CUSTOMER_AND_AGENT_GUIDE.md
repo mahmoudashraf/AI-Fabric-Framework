@@ -152,15 +152,28 @@ data access and no customer Console administration permissions.
 
 ### Email Verification And Password Recovery
 
-Select **Create an account** on Desk, then confirm the email using the received
-link. The link returns to Desk; complete normal sign-in before registering an
-agent profile. Email confirmation alone creates no deployment assignment.
+Desk's sign-in screen links to the shared LoomAI account controls:
 
-For password recovery, open [Console sign-in](https://console.loomai.pro/), enter
-the account email and select **Forgot password?**. Open the recovery link in the
-same browser that requested it, choose and confirm a new password, then sign in
-to Desk with that password. The recovery flow uses the normal Supabase PKCE
-session, not an administrator password reset or a bypass of identity checks.
+- **Create account** registers a new identity. Confirm its email, then complete
+  normal Desk sign-in and **Finish registration** for the agent profile.
+- **Resend verification** requests another signup email. An already verified
+  account does not need activation and can sign in immediately.
+- **Email sign-in link** signs in to an existing account without a password:
+  [request a sign-in link](https://console.loomai.pro/auth/desk/sign-in?method=email).
+- **Forgot password** requests a reset email:
+  [reset your password](https://console.loomai.pro/auth/desk/sign-in?method=recovery).
+  Choose and confirm the new password after opening the email.
+- Signed-in agents can open **Profile** to see their exact email, agent reference,
+  and **Change password** link. These controls are also available before assignment.
+
+Open the newest email. New links use Supabase's one-use email verification and
+can be opened in a different browser. Older PKCE links still require the browser
+that requested them. Neither flow uses an administrator password reset or bypasses
+identity checks. Expired links show an error and let you request a new link.
+The Desk identity route does not require creating a Console business workspace.
+Neither email confirmation nor passwordless sign-in grants deployment access;
+an owner still assigns a registered agent. Desk sign-out ends that Desk session,
+not every existing Console/identity-provider session.
 Check Spam if a message is absent; LoomAI-domain sender/inbox-placement
 qualification is still outstanding.
 
