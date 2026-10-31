@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "libraryId": "loomai-customer-support",
+  "contentVersion": "2026-10-31.1",
+  "reviewedAt": "2026-10-31",
+  "contentStatus": "CUSTOMER_SAFE_SOURCE_REVIEWED",
+  "deploymentStatus": "NOT_INDEXED_BY_THIS_PACKAGE",
+  "language": "en",
+  "purpose": "Real customer support guidance grounded in LoomAI source contracts, not fictional retailer policies or private operational notes.",
+  "publicationNotes": [
+    "Feature availability depends on the customer's configuration and deployed release.",
+    "Source review does not establish account-specific readiness or a successful hosted check.",
+    "Use the normal document preview, explicit initial approval, indexing, reconciliation and retrieval verification flow.",
+    "Only the guides directory is an indexing input. Review evidence and delivery manifests stay outside it."
+  ],
+  "provenanceFiles": [
+    "review/provenance-core.json",
+    "review/provenance-assistance.json",
+    "review/provenance-dealership.json"
+  ],
+  "documents": [
+    {"id": "loomai-support-01", "path": "documents/loomai-support/01-products-and-getting-started.txt", "sourceCategory": "getting-started"},
+    {"id": "loomai-support-02", "path": "documents/loomai-support/02-accounts-and-sign-in.txt", "sourceCategory": "account-access"},
+    {"id": "loomai-support-03", "path": "documents/loomai-support/03-deployment-configuration-and-releases.txt", "sourceCategory": "deployment-releases"},
+    {"id": "loomai-support-04", "path": "documents/loomai-support/04-plugins-and-connections.txt", "sourceCategory": "integration-setup"},
+    {"id": "loomai-support-05", "path": "documents/loomai-support/05-engage-website-and-standalone.txt", "sourceCategory": "workspace-installation"},
+    {"id": "loomai-support-06", "path": "documents/loomai-support/06-engage-custom-domains.txt", "sourceCategory": "workspace-domains"},
+    {"id": "loomai-support-07", "path": "documents/loomai-support/07-document-knowledge-and-indexing.txt", "sourceCategory": "document-indexing"},
+    {"id": "loomai-support-08", "path": "documents/loomai-support/08-knowledge-freshness-and-answer-quality.txt", "sourceCategory": "knowledge-troubleshooting"},
+    {"id": "loomai-support-09", "path": "documents/loomai-support/09-actions-and-confirmation.txt", "sourceCategory": "governed-actions"},
+    {"id": "loomai-support-10", "path": "documents/loomai-support/10-specialists-and-resolution-checks.txt", "sourceCategory": "specialist-assistance"},
+    {"id": "loomai-support-11", "path": "documents/loomai-support/11-desk-and-human-handover.txt", "sourceCategory": "human-support"},
+    {"id": "loomai-support-12", "path": "documents/loomai-support/12-requesting-integration-support-and-diagnostics.txt", "sourceCategory": "support-diagnostics"},
+    {"id": "loomai-support-13", "path": "documents/loomai-support/13-dealership-workspace-stock-policies-and-requests.txt", "sourceCategory": "dealership-workspace"}
+  ]
+}

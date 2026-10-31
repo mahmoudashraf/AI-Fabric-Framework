@@ -1,0 +1,175 @@
+{
+  "reviewedAt": "2026-10-31",
+  "scope": "SOURCE/CONTRACT review of real customer assistance guides 07-12; not a live availability, production launch, storage qualification or indexing-completion claim. Paths in documents are package-relative; sourceFiles are repository-relative. This review file remains outside the indexed guides directory.",
+  "documents": [
+    {
+      "id": "loomai-support-07",
+      "path": "documents/loomai-support/07-document-knowledge-and-indexing.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/DocumentKnowledgePage.tsx",
+        "Platfrom/ui/src/components/customer/customerDocumentStorageScope.ts",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDocumentKnowledgeOperationsService.java",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/DocumentKnowledgeController.java",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/documents/DocumentKnowledgeService.java",
+        "product-templates/ai-support-workspace/manifests/support-documents.manifest.json",
+        "product-templates/ai-support-workspace/API_RUNBOOK.md"
+      ],
+      "claims": [
+        "DocumentKnowledgePage exposes an explicit target release, source binding, connector status, discovery, approval-backed registration, bounded preview, index, refresh, reconcile, removal and retrieval-proof controls.",
+        "The support DATA manifest declares customer-managed S3-compatible storage, deployment-only derived evidence, LIST/READ/HEAD authority, deleteSourceOnRemoval=false, .txt/configured .json input and explicit initial indexing approval.",
+        "Source approval occurs at registration in the current UI. Preview operates on a registered source; the guide does not invent pre-registration extracted preview or claim preview activates evidence.",
+        "DocumentKnowledgeController returns ACCEPTED for index and removal; DocumentKnowledgeService reconciles recorded indexing/deletion work rather than treating submission as completion.",
+        "DocumentKnowledgeService.refresh observes provider revision changes without indexing them; activate switches to a successful candidate before superseding and deleting old derived chunks.",
+        "The API runbook separates mounted non-production mechanics from customer-owned production source-storage qualification."
+      ],
+      "limitations": [
+        "Only applies where the module, installed document policy, customer permissions and provisioned target are available. It does not claim every template supports arbitrary file formats.",
+        "No source files were uploaded, no storage credentials inspected and no live indexing or deletion performed for this documentation review.",
+        "Retrieval proof is evidence of source/version/chunk retrieval, not a guarantee of final answer quality or upstream freshness."
+      ]
+    },
+    {
+      "id": "loomai-support-08",
+      "path": "documents/loomai-support/08-knowledge-freshness-and-answer-quality.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/DocumentKnowledgePage.tsx",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/documents/DocumentKnowledgeService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportDocumentStatusService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportResourceService.java",
+        "product-templates/ai-support-workspace/overlays/loomai/specialist-assistance.json",
+        "product-templates/ai-support-workspace/README.md",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md"
+      ],
+      "claims": [
+        "Source storage, candidate/active indexing versions, retrieval proof and generated-answer quality are separate checks in the source lifecycle and UI.",
+        "SupportDocumentStatusService projects registered counts, active versions, newer candidates and observation times from the selected app's exact target/release and explicitly returns upstreamStorageProbed=false.",
+        "SupportResourceService derives document-target authority from a selected connected app, not the latest deployment release or text supplied to the model.",
+        "Connection status reports persisted synchronization observations with liveProviderProbed=false; it is distinct from document-version state.",
+        "Support app readiness uses evaluateLocal and deliveryProbed=false; deployment observations explicitly identify persisted state and liveHealthProbed=false.",
+        "The current support configuration uses bounded READ/RAG cooperation, while the shared philosophies prohibit semantic keyword routing, hidden recovery and unapproved automatic search-all."
+      ],
+      "limitations": [
+        "The guide recommends manual source verification through the customer's own authorized storage access; it does not assert that support diagnostics read source contents or probe storage freshness.",
+        "A citation, retrieval proof or completed chain does not certify semantic accuracy or exhaustive coverage of a compound question.",
+        "No universal refresh schedule, answer-quality guarantee, search-all default or production availability is promised."
+      ]
+    },
+    {
+      "id": "loomai-support-09",
+      "path": "documents/loomai-support/09-actions-and-confirmation.txt",
+      "sourceFiles": [
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/marketplace/service/DeploymentMarketplaceDraftCompilerService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/specialist/SpecialistAssistanceCompiler.java",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/specialist/assistance/SpecialistAssistanceActionContributor.java",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/handover/RequestConversationHandoverAction.java",
+        "max-mode-widget/src/hooks/useConfirmationFlow.ts",
+        "max-mode-widget/src/components/ActionResultRenderer.tsx",
+        "product-services/loomai-desk-service/API_CONTRACT.md",
+        "Final_Documentation/External_User_Guides/LOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md"
+      ],
+      "claims": [
+        "The normal Marketplace compiler preserves accessMode/readOnly, confirmationRequired/requiresConfirmation and anonymousAllowed as separate action contract fields.",
+        "READ actions need not belong to an indexed vector space unless their actual retrieval or declared grounding contract requires it.",
+        "The generic confirmation flow submits confirmation/cancellation as a query in the current conversation and consumes the actual canonical result.",
+        "RequestConversationHandoverAction distinguishes EXPLICIT_USER_REQUEST from MODEL_RECOMMENDATION; a direct user request does not necessarily require an additional confirmation.",
+        "Specialist assistance is exposed as a READ capability and compiled workers have writePolicy=DISABLED. That boundary does not prohibit separate authorized Console operations or conversation-control actions.",
+        "Desk Action reviews require actual application-originated proposals and Reviewer permission; approval and business execution completion remain distinct."
+      ],
+      "limitations": [
+        "The guide does not promise that every WRITE needs confirmation, every READ permits anonymous callers or every chat confirmation creates a review task.",
+        "Actual parameters, target authorization, results and confirmation policy belong to the installed integration; this guide creates no new action or repair authority.",
+        "Visible local confirmation state is not independent evidence that an external business effect completed; uncertain execution must not trigger an assumed-safe duplicate request."
+      ]
+    },
+    {
+      "id": "loomai-support-10",
+      "path": "documents/loomai-support/10-specialists-and-resolution-checks.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/components/customer/CustomerSpecialistAssistance.tsx",
+        "Platfrom/ui/src/components/customer/specialistAssistanceForm.ts",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/specialist/SpecialistAssistanceCompiler.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/specialist/SpecialistAssistanceAuthorityService.java",
+        "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/specialist/assistance/SpecialistAssistanceActionContributor.java",
+        "product-templates/ai-support-workspace/manifests/ai-support-workspace.1.0.1.manifest.json",
+        "product-templates/ai-support-workspace/API_RUNBOOK.md",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md"
+      ],
+      "claims": [
+        "The customer conversational editor exposes specialist assistance, areas, instructions, approved knowledge sources, installed READ tools, resolution plans and bounded advanced limits.",
+        "Use changes updates the local form; Save support capabilities updates the deployment draft and explicitly says publish/apply is still required.",
+        "The Answer preview is synthetic, Sample-labeled and performs no AI or diagnostic checks.",
+        "The compiler emits native SpecialistChain resources with bounded manager decisions, worker invocations, parallelism and duration; it does not introduce a support-specific fixed ExecutionPlan engine.",
+        "The compiler validates installed READ authority, sets worker writes DISABLED, and explicitly reserves human handover to the outer conversation.",
+        "The runtime consult_specialist description permits direct answers to simple questions and exposes typed unsuccessful results instead of guaranteeing every specialist invocation succeeds.",
+        "Templates are bootstrap defaults; normal deployment configuration and versioning remain the evolution path."
+      ],
+      "limitations": [
+        "Only applies to workspaces exposing the conversational Support capabilities editor and current edit permissions; it does not claim support for every behavior type.",
+        "Parallel permission is a bound for independent checks, not a guarantee that every worker will execute or that all findings will be included in a final summary.",
+        "Configuration preview and a completed execution are not a semantic correctness certificate, automatic repair or human-control transition."
+      ]
+    },
+    {
+      "id": "loomai-support-11",
+      "path": "documents/loomai-support/11-desk-and-human-handover.txt",
+      "sourceFiles": [
+        "Final_Documentation/External_User_Guides/LOOMAI_DESK_CUSTOMER_AND_AGENT_GUIDE.md",
+        "product-services/loomai-desk-service/README.md",
+        "product-services/loomai-desk-service/API_CONTRACT.md",
+        "product-services/loomai-desk-service/src/main/java/com/loomai/desk/service/DeskDirectory.java",
+        "product-services/loomai-desk-service/ui/src/Conversations.tsx",
+        "product-services/loomai-desk-service/ui/src/Agents.tsx",
+        "max-mode-widget/src/components/Handover/ConversationHandoverDialog.tsx",
+        "Platfrom/ui/src/pages/CustomerSupportPage.tsx",
+        "product-templates/ai-support-workspace/API_RUNBOOK.md"
+      ],
+      "claims": [
+        "Desk is a shared managed service/store per hosting environment with deployment-target bindings, not a per-deployment Inbox deployment/database.",
+        "Owner, SUPPORT and REVIEWER roles are distinct. A registered identity has no queue permission until assigned; owners must explicitly assign themselves to handle conversations or reviews.",
+        "Enable LoomAI Desk reuses normal publish/apply/verification and app assignment remains an explicit separate operation when the app still references an older release.",
+        "Agents & access assigns registered verified identities to a target; staging and production assignments are distinct while multiple apps on a target share its team.",
+        "The visitor handover dialog is driven by configured intake fields and permissions, pauses AI while pending/active, and offers explicit return controls only where permitted.",
+        "Desk exposes claim, reply, return-to-AI and close with observable delivery outcomes; navigation or interruption does not itself authorize AI resumption.",
+        "Conversation close and optional external case resolve are separate commands; Action reviews are a separately enabled and authorized lifecycle."
+      ],
+      "limitations": [
+        "No agent response-time promise, application-specific team assignment, universal anonymous intake or automatic availability claim is made.",
+        "The guide does not imply that every target has Desk or human-review enablement, or that owning a customer account grants conversation access.",
+        "Accepted delivery and reviewer approval are not proof of delivered messages or successful external business execution."
+      ]
+    },
+    {
+      "id": "loomai-support-12",
+      "path": "documents/loomai-support/12-requesting-integration-support-and-diagnostics.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/CustomerSupportPage.tsx",
+        "Platfrom/ui/src/components/customer/SupportResourcePicker.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportCaseController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportCaseService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportRequesterService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportDiagnosticService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportResourceService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportDocumentStatusService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/runtime/SupportWorkspaceService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportSettings.java",
+        "doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md"
+      ],
+      "claims": [
+        "The guide describes the implemented workflow only when Console exposes the module; transient rollout and production-launch status are deliberately kept out of indexed customer guidance.",
+        "CustomerSupportPage exposes summary, optional details/product/resources, consent, saved delivery states and a canonical embedded conversation with explicit start/check controls.",
+        "SupportRequesterService requires the exact current requester within the customer account; case visibility is not automatically granted to every account member.",
+        "SupportDiagnosticService rechecks current membership, ownership, active episode, open case and current consent before projecting selected-resource metadata.",
+        "SupportResourceService limits observations to release state, local readiness, connection sync and exact selected-app document targets; explicit false probe flags prevent live-health, HTTPS, provider or storage-freshness claims.",
+        "Changing selected resources, resolving or cancelling revokes consent; reopening neither restores it nor replays the intake. A terminal conversation can receive an explicitly created new episode.",
+        "The UI starts initial delivery in the explicit submission handler, not a mount effect; saved/uncertain/failed delivery remains visible without silently sending replacement AI turns."
+      ],
+      "limitations": [
+        "Current hosting, enablement and production-launch truth must be checked outside this static guide; source review is not a new live verification.",
+        "This workflow is available only when the workspace exposes the module and the signed-in requester is authorized; it grants neither account-wide case sharing nor raw business-data access.",
+        "Revocation blocks subsequent diagnostic authorization but does not erase previously shared observations or conversation history. No staffing, SLA, retention or residency guarantee is asserted."
+      ]
+    }
+  ]
+}

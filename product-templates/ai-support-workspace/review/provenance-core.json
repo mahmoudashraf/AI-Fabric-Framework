@@ -1,0 +1,179 @@
+{
+  "reviewedAt": "2026-10-31",
+  "scope": "SOURCE/CONTRACT review of repository UI, API, services and guides; not live qualification, rollout evidence or a claim that every feature is enabled in production. This provenance stays outside indexed guides. Upload and packaging require whole-pack review.",
+  "documents": [
+    {
+      "id": "loomai-support-01",
+      "path": "documents/loomai-support/01-products-and-getting-started.txt",
+      "sourceFiles": [
+        "Platfrom/ui/README.md",
+        "Platfrom/ui/src/pages/PublicProductsPage.tsx",
+        "Platfrom/ui/src/pages/CustomerOnboardingPage.tsx",
+        "Platfrom/ui/src/layout/CustomerConsoleShell.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDetailSections.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDeploymentConsole.tsx",
+        "Platfrom/ui/src/pages/CustomerKnowledgeConnectionsPage.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/service/CustomerOnboardingService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceReadinessService.java",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md",
+        "Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md"
+      ],
+      "claims": [
+        "Platform owns deployment configuration and releases; Engage is a connected embedded or standalone experience; Desk provides enabled deployment-scoped human support and separately authorized reviews.",
+        "Customer onboarding distinguishes identity, workspace creation, linking, template enrollment and later deployment; workspace creation alone does not deploy or incur AI use.",
+        "Customer navigation grows with resources; knowledge and connection views select a deployment and target release, and Human support depends on configured capability.",
+        "Templates bootstrap editable settings; Configuration and Advanced are view depth, not additional staff authority.",
+        "Draft, publication, deployment verification, app readiness and observed answer quality are distinct evidence."
+      ],
+      "limitations": [
+        "No universal template, provider, Desk, review or support-workspace availability is claimed.",
+        "Current execution context records production support as not launched; the document directs customers only to the support channel available to their account.",
+        "No price, SLA, retention, residency or future product promise is introduced."
+      ]
+    },
+    {
+      "id": "loomai-support-02",
+      "path": "documents/loomai-support/02-accounts-and-sign-in.txt",
+      "sourceFiles": [
+        "Platfrom/ui/README.md",
+        "Platfrom/ui/src/auth/SupabaseIdentityForm.tsx",
+        "Platfrom/ui/src/auth/PlatformAuthProvider.tsx",
+        "Platfrom/ui/src/auth/customerSession.ts",
+        "Platfrom/ui/src/pages/CustomerOnboardingPage.tsx",
+        "Platfrom/ui/src/pages/CustomerAuthRecoveryPage.tsx",
+        "Platfrom/ui/src/pages/CustomerAccountPage.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDetailSections.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/web/CustomerOnboardingController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/web/CustomerSupabaseAuthController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/service/CustomerOnboardingService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/service/CustomerSupabaseIdentityService.java",
+        "workspace-apps/standalone-ai-workspace/README.md"
+      ],
+      "claims": [
+        "Native Supabase customer identity is separate from active Console membership; existing accounts are not claimed by verified email alone.",
+        "New users explicitly create a workspace when eligible; existing-account linking requires both the local customer session and verified Supabase identity.",
+        "Registration sends an email-verification instruction, and password recovery uses the recovery email session, matching new passwords and subsequent sign-in.",
+        "Login fields start empty; customer Advanced view does not change the account role, and team management is conditional.",
+        "Desk assignment and Engage visitor authentication are distinct from Console customer administration; local sign-out must not be described as immediate revocation of every issued integration token."
+      ],
+      "limitations": [
+        "Email delivery, external provider uptime and a particular customer's membership are not verified by this source review.",
+        "No universal social login, MFA, invitation flow, automatic account reassignment or immediate downstream token revocation is claimed.",
+        "Registration and available templates may be disabled independently of existing-account access."
+      ]
+    },
+    {
+      "id": "loomai-support-03",
+      "path": "documents/loomai-support/03-deployment-configuration-and-releases.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/RevisionsPage.tsx",
+        "Platfrom/ui/src/components/DeploymentTemplateResetButton.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDeploymentAdvanced.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDeploymentConsole.tsx",
+        "Platfrom/ui/src/components/customer/CustomerVerifiedReleaseAssignments.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/web/DeploymentController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/service/CustomerSelfServiceOperationBoundary.java",
+        "Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md",
+        "Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md"
+      ],
+      "claims": [
+        "The same shared versioning flow supports editable drafts, validation, immutable published versions, explicit target and compatible artifact selection, apply and release verification.",
+        "Templates and offers are bootstrap defaults rather than permanent restrictions; ordinary existing-production upgrades do not inherently require new apps, manual upgrade approval or staging promotion.",
+        "Guided staging-to-production promotion retains explicit verification and assignment activation; publishing is not app reassignment or data transfer.",
+        "Reset to template changes the draft only, preserves installed plugins, credentials, bindings and identity, and does not publish, deploy or recover data.",
+        "Release verification is exact-release evidence and does not guarantee all knowledge freshness or semantic answer quality."
+      ],
+      "limitations": [
+        "Permissions, required credentials, artifact compatibility and actual verification remain mandatory; no authorization bypass is suggested.",
+        "Historical restrictions in older implementation guides are not treated as the current lifetime-upgrade contract.",
+        "No zero-downtime, automatic conversation migration, automatic index transfer or universal rollback guarantee is claimed."
+      ]
+    },
+    {
+      "id": "loomai-support-04",
+      "path": "documents/loomai-support/04-plugins-and-connections.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/MarketplacePage.tsx",
+        "Platfrom/ui/src/components/customer/CustomerDeploymentAdvanced.tsx",
+        "Platfrom/ui/src/components/customer/CustomerExternalIntegrationBindings.tsx",
+        "Platfrom/ui/src/pages/CustomerKnowledgeConnectionsPage.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/externalintegration/README.md",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/externalintegration/ExternalIntegrationController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/service/CustomerSelfServiceOperationBoundary.java",
+        "product-templates/ai-support-workspace/README.md"
+      ],
+      "claims": [
+        "Plugin types contribute configuration and capabilities; install changes compile into a draft and need publication and apply before affecting the runtime.",
+        "The generated install form and approved-connection workflow separate nonsecret configuration, endpoint/account approval and write-only credentials.",
+        "Reviewed connection bindings are specific to a version, target and slot, and local credential status is not provider-health evidence.",
+        "Connections displays source state, freshness, last success and counts scoped to the selected target release.",
+        "Platform revocation is distinct from external provider key revocation and stopping an already running credential consumer."
+      ],
+      "limitations": [
+        "Approved connections is conditional on the installed capability and profile; the document does not promise arbitrary URL or credential setup in every workspace.",
+        "No business account creation, source system ownership, universal provider support or automatic production authorization is claimed.",
+        "No live provider authentication, synchronization latency or upstream availability is certified by this document."
+      ]
+    },
+    {
+      "id": "loomai-support-05",
+      "path": "documents/loomai-support/05-engage-website-and-standalone.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/AIWorkspacesPage.tsx",
+        "Platfrom/ui/src/components/customer/CustomerEngageConnectionPanel.tsx",
+        "Platfrom/ui/src/components/customer/EngageAppearanceFields.tsx",
+        "Platfrom/ui/src/components/customer/EngageAppearancePreview.tsx",
+        "Platfrom/ui/src/components/customer/EngageDeploymentUpdatePanel.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/web/PlatformAIWorkspaceController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceInstallationService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceReadinessService.java",
+        "workspace-apps/standalone-ai-workspace/README.md",
+        "Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md"
+      ],
+      "claims": [
+        "Embedded and standalone are separate installation delivery modes that can share one deployment; the UI offers creating the complementary delivery from an existing app configuration.",
+        "Connect deployment derives its proposed target/release from deployment context and existing assignment, while allowing explicit changes and draft-only configuration before verified activation.",
+        "Appearance fields and the synthetic preview cover names, public HTTPS logo, colour, appearance, welcome/input text and configurable sample views without AI calls or real actions.",
+        "The exact installer script is generated by Console, uses a public installation identifier, belongs once in the site layout and requires exact allowed origins plus an active ready installation.",
+        "Standalone delivery resolves the installation by origin, direct-runtime traffic reaches the assigned deployment, and reviewed private profiles retain their trusted adapter path."
+      ],
+      "limitations": [
+        "Two delivery installations are not promised automatic ongoing synchronization of all appearance edits or shared visitor sessions.",
+        "The preview is synthetic and cannot qualify arbitrary custom renderer code, live sign-in, actions, answer quality or handover.",
+        "Capabilities and profiles must actually be installed and configured; a visible control grants no backend permission.",
+        "Reassignment is not claimed to migrate a live conversation, and editing an active installation follows its existing disable requirement."
+      ]
+    },
+    {
+      "id": "loomai-support-06",
+      "path": "documents/loomai-support/06-engage-custom-domains.txt",
+      "sourceFiles": [
+        "Platfrom/ui/src/pages/AIWorkspacesPage.tsx",
+        "Platfrom/ui/src/components/customer/EngageDomainInstructions.tsx",
+        "Platfrom/ui/src/components/customer/EngageDeploymentUpdatePanel.tsx",
+        "Platfrom/ui/src/components/customer/engageDeploymentUpdate.ts",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceDomainService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceDomainVerifier.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceDomainVerificationService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceDomainVerificationScheduler.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceReadinessService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/service/AIWorkspaceInstallationService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/aiworkspace/web/AIWorkspaceDeploymentUpdateController.java",
+        "workspace-apps/standalone-ai-workspace/README.md"
+      ],
+      "claims": [
+        "Custom domains identify standalone installations on the shared frontend, not new AI runtimes or customer business databases.",
+        "Console emits app-specific TXT ownership and configured CNAME routing instructions; explicit Verify begins ownership, applied-route and exact-host HTTPS checks.",
+        "The configured background worker continues ROUTING_PENDING verification after explicit intent; initial ownership failure still requires correction and another verification request.",
+        "Required runtime origin/identity changes are reviewed and published/applied through the existing deployment lifecycle, including visible unrelated draft changes and explicit use of the verified update.",
+        "External identity-provider redirect configuration may remain manual; app readiness and explicit activation are separate from domain verification."
+      ],
+      "limitations": [
+        "SOURCE/CONTRACT only: this review does not establish that any new customer domain, shared routing setting, DNS record or certificate is currently ready.",
+        "No fixed DNS propagation time, certificate timing, automatic identity-provider mutation or root-domain/alternative DNS-record support is promised.",
+        "The CNAME is the routing instruction; verification also relies on applied route ownership and direct healthy HTTPS, not merely a matching DNS label.",
+        "A domain check does not guarantee authentication, runtime query success, upstream business access or semantic answer quality."
+      ]
+    }
+  ]
+}

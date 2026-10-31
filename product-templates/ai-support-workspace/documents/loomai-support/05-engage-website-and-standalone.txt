@@ -1,0 +1,37 @@
+Title: Set up Engage on a website and as a standalone app
+Document ID: loomai-support-05
+Product: LoomAI Engage and Platform
+Audience: Customer administrators and website integration teams
+Reviewed: 2026-10-31
+
+Choose delivery without duplicating AI
+
+Engage provides a customer-facing AI workspace. Choose Embed on my website for script installation, or Standalone app for its own address. Use both with the same deployment: Add website embed or Add standalone app creates the other installation from an existing configuration. Each has its own delivery settings, without creating another AI deployment.
+
+An app connection identifies its deployment and target release. Engage normally derives connection choices from the selected deployment and its existing assignment. You do not need to create a separate environment configuration simply to install the widget. Change connection exposes alternatives when you intentionally need them.
+
+Connect and configure
+
+1. Open Engage apps or Connect deployment from the intended deployment. Choose the AI deployment, review the proposed connection and select Use this deployment. Check available existing connections before creating another.
+2. A connection draft can be saved before a runtime is verified. This lets you configure and preview the app, but it does not permit activation. Complete the deployment's publish, apply and verification steps before using the app live.
+3. Choose an available experience pack and connection profile appropriate to your audience. Configure public access or the supported sign-in policy. Private runtime or provider credentials never belong in the installation script.
+4. Set the assistant name, public HTTPS logo image, brand colour, appearance, welcome message and input placeholder. Review Appearance & preview in website, MAX or standalone views and at different screen sizes.
+5. Review configured tools, attached-context states and relevant result samples. Available tools, custom presentations and human-support controls depend on the experience pack and assigned deployment. A visible button does not install its backend action or grant permission to run it.
+
+The preview uses synthetic content. It makes no AI calls, performs no real sign-in or action, and saves no visitor conversation state. It is useful for layout review, not proof that authentication, knowledge, custom code or handover works live. Previewing an active app does not change it; disable it before saving edits when the editor requires that.
+
+Embed on a website
+
+Enter the exact allowed HTTPS website origins. An origin includes the scheme and hostname, not a page path; do not use a wildcard. Copy the complete Installation script from the saved app and add it once to the website layout before the closing body tag. It loads the Platform installer using the public installation identifier; do not replace that identifier with a deployment token.
+
+Refresh readiness. If runtime origins or identity settings are missing, use Apply required deployment update, review its changes and complete the existing publish/apply workflow. Activate the installation explicitly, then open the actual allowed website and send a harmless test question. A disabled or unready installation does not load a usable workspace.
+
+Publish a standalone app
+
+Choose the app address and verify its route. For your own domain, follow the separate custom-domain guide. Refresh readiness and activate when ready. The shared frontend resolves the address to the installation's configuration and assigned deployment. For direct-runtime connection profiles, browser messages go to that deployment; private adapter profiles use their configured trusted adapter.
+
+Troubleshooting and evidence
+
+If no widget appears, check that the script is present once, the origin matches, and the app is active and ready. If the wrong AI configuration appears, inspect the connected deployment and verified release rather than copying a newer runtime URL into the website. Changing an assignment is not a conversation-migration mechanism.
+
+A loaded app proves frontend delivery, not correct knowledge or business effects. Test sign-in, questions, enabled actions and handover independently. Ask support about unexplained blockers or delivery failures, with app and deployment names, delivery mode, hostname, approximate time and safe error text. Exclude tokens and private conversations.

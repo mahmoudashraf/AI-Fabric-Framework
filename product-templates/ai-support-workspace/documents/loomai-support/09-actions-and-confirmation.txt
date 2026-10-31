@@ -1,0 +1,73 @@
+Title: Use actions safely and understand confirmation
+Document ID: loomai-support-09
+Product: LoomAI Engage and deployment action integrations
+Audience: Workspace users and customer administrators configuring actions
+Reviewed: 2026-10-31
+
+Know what the workspace can do
+
+Use an action only when the workspace exposes it and your identity is authorized.
+A visible tool or an AI suggestion is not a grant of permission. Documentation
+answers, READ actions and WRITE actions have different meanings. A documentation
+answer uses approved knowledge. A READ action requests information from an
+integrated service. A WRITE action can change an external record or conversation
+state according to its registered contract.
+
+A READ tool does not have to query an indexed vector space. For example, an
+authorized status service can supply current observations without indexing those
+records. Indexing approval and permission to call an action are separate.
+
+Request and review an action
+
+1. Describe the outcome you want and provide the requested non-secret details.
+   The AI extracts parameters, but cannot grant itself access or treat arbitrary
+   text as a trusted system-owned target. Select the intended item or resource
+   through the provided UI when necessary.
+2. Read clarifying questions carefully. If the date, target or requested change
+   is wrong, correct it before proceeding. Do not provide passwords, access
+   tokens or another person's private data to make a tool run.
+3. If a confirmation appears, review the proposed operation and its decision-
+   critical details. Use the confirmation or cancellation controls in the same
+   conversation. A normal chat confirmation is processed through that ongoing
+   conversation; it is not permission for unrelated operations.
+4. Wait for the actual result. Check whether it reports completion, a pending
+   request, a denial or a failure. An AI statement about what it intends to do,
+   a submitted request, or a locally marked confirmation is not independently
+   proof of a successful business effect.
+5. If delivery or execution is uncertain, inspect the existing result and ask
+   support before submitting the same business operation again. Repeating a new
+   request can create duplicates in the connected business system.
+
+Confirmation is policy-dependent
+
+Not every WRITE requires a separate confirmation, and not every READ is available
+anonymously. The installed action's declared policy and current authorization
+govern execution. A login prompt may be required for a protected capability;
+signing in does not automatically authorize all actions. Do not change security
+settings merely to avoid an appropriate permission or confirmation check.
+
+Human handover illustrates the distinction: the conversation can transition after
+an explicit user request, while an AI-recommended escalation may ask the user to
+confirm. Required contact details are determined by the handover configuration.
+Neither path implies the AI may run arbitrary repairs.
+
+Support and human review boundaries
+
+The first support-resolution contract is read-only. Its specialists can explain
+guides and inspect approved observations; they do not restart deployments, edit
+settings, delete files or perform a business write. Customer-initiated Console
+operations and explicit conversation transitions are separate capabilities.
+
+Human Action reviews are another separate flow. A configured application can
+submit an actual governed proposal to an assigned reviewer. Ordinary chat
+confirmation does not automatically create a review task. Reviewer approval
+permits the existing execution path to continue; inspect its returned outcome,
+because approval alone is not proof that execution succeeded.
+
+When to ask a human
+
+Escalate when the proposed target or parameters are wrong, a completed-looking
+message lacks a meaningful result, authorization fails unexpectedly or duplicate
+execution is possible. Share the sanitized request, action label and visible
+outcome. The administrator should inspect the actual installed action contract
+and integration response rather than disabling checks or inventing a success.

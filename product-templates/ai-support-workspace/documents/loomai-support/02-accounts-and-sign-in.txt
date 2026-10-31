@@ -1,0 +1,41 @@
+Title: Accounts, sign-in and workspace access
+Document ID: loomai-support-02
+Product: LoomAI Console customer access
+Audience: Workspace owners and customer administrators
+Reviewed: 2026-10-31
+
+Understand identity and access
+
+Console customer sign-in uses its configured Supabase identity provider. Your identity and your membership in a LoomAI customer workspace are separate checks. A successful provider sign-in does not grant access to any workspace with a matching email address. Existing membership must be active, or an eligible new user must explicitly create a workspace.
+
+Customer administrators work within their own customer account. Configuration and Advanced are views of that account's capabilities, not separate identities or internal staff privileges. Staff access is a separate sign-in path; it is not the normal solution to a customer permission problem.
+
+Create an account and continue
+
+1. Open the customer Create account form. Enter your own email and password; the form does not provide shared default credentials.
+2. Follow the email-verification instruction, then return to Console and sign in. Check spam and confirm that the email address is correct if the message is missing. Do not share the verification link.
+3. If Console offers Create your workspace, enter your name and a workspace name. This creates an ownership boundary for your account, not a running deployment.
+4. If Console reports that the identity matches an existing account, use Connect existing account with that account's existing sign-in, or contact its administrator. Linking requires proof of both the existing customer session and the Supabase identity. Email similarity alone is not sufficient.
+5. Check Account & team after entering Console. Confirm the business account and signed-in identity before changing deployment configuration. Team administration may not be enabled for every account.
+
+An account ready for sign-in can still have no available deployment template. New workspace registration can also be closed while existing customers remain able to use their accounts. Neither condition proves that your password is wrong.
+
+Recover a password
+
+Enter your email on the customer sign-in form and choose Forgot password?. Open the recovery email in the intended browser. On the recovery page, enter the same new password in both fields and submit. Successful recovery signs you out; sign in again with the new password.
+
+The recovery page requires a valid recovery session. Opening that page directly, or using an expired or unusable email link, does not authorize a password change. If recovery fails, capture the visible error without copying the link or any tokens into a support request.
+
+Common symptoms and checks
+
+If sign-in is unavailable, the customer identity integration may not be configured or reachable. If the session expires, sign in again before retrying a configuration operation. First inspect whether the earlier operation completed; logging in again is not evidence that an interrupted deployment command failed.
+
+If you can authenticate but cannot see the expected workspace, confirm which account you used and whether membership was linked, disabled or revoked. Re-registering or repeatedly resetting the password will not repair a revoked membership. Ask the workspace administrator or support to check access.
+
+Console and Desk can use connected identity flows, but Desk still requires the appropriate deployment assignment for agent or review work. An Engage visitor sign-in is configured on that app and deployment; it is not automatically a Console administrator account.
+
+What success proves and when to ask support
+
+Successful sign-in plus an active Console membership proves access to the displayed customer workspace. It does not prove provider connectivity, document visibility, deployment readiness or authority to reply as a human agent. Signing out ends the local browser session; do not assume it instantly invalidates every previously issued integration token.
+
+Contact support for repeated verification or recovery failures, an unexpected account-linking requirement, or missing membership after successful authentication. Provide the affected product, approximate time, visible message and whether registration, linking or recovery was attempted. Never send your password, recovery URL, session token or verification code.

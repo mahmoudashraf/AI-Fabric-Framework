@@ -1,0 +1,72 @@
+Title: Check knowledge freshness and investigate incomplete answers
+Document ID: loomai-support-08
+Product: LoomAI Platform and LoomAI Engage
+Audience: Customers investigating outdated, missing or incomplete AI answers
+Reviewed: 2026-10-31
+
+Start with the right question
+
+Use the knowledge, app and support controls only when your workspace exposes
+them. An AI answer can be incomplete even when indexing succeeded. Conversely,
+a fluent answer is not proof that the latest document was indexed. Separate
+source freshness, indexing completion, retrieval evidence and answer quality.
+
+An ACTIVE document version means a registered version is available for retrieval.
+It does not prove your storage contains no newer file. A status observation also
+has a scope and observation time: it may describe one deployment target, not every
+environment or app belonging to your customer account.
+
+Check the evidence in order
+
+1. Identify the Engage app and the deployment release it actually uses. Compare
+   that assignment with the Target release in Document Knowledge. Updating one
+   environment does not update another environment's index or app assignment.
+2. Check the authoritative source file in your own storage using your normal
+   authorized access. Confirm its intended content and revision. A support
+   diagnostic that lists registered source states does not perform this check.
+3. In Document Knowledge, inspect the active version, candidate version, work
+   state and displayed timestamps. A newer candidate is not yet active evidence.
+   Use Refresh revision to inspect a storage change, then preview, index,
+   reconcile and verify the replacement. Do not assume refresh is automatic.
+4. Use the retrieval proof query to ask something specific the approved document
+   actually answers. Inspect source and version attribution. No evidence can mean
+   missing approval, wrong audience, wrong target, incomplete work or a retrieval
+   issue; it does not necessarily mean the source file is empty.
+5. Test the actual workspace with a complete customer question. For a compound
+   request, name both needs, for example installation guidance and the current
+   indexing state. Ask which parts were checked and which remain uncertain.
+   Keep the original answer when reporting a failure rather than replacing it
+   with a later successful attempt.
+
+How authorized sources and tools are used
+
+The model chooses among the deployment's authorized knowledge and READ tools.
+Configuration supplies the available catalogue, permissions and execution bounds;
+it does not guarantee every request searches every source. There is no general
+customer troubleshooting step to add keyword rules or silently search everything.
+An empty READ result is not evidence that no relevant document exists. Whether
+retrieval follows a READ depends on the configured cooperation policy.
+
+For an incorrect or partial answer, note whether the evidence was missing,
+outdated, relevant but unused, or contradicted by the summary. Those are different
+problems. A citation or completed specialist check helps explain an answer's
+basis, but neither guarantees the AI interpreted every fact correctly.
+
+Understand support status checks
+
+When available and consented, support can inspect registered index counts and
+active/candidate versions for the exact target supplied by a selected connected
+app. That read does not open your source files or check for newer upstream content.
+Connection synchronization status is a separate integration observation, not a
+document-version inspection. Local app readiness does not prove live routing,
+HTTPS or browser-to-runtime communication. Use the corresponding explicit
+verification screen before claiming those checks passed.
+
+When to involve a person
+
+Ask the integration team if approved evidence remains absent, a verified retrieval
+result is repeatedly ignored, the wrong environment is observed or a compound
+answer omits an important part. Supply a sanitized question, expected supporting
+document, visible version/status, app name and approximate time. Do not include
+secrets, raw logs or other customers' records. All AI answers require appropriate
+judgment; there is no guarantee of perfect answers or an automatic repair.

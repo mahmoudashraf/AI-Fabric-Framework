@@ -1,0 +1,38 @@
+Title: Plugins and external connections
+Document ID: loomai-support-04
+Product: LoomAI Platform
+Audience: Customer administrators and integration teams
+Reviewed: 2026-10-31
+
+Separate capability from connectivity
+
+A plugin contributes capabilities or configuration to a deployment. A TEMPLATE starts a deployment; DATA plugins describe supported data and indexing integrations; ACTION plugins describe callable business operations. Other plugin types may be available in the catalog. Installing a plugin does not create an external account, authorize access to another business or prove that a remote API works.
+
+A connection supplies the approved endpoint, account scope and credentials needed by an integration. Customer systems remain external integrations: a stock or support connector is not a replacement business database. Knowledge indexing creates derived evidence; it does not make that index the authority for changing upstream business records.
+
+Install or update a capability
+
+1. Select your deployment before opening Advanced and Plugins. Review the plugin description, available version, declared contributions and install fields. Only use capabilities available to your workspace and compatible with the deployment.
+2. Complete the generated install form where one is supplied. Do not put passwords or API keys into descriptive text, prompts or public website configuration. Use the credential fields provided by the owning connection workflow.
+3. Save the install. Plugin changes affect the deployment draft, not the running runtime. Review and validate the draft, then publish and apply through Versions & updates when you are ready.
+4. Configure any required connection for the intended version and target. If the capability uses Approved connections, review the connection target, slot and profile, then choose Review approved connection.
+5. Check the displayed approved endpoint and account scope. Supply the requested credentials and choose Bind approved connection. If no reviewed option is available, ask your administrator or integration team to prepare the appropriate connection; do not substitute a different account or simulator.
+6. After deployment and verification, open Connections for that deployment and target release. Inspect the actual source state, last successful synchronization and errors. Test the business operation or an authorized read separately.
+
+For the approved external-connection flow, bindings are specific to a published version, target and slot. Replacing or rotating such a binding may require a new version. A production target needs its own authorized connection; a successful staging test does not authorize production access.
+
+Read connection status correctly
+
+Configured or credentials present means local setup exists. CONFIGURED_LOCAL_CREDENTIALS is not evidence of successful provider authentication or a healthy upstream. Installed configuration is also not a current health check.
+
+For synchronized sources, examine freshness state, last success and indexed counts together. A previous successful sync does not prove that a later upstream change has arrived. Empty results may mean no matching authorized records, incomplete indexing, an unavailable source or an unsuitable query. Do not treat every empty result as a disconnected API.
+
+Common symptoms and checks
+
+If a plugin appears installed but no capability is visible, check its saved version, whether required fields are complete, and whether the updated draft was published and applied to the app's actual target. If Connections shows no external integration, verify that the selected release includes one; changing the deployment selector alone does not select a release.
+
+If authorization fails, check the provider account scope and required credentials through the connection workflow. Do not send credentials in chat. Revoking a Platform connection prevents future authorized resolution, but does not itself revoke the provider's key or prove that an already running service has stopped using an issued credential. Coordinate provider-side revocation when needed.
+
+When to ask support
+
+Ask for help when a required install field has no supported binding, an approved endpoint is missing, synchronization stays in error, or live operations fail despite local configuration. Include deployment name, target release, plugin name and version, source or operation label, last successful time and safe error text. A connection-status screenshot is useful; unrestricted logs, credential values and other customers' account details are not.

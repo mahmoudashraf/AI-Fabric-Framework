@@ -1,0 +1,37 @@
+Title: Configure and verify an Engage custom domain
+Document ID: loomai-support-06
+Product: LoomAI Engage standalone apps
+Audience: Customer administrators and domain administrators
+Reviewed: 2026-10-31
+
+Understand what the domain connects
+
+A custom domain gives a standalone Engage app an address on a domain you control. It routes visitors to the shared Engage frontend, which resolves the hostname to your app configuration and assigned deployment. It does not create another AI runtime or customer business database. Visitors keep the custom address in their browser.
+
+Domain ownership, DNS routing, HTTPS, runtime origins, app readiness and activation are separate checks. Completing one does not imply the others are complete. Custom-domain availability depends on the configured shared frontend and your app's supported delivery and identity profiles.
+
+Prepare the hostname
+
+1. Open the standalone app in Engage apps. If it is active and its settings require editing, disable it deliberately before saving changes; this affects availability, so plan the change accordingly.
+2. Add the exact custom hostname you want to use. Choose a hostname your DNS provider can route with the record type shown by Console. Do not paste a full page URL, query string or path into the hostname field.
+3. Save the app and read its domain instructions. Console supplies a TXT ownership record and, when Platform routing is configured, a CNAME routing record. Copy the displayed names and values rather than constructing them from another app's instructions.
+4. Add both records with the domain's DNS provider. Providers differ in whether the record-name field expects a full name or a name relative to your domain. Check that the resulting hostname is exactly the one Console requested, without duplicating the domain suffix.
+5. Choose Verify domain, or Verify and prepare for the app. Allow DNS changes to become visible, then inspect the recorded status and error. Do not assume a fixed propagation or certificate-issuance time.
+
+What verification checks
+
+The TXT record proves control of that hostname for the installation. Routing must lead to the applied shared frontend route, and the exact hostname must serve a healthy HTTPS route with a valid certificate. A queued route is not a working route. The domain can show DNS verification pending, Route / HTTPS pending or Verified.
+
+When the route is pending after an explicit verification request, the configured Platform worker continues verification as route provisioning completes. Refresh the app to inspect progress. Ownership failures still require correcting DNS and verifying again. If Console says that the shared Engage CNAME target is not configured, contact LoomAI; there is no valid routing value for you to invent.
+
+Prepare the deployment and identity
+
+Refresh readiness after the route is verified. If it reports missing runtime origins or identity configuration, choose Apply required deployment update. Review added or removed origins, changed sections, affected apps and any unrelated draft edits before confirming publication and apply. The update may restart the runtime. Wait for verification and use the verified update for the app connection when ready.
+
+For OAuth or email-link sign-in, add the exact HTTPS address to the external identity provider's allowed redirects where required. DNS verification cannot change that provider's settings or prove that its redirect configuration is correct.
+
+Activate and test
+
+App activation remains explicit. Once readiness passes, activate the app and open the exact custom hostname. Test the expected branding, a read-only question and sign-in if configured. Domain Verified proves the domain checks completed; it does not prove answer quality, upstream API access or every enabled action. An HTTPS frontend can load while chat fails because its assigned deployment or origins are wrong.
+
+Ask support if ownership remains unrecognized after checking the published TXT value, HTTPS remains pending, or a verified domain fails app readiness. Provide app name, hostname, approximate time, domain status and safe error text. Public DNS record details can help diagnosis; DNS-provider passwords, private keys, tokens and unrelated customer data must not be included.

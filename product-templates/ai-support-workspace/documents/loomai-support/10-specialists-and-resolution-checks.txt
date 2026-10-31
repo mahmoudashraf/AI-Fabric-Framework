@@ -1,0 +1,75 @@
+Title: Configure support specialists and interpret resolution checks
+Document ID: loomai-support-10
+Product: LoomAI Platform - Support capabilities
+Audience: Customer administrators and support-workspace users
+Reviewed: 2026-10-31
+
+What specialist assistance means
+
+A support area gives the AI a focused purpose, instructions, approved knowledge
+and optional installed READ tools. A resolution plan coordinates selected areas
+for a broader question. These capabilities are optional: use them only when the
+deployment configuration exposes Support capabilities and your account can edit
+it. A template supplies starting settings, not a permanent restriction on your
+later configuration.
+
+Simple questions can be answered directly. A specialist or resolution check is
+useful when focused expertise or multiple authorized observations are needed;
+it is not a requirement that every message invoke every area.
+
+Configure useful areas
+
+1. Open the conversational deployment's configuration and Support capabilities.
+   Connect the required knowledge and action integrations before enabling
+   Specialist assistance. Missing installed choices are not permission to enter
+   an arbitrary service URL or secret into the instructions.
+2. Select Add support area. Give it an Area name, Purpose and clear Instructions.
+   State the questions it should help with, the evidence it should use and what
+   it must report when information is missing. Keep credentials and private
+   customer records out of the prompt.
+3. Select only the Approved knowledge sources and Installed READ tools that area
+   needs. A status READ can be useful without an indexed vector space. Choosing
+   a source or tool defines a capability ceiling; the current caller still needs
+   authorization, and LoomAI's support diagnostics also require current consent.
+4. Select Use changes to return from the area editor. This is not yet a saved or
+   running deployment update.
+
+Coordinate and release checks
+
+5. Select Add resolution plan. Give it a name and objective, and select the
+   participating Support areas. Allow independent parallel checks only for
+   independent areas; otherwise keep parallel checks disabled. This permits
+   bounded adaptive coordination rather than promising a fixed sequence of all
+   checks on every question.
+6. Review the Answer preview. It is labeled Sample and synthetic: it runs no AI
+   requests, tools or resource checks. Adjust execution limits in the available
+   advanced configuration when needed, without treating larger limits as an
+   automatic quality improvement.
+7. Select Save support capabilities. Then use Versions & updates to validate,
+   publish, apply and verify a release through the normal lifecycle. Saving the
+   draft alone does not change the live workspace. Check the Engage assignment
+   before testing the release you intended to expose.
+
+Read the result correctly
+
+Resolution plans use the framework's native bounded SpecialistChain contract,
+not a separate support execution engine or an interactive fixed ExecutionPlan.
+The manager may consult one or more configured workers within its limits. The
+first support contract disables worker writes. Specialist coordination does not
+give the manager broader ownership or tool authority than the configured bounds.
+
+Check which findings were actually obtained and distinguish documentation from
+observed state. A completed chain can still produce an incomplete summary.
+Clarification, unavailable observations and deadline failures should remain
+visible; they are not proof that the underlying business service is healthy or
+unhealthy. A child specialist invocation is not a transfer to a human. Human
+handover remains an explicit outer-conversation transition.
+
+Common issues and human help
+
+If choices disappear, check installed integrations and current permissions. If
+saving reports a changed draft, reload the saved configuration before retrying.
+For repeatedly missed questions, improve area descriptions and authorized
+evidence with the integration team. Do not add keyword routing, automatic
+search-all or hidden retries to manufacture success. Share the sanitized question,
+expected area and visible outcome when requesting human help.

@@ -1,0 +1,38 @@
+Title: LoomAI products and getting started
+Document ID: loomai-support-01
+Product: LoomAI Platform, Engage and Desk
+Audience: Business workspace owners and customer administrators
+Reviewed: 2026-10-31
+
+Choose the part you need
+
+LoomAI Platform is where you configure an AI deployment, connect approved knowledge and business services, publish configuration versions and check deployment results. A deployment supplies the AI capabilities; it is not the same thing as its customer-facing interface.
+
+LoomAI Engage supplies that interface: a branded AI workspace embedded on your website or opened at its own address. Both delivery forms can use the same deployment through their configured connections. Engage does not independently create knowledge, enable business actions or grant visitors access to private records.
+
+LoomAI Desk is the human-support service. When enabled for a deployment, assigned agents can continue conversations. Action reviews require their own enabled capability and authorized reviewers. Having a Console account does not automatically make someone an agent or reviewer.
+
+Available templates, connection profiles and capabilities depend on your workspace and deployment configuration. A product illustration or demonstration is not a list of integrations already enabled for your account.
+
+Start a workspace
+
+1. Open Console and choose the product you want to set up. Create an account or sign in using the customer sign-in form. Complete email verification when requested.
+2. If prompted, create your workspace with your name and business workspace name. If Console instead asks you to connect an existing account, follow that path or ask your administrator; do not create a second workspace to work around missing membership.
+3. For a new AI deployment, choose an available template. A template supplies starting settings and required capability slots. It does not supply your business credentials, authorize private data or permanently lock future settings.
+4. Open the deployment configuration and connect the required model, knowledge and external-service dependencies. Missing configuration should be resolved before deployment, not bypassed by changing a status label.
+5. Save and review the draft, publish a version, apply it to the intended target and inspect verification. Use customer staging when you want an isolated test environment; normal production upgrades also have a direct publish-and-apply path.
+6. Create an Engage app and use Connect deployment to select the intended deployment. Configure its appearance and delivery, complete readiness checks and activate it explicitly. Enable Desk separately if human support is required.
+
+Creating an account or workspace does not itself deploy services or incur AI usage. Later deployment and AI use depend on the configured providers and applicable funding arrangements.
+
+Find the right configuration
+
+Home groups your products and resources. Deployments shows AI deployments; Engage apps shows customer experiences. Knowledge & data and Connections inspect resources for a selected deployment and target release. Human support is shown when the selected deployment has that capability. Configuration and Advanced expose different amounts of detail within the same customer permissions; Advanced is not a grant of internal operator access.
+
+If no template is available, your account may be ready while no self-service starter is enabled. If Engage asks for a deployment, create or connect one first. If knowledge or connection lists are empty, confirm the selected deployment, target release and installed capabilities before assuming data was deleted.
+
+Check the result and ask for help
+
+A saved draft proves configuration was stored. A published version proves a snapshot was created. Neither proves that a live service is running. Deployment verification and app readiness are separate from the quality of an actual answer; test a representative question and any enabled human-support flow.
+
+Ask support when a required setup option is missing, a verified deployment cannot be connected, or a readiness blocker remains unexplained. Provide the product, workspace and deployment names, setup step, approximate time and safe error text. Do not include passwords, provider keys or another customer's records. Use the support channel available to your account; an in-Console support workspace is not assumed to be enabled everywhere.

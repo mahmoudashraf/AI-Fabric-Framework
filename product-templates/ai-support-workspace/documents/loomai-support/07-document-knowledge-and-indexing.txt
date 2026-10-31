@@ -1,0 +1,68 @@
+Title: Connect approved documents and verify indexing
+Document ID: loomai-support-07
+Product: LoomAI Platform - Document Knowledge
+Audience: Customer administrators responsible for deployment knowledge
+Reviewed: 2026-10-31
+
+Purpose and availability
+
+Use Document Knowledge to make approved support, policy and operating documents
+available as answer evidence. Follow these steps only when your workspace exposes
+the module and your account can operate it. A missing module is not a request to
+paste storage credentials into chat; ask the integration team about enablement.
+
+Your source files remain in your own S3-compatible storage. The deployment keeps
+derived chunks, vector evidence, source registrations and indexing state. The
+document connector lists and reads the approved bucket prefix; it does not need
+permission to upload, overwrite or delete your source files. Use separate scoped
+connections for staging and production. A mounted folder is a small-data/demo
+option, not a promise of managed customer object storage.
+
+Prepare and connect
+
+1. Choose documents you own or are authorized to use. Remove credentials, private
+   customer records and content unsuitable for the intended answer audience.
+   The support document package accepts plain-text files and configured JSON
+   content fields; do not assume PDF, scans or arbitrary file formats work.
+2. Have your storage administrator supply the endpoint, region, bucket, allowed
+   prefix and read-only credentials through the storage connection form. Never
+   put access keys in a support request, a document or an Engage installation.
+3. Open Document Knowledge for the deployment. Select the explicitly provisioned
+   Target release and its storage binding. Check Connector ready before discovery.
+   If configuration is pending release, complete the normal deployment update
+   before attempting live document operations.
+
+Discover, review, approve and index
+
+4. Select Discover sources. Inspect the eligible files, including further pages
+   when present. A file outside the approved prefix is not an indexing candidate.
+5. Register the chosen source with a meaningful Source category, such as support
+   or policy, and the correct Visibility. Confirm the source and audience approval.
+   If the package allows anonymous answers, approve only public-safe material.
+6. Select the registered source and Preview. Review the bounded extracted chunks
+   before indexing. The preview is not the entire file and does not activate it.
+   Stop if extraction is incomplete, misleading or exposes restricted content.
+7. Select Index. An accepted request means work was submitted, not completed.
+   Inspect source and version details, use Reconcile to check the recorded work,
+   and wait for an ACTIVE version. Investigate displayed failures instead of
+   repeatedly submitting new indexing requests.
+8. In retrieval verification, enter a question answered by the document and select
+   Verify. Inspect the returned source, version and chunk evidence. Then try the
+   actual Engage app: retrieval proof and a useful final AI answer are different
+   checks, and the app may be assigned to another target release.
+
+Updates, removal and common issues
+
+After editing a file in your storage, use Refresh revision, review the candidate,
+then Index, Reconcile and Verify again. Refresh alone does not index the update.
+Replacement activates the successful new version before retiring the old one;
+a failed candidate must not be mistaken for the serving version.
+
+Remove index removes the registration and derived indexed chunks through tracked
+work. It does not delete the original object. Confirm deletion completion rather
+than assuming acceptance removed everything immediately.
+
+Ask a human when the correct prefix is empty unexpectedly, the connector remains
+unavailable, extraction is wrong, work fails repeatedly or the approved audience
+is unclear. Share the file name, selected environment, visible status and expected
+result, without sharing credentials or the private document itself unnecessarily.

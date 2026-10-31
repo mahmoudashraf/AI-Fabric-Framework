@@ -11451,3 +11451,30 @@ test is being called hosted acceptance. UI extraction remains last.
   Publicproof output/support-01054/staging-support-correct-index-answer-consent-
   revoked.png. See01054executionrecord for exact IDs/limits/remaininggates.
   All bounded agents closed, no apply/build session pending, viewport reset.
+
+### 2026-10-31 010.54 Real Support Knowledge Library Ready For Upload
+
+- Owner requested real LoomAI help content while storage is prepared. New13guide
+  library in product-templates/ai-support-workspace/documents/loomai-support/;
+  revision2026-10-31.1,56672bytes. Coversproducts/accounts/releases/connections/
+  Engage delivery+domains/indexing+freshness/actions/specialists/Desk/consent/
+  dealership experience. All reviewedagainstactualsource, no fictionalpolicies,
+  credentials/customertranscripts/privatehandoffs/temporaryrolloutclaims.
+- SUPPORT_KNOWLEDGE_LIBRARY.md explains exact upload+normalindexing. Review/
+  provenancefiles stayOUTSIDEindexedguides. Helperprepare-support-library.mjs
+  produced output/support-01054/knowledge-library-2026-10-31-1/delivery-manifest.json
+  +13guides withhashes. NinefocusedNodePASS;18semanticreviewquestionsprepared,
+  notrunnewindex/noexactstringvalidators/queryrouting. Contentonly,nobackend/
+  framework/runtimechangesorliveapply. Existing4/3sourceproofunchanged.
+- Sentexactpackage/manifesttoRequiredforproductionforauthorizeduploadoflisted
+  objects under loomai/{staging,production}/guides/. Do notuploadmanifest/review
+  filesinreaderprefix. KeepAcme3fictionalguidesisolated. Initialregistration/
+  audienceapproval,preview,index,reconcile,retrievalandAIchecks stillrequired.
+- Owner nowapprovedNEWprivateS3setupthroughRequiredforproduction, superseding
+  earlierexisting-config-only/no-new-IAMconstraintforthisscope. That taskownsAWS
+  andreportedsuccessfulbucket+scopedidentitycreation; permission/isolation/upload
+  proofpending. Mainnotindependentlyverified/bound/indexedyet. Privatebindingfiles
+  s3-20261031/reader-{staging,production,acme-demo}.binding.private.json contain
+  secrets underbindingRequest; neverprintthem/useuploaderforruntime. Authindex
+  ~/.codex/private/loomai-support-01054/AUTH_MATERIAL_INDEX.private.json.
+  Productionowner/deploymentstillnotcreated; normalproductionjourneyremainsopen.

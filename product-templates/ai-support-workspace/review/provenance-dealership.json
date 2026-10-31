@@ -1,0 +1,25 @@
+{
+  "reviewedAt": "2026-10-31",
+  "scope": "Repository source and documented pack contracts; not a new hosted qualification or official Auto Trader API claim.",
+  "documents": [
+    {
+      "id": "loomai-support-13",
+      "path": "documents/loomai-support/13-dealership-workspace-stock-policies-and-requests.txt",
+      "sourceFiles": [
+        "experience-packs/dealership-experience/docs/EXTERNAL_DEVELOPER_GUIDE.md",
+        "experience-packs/dealership-experience/README.md",
+        "max-mode-widget/docs/AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md"
+      ],
+      "claims": [
+        "The pack supplies presentation and context while runtime assignment, knowledge, authorization and integrations stay outside it.",
+        "One-script installation, configured origins, both delivery forms and scoped connection profiles are distinct from stock synchronization.",
+        "Browse/context tools, safe media and host-owned detail mappings are configuration-driven.",
+        "Page attachments do not grant trusted resource authority; request and human-transition outcomes must be reported honestly."
+      ],
+      "limitations": [
+        "No guarantee of Auto Trader production access, real retailer data, provider-side deal creation, booked appointments or response SLA.",
+        "The older demo README's direct-backend stock diagram is not used as the current installation contract."
+      ]
+    }
+  ]
+}

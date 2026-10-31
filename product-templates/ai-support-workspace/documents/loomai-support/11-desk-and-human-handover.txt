@@ -1,0 +1,74 @@
+Title: Connect LoomAI Desk and move between AI and human support
+Document ID: loomai-support-11
+Product: LoomAI Desk, LoomAI Platform and LoomAI Engage
+Audience: Customer owners, registered support agents and workspace users
+Reviewed: 2026-10-31
+
+Understand the service and permissions
+
+LoomAI Desk is a shared managed human-support service, not an inbox service or
+database created for every deployment. Each deployment target has its own binding
+and agent assignments. Multiple apps using that target share its team. Staging
+and production assignments are separate. The deployment remains authoritative
+for its AI conversation and review execution.
+
+Follow this guide only when your workspace exposes Human support and the relevant
+handover controls. A Console owner can manage assignments but is not automatically
+a Support agent or Reviewer. Agent registration alone grants no queue access.
+
+Customer owner: enable and assign
+
+1. Open Human support for the owned deployment and select its target release.
+   Review unrelated draft edits before selecting Enable LoomAI Desk. The normal
+   publish, apply and verification process prepares the target-specific binding.
+   Wait for Enabled; merely saving a setting is not successful enablement.
+2. If the Engage app still uses an older release, explicitly assign the verified
+   release using the existing app assignment controls. Applying a deployment
+   update alone does not switch every app.
+3. Select Open LoomAI Desk. The supported Console-to-Desk sign-in flow can reuse
+   your linked identity, but Desk still checks permissions independently. A
+   bookmarked link is navigation, not authorization.
+4. Ask each agent to create an account if needed, verify their email, sign in to
+   Desk and register an agent profile. In Agents & access, assign their exact
+   registered verified email or agent reference to this target as Support,
+   Reviewer, or both. Assign yourself Support explicitly if you will reply.
+
+Visitor and agent: continue the conversation
+
+5. The visitor can ask the AI to speak to a person or use the exposed handover
+   button. Complete the configured intake fields and any required consent.
+   Anonymous continuation is available only when that deployment permits it;
+   contact requirements can differ between deployments.
+6. Check the transition state. Waiting for a person is not an agent reply or a
+   guaranteed response time. AI orchestration is paused during pending or active
+   human control; messages go through the human-support channel.
+7. In Desk, the authorized agent selects Conversations, the correct target and
+   waiting conversation, then Claim. Read the permitted transcript and intake
+   details before replying. Human replies can reach the visitor asynchronously
+   without another AI query. Check delivery status: accepted, pending and failed
+   delivery are not interchangeable.
+8. Use Return to AI in Desk or the visitor's permitted Continue with AI control
+   for an explicit transition back. Closing a tab, signing out, inactivity or a
+   network interruption does not itself authorize the AI to resume.
+
+Closing, resolving and reviewing
+
+Close conversation ends the runtime conversation. It does not by itself resolve
+an external support request. If the context panel exposes Resolve request, that
+updates the linked request only; it neither closes the conversation nor returns
+control to AI. In Console integration support, reopen the request explicitly.
+If its linked conversation is closed, choose Start new conversation to create
+a new episode without replaying the original intake message.
+
+Action reviews are separate from live conversations and ordinary chat confirmation.
+They require review enablement, a real application-originated proposal and an
+explicit Reviewer assignment. Approving a proposal is not a successful business
+execution receipt; inspect the returned execution outcome.
+
+Common issues and human help
+
+For an empty queue, verify the app's assigned target and the agent's current
+Support assignment. For delayed messages, inspect delivery state before retrying.
+An outage must not silently return a human-owned conversation to AI. Ask the
+integration team about unresolved access, intake, delivery or transition failures;
+do not share service keys or copy another deployment's credentials.

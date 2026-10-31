@@ -1,0 +1,42 @@
+Title: Dealership workspace: stock, policies and customer requests
+Document ID: loomai-support-13
+Product: LoomAI Platform and Engage dealership experience
+Audience: Dealership workspace owners and their integration teams
+Reviewed: 2026-10-31
+
+Purpose and availability
+
+The dealership experience pack adds automotive labels, tools, page context and result presentations to the generic Engage workspace. It does not create a stock-provider account, synchronize inventory by itself, or authorize access to a retailer's records. The assigned deployment supplies the actual knowledge, actions and integration bindings. Available tools depend on the installed pack and deployment configuration.
+
+A fictional demonstration is not evidence of a connection to a real Auto Trader advertiser account. Identify whether the deployment is using a simulator, a dealership-owned service or an authorized provider integration before interpreting its results. A demonstration receipt does not prove that a request reached a real retailer or Auto Trader deal system.
+
+Connect the customer experience
+
+1. Configure and verify the dealership's deployment and its stock/document integrations in Platform.
+2. Connect an Engage app to that deployment's verified release. Select the dealership experience pack and the supported connection profile for the intended audience.
+3. Set dealership branding, allowed website origins and the capabilities that the deployment actually supports. Enabling a visible test-drive or callback control does not install its backend action.
+4. For an embedded workspace, use the exact installation snippet provided by Console. Do not put runtime, provider or advertiser credentials in the website.
+5. For a standalone workspace, configure its supported address and identity settings. Console can create the other delivery form from an existing configuration; embedded and standalone installations can share the intended deployment without duplicating its AI service.
+6. Test browsing, a specific vehicle, a policy question, a combined vehicle-and-policy question, and every enabled request flow before advertising those capabilities.
+
+Stock and policy questions use different evidence
+
+Indexed vehicle records support semantic discovery. Authorized read actions can obtain current stock or commercial facts. Approved dealership policies and operating documents supply facts such as collection arrangements, test-drive requirements and aftercare terms. The website's displayed stock, the provider's current record and the deployment's derived index are distinct observations; they can differ if integrations or synchronization are incomplete.
+
+For an answer about a vehicle and delivery policy, the assistant may need both vehicle evidence and a policy source. If it answers only one part, provide the vehicle context and ask it to explain which current evidence and policy sources it used. Report the missing part to support. Do not treat a generic model answer as an approved dealership policy, or assume a visible search result proves every connected source was searched.
+
+Use tools and page context
+
+Max Mode provides configurable Browse stock and This vehicle groups. Browse should remain accessible while context is attached. Vehicle details, everyday suitability, trade-offs, location and request tools depend on the pack's configuration and available actions. Companion mode remains compact rather than showing the full tool panel.
+
+Page attachments are user-supplied context, not trusted authority over a vehicle or advertiser account. Confirm that the attached title and content describe the intended vehicle. If a result cannot open a detail page, check the host's stock-ID-to-page mapping; the pack must not guess a website route. Missing images can mean the upstream record has no approved media, the image host is not allowed, or the image URL cannot load.
+
+Requests and human help
+
+A test-drive or callback request is not automatically a confirmed booking. Follow the configured information and confirmation steps, then inspect the returned receipt and its actual status. The integration may send it to a dealership-owned service or another explicitly supported upstream. Do not repeat a request merely because a response is slow; first check its visible outcome with support.
+
+Human handover uses the deployment's configured human-support integration. A request being queued is not proof that an agent has joined. During human ownership, continue in the same workspace; return to AI through the explicit transition.
+
+What to send support
+
+Provide the Engage app and deployment names, website hostname, approximate time, vehicle's customer-visible reference, exact question, missing result and whether the data is simulated. Include a safe screenshot when useful. Never send advertiser credentials, provider keys, private assertions, unrestricted logs or another customer's personal details.

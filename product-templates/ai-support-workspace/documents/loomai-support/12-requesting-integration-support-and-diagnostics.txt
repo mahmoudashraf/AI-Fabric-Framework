@@ -1,0 +1,72 @@
+Title: Request integration support and control diagnostic access
+Document ID: loomai-support-12
+Product: LoomAI Console - Integration support
+Audience: Signed-in customer administrators requesting help with their own setup
+Reviewed: 2026-10-31
+
+Availability and ownership
+
+Use this flow only when your Console exposes Integration support. Availability
+depends on the support service configured for your workspace. If the entry is
+missing, use the contact channel available to your account. This guide describes
+the supported workflow, not a promise of universal access, staffing hours or
+response time.
+
+A request belongs to its signed-in requester within the customer account. Other
+account members do not automatically receive access to it. The integration team
+uses separately authorized support access. You can ask a documentation question
+before creating a deployment and without granting diagnostic permission.
+
+Submit a useful request
+
+1. Open Integration support and select New request or Request integration support.
+   Enter a concise Summary and, optionally, Details and a Product. Explain what
+   you tried, what you expected, what happened and the approximate time. Keep
+   passwords, tokens, raw logs and private customer records out of the form.
+2. Select only relevant resources you own. Deployment, Engage app and connection
+   selections provide trusted context; typing a resource identifier into the
+   message does not authorize access. For document-index status on an exact
+   target, select the deployment and its connected Engage app.
+3. Decide whether to grant Status-check permission. The checkbox allows AI and
+   the integration team to inspect the selected resources for this request.
+   Declining it still permits documentation help. Select Submit request once.
+4. Read the delivery status. The request can be saved before its conversation
+   starts. If Start conversation appears, it explicitly sends the stored intake.
+   Check same delivery inspects an uncertain delivery using that same message;
+   do not create a replacement case just because an AI response is delayed.
+5. Continue in the embedded workspace. The submitted form becomes the initial
+   user message in the canonical conversation. Ask follow-up questions or request
+   a human through the available handover controls. Reloading the page is not
+   an instruction to replay the intake or retry a failed AI turn.
+
+What diagnostics can and cannot establish
+
+Consented checks are bounded status and metadata projections: release and
+verification state, local app readiness, selected connection synchronization
+state and registered document-index state when the exact target is available.
+They do not expose credentials, raw logs, source file contents or business records.
+Current requester membership, case ownership, selected-resource ownership and
+consent are checked for each read.
+
+Local readiness does not prove the public route or HTTPS works. Stored release
+state is not a fresh live-health probe. A last successful synchronization does
+not check the provider now. Registered active document versions do not prove
+source storage has no newer content. Ask which observation was made and when;
+unavailable or incomplete observations must not be interpreted as a healthy result.
+
+Manage permission and the request
+
+Use Edit resources to correct selections. Changing them revokes the previous
+diagnostic consent; grant it again only after reviewing the new selection. You
+can revoke permission on an open request. Revocation stops subsequent checks;
+it is not a deletion of conversation history or observations already shared.
+
+Resolve or Cancel request when appropriate. Both revoke diagnostic consent and
+are separate from returning to AI or closing the human conversation. Reopen
+request does not restore consent or resend the original form. If its conversation
+is closed, Start new conversation creates a new episode, not a migrated transcript.
+
+Ask the integration team when delivery remains uncertain, resources are missing,
+access is denied unexpectedly or observations cannot explain the problem. Keep
+the request reference and sanitized symptoms available. The AI support checks
+are read-only and do not silently change your configuration or perform repairs.

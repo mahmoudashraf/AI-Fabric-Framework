@@ -27,13 +27,16 @@ This package adds no service, database, execution engine or plugin type.
 ## Contents
 
 - `manifests/ai-support-workspace.1.0.1.manifest.json`: normal `TEMPLATE`; two
-  editable documentation areas and one sequential resolution. READ slots start
+  editable documentation areas and one bounded resolution, initially without
+  parallel checks. READ slots start
   empty; assistance is explicitly enabled after storage is connected. The
   unversioned filename retains the immutable `1.0.0` snapshot.
 - `manifests/support-documents.manifest.json`: normal `DATA`; customer-owned
   S3-compatible documents, deployment-only derived index, explicit approval.
-- `manifests/loomai-support-diagnostics.1.0.1.manifest.json`: normal `ACTION` overlay
-  for the internal LoomAI support instance; four consented, case-scoped reads.
+- `manifests/loomai-support-diagnostics.1.0.3.manifest.json`: normal `ACTION` overlay
+  for the internal LoomAI support instance; four consented, case-scoped reads
+  with explicit model evidence over the parsed action payload. Earlier snapshots
+  remain immutable evidence, not the recommended configuration.
 - `manifests/acme-cloud-support-reads.1.0.1.manifest.json`: a second, fictional
   company's own `ACTION` integration; no LoomAI diagnostic authority.
 - The two unversioned ACTION filenames retain their immutable `1.0.0` contents;
@@ -46,7 +49,13 @@ This package adds no service, database, execution engine or plugin type.
 - `overlays/`: ordinary specialist-assistance values and shell configuration.
   Each connected variant has two distinct areas and a cross-area parallel-capable
   resolution. Publication generates official resources; these are not chain DSLs.
-- `documents/`: four LoomAI customer-safe guides and three fictional Acme guides.
+- [Real LoomAI Support Knowledge Library](SUPPORT_KNOWLEDGE_LIBRARY.md): 13
+  source-reviewed customer help guides in `documents/loomai-support/`, with
+  maintainer provenance, an exact upload manifest and 18 prepared review questions.
+  This package is prepared, not proof of upload or indexing completion.
+- `documents/loomai/` and `documents/acme-cloud/`: the earlier four LoomAI staging
+  mechanics guides and three explicitly fictional Acme guides, kept separate
+  from the new real support library.
 - `fixtures/`: actual API request bodies, source metadata, simulated observations
   and quality scenarios. They are inputs, not fabricated passing evidence.
 - `fixtures/service/`: stateless authenticated Acme mock upstream and Dockerfile,

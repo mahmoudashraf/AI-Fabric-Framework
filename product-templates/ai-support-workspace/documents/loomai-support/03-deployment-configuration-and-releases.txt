@@ -1,0 +1,38 @@
+Title: Deployment configuration, releases and upgrades
+Document ID: loomai-support-03
+Product: LoomAI Platform
+Audience: Customer administrators configuring and updating AI deployments
+Reviewed: 2026-10-31
+
+Understand the lifecycle
+
+A deployment has an editable draft, immutable published versions and releases applied to particular targets. A target identifies where a release runs, such as customer staging or production. A draft change is not a live change. Publishing creates a snapshot; applying requests deployment of that version with a compatible runtime image. Verification checks the resulting release.
+
+A template provides initial settings, not a lifetime restriction on models, plugins or runtime upgrades. Existing deployments use the normal versioning and release mechanism. A production upgrade does not inherently require a new app, a separate manual upgrade approval or a staging round trip. Actual ownership, compatible artifacts, credentials, action permissions and provider-use requirements still apply.
+
+Change configuration safely
+
+1. Open Deployments and select the intended deployment. Confirm its name and the target you intend to update. Do not assume that the most recently created release is the one serving an Engage app.
+2. Open Configuration. Advanced exposes the shared Versions & updates, Actions, Prompts, Providers and Plugins editors without changing customer permissions.
+3. Make the intended changes and save the draft. Check required integration fields and validation messages. When changing plugins or provider settings, review the effect on the complete draft rather than only the edited field.
+4. In Versions & updates, inspect the draft and differences, then choose Publish draft. This freezes the version and creates the next draft; it does not deploy.
+5. Select the published version, explicit Apply target and compatible Runtime source artifact, then apply. Wait for the submitted release to finish and inspect its verification result. Applying may restart the runtime; do not assume uninterrupted service.
+6. Where an Engage connection must use the new release, explicitly select the verified release through the supported assignment workflow. Refresh app readiness and test the actual app. Publishing alone does not switch its connection.
+
+Customer staging is useful for testing a candidate before production. The guided promotion path keeps the app on staging until the production release is verified and you explicitly activate the production assignment. It is a deliberate target change, not permission to reuse staging credentials or assume that conversations and indexes were transferred.
+
+Reset original template settings
+
+Reset to template replaces saved draft settings with the recorded original defaults. Review the confirmation because custom draft settings are replaced. Installed plugins, external bindings and credentials are unchanged. The reset neither publishes nor deploys, and it does not replace the deployment identity or app address. Validate, publish and apply explicitly if you want those restored settings to become live. Reset is not a data-recovery operation.
+
+Common symptoms and checks
+
+If a saved change is missing in the app, compare draft, published version, applied target release and app assignment. Each can legitimately refer to a different stage. If Apply is unavailable, check the selected target, compatible runtime image, permissions and required bindings. Do not create a replacement app merely to bypass an unresolved upgrade requirement.
+
+If a release is still applying, failed verification or returned an interrupted response, inspect its existing status and error before submitting another command. A healthy earlier runtime is not proof that the requested update completed. Verification failure is not automatically an AI-model problem; report the specific failed check.
+
+Evidence and escalation
+
+APPLIED_VERIFIED with PASSED verification is evidence about that exact release and its configured checks. It does not prove every knowledge source is current, every action succeeds or every model answer is correct. Test representative read-only questions, expected evidence and any enabled human handover separately.
+
+Ask support when target or image selection fails, a release remains unresolved, or verification disagrees with app behavior. Include deployment name, environment, version or release reference, approximate time and safe error text. Exclude credentials and private conversations.
