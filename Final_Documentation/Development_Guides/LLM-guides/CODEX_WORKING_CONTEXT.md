@@ -11642,3 +11642,39 @@ test is being called hosted acceptance. UI extraction remains last.
   visitor signs out; the correction applies to the subsequent sign-in. User
   guide updated. Private live receipts/screenshots:
   ~/.codex/private/loomai-support-01054/account-access-20261031/account-choice-*.
+
+### 2026-10-31 Desk Basic Agent Profile Live
+
+- Source673c96b9d2ed419828d70ea474ae92ff87cdf982 is native healthy on BOTH
+  Desk and Console environments. Platform backend62566b556, customer runtimes
+  and AI Fabric0.8.41 unchanged. CI41240546317 (Desk) and41240546293 (Console,
+  backend skipped) passed. Local40Desk tests passed with real PostgreSQL/H2 and
+  zero skips;64browser tests passed against the production Desk bundle;30Console
+  auth scenarios and TypeScript passed. Focused independent review found no bugs.
+- Profile now edits the signed-in agent's display name and upload/replace/remove
+  photo, with preview, explicit save, errors and immediate Desk identity refresh.
+  Registered/unassigned agents can also edit their profile. Email/reference and
+  roles remain read-only. New names survive identity refresh and apply to new
+  human replies; historical message names are not rewritten.
+- Additive Desk V3 migration preserves existing registered names and ownership.
+  Small validated256px JPEG photos live in the EXISTING shared Desk database;
+  no bucket/database/customer runtime created. Source metadata discarded. Photo
+  reads require self or a shared enabled deployment; authenticated co-agent
+  profile projections omit email/roles. CSRF still required for browser writes.
+- Native fixture UI journeys passed staging/production: upload/name/save/reload,
+  fresh sign-in persistence, rendered256px image, anonymous401 and unrelated
+  identity403/404, removal then404, original fixture profile restored and native
+  sessions signed out. Personal profile untouched; exact production personal
+  SUPPORT-only assignment independently read back unchanged.
+- Photos appear INSIDE Desk (profile, rail, team, conversations). Existing
+  visitor-chat contract carries human reply names, not these private photos;
+  no new framework/widget avatar contract is claimed. Guide updated.
+- New-email OTP question resolved: email links remain existing-account-only.
+  Structured otp_disabled now explains Create account first, rather than raw
+  provider wording. Real unregistered-alias422/create_user=false/guidance checks
+  passed both environments; no automatic signup or auth-policy change.
+- Private live receipts/screenshots: ~/.codex/private/loomai-support-01054/
+  account-access-20261031/agent-profile-* and new-email-guidance-*; native image
+  records in ../rollouts/*673c96b9d*-agent-profile.*. Initial harness null-vs-
+  omitted-avatar failure retained and corrected in the harness, not product code.
+  Temporary local PostgreSQL test container removed; review agent closed.
