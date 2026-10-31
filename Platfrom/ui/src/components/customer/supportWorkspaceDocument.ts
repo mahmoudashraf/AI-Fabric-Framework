@@ -51,7 +51,8 @@ export function supportWorkspaceDocument() {
       installationId: b.installationId, assignmentRevision: b.assignmentRevision, connectionMode: 'backend-mediated-private-runtime', deliveryMode: 'standalone',
       maxMode: window.MaxMode,
       hostSession: { namespace: b.principalNamespace, accountKey: message.accountKey },
-      configuration: { ...b.configuration, capabilities: { ...b.configuration.capabilities, currentPage: false, handover: b.conversationHandover?.enabled === true },
+      configuration: { ...b.configuration, copy: { ...b.configuration.copy, starterSuggestions: [] },
+        capabilities: { ...b.configuration.capabilities, currentPage: false, handover: b.conversationHandover?.enabled === true },
         theme: { ...b.configuration.theme, darkMode: message.dark } },
       widgetConfig: {
         storageNamespace: b.installationId, integrationMode: 'backend-mediated-private-runtime', launcher: false,
