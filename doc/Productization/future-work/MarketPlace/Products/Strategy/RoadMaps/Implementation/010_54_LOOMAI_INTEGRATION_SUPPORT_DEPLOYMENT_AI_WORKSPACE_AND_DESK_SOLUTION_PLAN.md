@@ -1,6 +1,6 @@
 # 010.54 LoomAI Integration Support Deployment and Workspace Solution Plan
 
-**Status: APPROVED - IMPLEMENTATION IN PROGRESS**
+**Status: IMPLEMENTED AND STAGING JOURNEY VERIFIED - PRODUCTION QUALIFICATION OPEN**
 
 **Created:** 2026-10-30
 
@@ -9,6 +9,8 @@
 **Capability and productization specification:** [Support template, specialists and resolution capabilities](010_54_SUPPORT_TEMPLATE_SPECIALISTS_RESOLUTION_PLANS_AND_PRODUCTIZATION_SPEC.md) is part of this plan. It records the owner's expanded scope: reusable customer-selectable support template, domain specialists, bounded resolution checks and configuration UI. Its source assessment distinguishes existing framework primitives from missing Platform/runtime product bindings.
 
 **Owner decision (2026-10-30):** implement fully, including generic structural Platform/runtime changes required for a reusable configurable support template. Use LoomAI Platform, authenticated Engage and LoomAI Desk for the first installation. Track incremental implementation and hosted evidence in [the execution record](010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md); design approval is not proof of completion.
+
+**Latest evidence (2026-10-31):** the generic authoring/compiler, Conversational specialist/chain integration, canonical conversation handling, Console support application and optional Desk case integration are implemented. Both the internal support installation and a differently configured fictional Acme installation passed hosted staging journeys on published AI Fabric `0.8.41`, without a framework release. The final internal ACTION `1.0.3` also produced a correct live index-status answer, not merely a raw API response. Isolated approved production support storage and the production support/app/staff journey remain unqualified; the healthy production backend keeps support disabled. This is not a production-launch completion claim.
 
 **Relationship to 010.53:** after owner approval, this is the canonical replacement architecture for [010.53 Request Integration Support](010_53_REQUEST_INTEGRATION_SUPPORT_CUSTOMER_JOURNEY_PLAN.md). It preserves lightweight entry points, request tracking and consent principles, replacing the separate staff discussion/triage experience with deployment, Engage and Desk products. Do not implement both designs.
 
@@ -233,12 +235,19 @@ Source files remain authoritative; vector/chunk data is derived and rebuildable.
 
 ## 9. Proposed Read Action Plugin
 
-Proposed action codes below are new configuration, not existing Platform endpoints. Implement a narrow facade over existing read services rather than exposing broad customer/admin controllers to the model.
+The following action codes were introduced by this implementation. Their source
+contracts are implemented; exact hosted qualification remains in the execution
+record. The narrow facade projects existing read services rather than exposing
+broad customer/admin controllers to the model.
 
 - **`support_get_case_summary`:** the current request's safe summary, selected resource references, consent state and explicit case status. Never another customer's case or internal notes.
-- **`support_get_deployment_status`:** selected owned deployment's current applied/release/verification state and safe classified problem codes. No environment variables, raw config, private URLs, credentials or unrestricted logs.
+- **`support_get_deployment_status`:** selected owned deployment's applied/release/verification state. For a selected connected Engage app, also read bounded registered-document lifecycle/active-candidate counts from that app's exact assigned target/release. Missing exact target context is explicit, never guessed from the latest release/global URL. No environment variables, raw config, private URLs, document text/names/locators, credentials or unrestricted logs.
 - **`support_get_engage_readiness`:** the selected app's connection/domain/readiness outcomes and applicable public setup steps. No auth tokens, private manifests or arbitrary hostname inspection.
-- **`support_get_connection_sync_status`:** selected connection/source's last successful sync/indexing observation, current coarse work/error state and approved remediation guidance. No retrieved business records or provider payloads.
+- **`support_get_connection_sync_status`:** selected integration connection's recorded sync/work state and last successful observation. This is not the document-file version check. No retrieved business records or provider payloads.
+
+Document observations report the runtime's registered index state and observation
+time. They do not probe source storage or prove that no newer object exists.
+Unavailable or stale-target reads remain incomplete and expose no raw errors.
 
 The specialist-assistance READ boundary is an additional **runtime execution integration**, not an HTTP business-system read endpoint in this facade. It invokes only exact configured specialists/chains through public framework APIs, with original case authority and parent human-control checks. Area workers use the same approved facade/sources; they do not receive broader access because a manager selected them.
 

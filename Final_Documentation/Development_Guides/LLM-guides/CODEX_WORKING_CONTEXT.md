@@ -11376,3 +11376,78 @@ test is being called hosted acceptance. UI extraction remains last.
   runbooks. Production awaits isolated supportS3 private configuration and normal
   support binding/staff/offer qualification. Required for production owns that
   external prerequisite. Do not mark010.54 complete or silently use dealershipS3.
+
+### 2026-10-31 00:15 UTC 010.54 Final Evidence Mapping In Progress
+
+- Both Platform backends are now native healthy on8365e649a (stage jobtyd0d2t5,
+  prodsmqb7ldy); CoreCI41143578549PASS. Production support remains disabled,
+  Console unchanged; native Supabase GETCREATE_WORKSPACE made no customer.
+- Runtime23eaf650c/dsa6c25 passed both exact applies and remains framework0.8.41.
+  Acmerel949ac091/ver04965bc8 remainsACTIVE/ready with3ACTIVE guides. Internal
+  doc-status configver7d240204/rel4d7c4070 passed/readiness/rebind;4ACTIVE guides.
+- Internalchain completed2findings on23. Later direct specialist clarification
+  now shows SDKpublic reason correctly. A subsequent missing-index-count answer
+  was NOT merely semantic: ACTION1.0.1 default compact facts omitted nested
+  resources. Direct authenticated facade returnedCURRENT/ACTIVE4/active4/newer0.
+- Correct ACTION1.0.2 declares existing SDKllmFacts; no framework change, lexical
+  routing or hidden retry. Source339a9cba9/CoreCI41149145412PASS, staged published
+  mkv25e1f1da. Actual0.8.41 JAR probe77PASS/0FAIL including native1640/2400chars,
+  unavailable-vs-empty and safe fields. Readiness detail may truncate5+marker;
+  authoritative localReadyfalse/INCOMPLETE/deliveryfalse remain, no dummy params.
+- Normal CUSTOMER_ADMIN plugin upgrade, validate/publish and normal external
+  credential binding preparedver73650a55. Exactrel03a0a92d isPROVISIONING, not
+  verified/assigned yet; observer78244. Runtimeimage23 unchanged. After success
+  rebind existing internalapp, actual UIindex-count query, final readonly readback,
+  consent revoke/screenshots and final execution/docs commit. Preserve prior
+  failed/partial turns; do not replay intake or manufacture a semantic pass.
+- Privatehelpers/evidence remain ~/.codex/private/loomai-support-01054/:
+  llm-facts-upgrade.private.json, document-status-direct-read.private.json,
+  published-llm-facts-probe.private.json, connected-loomai-final.private.json.
+  Authregister points to ignored identities.private.json. Independent Acme app
+  signed in/restored actual human reply through ChatHistory after backend rollout.
+- Production support-specific S3 remains owner-pending in Required for production.
+  Do not mark P6/whole01054 complete, reuse dealership credentials, or substitute
+  a mounted production source. All bounded subagents are closed.
+
+### 2026-10-31 01:17 UTC 010.54 Staging Journey Closed, Production Gate Open
+
+- Supersedes the 00:15 checkpoint, including its incorrect claim that ACTION1.0.2
+  fixed live evidence. Both backend services are native healthy8365e649a;
+  staging Consoleb1c571502, sharedDesk29dbc119. Production support remains
+  disabled; production Console/support journey is not launched or qualified.
+- Final internaldep-a2706601/verbcc68919/rel74a7ccaa and Acmedep86fef557/
+  ver04965bc8/rel949ac091 are APPLIED_VERIFIED/PASSED on runtime23eaf650c,
+  artifactdsa6c25d57d, framework0.8.41. Both existing Engageapps remain ACTIVE,
+  readiness true and exact consumer bindings verified. Four/three guides ACTIVE.
+- Live1.0.2 returned raw index facts but planner evidence was envelope-only:
+  rootPath=data incorrectly repeated the connector's already-unwrapped envelope.
+  Earlier77-check probe repeated that assumption. ACTION1.0.3 source5491ac4e6
+  removes the wrong root, retains official safe llmFacts and is published staging
+  mkv8a957343. Normal customer install/publish/endpoint-bind/apply/rebind used.
+  No framework release/runtime image, generated-route patch or semantic fallback.
+- Strengthened exact0.8.41 probe97PASS/0FAIL through actual public executor/parser
+  with fake HTTP,14fixtures, both defects as negative controls; fullreport saved
+  privately. Focused template/compiler13PASS, composition/service6NodePASS;
+  sourceCI41152907413PASS. Existing earlier boundary/PG/UI evidence retained.
+- Actual final Console question answered ACTIVE4/activeVersions4/newer0 and
+  upstream storage not checked; canonical current-source evidence usable=true,
+  exactrel74a7ccaa,1669chars. CaseSUP930E511FFA9 keeps its history/2episodes;
+  latest12messages/6receipts. Consent revoked viaUI and stayedfalse afterreload.
+  Historical errors/partials retained, no intake/query replay. Earlier both
+  two-workerchains and real Desk claim/reply/context/resolve/return passed.
+- Reusable TEMPLATE1.0.1 bootstrap/edit/save/restore and independent Acme
+  standalone/nativeSupa/knowledge/humanreply/AIreturn proved noLoomAIcaseprovider
+  dependency. Separate Acme requester-to-sharedsupport contract read reached its
+  own app's runtime and returned3sources; originalcontext restored/consentfalse.
+  Customer requestlist and actual staff Teamintake empty-state verified.
+- Production gate still requires isolated approved support source/read material
+  from Required for production, then normal production owner/offer/deployment/
+  app/Desk staff and actual journey. Do not reuse dealershipS3, create newIAM,
+  substitute mounted production storage, or claim01054 fully launched. Readonly
+  production nativeSupaGET returnedCREATE_WORKSPACE; no customercreated.
+- Evidence/helpers remain ~/.codex/private/loomai-support-01054/: final-readback,
+  connected-*-final, ui-case-latest, ui-case-wrong-root-1.0.2, shared-support-
+  document-boundary and published-0.8.41-llm-facts-1.0.3.full privateJSON.
+  Publicproof output/support-01054/staging-support-correct-index-answer-consent-
+  revoked.png. See01054executionrecord for exact IDs/limits/remaininggates.
+  All bounded agents closed, no apply/build session pending, viewport reset.
