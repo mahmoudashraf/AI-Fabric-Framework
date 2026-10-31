@@ -39,7 +39,12 @@ Provider errors and cooldowns are shown, and a successful request is not describ
 as proof of inbox delivery. Already verified accounts do not need another activation.
 
 Desk agents use `/auth/desk/sign-in?method=email` (also `recovery`, `verify`, or
-`register`) without needing a Console customer workspace. Email callbacks preserve
+`register`) without needing a Console customer workspace. With one Supabase OAuth
+server, both Desk environments use its single configured Console identity origin.
+`/auth/desk/sign-in/{clientId}` preserves the destination using only an exact
+registered Desk client, not an arbitrary return URL. Requesting email on one
+Console origin and completing OAuth consent on another must not be qualified as
+the same identity flow. Email callbacks preserve
 the original local Desk authorization when available, otherwise start a fresh Desk
 sign-in. The trusted environment-specific root is configured on the backend as
 `platform.auth.customer-supabase.desk-sign-in-url`; it must match a registered Desk

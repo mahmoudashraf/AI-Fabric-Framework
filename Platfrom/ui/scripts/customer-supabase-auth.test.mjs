@@ -15,7 +15,7 @@ delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
 const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath } = await load('../src/auth/customerAuthReturn.ts')
-const { deskSignInUrl, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
+const { deskSignInUrl, deskIdentityClient, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
 const config = { enabled: true, deskClients: [{ clientId: 'desk-prod', redirectUris: ['https://desk.example.test/auth/callback'] }] }
 const details = { authorization_id: 'auth-1', client: { id: 'desk-prod' }, redirect_uri: 'https://desk.example.test/auth/callback', scope: 'openid profile email' }
 
@@ -132,6 +132,10 @@ test('Desk email links return to a fresh Desk entry without creating Console mem
     assert.equal(identityEmailRedirect(true), 'https://console.example.test/auth/recovery?flow=desk')
     assert.equal(identitySignInPath(), '/auth/desk/sign-in')
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
+    window.location.pathname = '/auth/desk/sign-in/desk-staging'
+    rememberCustomerAuthReturn(false)
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in/desk-staging')
+    window.location.pathname = '/auth/desk/sign-in'
     window.location.search = '?flow=desk&next=https://evil.test'
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
     assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
@@ -143,7 +147,7 @@ test('Desk email links return to a fresh Desk entry without creating Console mem
 
 test('Desk entry is explicitly configured and trusted, not selected from arbitrary input or client order', () => {
   const trusted = { ...config, deskSignInUrl: 'https://desk.example.test/' }
-  assert.equal(deskSignInUrl(trusted), 'https://desk.example.test/')
+  assert.equal(deskSignInUrl(trusted), 'https://desk.example.test/oauth2/authorization/supabase')
   assert.throws(() => deskSignInUrl(config), /not configured/)
   for (const url of ['https://evil.test/', 'https://desk.example.test/path', 'https://desk.example.test/?next=evil',
     'https://user@desk.example.test/', 'http://desk.example.test/', 'https://desk.example.test/#token']) {
@@ -154,4 +158,10 @@ test('Desk entry is explicitly configured and trusted, not selected from arbitra
   assert.equal(emailCallbackError('?error=access_denied', ''), 'This email link could not be verified. Request a new link.')
   assert.equal(emailCallbackError('', '#error=access_denied&error_description=Link+expired'), 'Link expired')
   assert.equal(emailCallbackError('?code=opaque', ''), null)
+  const shared = { ...trusted, deskClients: [...trusted.deskClients,
+    { clientId: 'desk-staging', redirectUris: ['https://stage.example.test/login/oauth2/code/supabase'] }] }
+  assert.equal(deskSignInUrl(shared, 'desk-staging'), 'https://stage.example.test/oauth2/authorization/supabase')
+  assert.throws(() => deskSignInUrl(shared, 'untrusted'), /not configured/)
+  assert.equal(deskIdentityClient('/auth/desk/sign-in/desk-staging'), 'desk-staging')
+  assert.throws(() => deskIdentityClient('/auth/desk/sign-in/https://evil.test'))
 })

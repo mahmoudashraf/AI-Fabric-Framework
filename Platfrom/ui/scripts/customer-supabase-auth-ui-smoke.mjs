@@ -323,7 +323,7 @@ try {
     assert.equal(calls.filter(call => call.method === 'POST' && /\/(staging-releases|deployments)$/.test(call.path)).length, 0)
   }, { seed: true, fresh: true })
   await scenario('desk_email_link_is_existing_account_only_pkce_and_does_not_require_password', async ({ page, calls, base }) => {
-    await page.goto(`${base}/auth/desk/sign-in?method=email`)
+    await page.goto(`${base}/auth/desk/sign-in/desk-fixture?method=email`)
     await page.getByLabel(/^Email/).fill('agent@example.test')
     assert.equal(await page.getByLabel(/^Password/).count(), 0)
     await page.getByRole('button', { name: 'Send sign-in link', exact: true }).click()
@@ -335,6 +335,7 @@ try {
     assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk`)
     await page.goto(`${base}/auth/callback?code=magic-link-code&flow=desk`)
     await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.find(call => call.deskCallback).path, '/oauth2/authorization/supabase')
     assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding')).length, 0)
     assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
   }, { deskOnly: true })

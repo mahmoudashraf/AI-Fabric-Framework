@@ -17,6 +17,7 @@ export function PlatformRouting() {
   const { session } = usePlatformAuth()
   // Keep one-use auth exchanges mounted while the account role is loading.
   const identityProtocolRoute = ['/auth/desk/authorize', '/auth/desk/sign-in', '/auth/callback', '/auth/recovery', '/support/team-intake'].includes(window.location.pathname)
+    || window.location.pathname.startsWith('/auth/desk/sign-in/')
   return session?.role === 'CUSTOMER_ADMIN' && !identityProtocolRoute
     ? <CustomerRouting />
     : <BrowserRouter useTransitions={false}><App /></BrowserRouter>

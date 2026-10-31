@@ -67,7 +67,7 @@ export default function App() {
 
   // Identity-provider consent is available to Desk agents without Console membership.
   if (window.location.pathname === '/auth/desk/authorize') return <DeskOAuthAuthorizationPage />
-  if (window.location.pathname === '/auth/desk/sign-in') return <DeskIdentitySignInPage />
+  if (window.location.pathname === '/auth/desk/sign-in' || window.location.pathname.startsWith('/auth/desk/sign-in/')) return <DeskIdentitySignInPage />
   if (location.pathname === '/support/team-intake') return <SupportTeamIntakePage />
   if (window.location.pathname === '/auth/callback') return <CustomerAuthCallbackPage />
   if (window.location.pathname === '/auth/recovery') return <CustomerAuthRecoveryPage />

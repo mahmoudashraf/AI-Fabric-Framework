@@ -1,5 +1,5 @@
 const returnKey = 'loomai-console-auth-return'
-type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; product?: string; createdAt: number }
+type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; createdAt: number }
 
 export function selectedProduct(search: string): 'platform' | 'engage' | 'desk' | null {
   const product = new URLSearchParams(search).get('product')
@@ -15,7 +15,8 @@ export function rememberCustomerAuthReturn(linking: boolean) {
   const authorizationId = window.location.pathname === '/auth/desk/authorize'
     ? new URLSearchParams(window.location.search).get('authorization_id') : null
   const intent: AuthReturn = { purpose: linking ? 'link' : authorizationId ? 'desk'
-    : window.location.pathname === '/auth/desk/sign-in' ? 'desk-entry' : 'customer',
+    : window.location.pathname.startsWith('/auth/desk/sign-in') ? 'desk-entry' : 'customer',
+    ...(window.location.pathname.startsWith('/auth/desk/sign-in/') ? { deskClientId: window.location.pathname.slice('/auth/desk/sign-in/'.length) } : {}),
     ...(selectedProduct(window.location.search) ? { product: selectedProduct(window.location.search)! } : {}),
     ...(authorizationId ? { authorizationId } : {}), createdAt: Date.now() }
   window.localStorage.setItem(returnKey, JSON.stringify(intent))
@@ -27,7 +28,8 @@ export function customerAuthReturn(): AuthReturn | null {
     if (!intent || !['link', 'desk', 'desk-entry', 'customer'].includes(intent.purpose) || typeof intent.createdAt !== 'number'
       || intent.createdAt > Date.now() || Date.now() - intent.createdAt > 3600000
       || (intent.purpose === 'desk' && (typeof intent.authorizationId !== 'string'
-        || intent.authorizationId.length === 0 || intent.authorizationId.length > 512))) return null
+        || intent.authorizationId.length === 0 || intent.authorizationId.length > 512))
+      || (intent.deskClientId !== undefined && (typeof intent.deskClientId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(intent.deskClientId)))) return null
     return intent
   } catch { return null }
 }
@@ -37,7 +39,8 @@ export function consumeCustomerAuthReturn() {
   window.localStorage.removeItem(returnKey)
   if (intent?.purpose === 'desk') return `/auth/desk/authorize?authorization_id=${encodeURIComponent(intent.authorizationId!)}`
   if (intent?.purpose === 'link') return '/staff/sign-in?link=customer'
-  if (intent?.purpose === 'desk-entry' || (!intent && new URLSearchParams(window.location.search).get('flow') === 'desk')) return '/auth/desk/sign-in'
+  if (intent?.purpose === 'desk-entry') return '/auth/desk/sign-in' + (intent.deskClientId ? '/' + intent.deskClientId : '')
+  if ((!intent || intent.purpose === 'customer') && new URLSearchParams(window.location.search).get('flow') === 'desk') return '/auth/desk/sign-in'
   return intent?.purpose === 'customer'
     ? ['platform', 'engage', 'desk'].includes(intent.product ?? '') ? `/start?product=${intent!.product}` : '/start'
     : '/'
@@ -52,5 +55,6 @@ export function identityEmailRedirect(recovery = false) {
 export function identitySignInPath() {
   const intent = customerAuthReturn()
   return new URLSearchParams(window.location.search).get('flow') === 'desk'
-    || intent?.purpose === 'desk' || intent?.purpose === 'desk-entry' ? '/auth/desk/sign-in' : '/sign-in'
+    || intent?.purpose === 'desk' || intent?.purpose === 'desk-entry'
+    ? '/auth/desk/sign-in' + (intent?.purpose === 'desk-entry' && intent.deskClientId ? '/' + intent.deskClientId : '') : '/sign-in'
 }
