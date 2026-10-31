@@ -15,6 +15,40 @@
 
 Each phase requires focused tests and its actual integration evidence. No phase is complete solely because configuration or a mockup exists.
 
+### 2026-10-31 Chat-First Console Support Redesign
+
+- Owner-requested UI: support opens directly to an assistant, assigned integration
+  agents appear above it as names/photos, Request integration help opens a form
+  over the conversation, and My requests has its own `/support/requests` route.
+  Existing context, consent, delivery checks and resolve/cancel/reopen controls
+  remain available through Request details and the case toolbar.
+- The signed-in customer shell owns one persistent workspace iframe. Other
+  customer pages show the same conversation in a dock, with minimize/restore
+  and left/right controls. Navigation and minimization preserve the iframe and
+  unsent text. Per-account session storage contains only selected case ID and
+  presentation preferences, never credentials or a second transcript.
+- Entering a page, selecting history, minimizing or restoring sends no AI
+  message and creates no case. The first explicit free-text question uses the
+  existing idempotent create/start path with empty resource selection and no
+  diagnostic consent. The integration form also retains immutable retry keys.
+  New conversation is explicit; closed requests remain read-only until reopened.
+- The small Desk integration projection exposes only active SUPPORT assignees
+  for the configured support binding, safe names and protected JPEGs. Current
+  customer membership is rechecked for every roster/photo read. No private email,
+  auth subject, grants, existing private avatar URL or invented online status is
+  exposed. Missing photos use initials; no fictional agents are added.
+- Local verification: 31 focused Platform/Desk tests (including PostgreSQL),
+  25 customer theme/auth tests, TypeScript and production UI build passed.
+  Fifteen real-component browser scenario groups passed with explicitly
+  synthetic APIs/photos: lifecycle, fresh identity, no mount replay, navigation/
+  draft persistence, dock pointer controls, basic narrow rendering and staff
+  isolation. A real left-launcher/sidebar overlap was found and fixed by placing
+  the dock after the navigation rail, not by bypassing the overlay with z-index.
+  At 1500x1050, the composer bottom is 1002px and input bottom is 978px.
+- Runtime, framework, support configuration, templates and databases are
+  unchanged. Native hosted rollout and real customer verification are pending
+  at this source checkpoint; local fixtures are not claimed as live evidence.
+
 ### Production Closure Evidence: 2026-10-31 17:55 UTC
 
 - **Sources and services:** backend `9b6762b3c` and Console `7277fe3c7` are immutable-source/native healthy on both hosts. Desk remains `29dbc1199`; customer runtimes remain `23eaf650c` / AI Fabric `0.8.41`. Backend CI `41219916625` and Console CI `41222162970` passed. The Weaviate identifier correction passed 26 focused resolver/scoping/template tests, keeping the complete 64-hex identity digest within the provider limit. No framework release, semantic text matching, automatic search-all, direct SQL mutation or global provider-key change.

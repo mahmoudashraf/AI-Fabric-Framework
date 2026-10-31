@@ -1,4 +1,4 @@
-import { platformRequest } from './platformApi'
+import { getPlatformApiBaseUrl, getStoredPlatformApiKey, platformCredentials, PlatformApiError, platformRequest } from './platformApi'
 
 export type SupportResource = { type: 'DEPLOYMENT' | 'ENGAGE_APP' | 'CONNECTION'; id: string }
 export type SupportDelivery = 'PENDING' | 'UNKNOWN' | 'USER_MESSAGE_PERSISTED' | 'COMPLETED' | 'FAILED'
@@ -37,6 +37,19 @@ export const updateSupportResources = (supportCase: SupportCase, resources: Supp
 export const getSupportWorkspace = (id: string) => platformRequest<SupportWorkspaceBootstrap>(`${path(id)}/workspace`)
 // The server owns the immutable body and canonical idempotency key. Never pass a new message from the browser.
 export const startSupportConversation = (id: string) => platformRequest<{ supportCase: SupportCase; runtimeStatus: number; response: unknown }>(`${path(id)}/start`, { method: 'POST' })
+
+export type SupportTeamAgent = { agentReference: string; displayName: string; photoAvailable: boolean }
+export const getSupportTeam = () => platformRequest<{ agents: SupportTeamAgent[] }>('/api/support/team')
+export async function getSupportAgentPhoto(reference: string, signal: AbortSignal) {
+  const route = `/api/support/team/${encodeURIComponent(reference)}/photo`
+  const credentials = await platformCredentials(route, getStoredPlatformApiKey())
+  const response = await fetch(getPlatformApiBaseUrl() + route, {
+    ...credentials, signal, redirect: 'error', cache: 'no-store',
+  })
+  if (!response.ok) throw new PlatformApiError(response.status, 'Agent photo is unavailable.')
+  if (!response.headers.get('content-type')?.startsWith('image/jpeg')) throw new Error('Agent photo is unavailable.')
+  return response.blob()
+}
 
 export type SupportStaffIntake = {
   caseId: string; reference: string; summary: string; details: string; status: string; version: number

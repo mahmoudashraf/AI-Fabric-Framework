@@ -26,6 +26,9 @@ import { useQuery } from '@tanstack/react-query'
 import { CustomerConsoleTheme, useCustomerColorPreference, type CustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { DeploymentWorkspaceUnresolvedState } from '../components/DeploymentWorkspaceUnresolvedState'
+import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
+import { CustomerSupportAssistant } from '../components/customer/CustomerSupportAssistant'
+import { SupportRequestForm } from '../components/customer/SupportRequestForm'
 
 const navigation = [
   { path: '/home', label: 'Home', icon: SpaceDashboardOutlined },
@@ -56,29 +59,34 @@ export function CustomerConsoleShell(props: CustomerShellProps) {
   const unresolved = workspace.isScopedPage && !workspace.deploymentsLoading
     && workspace.unresolvedRequestedDeploymentId != null
   return <CustomerShellLayout {...props} buildWorkspacePath={workspace.buildWorkspacePath}
-    deploymentName={workspace.selectedDeploymentSummary?.name} humanSupportAvailable={workspace.workspace?.conversationHandoverConfigured ?? false} expandedNavigation={expandedNavigation}>
+    deploymentName={workspace.selectedDeploymentSummary?.name} humanSupportAvailable={workspace.workspace?.conversationHandoverConfigured ?? false} expandedNavigation={expandedNavigation} supportEnabled>
     {unresolved ? <DeploymentWorkspaceUnresolvedState /> : props.children}
   </CustomerShellLayout>
 }
 
-export function CustomerShellLayout({ session, onSignOut, children, buildWorkspacePath, deploymentName, humanSupportAvailable = false, expandedNavigation = true }: CustomerShellProps & {
+export function CustomerShellLayout({ session, onSignOut, children, buildWorkspacePath, deploymentName, humanSupportAvailable = false, expandedNavigation = true, supportEnabled = false }: CustomerShellProps & {
   buildWorkspacePath: (path: string) => string
   deploymentName?: string | null
   humanSupportAvailable?: boolean
   expandedNavigation?: boolean
+  supportEnabled?: boolean
 }) {
   if (!isCustomerSession(session)) {
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
-  return <CustomerConsoleTheme><CustomerShellContent session={session} onSignOut={onSignOut}
-    buildWorkspacePath={buildWorkspacePath} deploymentName={deploymentName} humanSupportAvailable={humanSupportAvailable} expandedNavigation={expandedNavigation}>{children}</CustomerShellContent></CustomerConsoleTheme>
+  const content = <CustomerShellContent session={session} onSignOut={onSignOut}
+    buildWorkspacePath={buildWorkspacePath} deploymentName={deploymentName} humanSupportAvailable={humanSupportAvailable} expandedNavigation={expandedNavigation} supportEnabled={supportEnabled}>{children}</CustomerShellContent>
+  return <CustomerConsoleTheme>{supportEnabled
+    ? <CustomerSupportProvider key={`${session?.customerId}:${session?.actorId}`}>{content}</CustomerSupportProvider>
+    : content}</CustomerConsoleTheme>
 }
 
-function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath, deploymentName, humanSupportAvailable, expandedNavigation }: CustomerShellProps & {
+function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath, deploymentName, humanSupportAvailable, expandedNavigation, supportEnabled }: CustomerShellProps & {
   buildWorkspacePath: (path: string) => string
   deploymentName?: string | null
   humanSupportAvailable: boolean
   expandedNavigation: boolean
+  supportEnabled: boolean
 }) {
   const location = useLocation()
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
@@ -114,7 +122,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
       <Box sx={{ minWidth: 0 }}><Typography sx={{ fontSize: 11, fontWeight: 600, overflowWrap: 'anywhere' }}>{session?.displayName ?? 'Customer administrator'}</Typography><Typography color="text.secondary" sx={{ fontSize: 10 }}>Customer administrator</Typography></Box>
     </Stack>
   </Box>
-  return <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+  return <><Box sx={{ display: 'flex', minHeight: '100vh', '--customer-navigation-width': compact ? '0px' : '205px' }}>
     <Drawer id="customer-navigation" variant={compact ? 'temporary' : 'permanent'} open={!compact || menuOpen}
       onClose={() => setMenuOpen(false)} sx={{ width: compact ? 0 : 205, flexShrink: 0,
         '& .MuiDrawer-paper': { width: 205, boxSizing: 'border-box', bgcolor: 'background.paper', backgroundImage: 'none' } }}>{nav}</Drawer>
@@ -135,7 +143,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         </FormControl>
         <Tooltip title="Sign out"><IconButton aria-label="Sign out" onClick={() => { void onSignOut() }}><LogoutRounded sx={{ fontSize: 19 }} /></IconButton></Tooltip>
       </Toolbar>
-      <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, minWidth: 0 }}>{children}</Box>
+      <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, minWidth: 0 }}>{children}{supportEnabled && <CustomerSupportAssistant />}</Box>
     </Box>
-  </Box>
+  </Box>{supportEnabled && <SupportRequestForm />}</>
 }

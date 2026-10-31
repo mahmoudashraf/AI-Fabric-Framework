@@ -7,8 +7,8 @@ import type { SupportWorkspaceBootstrap } from '../../api/supportApi'
 import type { GenericWorkspaceState } from '../../../../../experience-packs/generic-workspace-experience/src/types'
 import { supportWorkspaceDocument } from './supportWorkspaceDocument'
 
-export function SupportWorkspace({ caseId, bootstrap, readOnly, onStateChange }: {
-  caseId: string; bootstrap: SupportWorkspaceBootstrap; readOnly: boolean; onStateChange(state: GenericWorkspaceState | null): void
+export function SupportWorkspace({ caseId, bootstrap, readOnly, onStateChange, fillHeight = false }: {
+  caseId: string; bootstrap: SupportWorkspaceBootstrap; readOnly: boolean; onStateChange(state: GenericWorkspaceState | null): void; fillHeight?: boolean
 }) {
   const frame = useRef<HTMLIFrameElement>(null)
   const auth = usePlatformAuth()
@@ -69,7 +69,7 @@ export function SupportWorkspace({ caseId, bootstrap, readOnly, onStateChange }:
     }
   }, [frameScope, nonce])
   const refresh = () => { setError(null); frame.current?.contentWindow?.postMessage({ type: 'loomai:support:refresh', nonce }, window.location.origin) }
-  return <Box sx={{ minWidth: 0 }}>
+  return <Box sx={{ minWidth: 0, ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 } : {}) }}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ pb: 1.25 }}>
       <Typography variant="subtitle2">Conversation</Typography>
       <Tooltip title="Refresh conversation"><IconButton aria-label="Refresh support conversation" onClick={refresh} disabled={!ready}><RefreshRounded fontSize="small" /></IconButton></Tooltip>
@@ -79,6 +79,7 @@ export function SupportWorkspace({ caseId, bootstrap, readOnly, onStateChange }:
     <Box component="iframe" key={frameScope} ref={frame} title="LoomAI integration support workspace" srcDoc={document}
       onLoad={() => frame.current?.contentWindow?.postMessage(frameConfiguration, window.location.origin)}
       sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
-      sx={{ display: 'block', width: '100%', height: 'min(760px, calc(100vh - 245px))', minHeight: 460, border: 1, borderColor: 'divider', borderRadius: 1 }} />
+      sx={{ display: 'block', width: '100%', height: fillHeight ? '100%' : 'min(760px, calc(100vh - 245px))', minHeight: fillHeight ? 0 : 460,
+        ...(fillHeight ? { flex: 1 } : {}), border: 1, borderColor: 'divider', borderRadius: 1 }} />
   </Box>
 }

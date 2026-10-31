@@ -163,6 +163,7 @@ export default function App() {
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/users" element={<CustomerAccountPage />} />
               <Route path="/support" element={<CustomerSupportPage />} />
+              <Route path="/support/requests" element={<CustomerSupportPage view="requests" />} />
               <Route path="/support/:caseId" element={<CustomerSupportPage />} />
               <Route path="*" element={<Navigate to="/deployments" replace />} />
             </>
