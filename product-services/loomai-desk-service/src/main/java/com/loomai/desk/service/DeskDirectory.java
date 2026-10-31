@@ -160,6 +160,59 @@ public class DeskDirectory {
     return found.getFirst();
   }
 
+  public List<SupportTeamProfile> supportTeam(String bindingId) {
+    requireEnabledTeamBinding(bindingId);
+    return jdbc.query(
+        """
+        SELECT o.operator_id,o.display_name,(o.avatar_bytes IS NOT NULL) AS photo_available
+        FROM desk_operator o JOIN desk_assignment a ON a.operator_id=o.operator_id
+        JOIN desk_binding b ON b.binding_id=a.binding_id
+        WHERE b.binding_id=? AND b.enabled=TRUE AND o.registered=TRUE AND a.role='SUPPORT'
+        ORDER BY o.display_name,o.operator_id
+        """,
+        (rs, n) -> new SupportTeamProfile(
+            supportProfileRef(bindingId, rs.getString("operator_id")),
+            supportDisplayName(rs.getString("display_name")), rs.getBoolean("photo_available")),
+        bindingId);
+  }
+
+  public byte[] supportTeamPhoto(String bindingId, String profileRef) {
+    requireEnabledTeamBinding(bindingId);
+    if (profileRef == null || !profileRef.matches("team-[a-f0-9]{64}")) throw notFound();
+    List<String> assigned = jdbc.query(
+        """
+        SELECT o.operator_id FROM desk_operator o JOIN desk_assignment a ON a.operator_id=o.operator_id
+        JOIN desk_binding b ON b.binding_id=a.binding_id
+        WHERE b.binding_id=? AND b.enabled=TRUE AND o.registered=TRUE AND a.role='SUPPORT'
+        """, (rs, n) -> rs.getString(1), bindingId);
+    String agentId = assigned.stream()
+        .filter(id -> supportProfileRef(bindingId, id).equals(profileRef))
+        .findFirst().orElseThrow(this::notFound);
+    // Recheck assignment and enabled state in the byte read, including after roster removal.
+    List<byte[]> found = jdbc.query(
+        """
+        SELECT o.avatar_bytes FROM desk_operator o JOIN desk_assignment a ON a.operator_id=o.operator_id
+        JOIN desk_binding b ON b.binding_id=a.binding_id
+        WHERE b.binding_id=? AND b.enabled=TRUE AND o.operator_id=? AND o.registered=TRUE
+          AND a.role='SUPPORT' AND o.avatar_bytes IS NOT NULL
+        """, (rs, n) -> rs.getBytes(1), bindingId, agentId);
+    if (found.isEmpty()) throw notFound();
+    return found.getFirst();
+  }
+
+  private void requireEnabledTeamBinding(String bindingId) {
+    if (!binding(bindingId).enabled()) throw notFound();
+  }
+
+  private String supportProfileRef(String bindingId, String agentId) {
+    return "team-" + secrets.sha256("support-team\n" + bindingId + "\n" + agentId);
+  }
+
+  private String supportDisplayName(String name) {
+    // Identity providers may default the private profile name to an email address.
+    return name == null || name.isBlank() || name.contains("@") ? "Support agent" : name;
+  }
+
   @Transactional
   public void workspace(String customer, WorkspaceInput input) {
     require(customer, 160, "customerId");

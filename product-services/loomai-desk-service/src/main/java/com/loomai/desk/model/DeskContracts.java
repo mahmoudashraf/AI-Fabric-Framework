@@ -42,6 +42,9 @@ public final class DeskContracts {
 
   public record AgentProfile(String agentId, String displayName, String avatarUrl) {}
 
+  /** Binding-scoped projection for integration customers, not the private agent directory. */
+  public record SupportTeamProfile(String profileRef, String displayName, boolean photoAvailable) {}
+
   public record OwnerInput(String issuer, String subject, String email, String displayName) {}
 
   public record WorkspaceInput(String name, List<OwnerInput> owners) {}

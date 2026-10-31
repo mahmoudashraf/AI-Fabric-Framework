@@ -5,6 +5,8 @@ import static com.loomai.desk.model.DeskContracts.*;
 import com.loomai.desk.service.DeskDirectory;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -48,5 +50,20 @@ public class DeskAdminController {
       @RequestParam Role permission) {
     return Map.of(
         "authorized", directory.authorizedIdentity(bindingId, issuer, subject, permission));
+  }
+
+  @GetMapping("/bindings/{bindingId}/support-team")
+  public ResponseEntity<List<SupportTeamProfile>> supportTeam(@PathVariable String bindingId) {
+    return ResponseEntity.ok().header("Cache-Control", "private, no-store")
+        .body(directory.supportTeam(bindingId));
+  }
+
+  @GetMapping("/bindings/{bindingId}/support-team/{profileRef}/photo")
+  public ResponseEntity<byte[]> supportTeamPhoto(
+      @PathVariable String bindingId, @PathVariable String profileRef) {
+    return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG)
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(directory.supportTeamPhoto(bindingId, profileRef));
   }
 }

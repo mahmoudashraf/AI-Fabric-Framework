@@ -53,25 +53,50 @@ public class DeskServiceClient {
         return send(connection, "GET", path, null);
     }
 
+    public byte[] getPhoto(Connection connection, String path) {
+        var response = exchange(connection, "GET", path, null, "image/jpeg", 131072);
+        if (response.status() == 404) throw new ResponseStatusException(NOT_FOUND, "Desk profile photo not found.");
+        requireSuccess(response);
+        byte[] data = response.data();
+        if (!"image/jpeg".equalsIgnoreCase(response.contentType()) || data.length < 3
+            || data[0] != (byte) 0xff || data[1] != (byte) 0xd8 || data[2] != (byte) 0xff) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Desk returned an invalid profile photo.");
+        }
+        return data;
+    }
+
     private JsonNode send(Connection connection, String method, String path, Object body) {
+        var response = exchange(connection, method, path, body, "application/json", 262144);
+        requireSuccess(response);
+        try {
+            return response.data().length == 0 ? mapper.valueToTree(Map.of()) : mapper.readTree(response.data());
+        } catch (Exception error) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Desk returned an invalid integration response.");
+        }
+    }
+
+    private void requireSuccess(DeskResponse response) {
+        if (response.status() < 200 || response.status() >= 300) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Desk rejected the integration operation (HTTP " + response.status() + ").");
+        }
+    }
+
+    private DeskResponse exchange(Connection connection, String method, String path, Object body, String accept, int maxBytes) {
         if (!path.startsWith("/api/desk/admin/v1/") || path.contains("..")) {
             throw new IllegalArgumentException("A Desk administration path is required.");
         }
         try {
             var request = HttpRequest.newBuilder(URI.create(connection.baseUrl() + path))
-                .timeout(Duration.ofSeconds(15)).header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(15)).header("Accept", accept)
                 .header("X-LoomAI-Desk-Service-Key", connection.serviceKey());
             if (body == null) request.GET();
             else request.header("Content-Type", "application/json").method(method,
                 HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
             var response = http.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
             byte[] data;
-            try (var input = response.body()) { data = input.readNBytes(262145); }
-            if (data.length > 262144) throw new IllegalStateException("Oversized Desk response");
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(BAD_GATEWAY, "Desk rejected the integration operation (HTTP " + response.statusCode() + ").");
-            }
-            return data.length == 0 ? mapper.valueToTree(Map.of()) : mapper.readTree(data);
+            try (var input = response.body()) { data = input.readNBytes(maxBytes + 1); }
+            if (data.length > maxBytes) throw new IllegalStateException("Oversized Desk response");
+            return new DeskResponse(response.statusCode(), response.headers().firstValue("Content-Type").orElse(""), data);
         } catch (ResponseStatusException error) { throw error; }
         catch (InterruptedException error) {
             Thread.currentThread().interrupt();
@@ -80,6 +105,8 @@ public class DeskServiceClient {
             throw new ResponseStatusException(BAD_GATEWAY, "LoomAI Desk is unavailable; no successful activation was recorded.");
         }
     }
+
+    private record DeskResponse(int status, String contentType, byte[] data) { }
 
     public record Connection(String baseUrl, String serviceKey) {
         @Override public String toString() { return "DeskConnection[baseUrl=" + baseUrl + "]"; }
