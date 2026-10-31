@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { prepareCustomerIdentity, usePlatformAuth } from './PlatformAuthProvider'
 import { identityEmailRedirect, rememberCustomerAuthReturn } from './customerAuthReturn'
 import type { IdentityMethod } from './identityNavigation'
+import { Link } from 'react-router-dom'
 
 const submitLabels: Record<IdentityMethod, string> = {
   login: 'Sign in', register: 'Create account', email: 'Send sign-in link',
@@ -70,6 +71,7 @@ export function SupabaseIdentityForm({ linking = false, allowRegistration = fals
       {mode !== 'email' && <Button disabled={busy} onClick={() => changeMode('email')}>Email me a sign-in link</Button>}
       {mode !== 'recovery' && <Button disabled={busy} onClick={() => changeMode('recovery')}>Forgot password?</Button>}
       {mode !== 'verify' && <Button disabled={busy} onClick={() => changeMode('verify')}>Resend verification email</Button>}
+      {!linking && !window.location.pathname.startsWith('/auth/desk/') && <Button component={Link} to="/recover-account" disabled={busy}>Recover an existing Console workspace</Button>}
       {!passwordRequired && <Button disabled={busy} onClick={() => changeMode('login')}>Use password instead</Button>}
     </Stack>
     {allowRegistration && <Typography variant="caption" color="text.secondary">One LoomAI account. Access to each workspace is assigned separately.</Typography>}

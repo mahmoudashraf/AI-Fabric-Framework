@@ -26,7 +26,7 @@ let server, browser
 const cacheDir = await mkdtemp(join(tmpdir(), 'loomai-auth-smoke-'))
 const results = []
 const timestamp = Math.floor(Date.now() / 1000)
-const jwt = (suffix, subject = 'subject-agent') => `${Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: subject, iss: 'https://auth.example.test/auth/v1', role: 'authenticated', aud: 'authenticated', exp: timestamp + 3600, iat: timestamp, suffix })).toString('base64url')}.fixture-signature`
+const jwt = (suffix, subject = 'subject-agent') => `${Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: subject, iss: 'https://auth.example.test/auth/v1', role: 'authenticated', aud: 'authenticated', exp: timestamp + 3600, iat: timestamp, suffix })).toString('base64url')}.${Buffer.from('fixture-signature').toString('base64url')}`
 const user = { id: 'subject-agent', aud: 'authenticated', role: 'authenticated', email: 'agent@example.test', email_confirmed_at: '2026-01-01T00:00:00Z', app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' }
 const sbSession = (suffix, identity = user) => ({ access_token: jwt(suffix, identity.id), refresh_token: 'fixture-refresh-token', token_type: 'bearer', expires_in: 3600, expires_at: timestamp + 3600, user: identity })
 const anonymous = { enabled: true, authenticated: false, headerName: 'X-PLATFORM-API-KEY', sessionAuthEnabled: true, apiKeyAuthEnabled: true }
@@ -108,6 +108,13 @@ async function scenario(name, action, options = {}) {
     })))
     if (url.pathname === '/api/deployment-operations/status') return respond({ mode: 'DISABLED', providerUsageMode: 'TEAM_AUTHORIZED', manualDeploymentsAllowed: true, serviceConfigured: false })
     if (url.pathname.endsWith('/customer-link')) { assert.equal(local.authenticationMode, 'SESSION'); assert.equal(headers.authorization, undefined); linked = true; return route.fulfill({ status: 200, body: '' }) }
+    if (url.pathname.endsWith('/customer-recovery')) {
+      assert.equal(headers.authorization, undefined); assert.equal(headers.cookie, undefined); assert.equal(headers['x-platform-api-key'], undefined)
+      assert.deepEqual(req.postDataJSON(), { tokenHash: 'recovery-one-use-hash', email: 'agent@example.test' })
+      if (options.recoveryFailure) return respond({ message: 'Recovery was not completed. Request a new link or contact your workspace administrator.' }, 403)
+      linked = true
+      return respond({ accessToken: jwt('account-recovered'), refreshToken: 'fixture-refresh-token', expiresAt: timestamp + 3600, userId: user.id })
+    }
     if (url.pathname.endsWith('/login')) { local = options.localCustomer ? { ...customer, authenticationMode: 'SESSION' } : staff; return respond(local) }
     if (url.pathname.endsWith('/logout')) { local = anonymous; return respond(anonymous) }
     if (url.pathname.endsWith('/session')) {
@@ -115,7 +122,7 @@ async function scenario(name, action, options = {}) {
       if (headers.authorization) {
         assert.equal(headers['x-platform-api-key'], undefined); assert.equal(headers.cookie, undefined)
         if (options.delayedCustomerAuthorizationTransition) await new Promise(resolve => setTimeout(resolve, 400))
-        return (options.deskOnly && !linked) || (options.fresh && !onboarded) ? respond({ success: false, errorCode: 'CUSTOMER_IDENTITY_NOT_LINKED', message: 'No Console membership' }, 403) : respond(customer)
+        return (options.deskOnly && !linked) || (options.fresh && !onboarded && !linked) ? respond({ success: false, errorCode: 'CUSTOMER_IDENTITY_NOT_LINKED', message: 'No Console membership' }, 403) : respond(customer)
       }
       return respond(headers['x-platform-api-key'] ? { ...staff, authenticationMode: 'API_KEY' } : local)
     }
@@ -357,10 +364,66 @@ try {
   }, { fresh: true, publicTemplate: true })
   await scenario('existing_account_requires_explicit_link_instead_of_registration_claim', async ({ page, calls, base }) => {
     await page.goto(`${base}/start?product=desk`)
-    await page.getByText(/This identity matches an existing Console account/).waitFor()
-    await page.getByRole('link', { name: 'Connect existing account', exact: true }).waitFor()
+    await page.getByText(/You already have a Console account/).waitFor()
+    await page.getByRole('link', { name: 'Recover with an email link', exact: true }).waitFor()
+    await page.getByRole('link', { name: 'Connect using my old Console password', exact: true }).waitFor()
     assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding') && call.method === 'POST').length, 0)
   }, { seed: true, fresh: true, linkRequired: true })
+  await scenario('legacy_customer_login_exposes_recovery_without_staff_password_reset', async ({ page, calls, base }) => {
+    await page.goto(`${base}/staff/sign-in?link=customer`)
+    await page.getByRole('heading', { name: 'Connect your existing account', exact: true }).waitFor()
+    assert.equal(await page.getByLabel('Email', { exact: true }).inputValue(), '')
+    assert.equal(await page.getByLabel('Password', { exact: true }).inputValue(), '')
+    await page.getByRole('link', { name: 'Forgot your old password? Email me a recovery link', exact: true }).click()
+    await page.waitForURL('**/recover-account')
+    await page.getByRole('heading', { name: 'Recover your Console access', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.method === 'POST').length, 0)
+  })
+  await scenario('account_recovery_requests_native_email_only_without_automatic_signup_or_link', async ({ page, calls, base }) => {
+    await page.goto(`${base}/recover-account`)
+    await page.getByLabel(/^Email/).fill('agent@example.test')
+    await page.getByRole('button', { name: 'Email me a recovery link', exact: true }).click()
+    await page.getByText(/a one-use recovery link has been requested/).waitFor()
+    const sent = calls.find(call => call.path === '/auth/v1/otp')
+    assert.equal(sent.body.create_user, false)
+    assert.equal(new URLSearchParams(sent.query).get('redirect_to'), base + '/auth/account-recovery')
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery') || call.path.endsWith('/customer-onboarding')).length, 0)
+  })
+  await scenario('email_account_recovery_requires_explicit_confirmed_email_and_restores_existing_customer', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/account-recovery?token_hash=recovery-one-use-hash&type=email`)
+    await page.getByRole('heading', { name: 'Recover your workspace', exact: true }).waitFor()
+    await page.waitForURL('**/auth/account-recovery')
+    assert.equal(await page.getByLabel(/^Confirm your email/).inputValue(), '')
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery') || call.path === '/auth/v1/verify').length, 0)
+    await page.getByLabel(/^Confirm your email/).fill('agent@example.test')
+    await page.getByRole('button', { name: 'Recover my workspace', exact: true }).click()
+    await page.waitForURL('**/home')
+    await page.getByRole('heading', { name: 'Your workspace', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery')).length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding') && call.method === 'POST').length, 0)
+    await page.reload()
+    await page.getByRole('heading', { name: 'Your workspace', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery')).length, 1)
+  }, { seed: true, fresh: true, linkRequired: true })
+  await scenario('failed_one_use_recovery_never_replays_and_new_request_form_resets', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/account-recovery?token_hash=recovery-one-use-hash&type=email`)
+    await page.getByLabel(/^Confirm your email/).fill('agent@example.test')
+    await page.getByRole('button', { name: 'Recover my workspace', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: /Recovery was not completed/ }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Recover my workspace', exact: true }).isDisabled(), true)
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery')).length, 1)
+    await page.getByRole('link', { name: 'Request a new recovery link', exact: true }).click()
+    await page.getByLabel(/^Email/).fill('agent@example.test')
+    assert.equal(await page.getByRole('button', { name: 'Email me a recovery link', exact: true }).isDisabled(), false)
+  }, { recoveryFailure: true })
+  await scenario('wrong_link_type_or_provider_error_cannot_start_account_recovery', async ({ page, calls, base }) => {
+    for (const query of ['token_hash=recovery-one-use-hash&type=recovery', 'token_hash=recovery-one-use-hash&type=email&error=access_denied']) {
+      await page.goto(`${base}/auth/account-recovery?${query}`)
+      await page.getByRole('alert').waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Recover my workspace', exact: true }).count(), 0)
+    }
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery') || call.path === '/auth/v1/verify').length, 0)
+  })
   await scenario('product_discovery_survives_backend_unavailability_without_authentication_bypass', async ({ page, calls, base }) => {
     await page.goto(base)
     await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()

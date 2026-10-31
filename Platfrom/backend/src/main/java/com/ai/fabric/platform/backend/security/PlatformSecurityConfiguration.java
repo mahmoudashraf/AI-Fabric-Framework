@@ -129,6 +129,7 @@ public class PlatformSecurityConfiguration {
         http.addFilterBefore(new com.ai.fabric.platform.backend.desk.DeskReviewBridgeAuthenticationFilter(
             deskActivation, customerIdentities, deskClient, targetProfiles, objectMapper), AnonymousAuthenticationFilter.class);
         http.authorizeHttpRequests(authorize -> {
+            authorize.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/platform/auth/customer-recovery").permitAll();
             authorize.requestMatchers("/internal/v1/deployment-lifecycle/**")
                 .hasAuthority(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter.AUTHORITY);
             authorize.requestMatchers(

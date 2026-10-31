@@ -53,8 +53,9 @@ export function CustomerOnboardingPage() {
     <Box><Typography variant="h4" component="h1">Create your workspace</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>Your products, team and configuration in one place.</Typography></Box>
     {state.isPending ? <CircularProgress size={24} /> : state.isError ? <Alert severity="error">{state.error.message}</Alert>
-      : state.data?.status === 'LINK_REQUIRED' ? <Stack spacing={2}><Alert severity="info">This identity matches an existing Console account. Connect that account using its existing sign-in, or ask your workspace administrator for help. It will not be linked automatically.</Alert>
-        <Button component={Link} to="/staff/sign-in?link=customer">Connect existing account</Button></Stack>
+      : state.data?.status === 'LINK_REQUIRED' ? <Stack spacing={2}><Alert severity="info">You already have a Console account. Verify your email to recover its existing workspace and permissions. Nothing will be linked automatically.</Alert>
+        <Button component={Link} to="/recover-account" variant="contained">Recover with an email link</Button>
+        <Button component={Link} to="/staff/sign-in?link=customer">Connect using my old Console password</Button></Stack>
       : state.data?.status === 'REGISTRATION_CLOSED' ? <Alert severity="info">New workspaces are not available right now. Contact your workspace administrator for access.</Alert>
       : state.data?.status === 'CREATE_WORKSPACE' ? <Stack component="form" spacing={2.5} onSubmit={submit}>
         <TextField label="Your name" required autoComplete="name" value={displayName} onChange={e => setDisplayName(e.target.value)} slotProps={{ htmlInput: { maxLength: 120 } }} />

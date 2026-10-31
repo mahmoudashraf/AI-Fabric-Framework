@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
-import { customerAuthReturn } from './customerAuthReturn'
+import { customerAuthReturn, consumeCustomerAuthReturn } from './customerAuthReturn'
 import {
   clearStoredPlatformApiKey, fetchPlatformAuthSession, fetchCustomerAuthConfig, getStoredPlatformApiKey,
   linkCustomerSupabaseIdentity, loginToPlatform, logoutFromPlatform, setStoredPlatformApiKey,
+  recoverCustomerAccount,
   setPlatformAccessTokenProvider, type CustomerAuthConfig, type PlatformAuthSessionSummary,
 } from '../api/platformApi'
 
@@ -21,6 +22,7 @@ type PlatformAuthContextValue = {
   signInWithPassword: (email: string, password: string) => Promise<void>
   signInCustomer: (email: string, password: string) => Promise<void>
   linkCustomer: () => Promise<void>
+  recoverCustomer: (tokenHash: string, email: string) => Promise<void>
   setApiKey: (value: string) => void
   signOut: () => Promise<void>
   refreshSession: () => Promise<void>
@@ -144,6 +146,20 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
         return result.data.session.access_token
       })
       replacePrincipal('', null)
+    },
+    recoverCustomer: async (tokenHash, email) => {
+      if (!supabase) throw new Error('Customer authentication is not configured.')
+      const command = ++transition.current
+      const recovered = await recoverCustomerAccount(tokenHash, email)
+      if (command !== transition.current) throw new Error('Your account changed. Return to sign in.')
+      await logoutFromPlatform()
+      if (command !== transition.current) throw new Error('Your account changed. Return to sign in.')
+      sessionStorage.setItem(modeKey, 'customer')
+      clearStoredPlatformApiKey()
+      consumeCustomerAuthReturn()
+      const result = await supabase.auth.setSession({ access_token: recovered.accessToken, refresh_token: recovered.refreshToken })
+      if (result.error) throw result.error
+      if (!result.data.session || result.data.session.user.id !== recovered.userId) throw new Error('The recovered session could not be established. Return to sign in.')
     },
     setApiKey: (value) => {
       transition.current++

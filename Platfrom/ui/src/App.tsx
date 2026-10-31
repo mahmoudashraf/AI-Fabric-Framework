@@ -6,6 +6,7 @@ import { DeskIdentitySignInPage } from './pages/DeskIdentitySignInPage'
 import { CustomerIdentityLinkPage } from './pages/CustomerIdentityLinkPage'
 import { CustomerAuthCallbackPage } from './pages/CustomerAuthCallbackPage'
 import { CustomerAuthRecoveryPage } from './pages/CustomerAuthRecoveryPage'
+import { CustomerAccountRecoveryPage } from './pages/CustomerAccountRecoveryPage'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { PlatformApiError } from './api/platformApi'
 import { productStartPath } from './auth/customerAuthReturn'
@@ -71,6 +72,8 @@ export default function App() {
   if (location.pathname === '/support/team-intake') return <SupportTeamIntakePage />
   if (window.location.pathname === '/auth/callback') return <CustomerAuthCallbackPage />
   if (window.location.pathname === '/auth/recovery') return <CustomerAuthRecoveryPage />
+  if (location.pathname === '/recover-account') return <CustomerAccountRecoveryPage key="recovery-entry" />
+  if (location.pathname === '/auth/account-recovery') return <CustomerAccountRecoveryPage key="recovery-confirmation" confirmation />
 
   const publicProduct = ['/products/platform', '/products/engage', '/products/desk'].includes(location.pathname)
     ? location.pathname.split('/')[2] as 'platform' | 'engage' | 'desk' : undefined

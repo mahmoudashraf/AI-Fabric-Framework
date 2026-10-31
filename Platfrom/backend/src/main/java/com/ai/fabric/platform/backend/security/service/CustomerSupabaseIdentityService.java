@@ -35,15 +35,32 @@ public class CustomerSupabaseIdentityService {
     }
 
     public Jwt verifyIdentity(String token) {
+        Jwt jwt = decodeIdentity(token);
+        verifier.requireVerifiedUser(token, jwt.getSubject());
+        return jwt;
+    }
+
+    public RecoveryIdentity verifyRecoveryIdentity(String token) {
+        Jwt jwt = decodeIdentity(token);
+        if (jwt.hasClaim("client_id")) throw denied();
+        String email = verifier.requireVerifiedEmail(token, jwt.getSubject());
+        if (jwt.getIssuer() == null || jwt.getExpiresAt() == null || !jwt.getExpiresAt().isAfter(Instant.now())
+            || email == null || !email.equals(jwt.getClaimAsString("email"))) throw denied();
+        return new RecoveryIdentity(jwt.getIssuer().toString(), jwt.getSubject(), email, jwt.getExpiresAt());
+    }
+
+    private Jwt decodeIdentity(String token) {
         if (!properties.enabled() || decoder.getIfAvailable() == null) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Customer Supabase authentication is not configured.");
         }
         if (token == null || token.isBlank() || token.length() > 16384) throw denied();
         try {
-            Jwt jwt = decoder.getObject().decode(token);
-            verifier.requireVerifiedUser(token, jwt.getSubject());
-            return jwt;
+            return decoder.getObject().decode(token);
         } catch (JwtException | IllegalArgumentException ex) { throw denied(); }
+    }
+
+    public record RecoveryIdentity(String issuer, String subject, String email, Instant expiresAt) {
+        @Override public String toString() { return "RecoveryIdentity[REDACTED]"; }
     }
 
     @Transactional(readOnly = true)

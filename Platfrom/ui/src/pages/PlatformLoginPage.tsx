@@ -14,6 +14,7 @@ import {
 } from '@mui/material'
 import { FormEvent, useEffect, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { Link } from 'react-router-dom'
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 
 type PlatformLoginPageProps = {
@@ -100,7 +101,7 @@ export function PlatformLoginPage({
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  Platform sign-in
+                  {loginMode === 'link' ? 'Connect your existing account' : 'Platform sign-in'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {loginMode === 'customer' ? 'Your Console and LoomAI Desk account.' : loginMode === 'link' ? 'Sign in to the existing account before connecting Supabase.' : 'Internal administrator and operator access.'}
@@ -148,6 +149,8 @@ export function PlatformLoginPage({
                 </Stack>
               </Box>
             ) : null}
+
+            {loginMode === 'link' && <Button component={Link} to="/recover-account">Forgot your old password? Email me a recovery link</Button>}
 
             {loginMode === 'staff' && sessionAuthEnabled && apiKeyAuthEnabled ? <Divider>Or use API key</Divider> : null}
 

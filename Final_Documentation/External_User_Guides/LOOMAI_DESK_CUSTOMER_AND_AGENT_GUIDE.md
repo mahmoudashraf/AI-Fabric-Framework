@@ -42,10 +42,10 @@ delivery-policy retrieval limitation remains visible in the recording.
 
 ## Customer Setup
 
-1. Sign in to the customer Console. Existing password-based customers connect a
-   verified Supabase identity once, while signed in to their existing account.
-   This preserves their customer account and deployments; it does not match or
-   merge accounts by email.
+1. Sign in to the customer Console. Existing password-based customers can
+   recover access through a one-use email link, or connect a verified Supabase
+   identity while signed in with their old Console password. Both preserve the
+   existing customer account and deployments; neither links accounts automatically.
 2. Open **Human support**, and select the deployment and target release.
 3. Select **Enable LoomAI Desk**. Optionally enable **Action reviews** for
    separately assigned reviewers. Platform publishes, applies and verifies a new
@@ -62,6 +62,28 @@ The app and deployment addresses stay the same. A new configuration release does
 not automatically change an Engage app's pinned assignment: use the Console's
 existing verified-release assignment control when a switch is needed. Each app
 uses the support team belonging to its assigned deployment target.
+
+### Recovering An Existing Console Account
+
+If sign-in says an existing Console account needs connecting, select **Recover
+with an email link**, or open [Recover Console access](https://console.loomai.pro/recover-account).
+Enter the account's existing email and select **Email me a recovery link**.
+Open the newest email, confirm that same email address, and select **Recover my
+workspace**. Opening the link alone does not connect anything. No old Console
+password is needed, and the link can be opened in a different browser.
+
+This recovers only an active customer membership. It preserves the customer,
+deployments, permissions and existing passwords. It cannot recover staff access,
+move an identity from another account, or restore revoked/disabled access. If a
+fresh link still fails, contact the workspace administrator. Links are one-use;
+after a failed or interrupted attempt, request another rather than resubmitting
+the same credential. A reload after opening the link also requires a new link.
+
+If the email has no shared LoomAI sign-in identity yet, create and verify that
+identity first, then return to recovery. Do not create a second Console workspace.
+After connection, normal password and **Email me a sign-in link** authentication
+both work. **Forgot password** resets the shared LoomAI/Supabase sign-in password;
+account recovery itself does not reset that password or the old Console password.
 
 ## Deployment Assignment To Desk
 

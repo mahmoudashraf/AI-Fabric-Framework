@@ -4699,6 +4699,14 @@ export function linkCustomerSupabaseIdentity(accessToken: string) {
   return request<void>('/api/platform/auth/customer-link', { method: 'POST', body: JSON.stringify({ accessToken }) }, 'local')
 }
 
+export type RecoveredCustomerSession = { accessToken: string; refreshToken: string; expiresAt: number; userId: string }
+
+export function recoverCustomerAccount(tokenHash: string, email: string) {
+  return request<RecoveredCustomerSession>('/api/platform/auth/customer-recovery', {
+    method: 'POST', body: JSON.stringify({ tokenHash, email }),
+  }, 'none')
+}
+
 export type CustomerOnboardingSummary = {
   status: 'CREATE_WORKSPACE' | 'READY' | 'LINK_REQUIRED' | 'REGISTRATION_CLOSED'
   customerId: string | null
