@@ -11678,3 +11678,34 @@ test is being called hosted acceptance. UI extraction remains last.
   records in ../rollouts/*673c96b9d*-agent-profile.*. Initial harness null-vs-
   omitted-avatar failure retained and corrected in the harness, not product code.
   Temporary local PostgreSQL test container removed; review agent closed.
+
+### 2026-10-31 Chat-First Customer Support Redesign Live
+
+- Both staging/production backend and shared Desk are native healthy on
+  a7b2c7e1fa6afc46e98fc551007b0a11cc1e7d00. Both Consoles are native healthy
+  on4f0e200e08b15e05b4285068bd18ecab178b6de3. Core/Desk CI41249804596 /
+  41249804572 and UI-only CI41250383841 /41251078799 passed. Runtime23eaf650c,
+  AI Fabric0.8.41, exact support release assignments and model settings unchanged.
+- Customer Help & requests opens the assistant directly, with assigned SUPPORT
+  agents' names/protected photos above it, a Request integration help modal and
+  separate My requests route. One shell-owned iframe persists across customer
+  navigation, with a left/right dock and minimize/restore. Staff layout unchanged.
+  No page-entry case/AI write; only case ID and layout preferences in per-account
+  session storage. Existing private adapter, consent and lifecycle retained.
+- Native customer UI journeys passed BOTH environments: actual form and two
+  grounded AI answers, same iframe and unsent draft across navigation, dock
+  pointer controls, request list, resolve/read-only, narrow rendering and logout.
+  Test cases SUP-E11CA5F1-699 /SUP-82B0B64C-22F resolved. Final source readback
+  loaded history with zero support POSTs/page errors. Production's real256px
+  agent photo rendered; missing photos use initials. No invented online status.
+- Scoped team/photo APIs recheck customer authority, configured support binding
+  and current SUPPORT assignment; no email/subject/grants exposed. A stale Desk
+  activation was reconciled by its normal owner status read, not SQL or bypass.
+  CSP allows blob images only in img-src; real production-policy image test passed.
+- Focused31Platform/Desk tests,25theme/auth tests,15browser scenario groups,
+  TypeScript/build and production-server tests passed. Prior semantic quality
+  limitations remain; no full framework gate claim. Rare stale intake-warning
+  follow-up is recorded in010.54. Private native reports in
+  ~/.codex/private/loomai-support-01054/support-redesign-*.private.json;
+  screenshots output/support-console-redesign-20261031/. Verification browsers
+  signed out; bounded agent closed; unrelated files/personal profile untouched.

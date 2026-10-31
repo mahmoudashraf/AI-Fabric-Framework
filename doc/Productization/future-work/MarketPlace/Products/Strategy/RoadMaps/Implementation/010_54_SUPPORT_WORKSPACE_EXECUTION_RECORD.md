@@ -49,6 +49,44 @@ Each phase requires focused tests and its actual integration evidence. No phase 
   unchanged. Native hosted rollout and real customer verification are pending
   at this source checkpoint; local fixtures are not claimed as live evidence.
 
+#### Hosted Redesign Closure: 2026-10-31 23:16 UTC
+
+- Both environments are native healthy on backend/Desk source `a7b2c7e1f`
+  and final Console source `4f0e200e0`. Core CI `41249804596`, Desk CI
+  `41249804572`, and UI-only CI `41250383841` / `41251078799` passed.
+  Final Console jobs: staging `mjnssx0k1ewj08iknvdvqlt9`, production
+  `a8fxgsj09a2tbb3nsn5k8ybl`. Customer runtimes, framework `0.8.41`,
+  support assignments, storage and AI configuration were not changed.
+- Actual native Supabase customer browser journeys passed on staging and
+  `https://console.loomai.pro`: chat-first page, assigned team, modal intake,
+  two useful real-provider answers, persistent iframe/draft through navigation,
+  left/right and minimize/restore, My requests, resolve/read-only, basic narrow
+  layout and normal sign-out. Cases `SUP-E11CA5F1-699` and `SUP-82B0B64C-22F`
+  were resolved after verification. Page entry made no case or AI write.
+- The final UI-only readback loaded those resolved histories without any
+  support POST or page error in either environment. Static starter suggestions
+  no longer crowd the compact dock. Production loaded the assigned agent's
+  real 256px protected JPEG; absent photos show initials. Authenticated roster
+  responses are private/no-store and omit email, subject and grants.
+- Hosted CSP initially blocked protected Blob avatars. The narrow correction
+  adds `blob:` only to `img-src`, covered by an actual Chromium image load
+  under the production server policy. Script/frame/object protections remain.
+  The first staging roster read also exposed stale stored Desk activation;
+  the normal owner activation-status read reconciled it to ENABLED. No direct
+  database edit or weakened binding check was used.
+- Focused evidence: 31 Platform/Desk tests, 25 theme/auth tests, 15 browser
+  scenario groups, TypeScript, production builds and production-server tests.
+  Synthetic browser tests are separate from the native journeys above. This
+  UI work does not claim a framework-wide release gate or erase prior semantic
+  quality limitations. Minor follow-up: after uncertain initial delivery, a
+  subsequent new intake can retain the old warning banner until submission.
+- Native private reports: `~/.codex/private/loomai-support-01054/`
+  `support-redesign-{staging,production}-*.private.json` and
+  `support-redesign-final-{staging,production}-*.private.json`; screenshots:
+  `output/support-console-redesign-20261031/`. Temporary browser sessions
+  signed out normally; unrelated worktree changes and personal grants remained
+  untouched. Local preview remains at `http://127.0.0.1:5173/`.
+
 ### Production Closure Evidence: 2026-10-31 17:55 UTC
 
 - **Sources and services:** backend `9b6762b3c` and Console `7277fe3c7` are immutable-source/native healthy on both hosts. Desk remains `29dbc1199`; customer runtimes remain `23eaf650c` / AI Fabric `0.8.41`. Backend CI `41219916625` and Console CI `41222162970` passed. The Weaviate identifier correction passed 26 focused resolver/scoping/template tests, keeping the complete 64-hex identity digest within the provider limit. No framework release, semantic text matching, automatic search-all, direct SQL mutation or global provider-key change.

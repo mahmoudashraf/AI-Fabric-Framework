@@ -30,6 +30,26 @@ This package adds no service, database, execution engine or plugin type.
 - Normal draft -> validate -> publish -> apply -> verify. Templates bootstrap
   settings; they do not pin later models, runtime images or customization.
 
+## LoomAI Console Support Experience
+
+For LoomAI's own support installation, **Help & requests** opens the assistant
+directly. **Request integration help** opens the intake form above the chat;
+**My requests** lists saved conversations separately. Sending a first question
+uses the existing durable create/start contract. Visiting the page does not
+create a request, submit an AI query or authorize resource diagnostics.
+
+Assigned Support agents' safe names and uploaded profile photos appear above the
+conversation. These are authenticated Desk profile projections, not online
+presence or a response-time promise. Initials appear when a photo is absent;
+account email and permissions are not included in this customer-facing roster.
+
+The same host remains mounted across signed-in customer Console pages, with a
+compact dock, minimize/restore and left/right positioning. Navigation does not
+reset the chat or its draft. The staff console and public sign-in pages are not
+given this customer assistant. These internal Console surfaces do not make
+LoomAI's case provider a required dependency of another customer's support
+template.
+
 ## Contents
 
 - `manifests/ai-support-workspace.1.0.1.manifest.json`: normal `TEMPLATE`; two
