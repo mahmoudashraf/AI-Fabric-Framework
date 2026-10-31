@@ -66,6 +66,8 @@ This package adds no service, database, execution engine or plugin type.
   with two READ endpoints and the three approved fictional text documents.
 - [API Runbook](API_RUNBOOK.md): catalog review/publication, bootstrap, configure,
   document indexing, Desk activation and hosted acceptance.
+- [Operations](OPERATIONS.md): launch disclosure, queue ownership, the approved
+  internal retention target and the limits of correction/removal handling.
 - [Mounted Demo Qualification](MOUNTED_DEMO_QUALIFICATION.md): the existing
   non-production mounted DATA plugin for a separately labelled internal/Acme
   mechanics canary when S3 is unavailable, not a customer-storage substitution.

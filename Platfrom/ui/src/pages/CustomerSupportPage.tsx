@@ -130,7 +130,7 @@ function CustomerSupport({ customerId, actorId }: { customerId: string; actorId:
       </Stack>
       <Box component="form" onSubmit={event => { event.preventDefault(); void submit() }} sx={{ p: 3 }}>
         <Stack spacing={2.5}>
-          <Typography color="text.secondary">Tell us what you need. Please keep passwords, tokens and private customer records out of this request.</Typography>
+          <Typography color="text.secondary">Your request starts an AI-assisted support conversation. You can request human support. Please keep passwords, tokens and private customer records out of this request.</Typography>
           {saved && <Alert severity="success">Request saved: {saved.reference}. Starting its conversation...</Alert>}
           {createError && <Alert severity="error">{createError} Your submission is retained; retry sends the same request.</Alert>}
           <TextField label="Summary" required value={draft.summary} disabled={saving || Boolean(submission.current)} inputProps={{ maxLength: 240 }}
