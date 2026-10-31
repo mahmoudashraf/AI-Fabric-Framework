@@ -144,15 +144,17 @@ offer bootstrap, endpoint approval and credential binding. Offer-less manual
 canaries do not receive this projection. The mounted runbook describes the
 normal path; do not modify generated routing or inject Coolify environment values.
 
-Internal diagnostics ACTION `1.0.2` also declares the framework's existing
+Internal diagnostics ACTION `1.0.3` also declares the framework's existing
 `llmFacts` mappings. An unconfigured compact object response does not preserve
 arbitrary nested status fields. Template/action authors must explicitly project
-the safe fields a model needs, for example:
+fields from the unwrapped action payload, not from a duplicated protocol
+`data` envelope. The verification probe exercises the actual connector parser
+before the facts builder; published `1.0.2` is a wrong-root negative control.
+For example:
 
 ```json
 {
   "llmFacts": {
-    "rootPath": "data",
     "copyFields": ["observedAt", "availability"],
     "lists": [{
       "sourcePath": "resources",

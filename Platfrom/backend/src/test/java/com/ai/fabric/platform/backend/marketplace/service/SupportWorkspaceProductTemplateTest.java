@@ -225,7 +225,7 @@ class SupportWorkspaceProductTemplateTest {
 
     @Test
     void explicitDiagnosticEvidenceUsesTheExistingFrameworkFactsContractWithoutNewAuthority() throws Exception {
-        var manifest = read("manifests/loomai-support-diagnostics.1.0.2.manifest.json");
+        var manifest = read("manifests/loomai-support-diagnostics.1.0.3.manifest.json");
         manifests.parseAndValidate(plugin(manifest), version(manifest));
         var install = install(manifest, "loomai");
         var request = read("fixtures/requests/loomai-diagnostics-evidence-install.json");
@@ -235,12 +235,13 @@ class SupportWorkspaceProductTemplateTest {
         for (JsonNode action : manifest.at("/contributions/actions")) {
             JsonNode compiled = compiler.compileActionContribution(action, install, plugin(manifest), version(manifest));
             assertThat(compiled.path("llmFacts")).isEqualTo(action.path("llmFacts"));
+            assertThat(action.path("llmFacts").path("rootPath").isMissingNode()).isTrue();
             assertThat(action.path("params")).isEmpty();
             assertThat(action.path("requiredScopes")).containsExactly(mapper.getNodeFactory().textNode("support:diagnostics:read"));
             assertThat(action.path("readOnly").asBoolean()).isTrue();
             assertThat(action.path("llmFacts").path("rankRules").isMissingNode()).isTrue();
         }
-        assertThat(compileVariant("loomai", "manifests/loomai-support-diagnostics.1.0.2.manifest.json",
+        assertThat(compileVariant("loomai", "manifests/loomai-support-diagnostics.1.0.3.manifest.json",
             "fixtures/requests/loomai-diagnostics-evidence-install.json").path("invocations")).hasSize(3);
     }
 
@@ -319,6 +320,7 @@ class SupportWorkspaceProductTemplateTest {
         }
         var publicationHistory = java.util.Map.of(
             "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "PUBLISHED_SCALAR_ONLY_DEFAULT_EVIDENCE_RECORDED",
+            "manifests/loomai-support-diagnostics.1.0.2.manifest.json", "PUBLISHED_DOUBLE_DATA_ROOT_EVIDENCE_DEFECT_RECORDED",
             "manifests/ai-support-workspace.manifest.json", "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED",
             "manifests/loomai-support-diagnostics.manifest.json", "NOT_FOUND_STAGING_404_CONFIRMED_BY_MAIN",
             "manifests/acme-cloud-support-reads.manifest.json", "PUBLISHED_REPORTED_BY_COORDINATOR");

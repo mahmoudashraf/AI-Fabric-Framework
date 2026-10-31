@@ -3,7 +3,11 @@ import ai.fabric.intent.action.AIActionHandler;
 import ai.fabric.intent.action.ActionContext;
 import ai.fabric.intent.action.ActionObjectPayload;
 import ai.fabric.intent.action.ActionResult;
+import ai.fabric.http.OutboundHttpExecutionResponse;
+import ai.fabric.http.OutboundHttpExecutor;
 import ai.fabric.intent.action.connector.AIActionCatalogProperties;
+import ai.fabric.intent.action.connector.AIActionConnectorProperties;
+import ai.fabric.intent.action.connector.ActionConnectorExecutor;
 import ai.fabric.intent.action.connector.ConnectorAIActionHandler;
 import ai.fabric.intent.action.connector.ConnectorActionCatalogLoader;
 import ai.fabric.intent.action.connector.ConnectorActionDefinition;
@@ -22,6 +26,9 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -29,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-/** Offline sidecar: no Spring application, action execution, provider calls or product classes. */
+/** Offline sidecar: real connector execution with fake HTTP, no network, providers or product classes. */
 public final class Published0841LlmFactsProbe {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int MAX_CHARS = 2400;
@@ -55,27 +62,32 @@ public final class Published0841LlmFactsProbe {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 2 || args.length > 3) throw new IllegalArgumentException("Expected current/legacy manifest paths and optional diagnostic proof");
+        if (args.length < 3 || args.length > 4) throw new IllegalArgumentException("Expected current/legacy/wrong-root manifest paths and optional diagnostic proof");
         var artifacts = new LinkedHashMap<String, Object>();
         artifacts.put("connector", publishedJar(ConnectorActionCatalogLoader.class, "ai-fabric-actions-connector"));
         artifacts.put("handler", publishedJar(ConnectorAIActionHandler.class, "ai-fabric-actions-connector"));
+        artifacts.put("executor", publishedJar(ActionConnectorExecutor.class, "ai-fabric-actions-connector"));
         artifacts.put("factsRecord", publishedJar(ConnectorActionLlmFactsDefinition.class, "ai-fabric-actions-connector"));
         artifacts.put("core", publishedJar(ReadActionResolutionService.class, "ai-fabric-core"));
         Path currentPath = Path.of(args[0]);
         Path legacyPath = Path.of(args[1]);
+        Path wrongRootPath = Path.of(args[2]);
         var probe = new Published0841LlmFactsProbe();
-        Path diagnosticPath = args.length == 3 ? Path.of(args[2]) : null;
-        probe.run(JSON.readTree(currentPath.toFile()), JSON.readTree(legacyPath.toFile()), diagnosticPath);
+        Path diagnosticPath = args.length == 4 ? Path.of(args[3]) : null;
+        probe.run(JSON.readTree(currentPath.toFile()), JSON.readTree(legacyPath.toFile()),
+            JSON.readTree(wrongRootPath.toFile()), diagnosticPath);
         long failures = probe.checks.stream().filter(c -> "FAIL".equals(c.get("status"))).count();
         var report = new LinkedHashMap<String, Object>();
         report.put("status", failures == 0 ? "PASS" : "FAIL");
         report.put("contract", "Required facts and visible truncation, not full checklist preservation or live readiness");
+        report.put("executionPath", "ConnectorAIActionHandler.executeAction -> ActionConnectorExecutor.execute -> published response parser -> ActionObjectPayload -> published LLM facts and bounded evidence");
+        report.put("httpTransport", "Fixture-only OutboundHttpExecutor; no network calls or text-based routing");
         report.put("passed", probe.checks.size() - failures);
         report.put("failed", failures);
         report.put("javaVersion", System.getProperty("java.version"));
         report.put("maxEvidenceChars", MAX_CHARS);
         report.put("artifacts", artifacts);
-        report.put("manifests", List.of(fileIdentity(currentPath), fileIdentity(legacyPath)));
+        report.put("manifests", List.of(fileIdentity(currentPath), fileIdentity(legacyPath), fileIdentity(wrongRootPath)));
         if (diagnosticPath != null) report.put("diagnosticProof", fileIdentity(diagnosticPath));
         report.put("checks", probe.checks);
         report.put("observations", probe.observations);
@@ -84,11 +96,13 @@ public final class Published0841LlmFactsProbe {
         if (failures != 0) System.exit(1);
     }
 
-    private void run(JsonNode currentManifest, JsonNode legacyManifest, Path diagnosticPath) throws Exception {
-        require("1.0.2".equals(currentManifest.path("version").asText()), "Expected manifest 1.0.2");
+    private void run(JsonNode currentManifest, JsonNode legacyManifest, JsonNode wrongRootManifest, Path diagnosticPath) throws Exception {
+        require("1.0.3".equals(currentManifest.path("version").asText()), "Expected manifest 1.0.3");
         require("1.0.1".equals(legacyManifest.path("version").asText()), "Expected legacy manifest 1.0.1");
+        require("1.0.2".equals(wrongRootManifest.path("version").asText()), "Expected wrong-root manifest 1.0.2");
         var current = load(currentManifest, "READ");
         var legacy = load(legacyManifest, "READ");
+        var wrongRoot = load(wrongRootManifest, "READ");
         check("loader.current-four-public-facts-records", () -> {
             require(current.size() == 4, "Expected four loaded actions, got " + current.size());
             for (var definition : current.values()) {
@@ -96,7 +110,17 @@ public final class Published0841LlmFactsProbe {
                 require(definition.readActionResolutionEligible(), definition.name() + " is not planner eligible");
                 require(definition.llmFacts() != null && definition.llmFacts().getClass() == ConnectorActionLlmFactsDefinition.class,
                     definition.name() + " did not load the real SDK facts record");
-                require("data".equals(definition.llmFacts().rootPath()), "Incorrect facts root");
+                require(definition.llmFacts().rootPath() == null || definition.llmFacts().rootPath().isBlank(),
+                    "Current facts must use the already-unwrapped payload");
+            }
+        });
+        check("loader.current-projections-have-no-query-routing-or-ranking-rules", () -> {
+            for (var action : currentManifest.path("contributions").path("actions")) {
+                require(action.path("params").isArray() && action.path("params").isEmpty(),
+                    "Case-selected diagnostics should not require query-derived parameters");
+                require(action.path("llmFacts").findValues("rankRules").isEmpty()
+                    && action.path("llmFacts").findValues("constraints").isEmpty(),
+                    "This probe must exercise structural evidence projection, not query-based rules");
             }
         });
         check("loader.literal-READ_ONLY-is-rejected", () -> {
@@ -113,8 +137,8 @@ public final class Published0841LlmFactsProbe {
             var proof = JSON.readTree(diagnosticPath.toFile());
             require(proof.path("status").asInt() == 200 && proof.path("value").isObject(), "Expected a saved {status:200,value:{...}} proof");
             require(DEPLOYMENT.equals(proof.path("value").path("action").asText()), "Not a deployment diagnostic proof");
-            var actual = JSON.createObjectNode();
-            actual.set("data", proof.path("value"));
+            // The saved value is the raw facade projection, not an ActionResult or connector envelope.
+            var actual = connectorEnvelope((ObjectNode) proof.path("value"));
             var observed = observe("saved-service-authenticated-deployment-result", current.get(DEPLOYMENT), actual);
             var expected = proof.at("/value/resources/0/facts/documentIndexing/0");
             check("saved-proof.direct-exact-index-facts-and-release", () -> savedProof(observed.facts(), expected));
@@ -180,14 +204,55 @@ public final class Published0841LlmFactsProbe {
         });
         check("legacy.direct-reproduces-nested-index-and-release-omission", () -> legacyOmission(old.facts()));
         check("legacy.bounded-reproduces-nested-index-and-release-omission", () -> legacyOmission(old.evidence()));
+
+        var wrong = observe("wrong-root-1.0.2-envelope-only", wrongRoot.get(DEPLOYMENT), deployment(false, false, false), false);
+        check("wrong-root.loader-explicit-data-root", () -> {
+            for (var definition : wrongRoot.values())
+                require(definition.llmFacts() != null && "data".equals(definition.llmFacts().rootPath()),
+                    "Negative control must retain the 1.0.2 wrong root");
+        });
+        check("wrong-root.direct-data-present-but-facts-omitted", () -> wrongRootOmission(wrong.facts()));
+        check("wrong-root.bounded-data-present-but-facts-omitted", () -> wrongRootOmission(wrong.evidence()));
     }
 
-    private Observation observe(String name, ConnectorActionDefinition definition, ObjectNode payload) throws Exception {
+    private Observation observe(String name, ConnectorActionDefinition definition, ObjectNode envelope) throws Exception {
+        return observe(name, definition, envelope, true);
+    }
+
+    private Observation observe(String name, ConnectorActionDefinition definition, ObjectNode envelope,
+                                boolean expectedGroundingUsable) throws Exception {
+        require(envelope.path("success").asBoolean() && envelope.path("data").isObject(),
+            "Fixture must be a successful connector response envelope");
+        String responseJson = JSON.writeValueAsString(envelope);
+        var calls = new ArrayList<JsonNode>();
+        OutboundHttpExecutor transport = request -> {
+            require("https://offline.invalid/actions/execute".equals(request.url()), "Unexpected offline URL");
+            require(org.springframework.http.HttpMethod.POST.equals(request.method()), "Expected connector POST");
+            try { calls.add(JSON.readTree(request.body())); }
+            catch (Exception failure) { throw new IllegalStateException("Invalid connector request JSON", failure); }
+            return new OutboundHttpExecutionResponse(200, responseJson, Map.of());
+        };
+        var properties = new AIActionConnectorProperties();
+        properties.setBaseUrl("https://offline.invalid");
+        properties.setMaxAttempts(1);
+        var executor = new ActionConnectorExecutor(properties, transport, null,
+            Clock.fixed(Instant.parse(AT), ZoneOffset.UTC));
         var handler = new ConnectorAIActionHandler(ConnectorActionMetadataMapper.toMetadata(definition),
             definition.requiresConfirmation(), definition.confirmationMessage(),
-            ConnectorActionMetadataMapper.extractSensitiveParams(definition), null, definition.llmFacts());
-        var result = ActionResult.builder().success(true).data(ActionObjectPayload.of(
-            JSON.convertValue(payload, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {}))).build();
+            ConnectorActionMetadataMapper.extractSensitiveParams(definition), executor, definition.llmFacts());
+        var result = handler.executeAction(Map.of(), null);
+        JsonNode parsedPayload = JSON.valueToTree(result.getData());
+        check(name + ".published-parser-unwraps-exactly-one-envelope", () -> {
+            require(calls.size() == 1, "Expected exactly one fake HTTP invocation");
+            expect(calls.getFirst(), "actionId", definition.name());
+            require(calls.getFirst().path("params").isObject() && calls.getFirst().path("params").isEmpty(),
+                "Unexpected action parameters");
+            require(result.isSuccess() && result.getData() instanceof ActionObjectPayload,
+                "Published executor did not return a successful object payload");
+            require(parsedPayload.equals(envelope.path("data")), "Parser changed or double-wrapped the facade projection");
+            require(!parsedPayload.has("data") && !parsedPayload.has("success") && !parsedPayload.has("httpStatus"),
+                "Connector transport envelope remained in ActionObjectPayload");
+        });
         JsonNode facts = JSON.valueToTree(handler.buildPostActionLlmFacts(result, null).orElseThrow());
         Object snippet = evidenceMethod.invoke(resolution, handler, result, null, MAX_CHARS);
         Method summary = snippet.getClass().getDeclaredMethod("summary");
@@ -201,12 +266,17 @@ public final class Published0841LlmFactsProbe {
         observation.put("directChars", JSON.writeValueAsString(facts).length());
         observation.put("boundedChars", evidenceJson.length());
         observation.put("groundingUsable", usable.invoke(snippet));
+        observation.put("parserPayloadType", result.getData().getClass().getSimpleName());
+        observation.put("parserUnwrapped", parsedPayload.equals(envelope.path("data")));
+        observation.put("fakeHttpCalls", calls.size());
+        observation.put("parsedTopLevelFields", parsedPayload.properties().stream().map(Map.Entry::getKey).toList());
         observation.put("facts", facts);
         observation.put("evidence", evidence);
         observations.add(observation);
         check(name + ".bounded-valid-json-max2400", () -> {
             require(evidence.isObject() && evidenceJson.length() <= MAX_CHARS, "Invalid or oversized bounded JSON");
-            require(Boolean.TRUE.equals(usable.invoke(snippet)), "SDK did not classify fixture evidence as substantive");
+            require(Boolean.valueOf(expectedGroundingUsable).equals(usable.invoke(snippet)),
+                "Expected groundingUsable=" + expectedGroundingUsable + " for this fixture");
         });
         if (!name.startsWith("legacy-")) {
             check(name + ".no-unselected-secrets-or-raw-errors", () -> {
@@ -247,12 +317,17 @@ public final class Published0841LlmFactsProbe {
     }
 
     private static ObjectNode envelope(String action, String availability) {
-        var root = JSON.createObjectNode();
-        root.put("httpStatus", 200);
-        var data = root.putObject("data");
+        var data = JSON.createObjectNode();
         data.put("action", action).put("observedAt", AT).put("availability", availability);
-        taint(root);
         taint(data);
+        return connectorEnvelope(data);
+    }
+
+    private static ObjectNode connectorEnvelope(ObjectNode projection) {
+        var root = JSON.createObjectNode();
+        root.put("success", true);
+        root.set("data", projection);
+        taint(root);
         return root;
     }
 
@@ -511,6 +586,14 @@ public final class Published0841LlmFactsProbe {
         for (String field : List.of("resources", "releases", "documentIndexing", "registeredSourceCount",
             "documentIndexSummary", "releaseObservations", "deploymentObservations"))
             require(facts.findValues(field).isEmpty(), "Legacy unexpectedly retained " + field + ": " + facts);
+    }
+
+    private static void wrongRootOmission(JsonNode facts) {
+        expect(facts, "action", DEPLOYMENT);
+        expect(facts, "success", true);
+        for (String field : List.of("availability", "observedAt", "record", "resources", "documentIndexSummary",
+            "registeredSourceCount", "releaseObservations", "deploymentObservations"))
+            require(facts.findValues(field).isEmpty(), "Wrong-root negative control unexpectedly retained " + field);
     }
 
     private static void taint(ObjectNode object) { object.put("secret", SECRET).put("rawError", RAW_ERROR); }

@@ -9,6 +9,8 @@ const usage = `Usage: node ${process.argv[1]} [--classpath-file <existing-maven-
 
 Or set RUNTIME_MAVEN_CLASSPATH to an existing runtime Maven classpath.
 JAVA_HOME must point to Java 21 or newer. No Maven build or network calls are made.
+The published handler/executor parse fixture connector responses through fake HTTP
+before projecting facts. Manifest 1.0.3 is checked against 1.0.1 and wrong-root 1.0.2.
 The Java 21 source launcher writes no .class files. Only existing JAR entries are used;
 runtime target/classes and target/test-classes are excluded from the probe classpath.
 Nonzero exit means a contract assertion failed or the probe could not run.`;
@@ -47,8 +49,9 @@ const java = process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', 'java') 
 const child = spawnSync(java, [
   '--source', '21', '--class-path', jars.join(delimiter),
   join(scripts, 'Published0841LlmFactsProbe.java'),
-  resolve(scripts, '../manifests/loomai-support-diagnostics.1.0.2.manifest.json'),
+  resolve(scripts, '../manifests/loomai-support-diagnostics.1.0.3.manifest.json'),
   resolve(scripts, '../manifests/loomai-support-diagnostics.1.0.1.manifest.json'),
+  resolve(scripts, '../manifests/loomai-support-diagnostics.1.0.2.manifest.json'),
   ...(diagnosticProof ? [diagnosticProof] : []),
 ], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 120_000 });
 if (child.error) throw child.error;
@@ -64,11 +67,12 @@ if (json) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 } else {
   process.stdout.write(`Published 0.8.41 LLM facts required contract: ${report.status}; ${report.passed} passed, ${report.failed} failed; ${report.knownLimitations.length} known SDK bounded-detail limitations\n`);
+  process.stdout.write(`PATH ${report.executionPath}\nHTTP ${report.httpTransport}\n`);
   for (const check of report.checks) {
     process.stdout.write(`${check.status} ${check.name}${check.detail ? `\n  ${check.detail}` : ''}\n`);
   }
   for (const observation of report.observations) {
-    process.stdout.write(`SIZE ${observation.fixture}: direct=${observation.directChars}, bounded=${observation.boundedChars}/${report.maxEvidenceChars}\n`);
+    process.stdout.write(`SIZE ${observation.fixture}: direct=${observation.directChars}, bounded=${observation.boundedChars}/${report.maxEvidenceChars}; parserUnwrapped=${observation.parserUnwrapped}, fakeHttpCalls=${observation.fakeHttpCalls}\n`);
   }
   for (const limitation of report.knownLimitations) {
     process.stdout.write(`LIMIT ${limitation.fixture}: ${limitation.detail} Fixture-only omitted blocker codes: ${JSON.stringify(limitation.fixtureOnlyOmittedBlockerCodes)}\n`);

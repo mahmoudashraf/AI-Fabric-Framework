@@ -276,10 +276,14 @@ The separate connection-sync action reports selected integration connections,
 not document-file source versions. All reads still require current request
 consent, membership and owned selected resources.
 
-Use internal ACTION `1.0.2` and
+Use internal ACTION `1.0.3` and
 `fixtures/requests/loomai-diagnostics-evidence-install.json` for this projection.
 It declares the framework's existing `llmFacts` copy/list/object mappings; the
 unconfigured scalar-only compact view is insufficient for nested diagnostics.
+The mapping operates on `ActionResult.data`, after the connector protocol's
+outer `data` has been unwrapped. Do not configure `rootPath: data` unless the
+action payload itself contains another `data` object. Published `1.0.2` made
+that incorrect assumption and is retained as immutable failure evidence.
 These are explicit evidence fields, not query matching, response substitution or
 new scopes. The current Console form selects one deployment, one app and one
 connection. The mapping includes all bounded index-target observations for that
