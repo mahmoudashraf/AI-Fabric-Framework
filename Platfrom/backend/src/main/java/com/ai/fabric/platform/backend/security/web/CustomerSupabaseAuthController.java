@@ -21,7 +21,8 @@ public class CustomerSupabaseAuthController {
     @GetMapping("/customer-config")
     public PublicConfig config() {
         return new PublicConfig(properties.enabled(), properties.enabled() ? properties.projectUrl() : null,
-            properties.enabled() ? properties.publicKey() : null, properties.enabled() ? properties.deskClients() : List.of());
+            properties.enabled() ? properties.publicKey() : null, properties.enabled() ? properties.deskClients() : List.of(),
+            properties.enabled() ? properties.deskSignInUrl() : null);
     }
 
     @PostMapping("/customer-link")
@@ -38,5 +39,6 @@ public class CustomerSupabaseAuthController {
     public void revoke(@PathVariable String userId) { identities.revoke(userId); }
 
     public record LinkRequest(String accessToken) { @Override public String toString() { return "LinkRequest[REDACTED]"; } }
-    public record PublicConfig(boolean enabled, String projectUrl, String publicKey, List<CustomerSupabaseAuthProperties.DeskClient> deskClients) { }
+    public record PublicConfig(boolean enabled, String projectUrl, String publicKey,
+        List<CustomerSupabaseAuthProperties.DeskClient> deskClients, String deskSignInUrl) { }
 }

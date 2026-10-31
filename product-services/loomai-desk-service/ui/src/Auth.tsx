@@ -6,18 +6,17 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@supabase/supabase-js";
 import {
   ArrowRight,
   Check,
   Headphones,
-  MailCheck,
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
 import { Brand } from "./App";
 import { errorMessage, post } from "./api";
 import { ErrorNotice, Loading, Notice } from "./components";
+import { identityPortalLink } from "./identityPortal";
 import type { DeskConfig, Session } from "./types";
 
 export function Auth({
@@ -31,17 +30,10 @@ export function Auth({
   themeButton: ReactNode;
   emailReturn: boolean;
 }) {
-  const [signup, setSignup] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const canSignup =
-    config.registrationEnabled !== false &&
-    !!config.supabaseUrl &&
-    !!config.supabasePublishableKey;
+  const emailLink = identityPortalLink(config, "email");
+  const recoveryLink = identityPortalLink(config, "recovery");
+  const verificationLink = identityPortalLink(config, "verify");
+  const registrationLink = identityPortalLink(config, "register");
   const authEntry =
     config.loginUrl?.startsWith("/") && !config.loginUrl.startsWith("//")
       ? config.loginUrl
@@ -52,7 +44,8 @@ export function Auth({
   const authUrl = `${authTarget.pathname}${authTarget.search}`;
   const cancelled =
     new URLSearchParams(location.search).get("login") === "cancelled";
-  const autoLogin = !!bindingId && config.oidcEnabled !== false && !cancelled && !expired;
+  const autoLogin =
+    !!bindingId && config.oidcEnabled !== false && !cancelled && !expired;
   const redirected = useRef(false);
   useEffect(() => {
     if (autoLogin && !redirected.current) {
@@ -60,39 +53,6 @@ export function Auth({
       location.replace(authUrl);
     }
   }, [autoLogin, authUrl]);
-  async function register(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      const supabase = createClient(
-        config.supabaseUrl!,
-        config.supabasePublishableKey!,
-        {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false,
-          },
-        },
-      );
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: { display_name: name.trim() },
-        },
-      });
-      if (error) throw error;
-      setPassword("");
-      setSent(true);
-    } catch (error) {
-      setError(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
   if (autoLogin)
     return (
       <div className="boot">
@@ -131,131 +91,62 @@ export function Auth({
         </section>
         <section className="auth-form-wrap">
           <div className="auth-form">
-            {sent ? (
-              <>
-                <span className="auth-symbol">
-                  <MailCheck size={27} />
-                </span>
-                <h2>Check your inbox</h2>
-                <p>
-                  Follow the verification email sent to <strong>{email}</strong>
-                  , then sign in to finish your agent profile.
-                </p>
-                <a className="button primary full" href={authUrl}>
-                  Continue to sign in <ArrowRight size={17} />
-                </a>
-                <p className="caption">
-                  Registration does not grant access to customer workspaces. An
-                  owner assigns you after your account is verified.
-                </p>
-              </>
-            ) : signup ? (
-              <>
-                <span className="eyebrow">JOIN YOUR TEAM</span>
-                <h2>Create your Desk account</h2>
-                <p>
-                  Already registered?{" "}
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      setSignup(false);
-                      setError("");
-                    }}
-                  >
-                    Sign in
-                  </button>
-                </p>
-                <form onSubmit={register}>
-                  <label>
-                    Full name
-                    <input
-                      autoComplete="name"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                      maxLength={120}
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Password
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      required
-                      minLength={8}
-                      maxLength={256}
-                    />
-                  </label>
-                  {error && <ErrorNotice message={error} />}
-                  <button className="button primary full" disabled={busy}>
-                    {busy ? "Creating account..." : "Create account"}
-                    <UserPlus size={17} />
-                  </button>
-                </form>
-                <p className="caption">
-                  Verify your email before a workspace owner assigns you. Your
-                  account uses LoomAI's shared identity provider.
-                </p>
-              </>
-            ) : (
-              <>
-                <span className="auth-symbol">
-                  <Headphones size={27} />
-                </span>
-                <span className="eyebrow">WELCOME TO YOUR DESK</span>
-                <h2>
-                  {emailReturn
-                    ? "Continue your sign-in"
-                    : "A little more human."}
-                </h2>
-                <p>
-                  {emailReturn
-                    ? "Your email link has returned to Desk. Complete secure sign-in to verify your identity and workspace access."
-                    : "Sign in with your LoomAI account to pick up where your AI left off."}
-                </p>
-                {expired && (
-                  <ErrorNotice message="Your session has expired. Sign in again to continue." />
-                )}
-                {cancelled && (
-                  <ErrorNotice message="Sign-in was cancelled or could not be completed. You can try again." />
-                )}
-                {config.oidcEnabled === false ? (
-                  <ErrorNotice message="Interactive sign-in is not configured for this Desk. Contact the service administrator." />
-                ) : (
-                  <a className="button primary full" href={authUrl}>
-                    Sign in to LoomAI Desk
-                    <ArrowRight size={17} />
-                  </a>
-                )}
-                {canSignup && (
-                  <div className="auth-signup">
-                    New support agent?{" "}
-                    <button
-                      className="text-button"
-                      onClick={() => setSignup(true)}
-                    >
-                      Create an account
-                    </button>
-                  </div>
-                )}
-                <div className="auth-trust">
-                  <ShieldCheck size={16} />
-                  <span>One identity. Only your assigned workspaces.</span>
-                </div>
-              </>
+            <span className="auth-symbol">
+              <Headphones size={27} />
+            </span>
+            <span className="eyebrow">WELCOME TO YOUR DESK</span>
+            <h2>
+              {emailReturn ? "Continue your sign-in" : "A little more human."}
+            </h2>
+            <p>
+              {emailReturn
+                ? "Your email link has returned to Desk. Complete secure sign-in to verify your identity and workspace access."
+                : "Sign in with your LoomAI account to pick up where your AI left off."}
+            </p>
+            {expired && (
+              <ErrorNotice message="Your session has expired. Sign in again to continue." />
             )}
+            {cancelled && (
+              <ErrorNotice message="Sign-in was cancelled or could not be completed. You can try again." />
+            )}
+            {config.oidcEnabled === false ? (
+              <ErrorNotice message="Interactive sign-in is not configured for this Desk. Contact the service administrator." />
+            ) : (
+              <a className="button primary full" href={authUrl}>
+                Sign in to LoomAI Desk
+                <ArrowRight size={17} />
+              </a>
+            )}
+            {emailLink ? (
+              <nav className="auth-account-links" aria-label="Account access">
+                <a className="text-button" href={emailLink}>
+                  Email sign-in link
+                </a>
+                <a className="text-button" href={recoveryLink}>
+                  Forgot password
+                </a>
+                <a className="text-button" href={verificationLink}>
+                  Resend verification
+                </a>
+              </nav>
+            ) : (
+              <p className="caption">
+                Email sign-in and account recovery are not configured. Contact
+                the service administrator.
+              </p>
+            )}
+            {registrationLink && config.registrationEnabled !== false && (
+              <div className="auth-signup">
+                New support agent?{" "}
+                <a className="text-button" href={registrationLink}>
+                  Create account
+                </a>
+              </div>
+            )}
+            <div className="auth-trust">
+              <ShieldCheck size={16} />
+              <span>One identity. Only your assigned workspaces.</span>
+            </div>
           </div>
         </section>
       </main>
@@ -267,17 +158,21 @@ export function Auth({
 }
 
 export function Unassigned({
+  config,
   session,
   themeButton,
   onLogout,
   logoutError,
 }: {
+  config: DeskConfig;
   session: Session;
   themeButton: ReactNode;
   onLogout: () => void;
   logoutError: string;
 }) {
   const client = useQueryClient();
+  const recoveryLink = identityPortalLink(config, "recovery");
+  const verificationLink = identityPortalLink(config, "verify");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(
@@ -359,6 +254,16 @@ export function Unassigned({
         )}
         {error && <ErrorNotice message={error} />}
         {logoutError && <ErrorNotice message={logoutError} />}
+        {recoveryLink && (
+          <a className="text-button" href={recoveryLink}>
+            Change password
+          </a>
+        )}
+        {session.emailVerified === false && verificationLink && (
+          <a className="text-button" href={verificationLink}>
+            Resend verification
+          </a>
+        )}
         <button className="text-button muted" onClick={onLogout}>
           Sign out
         </button>

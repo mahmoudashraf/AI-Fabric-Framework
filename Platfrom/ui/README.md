@@ -30,6 +30,33 @@ Chosen V1 stack:
   AI deployment first. No infrastructure or provider spending occurs at signup.
 - `/staff/sign-in`: existing local staff credentials and API-key access.
 
+### Email Sign-In And Account Recovery
+
+The shared identity form offers password sign-in, email sign-in links, password
+reset requests and signup-verification resend. Email-only flows never require a
+password. Sign-in links use existing accounts only; registration remains explicit.
+Provider errors and cooldowns are shown, and a successful request is not described
+as proof of inbox delivery. Already verified accounts do not need another activation.
+
+Desk agents use `/auth/desk/sign-in?method=email` (also `recovery`, `verify`, or
+`register`) without needing a Console customer workspace. Email callbacks preserve
+the original local Desk authorization when available, otherwise start a fresh Desk
+sign-in. The trusted environment-specific root is configured on the backend as
+`platform.auth.customer-supabase.desk-sign-in-url`; it must match a registered Desk
+OAuth callback origin. No user-provided `next` URL is accepted.
+
+Supabase email redirects must allow both `/auth/callback` and `/auth/recovery`,
+including the exact `?flow=desk` variants, on each deployed Console origin.
+The existing `ConfirmationURL` email templates and SDK PKCE exchange are retained.
+Open the newest link in the browser where it was requested; expired/failed links
+show an explicit error and a route to request another. Console Account & team also
+provides Change password for signed-in Supabase users. Password changes do not
+claim to revoke every existing Desk/OIDC session.
+
+Delivery qualification must include mailbox placement, not just an HTTP 200 from
+Supabase. An authenticated LoomAI-domain SMTP sender is needed to qualify reliable
+inbox delivery; changing UI controls alone cannot correct spam placement.
+
 Self-service template availability is configured on the **backend** with
 `PLATFORM_CUSTOMER_ONBOARDING_TEMPLATE_OFFER_IDS` (comma-separated existing
 published bootstrap offer IDs). The default is empty, not every private offer.

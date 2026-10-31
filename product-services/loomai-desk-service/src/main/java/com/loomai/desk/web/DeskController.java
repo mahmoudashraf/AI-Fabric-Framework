@@ -48,8 +48,10 @@ public class DeskController {
         properties.getIssuer(),
         "loginUrl",
         "/oauth2/authorization/supabase",
+        "identityPortalUrl",
+        properties.getIdentityPortalUrl(),
         "registrationEnabled",
-        true,
+        !properties.getIdentityPortalUrl().isBlank(),
         "oidcEnabled",
         properties.getClientId() != null && !properties.getClientId().isBlank());
   }

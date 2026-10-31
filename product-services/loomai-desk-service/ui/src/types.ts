@@ -27,6 +27,7 @@ export interface DeskConfig {
   supabaseUrl?: string;
   supabasePublishableKey?: string;
   loginUrl?: string;
+  identityPortalUrl?: string;
   oidcEnabled?: boolean;
   registrationEnabled?: boolean;
   csrfToken?: string;

@@ -17,6 +17,7 @@ type PlatformAuthContextValue = {
   supabase: SupabaseClient | null
   supabaseSession: Session | null
   customerAuthLoading: boolean
+  customerAuthError: Error | null
   signInWithPassword: (email: string, password: string) => Promise<void>
   signInCustomer: (email: string, password: string) => Promise<void>
   linkCustomer: () => Promise<void>
@@ -35,6 +36,7 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
   const [supabaseSession, setSupabaseSession] = useState<Session | null>(null)
   const [customerAuthLoading, setCustomerAuthLoading] = useState(true)
   const [configError, setConfigError] = useState<Error | null>(null)
+  const [customerAuthError, setCustomerAuthError] = useState<Error | null>(null)
   const transition = useRef(0)
   const authGeneration = useRef(0)
   const { apiKey, generation } = identity
@@ -83,9 +85,9 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     }
     client.auth.getSession().then(({ data, error }) => {
       if (!active) return
-      if (error) setConfigError(error)
+      if (error) { setConfigError(error); setCustomerAuthError(error) }
       accept(data.session, true)
-    }).catch(error => { if (active) { setConfigError(error); setCustomerAuthLoading(false) } })
+    }).catch(error => { if (active) { setConfigError(error); setCustomerAuthError(error); setCustomerAuthLoading(false) } })
     const { data } = client.auth.onAuthStateChange((event, session) => {
       // Never await another SDK operation inside the SDK's storage-lock callback.
       if (event !== 'INITIAL_SESSION') accept(session)
@@ -105,7 +107,7 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     session: sessionQuery.data ?? null,
     isLoading: customerAuthLoading || sessionQuery.isLoading,
     error: configError ?? (sessionQuery.error instanceof Error ? sessionQuery.error : null),
-    customerConfig: config.data ?? customerConfig.current, supabase, supabaseSession, customerAuthLoading,
+    customerConfig: config.data ?? customerConfig.current, supabase, supabaseSession, customerAuthLoading, customerAuthError,
     signInWithPassword: async (email, password) => {
       const command = ++transition.current
       sessionStorage.setItem(modeKey, 'staff')
@@ -166,6 +168,11 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function startCustomerIdentityLink() { sessionStorage.setItem(modeKey, 'link') }
+
+export function prepareCustomerIdentity(linking: boolean) {
+  sessionStorage.setItem(modeKey, linking ? 'link' : 'customer')
+  if (!linking) clearStoredPlatformApiKey()
+}
 
 export function usePlatformAuth() {
   const context = useContext(PlatformAuthContext)

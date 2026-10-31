@@ -51,6 +51,7 @@ export function fixtureState() {
         id: "agent-1",
         displayName: "Morgan Reed",
         email: "morgan@example.test",
+        agentReference: "agent-morgan",
       },
       bindings: [
         {
@@ -254,6 +255,7 @@ export async function mockDesk(page: Page, state = fixtureState()) {
         supabaseUrl: "https://identity.example.test",
         supabasePublishableKey: "public-fixture-key",
         loginUrl: "/oauth2/authorization/supabase",
+        identityPortalUrl: "https://console.example.test/auth/desk/sign-in",
       });
     if (url.pathname.endsWith("/session"))
       return json(

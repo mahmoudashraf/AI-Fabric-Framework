@@ -4,11 +4,11 @@ Scope: backend only; no runtime/framework changes. The existing Basic Inbox chan
 
 ## Browser Identity
 
-- `GET /api/desk/v1/config`: `{supabaseUrl,supabasePublishableKey,issuer,loginUrl,registrationEnabled}`. Public keys only.
+- `GET /api/desk/v1/config`: `{supabaseUrl,supabasePublishableKey,issuer,loginUrl,identityPortalUrl,registrationEnabled,oidcEnabled}`. Public keys only. `identityPortalUrl` comes only from `DESK_IDENTITY_PORTAL_URL`; empty means account links/registration are unavailable, not that OIDC is disabled. The shared Console entry `/auth/desk/sign-in` supports the fixed `method=email|recovery|verify|register` links. No client-supplied portal or redirect parameter is accepted.
 - `GET /api/desk/v1/session`: `{authenticated,operator:{id,displayName,email},bindings:[{bindingId,customerId,deploymentId,targetProfileId,deploymentName,environment,roles:[OWNER,SUPPORT,REVIEWER]}],csrfToken,csrfHeaderName}`. Anonymous returns `authenticated:false` and no bindings.
 - `GET /oauth2/authorization/supabase?bindingId=<opaque-id>`: standard OIDC authorization-code + PKCE. Callback `/login/oauth2/code/supabase`; successful login returns to `/?bindingId=<id>` using a server-session-held `[A-Za-z0-9_-]{1,160}` hint (or `/` without one). No redirect URL is accepted. Session cookie is host-only Secure/HttpOnly/SameSite=Lax. Binding hint is navigation only; queue access remains independently authorized.
 - `POST /api/desk/v1/agents/register`: verified authenticated identity only; optional `{displayName}` changes presentation only (1-160 characters). Issuer, subject, verified email and credentials never come from the body. Returns `{id,displayName,email,agentReference}`. Unassigned registration grants no queue access.
-- `POST /logout`: invalidates local session, CSRF required; redirects `/`.
+- `POST /logout`: empty `204`; invalidates local session, expires the Desk cookie and removes saved authorized-client credentials. Session CSRF is required; no redirect and no global provider logout claim.
 - Browser session mutations send `X-CSRF-TOKEN` from session response. Bearer APIs require a validated configured issuer/audience JWT and do not use cookies or disable session CSRF.
 
 ## Binding APIs

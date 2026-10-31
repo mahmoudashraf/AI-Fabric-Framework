@@ -1976,6 +1976,27 @@ code,
   margin-top: 22px;
   text-align: center;
 }
+.auth-account-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
+}
+.account-details {
+  display: grid;
+  gap: 20px;
+  margin: 0 0 24px;
+}
+.account-details dt {
+  color: var(--secondary);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.account-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .auth-trust {
   display: flex;
   align-items: center;

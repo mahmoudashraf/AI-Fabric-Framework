@@ -82,8 +82,9 @@ class DeskHttpSecurityTest {
                   .statusCode())
           .isEqualTo(200);
       assertThat(config)
-          .contains("sb_publishable_test")
+          .contains("sb_publishable_test", "https://console.example.test/auth/desk/sign-in")
           .doesNotContain(ADMIN, BRIDGE, "protected_");
+      assertThat(JSON.readTree(config).path("registrationEnabled").asBoolean()).isTrue();
       assertThat(h.request("POST", "/api/desk/v1/agents/register", null, "{}").statusCode())
           .isEqualTo(403);
       assertThat(h.request("GET", "/api/desk/v1/bindings/a/conversations", null, null).statusCode())
@@ -361,14 +362,24 @@ class DeskHttpSecurityTest {
           .andExpect(status().isOk());
       mvc.perform(post("/logout").session(session).with(authentication(authentication)))
           .andExpect(status().isForbidden());
+      OAuth2AuthorizedClient retained = store.loadAuthorizedClient("supabase", "owner");
+      assertThat(retained).isNotNull();
       mvc.perform(
               post("/logout")
                   .session(session)
+                  .accept("application/json")
                   .with(authentication(authentication))
                   .header(state.path("csrfHeaderName").asText(), state.path("csrfToken").asText()))
-          .andExpect(status().is3xxRedirection());
+          .andExpect(status().isNoContent())
+          .andExpect(header().doesNotExist("Location"))
+          .andExpect(content().string(""))
+          .andExpect(cookie().maxAge("__Host-LOOMAI_DESK_SESSION", 0));
+      assertThat(session.isInvalid()).isTrue();
       OAuth2AuthorizedClient removed = store.loadAuthorizedClient("supabase", "owner");
       assertThat(removed).isNull();
+      mvc.perform(get("/api/desk/v1/session"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.authenticated").value(false));
       @SuppressWarnings("unchecked")
       JwtDecoderFactory<ClientRegistration> idDecoders =
           (JwtDecoderFactory<ClientRegistration>)
@@ -487,6 +498,7 @@ class DeskHttpSecurityTest {
                   "--loomai.desk.data-encryption-secret=data-encryption-secret-separate-1234567890123456",
                   "--loomai.desk.supabase-url=http://127.0.0.1:" + identity.getAddress().getPort(),
                   "--loomai.desk.supabase-publishable-key=sb_publishable_test",
+                  "--DESK_IDENTITY_PORTAL_URL=https://console.example.test/auth/desk/sign-in",
                   "--loomai.desk.issuer=" + issuer,
                   "--loomai.desk.jwks-uri=" + issuer + "/.well-known/jwks.json",
                   "--loomai.desk.client-id=desk-test-client",

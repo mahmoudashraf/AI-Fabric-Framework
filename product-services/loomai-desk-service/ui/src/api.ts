@@ -60,13 +60,6 @@ export async function api<T>(
     headers,
     cache: "no-store",
   });
-  if (
-    path === "/logout" &&
-    response.ok &&
-    response.redirected &&
-    new URL(response.url).origin === location.origin
-  )
-    return undefined as T;
   const data: unknown =
     response.status === 204
       ? undefined

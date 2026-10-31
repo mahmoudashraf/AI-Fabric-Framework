@@ -13,10 +13,12 @@ import {
   RefreshCw,
   Sun,
   Users,
+  UserRound,
   X,
 } from "lucide-react";
 import { api, configureCsrf, errorMessage, post } from "./api";
 import { Auth, Unassigned } from "./Auth";
+import { Account } from "./Account";
 import {
   Avatar,
   Empty,
@@ -54,6 +56,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
   const [view, setView] = useState<View>("conversations");
   const [navOpen, setNavOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const config = useQuery({
     queryKey: ["config"],
     queryFn: async ({ signal }) => {
@@ -191,6 +194,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
   if (!session.data.operator || !bindings.length)
     return (
       <Unassigned
+        config={config.data!}
         session={session.data}
         themeButton={themeButton}
         onLogout={logout}
@@ -300,6 +304,11 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
           </div>
           <div className="rail-tools">
             {themeButton}
+            <IconButton
+              icon={UserRound}
+              label="Profile"
+              onClick={() => setProfileOpen(true)}
+            />
             <a
               className="icon-button"
               title="Desk help"
@@ -403,6 +412,11 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
           <p>
             Access is shared by apps on the selected deployment and environment.
           </p>
+        </Modal>
+      )}
+      {profileOpen && (
+        <Modal title="Your account" onClose={() => setProfileOpen(false)}>
+          <Account config={config.data!} session={session.data} />
         </Modal>
       )}
     </div>

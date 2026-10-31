@@ -421,53 +421,42 @@ test("callback failure is visible and an explicit retry stays scoped to its bind
   expect(retry?.body?.idempotencyKey).toBeTruthy();
 });
 
-test("sign in, cancelled OAuth, and real public-client signup use provider flow", async ({
+test("cancelled OAuth offers shared identity links without native signup or redirect overrides", async ({
   page,
 }, testInfo) => {
   const state = fixtureState();
   state.session.authenticated = false;
   state.session.bindings = [];
   await mockDesk(page, state);
-  let signupRedirect: string | null = null;
-  await page.route(
-    "https://identity.example.test/auth/v1/signup**",
-    (route) => {
-      signupRedirect = new URL(route.request().url()).searchParams.get(
-        "redirect_to",
-      );
-      return route.fulfill({
-        status: 200,
-        headers: { "access-control-allow-origin": "*" },
-        json: {
-          user: { id: "new", email: "new@example.test", identities: [] },
-          session: null,
-        },
-      });
-    },
+  const providerRequests: string[] = [];
+  await page.route("https://identity.example.test/**", async (route) => {
+    providerRequests.push(route.request().url());
+    await route.abort();
+  });
+  await page.goto(
+    "/?bindingId=studio-prod&login=cancelled&identityPortalUrl=https://untrusted.example.test&next=https://untrusted.example.test",
   );
-  await page.goto("/?bindingId=studio-prod&login=cancelled");
   await expect(page.getByRole("alert")).toContainText("Sign-in was cancelled");
   await page.screenshot({
     path: testInfo.outputPath("login.png"),
     animations: "disabled",
   });
-  await page
-    .getByRole("button", { name: "Create an account", exact: true })
-    .click();
-  await page.getByLabel("Full name", { exact: true }).fill("New Agent");
-  await page.getByLabel("Email", { exact: true }).fill("new@example.test");
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill("fixture-password-only");
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  for (const [label, method] of [
+    ["Email sign-in link", "email"],
+    ["Forgot password", "recovery"],
+    ["Resend verification", "verify"],
+    ["Create account", "register"],
+  ]) {
+    await expect(
+      page.getByRole("link", { name: label, exact: true }),
+    ).toHaveAttribute(
+      "href",
+      `https://console.example.test/auth/desk/sign-in?method=${method}`,
+    );
+  }
+  await expect(page.locator("input")).toHaveCount(0);
   await expect(
-    page.getByText("Check your inbox", { exact: true }),
-  ).toBeVisible();
-  expect(signupRedirect).toBe(`${new URL(page.url()).origin}/`);
-  await expect(
-    page.getByRole("link", { name: "Continue to sign in" }),
+    page.getByRole("link", { name: "Sign in to LoomAI Desk" }),
   ).toHaveAttribute(
     "href",
     "/oauth2/authorization/supabase?bindingId=studio-prod",
@@ -480,6 +469,7 @@ test("sign in, cancelled OAuth, and real public-client signup use provider flow"
   expect(state.calls.some((call) => call.path.includes("/bindings/"))).toBe(
     false,
   );
+  expect(providerRequests).toEqual([]);
 });
 
 test("email-return JWTs are removed without creating a Desk session or permissions", async ({

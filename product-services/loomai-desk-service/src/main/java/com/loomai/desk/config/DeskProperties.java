@@ -10,6 +10,7 @@ public class DeskProperties {
   private String dataEncryptionSecret;
   private String supabaseUrl;
   private String supabasePublishableKey;
+  private String identityPortalUrl = "";
   private String issuer;
   private String jwksUri;
   private List<String> audiences = List.of("authenticated");
@@ -69,6 +70,14 @@ public class DeskProperties {
 
   public void setSupabasePublishableKey(String v) {
     supabasePublishableKey = v;
+  }
+
+  public String getIdentityPortalUrl() {
+    return identityPortalUrl;
+  }
+
+  public void setIdentityPortalUrl(String v) {
+    identityPortalUrl = v == null ? "" : v.trim();
   }
 
   public String getIssuer() {

@@ -44,6 +44,7 @@ loomai:
     data-encryption-secret: ${DESK_DATA_ENCRYPTION_SECRET}
     supabase-url: ${SUPABASE_URL}
     supabase-publishable-key: ${SUPABASE_PUBLISHABLE_KEY:}
+    identity-portal-url: ${DESK_IDENTITY_PORTAL_URL:}
     issuer: ${SUPABASE_ISSUER}
     jwks-uri: ${SUPABASE_JWKS_URI}
     audiences: ${SUPABASE_AUDIENCES:authenticated}

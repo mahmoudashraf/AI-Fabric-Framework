@@ -3,6 +3,7 @@ export type CustomerAuthConfig = {
   projectUrl: string | null
   publicKey: string | null
   deskClients: Array<{ clientId: string; redirectUris: string[] }>
+  deskSignInUrl?: string | null
 }
 
 export type DeploymentTemplateSummary = {

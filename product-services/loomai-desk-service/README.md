@@ -40,6 +40,7 @@ SUPABASE_AUDIENCES=authenticated
 DESK_OIDC_CLIENT_ID=<registered first-party client>
 DESK_OIDC_CLIENT_SECRET=<server-only confidential-client secret>
 DESK_OIDC_SIGNING_ALGORITHM=ES256
+DESK_IDENTITY_PORTAL_URL=https://console.loomai.pro/auth/desk/sign-in
 JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
 ```
 
@@ -47,7 +48,11 @@ Each environment has a distinct OAuth client, service/encryption secrets, Desk d
 
 Register OAuth client callback `/login/oauth2/code/supabase` on the exact Desk origin. Configure Supabase native OAuth server/central authorization UI separately without deleting existing project redirects. Desk uses Spring Security OIDC authorization code plus PKCE and `client_secret_basic`. UI deep links may pass only an opaque `bindingId`; the server retains it across login, then redirects to the same-origin root. It is not authorization.
 
+`DESK_IDENTITY_PORTAL_URL` is the shared Console identity entry point. Configure the staging Console equivalent on staging. It must be an absolute HTTPS URL without credentials, query or fragment; HTTP is allowed only for `localhost` and `127.0.0.1`, matching the existing identity-endpoint rule. If omitted, native OIDC login remains available, but account links and registration are unavailable. Desk appends only `method=email|recovery|verify|register`; it accepts no browser-supplied portal or return URL. The portal owns signup, email-link sign-in, verification resend and password recovery; it must return users to a fresh Desk OIDC sign-in, not install a bearer token into Desk. Assigned agents can inspect their email and agent reference in **Profile** and open password recovery. Unassigned agents also have account recovery/verification links. Registration and assignments remain separate, verified server-side operations.
+
 The browser receives a host-only `__Host-LOOMAI_DESK_SESSION` Secure/HttpOnly/SameSite=Lax cookie. Access and refresh tokens are encrypted in PostgreSQL, not returned by `/session` or stored in frontend JavaScript. CSRF is required for session mutations; `/session` provides token/header name. Bearer-only direct APIs validate real signed Supabase tokens. A user-editable `user_metadata.email_verified` value is never proof of verification: when the signed top-level claim is absent/false, registration checks Supabase's authenticated `/auth/v1/user` response and `email_confirmed_at` for the same subject.
+
+`POST /logout` returns an empty `204`, invalidates the local session, expires the Desk cookie and removes its saved authorized-client credentials. It still requires session CSRF and does not redirect an Ajax JSON request to an HTML route. It does not claim global Supabase logout or immediate revocation of already-issued JWTs.
 
 No customer/deployment permission is inferred from email. Platform provisions owner links using trusted issuer/subject. A new agent must register using a verified Supabase identity before assignment. Assignment lookup accepts a unique exact verified registered email or the agent reference; there is no global user directory. Owner, SUPPORT and REVIEWER are distinct. Owners can explicitly assign themselves; owning a customer does not implicitly authorize conversation reads or action approval. Permissions are checked on every operation and revoked assignments stop subsequent access.
 

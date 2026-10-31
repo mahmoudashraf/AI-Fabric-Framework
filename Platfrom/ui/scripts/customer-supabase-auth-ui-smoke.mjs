@@ -32,7 +32,7 @@ const sbSession = suffix => ({ access_token: jwt(suffix), refresh_token: 'fixtur
 const anonymous = { enabled: true, authenticated: false, headerName: 'X-PLATFORM-API-KEY', sessionAuthEnabled: true, apiKeyAuthEnabled: true }
 const customer = { ...anonymous, authenticated: true, role: 'CUSTOMER_ADMIN', actorId: 'stable-owner@example.test', authenticationMode: 'SUPABASE', customerId: 'customer-fixture', customerName: 'Fixture' }
 const staff = { ...anonymous, authenticated: true, role: 'PLATFORM_ADMIN', actorId: 'staff@example.test', authenticationMode: 'SESSION' }
-const config = { enabled: true, projectUrl: 'https://auth.example.test', publicKey: 'sb_publishable_test_public_key', deskClients: [{ clientId: 'desk-fixture', redirectUris: ['https://desk.example.test/auth/callback'] }] }
+const config = { enabled: true, projectUrl: 'https://auth.example.test', publicKey: 'sb_publishable_test_public_key', deskClients: [{ clientId: 'desk-fixture', redirectUris: ['https://desk.example.test/auth/callback'] }], deskSignInUrl: 'https://desk.example.test/' }
 const details = { authorization_id: 'request-one', redirect_uri: 'https://desk.example.test/auth/callback', client: { id: 'desk-fixture', name: 'LoomAI Desk' }, user: { id: user.id, email: user.email }, scope: 'openid email profile' }
 
 async function scenario(name, action, options = {}) {
@@ -61,6 +61,8 @@ async function scenario(name, action, options = {}) {
       if (url.pathname === '/auth/v1/token') { refreshed = url.searchParams.get('grant_type') === 'refresh_token'; return respond(sbSession(refreshed ? 'refreshed' : 'signed-in')) }
       if (url.pathname === '/auth/v1/signup') return respond({ user: { ...user, email_confirmed_at: null }, session: null })
       if (url.pathname === '/auth/v1/recover') return respond({})
+      if (url.pathname === '/auth/v1/otp' || url.pathname === '/auth/v1/resend') return options.mailFailure
+        ? respond({ code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded. Please try again later.' }, 429) : respond({})
       if (url.pathname === '/auth/v1/user') return respond(user)
       if (url.pathname === '/auth/v1/logout') return respond({})
       if (url.pathname.endsWith('/consent')) {
@@ -199,9 +201,9 @@ try {
     await page.getByLabel(/^Email/).fill('agent@example.test')
     await page.getByLabel(/^Password/).fill('TestPassword')
     await page.getByRole('button', { name: 'Create account', exact: true }).last().click()
-    await page.getByText('Check your email to verify your account. Then return here to sign in.').waitFor()
+    await page.getByText('If your account needs verification, check your email for the link. Already verified? Sign in or request a sign-in link.').waitFor()
     const signup = calls.find(call => call.path === '/auth/v1/signup')
-    assert.equal(new URLSearchParams(signup.query).get('redirect_to'), `${base}/auth/callback`)
+    assert.equal(new URLSearchParams(signup.query).get('redirect_to'), `${base}/auth/callback?flow=desk`)
     assert.equal(signup.body.code_challenge_method, 's256')
     assert.ok(signup.body.code_challenge)
     await page.goto(`${base}/auth/callback?code=verified-email-code`)
@@ -212,9 +214,11 @@ try {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
     await page.getByLabel(/^Email/).fill('agent@example.test')
     await page.getByRole('button', { name: 'Forgot password?' }).click()
-    await page.getByText('Check your email for the password recovery link.').waitFor()
+    assert.equal(await page.getByLabel(/^Password/).count(), 0)
+    await page.getByRole('button', { name: 'Send password reset link' }).click()
+    await page.getByText(/a password reset link has been requested/).waitFor()
     const recovery = calls.find(call => call.path === '/auth/v1/recover')
-    assert.equal(new URLSearchParams(recovery.query).get('redirect_to'), `${base}/auth/recovery`)
+    assert.equal(new URLSearchParams(recovery.query).get('redirect_to'), `${base}/auth/recovery?flow=desk`)
     await page.goto(`${base}/auth/recovery?code=recovery-code`)
     await page.getByLabel(/^New password/).fill('NewTestPassword')
     await page.getByLabel(/^Confirm new password/).fill('NewTestPassword')
@@ -238,7 +242,7 @@ try {
     await page.getByLabel(/^Email/).fill('verified-owner@example.test')
     await page.getByLabel(/^Password/).fill('NewSupabasePassword')
     await page.getByRole('button', { name: 'Create account', exact: true }).last().click()
-    await page.getByText('Check your email to verify your account. Then return here to sign in.').waitFor()
+    await page.getByText('If your account needs verification, check your email for the link. Already verified? Sign in or request a sign-in link.').waitFor()
     await page.goto(`${base}/auth/callback?code=owner-verification-code`)
     await page.getByRole('button', { name: 'Connect verified identity' }).waitFor()
     assert.equal(linked(), false)
@@ -276,7 +280,7 @@ try {
     await page.getByLabel(/^Email/).fill('new-customer@example.test')
     await page.getByLabel(/^Password/).fill('TestPassword')
     await page.getByRole('button', { name: 'Create account', exact: true }).last().click()
-    await page.getByText('Check your email to verify your account. Then return here to sign in.').waitFor()
+    await page.getByText('If your account needs verification, check your email for the link. Already verified? Sign in or request a sign-in link.').waitFor()
     await page.goto(`${base}/auth/callback?code=new-customer-verified-email`)
     await page.getByRole('heading', { name: 'Create your workspace', exact: true }).waitFor()
     await page.getByLabel(/^Your name/).fill('New customer')
@@ -318,5 +322,45 @@ try {
     await page.getByText(/No self-service template is available for this workspace yet/).waitFor()
     assert.equal(calls.filter(call => call.method === 'POST' && /\/(staging-releases|deployments)$/.test(call.path)).length, 0)
   }, { seed: true, fresh: true })
+  await scenario('desk_email_link_is_existing_account_only_pkce_and_does_not_require_password', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/sign-in?method=email`)
+    await page.getByLabel(/^Email/).fill('agent@example.test')
+    assert.equal(await page.getByLabel(/^Password/).count(), 0)
+    await page.getByRole('button', { name: 'Send sign-in link', exact: true }).click()
+    await page.getByText(/a sign-in link has been requested/).waitFor()
+    const request = calls.find(call => call.path === '/auth/v1/otp')
+    assert.equal(request.body.create_user, false)
+    assert.equal(request.body.code_challenge_method, 's256')
+    assert.ok(request.body.code_challenge)
+    assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk`)
+    await page.goto(`${base}/auth/callback?code=magic-link-code&flow=desk`)
+    await page.getByText('Desk callback received').waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding')).length, 0)
+    assert.equal(calls.filter(call => call.path.endsWith('/consent')).length, 0)
+  }, { deskOnly: true })
+  await scenario('resend_verification_requires_only_email_and_preserves_desk_return', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/sign-in?method=verify`)
+    await page.getByLabel(/^Email/).fill('agent@example.test')
+    assert.equal(await page.getByLabel(/^Password/).count(), 0)
+    await page.getByRole('button', { name: 'Resend verification email', exact: true }).click()
+    await page.getByText(/If this account still needs verification/).waitFor()
+    const request = calls.find(call => call.path === '/auth/v1/resend')
+    assert.equal(request.body.type, 'signup')
+    assert.equal(new URLSearchParams(request.query).get('redirect_to'), `${base}/auth/callback?flow=desk`)
+  }, { deskOnly: true })
+  await scenario('provider_email_rate_limit_is_visible_and_does_not_claim_delivery', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/desk/sign-in?method=email`)
+    await page.getByLabel(/^Email/).fill('agent@example.test')
+    await page.getByRole('button', { name: 'Send sign-in link', exact: true }).click()
+    await page.getByText('Email rate limit exceeded. Please try again later.').waitFor()
+    assert.equal(await page.getByText(/a sign-in link has been requested/).count(), 0)
+    assert.equal(calls.filter(call => call.path === '/auth/v1/otp').length, 1)
+  }, { mailFailure: true })
+  await scenario('expired_fragment_link_cannot_use_an_unrelated_existing_session', async ({ page, calls, base }) => {
+    await page.goto(`${base}/auth/callback?flow=desk#error=access_denied&error_description=Email+link+expired`)
+    await page.getByText('Email link expired').waitFor()
+    assert.equal(calls.filter(call => call.deskCallback || call.path.endsWith('/consent')).length, 0)
+    assert.equal(await page.getByRole('link', { name: 'Return to sign in' }).getAttribute('href'), '/auth/desk/sign-in')
+  }, { seed: true, deskOnly: true })
   console.log(JSON.stringify({ ok: true, scope: 'offline browser; synthetic identities; no live configuration or credentials', checks: results }, null, 2))
 } finally { await browser?.close(); await server?.close(); await rm(cacheDir, { recursive: true, force: true }) }

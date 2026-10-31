@@ -65,6 +65,7 @@ public class DeskSecurityConfiguration {
     requireHttps(p.getIssuer());
     requireHttps(p.getJwksUri());
     requireHttps(p.getSupabaseUrl());
+    requireIdentityPortal(p.getIdentityPortalUrl());
     if (p.getAudiences() == null || p.getAudiences().isEmpty())
       throw new IllegalStateException("Supabase token audience is required.");
     NimbusJwtDecoder decoder =
@@ -220,7 +221,7 @@ public class DeskSecurityConfiguration {
                         clientService.removeAuthorizedClient("supabase", authentication.getName());
                     })
                 .deleteCookies("__Host-LOOMAI_DESK_SESSION")
-                .logoutSuccessUrl("/"));
+                .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)));
     http.exceptionHandling(
         errors ->
             errors.authenticationEntryPoint(
@@ -268,6 +269,22 @@ public class DeskSecurityConfiguration {
         throw new IllegalArgumentException();
     } catch (Exception e) {
       throw new IllegalStateException("Supabase endpoints must use HTTPS outside loopback.");
+    }
+  }
+
+  private void requireIdentityPortal(String value) {
+    if (value.isBlank()) return;
+    try {
+      requireHttps(value);
+      URI uri = URI.create(value);
+      if (uri.getRawUserInfo() != null
+          || uri.getRawQuery() != null
+          || uri.getRawFragment() != null) {
+        throw new IllegalArgumentException();
+      }
+    } catch (Exception e) {
+      throw new IllegalStateException(
+          "DESK_IDENTITY_PORTAL_URL must use HTTPS outside loopback, without credentials, query or fragment.");
     }
   }
 }

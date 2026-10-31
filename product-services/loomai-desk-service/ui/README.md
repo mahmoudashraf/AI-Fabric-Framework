@@ -27,7 +27,7 @@ No runtime, framework, or Platform source is modified here.
 
 This portal follows the current service's `../API_CONTRACT.md`:
 
-- Public config: `supabaseUrl`, `supabasePublishableKey`, `loginUrl`,
+- Public config: `supabaseUrl`, `supabasePublishableKey`, `loginUrl`, `identityPortalUrl`,
   `oidcEnabled`, `registrationEnabled`. There are no embedded private keys.
 - Session: `authenticated`, nullable `operator`, `bindings`, `csrfToken`,
   `csrfHeaderName`. Mutations carry the latest session CSRF header and the
@@ -36,19 +36,21 @@ This portal follows the current service's `../API_CONTRACT.md`:
   `/oauth2/authorization/supabase?bindingId=...`. The backend owns state, PKCE,
   code exchange, session creation, and return to the selected binding. There
   is no custom client-side SSO protocol or local-storage identity sharing.
-- Direct Desk visits show the sign-in/sign-up UI. `?login=cancelled` shows a
-  recoverable login state instead of automatically restarting authorization.
+- Direct Desk visits show OIDC sign-in and shared identity-portal links.
+  `?login=cancelled` shows a recoverable login state instead of automatically
+  restarting authorization.
   If OAuth is not configured, the UI says so rather than offering a broken
   login action. A user with an established session never reauthorizes just
   to switch between their permitted workspaces.
-- Agent sign-up uses only Supabase's public client and disables persisted
-  client sessions. It explicitly sets `emailRedirectTo` to
-  `${window.location.origin}/`, never the shared Supabase Site URL. The exact
-  hosting allowlist entries are `https://desk.loomai.pro/` and
-  `https://loomai-desk.46.224.145.148.sslip.io/`; local verification uses the
-  local UI origin. The verification email precedes native server sign-in.
-  If an email return contains access/refresh tokens in its URL fragment, the
-  bootstrap discards that fragment before starting API reads and shows only a
+- Signup, password recovery, verification resend and email-link sign-in live
+  in the shared Console identity portal, not a duplicate native Desk form.
+  `identityPortalUrl` is server-configured per environment; links append only
+  `method=register|recovery|verify|email`. No client return URL, bearer session
+  or provider credential is forwarded. Missing/unsafe configuration disables
+  these links without disabling ordinary OIDC. The shared portal must complete
+  actual provider authentication, then launch fresh Desk OIDC authorization.
+  If an older email return contains access/refresh tokens in its URL fragment,
+  the bootstrap discards that fragment before starting API reads and shows only a
   continue-sign-in hint. It never decodes/trusts/persists those credentials or
   grants membership. The server's standard native OAuth flow still establishes
   and authorizes the Desk session. The email landing root is distinct from the
@@ -80,8 +82,12 @@ This portal follows the current service's `../API_CONTRACT.md`:
   only `actionName`, `message`, and `data`, with no invented top-level status or
   success flag. Task types, status enums, fixtures, and tests are type-checked
   together; obsolete review contract aliases are not accepted.
-- `POST /logout` includes session CSRF, accepts the backend's native same-origin
-  logout redirect, then clears cached customer state and returns to `/`.
+- **Profile** shows the assigned agent's current email and reference and links
+  to the shared password-recovery flow. Unassigned agents also have recovery
+  and, if unverified, verification-resend links; neither grants membership.
+- `POST /logout` includes session CSRF and expects an empty `204`, then clears
+  cached customer state and returns to `/?login=signed-out`. It does not end
+  the provider's separate Console session.
 
 `OWNER` manages assignments but does not imply `SUPPORT` or `REVIEWER`.
 The UI checks those capabilities, and the server must continue authorizing
@@ -126,8 +132,8 @@ same tests against the built production bundle instead of Vite's source server.
 Fixtures are never imported
 by application code. Tests cover conversation support, delivery failure/retry,
 review decisions/conflicts, agent assignments/revocation, role separation,
-workspace switching, identity expiry, native OAuth launch, verification/signup,
-CSRF logout, safe text rendering, light/dark and mobile. Screenshots are written
+workspace switching, identity expiry, native OAuth launch, shared account
+links/profile, CSRF logout, safe text rendering, light/dark and mobile. Screenshots are written
 inside the ignored `test-results/` directory, with HTML report and failure traces.
 
 Browser fixtures prove frontend contract behavior, not hosted Supabase setup,
@@ -147,7 +153,6 @@ javap -classpath "$HOME/.m2/repository/io/github/loom-ai-labs/ai-fabric-executio
   ai.fabric.execution.action.ActionOutcomeView
 ```
 
-Supabase JS is pinned to `2.50.0`, the smallest following minor checked here
-with the patched Auth JS dependency, rather than carrying the older `2.49.1`
-Auth JS advisory into this new UI. React 18, Vite 6, TypeScript 5, TanStack
-Query 5, and Lucide follow the existing workspace toolchain patterns.
+Desk does not embed a Supabase browser auth client. React 18, Vite 6,
+TypeScript 5, TanStack Query 5, and Lucide follow the existing workspace
+toolchain patterns.

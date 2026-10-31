@@ -12,10 +12,25 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class CustomerSupabaseAuthControllerTest {
+    @Test void deskEntryIsAnExplicitTrustedCallbackOriginNotTheFirstConfiguredClient() {
+        var clients = List.of(new CustomerSupabaseAuthProperties.DeskClient("stage", List.of("https://stage.example.test/login/callback")),
+            new CustomerSupabaseAuthProperties.DeskClient("prod", List.of("https://desk.example.test/login/callback")));
+        var properties = new CustomerSupabaseAuthProperties(true, "https://auth.example.test", "public", null, null,
+            null, clients, List.of(), "https://desk.example.test/");
+        assertThat(new CustomerSupabaseAuthController(properties, mock(CustomerSupabaseIdentityService.class)).config().deskSignInUrl())
+            .isEqualTo("https://desk.example.test/");
+        for (String invalid : List.of("https://evil.example.test/", "https://desk.example.test/?next=evil", "https://desk.example.test/login/callback",
+            "https://user@desk.example.test/", "http://desk.example.test/", "https://desk.example.test/#token")) {
+            assertThatThrownBy(() -> new CustomerSupabaseAuthProperties(true, null, null, null, null, null, clients, List.of(), invalid))
+                .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
     @Test void linkingFailsClosedWhenDedicatedConsoleOriginsAreNotConfigured() {
         var properties = new CustomerSupabaseAuthProperties(true, "https://auth.example.test", null,
             null, null, null, List.of());

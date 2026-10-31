@@ -14,7 +14,8 @@ const { platformCredentials, setPlatformAccessTokenProvider } = await load('../s
 delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
-const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn } = await load('../src/auth/customerAuthReturn.ts')
+const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath } = await load('../src/auth/customerAuthReturn.ts')
+const { deskSignInUrl, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
 const config = { enabled: true, deskClients: [{ clientId: 'desk-prod', redirectUris: ['https://desk.example.test/auth/callback'] }] }
 const details = { authorization_id: 'auth-1', client: { id: 'desk-prod' }, redirect_uri: 'https://desk.example.test/auth/callback', scope: 'openid profile email' }
 
@@ -118,4 +119,39 @@ test('product selection survives email verification but cannot become an arbitra
     rememberCustomerAuthReturn(false)
     assert.equal(consumeCustomerAuthReturn(), '/start')
   } finally { delete globalThis.window }
+})
+
+test('Desk email links return to a fresh Desk entry without creating Console membership or replaying an old OAuth callback', () => {
+  const storage = new Map()
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/auth/desk/sign-in', search: '?method=email&next=https://evil.test' },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    rememberCustomerAuthReturn(false)
+    assert.equal(customerAuthReturn().purpose, 'desk-entry')
+    assert.equal(identityEmailRedirect(), 'https://console.example.test/auth/callback?flow=desk')
+    assert.equal(identityEmailRedirect(true), 'https://console.example.test/auth/recovery?flow=desk')
+    assert.equal(identitySignInPath(), '/auth/desk/sign-in')
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
+    window.location.search = '?flow=desk&next=https://evil.test'
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
+    assert.equal(consumeCustomerAuthReturn(), '/auth/desk/sign-in')
+    window.location.search = '?flow=evil'
+    assert.equal(consumeCustomerAuthReturn(), '/')
+    assert.equal(identitySignInPath(), '/sign-in')
+  } finally { delete globalThis.window }
+})
+
+test('Desk entry is explicitly configured and trusted, not selected from arbitrary input or client order', () => {
+  const trusted = { ...config, deskSignInUrl: 'https://desk.example.test/' }
+  assert.equal(deskSignInUrl(trusted), 'https://desk.example.test/')
+  assert.throws(() => deskSignInUrl(config), /not configured/)
+  for (const url of ['https://evil.test/', 'https://desk.example.test/path', 'https://desk.example.test/?next=evil',
+    'https://user@desk.example.test/', 'http://desk.example.test/', 'https://desk.example.test/#token']) {
+    assert.throws(() => deskSignInUrl({ ...trusted, deskSignInUrl: url }))
+  }
+  assert.equal(identityMethod('?method=email'), 'email')
+  assert.equal(identityMethod('?method=https://evil.test'), 'login')
+  assert.equal(emailCallbackError('?error=access_denied', ''), 'This email link could not be verified. Request a new link.')
+  assert.equal(emailCallbackError('', '#error=access_denied&error_description=Link+expired'), 'Link expired')
+  assert.equal(emailCallbackError('?code=opaque', ''), null)
 })
