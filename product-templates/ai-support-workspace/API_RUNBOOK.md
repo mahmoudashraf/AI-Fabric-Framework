@@ -137,6 +137,22 @@ resolve missing fields rather than replacing generated action routing. The
 approved adapter must authenticate service calls and independently enforce the
 verified caller's current ownership/scope; no model parameter selects authority.
 
+For a production internal LoomAI installation, use the S3-backed
+`mkp-template-loomai-support-workspace@1.0.0`, not a mounted mechanics template.
+It depends on `mkp-data-ai-support-documents@1.0.0` and the corrected internal
+`mkp-action-loomai-support-diagnostics@1.0.3`. Keep its normal offer and exact
+diagnostic endpoint profile restricted to the internal owner. The generic
+`mkp-template-ai-support-workspace@1.0.1` remains the customer-reusable product;
+it does not inherit these private routes or permissions.
+
+S3 document sources require a durable external vector provider under the current
+Platform contract. Do not treat the starter's local Lucene configuration as
+publish-ready S3 storage. Use the normal provider configuration and owned secret
+binding, including target-scoped namespaces/classes for shared vector services.
+Verify the actual endpoint before applying; an old verification profile can
+remain recorded even after its external service has stopped. A blocked preflight
+is not a completed release or permission to bypass verification.
+
 ### 3.1. Explicit Generic And Acme Identity Policy
 
 Use the existing deployment-local Supabase broker; neither proof needs a custom

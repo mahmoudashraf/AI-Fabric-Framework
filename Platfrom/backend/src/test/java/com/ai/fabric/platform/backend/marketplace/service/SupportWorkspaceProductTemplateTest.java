@@ -352,6 +352,23 @@ class SupportWorkspaceProductTemplateTest {
     }
 
     @Test
+    void internalProductionTemplateUsesS3AndReviewedDiagnosticsWithoutChangingTheReusableStarter() throws Exception {
+        JsonNode manifest = read("manifests/loomai-support-workspace.manifest.json");
+        var parsed = manifests.parseAndValidate(plugin(manifest), version(manifest));
+        assertThat(parsed.contributions().templateRequiredPluginRefs()).containsExactly(
+            "mkp-data-ai-support-documents@1.0.0", "mkp-action-loomai-support-diagnostics@1.0.3");
+        assertThat(parsed.contributions().templateDeploymentBehaviorType()).isEqualTo("CONVERSATIONAL");
+        assertThat(manifest.at("/contributions/template/deploymentBehavior/defaultExecutionExtensions")).isEmpty();
+        assertThat(manifest.at("/contributions/template/requiredPluginInstallDefaults/mkp-action-loomai-support-diagnostics@1.0.3"))
+            .isEqualTo(mapper.readTree("{\"config\":{},\"secretRefs\":{}}"));
+        assertThat(manifest.toString()).doesNotContain("mounted", "MANAGED_", "databaseUrl", "api.loomai.pro");
+        assertThat(manifest.path("description").asText()).contains("Not a public customer default");
+        JsonNode reusable = read("manifests/ai-support-workspace.1.0.1.manifest.json");
+        assertThat(reusable.at("/contributions/template/requiredPluginRefs"))
+            .extracting(JsonNode::asText).containsExactly("mkp-data-ai-support-documents@1.0.0");
+    }
+
+    @Test
     void correctedActionsPassActualExternalProfilePolicyWhilePublishedLegacySnapshotsDoNot() throws Exception {
         for (String file : List.of("loomai-support-diagnostics", "acme-cloud-support-reads")) {
             var plugins = mock(MarketplacePluginRepository.class);

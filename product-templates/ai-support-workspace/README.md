@@ -37,6 +37,10 @@ This package adds no service, database, execution engine or plugin type.
   for the internal LoomAI support instance; four consented, case-scoped reads
   with explicit model evidence over the parsed action payload. Earlier snapshots
   remain immutable evidence, not the recommended configuration.
+- `manifests/loomai-support-workspace.manifest.json`: internal S3-backed LoomAI
+  template, with the reviewed diagnostics dependency. It is not a public
+  customer default and supplies no credentials. The reusable customer starter
+  above remains independent of LoomAI's case service and diagnostic tools.
 - `manifests/acme-cloud-support-reads.1.0.1.manifest.json`: a second, fictional
   company's own `ACTION` integration; no LoomAI diagnostic authority.
 - The two unversioned ACTION filenames retain their immutable `1.0.0` contents;
