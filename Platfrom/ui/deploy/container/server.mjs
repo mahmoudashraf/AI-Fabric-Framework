@@ -59,11 +59,11 @@ function resolveStaticPath(urlPathname) {
   return candidate
 }
 
-function securityHeaders(isStaticAsset) {
+function securityHeaders(isStaticAsset, isAuthPage = false) {
   const headers = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Referrer-Policy': isAuthPage ? 'no-referrer' : 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Content-Security-Policy': [
       "default-src 'self'",
@@ -127,7 +127,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-cache',
-      ...securityHeaders(false),
+      ...securityHeaders(false, requestUrl.pathname.startsWith('/auth/')),
     })
     response.end(indexHtml)
   } catch (error) {

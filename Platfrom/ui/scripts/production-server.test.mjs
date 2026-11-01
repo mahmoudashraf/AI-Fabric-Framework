@@ -44,6 +44,9 @@ test('SPA routes that share asset-directory names never stream directories or cr
     assert.match(csp, /img-src 'self' data: blob: https:/)
     assert.match(csp, /object-src 'none'/)
     assert.ok(!csp.split('; ').find(value => value.startsWith('script-src')).includes('blob:'))
+    const authentication = await fetch(origin + '/auth/account-recovery?token_hash=policy-fixture&type=email')
+    assert.equal(authentication.headers.get('referrer-policy'), 'no-referrer')
+    assert.equal(headers.get('referrer-policy'), 'strict-origin-when-cross-origin')
     const browser = await chromium.launch({ headless: true })
     try {
       const page = await browser.newPage()
@@ -61,6 +64,11 @@ test('SPA routes that share asset-directory names never stream directories or cr
         } finally { URL.revokeObjectURL(url) }
       })
       assert.equal(rendered, true, 'The real production CSP must allow authenticated JPEG Blob previews')
+      const referenced = []
+      page.on('request', request => { if (request.url().endsWith('/products/vehicle.webp')) referenced.push(request.headers().referer) })
+      await page.goto(origin + '/auth/account-recovery?token_hash=policy-fixture&type=email')
+      await page.evaluate(() => fetch('/products/vehicle.webp'))
+      assert.deepEqual(referenced.map(value => Boolean(value)), [false], 'Email-link credentials must not be sent to same-origin assets as referrers')
     } finally { await browser.close() }
     assert.equal(child.exitCode, null)
     assert.ok(!output.includes('EISDIR'))
