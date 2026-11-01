@@ -90,6 +90,17 @@ class SupportCaseServiceTest {
         assertThat(f.jdbc.queryForObject("select count(*) from platform_support_cases", Integer.class)).isZero();
     }
 
+    @Test void archivedOwnedResourceIsRejectedBeforeIntakeIsPersisted() {
+        var f = new SupportFixture();
+        var archived = SupportFixture.deployment("archived", "customer-a", "customer-tenant");
+        archived.setArchivedAt(Instant.now());
+        when(f.deployments.findById("archived")).thenReturn(Optional.of(archived));
+
+        assertThatThrownBy(() -> f.create(false, new ResourceRef(ResourceType.DEPLOYMENT, "archived")))
+            .hasMessageContaining("SUPPORT_ACCESS_DENIED");
+        assertThat(f.jdbc.queryForObject("select count(*) from platform_support_cases", Integer.class)).isZero();
+    }
+
     @Test void resolveCancelAndReopenRemainSeparateFromConversationStateAndNeverReplayIntake() {
         var f = new SupportFixture(); var c = f.create(true);
         var first = f.service.requireOwnedCase(c.id());

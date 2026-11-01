@@ -15,6 +15,24 @@
 
 Each phase requires focused tests and its actual integration evidence. No phase is complete solely because configuration or a mockup exists.
 
+### 2026-11-01 Archived Resource Intake Correction
+
+- Reproduced `SUPPORT_ACCESS_DENIED` in the owner's native signed-in Console:
+  the resource picker offered an already archived, owned verification deployment.
+  The server correctly rejected it before creating a case. The form then locked
+  the rejected body/key and offered only an identical, doomed retry.
+- Support choices now use the existing scoped deployment overview and exclude
+  archived records (including cleanup-pending records) and apps bound to them.
+  The customer self-service portfolio also hides archived records after checking
+  ownership. Normal archive/restore and the staff history view remain intact.
+- Explicit create rejections permit correction while preserving entered fields.
+  A transport/server-uncertain create retains its immutable body/key, even if a
+  later retry is rejected. No automatic retry, case migration, scope relaxation,
+  framework change or new service/database is introduced.
+- Source implementation and focused qualification are in progress. Native
+  staging/production rollout, corrected personal-account intake and recoverable
+  cleanup of unused quality canaries remain pending at this checkpoint.
+
 ### 2026-10-31 Chat-First Console Support Redesign
 
 - Owner-requested UI: support opens directly to an assistant, assigned integration

@@ -57,6 +57,38 @@ class CustomerDeploymentPortfolioServiceTest {
             error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
     }
 
+    @Test void archivedDeploymentsDisappearFromThePortfolioAndReturnAfterRestore() {
+        when(access.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor("customer", "owner"));
+        when(associations.findByCustomerIdOrderByCreatedAtDesc("customer")).thenReturn(List.of(
+            new CustomerOfferDeploymentEntity("deployment", "customer", "tenant", "offer", "staging-target", "fingerprint", 3,
+                "key", Instant.now())));
+        var deployment = deployment("customer", "tenant");
+        deployment.setArchivedAt(Instant.now());
+        deployment.setStatus("ARCHIVED");
+        when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
+
+        assertThat(service.deployments()).isEmpty();
+
+        deployment.setArchivedAt(null);
+        deployment.setStatus("DRAFT");
+        assertThat(service.deployments()).singleElement().satisfies(summary ->
+            assertThat(summary.deploymentId()).isEqualTo("deployment"));
+    }
+
+    @Test void archiveFilteringDoesNotHideAnOwnershipMismatch() {
+        when(access.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor("customer", "owner"));
+        when(associations.findByCustomerIdOrderByCreatedAtDesc("customer")).thenReturn(List.of(
+            new CustomerOfferDeploymentEntity("deployment", "customer", "tenant", "offer", "staging-target", "fingerprint", 3,
+                "key", Instant.now())));
+        var foreign = deployment("other-customer", "tenant");
+        foreign.setArchivedAt(Instant.now());
+        when(deployments.findById("deployment")).thenReturn(Optional.of(foreign));
+
+        assertThatThrownBy(service::deployments).isInstanceOfSatisfying(
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.class,
+            error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
+    }
+
     private DeploymentEntity deployment(String customerId, String tenantId) {
         var entity = new DeploymentEntity();
         entity.setId("deployment");

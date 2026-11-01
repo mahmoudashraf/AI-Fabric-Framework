@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Autocomplete, MenuItem, Stack, TextField } from '@mui/material'
-import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchVectorizationOverview } from '../../api/platformApi'
+import { fetchAIWorkspaceInstallations, fetchDeploymentOverviews, fetchVectorizationOverview } from '../../api/platformApi'
 import type { SupportResource } from '../../api/supportApi'
 
 type Choice = SupportResource & { label: string }
 export function useSupportResources(customerId: string) {
-  const deployments = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio })
+  const deployments = useQuery({ queryKey: ['support-resource-deployments', customerId],
+    queryFn: async () => (await fetchDeploymentOverviews()).filter(item => item.archivedAt == null) })
   const apps = useQuery({ queryKey: ['ai-workspace-installations', customerId], queryFn: () => fetchAIWorkspaceInstallations(customerId) })
+  const currentDeploymentIds = new Set((deployments.data || []).map(item => item.id))
   const choices: Choice[] = [
-    ...(deployments.data || []).map(item => ({ type: 'DEPLOYMENT' as const, id: item.deploymentId, label: item.name })),
-    ...(apps.data || []).filter(app => app.customerId === customerId).map(item => ({ type: 'ENGAGE_APP' as const, id: item.installationId, label: item.displayName })),
+    ...(deployments.data || []).map(item => ({ type: 'DEPLOYMENT' as const, id: item.id, label: item.name })),
+    ...(apps.data || []).filter(app => app.customerId === customerId
+      && (!app.deploymentId || currentDeploymentIds.has(app.deploymentId)))
+      .map(item => ({ type: 'ENGAGE_APP' as const, id: item.installationId, label: item.displayName })),
   ]
   return { deployments, apps, choices, label: (ref: SupportResource) => choices.find(item => sameResource(item, ref))?.label || ref.id }
 }
@@ -36,7 +40,7 @@ export function SupportResourcePicker({ customerId, value, onChange, disabled = 
     {(resources.deployments.data?.length || 0) > 0 && <TextField select size="small" label="Connections from deployment" value={connectionDeployment}
       disabled={disabled} onChange={event => setConnectionDeployment(event.target.value)}>
       <MenuItem value="">None selected</MenuItem>
-      {resources.deployments.data?.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
+      {resources.deployments.data?.map(item => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
     </TextField>}
     {(resources.deployments.isError || resources.apps.isError || connection.isError) && <Alert severity="warning">Some resource choices are unavailable. You can still request documentation help.</Alert>}
   </Stack>

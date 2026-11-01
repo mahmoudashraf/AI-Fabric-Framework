@@ -28,17 +28,18 @@ public class CustomerDeploymentPortfolioService {
     @Transactional(readOnly = true)
     public List<CustomerDeploymentSummary> deployments() {
         var actor = access.requireCustomerActor();
-        return associations.findByCustomerIdOrderByCreatedAtDesc(actor.customerId()).stream().map(association -> {
+        return associations.findByCustomerIdOrderByCreatedAtDesc(actor.customerId()).stream().flatMap(association -> {
             var deployment = deployments.findById(association.getDeploymentId())
                 .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
             if (!actor.customerId().equals(deployment.getCustomerId())
                 || !association.getTenantId().equals(deployment.getTenantId())) {
                 throw deny(RESOURCE_SCOPE_MISMATCH);
             }
-            return new CustomerDeploymentSummary(deployment.getId(), deployment.getName(), deployment.getEnvironmentName(),
+            if (deployment.getArchivedAt() != null) return java.util.stream.Stream.<CustomerDeploymentSummary>empty();
+            return java.util.stream.Stream.of(new CustomerDeploymentSummary(deployment.getId(), deployment.getName(), deployment.getEnvironmentName(),
                 deployment.getStatus(), deployment.getTenantId(), association.getOfferId(),
                 association.getBootstrapTargetProfileId(), association.getOfferFingerprint(),
-                association.getAuthorizationEntitlementRevision(), deployment.getActiveVersionId(), association.getCreatedAt());
+                association.getAuthorizationEntitlementRevision(), deployment.getActiveVersionId(), association.getCreatedAt()));
         }).toList();
     }
 }

@@ -18,6 +18,7 @@ const frameSelector = 'iframe[title="LoomAI integration support workspace"]'
 const evidence = process.env.SUPPORT_UI_OUTPUT || '/private/tmp/loomai-support-ui-01054'
 await mkdir(evidence, { recursive: true })
 let startFails = false, staffAllowed = false, token = 'fixture-console-token-one'
+const createFailures = []
 const authModule = '\0support-auth.js', entry = '\0support-fixture.jsx'
 const session = { enabled: true, authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SUPABASE',
   actorId: 'requester-one', customerId: 'customer-one', customerName: 'Acme Labs', displayName: 'Alex' }
@@ -105,9 +106,24 @@ try {
     })
     if (path === '/api/support/staff/intake') return staffAllowed ? json([]) : json({ message: 'SUPPORT permission required' }, 403)
     if (path === '/api/customer-self-service/deployments') return json([])
-    if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json([])
+    if (path === '/api/deployments/overview') {
+      assert.equal(url.searchParams.get('includeArchived'), 'false')
+      return json([{ id: 'current-deployment', name: 'Current deployment', archivedAt: null },
+        { id: 'current-draft', name: 'Current draft', archivedAt: null },
+        { id: 'archived-deployment', name: 'Archived pending cleanup', archivedAt: '2026-10-30T12:00:00Z' }])
+    }
+    if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json([
+      { installationId: 'current-app', customerId: 'customer-one', displayName: 'Current app', deploymentId: 'current-deployment' },
+      { installationId: 'unassigned-app', customerId: 'customer-one', displayName: 'Unassigned app', deploymentId: null },
+      { installationId: 'obsolete-app', customerId: 'customer-one', displayName: 'App on archived deployment', deploymentId: 'archived-deployment' },
+      { installationId: 'foreign-app', customerId: 'another-customer', displayName: 'Foreign app', deploymentId: 'current-deployment' },
+    ])
     if (path === '/api/support/cases') {
       if (method === 'GET') return json([...cases.values()])
+      if (createFailures.length) {
+        const status = createFailures.shift()
+        return json({ message: status === 403 ? 'SUPPORT_ACCESS_DENIED' : 'Synthetic uncertain create response' }, status)
+      }
       const operationKey = request.headers()['idempotency-key']
       if (createdKeys.has(operationKey)) return json(cases.get(createdKeys.get(operationKey)))
       const number = cases.size + 1, id = `case-${number}`, at = '2026-10-30T12:00:00Z'
@@ -339,6 +355,16 @@ try {
 
   const form = await requestForm()
   assert.equal(await page.locator(frameSelector).count(), 1, 'The request form overlays rather than replaces the chat')
+  await form.getByRole('combobox', { name: 'Affected resources (optional)', exact: true }).click()
+  await page.getByRole('option', { name: 'Current deployment', exact: true }).waitFor()
+  await page.getByRole('option', { name: 'Current draft', exact: true }).waitFor()
+  await page.getByRole('option', { name: 'Current app', exact: true }).waitFor()
+  await page.getByRole('option', { name: 'Unassigned app', exact: true }).waitFor()
+  assert.equal(await page.getByRole('option', { name: 'Archived pending cleanup', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('option', { name: 'App on archived deployment', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('option', { name: 'Foreign app', exact: true }).count(), 0)
+  await page.keyboard.press('Escape')
+  passed('support resources use the non-archived owned deployment catalogue and omit apps bound to archived deployments')
   await form.getByRole('textbox', { name: 'Summary', exact: true }).fill('Help with my embedded workspace')
   const consent = form.getByRole('checkbox', { name: /Allow AI and the integration team/ })
   assert.equal(await consent.isChecked(), false, 'Status-check consent must be unchecked by default')
@@ -489,6 +515,45 @@ try {
     assert.equal(staffCalls.filter(path => path.startsWith('/api/support/')).length, 0, 'Staff shell must not fetch customer support data')
   } finally { await staffPage.close() }
   passed('real staff shell exposes neither customer assistant nor support API traffic')
+
+  await page.setViewportSize({ width: 1500, height: 1050 })
+  startFails = false
+  const rejectedForm = await requestForm()
+  await rejectedForm.getByRole('textbox', { name: 'Summary', exact: true }).fill('Correct a resource that was archived before submission')
+  createFailures.push(403)
+  await rejectedForm.getByRole('button', { name: 'Submit request', exact: true }).click()
+  await rejectedForm.getByText(/A selected resource is no longer available/).waitFor()
+  assert.equal(await rejectedForm.getByRole('textbox', { name: 'Summary', exact: true }).isDisabled(), false)
+  assert.equal(await rejectedForm.getByRole('textbox', { name: 'Summary', exact: true }).inputValue(), 'Correct a resource that was archived before submission')
+  const rejectedKey = creates().at(-1).key
+  await rejectedForm.getByRole('textbox', { name: 'Summary', exact: true }).fill('Corrected resource request')
+  await rejectedForm.getByRole('button', { name: 'Submit request', exact: true }).click()
+  await page.waitForURL('**/support/case-4')
+  await waitForGuidance(4)
+  assert.notEqual(creates().at(-1).key, rejectedKey)
+  assert.equal(creates().at(-1).body.summary, 'Corrected resource request')
+  assert.equal(starts('case-4').length, 1)
+  passed('definitive intake rejection preserves entries, unlocks correction and uses a fresh key only for the corrected request')
+
+  const uncertainForm = await requestForm()
+  await uncertainForm.getByRole('textbox', { name: 'Summary', exact: true }).fill('Keep uncertain intake immutable')
+  const beforeUncertain = creates().length
+  createFailures.push(503, 403)
+  await uncertainForm.getByRole('button', { name: 'Submit request', exact: true }).click()
+  await uncertainForm.getByRole('button', { name: 'Retry same submission', exact: true }).waitFor()
+  assert.equal(await uncertainForm.getByRole('textbox', { name: 'Summary', exact: true }).isDisabled(), true)
+  await uncertainForm.getByRole('button', { name: 'Retry same submission', exact: true }).click()
+  await uncertainForm.getByText(/The original submission may already exist/).waitFor()
+  assert.equal(await uncertainForm.getByRole('textbox', { name: 'Summary', exact: true }).isDisabled(), true)
+  await uncertainForm.getByRole('button', { name: 'Retry same submission', exact: true }).click()
+  await page.waitForURL('**/support/case-5')
+  await waitForGuidance(5)
+  const uncertainAttempts = creates().slice(beforeUncertain)
+  assert.equal(uncertainAttempts.length, 3)
+  assert.equal(new Set(uncertainAttempts.map(call => call.key)).size, 1)
+  assert.ok(uncertainAttempts.every(call => call.body.summary === 'Keep uncertain intake immutable'))
+  assert.equal(starts('case-5').length, 1)
+  passed('uncertain create followed by rejection never unlocks or substitutes its immutable body and idempotency key')
   assert.deepEqual(errors, [])
   await writeFile(`${evidence}/results.json`, JSON.stringify({ synthetic: true, scenarios, layoutMeasurements, counts: { created: creates().length,
     started: calls.filter(call => call.path.endsWith('/start')).length, privatePhotoReads: calls.filter(call => call.path.endsWith('/photo')).length }, errors }, null, 2))

@@ -30,7 +30,9 @@ export function SupportRequestForm() {
         <Stack spacing={2.5}>
           <Typography variant="body2" color="text.secondary">Tell us what you want to connect. Keep passwords, tokens and private customer records out of this request.</Typography>
           {support.savedCase && <Alert severity="success">Request saved: {support.savedCase.reference}. Starting its conversation...</Alert>}
-          {support.intakeError && <Alert severity="error">{support.intakeError} Your submission is retained; retry sends the same request.</Alert>}
+          {support.intakeError && <Alert severity="error">{support.intakeError} {support.pendingIntake
+            ? 'Your submission is retained; retry sends the same request.'
+            : 'Your entries are retained. Review them and submit again.'}</Alert>}
           <TextField label="Summary" required value={draft.summary} disabled={locked} inputProps={{ maxLength: 240 }}
             onChange={event => setDraft(value => ({ ...value, summary: event.target.value }))} />
           <TextField label="Details (optional)" multiline minRows={4} value={draft.details} disabled={locked} inputProps={{ maxLength: 12000 }}

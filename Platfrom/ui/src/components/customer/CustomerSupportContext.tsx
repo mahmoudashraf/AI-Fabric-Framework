@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { createSupportCase, startSupportConversation, type CreateSupportCase, type SupportCase } from '../../api/supportApi'
+import { PlatformApiError } from '../../api/platformApi'
 import type { GenericWorkspaceState } from '../../../../../experience-packs/generic-workspace-experience/src/types'
 
 type Preferences = { caseId: string | null; side: 'left' | 'right'; minimized: boolean }
@@ -38,7 +39,7 @@ export function CustomerSupportProvider({ children }: { children: ReactNode }) {
   const [intakeError, setIntakeError] = useState<string | null>(null)
   const [savedCase, setSavedCase] = useState<SupportCase | null>(null)
   const [workspaceState, setWorkspaceState] = useState<GenericWorkspaceState | null>(null)
-  const pending = useRef<{ key: string; body: CreateSupportCase } | null>(null)
+  const pending = useRef<{ key: string; body: CreateSupportCase; uncertain: boolean } | null>(null)
   const busy = useRef(false)
   const active = useRef(true)
   const cache = useQueryClient()
@@ -53,7 +54,7 @@ export function CustomerSupportProvider({ children }: { children: ReactNode }) {
   const submitIntake = async (body: CreateSupportCase, navigateToCase: boolean) => {
     if (busy.current || !body.summary.trim()) return false
     busy.current = true; setSaving(true); setIntakeError(null)
-    if (!pending.current) pending.current = { key: crypto.randomUUID(), body: structuredClone(body) }
+    if (!pending.current) pending.current = { key: crypto.randomUUID(), body: structuredClone(body), uncertain: false }
     let created: SupportCase | null = null
     let deliveryError: string | null = null
     try {
@@ -67,7 +68,19 @@ export function CustomerSupportProvider({ children }: { children: ReactNode }) {
       if (delivery.runtimeStatus >= 400) deliveryError = `The runtime returned ${delivery.runtimeStatus}. Your request is saved; no replacement message was sent.`
     } catch (error) {
       if (!active.current) return false
-      if (!created) { setIntakeError(error instanceof Error ? error.message : 'Your request could not be saved.'); return false }
+      if (!created) {
+        // Only an explicit create rejection can unlock editing; uncertain delivery keeps the original body/key.
+        const rejected = error instanceof PlatformApiError && [400, 401, 403, 404, 422].includes(error.status)
+        if (rejected && pending.current && !pending.current.uncertain) pending.current = null
+        else if (pending.current) pending.current.uncertain = true
+        const message = error instanceof PlatformApiError && error.status === 403 && error.message === 'SUPPORT_ACCESS_DENIED'
+          ? pending.current?.uncertain
+            ? 'Access was denied while retrying. The original submission may already exist; check My requests before retrying.'
+            : 'A selected resource is no longer available for this request. Remove it or select a current resource.'
+          : error instanceof Error ? error.message : 'Your request could not be saved.'
+        setIntakeError(message)
+        return false
+      }
       deliveryError = error instanceof Error ? error.message : 'The initial AI response could not be confirmed.'
     } finally {
       busy.current = false
