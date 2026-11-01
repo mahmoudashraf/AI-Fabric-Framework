@@ -69,17 +69,19 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.33` through:
+The current private product source target is AI Fabric `0.8.42` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.33`
-- Git tag `ai-fabric-framework-v0.8.33`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.42`
+- Git tag `ai-fabric-framework-v0.8.42`
 
-The immutable tag, GitHub release, framework CI, Maven Central publication,
-and empty-cache external-consumer proof are recorded for release commit
-`b1a0ac2c`. The release adds the provider-neutral structured authentication
-requirement consumed by LoomAI Engage; it does not add identity UI or automatic
-request replay. Exact hosted image and assignment evidence belongs in
-`CODEX_WORKING_CONTEXT.md` and the private handoff; do not infer it from HEAD.
+This adopts the already-published release, peeled release commit
+`c21702acc3eb3226c892d4506b1f40fe38171607`; it is not a new framework patch.
+The current maintained product consumer passed an empty-cache Central-only
+build, 887 tests and packaged JAR identity checks. See
+`verification-support/paul-rigby-first-client/2026-11-01-qualified-baseline-adoption.md`.
+The earlier0.8.33 authentication adoption remains historical evidence.
+Exact hosted image and assignment evidence belongs in `CODEX_WORKING_CONTEXT.md`
+and the dated verification record; do not infer it from HEAD or these defaults.
 
 Source target and hosted-fleet truth remain separate. Never infer a future live
 version from a source POM or relabel the fleet before immutable image,
@@ -117,7 +119,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.33`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.42`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 

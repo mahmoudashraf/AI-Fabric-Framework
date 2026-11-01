@@ -4,6 +4,12 @@ Date: 1 November 2026.
 Status: generic configuration support deployed; staged recovery removes the
 domain question but fails conversational answer quality. **Not promoted.**
 
+Later execution: the old v7 remains unpromoted; the current-source0.8.42
+baseline was subsequently adopted as v8 on staging/production. The original
+follow-up improves, but alternate-pair evidence continuity still fails. See
+[the fresh adoption/quality record](2026-11-01-qualified-baseline-adoption.md);
+do not read the historical v7 status below as current hosted-version truth.
+
 ## Root Cause
 
 The buyer-facing sentence "Which knowledge base domain should I search?" is
