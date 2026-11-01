@@ -17,18 +17,37 @@ export type CustomerResource = {
   updatedAt: string | null
 }
 
-export function deploymentResource(deployment: CustomerDeploymentSummary, offer?: CustomerOfferSummary): CustomerResource {
+export function deploymentResource(deployment: CustomerDeploymentSummary, offer?: CustomerOfferSummary, apps: AIWorkspaceInstallationSummary[] = []): CustomerResource {
+  const connectedApps = apps.filter(app => app.deploymentId === deployment.deploymentId && app.status === 'ACTIVE' && app.releaseId)
   return {
     id: deployment.deploymentId, kind: 'deployment', name: deployment.name,
-    subtitle: offer?.name ?? 'Deployment configuration', status: deployment.status,
-    severity: deployment.status === 'DRAFT' ? 'info' : 'default', issues: [],
+    subtitle: offer?.name ?? 'Deployment configuration',
+    status: connectedApps.length ? 'App connected' : deployment.status === 'DRAFT' ? 'Draft configuration' : deployment.status,
+    severity: connectedApps.length || deployment.status === 'DRAFT' ? 'info' : 'default', issues: [],
     deploymentId: deployment.deploymentId, releaseId: null, updatedAt: deployment.createdAt,
-    facts: [['Configuration state', deployment.status], ['Initial environment', deployment.environmentName],
+    facts: [['Configuration state', deployment.status], ['Active app assignments', String(connectedApps.length)], ['Initial environment', deployment.environmentName],
       ['Reviewed template', offer?.name ?? 'Not available']],
     configurationFacts: [['Template', offer?.name ?? 'Not available'], ['Reviewed targets', offer ? String(offer.targets.length) : 'Not available'],
       ['Connection slots', offer ? String(offer.bindingSlots.length) : 'Not available']],
     advancedFacts: [['Deployment ID', deployment.deploymentId], ['Published version', deployment.activeVersionId ?? 'Not published'],
       ['Offer ID', deployment.offerId], ['Bootstrap target', deployment.bootstrapTargetProfileId]],
+  }
+}
+
+export function resourceReleaseSelection(resource: CustomerResource | undefined, releases: DeploymentReleaseSummary[],
+  apps: AIWorkspaceInstallationSummary[], selectedReleaseId: string | null) {
+  const relevant = resource ? releases.filter(release => release.deploymentId === resource.deploymentId) : []
+  const assignedIds = new Set(apps.filter(app => app.deploymentId === resource?.deploymentId
+    && (resource?.kind === 'app' ? app.installationId === resource.id : app.status === 'ACTIVE'))
+    .flatMap(app => app.releaseId ? [app.releaseId] : []))
+  const visible = selectedReleaseId ? relevant.filter(release => release.id === selectedReleaseId)
+    : assignedIds.size ? relevant.filter(release => assignedIds.has(release.id)) : relevant
+  const visibleIds = new Set(visible.map(release => release.id))
+  return {
+    visible,
+    history: relevant.filter(release => !visibleIds.has(release.id)),
+    missingAssignmentIds: [...assignedIds].filter(id => !relevant.some(release => release.id === id)),
+    assigned: assignedIds.size > 0,
   }
 }
 

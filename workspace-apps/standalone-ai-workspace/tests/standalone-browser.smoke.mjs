@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { spawn } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { execFile, spawn } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import http from 'node:http'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { chromium } from 'playwright'
+
+const execFileAsync = promisify(execFile)
+const includeInstalledHeader = process.env.WORKSPACE_TEST_INSTALLED_AUTH === '1'
 
 const installerSource = `(() => {
   const installationId = document.currentScript?.dataset.installationId || 'missing';
@@ -18,6 +24,28 @@ const installerSource = `(() => {
   window.dispatchEvent(new CustomEvent('loomai:workspace-ready'));
 })();\n`
 const installerIntegrity = `sha384-${createHash('sha384').update(installerSource).digest('base64')}`
+const headerInstallationId = 'awi_pub_0123456789abcdef0123456789abcdef'
+const headerPackSource = `(() => {
+  window.LoomAIWorkspace.registerExperiencePack({
+    code: 'auth-entry-fixture', version: '1.0.0',
+    mount(context) {
+      window.__headerStorageNamespace = context.widgetConfig.storageNamespace;
+      context.maxMode.init({
+        ...context.widgetConfig,
+        launcher: false,
+        features: { cart: false, conversations: false, quickActions: false },
+        apiConfig: {
+          ...context.widgetConfig.apiConfig,
+          probeShellConfigOnOpen: false,
+          runtimeAuth: { ...context.widgetConfig.apiConfig.runtimeAuth, probeAuthContextOnOpen: false },
+        },
+        host: { ...context.widgetConfig.host, assistantLabel: 'Support AI' },
+      });
+      context.maxMode.open();
+      return { destroy() { context.maxMode.destroy(); } };
+    },
+  });
+})();\n`
 
 const installations = new Map([
   ['app-one.localhost', app('awi_pub_app_one', 'App One', 'public', 'none')],
@@ -25,6 +53,7 @@ const installations = new Map([
   ['secure.localhost', app('awi_pub_secure', 'Secure App', 'login-required', 'supabase')],
   ['mixed.localhost', app('awi_pub_mixed', 'Mixed App', 'public-with-protected-capabilities', 'supabase')],
   ['magic.localhost', app('awi_pub_magic', 'Magic Link App', 'public-with-protected-capabilities', 'supabase', ['magic-link'])],
+  ['header.localhost', app(headerInstallationId, 'Header App', 'public-with-protected-capabilities', 'supabase')],
 ])
 
 let platformServer
@@ -32,9 +61,24 @@ let shellProcess
 let browser
 let platformPort
 let shellPort
+let assetDirectory
+let realInstallerSource
+let realWidgetSource
 const requests = []
 
 test.before(async () => {
+  if (includeInstalledHeader) {
+    assetDirectory = await mkdtemp(resolve(tmpdir(), 'loomai-auth-entry-'))
+    const widgetRoot = fileURLToPath(new URL('../../../max-mode-widget', import.meta.url))
+    for (const config of ['vite.config.installer.ts', 'vite.config.iife.ts']) {
+      await execFileAsync(process.execPath, [
+        resolve(widgetRoot, 'node_modules/vite/bin/vite.js'), 'build', '--config', config,
+        '--outDir', assetDirectory, '--minify', 'false', '--logLevel', 'error',
+      ], { cwd: widgetRoot })
+    }
+    realInstallerSource = await readFile(resolve(assetDirectory, 'ai-workspace-installer.iife.js'), 'utf8')
+    realWidgetSource = await readFile(resolve(assetDirectory, 'max-mode-widget.iife.js'), 'utf8')
+  }
   platformPort = await freePort()
   shellPort = await freePort()
   platformServer = http.createServer(platformHandler)
@@ -56,6 +100,7 @@ test.after(async () => {
   await browser?.close()
   shellProcess?.kill('SIGTERM')
   await new Promise((resolve) => platformServer?.close(resolve))
+  if (assetDirectory) await rm(assetDirectory, { recursive: true, force: true })
 })
 
 test('one shared shell resolves exact hosts to isolated installations', async () => {
@@ -87,6 +132,85 @@ test('an unknown host fails closed without loading the installer', async () => {
   assert.equal(await page.locator('#installed-workspace').count(), 0)
   assert.match(await page.locator('#status-copy').textContent(), /unavailable/i)
   await page.close()
+})
+
+for (const width of includeInstalledHeader ? [320, 390, 1280] : []) {
+  test(`real installed workspace header opens sign-in at ${width}px and cancel preserves its guest identity`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 844 }, hasTouch: width < 600 })
+    const errors = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    try {
+      await page.goto(appUrl('header.localhost'))
+      const signIn = page.getByRole('button', { name: 'Sign in', exact: true })
+      await signIn.waitFor()
+      const namespace = await page.evaluate(() => {
+        const namespace = window.__headerStorageNamespace
+        sessionStorage.setItem(`loomai_workspace:${namespace}`, 'guest-conversation')
+        return namespace
+      })
+      const providerRequestsBefore = requests.filter((entry) => entry.path.startsWith('/auth/v1/')).length
+      await signIn.click()
+      await page.locator('#auth-dialog[open]').waitFor()
+      const bounds = await page.locator('#auth-dialog').boundingBox()
+      assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width)
+      await page.getByLabel('Email').fill('cancelled@example.test')
+      await page.getByLabel('Password').fill('do-not-submit')
+      if (process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR) {
+        await mkdir(process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR, { recursive: true })
+        await page.screenshot({ path: resolve(process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR, `auth-header-${width}.png`) })
+      }
+      await page.getByRole('button', { name: 'Close sign in' }).click()
+      await page.locator('#auth-dialog[open]').waitFor({ state: 'hidden' })
+      await page.waitForFunction(() => document.getElementById('auth-password').value === '')
+      assert.equal(await page.evaluate((namespace) => sessionStorage.getItem(`loomai_workspace:${namespace}`), namespace), 'guest-conversation')
+      assert.equal(await page.evaluate(() => window.LoomAIWorkspaceHost.identity.status), 'anonymous')
+      assert.equal(await page.getByLabel('Password').inputValue(), '')
+      assert.equal(requests.filter((entry) => entry.path.startsWith('/auth/v1/')).length, providerRequestsBefore)
+      assert.deepEqual(errors, [])
+    } finally {
+      await page.close()
+    }
+  })
+}
+
+if (includeInstalledHeader) test('real installed header supports failed login then a fresh authenticated namespace without guest-history replay', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  try {
+    await page.goto(appUrl('header.localhost'))
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.locator('#auth-dialog[open]').waitFor()
+    const anonymousNamespace = await page.evaluate(() => {
+      const namespace = window.__headerStorageNamespace
+      sessionStorage.setItem(`loomai_workspace:${namespace}`, 'private-guest-history')
+      sessionStorage.setItem('loomai_workspace:awi_pub_other:anonymous', 'other-installation-history')
+      return namespace
+    })
+    const queriesBefore = requests.filter((entry) => entry.path === '/api/chat/query').length
+    await page.getByLabel('Email').fill('member@example.test')
+    await page.getByLabel('Password').fill('invalid-password')
+    await page.locator('#password-sign-in').click()
+    await page.getByRole('alert').filter({ hasText: 'Sign in failed.' }).waitFor()
+    assert.equal(await page.evaluate((namespace) => sessionStorage.getItem(`loomai_workspace:${namespace}`), anonymousNamespace), 'private-guest-history')
+    await page.getByLabel('Password').fill('verified-password')
+    await page.locator('#password-sign-in').click()
+    await page.locator('[title="Signed in as member@example.test"]').waitFor()
+    const state = await page.evaluate((namespace) => ({
+      identity: window.LoomAIWorkspaceHost.identity.status,
+      namespace: window.__headerStorageNamespace,
+      guest: sessionStorage.getItem(`loomai_workspace:${namespace}`),
+      authenticated: sessionStorage.getItem(`loomai_workspace:${window.__headerStorageNamespace}`),
+      other: sessionStorage.getItem('loomai_workspace:awi_pub_other:anonymous'),
+    }), anonymousNamespace)
+    assert.equal(state.identity, 'authenticated')
+    assert.notEqual(state.namespace, anonymousNamespace)
+    assert(state.namespace.endsWith(':authenticated:user-verified-1'))
+    assert.equal(state.guest, null)
+    assert.equal(state.authenticated, null)
+    assert.equal(state.other, 'other-installation-history')
+    assert.equal(requests.filter((entry) => entry.path === '/api/chat/query').length, queriesBefore)
+  } finally {
+    await page.close()
+  }
 })
 
 test('login-required policy blocks installation until Supabase identity succeeds', async () => {
@@ -751,8 +875,8 @@ async function platformHandler(request, response) {
           : {},
       },
       installer: {
-        url: `http://127.0.0.1:${platformPort}/install.js`,
-        integrity: installerIntegrity,
+        url: `http://127.0.0.1:${platformPort}/${binding.installationId === headerInstallationId ? 'real-install' : 'install'}.js`,
+        integrity: binding.installationId === headerInstallationId ? integrity(realInstallerSource) : installerIntegrity,
         version: 'test',
       },
     })
@@ -762,6 +886,32 @@ async function platformHandler(request, response) {
     response.writeHead(200, { 'Content-Type': 'application/javascript' })
     response.end(installerSource)
     return
+  }
+  if (request.url === '/real-install.js') return javascript(response, realInstallerSource)
+  if (request.url === '/real-widget.js') return javascript(response, realWidgetSource)
+  if (request.url === '/auth-entry-pack.js') return javascript(response, headerPackSource)
+  if (request.url === `/api/public/ai-workspace/installations/${headerInstallationId}/manifest`) {
+    const base = `http://127.0.0.1:${platformPort}`
+    return json(response, 200, {
+      schemaVersion: 'loomai-ai-workspace-installation-v2', installationId: headerInstallationId,
+      manifestRevision: `sha256:${'a'.repeat(64)}`, assignmentRevision: `sha256:${'b'.repeat(64)}`,
+      delivery: { mode: 'standalone', closeAllowed: false },
+      authentication: { interactionPolicy: 'public-with-protected-capabilities' },
+      connection: {
+        mode: 'public-runtime-anonymous', handler: 'direct-public-runtime', runtimeBaseUrl: base,
+        anonymousBootstrap: { url: '/api/chat/session', renewUrl: '/api/chat/session/renew' },
+        routes: {
+          queryUrl: '/api/chat/query', suggestionsUrl: '/api/chat/suggestions',
+          authContextUrl: '/api/chat/auth-context', shellConfigUrl: '/api/chat/shell-config',
+          conversationsUrl: '/api/chat/conversations', conversationItemUrlTemplate: '/api/chat/conversations/{conversationId}',
+        },
+      },
+      workspace: {
+        asset: { version: '1.1.0', url: `${base}/real-widget.js`, integrity: integrity(realWidgetSource) },
+        experiencePack: { code: 'auth-entry-fixture', version: '1.0.0', url: `${base}/auth-entry-pack.js`, integrity: integrity(headerPackSource) },
+        configuration: {},
+      },
+    })
   }
   if (request.url === '/auth/v1/token?grant_type=password' && request.method === 'POST') {
     const body = await bodyJson(request)
@@ -814,6 +964,15 @@ async function bodyJson(request) {
 function json(response, status, value) {
   response.writeHead(status, { 'Content-Type': 'application/json' })
   response.end(JSON.stringify(value))
+}
+
+function integrity(source) {
+  return `sha384-${createHash('sha384').update(source).digest('base64')}`
+}
+
+function javascript(response, source) {
+  response.writeHead(200, { 'Content-Type': 'application/javascript' })
+  response.end(source)
 }
 
 async function freePort() {

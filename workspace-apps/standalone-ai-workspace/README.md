@@ -44,6 +44,17 @@ to anonymous authority or replays it under a new account. Hosted acceptance must
 measure these behaviors against the reviewed provider; fixture tests are not
 provider revocation or production-readiness evidence.
 
+## Installed Sign-In Regression
+
+Run `npm run build` and `npm run test:browser` for the shell fixture suite.
+With dependencies also installed in `max-mode-widget`, run
+`npm run test:installed-auth` to build the real installer/widget into a temporary
+directory and click the real header at 320px, 390px and desktop widths. This
+separate cross-package check verifies dialog entry/cancel, visible provider
+failure and identity-separated login without replaying guest history. The
+fixture pack is domain-neutral; provider responses are local test doubles.
+Set `WORKSPACE_BROWSER_SCREENSHOT_DIR` to retain entry screenshots.
+
 ## Live Verification
 
 Run read-only chat, persistence, and responsive-layout checks on two registered

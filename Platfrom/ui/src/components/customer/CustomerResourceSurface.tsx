@@ -11,7 +11,7 @@ import CodeRounded from '@mui/icons-material/CodeRounded'
 import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
 import LinkRounded from '@mui/icons-material/LinkRounded'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
-import { appResource, deploymentResource, releaseEnvironment, releaseIssues, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
+import { appResource, deploymentResource, releaseEnvironment, releaseIssues, resourceReleaseSelection, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerProductHome } from './CustomerProductHome'
@@ -45,18 +45,19 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const params = new URLSearchParams(location.search)
   const id = params.get('resourceId')
   const kind = params.get('resourceKind')
-  const deploymentCards = props.deployments.map(item => deploymentResource(item, props.offers.find(offer => offer.id === item.offerId)))
+  const deploymentCards = props.deployments.map(item => deploymentResource(item, props.offers.find(offer => offer.id === item.offerId), props.apps))
   const appCards = props.apps.map(appResource)
   const allResources = [...deploymentCards, ...appCards]
   const selected = allResources.find(item => item.id === id && item.kind === kind)
   const unresolved = Boolean(id && !props.loading && !selected)
   const offer = props.offers.find(item => item.id === props.deployments.find(deployment => deployment.deploymentId === selected?.deploymentId)?.offerId)
   const selectedReleaseId = params.get('releaseId')
-  const selectedRelease = props.releases.find(item => item.id === selectedReleaseId)
+  const selectedRelease = props.releases.find(item => item.id === selectedReleaseId && item.deploymentId === selected?.deploymentId)
   const assignedApp = selected?.kind === 'app' ? props.apps.find(item => item.installationId === selected.id) : null
   const deskRelease = selected?.kind === 'app'
     ? props.releases.find(item => item.id === assignedApp?.releaseId) : selectedRelease
-  const visibleReleases = selectedReleaseId ? selectedRelease ? [selectedRelease] : [] : props.releases
+  const releaseSelection = resourceReleaseSelection(selected, props.releases, props.apps, selectedReleaseId)
+  const visibleReleases = releaseSelection.visible
   const open = (resource: CustomerResource) => {
     const next = new URLSearchParams(location.search)
     next.set('resourceKind', resource.kind); next.set('resourceId', resource.id); next.delete('releaseId')
@@ -92,6 +93,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const resourceNotices = selected ? <Stack spacing={1}>
     {selected.issues.map(issue => <Alert key={issue.code} severity={issue.severity}>{issue.message}</Alert>)}
     {props.releaseError ? <Alert severity="error">Release details could not be loaded: {props.releaseError}</Alert> : null}
+    {!props.releaseLoading && !props.releaseError && releaseSelection.missingAssignmentIds.length ? <Alert severity="warning">An app's assigned release details are unavailable. No different release was substituted.</Alert> : null}
     {visibleReleases.flatMap(release => releaseIssues(release).map(issue => <Alert key={`${release.id}:${issue.code}`} severity={issue.severity}>{releaseEnvironment(release, offer)}: {issue.message}</Alert>))}
     {selectedReleaseId && !props.releaseLoading && !props.releaseError && !selectedRelease ? <Alert severity="error">The requested release is not available for this resource. No alternative release was selected.</Alert> : null}
   </Stack> : null
@@ -129,7 +131,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {selected.kind === 'deployment' && offer && !props.releaseLoading && !props.releaseError ? <CustomerProductTasks
         deploymentId={selected.id} offer={offer} releases={props.releases} selectedReleaseId={selectedReleaseId}
         onSelectRelease={releaseId => { const next = new URLSearchParams(location.search); if (releaseId) next.set('releaseId', releaseId); else next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }} /> : null}
-      <Box><Typography fontWeight={600} sx={{ mb: 1.5 }}>Target releases</Typography>
+      <Box><Typography fontWeight={600} sx={{ mb: 1.5 }}>{selectedReleaseId ? 'Selected release' : releaseSelection.assigned ? 'App-assigned releases' : 'Target releases'}</Typography>
         {props.releaseLoading ? <CircularProgress size={20} aria-label="Loading target releases" /> : visibleReleases.length ? <Stack spacing={1.5}>{visibleReleases.map(release => <Box key={release.id} sx={{ borderLeft: 2, borderColor: 'divider', pl: 1.5 }}>
           <Typography variant="body2" fontWeight={600}>{releaseEnvironment(release, offer)}</Typography><Typography variant="caption" color="text.secondary">{release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
           <Typography variant="caption" display="block" color="text.secondary">{release.updatedAt ? new Date(release.updatedAt).toLocaleString() : 'No observation time'}</Typography>
@@ -141,6 +143,13 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         advanced={<Stack spacing={2.5}><ResourceFacts facts={selected.advancedFacts} />
           {selected.kind === 'deployment' ? <CustomerDeploymentAdvancedLinks deploymentId={selected.id} targetProfileId={selectedRelease?.targetProfileId} /> : null}
           <Box><Typography fontWeight={600}>Release references</Typography>{visibleReleases.map(release => <Typography key={release.id} variant="caption" color="text.secondary" display="block" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{releaseEnvironment(release, offer)} / {release.id}</Typography>)}</Box>
+          {releaseSelection.history.length ? <Box component="details"><Typography component="summary" fontWeight={600} sx={{ cursor: 'pointer' }}>Other release history ({releaseSelection.history.length})</Typography>
+            <Stack spacing={1.5} sx={{ mt: 1.5 }}>{releaseSelection.history.map(release => <Box key={release.id}>
+              <Typography variant="body2">{releaseEnvironment(release, offer)}: {release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{release.id}</Typography>
+              {releaseIssues(release).map(issue => <Alert key={issue.code} severity={issue.severity} sx={{ mt: 1 }}>{issue.message}</Alert>)}
+            </Box>)}</Stack>
+          </Box> : null}
           <Button variant="outlined" onClick={() => openConfiguration('advanced')}>Open advanced settings</Button>
         </Stack>} />
     </Stack>
