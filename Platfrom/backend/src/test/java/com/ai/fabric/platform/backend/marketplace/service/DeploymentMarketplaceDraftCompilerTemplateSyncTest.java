@@ -27,6 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -47,6 +48,12 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     private static final String TEMPLATE_ID = "mkp-template-record-workspace";
     private static final String ACTION_ID = "mkp-action-record-read";
     private static final String ACTION_REF = ACTION_ID + "@1.0.0";
+    private static final Map<String, String> TEMPLATE_PROMPT_DEFAULTS = Map.of(
+        "systemPrompt", "Informational guidance remains in scope without a write tool.",
+        "intentExtractionPrompt", "Do not invent target parameters for parameterless authorized READs.",
+        "actionSelectionPrompt", "Simple document guidance does not require private diagnostics or a specialist chain.",
+        "clarificationPrompt", "Use the knowledge catalogue and authorized tools; ask only missing customer-facing details and disclose uncertainty."
+    );
     private static final Instant NOW = Instant.parse("2026-10-25T00:00:00Z");
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -147,6 +154,126 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
         when(deployments.updateDraft(eq(DRAFT_ID), any())).thenAnswer(invocation -> persist(invocation.getArgument(1)));
         when(deployments.updateDraftForTrustedCaller(eq(DRAFT_ID), any()))
             .thenAnswer(invocation -> persist(invocation.getArgument(1)));
+    }
+
+    @Test
+    void templateBaselinesMergeOnlyDeclaredLeavesWithoutMutatingInputs() throws Exception {
+        var version = runtimeDefaultsVersion();
+        var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
+        ObjectNode provider = (ObjectNode) mapper.readTree("""
+            {"generationModel":"owner-model","vectorStrategy":"lucene",
+             "orchestrationModeOverrides":{
+              "navigator":{"fixture":"retained"},
+              "executor":{"knowledgeBaseOverviewEnabled":false,"vectorSpaceSelectionRequired":true,
+               "rag":{"fanoutEnabled":false},"semanticRecovery":{"unknownAction":"LLM_REPAIR_THEN_FAIL"},
+               "readActionResolution":{"planningMode":"SINGLE_PASS","maxIterations":4,
+                "maxPlannerContextChars":4000,"maxActionEvidenceItems":7}}}}
+            """);
+        ObjectNode prompts = (ObjectNode) mapper.readTree("""
+            {"systemPrompt":"Owner prompt","clarificationPrompt":"Original clarification","ragSimilarityThreshold":0.61,
+             "ragMaxDocumentsUsedForContext":5,"ragMaxContextChars":4000,"smartSuggestionsEnabled":false}
+            """);
+        JsonNode originalProvider = provider.deepCopy();
+        JsonNode originalPrompts = prompts.deepCopy();
+        String originalManifest = version.getManifestJson();
+
+        ObjectNode mergedProvider = compiler.compileTemplateProviderBaseline(plugin, version, provider);
+        ObjectNode mergedPrompts = compiler.compileTemplatePromptBaseline(plugin, version, prompts);
+        ObjectNode expectedProvider = provider.deepCopy();
+        ((ObjectNode) expectedProvider.at("/orchestrationModeOverrides/executor/readActionResolution"))
+            .put("planningMode", "ITERATIVE").put("maxIterations", 2).put("maxPlannerContextChars", 12000)
+            .put("maxActionEvidenceCharsPerAction", 8000).put("ragCooperationMode", "RAG_IF_ACTIONS_INSUFFICIENT");
+        ((ObjectNode) expectedProvider.at("/orchestrationModeOverrides/executor")).put("knowledgeBaseOverviewEnabled", true);
+        ((ObjectNode) expectedProvider.at("/orchestrationModeOverrides/executor/rag")).put("fanoutEnabled", true).put("maxSpaces", 1);
+        ((ObjectNode) expectedProvider.at("/orchestrationModeOverrides/executor/semanticRecovery"))
+            .put("missingVectorSpace", "BOUNDED_ALLOWED_FAN_OUT");
+        assertThat(mergedProvider).isEqualTo(expectedProvider);
+        ObjectNode expectedPrompts = prompts.deepCopy()
+            .put("ragMaxDocumentsUsedForContext", 8).put("ragMaxContextChars", 8000);
+        TEMPLATE_PROMPT_DEFAULTS.forEach(expectedPrompts::put);
+        assertThat(mergedPrompts).isEqualTo(expectedPrompts);
+        assertThat(provider).isEqualTo(originalProvider);
+        assertThat(prompts).isEqualTo(originalPrompts);
+        assertThat(version.getManifestJson()).isEqualTo(originalManifest);
+        mergedProvider.with("orchestrationModeOverrides").with("executor").with("readActionResolution")
+            .put("maxIterations", 1);
+        mergedPrompts.put("systemPrompt", "Changed result only");
+        assertThat(provider).isEqualTo(originalProvider);
+        assertThat(prompts).isEqualTo(originalPrompts);
+    }
+
+    @Test
+    void absentTemplateRuntimeDefaultsLeaveExistingConfigurationUnchanged() throws Exception {
+        var version = catalog.requirePluginVersionEntityById(TEMPLATE_ID + "-version-1");
+        var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
+        ObjectNode provider = (ObjectNode) mapper.readTree("""
+            {"orchestrationModeOverrides":{"executor":{"readActionResolution":{"maxIterations":3}}}}
+            """);
+        ObjectNode prompts = mapper.createObjectNode().put("systemPrompt", "Owner prompt").put("ragMaxContextChars", 5000);
+        assertThat(compiler.compileTemplateProviderBaseline(plugin, version, provider)).isEqualTo(provider).isNotSameAs(provider);
+        assertThat(compiler.compileTemplatePromptBaseline(plugin, version, prompts)).isEqualTo(prompts).isNotSameAs(prompts);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void laterTemplateSyncNeverReappliesProviderOrPromptBootstrapDefaults(boolean trustedCaller) throws Exception {
+        var version = runtimeDefaultsVersion();
+        var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
+        draft = response(draft.actionsConfig(), draft.entityConfig(), draft.shellConfig(), draft.behaviorConfig(),
+            compiler.compileTemplateProviderBaseline(plugin, version, draft.providerConfig()),
+            compiler.compileTemplatePromptBaseline(plugin, version, draft.promptConfig()));
+        compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
+        ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor/readActionResolution"))
+            .put("planningMode", "SINGLE_PASS").put("maxIterations", 1).remove("maxPlannerContextChars");
+        ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor"))
+            .put("knowledgeBaseOverviewEnabled", false);
+        ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor/rag"))
+            .put("fanoutEnabled", false).remove("maxSpaces");
+        ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor/semanticRecovery"))
+            .put("missingVectorSpace", "LLM_REPAIR_THEN_CLARIFY");
+        ((ObjectNode) draft.promptConfig()).put("ragMaxContextChars", 3000).remove("ragMaxDocumentsUsedForContext");
+        TEMPLATE_PROMPT_DEFAULTS.keySet().forEach(field ->
+            ((ObjectNode) draft.promptConfig()).put(field, "Customer-authored " + field));
+        JsonNode expectedProvider = draft.providerConfig().deepCopy();
+        JsonNode expectedPrompts = draft.promptConfig().deepCopy();
+
+        var synced = sync(trustedCaller);
+
+        assertThat(synced.providerConfig()).isEqualTo(expectedProvider);
+        assertThat(synced.promptConfig()).isEqualTo(expectedPrompts);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void laterTemplateSyncDoesNotRestoreRemovedPromptDefaults(boolean trustedCaller) throws Exception {
+        var version = runtimeDefaultsVersion();
+        draft = response(draft.actionsConfig(), draft.entityConfig(), draft.shellConfig(), draft.behaviorConfig(),
+            draft.providerConfig(), compiler.compileTemplatePromptBaseline(catalog.requirePluginEntity(TEMPLATE_ID),
+                version, draft.promptConfig()));
+        compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
+        ((ObjectNode) draft.promptConfig()).remove(TEMPLATE_PROMPT_DEFAULTS.keySet());
+
+        JsonNode syncedPrompts = sync(trustedCaller).promptConfig();
+        TEMPLATE_PROMPT_DEFAULTS.keySet().forEach(field -> assertThat(syncedPrompts.has(field)).as(field).isFalse());
+    }
+
+    private MarketplacePluginVersionEntity runtimeDefaultsVersion() throws Exception {
+        var version = catalog.requirePluginVersionEntityById(TEMPLATE_ID + "-version-1");
+        ObjectNode manifest = (ObjectNode) mapper.readTree(version.getManifestJson());
+        ObjectNode template = (ObjectNode) manifest.at("/contributions/template");
+        template.set("providerConfig", mapper.readTree("""
+            {"orchestrationModeOverrides":{"executor":{
+             "knowledgeBaseOverviewEnabled":true,"rag":{"fanoutEnabled":true,"maxSpaces":1},
+             "semanticRecovery":{"missingVectorSpace":"BOUNDED_ALLOWED_FAN_OUT"},"readActionResolution":{
+             "planningMode":"ITERATIVE","maxIterations":2,"maxPlannerContextChars":12000,
+             "maxActionEvidenceCharsPerAction":8000,"ragCooperationMode":"RAG_IF_ACTIONS_INSUFFICIENT"}}}}
+            """));
+        template.set("promptConfig", mapper.readTree("""
+            {"ragMaxDocumentsUsedForContext":8,"ragMaxContextChars":8000}
+            """));
+        TEMPLATE_PROMPT_DEFAULTS.forEach(((ObjectNode) template.path("promptConfig"))::put);
+        version.setManifestJson(manifest.toString());
+        return version;
     }
 
     @Test
@@ -410,14 +537,21 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     }
 
     private DeploymentDraftResponse persist(UpdateDeploymentDraftRequest request) {
-        draft = response(request.actionsConfig(), request.entityConfig(), request.shellConfig(), request.behaviorConfig());
+        draft = response(request.actionsConfig(), request.entityConfig(), request.shellConfig(), request.behaviorConfig(),
+            request.providerConfig() == null ? draft.providerConfig() : request.providerConfig(),
+            request.promptConfig() == null ? draft.promptConfig() : request.promptConfig());
         return draft;
     }
 
     private DeploymentDraftResponse response(JsonNode actions, JsonNode entity, JsonNode shell, JsonNode behavior) {
+        return response(actions, entity, shell, behavior, mapper.createObjectNode(), mapper.createObjectNode());
+    }
+
+    private DeploymentDraftResponse response(JsonNode actions, JsonNode entity, JsonNode shell, JsonNode behavior,
+                                             JsonNode provider, JsonNode prompts) {
         return new DeploymentDraftResponse(
             DRAFT_ID, DEPLOYMENT_ID, 1, "DRAFT", actions, entity, mapper.createObjectNode(),
-            mapper.createObjectNode(), mapper.createObjectNode(), mapper.createObjectNode(),
+            provider, mapper.createObjectNode(), prompts,
             mapper.createObjectNode(), shell, mapper.createObjectNode(), NOW, NOW,
             EntityConfigContractService.CONTRACT_VERSION_V04, behavior
         );

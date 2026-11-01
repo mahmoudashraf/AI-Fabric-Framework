@@ -1,0 +1,19 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "staging",
+  "frameworkVersion": "0.8.41",
+  "releaseId": "rel-e3b9b047",
+  "turns": [
+    {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 14901, "note": "Both delivery options and safe public installation explained with approved evidence."},
+    {"scenario": "installation", "index": 1, "verdict": "PARTIAL", "elapsedMs": 6228, "note": "Correctly associates DNS with a custom domain but does not clearly complete the requested no-custom-domain setup advice."},
+    {"scenario": "index-state", "index": 0, "verdict": "PASS", "elapsedMs": 8324, "note": "Uses authorized diagnostics, reports 13 active sources and distinguishes registered indexing from readiness."},
+    {"scenario": "index-state", "index": 1, "verdict": "PASS", "elapsedMs": 5773, "note": "Does not claim to inspect upstream storage or prove it unchanged."},
+    {"scenario": "index-state", "index": 2, "verdict": "PASS", "elapsedMs": 12169, "note": "Explains refresh, candidate preview/index/reconcile and new-first activation."},
+    {"scenario": "compound-investigation", "index": 0, "verdict": "FAIL", "elapsedMs": 21345, "note": "Returns CLARIFICATION_REQUIRED asking which knowledge base domain to search."},
+    {"scenario": "compound-investigation", "index": 1, "verdict": "PARTIAL", "elapsedMs": 23332, "note": "Gives general old-policy checks, but explicitly lacks the second-issue details from the preceding request."},
+    {"scenario": "consent-and-specialists", "index": 0, "verdict": "PARTIAL", "elapsedMs": 21698, "note": "Useful approved guidance with no claimed live observations, but selected specialist reports CHAIN_RESULT_PROJECTION_INVALID. Error is disclosed, not repaired or counted as a successful specialist run."},
+    {"scenario": "consent-and-specialists", "index": 1, "verdict": "PASS", "elapsedMs": 6660, "note": "Correctly distinguishes AI specialists, queued human handover and explicit return to AI."}
+  ],
+  "summary": {"pass": 5, "partial": 3, "fail": 1, "medianMs": 12169, "p95Ms": 23332},
+  "limitations": ["Small real-provider sample; no deterministic quality guarantee.", "First-run failures retained. No query rewriting or exact-phrase grading.", "All four generated qualification cases resolved and their diagnostic consent revoked."]
+}

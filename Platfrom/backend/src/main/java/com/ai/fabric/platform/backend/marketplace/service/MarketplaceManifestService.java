@@ -7,7 +7,9 @@ import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContra
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorSummary;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDraftValidationService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
@@ -81,6 +83,7 @@ public class MarketplaceManifestService {
         "publicRuntimeBootstrapEnabled"
     );
     private static final Set<String> TEMPLATE_PROVIDER_STRING_FIELDS = Set.of(
+        "openaiModel",
         "vectorStrategy",
         "vectorProvisioningMode",
         "vectorStoragePosture",
@@ -128,8 +131,26 @@ public class MarketplaceManifestService {
     private static final Set<String> TEMPLATE_PROVIDER_FIELDS = java.util.stream.Stream.of(
         TEMPLATE_PROVIDER_STRING_FIELDS,
         TEMPLATE_PROVIDER_INTEGER_FIELDS,
-        TEMPLATE_PROVIDER_BOOLEAN_FIELDS
+        TEMPLATE_PROVIDER_BOOLEAN_FIELDS,
+        Set.of("orchestrationModeOverrides")
     ).flatMap(Set::stream).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private static final Set<String> TEMPLATE_PROMPT_BUDGET_FIELDS = Set.of(
+        "ragMaxDocumentsUsedForContext", "ragMaxContextChars"
+    );
+    private static final Set<String> TEMPLATE_PROMPT_TEXT_FIELDS = Set.of(
+        "systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt", "clarificationPrompt"
+    );
+    private static final Set<String> TEMPLATE_PROMPT_FIELDS = java.util.stream.Stream.concat(
+        TEMPLATE_PROMPT_BUDGET_FIELDS.stream(), TEMPLATE_PROMPT_TEXT_FIELDS.stream()
+    ).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private static final int MAX_TEMPLATE_PROMPT_CHARS = 12_000;
+    private static final Set<String> TEMPLATE_READ_RESOLUTION_INTEGER_FIELDS = Set.of(
+        "maxIterations", "maxPlannerContextChars", "maxActionEvidenceCharsPerAction", "maxActionEvidenceItems"
+    );
+    private static final Set<String> TEMPLATE_READ_RESOLUTION_FIELDS = java.util.stream.Stream.concat(
+        TEMPLATE_READ_RESOLUTION_INTEGER_FIELDS.stream(),
+        Set.of("planningMode", "ragCooperationMode").stream()
+    ).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private static final int MAX_TEMPLATE_PROVIDER_FIELDS = 40;
     private static final int MAX_TEMPLATE_PROVIDER_JSON_CHARS = 8_192;
     private static final Set<String> TEMPLATE_INSTALL_DEFAULT_FIELDS = Set.of("config", "secretRefs");
@@ -613,6 +634,7 @@ public class MarketplaceManifestService {
         JsonNode shell = template.path("shell");
         validateTemplateSecurityContribution(plugin, version, template.path("security"));
         validateTemplateProviderConfigContribution(plugin, version, template.path("providerConfig"));
+        validateTemplateRuntimeDefaults(plugin, version, template);
         validateEntityContribution(plugin, version, template.path("entityConfig"));
         TemplateBehaviorContribution behavior = parseTemplateBehaviorContribution(
             plugin,
@@ -967,6 +989,128 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version,
                     "template providerConfig cannot supply qdrantHost for PLATFORM_MANAGED DEDICATED storage.");
             }
+        }
+    }
+
+    private void validateTemplateRuntimeDefaults(MarketplacePluginEntity plugin,
+                                                 MarketplacePluginVersionEntity version,
+                                                 JsonNode template) {
+        JsonNode overrides = template.path("providerConfig").path("orchestrationModeOverrides");
+        JsonNode prompts = template.path("promptConfig");
+        if (overrides.isMissingNode() && prompts.isMissingNode()) {
+            return;
+        }
+        // Publication accepts declared runtime defaults only, never credentials, source authority or arbitrary settings.
+        if (!overrides.isMissingNode()) {
+            validateTemplateDefaultsObject(plugin, version, overrides, Set.of("executor"),
+                "providerConfig.orchestrationModeOverrides");
+            JsonNode executor = overrides.path("executor");
+            if (!executor.isMissingNode()) {
+                validateTemplateDefaultsObject(plugin, version, executor,
+                    Set.of("readActionResolution", "knowledgeBaseOverviewEnabled", "rag", "semanticRecovery"),
+                    "providerConfig.orchestrationModeOverrides.executor");
+                if (executor.has("knowledgeBaseOverviewEnabled")) {
+                    validateTemplateBooleanShape(plugin, version, "knowledgeBaseOverviewEnabled",
+                        executor.path("knowledgeBaseOverviewEnabled"));
+                }
+                JsonNode rag = executor.path("rag");
+                if (!rag.isMissingNode()) {
+                    validateTemplateDefaultsObject(plugin, version, rag, Set.of("fanoutEnabled", "maxSpaces"),
+                        "providerConfig.orchestrationModeOverrides.executor.rag");
+                    if (rag.has("fanoutEnabled")) {
+                        validateTemplateBooleanShape(plugin, version, "fanoutEnabled", rag.path("fanoutEnabled"));
+                    }
+                    if (rag.has("maxSpaces")) {
+                        validateTemplateIntegerShape(plugin, version, "maxSpaces", rag.path("maxSpaces"));
+                    }
+                }
+                JsonNode recovery = executor.path("semanticRecovery");
+                if (!recovery.isMissingNode()) {
+                    validateTemplateDefaultsObject(plugin, version, recovery, Set.of("missingVectorSpace"),
+                        "providerConfig.orchestrationModeOverrides.executor.semanticRecovery");
+                    JsonNode policy = recovery.path("missingVectorSpace");
+                    if (!policy.isMissingNode() && (!policy.isTextual() || !StringUtils.hasText(policy.asText()))) {
+                        throw invalid(plugin, version, "template missingVectorSpace must be a non-blank string.");
+                    }
+                }
+                JsonNode read = executor.path("readActionResolution");
+                if (!read.isMissingNode()) {
+                    validateTemplateDefaultsObject(plugin, version, read, TEMPLATE_READ_RESOLUTION_FIELDS,
+                        "providerConfig.orchestrationModeOverrides.executor.readActionResolution");
+                    read.fields().forEachRemaining(entry -> {
+                        JsonNode value = entry.getValue();
+                        if (TEMPLATE_READ_RESOLUTION_INTEGER_FIELDS.contains(entry.getKey())) {
+                            validateTemplateIntegerShape(plugin, version, entry.getKey(), value);
+                        } else if (!value.isTextual() || !StringUtils.hasText(value.asText())) {
+                            throw invalid(plugin, version, "template " + entry.getKey() + " must be a non-blank string.");
+                        }
+                    });
+                }
+            }
+        }
+        if (!prompts.isMissingNode()) {
+            validateTemplateDefaultsObject(plugin, version, prompts, TEMPLATE_PROMPT_FIELDS, "promptConfig");
+            prompts.fields().forEachRemaining(entry -> {
+                if (TEMPLATE_PROMPT_BUDGET_FIELDS.contains(entry.getKey())) {
+                    validateTemplateIntegerShape(plugin, version, entry.getKey(), entry.getValue());
+                } else if (!entry.getValue().isTextual() || entry.getValue().textValue().length() > MAX_TEMPLATE_PROMPT_CHARS) {
+                    // Bound catalogue payload size, not the meaning of operator-authored prompt text.
+                    throw invalid(plugin, version, "template " + entry.getKey() + " must be a string of at most "
+                        + MAX_TEMPLATE_PROMPT_CHARS + " characters.");
+                }
+            });
+        }
+
+        // A template is a partial configuration, not a publish-ready deployment. Reuse the draft value
+        // contracts for its contributed paths without requiring unrelated infrastructure or authority.
+        DeploymentDraftEntity defaults = new DeploymentDraftEntity();
+        defaults.setActionsConfigJson("{}");
+        defaults.setEntityConfigJson("{}");
+        defaults.setRoutingConfigJson("{}");
+        ObjectNode provider = objectMapper.createObjectNode();
+        if (!overrides.isMissingNode()) provider.set("orchestrationModeOverrides", overrides);
+        defaults.setProviderConfigJson(provider.toString());
+        defaults.setSecurityConfigJson("{}");
+        defaults.setPromptConfigJson(prompts.isMissingNode() ? "{}" : prompts.toString());
+        defaults.setKnowledgeSourceConfigJson("{}");
+        defaults.setShellConfigJson("{}");
+        defaults.setMarketplaceDatasetConfigJson("{}");
+        defaults.setBehaviorConfigJson("{}");
+        new DeploymentDraftValidationService(objectMapper).validate(defaults).issues().stream()
+            .filter(issue -> "ERROR".equals(issue.severity()))
+            .filter(issue -> "draft".equals(issue.section()) || "prompts".equals(issue.section())
+                || ("providers".equals(issue.section()) && issue.path().startsWith("$.orchestrationModeOverrides")))
+            .findFirst().ifPresent(issue -> {
+                throw invalid(plugin, version, "template runtime defaults " + issue.path() + ": " + issue.message());
+            });
+    }
+
+    private void validateTemplateDefaultsObject(MarketplacePluginEntity plugin,
+                                                MarketplacePluginVersionEntity version,
+                                                JsonNode value,
+                                                Set<String> fields,
+                                                String path) {
+        if (!value.isObject()) {
+            throw invalid(plugin, version, "template " + path + " must be an object.");
+        }
+        rejectUnknownFields(plugin, version, value, fields, "template " + path);
+    }
+
+    private void validateTemplateIntegerShape(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              String field,
+                                              JsonNode value) {
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw invalid(plugin, version, "template " + field + " must be an integer within the runtime range.");
+        }
+    }
+
+    private void validateTemplateBooleanShape(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              String field,
+                                              JsonNode value) {
+        if (!value.isBoolean()) {
+            throw invalid(plugin, version, "template " + field + " must be a boolean.");
         }
     }
 

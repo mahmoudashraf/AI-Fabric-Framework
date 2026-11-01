@@ -319,6 +319,8 @@ class SupportWorkspaceProductTemplateTest {
             assertThat(corrected).isEqualTo(read("manifests/" + file + ".manifest.json"));
         }
         var publicationHistory = java.util.Map.of(
+            "manifests/ai-support-workspace.1.0.1.manifest.json", "PUBLISHED_BEFORE_QUALITY_DEFAULTS",
+            "manifests/loomai-support-workspace.manifest.json", "PUBLISHED_BEFORE_QUALITY_DEFAULTS",
             "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "PUBLISHED_SCALAR_ONLY_DEFAULT_EVIDENCE_RECORDED",
             "manifests/loomai-support-diagnostics.1.0.2.manifest.json", "PUBLISHED_DOUBLE_DATA_ROOT_EVIDENCE_DEFECT_RECORDED",
             "manifests/ai-support-workspace.manifest.json", "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED",
@@ -330,6 +332,27 @@ class SupportWorkspaceProductTemplateTest {
                 publicationHistory.get(history.path("manifest").asText()));
             assertThat(history.path("republish").asBoolean()).isFalse();
         }
+    }
+
+    @Test
+    void newSupportTemplatesCarryTheQualifiedQualityFieldsWithoutGrantingInternalAuthority() throws Exception {
+        JsonNode profile = read("fixtures/balanced-support-quality.json");
+        for (String file : List.of("ai-support-workspace.1.0.2", "loomai-support-workspace.1.0.1")) {
+            JsonNode manifest = read("manifests/" + file + ".manifest.json");
+            var parsed = manifests.parseAndValidate(plugin(manifest), version(manifest));
+            JsonNode template = parsed.manifest().at("/contributions/template");
+            assertThat(template.path("providerConfig")).isEqualTo(profile.path("providerConfig"));
+            assertThat(template.path("promptConfig")).isEqualTo(profile.path("promptConfig"));
+            assertThat(template.path("deploymentBehavior").path("specialistAssistance").path("enabled").asBoolean()).isFalse();
+            assertThat(template.path("security").isMissingNode()).isTrue();
+            assertThat(template.path("promptConfig").has("ragSimilarityThreshold")).isFalse();
+            assertThat(template.path("providerConfig").has("openaiApiKey")).isFalse();
+        }
+        JsonNode generic = read("manifests/ai-support-workspace.1.0.2.manifest.json").at("/contributions/template");
+        assertThat(generic.path("requiredPluginRefs")).hasSize(1);
+        assertThat(generic.path("requiredPluginRefs").get(0).asText()).isEqualTo("mkp-data-ai-support-documents@1.0.0");
+        for (JsonNode area : generic.at("/deploymentBehavior/specialistAssistance/areas"))
+            assertThat(area.path("readActions")).isEmpty();
     }
 
     @Test

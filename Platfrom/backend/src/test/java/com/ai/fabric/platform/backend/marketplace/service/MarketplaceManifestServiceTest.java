@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -17,6 +19,175 @@ class MarketplaceManifestServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
+
+    @Test
+    void templateRuntimeDefaultsUseExistingReadPlanningAndRagBudgetContracts() throws Exception {
+        ObjectNode manifest = runtimeDefaultsManifest();
+        var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+        assertThat(parsed.manifest().at("/contributions/template")).isEqualTo(manifest.at("/contributions/template"));
+
+        ObjectNode read = (ObjectNode) manifest.at(
+            "/contributions/template/providerConfig/orchestrationModeOverrides/executor/readActionResolution");
+        for (String mode : java.util.List.of("OFF", "SINGLE_PASS", "ITERATIVE")) {
+            read.put("planningMode", mode);
+            for (String cooperation : java.util.List.of("NONE", "RAG_IF_ACTIONS_INSUFFICIENT", "PARALLEL_ACTIONS_AND_RAG")) {
+                read.put("ragCooperationMode", cooperation);
+                service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+            }
+        }
+        read.put("maxIterations", 5).put("maxActionEvidenceItems", 100)
+            .put("maxPlannerContextChars", Integer.MAX_VALUE).put("maxActionEvidenceCharsPerAction", Integer.MAX_VALUE);
+        ((ObjectNode) manifest.at("/contributions/template/promptConfig"))
+            .put("ragMaxDocumentsUsedForContext", Integer.MAX_VALUE).put("ragMaxContextChars", Integer.MAX_VALUE);
+        service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+
+        // Partial defaults are valid; they do not require an entire deployment or a complete profile.
+        read.removeAll().put("maxPlannerContextChars", 12000);
+        ((ObjectNode) manifest.at("/contributions/template/promptConfig")).remove("ragMaxContextChars");
+        service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+    }
+
+    @Test
+    void templateRecoveryDefaultsReuseExistingModeAndExplicitFanoutBudgetValidation() throws Exception {
+        ObjectNode manifest = runtimeDefaultsManifest();
+        ObjectNode executor = (ObjectNode) manifest.at("/contributions/template/providerConfig/orchestrationModeOverrides/executor");
+        for (int maxSpaces : java.util.List.of(1, 12)) {
+            ((ObjectNode) executor.path("rag")).put("maxSpaces", maxSpaces);
+            var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+            assertThat(parsed.manifest().at("/contributions/template/providerConfig/orchestrationModeOverrides/executor"))
+                .isEqualTo(executor);
+        }
+        executor.remove("rag");
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .hasMessageContaining("BOUNDED_ALLOWED_FAN_OUT requires explicit");
+        executor.putObject("rag").put("fanoutEnabled", true);
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .hasMessageContaining("BOUNDED_ALLOWED_FAN_OUT requires explicit");
+        ((ObjectNode) executor.path("rag")).put("maxSpaces", 1).put("fanoutEnabled", false);
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .hasMessageContaining("BOUNDED_ALLOWED_FAN_OUT requires explicit");
+
+        ((ObjectNode) executor.path("semanticRecovery")).put("missingVectorSpace", "LLM_REPAIR_THEN_CLARIFY");
+        service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+        executor.removeAll().put("knowledgeBaseOverviewEnabled", false);
+        service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+    }
+
+    @Test
+    void templateRecoveryDefaultsRejectMalformedShapesAndOutOfRangeBudgets() throws Exception {
+        String executor = "/contributions/template/providerConfig/orchestrationModeOverrides/executor";
+        for (String field : java.util.List.of("rag", "semanticRecovery")) {
+            for (String value : java.util.List.of("null", "[]", "true", "1", "\"object\"")) {
+                assertInvalidRuntimeDefault(executor + "/" + field, value);
+            }
+        }
+        for (String pointer : java.util.List.of(executor + "/knowledgeBaseOverviewEnabled", executor + "/rag/fanoutEnabled")) {
+            for (String value : java.util.List.of("null", "[]", "{}", "1", "\"true\"")) {
+                assertInvalidRuntimeDefault(pointer, value);
+            }
+        }
+        for (String value : java.util.List.of("null", "[]", "{}", "true", "\"1\"", "0", "-1", "1.5", "13", "4294967297")) {
+            assertInvalidRuntimeDefault(executor + "/rag/maxSpaces", value);
+        }
+        for (String value : java.util.List.of("null", "[]", "{}", "true", "1", "\"\"", "\" \"", "\"UNKNOWN\"")) {
+            assertInvalidRuntimeDefault(executor + "/semanticRecovery/missingVectorSpace", value);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt", "clarificationPrompt"})
+    void templatePromptTextDefaultIsBoundedAndPreservedExactlyWithoutOtherDefaults(String field) throws Exception {
+        ObjectNode manifest = runtimeDefaultsManifest();
+        ObjectNode template = (ObjectNode) manifest.at("/contributions/template");
+        template.remove("providerConfig");
+        ObjectNode prompts = objectMapper.createObjectNode();
+        template.set("promptConfig", prompts);
+        String guidance = "  Do not ask end users for internal knowledge-domain, vector-space, collection, or source identifiers.\n"
+            + "Resolve through the knowledge catalogue and authorized tools; ask only missing customer-facing details and disclose uncertainty.  ";
+        for (String text : java.util.List.of(guidance, "", " \n ", "x".repeat(12000))) {
+            prompts.put(field, text);
+            var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+            assertThat(parsed.manifest().at("/contributions/template/promptConfig/" + field).textValue())
+                .isEqualTo(text);
+            assertThat(manifest.at("/contributions/template").has("providerConfig")).isFalse();
+        }
+        for (String value : java.util.List.of("null", "true", "1", "[]", "{}")) {
+            assertInvalidRuntimeDefault("/contributions/template/promptConfig/" + field, value);
+        }
+        assertInvalidRuntimeDefault("/contributions/template/promptConfig/" + field,
+            objectMapper.writeValueAsString("x".repeat(12001)));
+    }
+
+    @Test
+    void templateRuntimeDefaultsRejectMalformedShapesAndNonExecutableBudgets() throws Exception {
+        String read = "/contributions/template/providerConfig/orchestrationModeOverrides/executor/readActionResolution";
+        for (String pointer : java.util.List.of(
+                "/contributions/template/promptConfig",
+                "/contributions/template/providerConfig/orchestrationModeOverrides",
+                "/contributions/template/providerConfig/orchestrationModeOverrides/executor", read)) {
+            for (String value : java.util.List.of("null", "[]", "true", "1", "\"not-an-object\"")) {
+                assertInvalidRuntimeDefault(pointer, value);
+            }
+        }
+        for (String pointer : java.util.List.of(read + "/maxIterations", read + "/maxPlannerContextChars",
+                read + "/maxActionEvidenceCharsPerAction", read + "/maxActionEvidenceItems",
+                "/contributions/template/promptConfig/ragMaxDocumentsUsedForContext",
+                "/contributions/template/promptConfig/ragMaxContextChars")) {
+            for (String value : java.util.List.of("null", "0", "-1", "1.5", "\"2\"", "true", "[]", "{}",
+                    "2147483648", "4294967297", "9223372036854775807")) {
+                assertInvalidRuntimeDefault(pointer, value);
+            }
+        }
+        assertInvalidRuntimeDefault(read + "/maxIterations", "6");
+        assertInvalidRuntimeDefault(read + "/maxActionEvidenceItems", "101");
+        for (String field : java.util.List.of("planningMode", "ragCooperationMode")) {
+            for (String value : java.util.List.of("null", "true", "1", "[]", "{}", "\"\"", "\" \"", "\"UNKNOWN\"")) {
+                assertInvalidRuntimeDefault(read + "/" + field, value);
+            }
+        }
+    }
+
+    @Test
+    void templateRuntimeDefaultsCannotIntroduceSecretsSourceAuthorityOrOtherSettings() throws Exception {
+        String provider = "/contributions/template/providerConfig";
+        String executor = provider + "/orchestrationModeOverrides/executor";
+        for (String pointer : java.util.List.of(
+                provider + "/openaiApiKey", provider + "/generationModel", provider + "/secretRefs",
+                provider + "/orchestrationModeOverrides/navigator",
+                executor + "/allowedActions", executor + "/retrievalVectorSpacesAllowlist",
+                executor + "/semanticRecovery/unknownAction", executor + "/rag/retrievalVectorSpacesAllowlist",
+                executor + "/rag/sourceIds", executor + "/rag/similarityThreshold", executor + "/vectorSpaceSelectionRequired",
+                executor + "/readActionResolution/allowedActions",
+                executor + "/readActionResolution/apiKey",
+                "/contributions/template/promptConfig/ragSimilarityThreshold",
+                "/contributions/template/promptConfig/answerGenerationPrompt",
+                "/contributions/template/promptConfig/secretRefs")) {
+            assertInvalidRuntimeDefault(pointer, "{}");
+        }
+    }
+
+    private ObjectNode runtimeDefaultsManifest() throws Exception {
+        return (ObjectNode) objectMapper.readTree("""
+            {"schemaVersion":1,"pluginType":"TEMPLATE",
+             "compatibility":{"requiredCapabilities":["templates"]},"pricing":{"pricingModel":"FREE"},
+             "contributions":{"template":{"templateId":"custom-start-from-scratch",
+              "providerConfig":{"openaiModel":"gpt-5.4-mini","orchestrationModeOverrides":{"executor":{
+               "knowledgeBaseOverviewEnabled":true,"rag":{"fanoutEnabled":true,"maxSpaces":1},
+               "semanticRecovery":{"missingVectorSpace":"BOUNDED_ALLOWED_FAN_OUT"},"readActionResolution":{
+               "planningMode":"ITERATIVE","maxIterations":2,"ragCooperationMode":"RAG_IF_ACTIONS_INSUFFICIENT",
+               "maxPlannerContextChars":12000,"maxActionEvidenceCharsPerAction":8000,"maxActionEvidenceItems":10}}}},
+              "promptConfig":{"ragMaxDocumentsUsedForContext":8,"ragMaxContextChars":8000}}}}
+            """);
+    }
+
+    private void assertInvalidRuntimeDefault(String pointer, String value) throws Exception {
+        ObjectNode manifest = runtimeDefaultsManifest();
+        int separator = pointer.lastIndexOf('/');
+        ((ObjectNode) manifest.at(pointer.substring(0, separator)))
+            .set(pointer.substring(separator + 1), objectMapper.readTree(value));
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .as("%s = %s", pointer, value).isInstanceOf(ResponseStatusException.class);
+    }
 
     @Test
     void templateUsesTheSameSpecialistAssistanceContractWithoutArbitraryResourceLoading() throws Exception {

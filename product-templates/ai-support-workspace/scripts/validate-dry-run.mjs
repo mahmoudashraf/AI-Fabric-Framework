@@ -17,7 +17,8 @@ const requests = catalog.entries.map(entry => ({
   body: { pluginSlug: entry.pluginSlug, releaseChannel: entry.releaseChannel ?? 'EARLY_ACCESS', manifest: read(entry.manifest) },
   usage: entry.usage,
 }));
-const scriptCheck = spawnSync(process.execPath, ['--test', resolve(root, 'scripts/compose-draft.test.mjs'), resolve(root, 'fixtures/service/server.test.mjs')], {
+const scriptCheck = spawnSync(process.execPath, ['--test', resolve(root, 'scripts/compose-draft.test.mjs'),
+  resolve(root, 'scripts/quality-defaults.test.mjs'), resolve(root, 'fixtures/service/server.test.mjs')], {
   encoding: 'utf8', maxBuffer: 1024 * 1024,
 });
 if (scriptCheck.status !== 0) {
@@ -40,6 +41,7 @@ process.stdout.write(JSON.stringify({
   networkApiCalls: 0,
   validatedBy: 'MarketplaceManifestService + ExternalIntegrationPolicy + SpecialistAssistanceCompiler via SupportWorkspaceProductTemplateTest',
   draftCompositionTests: 4,
+  qualityDefaultTests: 4,
   simulatedServiceTests: 2,
   status: catalog.status,
   requests,

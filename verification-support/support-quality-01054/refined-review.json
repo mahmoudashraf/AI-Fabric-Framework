@@ -1,0 +1,21 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "staging",
+  "frameworkVersion": "0.8.43",
+  "releaseId": "rel-7b8c8e5f",
+  "versionId": "ver-8426cead",
+  "turns": [
+    {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 15733, "note": "Both delivery options and public-script credential boundaries explained."},
+    {"scenario": "installation", "index": 1, "verdict": "PASS", "elapsedMs": 13333, "note": "Correctly retains both delivery choices and explains a provided standalone address without customer DNS."},
+    {"scenario": "index-state", "index": 0, "verdict": "PASS", "elapsedMs": 6036, "note": "Reports 13 active indexed sources and verified release; distinguishes readiness and missing live delivery proof."},
+    {"scenario": "index-state", "index": 1, "verdict": "PASS", "elapsedMs": 5085, "note": "Correctly refuses to equate registered index state with an upstream-storage probe."},
+    {"scenario": "index-state", "index": 2, "verdict": "PASS", "elapsedMs": 14330, "note": "Refresh/how-to remains informational and explains new-first replacement without deleting working knowledge."},
+    {"scenario": "compound-investigation", "index": 0, "verdict": "PARTIAL", "elapsedMs": 11984, "note": "Uses real readiness and deployment READs plus approved guidance; no internal-domain stall. Still does not use the available index observations well enough to investigate the older-policy symptom."},
+    {"scenario": "compound-investigation", "index": 1, "verdict": "FAIL", "elapsedMs": 7250, "note": "The READ planner incorrectly resolves second issue to the custom domain instead of older policy. Two untruncated native history messages were present; the diagnostic retrievalQuery is model-authored. No lexical correction or hidden replacement applied."},
+    {"scenario": "consent-and-specialists", "index": 0, "verdict": "PARTIAL", "elapsedMs": 20501, "note": "Approved documentation guidance remains available without consent and no private inspection is claimed. One specialist still reports CHAIN_RESULT_PROJECTION_INVALID; another invocation succeeds. Do not count the failed invocation as fixed."},
+    {"scenario": "consent-and-specialists", "index": 1, "verdict": "PASS", "elapsedMs": 5188, "note": "Correctly separates AI specialists from human handover and explicit return to AI."}
+  ],
+  "summary": {"pass": 6, "partial": 2, "fail": 1, "medianMs": 11984, "p95Ms": 20501},
+  "decision": "MODEST_IMPROVEMENT_PENDING_HANDOVER_AND_PRODUCTION_CHECKS",
+  "limitations": ["Not an all-green benchmark or a guarantee for other customers/providers.", "Original baseline and first-candidate failures retained.", "Remaining follow-up and specialist projection issues need separate investigation, not another framework release in this tuning task.", "No new source approval, secret access, authorization relaxation, vector change or automatic write."]
+}

@@ -75,8 +75,16 @@ class MarketplaceTemplateBootstrapServiceTest {
                 },
                 "providerConfig": {
                   "vectorStrategy": "milvus",
-                  "vectorProvisioningMode": "PLATFORM_MANAGED"
-                }
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "orchestrationModeOverrides":{"executor":{
+                    "knowledgeBaseOverviewEnabled":true,"rag":{"fanoutEnabled":true,"maxSpaces":1},
+                    "semanticRecovery":{"missingVectorSpace":"BOUNDED_ALLOWED_FAN_OUT"}}}
+                },
+                "promptConfig": {"ragMaxDocumentsUsedForContext":8,"ragMaxContextChars":8000,
+                  "systemPrompt":"Informational guidance remains in scope without a write tool.",
+                  "intentExtractionPrompt":"Do not invent parameters for parameterless authorized READs.",
+                  "actionSelectionPrompt":"Simple document guidance does not require private diagnostics.",
+                  "clarificationPrompt":"Ask only missing customer-facing details; disclose uncertainty."}
               }}
             }
             """);
@@ -102,14 +110,22 @@ class MarketplaceTemplateBootstrapServiceTest {
         when(draft.id()).thenReturn("draft");
         when(draft.providerConfig()).thenReturn(mapper.createObjectNode());
         when(draft.securityConfig()).thenReturn(mapper.createObjectNode());
+        when(draft.promptConfig()).thenReturn(mapper.createObjectNode().put("systemPrompt", "Base prompt"));
         when(deployments.getActiveDraftForDeployment("deployment")).thenReturn(draft);
         var providerBaseline = mapper.createObjectNode()
             .put("vectorStrategy", "milvus")
             .put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        providerBaseline.set("orchestrationModeOverrides",
+            manifest.at("/contributions/template/providerConfig/orchestrationModeOverrides").deepCopy());
         when(compiler.compileTemplateProviderBaseline(eq(plugin), eq(version), any()))
             .thenReturn(providerBaseline);
         when(compiler.compileTemplateSecurityBaseline(eq(plugin), eq(version), any()))
             .thenReturn(mapper.createObjectNode());
+        var promptBaseline = mapper.createObjectNode().put("systemPrompt", "Base prompt")
+            .put("ragMaxDocumentsUsedForContext", 8).put("ragMaxContextChars", 8000);
+        manifest.at("/contributions/template/promptConfig").fields()
+            .forEachRemaining(entry -> promptBaseline.set(entry.getKey(), entry.getValue().deepCopy()));
+        when(compiler.compileTemplatePromptBaseline(plugin, version, draft.promptConfig())).thenReturn(promptBaseline);
         DeploymentEntity entity = new DeploymentEntity();
         entity.setId("deployment");
         when(deploymentRepository.findById("deployment")).thenReturn(Optional.of(entity));
@@ -133,7 +149,12 @@ class MarketplaceTemplateBootstrapServiceTest {
         var draftUpdate = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
         verify(deployments).updateDraft(eq("draft"), draftUpdate.capture());
         assertThat(draftUpdate.getValue().providerConfig()).isEqualTo(providerBaseline);
-        verify(compiler).syncDeploymentDraftForTrustedTemplateBootstrap("deployment");
+        assertThat(draftUpdate.getValue().promptConfig()).isEqualTo(promptBaseline);
+        var order = inOrder(deployments, compiler);
+        order.verify(compiler).compileTemplatePromptBaseline(plugin, version, draft.promptConfig());
+        order.verify(deployments).updateDraft(eq("draft"), any());
+        order.verify(compiler).syncDeploymentDraftForTrustedTemplateBootstrap("deployment");
+        order.verify(deployments).captureTemplateDefaultsForTrustedBootstrap("deployment");
     }
 
     @ParameterizedTest

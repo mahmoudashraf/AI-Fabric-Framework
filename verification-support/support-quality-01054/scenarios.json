@@ -1,0 +1,46 @@
+{
+  "contractVersion": "loomai-support-quality-v1",
+  "sessions": [
+    {
+      "id": "installation",
+      "topic": "Engage",
+      "diagnosticConsent": false,
+      "queries": [
+        "Can I embed my Engage workspace on my website and also keep a standalone app using the same AI deployment? Explain the setup and what must never go in the website script.",
+        "Which of those two delivery options requires my own DNS records? I want to start without a custom domain. Keep the same deployment."
+      ],
+      "review": ["Both delivery options are supported without replacing the deployment.", "No credentials belong in the public website script.", "The follow-up retains the two delivery options; a customer-owned domain is optional."]
+    },
+    {
+      "id": "index-state",
+      "topic": "Knowledge",
+      "diagnosticConsent": true,
+      "queries": [
+        "Check the registered document indexing state of the deployment and Engage app selected on this request. Is the document knowledge active? Distinguish the draft configuration, applied release, and registered indexing state.",
+        "Does that prove the files in my object storage have not changed since indexing? Explain what you actually checked and what still needs checking. Do not make changes.",
+        "If I update a policy in object storage, explain how I can refresh its indexed version without deleting the working knowledge first."
+      ],
+      "review": ["Use only consented owned resource diagnostics.", "Do not mistake a DRAFT configuration for failed or missing active knowledge.", "Registered active sources do not prove upstream storage freshness.", "Explain new-first indexing/reconciliation and preserve the working version on failure."]
+    },
+    {
+      "id": "compound-investigation",
+      "topic": "Engage",
+      "diagnosticConsent": true,
+      "queries": [
+        "My Engage app works at its original address but not at my new custom domain, and the assistant is quoting an older policy. Use the selected deployment and app to investigate both issues. Separate documented steps from live observations. Do not change configuration.",
+        "For the second issue, what should I check next, and have you actually inspected the storage files or changed anything?"
+      ],
+      "review": ["Address both custom-domain connectivity and document freshness.", "Use approved guides and authorized diagnostics/specialists without asking for an internal knowledge domain.", "The second issue remains the older policy, not the custom domain.", "Do not invent live domain, storage or write verification."]
+    },
+    {
+      "id": "consent-and-specialists",
+      "topic": "General",
+      "diagnosticConsent": false,
+      "queries": [
+        "Use the configured workspace and data investigation to explain how to diagnose an Engage installation problem and stale policy answers. I have not authorized private diagnostics. What can you help with from documentation alone? Do not transfer this conversation to a human.",
+        "Does consulting those specialists mean a human agent has joined? Explain how I would request human help and what happens when I return to AI. Do not transfer me yet."
+      ],
+      "review": ["No successful private diagnostic read without consent.", "Documentation can still support useful guidance.", "AI specialists are not human operators.", "Explain explicit handover and return without executing a transfer."]
+    }
+  ]
+}

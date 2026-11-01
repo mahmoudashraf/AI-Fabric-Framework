@@ -936,11 +936,35 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         ObjectNode providerRoot = normalizeProviderRoot(existingProviderConfig);
         JsonNode templateProvider = parsed.manifest().path("contributions").path("template").path("providerConfig");
-        if (templateProvider.isObject()) {
-            templateProvider.fields().forEachRemaining(entry ->
-                providerRoot.set(entry.getKey(), entry.getValue().deepCopy()));
-        }
+        mergeTemplateBaselineLeaves(providerRoot, templateProvider);
         return providerRoot;
+    }
+
+    public ObjectNode compileTemplatePromptBaseline(MarketplacePluginEntity plugin,
+                                                    MarketplacePluginVersionEntity version,
+                                                    JsonNode existingPromptConfig) {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
+        if (!"TEMPLATE".equals(parsed.pluginType())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not a template plugin: " + plugin.getId());
+        }
+        ObjectNode promptRoot = ensureObject(existingPromptConfig);
+        mergeTemplateBaselineLeaves(promptRoot,
+            parsed.manifest().path("contributions").path("template").path("promptConfig"));
+        return promptRoot;
+    }
+
+    private void mergeTemplateBaselineLeaves(ObjectNode target, JsonNode defaults) {
+        if (!defaults.isObject()) {
+            return;
+        }
+        defaults.fields().forEachRemaining(entry -> {
+            if (entry.getValue().isObject()) {
+                mergeTemplateBaselineLeaves(ensureObjectNode(target, entry.getKey()), entry.getValue());
+            } else {
+                target.set(entry.getKey(), entry.getValue().deepCopy());
+            }
+        });
     }
 
     /**
