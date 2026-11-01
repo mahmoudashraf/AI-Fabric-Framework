@@ -645,6 +645,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig, behaviorConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(
             runtimeEnv,
+            providerConfig,
             entityConfig,
             knowledgeSourceConfig,
             marketplaceDatasetConfig
@@ -1361,6 +1362,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addRuntimeRetrievalVectorSpaceAllowlistEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                                            JsonNode providerConfig,
                                                             JsonNode entityConfig,
                                                             JsonNode knowledgeSourceConfig,
                                                             JsonNode marketplaceDatasetConfig) {
@@ -1386,6 +1388,14 @@ public class RailwayProvisioningPlanService {
                 addVectorSpace(vectorSpaces, text(httpSource, "vectorSpace"));
                 addVectorSpace(vectorSpaces, text(httpSource, "entityType"));
             }
+        }
+        // Recovery may use only explicitly configured sources, never every registered space.
+        if (vectorSpaces.isEmpty() && providerConfig != null
+            && "BOUNDED_ALLOWED_FAN_OUT".equalsIgnoreCase(text(
+                providerConfig.path("orchestrationModeOverrides").path("executor").path("semanticRecovery"),
+                "missingVectorSpace"
+            ))) {
+            throw new IllegalStateException("BOUNDED_FAN_OUT_REQUIRES_CONFIGURED_RETRIEVAL_SOURCES");
         }
         if (!vectorSpaces.isEmpty()) {
             addOptionalEnv(

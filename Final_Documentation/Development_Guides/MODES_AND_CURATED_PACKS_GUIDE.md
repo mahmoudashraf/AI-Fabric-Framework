@@ -204,6 +204,9 @@ must be an integer from1to12; explicit fan-out recovery also requires
 `fanoutEnabled=true`. These checks bound retrieval execution, not semantic
 confidence. Platform does not accept an arbitrary retrieval allowlist in this
 override object; it derives that authority from the configured sources.
+Provisioning rejects explicit bounded recovery when that generated list is
+empty, rather than allowing a framework default to search every registered
+space. A disabled source does not populate the list.
 
 Keep invalid-source/action/tenant/authentication policies unchanged. An invalid
 or denied source is not equivalent to a missing source and must not silently

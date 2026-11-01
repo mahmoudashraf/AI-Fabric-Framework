@@ -1336,6 +1336,9 @@ class RailwayProvisioningPlanServiceTest {
                     enabled ? "BOUNDED_ALLOWED_FAN_OUT" : "LLM_REPAIR_THEN_CLARIFY");
                 var version = version();
                 version.setProviderConfigJson(providers.toString());
+                version.setKnowledgeSourceConfigJson("""
+                    {"sources":[{"id":"approved-documents","entityType":"document","enabled":true}]}
+                    """);
 
                 var runtimeEnv = envMap(service.buildPlan(deployment(), version).services().runtime().env());
 
@@ -1343,12 +1346,31 @@ class RailwayProvisioningPlanServiceTest {
                     .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_KNOWLEDGE_BASE_OVERVIEW_ENABLED", Boolean.toString(enabled))
                     .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_FANOUT_ENABLED", Boolean.toString(enabled))
                     .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES", Integer.toString(maxSpaces))
+                    .containsEntry("LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST", "document")
                     .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_MISSING_VECTOR_SPACE",
                         enabled ? "BOUNDED_ALLOWED_FAN_OUT" : "LLM_REPAIR_THEN_CLARIFY");
                 assertThat(runtimeEnv.keySet()).noneMatch(key -> key.startsWith("AI_ORCHESTRATION_MODES_")
                     && !key.startsWith("AI_ORCHESTRATION_MODES_EXECUTOR_"));
             }
         }
+    }
+
+    @Test
+    void buildPlanRejectsBoundedRecoveryWithoutConfiguredRetrievalSources() {
+        var version = version();
+        version.setProviderConfigJson("""
+            {"llmProvider":"openai","embeddingProvider":"openai","orchestrationModeOverrides":{"executor":{
+              "rag":{"fanoutEnabled":true,"maxSpaces":2},
+              "semanticRecovery":{"missingVectorSpace":"BOUNDED_ALLOWED_FAN_OUT"}
+            }}}
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"id":"disabled-documents","entityType":"document","enabled":false}]}
+            """);
+
+        assertThatThrownBy(() -> executorOverridePlanService().buildPlan(deployment(), version))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("BOUNDED_FAN_OUT_REQUIRES_CONFIGURED_RETRIEVAL_SOURCES");
     }
 
     @Test
