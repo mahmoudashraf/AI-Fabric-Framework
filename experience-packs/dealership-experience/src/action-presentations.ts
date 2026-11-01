@@ -67,9 +67,17 @@ const VEHICLE_FIELDS = [
   'summary',
   'features',
   'imagePath',
+  'imageUrl',
   'sourceLabel',
   'sourceUpdatedAt',
   'sourceVersion',
+]
+const STOCK_VEHICLE_FIELDS = [
+  ...VEHICLE_FIELDS,
+  'year',
+  'availability',
+  'advertStatus',
+  'imageId',
 ]
 
 export function registerDealershipActionPresentationElements() {
@@ -135,23 +143,7 @@ export function dealershipActionPresentationConfig(
             {
               sourcePath: 'results',
               target: 'items',
-              includeFields: [
-                'stockId',
-                'make',
-                'model',
-                'derivative',
-                'year',
-                'priceGbp',
-                'mileage',
-                'fuelType',
-                'transmission',
-                'bodyType',
-                'availability',
-                'advertStatus',
-                'features',
-                'imageId',
-                'imageUrl',
-              ],
+              includeFields: STOCK_VEHICLE_FIELDS,
               maxItems: 12,
               reference: {
                 lookupField: 'stockId',
@@ -173,23 +165,7 @@ export function dealershipActionPresentationConfig(
             {
               sourcePath: 'vehicleRecord',
               target: 'vehicle',
-              includeFields: [
-                'stockId',
-                'make',
-                'model',
-                'derivative',
-                'year',
-                'priceGbp',
-                'mileage',
-                'fuelType',
-                'transmission',
-                'bodyType',
-                'availability',
-                'advertStatus',
-                'features',
-                'imageId',
-                'imageUrl',
-              ],
+              includeFields: STOCK_VEHICLE_FIELDS,
               reference: {
                 lookupField: 'stockId',
                 labelFields: ['year', 'make', 'model'],
@@ -214,7 +190,7 @@ export function dealershipActionPresentationConfig(
             {
               sourcePath: '_items',
               target: 'vehicles',
-              includeFields: VEHICLE_FIELDS,
+              includeFields: STOCK_VEHICLE_FIELDS,
               maxItems: 4,
               reference: {
                 lookupField: 'stockId',
@@ -284,7 +260,8 @@ function presentationRendererContext(
   config: DealershipPresentationConfig,
 ): Record<string, string | number | boolean> {
   return {
-    detailBasePath: config.detailBasePath || '/vehicles/',
+    detailNavigation: config.detailNavigation ?? (config.detailBasePath ? 'website' : 'query'),
+    detailBasePath: config.detailBasePath || '',
     imageHostAllowlist: (config.imageHostAllowlist || []).join(','),
     imageFallbacks: JSON.stringify(config.imageFallbacks || {}),
     detailSlugs: JSON.stringify(config.detailSlugs || {}),
@@ -360,17 +337,40 @@ abstract class DealershipPresentationElement extends DealershipHTMLElement {
     else this.commandApi.attachResult(reference.key)
   }
 
-  protected openDetail(vehicle: SafeRecord) {
-    const slug = textValue(vehicle.slug)
-      || configuredMapValue(this.input?.context.detailSlugs, textValue(vehicle.stockId))
-    const basePath = textValue(this.input?.context.detailBasePath) || '/demos/dealership-ai/vehicles/'
-    if (!slug || !this.commandApi) return
-    this.commandApi.navigate({ url: `${basePath}${encodeURIComponent(slug)}` })
+  protected detailButton(vehicle: SafeRecord, reference?: PresentationReference) {
+    const button = createButton('View details', 'secondary')
+    if (this.input?.context.detailNavigation === 'website') {
+      const url = vehicleDetailUrl(vehicle, this.input.context)
+      button.disabled = !url
+      button.title = url ? 'Open the vehicle page' : 'No approved vehicle page is configured for this result.'
+      button.addEventListener('click', () => {
+        if (url) this.commandApi?.navigate({ url })
+      })
+      return button
+    }
+
+    // A display label alone cannot bind a detail request to an action result.
+    const stockId = textValue(vehicle.stockId)
+    const boundReference = reference && stockId && reference.lookupValue === stockId
+      && reference.sourceMessageId && reference.sourceActionName ? reference : undefined
+    button.disabled = !boundReference
+    button.title = boundReference
+      ? 'Ask the assistant for current details of this selected vehicle'
+      : 'This result has no vehicle reference. Search current stock again.'
+    button.addEventListener('click', () => {
+      if (boundReference) {
+        this.ask(`Load the current live stock record for ${boundReference.label}, then summarize its dealership facts.`, [boundReference.key])
+      }
+    })
+    return button
   }
 
   protected showStatus(message: string) {
     const status = this.root.querySelector<HTMLElement>('[data-presentation-status]')
-    if (status) status.textContent = message
+    if (status) {
+      status.textContent = message
+      status.className = message ? 'presentation-status' : 'sr-only'
+    }
   }
 
   private renderSafely() {
@@ -494,20 +494,17 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
 
     const actions = document.createElement('div')
     actions.className = 'card-actions'
-    const details = createButton('View details', 'secondary')
-    details.disabled = !(
-      textValue(vehicle.slug)
-      || configuredMapValue(this.input?.context.detailSlugs, textValue(vehicle.stockId))
-    )
-    details.addEventListener('click', () => this.openDetail(vehicle))
-    actions.append(details)
+    actions.append(this.detailButton(vehicle, reference))
     if (reference) {
-      const ask = createButton('Ask about this', 'secondary')
-      ask.addEventListener('click', () => this.ask(`Load the current live stock record for ${reference.label}, then summarize its dealership facts.`, [reference.key]))
       const attach = createButton(this.isAttached(reference.key) ? 'Remove context' : 'Keep in context', 'quiet')
       attach.setAttribute('aria-pressed', String(this.isAttached(reference.key)))
       attach.addEventListener('click', () => this.toggleAttachment(reference))
-      actions.append(ask, attach)
+      if (this.input?.context.detailNavigation === 'website') {
+        const ask = createButton('Ask about this', 'secondary')
+        ask.addEventListener('click', () => this.ask(`Load the current live stock record for ${reference.label}, then summarize its dealership facts.`, [reference.key]))
+        actions.append(ask)
+      }
+      actions.append(attach)
       if (this.capability('testDriveEnabled')) {
         const testDrive = createButton('Request test drive', 'primary')
         testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
@@ -713,8 +710,7 @@ class DealershipVehicleComparisonPresentation extends DealershipPresentationElem
       const choose = createButton(this.isAttached(reference.key) ? 'Selected' : 'Select vehicle', this.isAttached(reference.key) ? 'primary' : 'secondary')
       choose.setAttribute('aria-pressed', String(this.isAttached(reference.key)))
       choose.addEventListener('click', () => this.toggleAttachment(reference))
-      const details = createButton('View', 'quiet')
-      details.addEventListener('click', () => this.openDetail(vehicle))
+      const details = this.detailButton(vehicle, reference)
       group.append(label, choose, details)
       selection.append(group)
     }
@@ -985,6 +981,21 @@ function configuredMapValue(value: unknown, key: string) {
   }
 }
 
+function vehicleDetailUrl(vehicle: SafeRecord, context: Readonly<Record<string, string | number | boolean>>) {
+  const slug = configuredMapValue(context.detailSlugs, textValue(vehicle.stockId)) || textValue(vehicle.slug)
+  const basePath = textValue(context.detailBasePath)
+  if (!basePath || !slug || slug === '.' || slug === '..' || typeof window === 'undefined') return ''
+  try {
+    const url = new URL(basePath, window.location.href)
+    if (url.origin !== window.location.origin || !['http:', 'https:'].includes(url.protocol)
+      || url.username || url.password || url.search || url.hash) return ''
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/${encodeURIComponent(slug)}`
+    return url.toString()
+  } catch {
+    return ''
+  }
+}
+
 function safeSameOriginAssetUrl(value: string) {
   if (!value || typeof window === 'undefined') return ''
   try {
@@ -1123,6 +1134,7 @@ function createStyles() {
     .empty-state { margin: 16px; border: 1px dashed #aabdb8; border-radius: 8px; background: #fff; padding: 24px; text-align: center; }
     .empty-state strong { display: block; margin-bottom: 5px; }
     .empty-state p { margin: 0; color: #60736f; font-size: 13px; }
+    .presentation-status { margin: 0; padding: 12px 16px; border-bottom: 1px solid #dbe6e3; color: #81520d; background: #fff5e4; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     @media (max-width: 680px) {
       .workspace-header { align-items: flex-start; flex-direction: column; gap: 8px; padding: 15px; }

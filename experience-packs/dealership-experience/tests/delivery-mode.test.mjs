@@ -28,6 +28,7 @@ test('standalone delivery opens the full workspace and preserves host capabiliti
   assert.equal(fixture.config().host.companionDock, false)
   assert.equal(fixture.config().host.showCloseButton, false)
   assert.deepEqual(fixture.config().host.authentication, { enabled: true })
+  assert.equal(fixture.config().host.actionPresentation.mappings[0].rendererContext.detailNavigation, 'query')
   controller.destroy()
 })
 
@@ -40,6 +41,29 @@ test('embedded delivery retains docked behavior without forcing the workspace op
   assert.equal(fixture.config().host.companionDock, true)
   assert.equal(fixture.config().host.showCloseButton, true)
   controller.destroy()
+})
+
+test('standalone detail queries do not inherit a host website base path', async () => {
+  const fixture = createFixture('standalone', false)
+  fixture.context.configuration.presentation = {
+    detailBasePath: '/vehicles/', detailSlugs: { 'STOCK-1': 'example-car' },
+  }
+  const controller = await mountInstallation(fixture.context)
+  assert.equal(fixture.config().host.actionPresentation.mappings[0].rendererContext.detailNavigation, 'query')
+  controller.destroy()
+})
+
+test('an explicit website detail configuration is preserved for either delivery mode', async () => {
+  for (const deliveryMode of ['embedded', 'standalone']) {
+    const fixture = createFixture(deliveryMode, true)
+    fixture.context.configuration.presentation = {
+      detailNavigation: 'website', detailBasePath: '/vehicles/',
+      detailSlugs: { 'STOCK-1': 'example-car' },
+    }
+    const controller = await mountInstallation(fixture.context)
+    assert.equal(fixture.config().host.actionPresentation.mappings[0].rendererContext.detailNavigation, 'website')
+    controller.destroy()
+  }
 })
 
 function createFixture(deliveryMode, showCloseButton) {

@@ -46,3 +46,13 @@ deployment or connector must resolve protected targets before execution.
 
 The generic widget remains unaware of vehicles, dealerships, provider payloads,
 and dealership action names.
+
+## Verification
+
+Run `npm run typecheck` and `npm test`. The focused browser tests use the
+repository's existing `Platfrom/ui` Playwright installation and Chromium, as do
+the generic experience-pack tests. They exercise real widget projections and
+custom elements against local fixtures only, without provider queries or
+business writes. Set `DEALERSHIP_PRESENTATION_EVIDENCE_DIR` to save the desktop
+and narrow-screen screenshots. Hosted installation, model answer quality and
+the generic source/context panel require separate integration verification.

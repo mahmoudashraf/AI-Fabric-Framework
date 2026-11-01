@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
 
 import type { Document } from "@/types";
 import { formatFieldName } from "@/utils";
+import { sourceContentPreview } from "@/sourcePresentation";
 
 const getDocumentIcon = (type: string) => {
   switch (type.toLowerCase()) {
@@ -178,7 +179,7 @@ export function DocumentsView({
                           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                       }}
                     >
-                      {doc.content}
+                      {sourceContentPreview(doc.content)}
                     </p>
                     {(doc.similarity || doc.score) && (
                       <div className="mt-3">

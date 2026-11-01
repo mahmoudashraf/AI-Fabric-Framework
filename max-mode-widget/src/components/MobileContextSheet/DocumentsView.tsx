@@ -6,6 +6,7 @@ import { Button } from "@/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
 
 import type { Document } from "@/types";
+import { sourceContentPreview } from "@/sourcePresentation";
 
 const getDocumentIcon = (type: string) => {
   switch (type.toLowerCase()) {
@@ -118,7 +119,7 @@ export function DocumentsView({
                 </div>
               </CardHeader>
               <CardContent className="px-3 pb-3">
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{doc.content}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{sourceContentPreview(doc.content)}</p>
               </CardContent>
             </Card>
           </motion.div>

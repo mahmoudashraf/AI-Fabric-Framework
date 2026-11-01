@@ -5,6 +5,7 @@ import { Button } from "@/ui/button";
 
 import type { Document } from "@/types";
 import { formatFieldName, formatFieldValue } from "@/utils";
+import { SourceEvidenceContent } from "../SourceEvidenceContent";
 
 function documentImageUrl(doc: Document) {
   return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
@@ -48,7 +49,7 @@ export function ProductDetailsView({
         </div>
 
         <div className="p-4 bg-white/60 rounded-xl border-2 border-purple-200">
-          <p className="text-sm text-gray-700 leading-relaxed">{selectedProduct.content}</p>
+          <SourceEvidenceContent content={selectedProduct.content} />
         </div>
 
         {selectedProduct.metadata && (

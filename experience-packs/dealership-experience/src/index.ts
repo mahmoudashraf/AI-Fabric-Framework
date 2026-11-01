@@ -71,7 +71,11 @@ export async function mountInstallation(
         defaultConversationMode: 'executor',
         effectiveConversationMode: 'executor',
         allowedConversationModes: ['executor'],
-        actionPresentation: dealershipActionPresentationConfig({ ...config.presentation, capabilities }),
+        actionPresentation: dealershipActionPresentationConfig({
+          ...config.presentation,
+          detailNavigation: config.presentation?.detailNavigation ?? (standalone ? 'query' : undefined),
+          capabilities,
+        }),
         showUtilityPanel: false,
         companionDock: !standalone,
         currentPageAttachment: {

@@ -42,6 +42,8 @@ import {
 import type { ChatMessage, CustomerAccountConnectAction, Document } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
+import { SourceEvidenceContent } from "../SourceEvidenceContent";
+import { sourceContentPreview } from "@/sourcePresentation";
 
 export type AiStyles = {
   icon: LucideIcon;
@@ -397,7 +399,7 @@ export function MessageBubble({
                               )}
                             </div>
                             <p className="text-xs text-gray-700 dark:text-gray-300 line-clamp-2 leading-relaxed">
-                              {doc.content}
+                              {sourceContentPreview(doc.content)}
                             </p>
                           </div>
                           <div className="flex-shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity bg-purple-100 dark:bg-purple-900/40">
@@ -929,9 +931,7 @@ export function MessageBubble({
                       Content
                     </h3>
                     <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                        {selectedDocument.content}
-                      </p>
+                      <SourceEvidenceContent content={selectedDocument.content} />
                     </div>
                   </div>
 

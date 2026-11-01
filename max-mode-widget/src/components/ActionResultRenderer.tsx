@@ -131,7 +131,7 @@ const visibleRecordEntries = (record: ResultRecord) =>
     .filter(([key, value]) => value !== undefined && !SENSITIVE_FIELD_PATTERN.test(key))
     .slice(0, MAX_GENERIC_FIELDS);
 
-function StructuredResultValue({ value, depth = 0 }: { value: unknown; depth?: number }): ReactNode {
+export function StructuredResultValue({ value, depth = 0 }: { value: unknown; depth?: number }): ReactNode {
   if (Array.isArray(value)) {
     const visible = value.slice(0, MAX_GENERIC_ARRAY_ITEMS);
     if (visible.length === 0) return <span className="text-muted-foreground">None</span>;

@@ -91,6 +91,7 @@ is:
     "callback": true
   },
   "presentation": {
+    "detailNavigation": "website",
     "detailBasePath": "/vehicles/",
     "imageHostAllowlist": ["images.dealer.example"],
     "detailSlugs": {
@@ -113,8 +114,21 @@ source IDs, provider handles, or other retrieval-routing directives.
 
 `detailSlugs` is the host-owned mapping from a provider's stable stock ID to a
 website page slug. Use it when provider records intentionally do not contain
-website routing fields. The experience pack keeps `View details` disabled for
-an unmapped record instead of guessing a route.
+website routing fields. With `detailNavigation: "website"`, `View details`
+requires an explicit same-origin `detailBasePath` and a mapped or supplied
+slug. An unmapped record remains disabled; no route is guessed. The host map
+takes precedence over a provider slug.
+
+Standalone delivery defaults to `detailNavigation: "query"`, even if the same
+configuration also contains website routes. Embedded delivery without a
+website base path also defaults to query navigation. Clicking `View details`
+asks the assigned deployment to load current vehicle facts using that result's
+bound reference, just like the existing `Ask about this` command. No request is
+sent on render, hover or selection; no action name, knowledge-source routing or
+trusted ID is forced by the pack. The deployment still resolves and authorizes
+the target, and its configured detail action produces the rich detail result.
+Missing or mismatched stock references disable the command with an explanation.
+An explicit `detailNavigation` choice overrides either delivery default.
 
 The configuration is public. It must not contain credentials, arbitrary script
 URLs, request headers, private customer data, private runtime routes, or hidden
@@ -139,6 +153,12 @@ and does not render the Max Mode tool panel.
 The pack also registers safe presentations for inventory results, vehicle
 details, comparison results, and confirmed dealership request receipts. An
 unknown result falls back to the generic action renderer.
+
+Vehicle projections retain only declared public presentation fields. Optional
+location, summary and specifications are displayed when supplied, not invented
+when a provider omits them. These action renderers do not control the generic
+widget's source/context panel: raw source-document summaries there require a
+separate generic source-presentation contract, not pack-specific DOM rewriting.
 
 ## 6. Optional Host Methods
 

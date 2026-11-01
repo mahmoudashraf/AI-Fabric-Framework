@@ -79,6 +79,8 @@ export interface DealershipActionNames {
 export interface DealershipPresentationConfig {
   actionNames?: Partial<DealershipActionNames>
   capabilities?: DealershipCapabilities
+  /** Query the assigned deployment, or navigate to an explicitly configured host page. */
+  detailNavigation?: 'query' | 'website'
   detailBasePath?: string
   imageHostAllowlist?: string[]
   imageFallbacks?: Record<string, string>
