@@ -11756,3 +11756,36 @@ test is being called hosted acceptance. UI extraction remains last.
   receipts/private fixture credentials: ~/.codex/private/loomai-support-01054/
   account-recovery-20261031/; screenshots output/account-recovery-20261031/.
   Bounded backend agent closed; unrelated worktree changes preserved.
+
+### 2026-11-01 Support Access Correction And Northfield Cleanup Live
+
+- Personal owner completed mailbox recovery; existing ACTIVE customer membership
+  and Supabase link are working. Reproduced SUPPORT_ACCESS_DENIED in that user's
+  actual signed-in browser: resource picker offered an archived owned deployment,
+  server correctly rejected intake before persistence, then UI incorrectly locked
+  the rejected body/key. No account/tenant boundary was relaxed to fix this.
+- Both backend/Console pairs are native healthy on
+  3e16159f0250860cf93329b928975c1e5018640c; core CI41257752066 passed. Desk,
+  runtime23eaf650c, framework0.8.41 and support deployment configuration unchanged.
+  Support choices use existing scoped non-archived overviews, excluding archived
+  cleanup-pending items and apps bound to them. Customer portfolio hides archived
+  records after ownership checks. Staff archive/history and restore remain.
+- Definitive intake rejections retain editable fields; a later submit gets a new
+  key. Transport/server uncertainty retains the original body/key even if a later
+  retry is403; no automatic retry or silent replacement case. Focused22backend
+  tests,18synthetic UI scenario groups, TypeScript/build passed. Native staging
+  two-turn form/persistence/resolution journey passed on the deployed images.
+- Owner's actual production UI request SUP-4E1483AC-F55 selected the current
+  deployment, saved and received grounded Engage integration guidance. Only that
+  verification request was resolved; original SUP-BF98B2F6-2BC stays OPEN and
+  unchanged. No personal password/token was copied; browser remains signed in.
+- Audited API cleanup archived7unused Northfield quality deployments and disabled
+  their1draft app. Ownership, active bindings, open support references and release
+  states checked first. All3ACTIVE app assignments remain identical. This was
+  recoverable record cleanup, NOT deletion of databases/indexes/history/services.
+  Final native customer list: dep-3c4dbe4f ACTIVE; dep-9b2c52c1 DRAFT, intentionally
+  kept because the owner's original OPEN support request selects it.
+- Screenshot proof: output/support-access-cleanup-20261101/. Private cleanup
+  receipt: /private/tmp/loomai-northfield-cleanup-20261101.private.json. Exact
+  Coolify jobs and regression evidence are in010.54 execution record. Unrelated
+  dirty worktree files preserved; no required verification sessions left running.

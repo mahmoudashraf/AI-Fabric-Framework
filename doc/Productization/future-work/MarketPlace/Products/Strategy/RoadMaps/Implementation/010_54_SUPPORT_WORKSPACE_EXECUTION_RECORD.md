@@ -29,9 +29,38 @@ Each phase requires focused tests and its actual integration evidence. No phase 
   A transport/server-uncertain create retains its immutable body/key, even if a
   later retry is rejected. No automatic retry, case migration, scope relaxation,
   framework change or new service/database is introduced.
-- Source implementation and focused qualification are in progress. Native
-  staging/production rollout, corrected personal-account intake and recoverable
-  cleanup of unused quality canaries remain pending at this checkpoint.
+- Source `3e16159f0250860cf93329b928975c1e5018640c` is deployed and native healthy
+  for backend and Console in both environments. Exact-source core image CI
+  `41257752066` passed. Coolify jobs: staging UI `f141mm4sk83k0zv178hugmve`,
+  staging backend `aydzsaaxt2ximmm0dthq88wx`, production backend
+  `m66hyf40u3jta79ao5jl7ndc`, production UI `u1288mxac3wrkide91or27im`.
+- Qualification: 22 focused backend tests passed, including archive/restore
+  visibility, ownership mismatch rejection, archived-resource rejection before
+  persistence, requester/consent boundaries and idempotency. Eighteen real-UI
+  synthetic browser scenario groups passed, including editable definitive
+  rejection and uncertain-create/403/same-key recovery. TypeScript and production
+  build passed. Sandbox loopback/Mockito attachment restrictions required normal
+  escalated test execution; no product/test assertions were bypassed.
+- Native staging customer create/start, two grounded answers, navigation/draft
+  persistence, request history and resolution passed on the deployed source
+  (`SUP-35B5D59C-AFE`, resolved). In the owner's actual production browser,
+  selected the current deployment and submitted a new documentation request:
+  `SUP-4E1483AC-F55` saved, answered with approved Engage guidance and was then
+  resolved. Original `SUP-BF98B2F6-2BC` and its resources/consent remain unchanged.
+  No personal credential was copied or administrator impersonation performed.
+- Recoverable production-account cleanup completed through audited normal APIs:
+  archived seven unused quality canaries (`dep-011d7f62`, `dep-2669b119`,
+  `dep-855ca27b`, `dep-59b4d5ef`, `dep-5fff634a`, `dep-61abaf50`,
+  `dep-873c9746`) and disabled their single draft Engage app. Preflight checked
+  customer ownership, all active app bindings, verified/in-progress releases and
+  resources selected in open support cases. All three ACTIVE app assignment
+  tuples are unchanged. No database, index, source file, runtime service or
+  deployment history was deleted; archiving is not infrastructure teardown.
+- Native final customer list contains only serving `dep-3c4dbe4f` and draft
+  `dep-9b2c52c1`. The latter is intentionally retained because the original OPEN
+  support case selects it. Existing archived records no longer crowd normal
+  customer lists. Screenshot evidence: `output/support-access-cleanup-20261101/`;
+  private operation receipt: `/private/tmp/loomai-northfield-cleanup-20261101.private.json`.
 
 ### 2026-10-31 Chat-First Console Support Redesign
 
