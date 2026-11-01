@@ -1,4 +1,24 @@
-# Booking-Information Experiments
+# Deployment Prompt Experiments
+
+## Internal Source Selection, 1 November 2026
+
+`internal-source-selection.txt` is a domain-neutral guidance candidate for the
+current dealership's ordinary `intentExtractionPrompt` slot. It directs the
+model to resolve technical knowledge-source choices internally and clarify
+only genuinely missing business details. It contains no phrase-based runtime
+router, automatic query rewrite, source-authority override or response filter.
+
+It is being qualified alongside explicitly configured bounded missing-source
+recovery, not as a prompt-only guarantee. The framework itself can produce a
+technical-domain clarification after READ planning promotes a request to RAG;
+guidance in a generation prompt cannot suppress that earlier terminal result.
+See the [dated correction record](../../paul-rigby-first-client/2026-11-01-domain-routing-correction.md)
+for actual configuration, test and rollout status before using it elsewhere.
+The staged candidate removed the technical-domain question in two fresh
+four-question runs but did not recover useful contextual answers. It is not a
+qualified production fix; production's runtime assignment remains unchanged.
+
+## Historical Booking-Information Experiments
 
 These are rejected, authoring-time experiments, not recommended deployment
 defaults or installed production fixes. The original qualified prompt is
