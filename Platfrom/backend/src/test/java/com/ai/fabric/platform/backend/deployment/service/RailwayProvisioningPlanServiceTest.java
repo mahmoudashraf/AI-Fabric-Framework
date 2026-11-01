@@ -1256,6 +1256,9 @@ class RailwayProvisioningPlanServiceTest {
                   "readActionResolution": {
                     "planningMode": "ITERATIVE",
                     "maxIterations": 2,
+                    "maxPlannerContextChars": 12000,
+                    "maxActionEvidenceCharsPerAction": 8000,
+                    "maxActionEvidenceItems": 10,
                     "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
                   },
                   "semanticRecovery": {
@@ -1289,6 +1292,18 @@ class RailwayProvisioningPlanServiceTest {
                 "2"
             )
             .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS",
+                "12000"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION",
+                "8000"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS",
+                "10"
+            )
+            .containsEntry(
                 "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
                 "RAG_IF_ACTIONS_INSUFFICIENT"
             )
@@ -1320,6 +1335,109 @@ class RailwayProvisioningPlanServiceTest {
                 "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_ADVANCED_NO_EVIDENCE",
                 "RETURN_NO_EVIDENCE"
             );
+    }
+
+    @Test
+    void buildPlanCompilesOnlyExplicitExecutorReadEvidenceBudgets() {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        var baselinePlan = service.buildPlan(deployment(), version());
+        var baselineRuntime = envMap(baselinePlan.services().runtime().env());
+        var baselineConnector = envMap(baselinePlan.services().restConnector().env());
+        for (int[] budgets : java.util.List.of(new int[] {12000, 8000, 10},
+            new int[] {1, 1, 1}, new int[] {Integer.MAX_VALUE, Integer.MAX_VALUE, 100})) {
+            var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+            providers.putObject("orchestrationModeOverrides").putObject("executor").putObject("readActionResolution")
+                .put("maxPlannerContextChars", budgets[0])
+                .put("maxActionEvidenceCharsPerAction", budgets[1])
+                .put("maxActionEvidenceItems", budgets[2]);
+            var version = version();
+            version.setProviderConfigJson(providers.toString());
+
+            var plan = service.buildPlan(deployment(), version);
+            var expectedRuntime = new java.util.LinkedHashMap<>(baselineRuntime);
+            expectedRuntime.put("AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS",
+                Integer.toString(budgets[0]));
+            expectedRuntime.put("AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION",
+                Integer.toString(budgets[1]));
+            expectedRuntime.put("AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS",
+                Integer.toString(budgets[2]));
+
+            assertThat(envMap(plan.services().runtime().env())).isEqualTo(expectedRuntime);
+            assertThat(envMap(plan.services().restConnector().env())).isEqualTo(baselineConnector);
+        }
+    }
+
+    @Test
+    void buildPlanLeavesAbsentExecutorReadEvidenceBudgetsUnchanged() throws Exception {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        var baseline = envMap(service.buildPlan(deployment(), version()).services().runtime().env());
+        assertThat(baseline).doesNotContainKeys(
+            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS",
+            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION",
+            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS"
+        );
+        for (String executorJson : java.util.List.of(
+            "{}", "{\"readActionResolution\":null}", "{\"readActionResolution\":{}}",
+            "{\"readActionResolution\":{\"maxPlannerContextChars\":null,\"maxActionEvidenceCharsPerAction\":null,\"maxActionEvidenceItems\":null}}"
+        )) {
+            var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+            providers.putObject("orchestrationModeOverrides").set("executor", mapper.readTree(executorJson));
+            var version = version();
+            version.setProviderConfigJson(providers.toString());
+
+            assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env()))
+                .as("executor=%s", executorJson).isEqualTo(baseline);
+        }
+    }
+
+    @Test
+    void buildPlanDoesNotCoerceInvalidExecutorReadEvidenceBudgets() throws Exception {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        var baseline = envMap(service.buildPlan(deployment(), version()).services().runtime().env());
+        for (String field : java.util.List.of("maxPlannerContextChars", "maxActionEvidenceCharsPerAction", "maxActionEvidenceItems")) {
+            var invalidValues = new java.util.ArrayList<>(java.util.List.of(
+                "0", "-1", "1.0", "1.5", "\"10\"", "true", "[]", "{}",
+                "2147483648", "4294967297", "9223372036854775808"
+            ));
+            if (field.equals("maxActionEvidenceItems")) {
+                invalidValues.add("101");
+            }
+            for (String valueJson : invalidValues) {
+                var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+                providers.putObject("orchestrationModeOverrides").putObject("executor")
+                    .putObject("readActionResolution").set(field, mapper.readTree(valueJson));
+                var version = version();
+                version.setProviderConfigJson(providers.toString());
+
+                assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env()))
+                    .as("%s=%s", field, valueJson).isEqualTo(baseline);
+            }
+        }
+    }
+
+    @Test
+    void buildPlanIsolatesReadEvidenceBudgetsFromUnrelatedModesAndAuthority() {
+        var service = executorOverridePlanService();
+        var baseline = envMap(service.buildPlan(deployment(), version()).services().runtime().env());
+        var version = version();
+        version.setProviderConfigJson("""
+            {"llmProvider":"openai","embeddingProvider":"openai","orchestrationModeOverrides":{
+              "navigator_deep":{"readActionResolution":{
+                "maxPlannerContextChars":24000,"maxActionEvidenceCharsPerAction":16000,"maxActionEvidenceItems":20
+              }},
+              "executor":{"readActionResolution":{
+                "maxPlannerContextChars":12000,"allowedReadActions":["unapproved"],"requireAllowlist":false,
+                "requireGroundingEligible":false,"rawEnvironment":{"AI_ORCHESTRATION_MODES_THINKER_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS":"20"}
+              }}
+            }}
+            """);
+        var expected = new java.util.LinkedHashMap<>(baseline);
+        expected.put("AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS", "12000");
+
+        assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env())).isEqualTo(expected);
     }
 
     @Test

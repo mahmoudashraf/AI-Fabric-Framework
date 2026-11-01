@@ -1331,6 +1331,12 @@ public class RailwayProvisioningPlanService {
                     Integer.toString(maxIterations.asInt())
                 ));
             }
+            addReadActionResolutionBudgetEnv(runtimeEnv, readAction, "maxPlannerContextChars",
+                "MAX_PLANNER_CONTEXT_CHARS", Integer.MAX_VALUE);
+            addReadActionResolutionBudgetEnv(runtimeEnv, readAction, "maxActionEvidenceCharsPerAction",
+                "MAX_ACTION_EVIDENCE_CHARS_PER_ACTION", Integer.MAX_VALUE);
+            addReadActionResolutionBudgetEnv(runtimeEnv, readAction, "maxActionEvidenceItems",
+                "MAX_ACTION_EVIDENCE_ITEMS", 100);
             addOptionalEnv(
                 runtimeEnv,
                 "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
@@ -1347,6 +1353,21 @@ public class RailwayProvisioningPlanService {
             addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "unknownAction", "UNKNOWN_ACTION");
             addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "actionDomainMismatch", "ACTION_DOMAIN_MISMATCH");
             addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "advancedNoEvidence", "ADVANCED_NO_EVIDENCE");
+        }
+    }
+
+    private void addReadActionResolutionBudgetEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                                  JsonNode readAction,
+                                                  String field,
+                                                  String envSuffix,
+                                                  int maximum) {
+        JsonNode value = readAction.path(field);
+        if (value.isIntegralNumber() && value.canConvertToInt()
+            && value.intValue() >= 1 && value.intValue() <= maximum) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_" + envSuffix,
+                Integer.toString(value.intValue())
+            ));
         }
     }
 

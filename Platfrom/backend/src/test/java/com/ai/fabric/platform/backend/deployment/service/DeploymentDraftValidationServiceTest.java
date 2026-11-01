@@ -2547,6 +2547,9 @@ class DeploymentDraftValidationServiceTest {
                       "readActionResolution": {
                         "planningMode": "ITERATIVE",
                         "maxIterations": 2,
+                        "maxPlannerContextChars": 12000,
+                        "maxActionEvidenceCharsPerAction": 8000,
+                        "maxActionEvidenceItems": 10,
                         "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
                       },
                       "semanticRecovery": {
@@ -2579,11 +2582,117 @@ class DeploymentDraftValidationServiceTest {
                 "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                 "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
                 "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
+                "READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS_INVALID",
+                "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION_INVALID",
+                "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS_INVALID",
                 "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID",
                 "SEMANTIC_RECOVERY_OVERRIDE_OBJECT_REQUIRED",
                 "SEMANTIC_RECOVERY_OVERRIDE_FIELD_UNSUPPORTED",
                 "SEMANTIC_RECOVERY_POLICY_INVALID"
             );
+    }
+
+    @Test
+    void validateAcceptsExecutorReadEvidenceBudgetBoundaries() {
+        var mapper = new ObjectMapper();
+        for (int[] budgets : java.util.List.of(new int[] {1, 1, 1},
+            new int[] {Integer.MAX_VALUE, Integer.MAX_VALUE, 100})) {
+            var executor = mapper.createObjectNode();
+            executor.putObject("readActionResolution")
+                .put("maxPlannerContextChars", budgets[0])
+                .put("maxActionEvidenceCharsPerAction", budgets[1])
+                .put("maxActionEvidenceItems", budgets[2]);
+
+            assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                .filteredOn(issue -> issue.path().startsWith("$.orchestrationModeOverrides"))
+                .isEmpty();
+        }
+    }
+
+    @Test
+    void validateRejectsMalformedOrOutOfRangeExecutorReadEvidenceBudgets() throws Exception {
+        var mapper = new ObjectMapper();
+        var codes = java.util.Map.of(
+            "maxPlannerContextChars", "READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS_INVALID",
+            "maxActionEvidenceCharsPerAction", "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION_INVALID",
+            "maxActionEvidenceItems", "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS_INVALID"
+        );
+        for (var entry : codes.entrySet()) {
+            var invalidValues = new java.util.ArrayList<>(java.util.List.of(
+                "0", "-1", "1.0", "1.5", "\"10\"", "true", "[]", "{}",
+                "2147483648", "4294967297", "9223372036854775808"
+            ));
+            if (entry.getKey().equals("maxActionEvidenceItems")) {
+                invalidValues.add("101");
+            }
+            for (String valueJson : invalidValues) {
+                var executor = mapper.createObjectNode();
+                executor.putObject("readActionResolution").set(entry.getKey(), mapper.readTree(valueJson));
+
+                assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                    .as("%s=%s", entry.getKey(), valueJson)
+                    .anySatisfy(issue -> {
+                        assertThat(issue.code()).isEqualTo(entry.getValue());
+                        assertThat(issue.path()).isEqualTo(
+                            "$.orchestrationModeOverrides.executor.readActionResolution." + entry.getKey());
+                    });
+            }
+        }
+    }
+
+    @Test
+    void validateRejectsNonObjectExecutorReadActionResolutionOverrides() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String valueJson : java.util.List.of("true", "1", "\"read\"", "[]")) {
+            var executor = mapper.createObjectNode();
+            executor.set("readActionResolution", mapper.readTree(valueJson));
+
+            assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                .as("readActionResolution=%s", valueJson)
+                .anySatisfy(issue -> {
+                    assertThat(issue.code()).isEqualTo("READ_ACTION_RESOLUTION_OVERRIDE_OBJECT_REQUIRED");
+                    assertThat(issue.path()).isEqualTo("$.orchestrationModeOverrides.executor.readActionResolution");
+                });
+        }
+    }
+
+    @Test
+    void validateRejectsReadAuthorityOverridesAlongsideValidEvidenceBudgets() throws Exception {
+        var executor = new ObjectMapper().readTree("""
+            {"readActionResolution":{
+              "maxPlannerContextChars":12000,
+              "maxActionEvidenceCharsPerAction":8000,
+              "maxActionEvidenceItems":10,
+              "allowedReadActions":["unapproved"],
+              "requireAllowlist":false,
+              "requireGroundingEligible":false,
+              "rawEnvironment":{}
+            }}
+            """);
+
+        assertThat(service.validate(executorOverrideDraft(executor)).issues())
+            .filteredOn(issue -> issue.path().startsWith("$.orchestrationModeOverrides"))
+            .allSatisfy(issue -> assertThat(issue.code()).isEqualTo("READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED"))
+            .extracting("path").containsExactlyInAnyOrder(
+                "$.orchestrationModeOverrides.executor.readActionResolution.allowedReadActions",
+                "$.orchestrationModeOverrides.executor.readActionResolution.requireAllowlist",
+                "$.orchestrationModeOverrides.executor.readActionResolution.requireGroundingEligible",
+                "$.orchestrationModeOverrides.executor.readActionResolution.rawEnvironment"
+            );
+    }
+
+    @Test
+    void validateLeavesAbsentExecutorReadEvidenceBudgetsUnchanged() throws Exception {
+        var mapper = new ObjectMapper();
+        DraftValidationResponse baseline = service.validate(executorOverrideDraft(null));
+        for (String executorJson : java.util.List.of(
+            "{}", "{\"readActionResolution\":null}", "{\"readActionResolution\":{}}",
+            "{\"readActionResolution\":{\"maxPlannerContextChars\":null,\"maxActionEvidenceCharsPerAction\":null,\"maxActionEvidenceItems\":null}}"
+        )) {
+            assertThat(service.validate(executorOverrideDraft(mapper.readTree(executorJson))))
+                .as("executor=%s", executorJson)
+                .usingRecursiveComparison().ignoringFields("validatedAt").isEqualTo(baseline);
+        }
     }
 
     @Test

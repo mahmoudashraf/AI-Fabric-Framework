@@ -215,6 +215,56 @@ not an internal-source resolution strategy. Review response diagnostics for
 `EXPLICIT_BOUNDED_FAN_OUT_RECOVERY`, selected spaces and effective budgets;
 record recovery as recovery, not as an LLM selection or a reliability guarantee.
 
+### Versioned READ Evidence Budgets
+
+Persist READ planner and per-action evidence budgets in deployment
+`providerConfig`, alongside the existing executor planning settings. For example:
+
+```json
+{
+  "orchestrationModeOverrides": {
+    "executor": {
+      "readActionResolution": {
+        "planningMode": "ITERATIVE",
+        "maxIterations": 2,
+        "maxPlannerContextChars": 12000,
+        "maxActionEvidenceCharsPerAction": 8000,
+        "maxActionEvidenceItems": 10,
+        "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+      }
+    }
+  }
+}
+```
+
+Publish and apply normally; do not tune a live container's environment by hand.
+The exact generated environment mappings are:
+
+```text
+maxPlannerContextChars            -> AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS
+maxActionEvidenceCharsPerAction   -> AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION
+maxActionEvidenceItems            -> AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS
+```
+
+The contract was checked against immutable framework tag
+`ai-fabric-framework-v0.8.42` (commit `c21702acc3eb3226c892d4506b1f40fe38171607`),
+specifically `OrchestrationProperties.ReadActionResolutionModeOverrides` and
+`OrchestrationPolicy.ReadActionResolutionPolicy`. Evidence items accept integers
+from 1 through 100; the framework default is 5. Both character budgets accept
+positive Java integers, from 1 through 2147483647; the framework declares no
+smaller maximum. Use measured, economical budgets rather than those type limits.
+The example preserves the qualified 12000-character planner, 8000-character
+per-action and 10-item budgets without changing global defaults.
+
+Absent or null fields generate no environment override, retaining the existing
+curated/server mode settings. Strings, booleans, fractional numbers, non-positive
+numbers, overflowing integers and item counts above 100 fail draft validation;
+they are not coerced into executable budgets. Unknown fields remain unsupported.
+These are finite execution-budget checks, not semantic validators. The adapter
+affects only executor mode; it neither enables READ planning by itself nor changes
+authorized actions, generated source allowlists, authentication, confirmation or
+semantic recovery policy. Other modes retain their existing configuration.
+
 ---
 
 ## 6) Debug fields to look at (UI / logs)

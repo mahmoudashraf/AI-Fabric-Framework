@@ -160,7 +160,62 @@ information-flow gap; instructing the top-level prompt to "use history" does
 not supply history to a later separate LLM call. Earlier rejected direct-answer
 prompt trials had already encountered the planner's promotion back to RAG.
 
-## Next Bounded Framework Work, Not Implemented Here
+## Historical Baseline Comparison And Revised Priority
+
+Subsequent owner-requested analysis compared the actual 25 October passing
+exchange with the current failure, not just the summary scores. **Restore and
+qualify the accepted baseline before commissioning another framework patch.**
+The earlier recommendation below identifies real weaknesses, but treated them
+too quickly as the first required fix for this difference in observed quality.
+
+The 25 October internal canary used framework0.8.42, GPT-5.4-mini, ITERATIVE with
+two iterations, source overview enabled, RAG threshold0.4,8context documents,
+8,000RAG characters,12,000planner characters,8,000action-evidence characters and
+10action-evidence items. Its20cases were12PASS/1PARTIAL/1FAIL/6SOURCE_GAP. The
+lowest-mileage follow-up and named comparison passed. This was an isolated
+canary, not production adoption; the normal-upgrade execution record explicitly
+kept0.8.41 and qualified only a two-query smoke afterwards.
+
+Current production instead runs0.8.41 with the same GPT-5.4-mini model, SINGLE_PASS,
+one iteration, overview off, threshold0.5,5context documents,4,000RAG characters,
+4,000planner characters and2,400action-evidence characters. Its stored executor
+draft overrides contain the semantic-recovery policies, not the qualified READ
+planning and evidence budgets; prompt configuration omits the qualified RAG
+tuning. The internal canary's native tuning was not carried into the maintained
+versioned product configuration. This is an adoption/configuration continuity
+gap, not evidence that the tested0.8.42 release itself regressed.
+
+Crucially, the historical passing follow-up also chose ANSWER_FROM_CONTEXT and
+was promoted to RAG, using an anaphoric query and no target hints. It succeeded
+because extraction selected dealer-vehicle and retrieval supplied six records.
+All six scores were below0.5; Morrow was0.46825. Therefore those shared framework
+weaknesses are not sufficient by themselves to explain why the newer run fails.
+
+At11:10UTC a read-only diagnostic fetched the current staging's six stored
+embeddings through the scoped admin API and embedded exactly the recorded
+failed query using the same configured text-embedding-3-small/1536 dimensions.
+Offline inner-product scores match the deployed Milvus metric: Morrow0.45214,
+Aster E10.42494, highest score0.45214. Thus **all six are below the current0.5
+cutoff**; the previously qualified0.4 admits both referenced vehicles. Repeating
+the historical query over these stored vectors reproduces the old scores to
+floating-point precision. This substantiates a concrete cutoff problem, not a
+guess based only on populated-index counts. It is not a new end-to-end Milvus
+search/answer pass or proof that every document/source filter is correct.
+The diagnostic used38embedding tokens, no chat generation, indexing or config
+mutation. Private evidence: `similarity-measurement.private.json`.
+
+Recommended order: build the **current** maintained runtime against the already
+published0.8.42 (do not resurrect the old Runtime473 canary image); represent the
+qualified tuning in normal draft/compiler settings rather than manual native
+environment edits; preserve the current identity/Desk/document contracts; run
+the original20cases plus the new two-car follow-up and repeated sessions; adopt
+the same verified version on the existing production deployment/app. Keep
+explicit missing-source fan-out bounded to authorized sources. Pursue new
+context-flow changes only for residual failures reproduced on that baseline.
+No framework/product code, deployment config, assignment or source data was
+changed by this subsequent analysis.
+
+## Residual Framework Work, Only If Baseline Requalification Needs It
 
 1. Supply an authorized, bounded conversational/target evidence snapshot to the
    READ planner and downstream answer path. Preserve source provenance and

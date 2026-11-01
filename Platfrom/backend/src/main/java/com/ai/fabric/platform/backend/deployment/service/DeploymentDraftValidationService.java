@@ -2027,12 +2027,13 @@ public class DeploymentDraftValidationService {
             return;
         }
         readAction.fieldNames().forEachRemaining(field -> {
-            if (!Set.of("planningMode", "maxIterations", "ragCooperationMode").contains(field)) {
+            if (!Set.of("planningMode", "maxIterations", "maxPlannerContextChars",
+                "maxActionEvidenceCharsPerAction", "maxActionEvidenceItems", "ragCooperationMode").contains(field)) {
                 issues.add(error(
                     "providers",
                     "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                     basePath + "." + field,
-                    "Only planningMode, maxIterations and ragCooperationMode may be overridden."
+                    "Only planningMode, maxIterations, maxPlannerContextChars, maxActionEvidenceCharsPerAction, maxActionEvidenceItems and ragCooperationMode may be overridden."
                 ));
             }
         });
@@ -2061,6 +2062,34 @@ public class DeploymentDraftValidationService {
                 "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
                 basePath + ".maxIterations",
                 "maxIterations must be an integer between 1 and 5."
+            ));
+        }
+        // Operator-owned execution budgets, not validation of the model's semantic decisions.
+        validateReadActionResolutionBudget(readAction, "maxPlannerContextChars", Integer.MAX_VALUE,
+            "READ_ACTION_RESOLUTION_MAX_PLANNER_CONTEXT_CHARS_INVALID", basePath, issues);
+        validateReadActionResolutionBudget(readAction, "maxActionEvidenceCharsPerAction", Integer.MAX_VALUE,
+            "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_CHARS_PER_ACTION_INVALID", basePath, issues);
+        validateReadActionResolutionBudget(readAction, "maxActionEvidenceItems", 100,
+            "READ_ACTION_RESOLUTION_MAX_ACTION_EVIDENCE_ITEMS_INVALID", basePath, issues);
+    }
+
+    private void validateReadActionResolutionBudget(JsonNode readAction,
+                                                    String field,
+                                                    int maximum,
+                                                    String code,
+                                                    String basePath,
+                                                    List<DraftValidationIssue> issues) {
+        JsonNode value = readAction.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        if (!value.isIntegralNumber() || !value.canConvertToInt()
+            || value.intValue() < 1 || value.intValue() > maximum) {
+            issues.add(error(
+                "providers",
+                code,
+                basePath + "." + field,
+                field + " must be an integer between 1 and " + maximum + "."
             ));
         }
     }
