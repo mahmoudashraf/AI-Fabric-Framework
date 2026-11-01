@@ -69,16 +69,19 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.42` through:
+The current private product source target is AI Fabric `0.8.43` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.42`
-- Git tag `ai-fabric-framework-v0.8.42`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.43`
+- Git tag `ai-fabric-framework-v0.8.43`
 
-This adopts the already-published release, peeled release commit
-`c21702acc3eb3226c892d4506b1f40fe38171607`; it is not a new framework patch.
+This adopts the focused conversation-context handoff patch, release commit
+`46e1563bcd75e8a77de0324c768e49701f12526f`. Bounded native conversation
+history reaches READ planning and generation; it is not fresh evidence or an
+authority grant. Optional model-authored retrieval queries stay explicit and
+diagnostic, not deterministic semantic rewrites.
 The current maintained product consumer passed an empty-cache Central-only
 build, 887 tests and packaged JAR identity checks. See
-`verification-support/paul-rigby-first-client/2026-11-01-qualified-baseline-adoption.md`.
+`verification-support/paul-rigby-first-client/2026-11-01-framework-evidence-handoff.md`.
 The earlier0.8.33 authentication adoption remains historical evidence.
 Exact hosted image and assignment evidence belongs in `CODEX_WORKING_CONTEXT.md`
 and the dated verification record; do not infer it from HEAD or these defaults.
@@ -119,7 +122,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.42`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.43`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 
