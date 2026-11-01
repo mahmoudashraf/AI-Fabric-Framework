@@ -11709,3 +11709,50 @@ test is being called hosted acceptance. UI extraction remains last.
   ~/.codex/private/loomai-support-01054/support-redesign-*.private.json;
   screenshots output/support-console-redesign-20261031/. Verification browsers
   signed out; bounded agent closed; unrelated files/personal profile untouched.
+
+### 2026-11-01 Customer Account Recovery And Email Links Live
+
+- Owner's existing active customer account was not connected to its Supabase
+  subject. Ordinary email sign-in correctly returned LINK_REQUIRED, but the only
+  connection path required an unavailable old local password. Do not create a
+  replacement workspace, automatically attach by email, or reset the personal
+  password to bypass this. New customer recovery is explicit fresh mailbox proof.
+- Both backends are native healthy onb8d433228cec28bcd0db33df5d983937e7756cf1;
+  both Consoles on90103fa5cc70e5c8d0a2e02c7b9032f43e853ae1. CI41254566390
+  and41254939746 passed. Desk/runtimes/framework/AI configuration unchanged.
+  No schema migration, new database/service, framework release or AI call.
+- /recover-account requests a native Supabase one-use email link, without signup.
+  /auth/account-recovery retains the hash only in memory, strips its URL and asks
+  for explicit email confirmation. POST /api/platform/auth/customer-recovery
+  consumes type=email at the provider and verifies the signed token/current user
+  and matching confirmed email before linking the original ACTIVE CUSTOMER_ADMIN
+  and ACTIVE customer transactionally. Existing/revoked links cannot be moved or
+  reactivated; staff/delegated identities and unrelated origins are refused.
+  Exact active links are idempotent with fresh proof. No password/role/data reset.
+- Supabase owns email delivery, verification and normal password reset. No second
+  credential/recovery store. Recovery request/session DTOs are redacted; response
+  is no-store. Auth pages have no-referrer, tested in a real browser under the
+  production server. Uncertain/failed one-use exchanges are not silently retried;
+  request another email and contact the administrator if the fresh link fails.
+- Local73backend tests passed (42 real PostgreSQL, including latest migrations,
+  concurrency/rollback/privacy),35synthetic browser scenarios,25theme/auth tests,
+  TypeScript/build and production-server privacy test passed. Fifteen existing
+  H2 auth tests needed the pre-existing test-only ddl-auto=update override; that
+  is not a production configuration change or a full-reactor gate claim.
+- Actual delivered-email/native browser recovery passed staging AND production:
+  explicit confirmation, original user/customer/role/password hash preserved,
+  one new link, reload persistence, logout and replay401. Authentication proof
+  used the real mailbox link, not an administrator-generated token. The two
+  temporary local Platform fixture users were normally disabled afterward;
+  the existing Supabase email-test identity was preserved. Production support
+  history/team/photo regression also passed read-only with zero support POSTs.
+- Supabase's2048char redirect-list limit required removing six redundant queried
+  URLs on its already-allowed canonical SiteURL origin. Other origin entries,
+  OAuth/client settings, SMTP and confirmation policy unchanged. Two exact
+  recovery redirects were added; no wildcard/open redirect introduced.
+- Personal recovery email requested through actual production UI at00:08UTC;
+  link NOT read or consumed. Personal account/permissions/password unchanged and
+  still await the owner's explicit confirmation. Public guide updated. Native
+  receipts/private fixture credentials: ~/.codex/private/loomai-support-01054/
+  account-recovery-20261031/; screenshots output/account-recovery-20261031/.
+  Bounded backend agent closed; unrelated worktree changes preserved.

@@ -87,6 +87,54 @@ Each phase requires focused tests and its actual integration evidence. No phase 
   signed out normally; unrelated worktree changes and personal grants remained
   untouched. Local preview remains at `http://127.0.0.1:5173/`.
 
+### 2026-11-01 Existing Customer Recovery Gap Closed
+
+- The old account-link screen required a local Console password, so a verified
+  Supabase customer could be stranded at LINK_REQUIRED. `/recover-account` now
+  requests a native one-use email link; its landing page requires explicit email
+  confirmation before connecting the original active customer account. Normal
+  password reset and passwordless sign-in remain Supabase-owned. The older
+  password-based connection remains available but is no longer required.
+- Dedicated POST `/api/platform/auth/customer-recovery` accepts `{tokenHash,email}`
+  only from configured Console origins. It consumes the provider's email token,
+  verifies JWT/current provider identity and matching confirmed email, then locks
+  and connects only the existing ACTIVE CUSTOMER_ADMIN with an ACTIVE customer.
+  It neither creates workspaces nor moves/re-enables identities, changes roles,
+  resets passwords or recovers staff access. Revoked/conflicting/disabled accounts
+  remain denied. New links are audited; returned credentials are redacted/no-store.
+- Sources: backend `b8d433228`, Console `90103fa5c`, native healthy staging and
+  production. Core image CI `41254566390` and UI privacy CI `41254939746` passed.
+  Backend jobs: staging `w9x6s879pe5ln6l2tsj52wjg`, production
+  `twuicm6uh2lksyfgmji46z1s`; final Console jobs:
+  `a6cpjygxgwtixjwkrb3ucdga` / `piqwnmzzpzvd4xejxeuiknkz`.
+  Desk, runtime, framework `0.8.41`, deployment assignments and AI settings unchanged.
+- Seventy-three focused backend tests passed, including 42 real-PostgreSQL cases
+  with actual migrations, signing/JWKS, current-user verification, transaction
+  races, revoked/foreign/staff denials, rollback and sensitive-error redaction.
+  Fifteen existing H2 auth regressions used a test-only schema-update override
+  for their pre-existing missing column, not a production migration workaround.
+  Thirty-five browser scenarios, 25 theme/auth checks, TypeScript/build and the
+  actual production-server browser privacy check passed. The latter verifies
+  auth pages send no credential-bearing referrer to same-origin assets.
+- Actual hosted requests and delivered emails passed in both environments. The
+  fixture explicitly confirmed its email in a fresh browser, recovered the same
+  user/customer/role/password hash, retained access after reload and signed out.
+  Link replay returned 401. No administrator-generated login token, intercepted
+  response, replacement customer, AI query or infrastructure provisioning was
+  used. Fixture accounts were normally provisioned for the test, then disabled.
+  Read-only production support regression also passed with zero support POSTs.
+- Supabase email-template/redirect readback passed without SMTP or authentication
+  policy changes. Six redundant queried redirects on the already-allowed SiteURL
+  origin were removed to meet the 2048-character config limit; other origins
+  remain and two exact recovery paths were added. No wildcard was introduced.
+  Auth page Referrer-Policy is now no-referrer. Failed/uncertain token exchanges
+  require another email rather than automatic replay or an alternate identity.
+- A fresh recovery email was requested for the owner's personal account through
+  the production UI; its link was not read or consumed. The owner must complete
+  that explicit confirmation. Private native/credential records are under
+  `~/.codex/private/loomai-support-01054/account-recovery-20261031/`;
+  screenshots under `output/account-recovery-20261031/`. Customer guide updated.
+
 ### Production Closure Evidence: 2026-10-31 17:55 UTC
 
 - **Sources and services:** backend `9b6762b3c` and Console `7277fe3c7` are immutable-source/native healthy on both hosts. Desk remains `29dbc1199`; customer runtimes remain `23eaf650c` / AI Fabric `0.8.41`. Backend CI `41219916625` and Console CI `41222162970` passed. The Weaviate identifier correction passed 26 focused resolver/scoping/template tests, keeping the complete 64-hex identity digest within the provider limit. No framework release, semantic text matching, automatic search-all, direct SQL mutation or global provider-key change.
