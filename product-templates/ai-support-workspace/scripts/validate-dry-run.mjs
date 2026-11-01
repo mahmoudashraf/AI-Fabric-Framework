@@ -41,7 +41,7 @@ process.stdout.write(JSON.stringify({
   networkApiCalls: 0,
   validatedBy: 'MarketplaceManifestService + ExternalIntegrationPolicy + SpecialistAssistanceCompiler via SupportWorkspaceProductTemplateTest',
   draftCompositionTests: 4,
-  qualityDefaultTests: 4,
+  qualityDefaultTests: 5,
   simulatedServiceTests: 2,
   status: catalog.status,
   requests,

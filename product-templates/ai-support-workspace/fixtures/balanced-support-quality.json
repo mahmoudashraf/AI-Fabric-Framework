@@ -1,6 +1,6 @@
 {
   "profileId": "balanced-support-v1",
-  "qualificationStatus": "QUALIFIED_STAGING_WITH_RECORDED_SEMANTIC_LIMITS",
+  "qualificationStatus": "MECHANICS_VERIFIED_QUALITY_NOT_ACCEPTED_AS_PRODUCTION_DEFAULT",
   "frameworkVersion": "0.8.43",
   "providerConfig": {
     "openaiModel": "gpt-5.4-mini",

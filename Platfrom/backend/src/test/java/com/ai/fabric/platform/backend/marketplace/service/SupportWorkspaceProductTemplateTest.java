@@ -319,8 +319,6 @@ class SupportWorkspaceProductTemplateTest {
             assertThat(corrected).isEqualTo(read("manifests/" + file + ".manifest.json"));
         }
         var publicationHistory = java.util.Map.of(
-            "manifests/ai-support-workspace.1.0.1.manifest.json", "PUBLISHED_BEFORE_QUALITY_DEFAULTS",
-            "manifests/loomai-support-workspace.manifest.json", "PUBLISHED_BEFORE_QUALITY_DEFAULTS",
             "manifests/loomai-support-diagnostics.1.0.1.manifest.json", "PUBLISHED_SCALAR_ONLY_DEFAULT_EVIDENCE_RECORDED",
             "manifests/loomai-support-diagnostics.1.0.2.manifest.json", "PUBLISHED_DOUBLE_DATA_ROOT_EVIDENCE_DEFECT_RECORDED",
             "manifests/ai-support-workspace.manifest.json", "PUBLISHED_BOOTSTRAP_PREREQUISITE_DEFECT_RECORDED",
@@ -335,7 +333,7 @@ class SupportWorkspaceProductTemplateTest {
     }
 
     @Test
-    void newSupportTemplatesCarryTheQualifiedQualityFieldsWithoutGrantingInternalAuthority() throws Exception {
+    void supportTemplateCandidatesReserveQualityFieldsWithoutGrantingInternalAuthority() throws Exception {
         JsonNode profile = read("fixtures/balanced-support-quality.json");
         for (String file : List.of("ai-support-workspace.1.0.2", "loomai-support-workspace.1.0.1")) {
             JsonNode manifest = read("manifests/" + file + ".manifest.json");

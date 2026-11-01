@@ -5,21 +5,23 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 process.umask(0o077);
-const [environment, output, adapterPath] = process.argv.slice(2);
+const [environment, output, adapterPath, sessionSelection] = process.argv.slice(2);
 assert.ok(['staging', 'production'].includes(environment));
 assert.ok(path.isAbsolute(output ?? '') && path.isAbsolute(adapterPath ?? ''),
   'Usage: node run-quality.mjs staging|production /new/output /private/adapter.mjs');
 const { request, selectedResources, attest } = await import(pathToFileURL(adapterPath));
 assert.equal(typeof request, 'function');
 const scenarios = JSON.parse(await fs.readFile(new URL('./scenarios.json', import.meta.url)));
+const selectedSessions = sessionSelection?.split(',');
+if (selectedSessions) assert.ok(selectedSessions.length && selectedSessions.every(id => scenarios.sessions.some(s => s.id === id)));
 await fs.mkdir(output, { mode: 0o700 });
 const report = { startedAt: new Date().toISOString(), environment,
-  semanticReview: 'REQUIRED_MANUAL_REVIEW', cases: [], turns: [] };
+  semanticReview: 'REQUIRED_MANUAL_REVIEW', selectedSessions: selectedSessions ?? 'ALL', cases: [], turns: [] };
 const save = () => fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2), { mode: 0o600 });
 report.attestation = await attest(environment);
 await save();
 
-for (const scenario of scenarios.sessions) {
+for (const scenario of scenarios.sessions.filter(s => !selectedSessions || selectedSessions.includes(s.id))) {
   const item = { id: scenario.id, key: `support-quality-${randomUUID()}`, createIntentAt: new Date().toISOString() };
   report.cases.push(item);
   await save();

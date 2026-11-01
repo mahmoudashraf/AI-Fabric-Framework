@@ -1,0 +1,40 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "production",
+  "frameworkVersion": "0.8.43",
+  "releaseId": "rel-a1a27bce",
+  "versionId": "ver-92ffca64",
+  "initialRun": {
+    "turns": [
+      {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 14440},
+      {"scenario": "installation", "index": 1, "verdict": "FAIL", "elapsedMs": 12212, "note": "Incorrectly says standalone apps require customer DNS. That requirement belongs to the optional custom-domain feature, not the provided app address."},
+      {"scenario": "index-state", "index": 0, "verdict": "PASS", "elapsedMs": 5027},
+      {"scenario": "index-state", "index": 1, "verdict": "PASS", "elapsedMs": 4927},
+      {"scenario": "index-state", "index": 2, "verdict": "PASS", "elapsedMs": 10471},
+      {"scenario": "compound-investigation", "index": 0, "verdict": "PARTIAL", "elapsedMs": 28994, "note": "Discloses missing observations and uses guidance, but a specialist projection fails and the available selected-resource diagnostics are underused."},
+      {"scenario": "compound-investigation", "index": 1, "verdict": "FAIL", "elapsedMs": 21593, "note": "Answers about the custom domain instead of the second issue, older policy answers."},
+      {"scenario": "consent-and-specialists", "index": 0, "verdict": "PASS", "elapsedMs": 6870, "note": "Useful documentation and explicit absence of private observations. A nominally successful specialist with no findings is not a completed diagnosis."},
+      {"scenario": "consent-and-specialists", "index": 1, "verdict": "PASS", "elapsedMs": 4529}
+    ],
+    "summary": {"pass": 6, "partial": 1, "fail": 2, "medianMs": 10471, "p95Ms": 28994}
+  },
+  "fixedRepeat": {
+    "reason": "One predeclared repetition of the two affected conversations. Same queries/configuration; retained in addition to the original run, not a replacement or application fallback.",
+    "turns": [
+      {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 11188},
+      {"scenario": "installation", "index": 1, "verdict": "PASS", "elapsedMs": 4218, "note": "Correctly explains both a provided standalone address and optional custom-domain DNS. Original wrong answer remains a failure."},
+      {"scenario": "compound-investigation", "index": 0, "verdict": "PARTIAL", "elapsedMs": 44100, "note": "Provides a limited checklist but not the useful current indexing observations; slow specialist path."},
+      {"scenario": "compound-investigation", "index": 1, "verdict": "FAIL", "elapsedMs": 5047, "note": "Again answers the wrong preceding issue. Not a one-off failure."}
+    ],
+    "summary": {"pass": 2, "partial": 1, "fail": 1}
+  },
+  "decision": "DO_NOT_PROMOTE_CANDIDATES_AS_NEW_PRODUCTION_TEMPLATE_DEFAULTS",
+  "reason": "Staging showed a modest improvement, but production consistency and compound follow-up quality are not sufficiently qualified. Mechanics are verified and settings are preserved in developer-staging candidate templates; current production starter versions remain unchanged.",
+  "handover": "PASSED: actual assigned agent claim and reply, visitor-visible human message, no AI turn while human owns the conversation, explicit AI return and grounded follow-up.",
+  "nextInvestigation": [
+    "Model-authored READ planner question/retrieval query selects the wrong ordinal subject despite present untruncated history; no deterministic semantic replacement is allowed.",
+    "Specialist projection failures and successful ASKED_USER/empty findings must not be misreported as completed diagnoses.",
+    "Retrieval/generation sometimes generalizes an optional custom-domain prerequisite to all standalone apps; verify evidence usage rather than hardcode an answer.",
+    "Support may need distinct read/evidence bounds from dealership; do not equate two iterations with four permitted action executions or expand them without another bounded measurement."
+  ]
+}

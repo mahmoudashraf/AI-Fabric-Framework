@@ -60,3 +60,14 @@ test('historical published templates remain separate and unchanged in meaning', 
   assert.equal(prior.contributions.template.promptConfig, undefined);
   assert.equal(read('manifests/loomai-support-workspace.manifest.json').version, '1.0.0');
 });
+
+test('mixed production quality does not silently become the recommended customer default', () => {
+  const catalog = read('catalog.json');
+  assert.equal(profile.qualificationStatus, 'MECHANICS_VERIFIED_QUALITY_NOT_ACCEPTED_AS_PRODUCTION_DEFAULT');
+  assert.equal(catalog.entries.find(e => e.pluginSlug === 'ai-support-workspace').manifest,
+    'manifests/ai-support-workspace.1.0.1.manifest.json');
+  assert.equal(catalog.entries.find(e => e.pluginSlug === 'loomai-support-workspace').manifest,
+    'manifests/loomai-support-workspace.manifest.json');
+  assert.equal(catalog.qualityCandidates.length, 2);
+  assert.ok(catalog.qualityCandidates.every(c => c.productionDefaultAccepted === false));
+});

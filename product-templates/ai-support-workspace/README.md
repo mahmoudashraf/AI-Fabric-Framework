@@ -1,10 +1,10 @@
 # AI Support Workspace
 
 Reusable Marketplace support configuration for 010.54. The customer starter is
-TEMPLATE `1.0.2` with the required S3 DATA `1.0.0`. The internal LoomAI instance
+TEMPLATE `1.0.1` with the required S3 DATA `1.0.0`. The internal LoomAI instance
 adds its separately reviewed diagnostics ACTION `1.0.3`; customers do not inherit
-LoomAI's case integration or credentials. Its source TEMPLATE is `1.0.1`.
-`catalog.json` identifies the current source revisions; hosted publication and
+LoomAI's case integration or credentials. Its production TEMPLATE is `1.0.0`.
+`catalog.json` identifies the current recommended revisions; hosted publication and
 rollout receipts are tracked in the dated quality record below. Catalogue
 availability is not automatic enrollment in a public self-service offer.
 
@@ -21,10 +21,13 @@ for exact identities, hosted journeys and known limitations. A new customer's
 S3 dependency stays configuration-required until that customer connects it.
 This package adds no service, database, execution engine or plugin type.
 
-## Balanced Support Defaults
+## Reserved Quality Candidates
 
-New deployments from the current source TEMPLATEs receive the same bounded
-configuration tested on LoomAI support, without running a canary overlay script:
+Customer candidate `1.0.2` and internal candidate `1.0.1` reserve the bounded
+configuration tested on LoomAI support. Both are published only on the developer
+staging control plane, not accepted as production starter defaults. They are
+listed separately in `catalog.json.qualityCandidates`, so the normal publisher
+does not silently replace the existing production templates. The candidate stores:
 
 - Editable `gpt-5.4-mini` default, not a lifetime model or funding restriction.
 - Executor READ planning: `ITERATIVE`, two iterations,
@@ -35,8 +38,8 @@ configuration tested on LoomAI support, without running a canary overlay script:
 - An explicit missing-source recovery policy bounded to one authorized document
   domain, plus knowledge overview. It does not override valid model routing,
   search unauthorized sources or silently grant extra domains.
-- Generic prompts distinguish documented how-to help from write execution,
-  retain conversation subjects and avoid asking users for internal domain names.
+- Generic prompts guide the distinction between documented help and write
+  execution, conversational subjects and internal source selection.
 
 Generic assistance remains disabled until the customer configures it. No internal
 diagnostic action, Desk agent, source storage or credential is granted to another
@@ -45,11 +48,15 @@ the original template snapshot. Later template synchronization does not reset
 customer provider or prompt edits. Existing deployments use normal versioning;
 they are not silently upgraded. Reset restores their recorded original defaults.
 
-This is a qualified configuration, not a guarantee of equal answer quality for
-every model, data source or customer. The retained staging sample improved from
+Bootstrap, recorded-original reset and trust separation are verified, but semantic
+quality is not yet sufficient to promote these as default configurations for all
+new customers. The retained staging sample improved from
 5 pass / 3 partial / 1 fail to 6 / 2 / 1. Ordinal follow-up selection and a
-specialist projection failure remain recorded; neither was hidden with text
-matching or fabricated evidence. See
+specialist projection failure remain; production also produced incorrect optional-
+DNS advice in one run, and repeated the wrong-subject follow-up. No original
+failure was hidden by a successful retry, text matching or fabricated evidence.
+The existing LoomAI support deployment is running the tuned configuration for
+continued qualification; production template defaults remain unchanged. See
 [quality qualification](../../verification-support/support-quality-01054/README.md).
 
 ## Product Contract
@@ -86,11 +93,12 @@ template.
 
 ## Contents
 
-- `manifests/ai-support-workspace.1.0.2.manifest.json`: normal `TEMPLATE`; two
+- `manifests/ai-support-workspace.1.0.1.manifest.json`: current production `TEMPLATE`; two
   editable documentation areas and one bounded resolution, initially without
   parallel checks. READ slots start
   empty; assistance is explicitly enabled after storage is connected. The
-  unversioned filename and `1.0.1` retain immutable prior snapshots.
+  unversioned filename retains the immutable `1.0.0` snapshot. Candidate `1.0.2`
+  adds reserved quality defaults without changing published prior bytes.
 - `manifests/support-documents.manifest.json`: normal `DATA`; customer-owned
   S3-compatible documents, deployment-only derived index, explicit approval.
 - `manifests/loomai-support-diagnostics.1.0.3.manifest.json`: normal `ACTION` overlay

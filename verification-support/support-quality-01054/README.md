@@ -1,5 +1,20 @@
 # Support Quality Profile Qualification
 
+## Final Decision
+
+The tuning cycle is complete, but **the candidates are not accepted as defaults
+for all new production Support deployments**. Staging improved modestly;
+production did not establish sufficiently reliable compound/follow-up behavior.
+Keep current production customer TEMPLATE `1.0.1` and internal TEMPLATE `1.0.0`.
+The candidate settings are reserved in versioned source and the developer-staging
+catalogue, not discarded or silently promoted. See `production-review.json`.
+
+The existing production LoomAI Support deployment has been upgraded in place to
+the tuned configuration and the already-qualified 0.8.43 runtime. Its installation
+and identity are preserved. Successful infrastructure/readiness and Desk checks
+must not be mistaken for an all-green answer-quality result. No global defaults
+were changed and no new framework release was made.
+
 ## Purpose
 
 Qualify the reusable conversational settings previously tuned for the dealership
@@ -18,9 +33,13 @@ authentication, handover and existing deployment/app identities.
 - [x] Repeat identical quality questions and manually review evidence, uncertainty,
   consent and follow-up continuity as well as latency.
 - [x] Verify handover/return separately; do not confuse AI specialists with agents.
-- [ ] If improved, capture settings in reusable and internal support TEMPLATEs,
-  qualify actual new-deployment bootstrap and publish new immutable versions.
-- [ ] Upgrade production in place and verify normal Console support routes.
+- [x] Capture candidate settings in versioned reusable/internal TEMPLATEs; publish
+  on developer staging and qualify actual fresh bootstrap and original reset.
+- [x] Upgrade production in place and verify normal Console support routes and
+  actual Desk handover/return.
+- [ ] Production default promotion: **NOT ACCEPTED** on current semantic evidence.
+  This is a deliberate quality hold, not a request for storage permissions or
+  another capacity/recovery project.
 
 ## Candidate
 
@@ -58,6 +77,11 @@ conversation receipts first. Each run has a fresh directory and idempotency keys
 `scenarios.json` contains human review criteria, not text-matching pass/fail
 validators. Read original responses, source evidence, action receipts and
 conversation state. A successful HTTP request is not a semantic pass.
+
+An optional fourth argument selects explicit scenario IDs, for example
+`installation,compound-investigation`. Use a new output directory, predeclare
+the fixed repetition and retain the original results. This is a measurement
+tool, not an automatic retry/fallback in the customer product.
 
 ## 2026-11-01 Baseline
 
@@ -150,8 +174,8 @@ Raw refined and handover receipts:
 
 ## Template Implementation
 
-The source catalogue now selects customer TEMPLATE `1.0.2` and internal LoomAI
-TEMPLATE `1.0.1`. Both carry the same non-secret quality defaults from
+Developer-staging candidates are customer TEMPLATE `1.0.2` and internal LoomAI
+TEMPLATE `1.0.1`. Both carry the same non-secret quality settings from
 `product-templates/ai-support-workspace/fixtures/balanced-support-quality.json`.
 The internal template alone declares the diagnostic ACTION dependency and areas;
 assistance starts disabled in both until the owning installation is configured.
@@ -166,6 +190,67 @@ grant or permanent pin.
 
 Focused qualification: 122 backend tests passed with no failures/errors/skips
 across manifest, bootstrap, template sync, actual source manifests and specialist
-verification-pack tests; 11 Node composition/library/default-isolation checks
-passed. Hosted new-template bootstrap and production closure remain below the
-unchecked gates until their receipts are recorded.
+verification-pack tests; 12 Node composition/library/default-isolation checks
+passed. The subsequent actual bootstrap, production checks and quality hold are
+recorded below.
+
+## Hosted Closure And Remaining Quality
+
+- Staging control-plane backend source `e6cbc35f834cf6f31d3f3d09876a3a2cab5c9ea4`
+  passed exact Coolify job `u10xoa2jtt57wg8ul4wuivnt` and native health/source checks.
+  Core image CI `41355355888` passed.
+- The same functional backend source passed exact production Coolify job
+  `uyajbzc8y317yk31tj4c3dpn` and native health/source checks. Console, Desk and
+  unrelated runtime services were not rebuilt or redeployed for this patch.
+- Developer-staging candidate versions: customer `mkv-df908fe5`, internal
+  `mkv-d1cd604a`. Their served manifests match source exactly.
+- Fresh customer candidate bootstrap created only draft metadata
+  `dep-abb47160`, inherited the declared prompt/provider leaves, kept assistance
+  disabled and did not install internal diagnostics. A deliberate prompt-budget
+  edit followed by normal `template-reset` restored the recorded defaults. The
+  draft was then archived. No service, vector index or database was deployed.
+- Early harness requests used an unsupported single-deployment GET, an external
+  mode for a Lucene base and an already-bound tenant. Those were caller mistakes,
+  not product fixes. Native API rejection and no-created-record reconciliation
+  were preserved. The successful request allowed the normal fresh tenant scope;
+  no tenant binding, authentication or storage rule was weakened.
+- Production release `rel-a1a27bce`, version `ver-92ffca64`, passed verification
+  and was assigned to unchanged installation
+  `awi_pub_bb57aa3822a176ee770d93cf2e8a31e7` at revision 2.
+- The nine-turn production run was **6 pass / 1 partial / 2 fail**. A single fixed
+  four-turn repetition of the affected conversations was **2 / 1 / 1**. Both
+  original failures remain counted; the 44,100 ms compound tail is also retained.
+  The DNS answer varied; the wrong ordinal subject recurred. These observations
+  supersede the earlier tentative default-adoption decision.
+- Actual assigned-agent Desk claim/reply, visitor-visible asynchronous reply,
+  suppressed AI during human control and explicit AI return passed on production.
+  All generated cases were resolved and diagnostic consent was revoked.
+
+Production quality remains a separate, visible issue. Next work should investigate
+the model-authored READ question/retrieval query and specialist result projection,
+not insert lexical reference recovery, force every source, hardcode product
+answers or start another infrastructure/recovery redesign. Any further framework
+change needs its own bounded analysis/verification rather than being hidden in
+this configuration comparison.
+
+Final native readback confirms both support runtime/connector pairs and both
+control-plane backends healthy, the exact support releases still verified, and
+production starter versions unchanged. The new candidate versions return 404 on
+the production catalogue because they were deliberately not published there.
+
+One final integration-readiness check initially returned 503 for the agent
+roster. The Desk binding was still awaiting its normal post-apply status
+reconciliation. The existing customer-owned
+`GET /api/deployments/{id}/desk?targetProfileId=...&releaseId=...` reconciled the
+already verified release to `ENABLED`; both roster routes then returned 200.
+No role, credential or database status was manually changed. API-driven upgrades
+must include this existing readiness check, not just app readiness. Automatic
+post-apply reconciliation should be considered separately; this run does not
+claim that the product now does it without a status read.
+
+Private receipts and helper snapshots are also preserved under
+`~/.codex/private/loomai-support-01054/quality-20261101/` (original temporary
+directory names retained inside). No credentials are committed here. The source
+changes after functional commit `e6cbc35f8` record the measured quality hold and
+verification tools/tests only; they do not require rebuilding unchanged product
+binaries or releasing the framework.
