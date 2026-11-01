@@ -1904,12 +1904,12 @@ public class DeploymentDraftValidationService {
             return;
         }
         executor.fieldNames().forEachRemaining(field -> {
-            if (!Set.of("vectorSpaceSelectionRequired", "readActionResolution", "semanticRecovery").contains(field)) {
+            if (!Set.of("vectorSpaceSelectionRequired", "knowledgeBaseOverviewEnabled", "rag", "readActionResolution", "semanticRecovery").contains(field)) {
                 issues.add(error(
                     "providers",
                     "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
                     "$.orchestrationModeOverrides.executor." + field,
-                    "Only vectorSpaceSelectionRequired, readActionResolution and semanticRecovery may be overridden for executor mode."
+                    "Only vectorSpaceSelectionRequired, knowledgeBaseOverviewEnabled, rag, readActionResolution and semanticRecovery may be overridden for executor mode."
                 ));
             }
         });
@@ -1926,6 +1926,23 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        JsonNode knowledgeBaseOverviewEnabled = executor.path("knowledgeBaseOverviewEnabled");
+        if (!knowledgeBaseOverviewEnabled.isMissingNode()
+            && !knowledgeBaseOverviewEnabled.isNull()
+            && !knowledgeBaseOverviewEnabled.isBoolean()) {
+            issues.add(error(
+                "providers",
+                "KNOWLEDGE_BASE_OVERVIEW_ENABLED_BOOLEAN_REQUIRED",
+                "$.orchestrationModeOverrides.executor.knowledgeBaseOverviewEnabled",
+                "knowledgeBaseOverviewEnabled must be a boolean."
+            ));
+        }
+
+        JsonNode rag = executor.path("rag");
+        if (!rag.isMissingNode() && !rag.isNull()) {
+            validateExecutorRagOverride(rag, issues);
+        }
+
         JsonNode readAction = executor.path("readActionResolution");
         if (!readAction.isMissingNode() && !readAction.isNull()) {
             validateReadActionResolutionOverride(readAction, issues);
@@ -1935,6 +1952,66 @@ public class DeploymentDraftValidationService {
         if (!semanticRecovery.isMissingNode() && !semanticRecovery.isNull()) {
             validateSemanticRecoveryOverride(semanticRecovery, issues);
         }
+
+        // Named fan-out recovery requires an explicit operator-owned retrieval execution budget.
+        if ("BOUNDED_ALLOWED_FAN_OUT".equalsIgnoreCase(semanticRecovery.path("missingVectorSpace").asText("").trim())
+            && (!rag.path("fanoutEnabled").isBoolean()
+                || !rag.path("fanoutEnabled").booleanValue()
+                || !isValidExecutorRagMaxSpaces(rag.path("maxSpaces")))) {
+            issues.add(error(
+                "providers",
+                "EXECUTOR_RAG_FANOUT_BUDGET_REQUIRED",
+                "$.orchestrationModeOverrides.executor.semanticRecovery.missingVectorSpace",
+                "BOUNDED_ALLOWED_FAN_OUT requires explicit rag.fanoutEnabled=true and rag.maxSpaces between 1 and 12 to bound retrieval execution."
+            ));
+        }
+    }
+
+    private void validateExecutorRagOverride(JsonNode rag,
+                                             List<DraftValidationIssue> issues) {
+        String basePath = "$.orchestrationModeOverrides.executor.rag";
+        if (!rag.isObject()) {
+            issues.add(error(
+                "providers",
+                "EXECUTOR_RAG_OVERRIDE_OBJECT_REQUIRED",
+                basePath,
+                "rag must be an object."
+            ));
+            return;
+        }
+        rag.fieldNames().forEachRemaining(field -> {
+            if (!Set.of("fanoutEnabled", "maxSpaces").contains(field)) {
+                issues.add(error(
+                    "providers",
+                    "EXECUTOR_RAG_OVERRIDE_FIELD_UNSUPPORTED",
+                    basePath + "." + field,
+                    "Only fanoutEnabled and maxSpaces may be overridden; retrieval allowlists are generated from authorized sources."
+                ));
+            }
+        });
+        JsonNode fanoutEnabled = rag.path("fanoutEnabled");
+        if (!fanoutEnabled.isMissingNode() && !fanoutEnabled.isNull() && !fanoutEnabled.isBoolean()) {
+            issues.add(error(
+                "providers",
+                "EXECUTOR_RAG_FANOUT_ENABLED_BOOLEAN_REQUIRED",
+                basePath + ".fanoutEnabled",
+                "fanoutEnabled must be a boolean."
+            ));
+        }
+        JsonNode maxSpaces = rag.path("maxSpaces");
+        if (!maxSpaces.isMissingNode() && !maxSpaces.isNull() && !isValidExecutorRagMaxSpaces(maxSpaces)) {
+            issues.add(error(
+                "providers",
+                "EXECUTOR_RAG_MAX_SPACES_INVALID",
+                basePath + ".maxSpaces",
+                "maxSpaces must be an integer between 1 and 12."
+            ));
+        }
+    }
+
+    private boolean isValidExecutorRagMaxSpaces(JsonNode maxSpaces) {
+        return maxSpaces.isIntegralNumber() && maxSpaces.canConvertToInt()
+            && maxSpaces.intValue() >= 1 && maxSpaces.intValue() <= 12;
     }
 
     private void validateReadActionResolutionOverride(JsonNode readAction,

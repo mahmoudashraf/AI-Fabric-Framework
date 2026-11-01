@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -2586,6 +2587,159 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsBoundedExecutorRagAndOverviewOverrides() {
+        var mapper = new ObjectMapper();
+        for (int maxSpaces : java.util.List.of(1, 12)) {
+            var executor = mapper.createObjectNode().put("knowledgeBaseOverviewEnabled", true);
+            executor.putObject("rag").put("fanoutEnabled", true).put("maxSpaces", maxSpaces);
+            executor.putObject("semanticRecovery").put("missingVectorSpace", " bounded_allowed_fan_out ");
+
+            DraftValidationResponse response = service.validate(executorOverrideDraft(executor));
+
+            assertThat(response.issues())
+                .filteredOn(issue -> issue.path().startsWith("$.orchestrationModeOverrides"))
+                .isEmpty();
+        }
+    }
+
+    @Test
+    void validateAcceptsDisabledExecutorRagAndOverviewWithoutRecoveryBudget() {
+        var mapper = new ObjectMapper();
+        var executor = mapper.createObjectNode().put("knowledgeBaseOverviewEnabled", false);
+        executor.putObject("rag").put("fanoutEnabled", false);
+
+        DraftValidationResponse response = service.validate(executorOverrideDraft(executor));
+
+        assertThat(response.issues())
+            .filteredOn(issue -> issue.path().startsWith("$.orchestrationModeOverrides"))
+            .isEmpty();
+    }
+
+    @Test
+    void validateRequiresExplicitExecutorFanoutBudgetForBoundedRecovery() throws Exception {
+        var mapper = new ObjectMapper();
+        var executor = mapper.createObjectNode();
+        executor.putObject("semanticRecovery").put("missingVectorSpace", "BOUNDED_ALLOWED_FAN_OUT");
+        assertThat(service.validate(executorOverrideDraft(executor)).issues())
+            .extracting("code").contains("EXECUTOR_RAG_FANOUT_BUDGET_REQUIRED");
+
+        for (String ragJson : java.util.List.of(
+            "null", "{}", "{\"maxSpaces\":2}",
+            "{\"fanoutEnabled\":false,\"maxSpaces\":2}",
+            "{\"fanoutEnabled\":\"true\",\"maxSpaces\":2}",
+            "{\"fanoutEnabled\":true}",
+            "{\"fanoutEnabled\":true,\"maxSpaces\":null}",
+            "{\"fanoutEnabled\":true,\"maxSpaces\":0}",
+            "{\"fanoutEnabled\":true,\"maxSpaces\":13}",
+            "{\"fanoutEnabled\":true,\"maxSpaces\":\"2\"}",
+            "{\"fanoutEnabled\":true,\"maxSpaces\":4294967297}"
+        )) {
+            executor.set("rag", mapper.readTree(ragJson));
+
+            assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                .as("rag=%s", ragJson)
+                .anySatisfy(issue -> {
+                    assertThat(issue.code()).isEqualTo("EXECUTOR_RAG_FANOUT_BUDGET_REQUIRED");
+                    assertThat(issue.path()).isEqualTo("$.orchestrationModeOverrides.executor.semanticRecovery.missingVectorSpace");
+                });
+        }
+    }
+
+    @Test
+    void validateRejectsInvalidExecutorOverviewAndFanoutBooleanTypes() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String valueJson : java.util.List.of("\"true\"", "1", "[]", "{}")) {
+            var executor = mapper.createObjectNode();
+            executor.set("knowledgeBaseOverviewEnabled", mapper.readTree(valueJson));
+            executor.putObject("rag").set("fanoutEnabled", mapper.readTree(valueJson));
+
+            DraftValidationResponse response = service.validate(executorOverrideDraft(executor));
+
+            assertThat(response.issues()).as("value=%s", valueJson).extracting("code")
+                .contains("KNOWLEDGE_BASE_OVERVIEW_ENABLED_BOOLEAN_REQUIRED", "EXECUTOR_RAG_FANOUT_ENABLED_BOOLEAN_REQUIRED");
+            assertThat(response.issues()).extracting("path")
+                .contains("$.orchestrationModeOverrides.executor.knowledgeBaseOverviewEnabled",
+                    "$.orchestrationModeOverrides.executor.rag.fanoutEnabled");
+        }
+    }
+
+    @Test
+    void validateRejectsInvalidExecutorRagMaxSpaces() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String valueJson : java.util.List.of(
+            "0", "-1", "13", "1.0", "1.5", "\"2\"", "true", "[]", "{}", "4294967297", "9223372036854775808"
+        )) {
+            var executor = mapper.createObjectNode();
+            executor.putObject("rag").set("maxSpaces", mapper.readTree(valueJson));
+
+            assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                .as("maxSpaces=%s", valueJson)
+                .anySatisfy(issue -> {
+                    assertThat(issue.code()).isEqualTo("EXECUTOR_RAG_MAX_SPACES_INVALID");
+                    assertThat(issue.path()).isEqualTo("$.orchestrationModeOverrides.executor.rag.maxSpaces");
+                });
+        }
+    }
+
+    @Test
+    void validateRejectsNonObjectExecutorRagOverrides() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String ragJson : java.util.List.of("true", "1", "\"rag\"", "[]")) {
+            var executor = mapper.createObjectNode();
+            executor.set("rag", mapper.readTree(ragJson));
+
+            assertThat(service.validate(executorOverrideDraft(executor)).issues())
+                .as("rag=%s", ragJson)
+                .anySatisfy(issue -> {
+                    assertThat(issue.code()).isEqualTo("EXECUTOR_RAG_OVERRIDE_OBJECT_REQUIRED");
+                    assertThat(issue.path()).isEqualTo("$.orchestrationModeOverrides.executor.rag");
+                });
+        }
+    }
+
+    @Test
+    void validateRejectsUnknownExecutorRagFieldsIncludingAllowlistOverrides() throws Exception {
+        var executor = new ObjectMapper().readTree("""
+            {
+              "retrievalVectorSpacesAllowlist": ["unapproved"],
+              "rag": {
+                "fanoutEnabled": true,
+                "maxSpaces": 2,
+                "retrievalVectorSpacesAllowlist": ["unapproved"],
+                "topKPerSpace": 100,
+                "rawEnvironment": {}
+              }
+            }
+            """);
+
+        DraftValidationResponse response = service.validate(executorOverrideDraft(executor));
+
+        assertThat(response.issues()).extracting("code")
+            .contains("EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED", "EXECUTOR_RAG_OVERRIDE_FIELD_UNSUPPORTED");
+        assertThat(response.issues()).extracting("path").contains(
+            "$.orchestrationModeOverrides.executor.retrievalVectorSpacesAllowlist",
+            "$.orchestrationModeOverrides.executor.rag.retrievalVectorSpacesAllowlist",
+            "$.orchestrationModeOverrides.executor.rag.topKPerSpace",
+            "$.orchestrationModeOverrides.executor.rag.rawEnvironment"
+        );
+    }
+
+    @Test
+    void validateLeavesAbsentExecutorRagAndOverviewOverridesUnchanged() throws Exception {
+        var mapper = new ObjectMapper();
+        DraftValidationResponse baseline = service.validate(executorOverrideDraft(null));
+        for (String executorJson : java.util.List.of(
+            "{}", "{\"rag\":{}}", "{\"knowledgeBaseOverviewEnabled\":null,\"rag\":null}",
+            "{\"rag\":{\"fanoutEnabled\":null,\"maxSpaces\":null}}"
+        )) {
+            DraftValidationResponse response = service.validate(executorOverrideDraft(mapper.readTree(executorJson)));
+
+            assertThat(response).as("executor=%s", executorJson)
+                .usingRecursiveComparison().ignoringFields("validatedAt").isEqualTo(baseline);
+        }
+    }
+
+    @Test
     void validateRejectsUnboundedOrUnknownReadActionResolutionOverrides() {
         DeploymentDraftEntity draft = draft(
             "{\"actions\":[]}",
@@ -4253,6 +4407,25 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .doesNotContain("EMBEDDINGMANAGEDSERVICEREF_UNKNOWN", "EMBEDDINGENDPOINTPROFILE_UNKNOWN");
+    }
+
+    private DeploymentDraftEntity executorOverrideDraft(JsonNode executor) {
+        var providers = new ObjectMapper().createObjectNode()
+            .put("llmProvider", "openai")
+            .put("embeddingProvider", "openai")
+            .put("vectorStrategy", "lucene")
+            .put("runtimeProfile", "runtime-managed")
+            .put("connectorProfile", "connector-hosted");
+        if (executor != null) {
+            providers.putObject("orchestrationModeOverrides").set("executor", executor);
+        }
+        return draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":true}},\"authz\":{\"enabled\":false},\"actions\":{}}",
+            providers.toString(),
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
     }
 
     private DeploymentDraftEntity draft(String actionsConfig,

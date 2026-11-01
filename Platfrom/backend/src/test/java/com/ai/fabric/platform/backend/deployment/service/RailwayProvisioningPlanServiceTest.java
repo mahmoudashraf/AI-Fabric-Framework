@@ -1323,6 +1323,120 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanCompilesExplicitExecutorRagAndOverviewOverrides() {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        for (boolean enabled : new boolean[] {true, false}) {
+            for (int maxSpaces : java.util.List.of(1, 12)) {
+                var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+                var executor = providers.putObject("orchestrationModeOverrides").putObject("executor");
+                executor.put("knowledgeBaseOverviewEnabled", enabled);
+                executor.putObject("rag").put("fanoutEnabled", enabled).put("maxSpaces", maxSpaces);
+                executor.putObject("semanticRecovery").put("missingVectorSpace",
+                    enabled ? "BOUNDED_ALLOWED_FAN_OUT" : "LLM_REPAIR_THEN_CLARIFY");
+                var version = version();
+                version.setProviderConfigJson(providers.toString());
+
+                var runtimeEnv = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+
+                assertThat(runtimeEnv)
+                    .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_KNOWLEDGE_BASE_OVERVIEW_ENABLED", Boolean.toString(enabled))
+                    .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_FANOUT_ENABLED", Boolean.toString(enabled))
+                    .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES", Integer.toString(maxSpaces))
+                    .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_MISSING_VECTOR_SPACE",
+                        enabled ? "BOUNDED_ALLOWED_FAN_OUT" : "LLM_REPAIR_THEN_CLARIFY");
+                assertThat(runtimeEnv.keySet()).noneMatch(key -> key.startsWith("AI_ORCHESTRATION_MODES_")
+                    && !key.startsWith("AI_ORCHESTRATION_MODES_EXECUTOR_"));
+            }
+        }
+    }
+
+    @Test
+    void buildPlanLeavesAbsentExecutorRagAndOverviewOverridesUnchanged() throws Exception {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        var baseline = envMap(service.buildPlan(deployment(), version()).services().runtime().env());
+        assertThat(baseline).doesNotContainKeys(
+            "AI_ORCHESTRATION_MODES_EXECUTOR_KNOWLEDGE_BASE_OVERVIEW_ENABLED",
+            "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_FANOUT_ENABLED",
+            "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES"
+        );
+        for (String executorJson : java.util.List.of(
+            "{}", "{\"rag\":{}}", "{\"knowledgeBaseOverviewEnabled\":null,\"rag\":null}",
+            "{\"rag\":{\"fanoutEnabled\":null,\"maxSpaces\":null}}"
+        )) {
+            var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+            providers.putObject("orchestrationModeOverrides").set("executor", mapper.readTree(executorJson));
+            var version = version();
+            version.setProviderConfigJson(providers.toString());
+
+            assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env()))
+                .as("executor=%s", executorJson).isEqualTo(baseline);
+        }
+    }
+
+    @Test
+    void buildPlanDoesNotCoerceInvalidExecutorRagOrOverviewOverrides() throws Exception {
+        var service = executorOverridePlanService();
+        var mapper = new ObjectMapper();
+        var baseline = envMap(service.buildPlan(deployment(), version()).services().runtime().env());
+        for (String executorJson : java.util.List.of(
+            "{\"knowledgeBaseOverviewEnabled\":\"true\",\"rag\":{\"fanoutEnabled\":\"true\",\"maxSpaces\":\"2\"}}",
+            "{\"knowledgeBaseOverviewEnabled\":1,\"rag\":true}",
+            "{\"knowledgeBaseOverviewEnabled\":{},\"rag\":[]}",
+            "{\"rag\":{\"maxSpaces\":0}}", "{\"rag\":{\"maxSpaces\":13}}",
+            "{\"rag\":{\"maxSpaces\":1.5}}", "{\"rag\":{\"maxSpaces\":4294967297}}"
+        )) {
+            var providers = mapper.createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai");
+            providers.putObject("orchestrationModeOverrides").set("executor", mapper.readTree(executorJson));
+            var version = version();
+            version.setProviderConfigJson(providers.toString());
+
+            assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env()))
+                .as("executor=%s", executorJson).isEqualTo(baseline);
+        }
+    }
+
+    @Test
+    void buildPlanKeepsExecutorRagAllowlistGeneratedFromAuthorizedSources() {
+        var service = executorOverridePlanService();
+        var version = version();
+        version.setEntityConfigJson("{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{\"document\":{}}}");
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[
+              {"id":"approved","entityType":"policy","enabled":true},
+              {"id":"disabled","entityType":"disabled-space","enabled":false}
+            ]}
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider":"openai",
+              "embeddingProvider":"openai",
+              "orchestrationModeOverrides":{
+                "executor":{
+                  "knowledgeBaseOverviewEnabled":true,
+                  "retrievalVectorSpacesAllowlist":["unapproved"],
+                  "rag":{
+                    "fanoutEnabled":true,
+                    "maxSpaces":2,
+                    "retrievalVectorSpacesAllowlist":["unapproved"],
+                    "rawEnvironment":{"AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES":"100"}
+                  }
+                }
+              }
+            }
+            """);
+
+        var runtimeEnv = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST", "document,policy")
+            .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_FANOUT_ENABLED", "true")
+            .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES", "2")
+            .doesNotContainKey("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_RETRIEVAL_VECTOR_SPACES_ALLOWLIST");
+    }
+
+    @Test
     void buildPlanCompilesRegisteredDeploymentVectorSpacesIntoRuntimeAllowlist() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -2756,6 +2870,26 @@ class RailwayProvisioningPlanServiceTest {
                 "MANAGED_CUSTOMER_BACKEND_API_KEY",
                 "${secret:owned-customer-backend-key}"
             );
+    }
+
+    private RailwayProvisioningPlanService executorOverridePlanService() {
+        var artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123", "ver-123", "v1", "hash-123",
+                "https://platform.example/actions.yml", "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml", "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        return new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

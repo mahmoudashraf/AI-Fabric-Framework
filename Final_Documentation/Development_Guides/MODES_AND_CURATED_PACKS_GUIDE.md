@@ -162,6 +162,56 @@ Behavior:
   - `allowedVectorSpaces=[...]`
 - If the LLM requests a denied space → `CLARIFICATION_REQUIRED` with `reason=VECTOR_SPACE_NOT_ALLOWED_BY_POLICY`.
 
+### Versioned Platform Overrides For Internal Source Selection
+
+Source selection belongs to the assistant, not to the buyer. Prompt guidance
+should ask the model to choose registered source entity types from the supplied
+catalogue and conversation, and never ask users for a vector space or internal
+knowledge-domain name. This guidance does not itself change server recovery:
+the framework can produce a missing-domain clarification after a read planner
+promotes a request to retrieval without selecting a source.
+
+The existing deployment `providerConfig` accepts these executor overrides:
+
+```json
+{
+  "orchestrationModeOverrides": {
+    "executor": {
+      "knowledgeBaseOverviewEnabled": true,
+      "semanticRecovery": {
+        "missingVectorSpace": "BOUNDED_ALLOWED_FAN_OUT"
+      },
+      "rag": {
+        "fanoutEnabled": true,
+        "maxSpaces": 2
+      }
+    }
+  }
+}
+```
+
+Merge these fields with the deployment's other settings. Publish and apply
+through the normal version mechanism; saving a draft does not change a live
+runtime. Platform materializes the corresponding
+`AI_ORCHESTRATION_MODES_EXECUTOR_*` environment properties. No new framework
+release or browser-provided routing hint is needed for this existing policy.
+
+The model's valid source selection remains first. Only an unresolved selection
+may use this explicitly allowed recovery, bounded by the generated authorized
+source allowlist and `maxSpaces`. Choose a budget covering the intended allowed
+sources; do not imply that a capped subset searched every source. `maxSpaces`
+must be an integer from1to12; explicit fan-out recovery also requires
+`fanoutEnabled=true`. These checks bound retrieval execution, not semantic
+confidence. Platform does not accept an arbitrary retrieval allowlist in this
+override object; it derives that authority from the configured sources.
+
+Keep invalid-source/action/tenant/authentication policies unchanged. An invalid
+or denied source is not equivalent to a missing source and must not silently
+trigger broad retrieval. Setting `vectorSpaceSelectionRequired=false` alone is
+not an internal-source resolution strategy. Review response diagnostics for
+`EXPLICIT_BOUNDED_FAN_OUT_RECOVERY`, selected spaces and effective budgets;
+record recovery as recovery, not as an LLM selection or a reliability guarantee.
+
 ---
 
 ## 6) Debug fields to look at (UI / logs)

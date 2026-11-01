@@ -1291,6 +1291,31 @@ public class RailwayProvisioningPlanService {
                 Boolean.toString(vectorSpaceSelectionRequired.asBoolean())
             ));
         }
+        JsonNode knowledgeBaseOverviewEnabled = executor.path("knowledgeBaseOverviewEnabled");
+        if (knowledgeBaseOverviewEnabled.isBoolean()) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_KNOWLEDGE_BASE_OVERVIEW_ENABLED",
+                Boolean.toString(knowledgeBaseOverviewEnabled.asBoolean())
+            ));
+        }
+        JsonNode rag = executor.path("rag");
+        if (rag.isObject()) {
+            JsonNode fanoutEnabled = rag.path("fanoutEnabled");
+            if (fanoutEnabled.isBoolean()) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_FANOUT_ENABLED",
+                    Boolean.toString(fanoutEnabled.asBoolean())
+                ));
+            }
+            JsonNode maxSpaces = rag.path("maxSpaces");
+            if (maxSpaces.isIntegralNumber() && maxSpaces.canConvertToInt()
+                && maxSpaces.intValue() >= 1 && maxSpaces.intValue() <= 12) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_MAX_SPACES",
+                    Integer.toString(maxSpaces.intValue())
+                ));
+            }
+        }
         JsonNode readAction = executor.path("readActionResolution");
         if (readAction != null && readAction.isObject()) {
             addOptionalEnv(
