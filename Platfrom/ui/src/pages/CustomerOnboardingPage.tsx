@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material'
 import ArrowBack from '@mui/icons-material/ArrowBack'
 import HubOutlined from '@mui/icons-material/HubOutlined'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
-import { productStartPath, selectedProduct } from '../auth/customerAuthReturn'
+import { productStartPath, selectedProduct, selectedKit } from '../auth/customerAuthReturn'
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 import { CustomerConsoleTheme } from '../theme/CustomerConsoleTheme'
 import { createCustomerWorkspace, enrollPublicCustomerTemplates, fetchCustomerDeploymentPortfolio, fetchCustomerOnboarding, fetchCustomerSelfServiceCatalogue } from '../api/platformApi'
@@ -23,9 +23,10 @@ export function CustomerSignInPage({ register = false }: { register?: boolean })
   const auth = usePlatformAuth()
   const location = useLocation()
   const product = selectedProduct(location.search)
+  const kit = selectedKit(location.search)
   return <CustomerEntryLayout>
     <Box><Typography variant="h4" component="h1">{register ? 'Create your LoomAI account' : 'Welcome to LoomAI'}</Typography>
-      <Typography color="text.secondary" sx={{ mt: 1 }}>{product ? `Continue with LoomAI ${product === 'platform' ? 'Platform' : product === 'engage' ? 'Engage' : 'Desk'}.` : 'One account for Console and LoomAI Desk.'}</Typography></Box>
+      <Typography color="text.secondary" sx={{ mt: 1 }}>{kit ? 'Continue setting up your AI experience.' : product ? `Continue with LoomAI ${product === 'platform' ? 'Platform' : product === 'engage' ? 'Engage' : 'Desk'}.` : 'One account for Console and LoomAI Desk.'}</Typography></Box>
     {auth.customerConfig?.enabled ? <SupabaseIdentityForm key={register ? 'register' : 'login'} allowRegistration initialMode={register ? 'register' : 'login'} />
       : <Alert severity="warning">Customer sign-in is currently unavailable. Please try again later.</Alert>}
     {auth.error ? <Alert severity="error">{auth.error.message}</Alert> : null}
@@ -91,6 +92,7 @@ export function CustomerProductStartPage() {
     finally { setBusy(false) }
   }
   const needsDeployment = product !== 'platform' && deployments.data?.length === 0
+  if (!selectedProduct(location.search)) return <Navigate to="/kits" replace />
   return <Stack spacing={3} sx={{ maxWidth: 650 }}>
     <Box><Typography variant="h4" component="h1">{product === 'platform' ? 'Set up your AI deployment' : product === 'engage' ? 'Create your Engage workspace' : 'Connect LoomAI Desk'}</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>Workspace: {auth.session?.customerName}</Typography></Box>

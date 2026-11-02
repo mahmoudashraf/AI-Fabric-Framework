@@ -1,5 +1,10 @@
 const returnKey = 'loomai-console-auth-return'
-type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; createdAt: number }
+type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; kit?: string; createdAt: number }
+
+export function selectedKit(search: string): string | null {
+  const kit = new URLSearchParams(search).get('kit')
+  return kit && /^[a-z][a-z0-9-]{0,63}$/.test(kit) ? kit : null
+}
 
 export function selectedProduct(search: string): 'platform' | 'engage' | 'desk' | null {
   const product = new URLSearchParams(search).get('product')
@@ -7,6 +12,8 @@ export function selectedProduct(search: string): 'platform' | 'engage' | 'desk' 
 }
 
 export function productStartPath(search: string) {
+  const kit = selectedKit(search)
+  if (kit) return `/kits/new/${kit}`
   const product = selectedProduct(search)
   return product ? `/start?product=${product}` : '/start'
 }
@@ -18,6 +25,7 @@ export function rememberCustomerAuthReturn(linking: boolean) {
     : window.location.pathname.startsWith('/auth/desk/sign-in') ? 'desk-entry' : 'customer',
     ...(window.location.pathname.startsWith('/auth/desk/sign-in/') ? { deskClientId: window.location.pathname.slice('/auth/desk/sign-in/'.length) } : {}),
     ...(selectedProduct(window.location.search) ? { product: selectedProduct(window.location.search)! } : {}),
+    ...(selectedKit(window.location.search) ? { kit: selectedKit(window.location.search)! } : {}),
     ...(authorizationId ? { authorizationId } : {}), createdAt: Date.now() }
   window.localStorage.setItem(returnKey, JSON.stringify(intent))
 }
@@ -30,6 +38,7 @@ export function customerAuthReturn(): AuthReturn | null {
       || (intent.purpose === 'desk' && (typeof intent.authorizationId !== 'string'
         || intent.authorizationId.length === 0 || intent.authorizationId.length > 512))
       || (intent.deskClientId !== undefined && (typeof intent.deskClientId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(intent.deskClientId)))) return null
+    if (intent.kit !== undefined && (typeof intent.kit !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(intent.kit))) return null
     return intent
   } catch { return null }
 }
@@ -41,6 +50,10 @@ export function consumeCustomerAuthReturn() {
   if (intent?.purpose === 'link') return '/staff/sign-in?link=customer'
   if (intent?.purpose === 'desk-entry') return '/auth/desk/sign-in' + (intent.deskClientId ? '/' + intent.deskClientId : '')
   if ((!intent || intent.purpose === 'customer') && new URLSearchParams(window.location.search).get('flow') === 'desk') return deskEntryFromEmail()
+  if (!intent || intent.purpose === 'customer') {
+    const kit = intent?.kit ?? selectedKit(window.location.search)
+    if (kit) return `/kits/new/${kit}`
+  }
   return intent?.purpose === 'customer'
     ? ['platform', 'engage', 'desk'].includes(intent.product ?? '') ? `/start?product=${intent!.product}` : '/start'
     : '/'
@@ -52,7 +65,8 @@ export function identityEmailRedirect(recovery = false) {
   const clientId = window.location.pathname.startsWith('/auth/desk/sign-in/')
     ? window.location.pathname.slice('/auth/desk/sign-in/'.length) : new URLSearchParams(window.location.search).get('desk_client')
   const client = clientId && /^[a-zA-Z0-9_-]{1,128}$/.test(clientId) ? `&desk_client=${encodeURIComponent(clientId)}` : ''
-  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : ''}`
+  const kit = selectedKit(window.location.search)
+  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : kit ? '?kit=' + encodeURIComponent(kit) : ''}`
 }
 
 function deskEntryFromEmail() {

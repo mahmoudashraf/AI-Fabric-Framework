@@ -140,6 +140,7 @@ public class PlatformSecurityConfiguration {
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
                 "/api/public/ai-workspace/**",
+                "/api/public/experience-kits",
                 "/api/internal/support/diagnostics/support_get_case_summary",
                 "/api/internal/support/diagnostics/support_get_deployment_status",
                 "/api/internal/support/diagnostics/support_get_engage_readiness",

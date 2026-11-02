@@ -14,7 +14,7 @@ const { platformCredentials, setPlatformAccessTokenProvider } = await load('../s
 delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
-const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath } = await load('../src/auth/customerAuthReturn.ts')
+const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath, productStartPath } = await load('../src/auth/customerAuthReturn.ts')
 const { deskSignInUrl, deskIdentityClient, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
 const { readEmailLink, verifyEmailLinkOnce } = await load('../src/auth/emailLinkVerification.ts')
 const config = { enabled: true, deskClients: [{ clientId: 'desk-prod', redirectUris: ['https://desk.example.test/auth/callback'] }] }
@@ -119,6 +119,26 @@ test('product selection survives email verification but cannot become an arbitra
     window.location.search = '?product=https://evil.test'
     rememberCustomerAuthReturn(false)
     assert.equal(consumeCustomerAuthReturn(), '/start')
+  } finally { delete globalThis.window }
+})
+
+test('kit selection survives same-device and email-link return without allowing arbitrary URLs', () => {
+  const storage = new Map()
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/sign-up', search: '?kit=dealership-ai-experience' },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    assert.equal(productStartPath(window.location.search), '/kits/new/dealership-ai-experience')
+    rememberCustomerAuthReturn(false)
+    assert.equal(consumeCustomerAuthReturn(), '/kits/new/dealership-ai-experience')
+    assert.equal(identityEmailRedirect(), 'https://console.example.test/auth/callback?kit=dealership-ai-experience')
+    window.location.pathname = '/auth/callback'
+    assert.equal(consumeCustomerAuthReturn(), '/kits/new/dealership-ai-experience')
+    window.location.search = '?kit=https://evil.test'
+    assert.equal(productStartPath(window.location.search), '/start')
+    assert.equal(consumeCustomerAuthReturn(), '/')
+    window.location.search = '?kit=..%2Fforeign'
+    assert.equal(productStartPath(window.location.search), '/start')
+    assert.equal(consumeCustomerAuthReturn(), '/')
   } finally { delete globalThis.window }
 })
 

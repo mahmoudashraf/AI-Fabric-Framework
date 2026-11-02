@@ -1,0 +1,563 @@
+---
+import {
+  ArrowLeft,
+  ArrowRight,
+  Box,
+  CarFront,
+  FileText,
+  GitCompareArrows,
+  Headphones,
+  MessageSquare,
+  Palette,
+  Play,
+  Plug,
+  ShieldCheck,
+} from '@lucide/astro'
+import BusinessExperienceFamily from './BusinessExperienceFamily.astro'
+import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
+import BusinessExperienceSupport from './BusinessExperienceSupport.astro'
+
+type Props = { kind: 'generic' | 'dealership' }
+const { kind } = Astro.props
+const dealership = kind === 'dealership'
+const title = dealership ? 'Dealership AI Experience' : 'AI Customer Experience'
+const consoleUrl = `https://console.loomai.pro/experiences/${dealership ? 'dealership-ai-experience' : 'ai-customer-experience'}`
+const capabilities = dealership
+  ? [
+      {
+        icon: CarFront,
+        title: 'Discover the right vehicle',
+        body: 'Help buyers explore indexed stock, check connected live facts and compare vehicles in one conversation.',
+      },
+      {
+        icon: FileText,
+        title: 'Answer with dealership knowledge',
+        body: 'Bring your approved delivery, warranty and operation guides into the buying journey.',
+      },
+      {
+        icon: MessageSquare,
+        title: 'Keep the next step connected',
+        body: 'Connect approved enquiry actions to your existing systems. Add your team through Desk when needed.',
+      },
+    ]
+  : [
+      {
+        icon: FileText,
+        title: 'Make your knowledge useful',
+        body: 'Help customers get answers grounded in approved business documents, with sources they can inspect.',
+      },
+      {
+        icon: GitCompareArrows,
+        title: 'Connect discovery to your business',
+        body: 'Let people explore products or services using the information and read actions you connect.',
+      },
+      {
+        icon: MessageSquare,
+        title: 'Turn questions into next steps',
+        body: 'Configure useful actions for your own systems, with the permissions and confirmation each action needs.',
+      },
+    ]
+const steps = [
+  {
+    title: 'Start with the kit',
+    body: 'Choose the experience in Console. Review its linked deployment and Engage configuration.',
+  },
+  {
+    title: 'Connect your business',
+    body: dealership
+      ? 'Use the simulator to explore, then configure approved stock access and your own dealership documents.'
+      : 'Connect approved knowledge, your storage and the business services you want the AI to use.',
+  },
+  {
+    title: 'Make it your own',
+    body: 'Adapt your branding and workspace tools. Choose website embed, a standalone app, or both.',
+  },
+  {
+    title: 'Test, then publish',
+    body: 'Verify answers, permissions and customer journeys before deploying and activating your experience.',
+  },
+]
+---
+
+<div class="business-experience-detail">
+  <section class="experience-detail-hero" aria-labelledby="experience-title">
+    <div class="loom-container">
+      <div class="experience-detail-hero__top">
+        <a href="/experiences"
+          ><ArrowLeft size={16} aria-hidden="true" />Back to experiences</a
+        ><a href="https://console.loomai.pro/"
+          >Open console<ArrowRight size={16} aria-hidden="true" /></a
+        >
+      </div>
+      <p class="loom-eyebrow">
+        {dealership ? 'LoomAI for dealerships' : 'LoomAI for business'}
+      </p>
+      <h1 id="experience-title">{title}</h1>
+      <p class="experience-detail-hero__lead">
+        {
+          dealership
+            ? 'Help buyers find the right car, understand their options and take a confident next step.'
+            : 'Your knowledge, live integrations and useful actions in one branded AI workspace.'
+        }
+      </p>
+      <div class="experience-detail-hero__actions">
+        <a class="experience-button" href={consoleUrl}
+          >Configure this experience<ArrowRight
+            size={17}
+            aria-hidden="true"
+          /></a
+        >{
+          dealership ? (
+            <a class="experience-secondary" href="/demos/dealership-ai">
+              <Play size={17} aria-hidden="true" />
+              Try the simulator demo
+            </a>
+          ) : (
+            <a class="experience-secondary" href="#included">
+              See what's included
+              <ArrowRight size={17} aria-hidden="true" />
+            </a>
+          )
+        }
+      </div>
+      {
+        dealership ? (
+          <div class="experience-detail-demo">
+            <>
+              <div>
+                <>
+                  <span class="experience-detail-label">
+                    <CarFront size={15} aria-hidden="true" />
+                    Fictional simulator demo
+                  </span>
+                  <h2>One workspace for the buying journey.</h2>
+                  <p>
+                    Explore Northfield's demonstration stock, compare options,
+                    ask about policies and see how AI and human conversations
+                    connect.
+                  </p>
+                  <p class="experience-detail-demo__boundary">
+                    Northfield and its inventory are fictional. The stock
+                    integration uses an Auto Trader-shaped simulator, not an
+                    approved live Auto Trader account.
+                  </p>
+                </>
+              </div>
+              <BusinessExperiencePreview variant="dealership-band" />
+            </>
+          </div>
+        ) : (
+          <BusinessExperiencePreview variant="montage" />
+        )
+      }
+    </div>
+  </section>
+
+  <section
+    class="experience-detail-capabilities"
+    aria-labelledby="experience-purpose-title"
+  >
+    <div class="loom-container">
+      <h2 id="experience-purpose-title">
+        {
+          dealership
+            ? 'More than a question-and-answer box.'
+            : 'Help customers understand, discover and act.'
+        }
+      </h2><div class="experience-detail-columns">
+        {
+          capabilities.map(({ icon: Icon, title: heading, body }) => (
+            <article>
+              <>
+                <Icon size={26} stroke-width={1.6} aria-hidden="true" />
+                <h3>{heading}</h3>
+                <p>{body}</p>
+              </>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="experience-detail-included"
+    id="included"
+    aria-labelledby="experience-included-title"
+  >
+    <div class="loom-container">
+      <p class="loom-eyebrow">Connected products, one experience</p><h2
+        id="experience-included-title"
+      >
+        What's inside the kit
+      </h2><div class="experience-detail-columns">
+        <article>
+          <Box size={30} stroke-width={1.6} aria-hidden="true" /><h3>
+            LoomAI Platform
+          </h3><p>
+            {
+              dealership
+                ? 'A dealership deployment starting point with stock and document plugins, configured discovery actions and integration settings to adapt.'
+                : 'A deployment starting point for your knowledge and connected services. Keep configuration, integrations and releases under your control.'
+            }
+          </p><a href="/products/loomai-platform"
+            >Explore Platform<ArrowRight size={15} aria-hidden="true" /></a
+          >
+        </article>
+        <article>
+          <MessageSquare size={30} stroke-width={1.6} aria-hidden="true" /><h3>
+            LoomAI Engage
+          </h3><p>
+            {
+              dealership
+                ? 'A branded dealership workspace with browse and vehicle-context tools, comparisons, attachments and configurable action results.'
+                : 'Your customer-facing AI workspace, with your name, branding and configured tools. Embed it on your website or give it its own address.'
+            }
+          </p><a href="https://console.loomai.pro/products/engage"
+            >Explore Engage<ArrowRight size={15} aria-hidden="true" /></a
+          >
+        </article>
+        <article>
+          <Headphones size={30} stroke-width={1.6} aria-hidden="true" /><h3>
+            LoomAI Desk <span>Optional</span>
+          </h3><p>
+            Add your own agents during setup or later. Give them
+            deployment-scoped access to continue conversations and handle
+            configured action reviews.
+          </p><a href="https://console.loomai.pro/products/desk"
+            >Explore Desk<ArrowRight size={15} aria-hidden="true" /></a
+          >
+        </article>
+      </div><div class="experience-detail-note">
+        <ShieldCheck size={21} aria-hidden="true" /><p>
+          The kit is a starting configuration, not a locked package. Reuse the
+          existing product editors and release flow as your experience grows.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="experience-detail-setup"
+    aria-labelledby="experience-setup-title"
+  >
+    <div class="loom-container">
+      <h2 id="experience-setup-title">Make it yours</h2><ol>
+        {
+          steps.map((step, index) => (
+            <li>
+              <>
+                <span>{index + 1}</span>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </>
+            </li>
+          ))
+        }
+      </ol><div class="experience-detail-requirements">
+        <div>
+          <Plug size={22} aria-hidden="true" /><h3>
+            Your systems stay yours
+          </h3><p>
+            {
+              dealership
+                ? 'For a real retailer, you need approved provider access, the right advertiser scope, dealership content and an authorised enquiry destination. The simulator is for evaluation, not production API access.'
+                : 'Bring approved source content and credentials for your business systems. Integrations, permissions and actions are configured for your use case; a kit does not grant access to external systems.'
+            }
+          </p>
+        </div><div>
+          <Palette size={22} aria-hidden="true" /><h3>
+            Your brand. Your people.
+          </h3><p>
+            Choose your identity and customer-facing tools. If you enable Desk,
+            assign your own human agents and decide how customers can reach
+            them. LoomAI does not provide staffing.
+          </p>
+        </div>
+      </div><div class="experience-detail-setup__actions">
+        <a class="experience-button" href={consoleUrl}
+          >Continue in Console<ArrowRight size={17} aria-hidden="true" /></a
+        ><a
+          class="experience-secondary"
+          href="https://console.loomai.pro/support"
+          >Request integration help<ArrowRight
+            size={16}
+            aria-hidden="true"
+          /></a
+        >
+      </div><BusinessExperienceSupport />
+    </div>
+  </section>
+  <BusinessExperienceFamily />
+</div>
+
+<style>
+  :global(body:has(.business-experience-detail)) {
+    background: var(--loom-canvas);
+  }
+  .experience-detail-hero {
+    border-bottom: 1px solid var(--loom-border-subtle);
+    padding-top: 1.5rem;
+  }
+  .experience-detail-hero__top {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+  .experience-detail-hero__top a,
+  .experience-secondary,
+  .experience-detail-demo a {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.85rem;
+    font-weight: 600;
+    gap: 0.45rem;
+    text-decoration: none;
+  }
+  .loom-eyebrow {
+    margin-bottom: 0.65rem;
+  }
+  h1 {
+    font-size: 3rem;
+    margin-bottom: 0.8rem;
+  }
+  .experience-detail-hero__lead {
+    font-size: 1.15rem;
+    line-height: 1.55;
+    margin-bottom: 1.3rem;
+    max-width: 53rem;
+  }
+  .experience-detail-hero__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    margin-bottom: 1.6rem;
+  }
+  .experience-button {
+    align-items: center;
+    background: #096bfa;
+    border: 1px solid #096bfa;
+    border-radius: 6px;
+    color: #fff;
+    display: inline-flex;
+    font-size: 0.9rem;
+    font-weight: 650;
+    gap: 0.75rem;
+    justify-content: center;
+    min-height: 2.9rem;
+    padding: 0.65rem 1.2rem;
+    text-decoration: none;
+  }
+  .experience-button:hover {
+    background: #0057d9;
+  }
+  h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1.7rem;
+  }
+  h3 {
+    font-size: 1.05rem;
+    line-height: 1.4;
+    margin-bottom: 0.65rem;
+    text-wrap: initial;
+  }
+  .experience-detail-demo {
+    margin-block: 1.5rem 2rem;
+  }
+  .experience-detail-demo h2 {
+    font-size: 1.6rem;
+    margin: 0.75rem 0;
+  }
+  .experience-detail-demo p {
+    font-size: 0.95rem;
+    margin-bottom: 0.6rem;
+    max-width: 65rem;
+  }
+  .experience-detail-demo .experience-detail-demo__boundary {
+    color: var(--loom-text-muted);
+    font-size: 0.8rem;
+  }
+  .experience-detail-label {
+    align-items: center;
+    color: #86570d;
+    display: inline-flex;
+    font-size: 0.75rem;
+    gap: 0.45rem;
+  }
+  .experience-detail-capabilities,
+  .experience-detail-included,
+  .experience-detail-setup {
+    border-bottom: 1px solid var(--loom-border-subtle);
+    padding-block: 2.6rem;
+  }
+  .experience-detail-included {
+    background: var(--loom-surface);
+    scroll-margin-top: 7rem;
+  }
+  .experience-detail-columns {
+    display: grid;
+    gap: 2.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .experience-detail-columns article {
+    min-width: 0;
+  }
+  .experience-detail-columns article > svg {
+    color: var(--loom-blue-600);
+    margin-bottom: 1rem;
+  }
+  .experience-detail-columns article:nth-child(2) > svg {
+    color: #008e83;
+  }
+  .experience-detail-columns article:nth-child(3) > svg {
+    color: #b4780b;
+  }
+  .experience-detail-columns p,
+  .experience-detail-requirements p {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+  .experience-detail-columns a {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.8rem;
+    font-weight: 650;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+  h3 > span {
+    background: var(--loom-warning-soft);
+    border-radius: 4px;
+    color: #86570d;
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    vertical-align: middle;
+  }
+  :global([data-theme='dark']) h3 > span,
+  :global([data-theme='dark']) .experience-detail-label {
+    color: #f0c578;
+  }
+  .experience-detail-note {
+    align-items: start;
+    border-top: 1px solid var(--loom-border-subtle);
+    display: flex;
+    gap: 0.7rem;
+    margin-top: 1.5rem;
+    padding-top: 1.2rem;
+  }
+  .experience-detail-note svg {
+    color: #008e83;
+    flex-shrink: 0;
+  }
+  .experience-detail-note p {
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  ol {
+    display: grid;
+    gap: 1.6rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 0 0 2rem;
+    padding: 0;
+  }
+  ol li {
+    border-top: 1px solid var(--loom-border-strong);
+    min-width: 0;
+    padding-top: 1rem;
+  }
+  ol li > span {
+    align-items: center;
+    background: var(--loom-info-soft);
+    border-radius: 4px;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.8rem;
+    font-weight: 700;
+    height: 1.7rem;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+    width: 1.7rem;
+  }
+  ol p {
+    font-size: 0.85rem;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .experience-detail-requirements {
+    border-top: 1px solid var(--loom-border-subtle);
+    display: grid;
+    gap: 3rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 1.7rem;
+  }
+  .experience-detail-requirements svg {
+    color: var(--loom-blue-600);
+    margin-bottom: 0.7rem;
+  }
+  .experience-detail-setup__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-block: 0.5rem 1.8rem;
+  }
+  :global([data-theme='dark'])
+    .experience-detail-columns
+    article:nth-child(2)
+    > svg,
+  :global([data-theme='dark']) .experience-detail-note svg {
+    color: #59dbcb;
+  }
+  :global([data-theme='dark'])
+    .experience-detail-columns
+    article:nth-child(3)
+    > svg {
+    color: #f0c578;
+  }
+  @media (max-width: 60rem) {
+    ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .experience-detail-columns {
+      gap: 1.5rem;
+    }
+  }
+  @media (max-width: 42rem) {
+    h1 {
+      font-size: 2.25rem;
+    }
+    h2 {
+      font-size: 1.6rem;
+    }
+    .experience-detail-hero__lead {
+      font-size: 1rem;
+    }
+    .experience-detail-columns,
+    .experience-detail-requirements,
+    ol {
+      grid-template-columns: 1fr;
+    }
+    .experience-detail-hero__top {
+      margin-bottom: 1.5rem;
+    }
+    .experience-detail-capabilities,
+    .experience-detail-included,
+    .experience-detail-setup {
+      padding-block: 2rem;
+    }
+    .experience-detail-requirements {
+      gap: 1.3rem;
+    }
+  }
+</style>

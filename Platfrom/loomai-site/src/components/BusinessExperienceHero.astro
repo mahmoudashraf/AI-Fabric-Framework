@@ -1,0 +1,140 @@
+---
+import { ArrowRight, Play } from '@lucide/astro'
+import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
+---
+
+<section class="business-hero" aria-labelledby="business-title">
+  <div class="loom-container">
+    <div class="business-hero__eyebrow">
+      <p class="loom-eyebrow">LoomAI for business</p><a
+        class="business-console"
+        href="https://console.loomai.pro/"
+        >Open console<ArrowRight size={16} aria-hidden="true" /></a
+      >
+    </div>
+    <h1 id="business-title">AI Customer Experience</h1>
+    <div class="business-hero__intro">
+      <div>
+        <p>
+          Connect your knowledge and business systems to a branded AI workspace.
+        </p><p>Add your human team when the conversation needs a person.</p>
+      </div><div class="business-hero__actions">
+        <a class="business-button" href="#experiences"
+          >Explore experiences<ArrowRight size={17} aria-hidden="true" /></a
+        ><a class="business-demo" href="/demos/dealership-ai"
+          ><Play size={18} aria-hidden="true" />Try dealership demo</a
+        >
+      </div>
+    </div>
+    <BusinessExperiencePreview variant="montage" />
+  </div>
+</section>
+<style>
+  .business-hero {
+    border-bottom: 1px solid var(--loom-border-subtle);
+    padding-top: 1.6rem;
+  }
+  .business-hero__eyebrow {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .business-hero__eyebrow .loom-eyebrow {
+    margin: 0;
+  }
+  .business-console {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.85rem;
+    font-weight: 650;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+  h1 {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+  }
+  .business-hero__intro {
+    align-items: center;
+    display: flex;
+    gap: 1.5rem;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+  }
+  .business-hero__intro p {
+    font-size: 1rem;
+    line-height: 1.55;
+    margin-bottom: 0.2rem;
+  }
+  .business-hero__intro p:last-child {
+    color: var(--loom-text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  .business-hero__actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+  }
+  .business-button {
+    align-items: center;
+    background: #096bfa;
+    border: 1px solid #096bfa;
+    border-radius: 6px;
+    color: white;
+    display: inline-flex;
+    font-size: 0.85rem;
+    font-weight: 650;
+    gap: 0.65rem;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.65rem 1.1rem;
+    text-decoration: none;
+  }
+  .business-button:hover {
+    background: #0057d9;
+  }
+  .business-demo {
+    align-items: center;
+    color: var(--loom-text-primary);
+    display: inline-flex;
+    font-size: 0.85rem;
+    font-weight: 650;
+    gap: 0.45rem;
+    text-decoration: none;
+  }
+  .business-demo svg {
+    color: var(--loom-blue-600);
+  }
+  @media (max-width: 75rem) {
+    .business-hero__intro {
+      align-items: start;
+      flex-direction: column;
+      gap: 1rem;
+    }
+  }
+  @media (max-width: 42rem) {
+    .business-hero {
+      padding-top: 1.3rem;
+    }
+    h1 {
+      font-size: 2.25rem;
+      line-height: 1.13;
+    }
+    .business-hero__intro p {
+      font-size: 0.95rem;
+    }
+    .business-hero__actions {
+      gap: 1rem;
+    }
+    .business-button,
+    .business-demo {
+      font-size: 0.8rem;
+    }
+  }
+</style>

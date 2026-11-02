@@ -11,6 +11,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { PlatformApiError } from './api/platformApi'
 import { productStartPath } from './auth/customerAuthReturn'
 import { PublicProductsPage } from './pages/PublicProductsPage'
+import { ExperienceKitsPublicPage } from './pages/ExperienceKitsPublicPage'
+import { ExperienceKitsPage } from './pages/ExperienceKitsPage'
 import { CustomerOnboardingPage, CustomerProductStartPage, CustomerSignInPage } from './pages/CustomerOnboardingPage'
 import { AppShell } from './layout/AppShell'
 import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
@@ -77,7 +79,11 @@ export default function App() {
 
   const publicProduct = ['/products/platform', '/products/engage', '/products/desk'].includes(location.pathname)
     ? location.pathname.split('/')[2] as 'platform' | 'engage' | 'desk' : undefined
-  if (location.pathname === '/' || location.pathname === '/products' || publicProduct) {
+  const experiencePath = location.pathname.match(/^\/experiences(?:\/([a-z][a-z0-9-]{0,63}))?\/?$/)
+  if (location.pathname === '/' || experiencePath) {
+    return <ExperienceKitsPublicPage code={experiencePath?.[1]} authenticated={Boolean(customerWorkspace && auth.session?.authenticated)} />
+  }
+  if (location.pathname === '/products' || publicProduct) {
     return <PublicProductsPage product={publicProduct} authenticated={Boolean(auth.session?.authenticated)} consolePath={customerWorkspace ? '/home' : '/deployments'} />
   }
 
@@ -148,6 +154,9 @@ export default function App() {
           {customerWorkspace ? (
             <>
               <Route path="/home" element={<CustomerResourcesPage mode="home" />} />
+              <Route path="/kits" element={<ExperienceKitsPage />} />
+              <Route path="/kits/new/:code" element={<ExperienceKitsPage />} />
+              <Route path="/kits/:id" element={<ExperienceKitsPage />} />
               <Route path="/start" element={<CustomerProductStartPage />} />
               <Route path="/onboarding" element={<Navigate to={productStartPath(location.search)} replace />} />
               <Route path="/deployments" element={<CustomerResourcesPage mode="deployments" />} />

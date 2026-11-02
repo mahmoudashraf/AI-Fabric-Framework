@@ -19,6 +19,7 @@ import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
+import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
 import { isCustomerSession } from '../auth/customerSession'
 import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio } from '../api/platformApi'
@@ -32,6 +33,7 @@ import { SupportRequestForm } from '../components/customer/SupportRequestForm'
 
 const navigation = [
   { path: '/home', label: 'Home', icon: SpaceDashboardOutlined },
+  { path: '/kits', label: 'My kits', icon: Inventory2Outlined },
   { path: '/deployments', label: 'Deployments', icon: DnsOutlined },
   { path: '/ai-workspaces', label: 'Engage apps', icon: WidgetsOutlined },
   { path: '/document-knowledge', label: 'Knowledge & data', icon: DatasetOutlined },
@@ -92,7 +94,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
   const [menuOpen, setMenuOpen] = useState(false)
   const color = useCustomerColorPreference()
-  const active = navigation.find(item => item.path === location.pathname || (item.path === '/support' && location.pathname.startsWith('/support/')))
+  const active = navigation.find(item => item.path === location.pathname || (['/support', '/kits'].includes(item.path) && location.pathname.startsWith(item.path + '/')))
   const accountName = session?.customerName ?? 'Customer account'
   const accountInitial = accountName.charAt(0).toUpperCase()
   const nav = <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1.75 }}>
@@ -106,7 +108,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         <Typography sx={{ fontSize: 10 }} color="text.secondary">Customer workspace</Typography></Box>
     </Stack>
     <List component="nav" aria-label="Customer navigation" disablePadding>
-      {navigation.filter(item => (expandedNavigation || ['/home', '/deployments', '/ai-workspaces', '/users', '/support'].includes(item.path))
+      {navigation.filter(item => (expandedNavigation || ['/home', '/kits', '/deployments', '/ai-workspaces', '/users', '/support'].includes(item.path))
         && (item.path !== '/human-support' || humanSupportAvailable)).map(item => <ListItemButton key={item.path} component={Link}
         to={isDeploymentWorkspacePath(item.path) ? buildWorkspacePath(item.path) : item.path}
         selected={active?.path === item.path} onClick={() => setMenuOpen(false)}

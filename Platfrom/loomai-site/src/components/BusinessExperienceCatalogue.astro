@@ -1,0 +1,272 @@
+---
+import {
+  ArrowRight,
+  CarFront,
+  MessageSquare,
+  Play,
+  Plus,
+  Box,
+} from '@lucide/astro'
+import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
+import BusinessExperienceSupport from './BusinessExperienceSupport.astro'
+---
+
+<section
+  class="business-experiences"
+  id="experiences"
+  aria-labelledby="experiences-title"
+>
+  <div class="loom-container">
+    <h2 id="experiences-title">Choose your starting point</h2>
+    <div class="business-experiences__grid">
+      <article
+        class="business-kit business-kit--generic"
+        aria-labelledby="generic-kit-title"
+      >
+        <div class="business-kit__copy">
+          <h3 id="generic-kit-title">AI Customer Experience</h3><p>
+            Answers, discovery and useful actions for your business.
+          </p><div class="business-kit__products">
+            <span>Platform</span><Plus size={13} aria-hidden="true" /><span
+              >Engage</span
+            >
+          </div><div class="business-kit__icons" aria-hidden="true">
+            <Box size={35} stroke-width={1.6} /><Plus size={17} /><MessageSquare
+              size={35}
+              stroke-width={1.6}
+            />
+          </div><a
+            class="business-kit__link"
+            href="/experiences/ai-customer-experience"
+            >Explore experience<ArrowRight size={17} aria-hidden="true" /></a
+          >
+        </div>
+        <BusinessExperiencePreview />
+      </article>
+      <article
+        class="business-kit business-kit--dealership"
+        aria-labelledby="dealership-kit-title"
+      >
+        <div class="business-kit__copy">
+          <h3 id="dealership-kit-title">Dealership AI Experience</h3><p>
+            A configured workspace for stock discovery, comparisons and
+            dealership enquiries.
+          </p><div class="business-kit__products">
+            <span>Platform + Engage<br />+ dealership configuration</span>
+          </div><div class="business-kit__icons" aria-hidden="true">
+            <Box size={32} stroke-width={1.6} /><Plus size={15} /><MessageSquare
+              size={32}
+              stroke-width={1.6}
+            /><Plus size={15} /><CarFront size={32} stroke-width={1.6} />
+          </div><div class="business-kit__links">
+            <a
+              class="business-kit__link"
+              href="/experiences/dealership-ai-experience"
+              >Explore dealership kit<ArrowRight
+                size={17}
+                aria-hidden="true"
+              /></a
+            ><a class="business-kit__demo" href="/demos/dealership-ai"
+              ><Play size={15} aria-hidden="true" />Try demo</a
+            >
+          </div>
+        </div>
+        <div class="business-kit__vehicle">
+          <span class="business-kit__badge"
+            ><CarFront size={13} aria-hidden="true" />Simulator demo</span
+          ><BusinessExperiencePreview variant="dealership" />
+        </div>
+      </article>
+    </div>
+    <BusinessExperienceSupport />
+    <p class="business-experiences__note">
+      A starting point, not a restriction. Adapt your knowledge, integrations
+      and workspace. Human support uses your own assigned agents.
+    </p>
+  </div>
+</section>
+<style>
+  .business-experiences {
+    padding-block: 1.4rem 0;
+    scroll-margin-top: 6.5rem;
+  }
+  h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+  .business-experiences__grid {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0.8rem;
+  }
+  .business-kit {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    display: grid;
+    gap: 1.4rem;
+    grid-template-columns: 1fr 0.95fr;
+    min-width: 0;
+    padding: 1.4rem;
+  }
+  .business-kit--generic {
+    background: #eaf9f5;
+    border-color: #def1eb;
+  }
+  .business-kit--dealership {
+    background: #edf5ff;
+    border-color: #dfebfb;
+  }
+  .business-kit__copy {
+    align-items: start;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  h3 {
+    font-size: 1.4rem;
+    line-height: 1.2;
+    margin-bottom: 0.65rem;
+    text-wrap: initial;
+  }
+  .business-kit__copy > p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0 0 1.5rem;
+  }
+  .business-kit__products {
+    align-items: center;
+    display: flex;
+    font-size: 0.8rem;
+    font-weight: 600;
+    gap: 0.4rem;
+    line-height: 1.4;
+    margin-top: auto;
+  }
+  .business-kit--generic .business-kit__products > span:last-child {
+    color: #00766d;
+  }
+  .business-kit__icons {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: flex;
+    gap: 0.8rem;
+    margin-block: 0.8rem 1.4rem;
+  }
+  .business-kit__icons > svg:nth-child(3) {
+    color: #009d92;
+  }
+  .business-kit__icons > svg:nth-child(5) {
+    color: #b4780b;
+  }
+  .business-kit__link,
+  .business-kit__demo {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.85rem;
+    font-weight: 650;
+    gap: 0.4rem;
+    line-height: 1.4;
+    text-decoration: none;
+  }
+  .business-kit__link:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .business-kit__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .business-kit__demo {
+    font-size: 0.75rem;
+  }
+  .business-kit__vehicle {
+    min-width: 0;
+    position: relative;
+  }
+  .business-kit__badge {
+    align-items: center;
+    background: #ffe1a7;
+    border-radius: 4px;
+    color: #61400e;
+    display: inline-flex;
+    font-size: 0.65rem;
+    font-weight: 600;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    position: absolute;
+    right: -0.4rem;
+    top: -0.9rem;
+    z-index: 1;
+  }
+  .business-experiences__note {
+    color: var(--loom-text-muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    margin: 0.7rem 0 0;
+  }
+  :global([data-theme='dark']) .business-kit--generic {
+    background: #152d2b;
+    border-color: #254a45;
+  }
+  :global([data-theme='dark']) .business-kit--dealership {
+    background: #1a293d;
+    border-color: #2f4461;
+  }
+  :global([data-theme='dark'])
+    .business-kit--generic
+    .business-kit__products
+    > span:last-child,
+  :global([data-theme='dark']) .business-kit__icons > svg:nth-child(3) {
+    color: #59dbcb;
+  }
+  :global([data-theme='dark']) .business-kit__icons > svg:nth-child(5) {
+    color: #f0c578;
+  }
+  @media (max-width: 78rem) {
+    .business-kit {
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
+    .business-kit__copy {
+      display: block;
+    }
+    .business-kit__copy > p {
+      margin-bottom: 0.8rem;
+    }
+    .business-kit__icons {
+      display: none;
+    }
+    .business-kit__products {
+      margin-bottom: 0.9rem;
+    }
+    .business-kit__vehicle {
+      margin-top: 0.4rem;
+    }
+  }
+  @media (max-width: 42rem) {
+    .business-experiences__grid {
+      gap: 1.2rem;
+      grid-template-columns: 1fr;
+    }
+    .business-kit {
+      padding: 1.2rem;
+    }
+    h2 {
+      font-size: 1.6rem;
+    }
+    h3 {
+      font-size: 1.4rem;
+    }
+    .business-kit__copy > p {
+      font-size: 0.9rem;
+    }
+    .business-kit__copy {
+      padding-bottom: 0.25rem;
+    }
+  }
+</style>

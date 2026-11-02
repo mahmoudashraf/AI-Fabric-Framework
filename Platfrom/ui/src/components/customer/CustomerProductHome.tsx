@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from '@mui/material'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
@@ -9,6 +10,8 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary } from '../../api/platformApi'
 import { appResource, deploymentResource, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { activeProductDeployments, customerProducts, productSetupPath } from './customerProductModels'
+import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
+import { experienceKitKeys, fetchExperienceKits } from '../../api/experienceKitsApi'
 
 export function CustomerProductHome({ offers, deployments, apps, errors, onInspect }: {
   offers: CustomerOfferSummary[]
@@ -17,6 +20,8 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
   errors: string[]
   onInspect: (resource: CustomerResource) => void
 }) {
+  const customerId = usePlatformAuth().session?.customerId ?? ''
+  const kits = useQuery({ queryKey: experienceKitKeys.list(customerId), queryFn: ({ signal }) => fetchExperienceKits(signal), enabled: Boolean(customerId), retry: false })
   const products = customerProducts(offers, deployments, apps)
   const [historyOpen, setHistoryOpen] = useState(false)
   const activeApps = apps.filter(app => app.status === 'ACTIVE')
@@ -25,6 +30,14 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
   const otherDeployments = deployments.filter(deployment => !coveredDeployments.has(deployment.deploymentId))
   const inactiveApps = apps.filter(app => app.status !== 'ACTIVE')
   return <Stack spacing={3}>
+    <Box component="section" aria-label="Your AI experiences">
+      <Stack direction="row" justifyContent="space-between" gap={2} alignItems="center"><Typography variant="h6">Your AI experiences</Typography><Button component={RouterLink} to="/kits">My kits</Button></Stack>
+      {kits.isSuccess && kits.data.length ? <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1 }}>{kits.data.map(kit => <Button key={kit.id} component={RouterLink} to={`/kits/${encodeURIComponent(kit.id)}`} variant="outlined">{kit.name}</Button>)}</Stack>
+        : <Typography variant="body2" color="text.secondary">Start with a connected kit, or configure the individual products below.</Typography>}
+      {kits.isError && <Alert severity="warning">Your kits could not be loaded. Existing product resources remain available.<Button onClick={() => void kits.refetch()}>Retry</Button></Alert>}
+      <Button component={RouterLink} to="/experiences" startIcon={<AddRounded />} sx={{ mt: 1 }}>Explore AI experiences</Button>
+    </Box>
+    <Divider />
     {activeIssues.length > 0 ? <Stack spacing={1} aria-label="Active app issues">
       {activeIssues.map(({ app, issue }) => <Alert key={`${app.installationId}:${issue.code}`} severity={issue.severity}
         action={<Button onClick={() => onInspect(appResource(app))}>Inspect</Button>}><strong>{app.displayName}</strong>: {issue.message}</Alert>)}

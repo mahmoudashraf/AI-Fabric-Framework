@@ -1,0 +1,56 @@
+---
+import { ArrowRight } from '@lucide/astro'
+import BusinessExperienceCatalogue from '../../components/BusinessExperienceCatalogue.astro'
+import BusinessExperienceFamily from '../../components/BusinessExperienceFamily.astro'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+---
+
+<BaseLayout
+  title="Business AI Experiences"
+  description="Choose an AI Customer Experience or a dealership-specific starting point. Connect Platform and Engage, with optional human support through LoomAI Desk."
+>
+  <div class="business-experiences-page">
+    <header class="loom-container experiences-intro">
+      <p class="loom-eyebrow">LoomAI for business</p><h1>
+        AI experiences for your customers
+      </h1><p>
+        Choose a starting point. Connect your business. Make it yours.
+      </p><a href="https://console.loomai.pro/"
+        >Open console<ArrowRight size={16} aria-hidden="true" /></a
+      >
+    </header><BusinessExperienceCatalogue /><BusinessExperienceFamily />
+  </div>
+</BaseLayout>
+<style>
+  :global(body:has(.business-experiences-page)) {
+    background: var(--loom-canvas);
+  }
+  .experiences-intro {
+    padding-block: 2rem 0.75rem;
+  }
+  h1 {
+    font-size: 2.75rem;
+    margin-bottom: 0.8rem;
+  }
+  .experiences-intro > p:not(.loom-eyebrow) {
+    font-size: 1.05rem;
+    margin-bottom: 1rem;
+  }
+  .experiences-intro a {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.9rem;
+    font-weight: 650;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+  @media (max-width: 42rem) {
+    h1 {
+      font-size: 2.25rem;
+    }
+    .experiences-intro {
+      padding-top: 1.5rem;
+    }
+  }
+</style>

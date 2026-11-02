@@ -4,6 +4,12 @@ import { navigation } from '../data/content'
 import LoomWordmark from './LoomWordmark.astro'
 
 const currentPath = Astro.url.pathname
+const businessPage = currentPath === '/' || currentPath.startsWith('/experiences')
+const links = businessPage ? [
+  { label: 'Experiences', href: '/experiences', activePatterns: ['/experiences'] },
+  { label: 'Products', href: '/products', activePatterns: ['/products'] },
+  { label: 'Live demos', href: '/experiments', activePatterns: ['/experiments'] },
+] : navigation
 const isActive = (patterns: string[]) =>
   patterns.some((pattern) => currentPath === pattern || currentPath.startsWith(`${pattern}/`))
 ---
@@ -15,7 +21,7 @@ const isActive = (patterns: string[]) =>
     </a>
 
     <nav class="site-header__nav" aria-label="Primary navigation">
-      {navigation.map((item) => (
+      {links.map((item) => (
         <a
           href={item.href}
           aria-current={isActive(item.activePatterns) ? 'page' : undefined}
@@ -38,12 +44,12 @@ const isActive = (patterns: string[]) =>
     </button>
     <a
       class="site-header__connect"
-      href="https://github.com/Loom-AI-Labs"
-      target="_blank"
+      href={businessPage ? 'https://console.loomai.pro/' : 'https://github.com/Loom-AI-Labs'}
+      target={businessPage ? undefined : '_blank'}
       rel="noreferrer"
     >
-      <GitFork size={19} stroke-width={1.8} aria-hidden="true" />
-      GitHub
+      {businessPage ? <ArrowUpRight size={19} stroke-width={1.8} aria-hidden="true" /> : <GitFork size={19} stroke-width={1.8} aria-hidden="true" />}
+      {businessPage ? 'Open Console' : 'GitHub'}
     </a>
 
     <button
@@ -67,7 +73,7 @@ const isActive = (patterns: string[]) =>
     </button>
   </div>
   <nav class="mobile-menu__nav" aria-label="Mobile navigation">
-    {navigation.map((item) => (
+    {links.map((item) => (
       <a
         href={item.href}
         aria-current={isActive(item.activePatterns) ? 'page' : undefined}
@@ -76,6 +82,7 @@ const isActive = (patterns: string[]) =>
         <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
       </a>
     ))}
+    {businessPage && <a href="https://console.loomai.pro/"><span>Open Console</span><ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" /></a>}
     <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
       <span>GitHub</span>
       <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
