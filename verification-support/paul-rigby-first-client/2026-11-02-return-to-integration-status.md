@@ -2,6 +2,12 @@
 
 Date: 2 November 2026
 
+**Historical checkpoint, superseded later the same day:** see the
+[completion-cycle handoff](2026-11-02-completion-cycle.md) and canonical plan's
+latest checkpoint for current 0.8.45 assignments, completed Platform corrections
+and outstanding owner/review inputs. The status below is retained history, not
+the current deployed-version or unfinished-work claim.
+
 ## Decision
 
 The owner accepted the remaining Support semantic limitations and requested the

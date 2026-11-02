@@ -11856,3 +11856,60 @@ test is being called hosted acceptance. UI extraction remains last.
 - Detailed evidence: verification-support/paul-rigby-first-client/
   2026-11-02-enquiry-and-desk-acceptance.md; private commands/receipts under
   ~/.codex/private/loomai-paul-rigby-01055/acceptance-20261102/.
+
+### 2026-11-02 First-Client Platform Completion And Owner Handoff
+
+- Owner asked to finish available 010.55 work and defer every proposed framework
+  change for review. No framework source/test/release change in this cycle.
+  Northfield remains same dep3c/v11/ver1ff, stage rel-ce54abe2 and production
+  rel-d587186a, AI Fabric0.8.45. Broad framework CI remains failed in the
+  pre-existing Incident Room example authorization integration; review-only
+  proposal now records the exact example-local correction, no BOM release needed.
+- Generic widget8990c916f fixes browser-restored confirmation controls and stale/
+  duplicate callbacks, preserving wire/idempotency/auth contracts. Eight focused
+  smoke suites/typecheck/build passed. Actual stage synthetic sign-in, trusted
+  Aster selection, pending callback, reload PASS: old confirmation read-only,
+  zero Confirm/Reject controls, chat/context retained. All83 receiver records
+  unchanged; no business confirmation sent; fixture signed out normally.
+- Customer setup navigation d3d0c7237 fixes stale pathname/search closure in
+  workspace context.26 focused tests/build, negative-baseline regressions and
+  actual hosted route retention passed. Both UIs stay exact d3d0c7237 healthy.
+  Display-only dealership pack eec565b68 counts cards shown rather than provider
+  total;19 pack tests/build passed, CI41467005335 succeeded. Both backends exact
+  eec565b68 healthy; exact jobs yvrkk21zwq4x1jrsp90awpqw(staging) and
+  i5sanupb8tm1p9ezrxn974dd(production) finished. No customer runtime rebuild.
+  All3 manifests verify widget4f09488e9a0a80ec/pack93cde68ddc80268f SRI bytes;
+  final actual stage Aster answer/card shows1 vehicle/GBP31950/4850mi.
+- Normal existing personal customer-owner UI accepted current reviewed offer,
+  created configuration-only dep-2800de9b and published ver-b26d290a/v1. Explicit
+  CUSTOMER_POSTGRES, external stock/vectors/docs, optional sharedDesk, no business
+  writes/BasicInbox. Existing approved fictional stagingS3 reader bound through
+  typed secret form; doc plugin slot:document-storage configured/enabled. Secrets
+  cleared. SQL/vector/stock forms/runtime selection reachable, no apply/resources
+  or real-client qualification. No business database or identity/role bypass.
+- Fresh live read-only quality: staging8 useful, production7 useful/1 warranty
+  retrieval failure. Both chose document; stage warranty score0.408 vs0.4, prod
+  returned0 despite retrieving that doc another turn. Sensitivity hypothesis,
+  not proven exact cause. No new tuning/fallback/release. One compound prod turn
+  52s retained as latency observation. Active-session embed navigation kept2pages
+  andchat, attach did not openMax, Browse remains. Longer-idle reset unqualified.
+- Another post-reload pending-confirmation cancellation reopened contact intake;
+  subsequent No,cancel acknowledged, no receiver changes. Persisted cleanup not
+  proven. Diagnose exact state before proposing owning-layer fix; no framework
+  implementation authorized. Review queue also retains concurrent-continuation
+  edge from earlier evidence. No lexical cancellation/workaround introduced.
+- Provider/operations instructions and32 unchanged offline tests complete;
+  actual vendor/S3IAM/SQL/vector/restore proofs remain unperformed. Canonical01055,
+  runbook and dated completion/review documents reconciled. Older return-status
+  doc explicitly superseded. Do not label all L1-L9 or real-client gates green.
+- PAUSED FOR INPUT/REVIEW, not a new capacity/recovery stream: immediate three
+  fictional policies upload to BOTH existing dealership S3 prefixes (or separate
+  restricted uploader); fresh setup needs owner-selected SQL schemas/roles/TLS/
+  migration consent, two unused target-owned vectors and approved stock binding.
+  Required for production has exact task, no paid provisioning or old-cluster
+  transfer authorized. Real dealer O1-O10 rights/policies/agents/enquiry/commercial
+  inputs remain separate; discovery can begin without buying infrastructure.
+- Evidence: verification-support/paul-rigby-first-client/2026-11-02-completion-
+  cycle.md and2026-11-02-deferred-review-queue.md. Private receipts same acceptance-
+  20261102 directory. Temporary fixture sessions signed out; user original auth
+  untouched. Keep Hetzner access as owner requested; no firewall changes.

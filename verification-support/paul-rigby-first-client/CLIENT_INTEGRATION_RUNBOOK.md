@@ -2,12 +2,12 @@
 
 Date: 2 November 2026. Scope: bounded 010.55 L2 source-template sidecar.
 
-This is a source/local-test operating guide, **not hosted qualification**. No
-hosted provider connection, deployment, indexing, business write or AI query was run
-for this sidecar. Local PostgreSQL fixtures are not client resources. The [return-to-integration status](2026-11-02-return-to-integration-status.md)
-and [010.55 plan][plan] remain authoritative for work allocation and launch
-gates. Main owns current buyer/Desk UI verification; this document does not close
-it. Separate Support acceptance does not qualify a dealership.
+This guide combines source contracts and the dated customer-UI observations
+below; it is **not real-client hosted qualification**. Local PostgreSQL fixtures
+are not client resources. The [completion record](2026-11-02-completion-cycle.md)
+and [010.55 plan][plan] distinguish current Northfield proof, configuration-only
+setup, and missing real-provider/storage acceptance. Separate Support acceptance
+does not qualify a dealership.
 
 ## 1. Agree Scope And Owners
 
@@ -44,7 +44,8 @@ without Basic Inbox. [V221][v221] adds non-Inbox family `1.2.0`, immutable ID
 `mkv-template-dealership-external-systems-v1-2`: external stock `1.0.0`, discovery
 `1.1.0` and customer document knowledge `1.0.0` only. It has no required enquiry,
 handover or Inbox plugin; Desk remains a recommendation/optional target activation.
-This migration is local source, not an executed hosted catalogue publication.
+V221 is now published in both hosted catalogues. Publication does not create
+client bindings or prove a fresh hosted release.
 Read the chosen hosted manifest with `GET /api/marketplace/plugins/{pluginId}/versions/{version}`
 ([controller][marketplace]) before use; never infer adoption from this file.
 
@@ -164,6 +165,37 @@ Never put credentials in a global marketplace install, document or receipt.
    carrying exact deployment/target/release, binding revision and operation key
    ([UI][assignment], [controller][consumer]). Keep the same app/URL; verify the
    actual assignment, not just the latest draft or an apply request.
+
+### Observed Customer Setup Order
+
+The normal production-Console customer UI created `dep-2800de9b` and published
+v1 / `ver-b26d290a` from the read-only external template. This is an owned
+qualification configuration, not a Paul Rigby runtime or a newly provisioned
+business system. Its staff invitation was accepted by the existing customer
+administrator; no identity or role bypass was used.
+
+1. Select the reviewed template/profile and explicit customer PostgreSQL mode.
+2. Bind approved S3 reader credentials through Document Knowledge before version
+   publication. Configuration storage is not an S3 permission/indexing proof.
+3. In the installed document plugin, set `documentStorageBindingRef` to
+   `slot:document-storage`; confirm public-content approval only when genuinely
+   authorized, then enable the plugin. Missing required configuration correctly
+   prevents publication.
+4. Publish through Versions & updates. Select that version in the target's SQL,
+   vector and approved-stock connection forms; bind each target independently.
+5. Apply only after these real prerequisites are available, then qualify fresh
+   indexing, Desk, Engage and the ordinary promotion/assignment flow.
+
+Steps 1-4 reached the missing-binding forms in the actual UI. Only the existing
+approved fictional staging S3 reader was bound. No stock/SQL/vector binding or
+runtime apply was fabricated to continue the walkthrough. The current binder
+cannot reuse an already-bound vector cluster for this second deployment.
+
+The setup navigation correction `d3d0c7237` preserves current setup route/search
+when selecting a deployment. Hosted verification retained `view=setup` without
+the erroneous leave-setup warning. Existing customers can still edit/upgrade
+their published deployment normally; this qualification profile is not a
+lifetime template restriction.
 
 ## 4. Target Parity And Storage Gates
 
