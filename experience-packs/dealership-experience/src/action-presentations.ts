@@ -401,7 +401,7 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
     const items = recordArray(data.items).map(normalizeVehicle)
     const heading = createHeader(
       'Current inventory',
-      `${numberValue(data.total) ?? numberValue(data.count) ?? items.length} matching vehicle${items.length === 1 ? '' : 's'}`,
+      `${items.length} vehicle${items.length === 1 ? '' : 's'} shown`,
       sourceLine(data),
     )
     const filters = filterLabels(recordValue(data.appliedFilters))

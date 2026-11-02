@@ -105,6 +105,18 @@ test('real browser detail commands, public rendering and responsive layouts', as
   const render = fixture => page.evaluate(value => window.renderResult(value), fixture)
   const commands = () => page.evaluate(() => window.commandLog)
 
+  await t.test('inventory heading counts displayed cards, not a broader provider total', async () => {
+    for (const [results, expected] of [
+      [[vehicle], '1 vehicle shown'],
+      [[vehicle, { ...vehicle, stockId: 'STOCK-43' }], '2 vehicles shown'],
+      [[], '0 vehicles shown'],
+    ]) {
+      await render({ data: { ...stock, total: 25, count: 25, results } })
+      assert.equal(await page.locator('loomai-dealership-inventory').getByRole('heading', { level: 2 }).innerText(), expected)
+      assert.deepEqual(await commands(), [])
+    }
+  })
+
   await t.test('an inventory detail click asks with exactly its result reference and never invents a URL', async () => {
     await render({ data: stock })
     const element = page.locator('loomai-dealership-inventory')
