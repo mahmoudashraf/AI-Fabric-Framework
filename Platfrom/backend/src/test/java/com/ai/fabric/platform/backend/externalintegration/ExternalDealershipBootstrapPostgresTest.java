@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.externalintegration;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDeploymentEntity;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferEntity;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferRepository;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferCodec;
@@ -11,6 +12,8 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferE
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerReviewedCompositionService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerDocumentStorageBindingService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerDeploymentVersionService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerDeploymentStorageSelectionService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerPermissionMatrix;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerPlacementEvidenceEntity;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerPlacementEvidenceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -20,8 +23,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.*;
+import com.ai.fabric.platform.backend.desk.DeskServiceClient;
+import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
+import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
@@ -32,6 +40,7 @@ import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,6 +56,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -108,6 +118,8 @@ class ExternalDealershipBootstrapPostgresTest {
     @Autowired CustomerPlacementEvidenceRepository placements;
     @Autowired CustomerDocumentStorageBindingService documentStorage;
     @Autowired CustomerDeploymentVersionService customerVersions;
+    @Autowired CustomerDeploymentStorageSelectionService storageSelection;
+    @Autowired jakarta.validation.Validator validator;
     @Autowired ExternalIntegrationService externalBindings;
     @Autowired ExternalIntegrationResolver externalResolver;
     @Autowired com.ai.fabric.platform.backend.secret.service.PlatformSecretService secrets;
@@ -116,8 +128,195 @@ class ExternalDealershipBootstrapPostgresTest {
     @MockBean PineconeControlPlaneClient pinecone;
     @MockBean QdrantCloudControlPlaneClient qdrant;
     @MockBean ZillizCloudControlPlaneClient zilliz;
+    @MockBean DeskServiceClient desk;
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
+
+    @Test
+    void clientReadOnlyRevisionStartsUnboundAndBlocksPublication() {
+        authenticate("synthetic-client-operator", PlatformRole.PLATFORM_ADMIN, "SESSION");
+        long handlesBefore = count("deployment_provider_resource_handles");
+        long graphsBefore = count("deployment_managed_dependency_graphs");
+        long bindingsBefore = count("deployment_external_integration_bindings");
+        long releasesBefore = count("platform_deployment_releases");
+        var created = templates.bootstrapConfiguration("mkp-template-dealership-external-systems-v1",
+            new CreateMarketplaceTemplateBootstrapRequest("1.2.0", "Read-only client configuration fixture",
+                "staging", null, null, null, null));
+        var deployment = deployments.findById(created.id()).orElseThrow();
+        // CustomerDeploymentBootstrapService applies this explicit setting after template configuration.
+        transactions.executeWithoutResult(status -> storageSelection.initialize(deployment, "CUSTOMER_POSTGRES"));
+        var initial = installs.findByDeploymentIdOrderByUpdatedAtDesc(created.id());
+        assertThat(initial).extracting(value -> value.getPluginId()).containsExactlyInAnyOrder(
+            "mkp-template-dealership-external-systems-v1", "mkp-data-dealership-external-stock-v1",
+            "mkp-action-dealership-external-discovery-v1", "mkp-data-dealership-knowledge-v1");
+        var stock = installs.findByDeploymentIdAndPluginId(created.id(), "mkp-data-dealership-external-stock-v1").orElseThrow();
+        var documents = installs.findByDeploymentIdAndPluginId(created.id(), "mkp-data-dealership-knowledge-v1").orElseThrow();
+        assertThat(stock.getStatus()).isEqualTo("DISABLED");
+        assertThat(stock.getConfigJson()).isEqualTo("{}");
+        assertThat(stock.getSecretRefsJson()).isEqualTo("{}");
+        assertThat(documents.getStatus()).isEqualTo("DISABLED");
+        var draft = deploymentService.getActiveDraftForDeployment(created.id());
+        assertThat(draft.providerConfig().path("aiStateStorageMode").asText()).isEqualTo("CUSTOMER_POSTGRES");
+        assertThat(draft.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(draft.behaviorConfig().path("executionExtensions")).isEmpty();
+        assertThat(draft.behaviorConfig().has("conversationHandover")).isFalse();
+        assertThat(draft.behaviorConfig().at("/marketplaceRequirements/unresolvedRequiredPluginRefs"))
+            .extracting(value -> value.asText()).contains(
+                "mkp-data-dealership-external-stock-v1@1.0.0",
+                "mkp-action-dealership-external-discovery-v1@1.1.0",
+                "mkp-data-dealership-knowledge-v1@1.0.0");
+        assertThat(deploymentService.validateDraft(draft.id()).publishReady()).isFalse();
+        assertThatThrownBy(() -> deploymentService.publishDraft(draft.id()))
+            .isInstanceOf(ResponseStatusException.class);
+        assertThat(jdbc.queryForObject("select count(*) from platform_vectorization_plans where deployment_id = ?", Long.class, created.id())).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from platform_desk_bindings where deployment_id = ?", Long.class, created.id())).isZero();
+
+        assertThat(count("deployment_provider_resource_handles")).isEqualTo(handlesBefore);
+        assertThat(count("deployment_managed_dependency_graphs")).isEqualTo(graphsBefore);
+        assertThat(count("deployment_external_integration_bindings")).isEqualTo(bindingsBefore);
+        assertThat(count("platform_deployment_releases")).isEqualTo(releasesBefore);
+        assertThat(deploymentService.listVersions(created.id())).isEmpty();
+        verifyNoInteractions(coolify, railway, pinecone, qdrant, zilliz, desk);
+    }
+
+    @Test
+    void clientReadOnlyCustomerBootstrapRequiresExplicitExternalSqlWithoutAReceiverSlot() {
+        String suffix = UUID.randomUUID().toString();
+        Instant now = Instant.now();
+        String customerId = "cus-" + suffix, userId = "usr-" + suffix, email = suffix + "@customer.invalid";
+        var customer = new PlatformCustomerEntity(); customer.setId(customerId); customer.setSlug(customerId);
+        customer.setName("Read-only client fixture"); customer.setStatus("ACTIVE");
+        customer.setCreatedAt(now); customer.setUpdatedAt(now); customers.saveAndFlush(customer);
+        var user = new PlatformUserEntity(); user.setId(userId); user.setEmail(email); user.setDisplayName("Fixture owner");
+        user.setPasswordHash("not-a-real-password"); user.setRole("CUSTOMER_ADMIN"); user.setStatus("ACTIVE");
+        user.setCustomerId(customerId); user.setCreatedAt(now); user.setUpdatedAt(now); users.saveAndFlush(user);
+        var stage = target("stage-" + suffix, "external-test-stage", "staging");
+        var production = target("prod-" + suffix, "external-test-prod", "production");
+        var permissions = List.of(new TargetPermission(stage.getId(), TargetIntent.CUSTOMER_STAGING, reviewed.profileFingerprint(stage)),
+            new TargetPermission(production.getId(), TargetIntent.CUSTOMER_PRODUCTION, reviewed.profileFingerprint(production)));
+        placements.saveAndFlush(new CustomerPlacementEvidenceEntity("cpe-" + suffix, stage.getId(), TargetIntent.CUSTOMER_STAGING,
+            permissions.getFirst().profileFingerprint(), "external-test-stage", "192.0.2.10", "destination", now.minusSeconds(1), now.plusSeconds(300)));
+        var template = versions.findById("mkv-template-dealership-external-systems-v1-2").orElseThrow();
+        var pins = List.of("mkv-data-dealership-external-stock-v1-0", "mkv-action-dealership-external-discovery-v1-1",
+            "mkv-data-dealership-knowledge-v1-0").stream().map(id -> versions.findById(id).orElseThrow())
+            .map(version -> new PluginPin(version.getPluginId(), version.getId(), codec.hash(codec.tree(version.getManifestJson())))).toList();
+        var stock = pins.getFirst();
+        var profile = new Profile(PROFILE_SCHEMA, "external-stock", "vehicle-stock", stock.pluginId(), stock.versionId(),
+            stock.manifestSha256(), Set.of(stage.getId(), production.getId()), Set.of("providerBaseUrl", "providerHost", "advertiserId"),
+            Set.of("providerKey", "providerSecret", "notificationSecret"), Set.of("providerBaseUrl"), Set.of("advertiserId"), Set.of("provider.example.com"));
+        var artifact = new DeploymentSourceArtifactEntity(); artifact.setId("art-" + suffix); artifact.setServiceName("runtime");
+        artifact.setArtifactType("DOCKER_IMAGE"); artifact.setArtifactRole("RUNTIME");
+        artifact.setImageRepository("registry.example.com/synthetic-runtime"); artifact.setImageDigest("sha256:" + "a".repeat(64));
+        artifact.setCapabilityManifestJson("{}"); artifact.setCapabilityManifestHash(codec.hash(codec.tree("{}")));
+        artifact.setCreatedAt(now); artifact.setPromotedAt(now); artifacts.saveAndFlush(artifact);
+        var topology = new ReviewedTopology(1, 1250, 1792, 0, 0, 2, 0, 1);
+        var definition = new Definition("1", "Synthetic read-only client setup", "dev-openai-milvus",
+            new PluginPin(template.getPluginId(), template.getId(), codec.hash(codec.tree(template.getManifestJson()))), pins,
+            List.of(new ArtifactPin(artifact.getId(), reviewed.artifactFingerprint(artifact))), permissions,
+            java.util.Arrays.stream(Operation.values()).filter(CustomerPermissionMatrix::supported)
+                .collect(java.util.stream.Collectors.toSet()),
+            List.of(new SettingRule(Setting.DEPLOYMENT_NAME, ValueType.TEXT, 100, Set.of()),
+                new SettingRule(Setting.AI_STATE_STORAGE_MODE, ValueType.CHOICE, 32, Set.of("CUSTOMER_POSTGRES"))),
+            List.of(new BindingSlot("vehicle-stock", BindingKind.EXTERNAL_SERVICE, Set.of(profile.id()), stock.pluginId(), null),
+                new BindingSlot("ai-state-database", BindingKind.CUSTOMER_AI_STATE, Set.of("CUSTOMER_POSTGRES")),
+                new BindingSlot("document-storage", BindingKind.CUSTOMER_S3, Set.of("synthetic-read-only-s3"),
+                    "mkp-data-dealership-knowledge-v1", "documentStorageBindingRef")),
+            Set.of(DocumentAudience.PUBLIC), EnumSet.allOf(Prerequisite.class), new ReviewedLimits("synthetic-not-capacity-evidence", 1,
+                1, 1250, 1792, 1, 0, 2, 0, 1, 24, 24, 24), topology,
+            "synthetic-policy", "synthetic-operating", "synthetic-identity", "synthetic-storage", List.of(),
+            Map.of(AiStateStorageMode.CUSTOMER_POSTGRES, topology), List.of(profile));
+        assertThat(validator.validate(definition)).isEmpty();
+        String offerId = "offer-" + suffix;
+        authenticate("synthetic-staff", PlatformRole.PLATFORM_ADMIN, "API_KEY");
+        entitlements.publish(new PublishOfferRequest(offerId, definition, "synthetic-local-review"));
+        var invitation = entitlements.invite(offerId, new InviteRequest(customerId, userId, "synthetic-invitation",
+            now.plusSeconds(3600), 0, "invite", "Local test only"));
+        authenticate(email, PlatformRole.CUSTOMER_ADMIN, "SESSION");
+        var accepted = entitlements.accept(invitation.id(), new EntitlementCommand(1, "accept", "Local test only"));
+        long handlesBefore = count("deployment_provider_resource_handles"), graphsBefore = count("deployment_managed_dependency_graphs");
+        long bindingsBefore = count("deployment_external_integration_bindings"), releasesBefore = count("platform_deployment_releases");
+        assertThatThrownBy(() -> customerBootstrap.bootstrap(offerId,
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Request(
+                stage.getId(), "Read-only client fixture", accepted.revision(), "missing-choice", null)))
+            .isInstanceOf(CustomerSelfServiceException.class).hasMessage("INVALID_CONTRACT");
+        assertThatThrownBy(() -> customerBootstrap.bootstrap(offerId,
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Request(
+                stage.getId(), "Read-only client fixture", accepted.revision(), "wrong-choice", "MANAGED_POSTGRES")))
+            .isInstanceOf(CustomerSelfServiceException.class).hasMessage("SETTING_FORBIDDEN");
+        var result = customerBootstrap.bootstrap(offerId,
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Request(
+                stage.getId(), "Read-only client fixture", accepted.revision(), "bootstrap", "CUSTOMER_POSTGRES"));
+        var draft = deploymentService.getActiveDraftForDeployment(result.deploymentId());
+        assertThat(result.aiStateStorageMode()).isEqualTo("CUSTOMER_POSTGRES");
+        assertThat(draft.providerConfig().path("aiStateStorageMode").asText()).isEqualTo("CUSTOMER_POSTGRES");
+        assertThat(draft.marketplaceDatasetConfig().toString()).contains("MANAGED_EXTERNAL_INTEGRATION_", "dealership-external-stock-source")
+            .doesNotContain("MANAGED_SIMULATOR", "MANAGED_RECEIVER");
+        assertThat(draft.actionsConfig().path("actions")).hasSize(3).allSatisfy(action ->
+            assertThat(action.path("accessMode").asText()).isEqualTo("READ"));
+        assertThat(draft.behaviorConfig().path("executionExtensions")).isEmpty();
+        assertReadOnlyCompilationAndOptionalDesk(result.deploymentId());
+        assertThat(count("deployment_provider_resource_handles")).isEqualTo(handlesBefore);
+        assertThat(count("deployment_managed_dependency_graphs")).isEqualTo(graphsBefore);
+        assertThat(count("deployment_external_integration_bindings")).isEqualTo(bindingsBefore);
+        assertThat(count("platform_deployment_releases")).isEqualTo(releasesBefore);
+        assertThat(jdbc.queryForObject("select count(*) from platform_vectorization_plans where deployment_id = ?", Long.class, result.deploymentId())).isZero();
+        verifyNoInteractions(coolify, railway, pinecone, qdrant, zilliz, desk);
+    }
+
+    private void assertReadOnlyCompilationAndOptionalDesk(String deploymentId) {
+        var deployment = deployments.findById(deploymentId).orElseThrow();
+        var documents = installs.findByDeploymentIdAndPluginId(deploymentId, "mkp-data-dealership-knowledge-v1").orElseThrow();
+        // A symbolic document slot proves compilation, not actual storage access or public-content approval.
+        installService.updateInstallForTrustedCallerWithoutDraftSync(deployment, documents.getId(),
+            new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED",
+                codec.tree("{\"documentStorageBindingRef\":\"slot:document-storage\",\"publicContentApprovalConfirmed\":true}"), codec.tree("{}")));
+        var compiled = compiler.syncDeploymentDraftForTrustedCaller(deploymentId);
+        assertThat(compiled.actionsConfig().path("actions")).extracting(value -> value.path("name").asText())
+            .containsExactlyInAnyOrder("dealership_search_inventory", "dealership_get_vehicle", "dealership_compare_vehicles");
+        assertThat(compiled.actionsConfig().path("actions")).allSatisfy(action -> {
+            assertThat(action.path("accessMode").asText()).isEqualTo("READ");
+            assertThat(action.at("/route/source-projection/require-successful-sync").asBoolean()).isTrue();
+            assertThat(action.at("/route/source-projection/max-staleness-seconds").asInt()).isEqualTo(1800);
+        });
+        assertThat(compiled.marketplaceDatasetConfig().path("datasets")).anySatisfy(dataset -> {
+            assertThat(dataset.path("entityType").asText()).isEqualTo("document");
+            assertThat(dataset.at("/sourceConnector/connectorType").asText()).isEqualTo("S3_COMPATIBLE_OBJECT_STORAGE");
+            assertThat(dataset.at("/sourceConnector/bindingRef").asText()).isEqualTo("slot:document-storage");
+            assertThat(dataset.at("/sourceConnector/deleteSourceOnRemoval").asBoolean()).isFalse();
+        });
+        assertThat(compiled.routingConfig().toString()).doesNotContain("receiverActionUrl", "X-DEALERSHIP-INTERNAL-KEY",
+            "dealership_request_callback", "dealership_request_test_drive");
+        var provider = ((ObjectNode) compiled.providerConfig()).deepCopy();
+        provider.put("openaiModel", "customer-selected-model");
+        var prompts = ((ObjectNode) compiled.promptConfig()).deepCopy();
+        prompts.put("ragMaxContextChars", 3000);
+        deploymentService.updateDraftForTrustedCaller(compiled.id(), new UpdateDeploymentDraftRequest(
+            null, null, null, provider, null, prompts, null, null, null, null));
+        var edited = compiler.syncDeploymentDraftForTrustedCaller(deploymentId);
+        assertThat(edited.providerConfig().path("openaiModel").asText()).isEqualTo("customer-selected-model");
+        assertThat(edited.promptConfig().path("ragMaxContextChars").asInt()).isEqualTo(3000);
+        installService.createInstallForTrustedCallerWithoutDraftSync(deployment,
+            new CreateDeploymentMarketplaceInstallRequest(
+                "mkp-action-conversation-handover", "1.1.0", codec.tree("{}"), codec.tree("{}")));
+        installService.createInstallForTrustedCallerWithoutDraftSync(deployment,
+            new CreateDeploymentMarketplaceInstallRequest(
+                "mkp-integration-loomai-desk", "1.0.0",
+                codec.tree("{\"bindingId\":\"${MANAGED_DESK_BINDING_ID}\",\"providerBaseUrl\":\"${MANAGED_DESK_PROVIDER_BASE_URL}\",\"operatorConsoleUrl\":\"${MANAGED_DESK_OPERATOR_CONSOLE_URL}\"}"),
+                codec.tree("{\"providerApiKeySecretRef\":\"MANAGED_DESK_PROVIDER_API_KEY\",\"runtimeCallbackSigningSecretRef\":\"MANAGED_DESK_RUNTIME_CALLBACK_SIGNING_SECRET\",\"providerWebhookSigningSecretRef\":\"MANAGED_DESK_PROVIDER_WEBHOOK_SIGNING_SECRET\"}")));
+        var withDesk = compiler.syncDeploymentDraftForTrustedCaller(deploymentId, Set.of("CONVERSATION_HANDOVER"));
+        assertThat(DeskTargetConfigurationResolver.isTargetIndependent(withDesk.behaviorConfig())).isTrue();
+        assertThat(withDesk.behaviorConfig().path("executionExtensions"))
+            .extracting(value -> value.asText()).containsExactly("CONVERSATION_HANDOVER");
+        assertThat(withDesk.behaviorConfig().at("/conversationHandover/actionId").asText())
+            .isEqualTo("request_conversation_handover");
+        assertThat(withDesk.behaviorConfig().at("/conversationHandover/actionBinding/implementation").asText())
+            .isEqualTo("SERVER_OWNED_RUNTIME_ACTION");
+        assertThat(withDesk.actionsConfig().path("actions")).hasSize(3).allSatisfy(action ->
+            assertThat(action.path("accessMode").asText()).isEqualTo("READ"));
+        assertThat(withDesk.actionsConfig().toString())
+            .doesNotContain("dealership_request_callback", "dealership_request_test_drive");
+        assertThat(deploymentService.listVersions(deploymentId)).isEmpty();
+    }
 
     @ParameterizedTest @EnumSource(AiStateStorageMode.class)
     void acceptedCustomerCreatesOnlyAiConfigurationWithTheExplicitStorageChoice(AiStateStorageMode mode) {
