@@ -8,6 +8,10 @@ Understand what the domain connects
 
 A custom domain gives a standalone Engage app an address on a domain you control. It routes visitors to the shared Engage frontend, which resolves the hostname to your app configuration and assigned deployment. It does not create another AI runtime or customer business database. Visitors keep the custom address in their browser.
 
+This is an optional feature, not a prerequisite for a standalone app. You can
+use the provided LoomAI app address without adding customer-owned DNS records.
+The TXT and CNAME steps below apply only when using your own custom hostname.
+
 Domain ownership, DNS routing, HTTPS, runtime origins, app readiness and activation are separate checks. Completing one does not imply the others are complete. Custom-domain availability depends on the configured shared frontend and your app's supported delivery and identity profiles.
 
 Prepare the hostname

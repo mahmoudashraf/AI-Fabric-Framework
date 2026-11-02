@@ -1,0 +1,35 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "sessions": [
+    {
+      "id": "ordered-issues",
+      "topic": "Knowledge",
+      "diagnosticConsent": true,
+      "queries": [
+        "I have two issues: first, my Engage custom hostname does not load although the provided app address works; second, answers quote an outdated policy. Investigate the selected app and deployment without changing anything. Separate current observations from documented troubleshooting.",
+        "Focus only on the latter issue now. What should I check next? Be clear about whether you checked the original files in storage."
+      ],
+      "reviewCriteria": "The follow-up addresses outdated policy/index freshness, not domain routing. It distinguishes registered indexing from upstream file inspection and performs no write."
+    },
+    {
+      "id": "reversed-issues",
+      "topic": "Knowledge",
+      "diagnosticConsent": true,
+      "queries": [
+        "First, the assistant quotes an old policy. Separately, my new custom domain is not loading while the original app URL works. Use authorized checks for the selected app and deployment, but do not change settings.",
+        "Please continue with the first problem, not the address problem. Explain the next useful check and what is still unverified."
+      ],
+      "reviewCriteria": "The answer retains the first problem as policy freshness even when issue order is reversed. It does not confuse readiness with source freshness or invent a storage inspection."
+    },
+    {
+      "id": "optional-domain",
+      "topic": "Engage",
+      "diagnosticConsent": false,
+      "queries": [
+        "Can I launch a standalone Engage workspace without owning a domain, and later add it to my existing website using the same deployment? Tell me which setup steps are optional.",
+        "Does choosing standalone mean I must create TXT and CNAME records now, or can I use a provided address? I have not requested a custom hostname."
+      ],
+      "reviewCriteria": "Both delivery forms may share one deployment. Provided standalone address needs no customer DNS; custom-domain DNS is conditional. No invented live status or private diagnostics."
+    }
+  ]
+}

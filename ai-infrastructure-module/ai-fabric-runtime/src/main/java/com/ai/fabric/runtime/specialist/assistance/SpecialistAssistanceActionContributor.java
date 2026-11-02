@@ -1,8 +1,11 @@
 package com.ai.fabric.runtime.specialist.assistance;
 
+import ai.fabric.evidence.AIEvidenceReference;
 import ai.fabric.execution.chain.SpecialistChainExecutionRequest;
+import ai.fabric.execution.chain.SpecialistChainExecutionStatus;
 import ai.fabric.execution.chain.SpecialistChainGateway;
 import ai.fabric.execution.chain.SpecialistChainId;
+import ai.fabric.execution.chain.SpecialistChainResultView;
 import ai.fabric.execution.context.ExecutionCallerIdentity;
 import ai.fabric.execution.context.ExecutionPrincipal;
 import ai.fabric.execution.context.ExecutionPrincipalType;
@@ -23,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
@@ -106,6 +110,8 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("capabilityId", selected);
             data.put("name", invocation.path("name").asText());
+            String message = "Configured resolution checks completed.";
+            ActionGroundingSufficiency groundingSufficiency = null;
             if ("CHAIN".equals(invocation.path("targetType").asText())) {
                 SpecialistChainGateway gateway = chains.getIfAvailable();
                 if (gateway == null) return failure("SPECIALIST_CHAIN_UNAVAILABLE", "The configured resolution chain is unavailable.");
@@ -117,8 +123,8 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                 verifyParent(context);
                 data.put("executionRef", result.executionId());
                 data.put("status", result.status().name());
-                data.put("findings", result.projectedResults());
-                data.put("observedAt", result.completedAt() == null ? Instant.now() : result.completedAt());
+                data.put("findings", publicChainFindings(result.projectedResults()));
+                data.put("observedAt", (result.completedAt() == null ? Instant.now() : result.completedAt()).toString());
                 if (!result.succeeded()) {
                     var failure = result.failure();
                     if (failure != null) data.put("retryable", failure.retryable());
@@ -128,6 +134,9 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                             "The resolution checks could not be completed."))
                         .data(ActionResultContracts.object(data)).build();
                 }
+                message = result.message();
+                if (result.status() == SpecialistChainExecutionStatus.ASKED_USER)
+                    groundingSufficiency = ActionGroundingSufficiency.INSUFFICIENT;
             } else {
                 var factory = clients.getIfAvailable();
                 if (factory == null) return failure("SPECIALIST_UNAVAILABLE", "The configured specialist is unavailable.");
@@ -140,8 +149,8 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                 data.put("executionRef", result.invocationId());
                 data.put("status", result.status().name());
                 data.put("findings", result.output() == null ? Map.of() : plainJson(result.output()));
-                data.put("evidence", result.evidence());
-                data.put("observedAt", result.completedAt() == null ? Instant.now() : result.completedAt());
+                data.put("evidence", publicEvidence(result.evidence()));
+                data.put("observedAt", (result.completedAt() == null ? Instant.now() : result.completedAt()).toString());
                 if (!result.succeeded()) {
                     var failure = result.failure();
                     if (failure != null) data.put("retryable", failure.retryable());
@@ -152,14 +161,80 @@ public final class SpecialistAssistanceActionContributor implements AIActionRegi
                         .data(ActionResultContracts.object(data)).build();
                 }
             }
-            return ActionResult.builder().success(true).message("Configured resolution checks completed.")
+            // Preserve useful synthesis, but execution metadata alone is not a completed diagnosis.
+            if (emptyFindings(data.get("findings"))) groundingSufficiency = ActionGroundingSufficiency.INSUFFICIENT;
+            return ActionResult.builder().success(true).message(message).groundingSufficiency(groundingSufficiency)
                 .data(ActionResultContracts.object(data)).build();
+        }
+
+        @Override public Optional<Map<String, Object>> buildPostActionLlmFacts(ActionResult result, ActionContext context) {
+            if (result == null) return Optional.empty();
+            var facts = new LinkedHashMap<String, Object>();
+            facts.put("success", result.isSuccess());
+            if (result.getMessage() != null) facts.put("message", result.getMessage());
+            if (result.getErrorCode() != null) facts.put("errorCode", result.getErrorCode());
+            facts.put("groundingUsable", !ActionGroundingSupport.requiresAdditionalGrounding(result));
+            if (result.getGroundingSufficiency() != null)
+                facts.put("groundingSufficiency", result.getGroundingSufficiency().name());
+            if (result.getData() != null) {
+                Map<String, Object> data = result.getData().toMap();
+                for (String field : List.of("status", "findings", "observedAt", "retryable")) {
+                    if (data.containsKey(field)) facts.put(field, data.get(field));
+                }
+                if (data.get("evidence") instanceof List<?> evidence) {
+                    // The outer retrieval path supplies document text; keep citations without duplicating it here.
+                    facts.put("evidence", evidence.stream().map(item -> {
+                        var citation = new LinkedHashMap<String, Object>();
+                        if (item instanceof Map<?, ?> reference)
+                            for (String field : List.of("evidenceId", "source", "sourceUrl", "vectorSpace"))
+                                if (reference.get(field) != null) citation.put(field, reference.get(field));
+                        return citation;
+                    }).toList());
+                }
+            }
+            return Optional.of(facts);
         }
 
         @Override public ActionResult handleError(Exception failure, ActionContext context) {
             if (failure instanceof OrchestrationControlException control) throw control;
             return failure("SPECIALIST_INVOCATION_FAILED", "The configured diagnostic capability could not complete.");
         }
+    }
+
+    private static List<Map<String, Object>> publicChainFindings(List<SpecialistChainResultView> results) {
+        // Project only the framework-approved view, never raw worker output or chain traces.
+        return results.stream().<Map<String, Object>>map(result -> {
+            var projected = new LinkedHashMap<String, Object>();
+            projected.put("summary", result.summary());
+            projected.put("facts", result.facts());
+            projected.put("evidenceReferenceIds", result.evidenceReferenceIds());
+            projected.put("resultId", result.resultId());
+            projected.put("specialist", result.specialist());
+            projected.put("workerInvocationId", result.workerInvocationId());
+            projected.put("resultHash", result.resultHash());
+            projected.put("completedAt", result.completedAt().toString());
+            return projected;
+        }).toList();
+    }
+
+    private static List<Map<String, Object>> publicEvidence(List<AIEvidenceReference> evidence) {
+        return evidence.stream().<Map<String, Object>>map(reference -> {
+            var projected = new LinkedHashMap<String, Object>();
+            projected.put("evidenceId", reference.evidenceId());
+            projected.put("content", reference.content());
+            if (reference.relevanceScore() != null) projected.put("relevanceScore", reference.relevanceScore());
+            if (reference.source() != null) projected.put("source", reference.source());
+            if (reference.sourceUrl() != null) projected.put("sourceUrl", reference.sourceUrl());
+            if (reference.vectorSpace() != null) projected.put("vectorSpace", reference.vectorSpace());
+            projected.put("safeMetadata", reference.safeMetadata());
+            return projected;
+        }).toList();
+    }
+
+    private static boolean emptyFindings(Object findings) {
+        return findings == null || findings instanceof Map<?, ?> map && map.isEmpty()
+            || findings instanceof List<?> list && list.isEmpty()
+            || findings instanceof String text && text.isBlank();
     }
 
     private static String publicFailureMessage(String declaredMessage, String resultMessage, String defaultMessage) {

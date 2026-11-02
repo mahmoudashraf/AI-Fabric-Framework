@@ -8,6 +8,12 @@ Choose delivery without duplicating AI
 
 Engage provides a customer-facing AI workspace. Choose Embed on my website for script installation, or Standalone app for its own address. Use both with the same deployment: Add website embed or Add standalone app creates the other installation from an existing configuration. Each has its own delivery settings, without creating another AI deployment.
 
+Neither delivery option requires you to configure your own DNS just to start.
+A standalone app can use its provided LoomAI app address. Your own DNS records
+are needed only when you optionally attach a custom domain that you control.
+The website embed runs on your existing allowed website origin; installing its
+script does not require a new custom domain or another AI deployment.
+
 An app connection identifies its deployment and target release. Engage normally derives connection choices from the selected deployment and its existing assignment. You do not need to create a separate environment configuration simply to install the widget. Change connection exposes alternatives when you intentionally need them.
 
 Connect and configure

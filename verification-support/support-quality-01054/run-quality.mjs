@@ -5,13 +5,18 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 process.umask(0o077);
-const [environment, output, adapterPath, sessionSelection] = process.argv.slice(2);
+const [environment, output, adapterPath, sessionSelection, scenariosPath] = process.argv.slice(2);
 assert.ok(['staging', 'production'].includes(environment));
 assert.ok(path.isAbsolute(output ?? '') && path.isAbsolute(adapterPath ?? ''),
   'Usage: node run-quality.mjs staging|production /new/output /private/adapter.mjs');
 const { request, selectedResources, attest } = await import(pathToFileURL(adapterPath));
 assert.equal(typeof request, 'function');
-const scenarios = JSON.parse(await fs.readFile(new URL('./scenarios.json', import.meta.url)));
+if (scenariosPath) assert.ok(path.isAbsolute(scenariosPath), 'Additional scenario files must use an absolute path.');
+const scenarios = JSON.parse(await fs.readFile(scenariosPath ?? new URL('./scenarios.json', import.meta.url)));
+assert.ok(Array.isArray(scenarios.sessions) && scenarios.sessions.length > 0);
+for (const s of scenarios.sessions) assert.ok(typeof s.id === 'string' && Array.isArray(s.queries)
+  && s.queries.length > 0 && s.queries.every(q => typeof q === 'string' && q.trim())
+  && typeof s.diagnosticConsent === 'boolean');
 const selectedSessions = sessionSelection?.split(',');
 if (selectedSessions) assert.ok(selectedSessions.length && selectedSessions.every(id => scenarios.sessions.some(s => s.id === id)));
 await fs.mkdir(output, { mode: 0o700 });

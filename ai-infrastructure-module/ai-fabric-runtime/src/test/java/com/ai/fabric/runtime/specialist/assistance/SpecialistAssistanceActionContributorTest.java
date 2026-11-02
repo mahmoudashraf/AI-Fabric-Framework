@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import ai.fabric.dto.AIAccessSubjectContext;
 import ai.fabric.config.ResponseSanitizationProperties;
+import ai.fabric.evidence.AIEvidenceReference;
 import ai.fabric.execution.chain.*;
 import ai.fabric.execution.context.*;
 import ai.fabric.execution.gateway.*;
@@ -263,6 +264,66 @@ class SpecialistAssistanceActionContributorTest {
         verifyNoInteractions(clients);
     }
 
+    @Test void askedUserPreservesClarificationAndIsNotUsableGroundingEvenWithApprovedFindings() throws Exception {
+        String clarification = "Which environment should I investigate?";
+        var approved = List.of(new SpecialistChainResultView("result-setup", "assist-area-setup@1", "worker-setup",
+            "The configuration is available, but the environment is unknown.", Map.of("configured", "true"),
+            List.of("guide-setup"), "b".repeat(64), Instant.now()));
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        var action = handler("[]", true);
+        for (var projections : List.of(List.<SpecialistChainResultView>of(), approved)) {
+            var asked = new SpecialistChainExecutionResult("chain-check-1", SpecialistChainId.parse("assist-chain-setup@1"),
+                "a".repeat(64), SpecialistChainExecutionStatus.ASKED_USER, clarification, null, projections, List.of(),
+                "private-snapshot", 2, null, false, true, Instant.now(), Instant.now());
+            assertThat(asked.succeeded()).isTrue();
+            when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(asked));
+
+            var result = action.executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getMessage()).isEqualTo(clarification);
+            assertThat(result.getErrorCode()).isNull();
+            assertThat(result.getGroundingSufficiency()).isEqualTo(ActionGroundingSufficiency.INSUFFICIENT);
+            assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).isTrue();
+            assertThat(result.getData().toMap()).containsEntry("status", "ASKED_USER").doesNotContainKey("retryable");
+            var facts = action.buildPostActionLlmFacts(result, context(Set.of(), null)).orElseThrow();
+            assertThat(facts).containsEntry("message", clarification).containsEntry("status", "ASKED_USER")
+                .containsEntry("groundingUsable", false).containsEntry("groundingSufficiency", "INSUFFICIENT");
+            var wire = sanitizedWire(result).at("/data/actionResult");
+            assertThat(wire.path("message").asText()).isEqualTo(clarification);
+            assertThat(wire.at("/data/findings")).hasSize(projections.size());
+            assertThat(mapper.valueToTree(facts).path("findings")).isEqualTo(wire.at("/data/findings"));
+            assertThat(wire.toString()).doesNotContain("private-snapshot", "chainContentHash", "steps", "rawOutput", "attributes");
+            if (!projections.isEmpty()) {
+                assertThat(wire.at("/data/findings/0/facts/configured").asText()).isEqualTo("true");
+                assertThat(wire.at("/data/findings/0/evidenceReferenceIds/0").asText()).isEqualTo("guide-setup");
+            }
+        }
+        verify(chains, times(2)).submit(any(SpecialistChainExecutionRequest.class));
+        verify(chains, times(2)).findResult(eq("chain-check-1"), any());
+        verify(chains, never()).cancel(anyString(), any());
+        verifyNoInteractions(clients);
+    }
+
+    @Test void completedChainWithNoFindingsDoesNotBecomeGroundingFromExecutionMetadata() throws Exception {
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        when(chains.findResult(eq("chain-check-1"), any()))
+            .thenReturn(Optional.of(chainResult(SpecialistChainExecutionStatus.COMPLETED, null)));
+        var action = handler("[]", true);
+        var result = action.executeAction(Map.of("capabilityId", "setup", "question", "Check setup"), context(Set.of(), null));
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("Checks completed");
+        assertThat(result.getData().toMap()).containsKeys("executionRef", "status", "observedAt");
+        assertThat(result.getGroundingSufficiency()).isEqualTo(ActionGroundingSufficiency.INSUFFICIENT);
+        assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).isTrue();
+        assertThat(action.buildPostActionLlmFacts(result, context(Set.of(), null)).orElseThrow())
+            .containsEntry("groundingUsable", false).containsEntry("findings", List.of());
+        verify(chains).submit(any(SpecialistChainExecutionRequest.class));
+        verify(chains).findResult(eq("chain-check-1"), any());
+        verifyNoInteractions(clients);
+    }
+
     @Test void directSpecialistFailuresPreservePublicExplanationAndRetryabilityWithoutExposingDiagnostics() throws Exception {
         for (boolean retryable : List.of(false, true)) {
             String explanation = "The current service status is unavailable. Please provide the service identifier.";
@@ -392,22 +453,90 @@ class SpecialistAssistanceActionContributorTest {
         assertThat(findings.get("values")).isEqualTo(Arrays.asList(null, false));
     }
 
+    @Test void directEmptyFindingsAreInsufficientWithoutRejectingValidScalarFacts() throws Exception {
+        for (String json : List.of("{}", "[]", "null", "\" \"")) {
+            var result = directResult(mapper.readTree(json));
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getGroundingSufficiency()).as("empty findings %s", json)
+                .isEqualTo(ActionGroundingSufficiency.INSUFFICIENT);
+            assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).isTrue();
+            assertThat(handler("[]").buildPostActionLlmFacts(result, context(Set.of(), null)).orElseThrow())
+                .containsEntry("groundingUsable", false);
+        }
+        for (String json : List.of("false", "0", "\"Guidance\"")) {
+            var result = directResult(mapper.readTree(json));
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).as("scalar findings %s", json).isFalse();
+        }
+    }
+
+    @Test void directSummaryAnswerAndApprovedEvidenceAreStructuredLlmFactsWithoutDiagnostics() throws Exception {
+        var output = mapper.readTree("""
+            {"summary":"Verify the service configuration.","answer":"Read the current configuration before making a change."}
+            """);
+        var evidence = new AIEvidenceReference("guide-setup", "Approved configuration guidance", 0.9,
+            "configuration-guide", null, "approved-space", Map.of("section", "setup"));
+        var completed = new AIExecutionResult<>("structured-check", SpecialistId.parse("assist-area-setup@1"),
+            AIExecutionStatus.SUCCEEDED, output, List.of(evidence), Map.of("rawOutput", "private model output",
+                "attributes", Map.of("secret", "private attribute")), null, Instant.now(), Instant.now());
+        var result = directResult(completed);
+        var action = handler("[]");
+        var facts = action.buildPostActionLlmFacts(result, context(Set.of(), null)).orElseThrow();
+
+        assertThat(facts.get("findings")).isInstanceOf(Map.class).isEqualTo(result.getData().toMap().get("findings"));
+        assertThat((List<?>) facts.get("evidence")).allSatisfy(item -> assertThat(item).isInstanceOf(Map.class));
+        assertThat(facts).containsEntry("groundingUsable", true).containsEntry("status", "SUCCEEDED");
+        JsonNode json = mapper.readerFor(JsonNode.class).with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .readValue(mapper.writeValueAsBytes(facts));
+        assertThat(json.path("findings")).isEqualTo(output);
+        assertThat(json.at("/evidence/0/evidenceId").asText()).isEqualTo("guide-setup");
+        assertThat(json.at("/evidence/0").has("content")).isFalse();
+        assertThat(json.at("/evidence/0").has("safeMetadata")).isFalse();
+        var wire = sanitizedWire(result).at("/data/actionResult/data");
+        assertThat(wire.path("findings")).isEqualTo(output);
+        assertThat(wire.at("/evidence/0/content").asText()).isEqualTo("Approved configuration guidance");
+        assertThat(wire.at("/evidence/0/safeMetadata/section").asText()).isEqualTo("setup");
+        assertThat(json.toString()).doesNotContain("private model output", "private attribute", "rawOutput", "attributes", "diagnostics");
+        assertThat(wire.toString()).doesNotContain("private model output", "private attribute", "rawOutput", "attributes", "diagnostics");
+        verifyNoInteractions(chains);
+    }
+
+    @Test void completedChainMayProvideUsefulSynthesisWithoutWorkerFindings() throws Exception {
+        String synthesis = "Approved documentation explains this setup. No live diagnostic was requested or performed.";
+        var completed = new SpecialistChainExecutionResult("chain-check-1", SpecialistChainId.parse("assist-chain-setup@1"),
+            "a".repeat(64), SpecialistChainExecutionStatus.COMPLETED, synthesis, null, List.of(), List.of(),
+            "private-snapshot", 1, null, false, true, Instant.now(), Instant.now());
+        when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
+        when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(completed));
+        var result = handler("[]", true).executeAction(
+            Map.of("capabilityId", "setup", "question", "Explain the documented setup"), context(Set.of(), null));
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo(synthesis);
+        assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).isTrue();
+        assertThat((List<?>) result.getData().toMap().get("findings")).isEmpty();
+    }
+
     @Test void officialChainProjectionRecordsKeepStructuredFactsEvidenceAndLineage() throws Exception {
+        String synthesis = ("Approved combined guidance. " + "Review the current configuration. ".repeat(45)).trim();
         var projections = List.of(
             new SpecialistChainResultView("result-setup", "assist-area-setup@1", "worker-setup", "Check setup",
                 Map.of("ready", "false", "attempts", "3"), List.of("guide-setup"), "b".repeat(64), Instant.parse("2026-10-30T19:00:00Z")),
             new SpecialistChainResultView("result-policy", "assist-area-policy@1", "worker-policy", "Check policy",
                 Map.of("status", "CURRENT"), List.of("guide-policy"), "c".repeat(64), Instant.parse("2026-10-30T19:00:01Z")));
         var completed = new SpecialistChainExecutionResult("chain-check-1", SpecialistChainId.parse("assist-chain-setup@1"),
-            "a".repeat(64), SpecialistChainExecutionStatus.COMPLETED, "Checks completed", null, projections, List.of(),
-            null, 0, null, false, true, Instant.now(), Instant.now());
+            "a".repeat(64), SpecialistChainExecutionStatus.COMPLETED, synthesis, null, projections, List.of(),
+            "private-snapshot", 2, null, false, true, Instant.now(), Instant.now());
         when(chains.submit(any(SpecialistChainExecutionRequest.class))).thenReturn(chainHandle());
         when(chains.findResult(eq("chain-check-1"), any())).thenReturn(Optional.of(completed));
 
-        var result = handler("[]", true).executeAction(
+        var action = handler("[]", true);
+        var result = action.executeAction(
             Map.of("capabilityId", "setup", "question", "Check setup and policy"), context(Set.of(), null));
 
-        assertThat(result.getData().toMap().get("findings")).isEqualTo(projections);
+        assertThat(result.getMessage()).isEqualTo(synthesis).hasSizeGreaterThan(1000);
+        assertThat(ActionGroundingSupport.requiresAdditionalGrounding(result)).isFalse();
+        assertThat((List<?>) result.getData().toMap().get("findings"))
+            .allSatisfy(item -> assertThat(item).isInstanceOf(Map.class));
         var wire = sanitizedWire(result).at("/data/actionResult/data/findings");
         assertThat(wire).hasSize(2);
         assertThat(wire.at("/0/summary").asText()).isEqualTo("Check setup");
@@ -418,6 +547,24 @@ class SpecialistAssistanceActionContributorTest {
         assertThat(wire.at("/1/facts/status").asText()).isEqualTo("CURRENT");
         assertThat(wire.at("/1/resultHash").asText()).isEqualTo("c".repeat(64));
         assertThat(wire.at("/1/completedAt").asText()).isEqualTo("2026-10-30T19:00:01Z");
+        var facts = action.buildPostActionLlmFacts(result, context(Set.of(), null)).orElseThrow();
+        assertThat(facts).containsEntry("message", synthesis).containsEntry("groundingUsable", true);
+        assertThat(mapper.valueToTree(facts).path("findings")).isEqualTo(wire);
+        assertThat(facts.toString()).doesNotContain("SpecialistChainResultView", "private-snapshot", "chainContentHash", "steps", "rawOutput", "attributes");
+        assertThat(sanitizedWire(result).at("/data/actionResult/message").asText()).isEqualTo(synthesis);
+    }
+
+    @Test void llmFactsIncludeOnlyApprovedPublicFields() throws Exception {
+        var action = handler("[]", true);
+        assertThat(action.buildPostActionLlmFacts(null, context(Set.of(), null))).isEmpty();
+        var failed = ActionResult.builder().success(false).message("The check is unavailable.").errorCode("CHECK_FAILED")
+            .data(ActionResultContracts.object(Map.of("status", "FAILED", "retryable", true,
+                "findings", List.of(), "rawOutput", "private output", "attributes", Map.of("secret", "private attribute"))))
+            .build();
+        var facts = action.buildPostActionLlmFacts(failed, context(Set.of(), null)).orElseThrow();
+        assertThat(facts).containsEntry("errorCode", "CHECK_FAILED").containsEntry("retryable", true)
+            .containsEntry("groundingUsable", false).containsEntry("message", "The check is unavailable.")
+            .doesNotContainKeys("rawOutput", "attributes");
     }
 
     private ActionResult directResult(JsonNode output) throws Exception {
