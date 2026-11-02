@@ -67,6 +67,12 @@ authorized storage access; local knowledge edits alone are not a hosted update.
   the corrected request. This was qualification tooling, not a product/auth fix.
 - Additional fixed paraphrases cover original/reversed issue order and optional
   DNS. They supplement the original suite and have no automatic semantic grader.
+- Central publication `41365943024` completed successfully. Runtime CI
+  `41367502561` retained two failed version-reporting assertions still expecting
+  0.8.43; its 588-test runtime run had no other failures. The assertions are
+  updated to the new declared version, without bypassing the failed job.
+- Runtime/source commit `26eb2cdee` is pushed. The first staging version is
+  `ver-704e28d5`, with `reindexRequired=false`; no runtime apply is claimed yet.
 - Live implementation receipts and the bounded operator helper are private at
   `~/.codex/private/loomai-support-01054/quality-20261102/`. Existing production
   Support remains on its previous verified release until qualification.
