@@ -43,12 +43,12 @@ export function CustomerOnboardingPage() {
   const state = useQuery({ queryKey: ['customer-onboarding', auth.supabaseSession?.user.id], queryFn: fetchCustomerOnboarding,
     enabled: Boolean(auth.supabaseSession), retry: false })
   const create = useMutation({ mutationFn: () => createCustomerWorkspace({ workspaceName: workspaceName.trim(), displayName: displayName.trim() }),
-    onSuccess: async () => { await auth.refreshSession(); navigate(productStartPath(location.search), { replace: true }) } })
+    onSuccess: async () => { await auth.refreshSession(); navigate(productStartPath(location.search, location.pathname), { replace: true }) } })
   useEffect(() => {
     if (state.data?.status === 'READY') {
-      void auth.refreshSession().then(() => navigate(productStartPath(location.search), { replace: true }))
+      void auth.refreshSession().then(() => navigate(productStartPath(location.search, location.pathname), { replace: true }))
     }
-  }, [state.data?.status, location.search])
+  }, [state.data?.status, location.search, location.pathname])
   const submit = (event: FormEvent) => { event.preventDefault(); create.mutate() }
   return <CustomerEntryLayout>
     <Box><Typography variant="h4" component="h1">Create your workspace</Typography>

@@ -11,8 +11,12 @@ export function selectedProduct(search: string): 'platform' | 'engage' | 'desk' 
   return product === 'platform' || product === 'engage' || product === 'desk' ? product : null
 }
 
-export function productStartPath(search: string) {
-  const kit = selectedKit(search)
+export function kitSetupCode(pathname: string): string | null {
+  return pathname.match(/^\/kits\/new\/([a-z][a-z0-9-]{0,63})\/?$/)?.[1] ?? null
+}
+
+export function productStartPath(search: string, pathname = '') {
+  const kit = selectedKit(search) ?? kitSetupCode(pathname)
   if (kit) return `/kits/new/${kit}`
   const product = selectedProduct(search)
   return product ? `/start?product=${product}` : '/start'

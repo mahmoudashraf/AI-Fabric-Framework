@@ -9,7 +9,7 @@ import { CustomerAuthRecoveryPage } from './pages/CustomerAuthRecoveryPage'
 import { CustomerAccountRecoveryPage } from './pages/CustomerAccountRecoveryPage'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { PlatformApiError } from './api/platformApi'
-import { productStartPath } from './auth/customerAuthReturn'
+import { kitSetupCode, productStartPath } from './auth/customerAuthReturn'
 import { PublicProductsPage } from './pages/PublicProductsPage'
 import { ExperienceKitsPublicPage } from './pages/ExperienceKitsPublicPage'
 import { ExperienceKitsPage } from './pages/ExperienceKitsPage'
@@ -128,7 +128,8 @@ export default function App() {
   }
 
   if (auth.session?.enabled && !auth.session.authenticated) {
-    return <Navigate to={`/sign-in${location.search}`} replace />
+    const kit = kitSetupCode(location.pathname)
+    return <Navigate to={kit ? `/sign-in?kit=${kit}` : `/sign-in${location.search}`} replace />
   }
 
   if (auth.session?.role === 'CUSTOMER_ADMIN' && !isCustomerSession(auth.session)) {

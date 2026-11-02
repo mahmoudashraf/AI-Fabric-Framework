@@ -14,7 +14,7 @@ export function KitExperienceFields({ value, onChange, disabled = false, deploym
     {includeName && <TextField fullWidth size="small" label="Kit name" value={value.name} disabled={disabled}
       onChange={event => set('name', event.target.value)} required inputProps={{ maxLength: 120 }} />}
     <TextField fullWidth size="small" label="Workspace name" value={value.workspaceName} disabled={disabled}
-      onChange={event => set('workspaceName', event.target.value)} required inputProps={{ maxLength: 128 }} />
+      onChange={event => set('workspaceName', event.target.value)} required inputProps={{ maxLength: 120 }} />
     <div className="ek-color-field"><span>Brand colors</span><div role="group" aria-label="Brand color">
       {kitBrandColors.map(color => <Tooltip title={color} key={color}><IconButton disabled={disabled} aria-label={`Brand color ${color}`}
         aria-pressed={value.brandColor.toLowerCase() === color.toLowerCase()} className="ek-color-swatch" style={{ background: color }}
@@ -31,7 +31,7 @@ export function KitExperienceFields({ value, onChange, disabled = false, deploym
       inputProps={{ maxLength: 63, autoCapitalize: 'none', spellCheck: false }} helperText="Choose the name before .apps.loomai.pro" />}
     {value.embedded && <TextField size="small" label="Website origin" value={value.websiteOrigin} disabled={disabled}
       onChange={event => set('websiteOrigin', event.target.value)} placeholder="https://www.example.com" type="url" fullWidth required
-      inputProps={{ autoCapitalize: 'none', maxLength: 2048 }} />}
+      inputProps={{ autoCapitalize: 'none', maxLength: 255 }} />}
     <section className="ek-support-option" aria-labelledby="ek-support-option-title"><div className="ek-support-option-heading">
       <HeadsetMicOutlined /><div><strong id="ek-support-option-title">Human support</strong><span className="ek-badge">Optional</span></div>
       <Switch inputProps={{ 'aria-label': 'Include human support setup' }} disabled={disabled} checked={value.humanSupportEnabled}

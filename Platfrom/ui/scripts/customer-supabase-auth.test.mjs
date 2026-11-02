@@ -14,11 +14,26 @@ const { platformCredentials, setPlatformAccessTokenProvider } = await load('../s
 delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
-const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath, productStartPath } = await load('../src/auth/customerAuthReturn.ts')
+const { rememberCustomerAuthReturn, customerAuthReturn, consumeCustomerAuthReturn, identityEmailRedirect, identitySignInPath, productStartPath, kitSetupCode } = await load('../src/auth/customerAuthReturn.ts')
 const { deskSignInUrl, deskIdentityClient, identityMethod, emailCallbackError } = await load('../src/auth/identityNavigation.ts')
 const { readEmailLink, verifyEmailLinkOnce } = await load('../src/auth/emailLinkVerification.ts')
 const config = { enabled: true, deskClients: [{ clientId: 'desk-prod', redirectUris: ['https://desk.example.test/auth/callback'] }] }
 const details = { authorization_id: 'auth-1', client: { id: 'desk-prod' }, redirect_uri: 'https://desk.example.test/auth/callback', scope: 'openid profile email' }
+
+test('new workspace creation and a bookmarked kit route retain only exact local kit intent', async () => {
+  const path = '/kits/new/dealership-ai-experience'
+  assert.equal(kitSetupCode(path), 'dealership-ai-experience')
+  assert.equal(productStartPath('', path), path)
+  assert.equal(productStartPath('?kit=ai-customer-experience', path), '/kits/new/ai-customer-experience')
+  for (const value of ['https://other.test/kits/new/dealership-ai-experience', '//kits/new/a', '/kits/new/a/extra', '/kits/new/../a']) {
+    assert.equal(kitSetupCode(value), null)
+    assert.equal(productStartPath('', value), '/start')
+  }
+  const onboarding = await readFile(new URL('../src/pages/CustomerOnboardingPage.tsx', import.meta.url), 'utf8')
+  assert.match(onboarding, /productStartPath\(location\.search, location\.pathname\)/)
+  const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  assert.match(app, /kitSetupCode\(location\.pathname\)/)
+})
 
 test('customer predicate accepts verified session modes without admitting API keys, staff or unscoped users', () => {
   const customer = { authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SUPABASE' }
