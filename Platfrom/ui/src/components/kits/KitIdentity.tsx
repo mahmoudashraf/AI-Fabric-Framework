@@ -20,8 +20,8 @@ export function KitMark({ product, large = false }: { product: 'platform' | 'eng
 export function KitProductLine({ dealership = false, support = false }: { dealership?: boolean; support?: boolean }) {
   return <div className="ek-product-line"><span><KitMark product="platform" />Platform</span><i>+</i>
     <span><KitMark product="engage" />Engage</span>
-    {dealership && <><i>+</i><span><KitMark product="dealership" />Dealership configuration</span></>}
-    {support && <><i>+</i><span className="ek-amber"><KitMark product="desk" />Desk requested</span></>}
+    {dealership && <><i>+</i><span><KitMark product="dealership" />Dealership experience</span></>}
+    {support && <><i>+</i><span className="ek-amber"><KitMark product="desk" />Human support setup requested</span></>}
   </div>
 }
 
@@ -41,11 +41,11 @@ export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/k
 }
 
 export function KitProductLinks() {
-  return <section className="ek-own-products" aria-labelledby="ek-own-products-title"><h2 id="ek-own-products-title">Build your own with LoomAI</h2>
+  return <section className="ek-own-products" aria-labelledby="ek-own-products-title"><h2 id="ek-own-products-title">The products behind your experience</h2>
     <div className="ek-own-products-grid">{([
-      ['platform', 'Platform', 'Connect your data, systems and policies.'],
-      ['engage', 'Engage', 'Deliver AI experiences for your customers.'],
-      ['desk', 'Desk', 'Work with AI and your team in one place.'],
+      ['platform', 'Platform', 'Help your AI work with your business information.'],
+      ['engage', 'Engage', 'Give customers a workspace with your brand.'],
+      ['desk', 'Desk', 'Bring your support team into the conversation.'],
     ] as const).map(([product, name, summary]) => <Link key={product} to={`/products/${product}`}>
       <KitMark product={product} /><span><strong>{name}</strong><small>{summary}</small></span><ArrowForwardRounded />
     </Link>)}</div>
@@ -55,7 +55,7 @@ export function KitProductLinks() {
 export function KitSupportBand() {
   return <section className="ek-support-band" aria-labelledby="ek-support-band-title"><KitMark product="desk" />
     <img src={kitAsset('demo-support-agent.webp')} alt="Illustrative support agent" width="54" height="54" loading="lazy" />
-    <div><h2 id="ek-support-band-title">Add your people when it matters</h2><p>Enable LoomAI Desk during setup or later. Your agents can continue the conversation.</p></div>
+    <div><h2 id="ek-support-band-title">A person when your customers need one</h2><p>Add your own support team with LoomAI Desk, now or later. Customers can continue without repeating their story.</p></div>
     <span className="ek-badge ek-badge-amber">Optional for either kit</span>
   </section>
 }

@@ -37,7 +37,7 @@ export function ExperienceKitSetup({ customerId, actorId, code }: { customerId: 
   if (!prepared) return <div className="ek-query-state" role="status"><CircularProgress size={24} />Preparing your selected kit...</div>
   if (catalogue.isPending) return <div className="ek-query-state" role="status"><CircularProgress size={24} />Loading kit setup...</div>
   if (catalogue.isError) return <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Kit setup could not be loaded.'}</Alert>
-  if (!entry) return <Alert severity="info" action={<Button component={Link} to="/support">Request integration help</Button>}>No compatible template is available for this kit and account. No deployment has been created.</Alert>
+  if (!entry) return <Alert severity="info" action={<Button component={Link} to="/support">Get setup help</Button>}>This experience is not available for your account yet. Nothing has been created.</Alert>
   return <KitSetupForm key={`${code}:${entry.definition.version}`} customerId={customerId} actorId={actorId} entry={entry} />
 }
 
@@ -83,12 +83,12 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
   const targets = kitStagingTargets(offer)
   const workspaceProfile = offer?.workspaceProfiles.find(profile => profile.id === workspaceProfileId)
   const selectionErrors = [
-    ...(!offer ? ['Select an available deployment template.'] : []),
+    ...(!offer ? ['Choose an available starting experience.'] : []),
     ...(offer && offer.entitlement.customerId !== customerId ? ['The selected template belongs to a different customer.'] : []),
     ...(offer && offer.entitlement.status !== 'ACTIVE' ? ['The selected template is not active for this customer.'] : []),
-    ...(!targets.some(target => target.id === targetProfileId) ? ['Select an available customer-staging target.'] : []),
-    ...(!workspaceProfile ? ['Select an experience configuration.'] : []),
-    ...(storageError ? [storageError] : modes && !modes.includes(storageMode as AiStateStorageMode) ? ['Select an AI-state storage option.'] : []),
+    ...(!targets.some(target => target.id === targetProfileId) ? ['Choose a test environment.'] : []),
+    ...(!workspaceProfile ? ['Choose a workspace style.'] : []),
+    ...(storageError ? [storageError] : modes && !modes.includes(storageMode as AiStateStorageMode) ? ['Choose where conversations will be stored.'] : []),
     ...(!form.name.trim() ? ['Enter a name for your kit.'] : []),
   ]
   const setOffer = (id: string) => {
@@ -146,8 +146,8 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
   const dealership = definition.code === 'dealership-ai-experience'
   return <form className="ek-setup" onSubmit={event => void submit(event)}>
     <Button component={Link} to="/kits" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
-    <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1>{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} support={form.humanSupportEnabled} /></div><span className="ek-badge">Draft setup</span></div>
-    <ol className="ek-setup-steps" aria-label="Kit setup progress">{['Connect your business', 'Shape the experience', 'Review and launch'].map((label, index) => <li key={label} data-step-state={index === step ? 'current' : index < step ? 'done' : 'next'}>
+    <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1>{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} support={form.humanSupportEnabled} /></div><span className="ek-badge">Not live yet</span></div>
+    <ol className="ek-setup-steps" aria-label="Kit setup progress">{['Choose your starting point', 'Make it yours', 'Review your setup'].map((label, index) => <li key={label} data-step-state={index === step ? 'current' : index < step ? 'done' : 'next'}>
       <button type="button" disabled={index > step || create.isPending} onClick={() => { setStep(index); setError(null) }} aria-current={index === step ? 'step' : undefined}>
         <span>{index < step ? <CheckRounded /> : index + 1}</span>{label}</button></li>)}</ol>
     {error && <Alert severity="error" className="ek-form-error">{error}</Alert>}
@@ -160,49 +160,51 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
         <KitWorkspacePreview packCode={definition.experiencePackCode} workspaceName={form.workspaceName} brandColor={form.brandColor}
           configuration={{ ...(workspaceProfile?.interaction.configuration as Record<string, unknown> | undefined),
             theme: { ...(workspaceProfile?.theme ?? {}), primaryColor: form.brandColor } }} humanSupportEnabled={form.humanSupportEnabled} layout={previewLayout} />
-        <div className="ek-connected-flow"><div><KitMark product="platform" /><span><strong>AI deployment</strong><small>Your knowledge and integrations</small></span></div><ArrowForwardRounded />
-          <div><KitMark product="engage" /><span><strong>Engage workspace</strong><small>Your branded customer experience</small></span></div>
+        <div className="ek-connected-flow"><div><KitMark product="platform" /><span><strong>Your AI assistant</strong><small>Your information and connected systems</small></span></div><ArrowForwardRounded />
+          <div><KitMark product="engage" /><span><strong>Your customer workspace</strong><small>Your brand, on your website or its own address</small></span></div>
           {form.humanSupportEnabled && <><ArrowForwardRounded /><div><KitMark product="desk" /><span><strong>Desk team</strong><small>Your human agents (optional)</small></span></div></>}
         </div>
       </section>
       <aside className="ek-setup-controls" aria-label="Kit configuration">
         {step === 0 ? <>
-          <h2>Connect your business</h2>
+          <h2>Choose your starting point</h2>
           <TextField label="Kit name" required size="small" fullWidth value={form.name} disabled={create.isPending} inputProps={{ maxLength: 120 }} onChange={event => setForm({ ...form, name: event.target.value })} />
-          <TextField label="Deployment template" size="small" select fullWidth required value={offerId} onChange={event => setOffer(event.target.value)}>
-            <MenuItem value="" disabled>Choose a template</MenuItem>{offers.map(item => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
+          <TextField label="Starting experience" size="small" select fullWidth required value={offerId} onChange={event => setOffer(event.target.value)}>
+            <MenuItem value="" disabled>Choose a starting experience</MenuItem>{offers.map(item => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
           </TextField>
           {!offers.length && <Alert severity="info">No active template is available. Return to My kits and refresh available templates.</Alert>}
           {offer?.blockers.map((blocker, index) => <Alert severity="warning" key={`offer:${index}`}>{blocker}</Alert>)}
           {targets.find(target => target.id === targetProfileId)?.blockers.map((blocker, index) => <Alert severity="warning" key={`target:${index}`}>{blocker}</Alert>)}
-          {targets.length === 1 ? <div className="ek-target-fact"><small>Initial environment</small><strong>Customer staging</strong></div>
-            : <TextField label="Customer-staging target" size="small" select fullWidth value={targetProfileId} onChange={event => setTargetProfileId(event.target.value)}>
-              <MenuItem value="" disabled>Choose a staging target</MenuItem>{targets.map((target, index) => <MenuItem key={target.id} value={target.id}>Customer staging{targets.length > 1 ? ` ${index + 1} (${target.id})` : ''}</MenuItem>)}
+          {targets.length === 1 ? <div className="ek-target-fact"><small>Start safely</small><strong>Test before going live</strong></div>
+            : <TextField label="Test environment" size="small" select fullWidth value={targetProfileId} onChange={event => setTargetProfileId(event.target.value)}>
+              <MenuItem value="" disabled>Choose a test environment</MenuItem>{targets.map((target, index) => <MenuItem key={target.id} value={target.id}>Test environment{targets.length > 1 ? ` ${index + 1} (${target.id})` : ''}</MenuItem>)}
             </TextField>}
-          <TextField label="Experience configuration" size="small" select required fullWidth value={workspaceProfileId} onChange={event => setWorkspaceProfileId(event.target.value)}>
+          <TextField label="Workspace style" size="small" select required fullWidth value={workspaceProfileId} onChange={event => setWorkspaceProfileId(event.target.value)}>
             <MenuItem value="" disabled>Choose a configuration</MenuItem>{offer?.workspaceProfiles.map(profile => <MenuItem key={profile.id} value={profile.id}>{profile.label}</MenuItem>)}
           </TextField>
-          {modes && <TextField label="AI-state storage" size="small" select required fullWidth value={storageMode} onChange={event => setStorageMode(event.target.value as AiStateStorageMode)}>
+          {modes && <TextField label="Where conversations are stored" size="small" select required fullWidth value={storageMode} onChange={event => setStorageMode(event.target.value as AiStateStorageMode)}
+            helperText="Your team can connect this before going live. Nothing is provisioned at this step.">
             <MenuItem value="" disabled>Choose storage</MenuItem>{modes.map(mode => <MenuItem key={mode} value={mode}>{aiStateStorageLabels[mode]}</MenuItem>)}
           </TextField>}
           {storageError && <Alert severity="error">{storageError}</Alert>}
-          {offer && <div className="ek-configured-parts"><h3>Included connection points</h3>{offer.bindingSlots.length ? <ul>{offer.bindingSlots.map(slot => <li key={slot.id}>{slot.id}<small>{slot.kind.replace(/_/g, ' ').toLowerCase()}</small></li>)}</ul>
-            : <p>No external connection slots are declared by this template.</p>}<p>Connect your own services in the deployment editor after the draft is created.</p></div>}
+          {offer && <div className="ek-configured-parts"><h3>Your information, your business</h3><p>Add your approved documents and connect the systems your customers need before going live.</p>
+            <details className="ek-advanced"><summary>Connection details for your team</summary>{offer.bindingSlots.length ? <ul>{offer.bindingSlots.map(slot => <li key={slot.id}>{slot.id}<small>{slot.kind.replace(/_/g, ' ').toLowerCase()}</small></li>)}</ul>
+              : <p>No external connection slots are declared by this template.</p>}<p>Technical setup uses the deployment editor after your workspace is created.</p></details></div>}
         </> : step === 1 ? <><h2>Your experience</h2><KitExperienceFields value={form} onChange={setForm} disabled={create.isPending} /></>
           : <><h2>Review your kit</h2><dl className="ek-review-facts">
-            <div><dt>Kit</dt><dd>{form.name}</dd></div><div><dt>Template</dt><dd>{offer?.name}</dd></div>
-            <div><dt>Initial environment</dt><dd>Customer staging</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
-            <div><dt>Delivery</dt><dd>{form.standalone && form.embedded ? 'Website embed + standalone app' : form.embedded ? 'Website embed' : 'Standalone app'}</dd></div>
+            <div><dt>Kit</dt><dd>{form.name}</dd></div><div><dt>Starting experience</dt><dd>{offer?.name}</dd></div>
+            <div><dt>First step</dt><dd>Test before going live</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
+            <div><dt>Where customers find you</dt><dd>{form.standalone && form.embedded ? 'Your website + standalone app' : form.embedded ? 'Your website' : 'Standalone app'}</dd></div>
             {form.standalone && <div><dt>App address name</dt><dd>{form.appSlug}</dd></div>}
-            {form.embedded && <div><dt>Website origin</dt><dd>{form.websiteOrigin}</dd></div>}
-            <div><dt>Human support</dt><dd>{form.humanSupportEnabled ? 'Setup requested; agents not assigned' : 'Optional, not requested'}</dd></div>
-          </dl><Alert severity="info">Creates linked configuration drafts only. It does not deploy services, publish a release, activate apps or provision paid infrastructure.</Alert>
-            <p className="ek-muted">Next: connect approved knowledge and integrations, verify a staging deployment, then publish and activate through the existing product workflows.</p>
+            {form.embedded && <div><dt>Website address</dt><dd>{form.websiteOrigin}</dd></div>}
+            <div><dt>Human support</dt><dd>{form.humanSupportEnabled ? 'Add your team after setup' : 'Optional, not requested'}</dd></div>
+          </dl><Alert severity="info">Creates your workspace setup only. Your AI assistant is not live yet, and no paid services are started at this step.</Alert>
+            <p className="ek-muted">Next: connect your information, test the experience and choose when to go live. You can get help from our integration team.</p>
           </>}
         <div className="ek-setup-actions">{step > 0 && <Button type="button" onClick={() => { setStep(value => value - 1); setError(null) }} disabled={create.isPending} startIcon={<ArrowBackRounded />}>Back</Button>}
           <Button type="submit" variant="contained" className="ek-primary-button" disabled={create.isPending || (step === 0 && !offers.length)} endIcon={create.isPending ? <CircularProgress size={16} color="inherit" /> : <ArrowForwardRounded />}>
-            {create.isPending ? 'Creating kit...' : step === 2 ? 'Create kit drafts' : 'Continue setup'}</Button></div>
-        <Link className="ek-help-link" to="/support">Request integration help <ArrowForwardRounded /></Link>
+            {create.isPending ? 'Creating workspace...' : step === 2 ? 'Create my workspace' : 'Continue setup'}</Button></div>
+        <Link className="ek-help-link" to="/support">Get setup help <ArrowForwardRounded /></Link>
       </aside>
     </div>
   </form>

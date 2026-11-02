@@ -98,7 +98,8 @@ const platformProductHtml = readFileSync(
 )
 for (const route of ['', 'products']) {
   const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
-  if (!html.includes('href="https://console.loomai.pro/"') || !html.includes('Open console')) {
+  const actionLabel = route === '' ? 'Get started' : 'Open console'
+  if (!html.includes('href="https://console.loomai.pro/"') || !html.includes(actionLabel)) {
     errors.push(`Platform card is missing its Console action at /${route}`)
   }
 }

@@ -27,54 +27,54 @@ const capabilities = dealership
       {
         icon: CarFront,
         title: 'Discover the right vehicle',
-        body: 'Help buyers explore indexed stock, check connected live facts and compare vehicles in one conversation.',
+        body: 'Help buyers explore your stock, check current vehicle details and compare their options without leaving the conversation.',
       },
       {
         icon: FileText,
         title: 'Answer with dealership knowledge',
-        body: 'Bring your approved delivery, warranty and operation guides into the buying journey.',
+        body: 'Answer questions about delivery, warranties and dealership policies using the information your team approves.',
       },
       {
         icon: MessageSquare,
         title: 'Keep the next step connected',
-        body: 'Connect approved enquiry actions to your existing systems. Add your team through Desk when needed.',
+        body: 'Help interested buyers make an enquiry through your connected business systems, or continue with your team when they need a person.',
       },
     ]
   : [
       {
         icon: FileText,
         title: 'Make your knowledge useful',
-        body: 'Help customers get answers grounded in approved business documents, with sources they can inspect.',
+        body: 'Help customers understand your services and policies, with answers based on information your business approves.',
       },
       {
         icon: GitCompareArrows,
         title: 'Connect discovery to your business',
-        body: 'Let people explore products or services using the information and read actions you connect.',
+        body: 'Help people find the right product or service using your business information and connected systems.',
       },
       {
         icon: MessageSquare,
         title: 'Turn questions into next steps',
-        body: 'Configure useful actions for your own systems, with the permissions and confirmation each action needs.',
+        body: 'Help customers make an enquiry or take another useful next step, with the permissions and confirmations your business needs.',
       },
     ]
 const steps = [
   {
-    title: 'Start with the kit',
-    body: 'Choose the experience in Console. Review its linked deployment and Engage configuration.',
+    title: 'Choose your experience',
+    body: 'Start with the experience that fits your customers. Your workspace setup is ready for you to make your own.',
   },
   {
     title: 'Connect your business',
     body: dealership
-      ? 'Use the simulator to explore, then configure approved stock access and your own dealership documents.'
-      : 'Connect approved knowledge, your storage and the business services you want the AI to use.',
+      ? 'Try the fictional demo first. For your business, connect approved stock access and your own dealership documents.'
+      : 'Add approved documents and connect the services your customers need. Your team can help with technical setup.',
   },
   {
     title: 'Make it your own',
-    body: 'Adapt your branding and workspace tools. Choose website embed, a standalone app, or both.',
+    body: 'Choose your name, colours and customer tools. Add the workspace to your website, give it its own address, or use both.',
   },
   {
-    title: 'Test, then publish',
-    body: 'Verify answers, permissions and customer journeys before deploying and activating your experience.',
+    title: 'Test, then go live',
+    body: 'Try real customer questions and check the experience with your team. Choose when to make it available to customers.',
   },
 ]
 ---
@@ -86,7 +86,7 @@ const steps = [
         <a href="/experiences"
           ><ArrowLeft size={16} aria-hidden="true" />Back to experiences</a
         ><a href="https://console.loomai.pro/"
-          >Open console<ArrowRight size={16} aria-hidden="true" /></a
+          >Get started<ArrowRight size={16} aria-hidden="true" /></a
         >
       </div>
       <p class="loom-eyebrow">
@@ -96,13 +96,13 @@ const steps = [
       <p class="experience-detail-hero__lead">
         {
           dealership
-            ? 'Help buyers find the right car, understand their options and take a confident next step.'
-            : 'Your knowledge, live integrations and useful actions in one branded AI workspace.'
+            ? 'Turn your website into a helpful buying experience. Help buyers find the right car and take a confident next step.'
+            : 'Give customers clear answers and useful next steps, in a workspace that feels like your business.'
         }
       </p>
       <div class="experience-detail-hero__actions">
         <a class="experience-button" href={consoleUrl}
-          >Configure this experience<ArrowRight
+          >Get started<ArrowRight
             size={17}
             aria-hidden="true"
           /></a
@@ -197,8 +197,8 @@ const steps = [
           </h3><p>
             {
               dealership
-                ? 'A dealership deployment starting point with stock and document plugins, configured discovery actions and integration settings to adapt.'
-                : 'A deployment starting point for your knowledge and connected services. Keep configuration, integrations and releases under your control.'
+                ? 'Help your assistant work with your stock and dealership information. Choose the answers and next steps your business wants to offer.'
+                : 'Give your assistant the business information it needs. Choose which systems it can use and what it can help your customers do.'
             }
           </p><a href="/products/loomai-platform"
             >Explore Platform<ArrowRight size={15} aria-hidden="true" /></a
@@ -210,7 +210,7 @@ const steps = [
           </h3><p>
             {
               dealership
-                ? 'A branded dealership workspace with browse and vehicle-context tools, comparisons, attachments and configurable action results.'
+                ? 'Give buyers one place to search, compare, ask questions and contact your team. Keep your dealership brand throughout the experience.'
                 : 'Your customer-facing AI workspace, with your name, branding and configured tools. Embed it on your website or give it its own address.'
             }
           </p><a href="https://console.loomai.pro/products/engage"
@@ -221,17 +221,17 @@ const steps = [
           <Headphones size={30} stroke-width={1.6} aria-hidden="true" /><h3>
             LoomAI Desk <span>Optional</span>
           </h3><p>
-            Add your own agents during setup or later. Give them
-            deployment-scoped access to continue conversations and handle
-            configured action reviews.
+            Add your own agents when customers need a person. Your team can
+            continue the conversation with its context, and review requests that
+            need a human decision.
           </p><a href="https://console.loomai.pro/products/desk"
             >Explore Desk<ArrowRight size={15} aria-hidden="true" /></a
           >
         </article>
       </div><div class="experience-detail-note">
         <ShieldCheck size={21} aria-hidden="true" /><p>
-          The kit is a starting configuration, not a locked package. Reuse the
-          existing product editors and release flow as your experience grows.
+          Start with the kit, then make it your own. Change your information,
+          branding and connected services as your business grows.
         </p>
       </div>
     </div>
@@ -261,26 +261,26 @@ const steps = [
           </h3><p>
             {
               dealership
-                ? 'For a real retailer, you need approved provider access, the right advertiser scope, dealership content and an authorised enquiry destination. The simulator is for evaluation, not production API access.'
-                : 'Bring approved source content and credentials for your business systems. Integrations, permissions and actions are configured for your use case; a kit does not grant access to external systems.'
+                ? 'Your team supplies approved access to your stock and dealership information, and chooses where enquiries should go. Trying the demo does not grant access to a real Auto Trader account.'
+                : 'Choose the information and services your assistant can use. Your team must approve access to your business systems before you go live.'
             }
           </p>
         </div><div>
           <Palette size={22} aria-hidden="true" /><h3>
             Your brand. Your people.
           </h3><p>
-            Choose your identity and customer-facing tools. If you enable Desk,
+            Choose your branding and customer tools. If you add Desk,
             assign your own human agents and decide how customers can reach
             them. LoomAI does not provide staffing.
           </p>
         </div>
       </div><div class="experience-detail-setup__actions">
         <a class="experience-button" href={consoleUrl}
-          >Continue in Console<ArrowRight size={17} aria-hidden="true" /></a
+          >Get started<ArrowRight size={17} aria-hidden="true" /></a
         ><a
           class="experience-secondary"
           href="https://console.loomai.pro/support"
-          >Request integration help<ArrowRight
+          >Get setup help<ArrowRight
             size={16}
             aria-hidden="true"
           /></a

@@ -1,4 +1,4 @@
-import type { AIWorkspaceInstallationSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
+import type { AIWorkspaceInstallationSummary, AIWorkspaceReadinessCheck, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import type { ExperienceKitDeliveryMode, ExperienceKitSummary, UpdateExperienceKitRequest } from '../../api/experienceKitsApi'
 import { readWorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
 import { connectableRelease } from '../customer/customerEngageConnection'
@@ -24,8 +24,8 @@ export function kitExperienceErrors(form: KitExperienceForm): string[] {
   const errors: string[] = []
   if (!form.name.trim()) errors.push('Enter a name for your kit.')
   if (!form.workspaceName.trim()) errors.push('Enter a workspace name.')
-  if (!/^#[0-9a-f]{6}$/i.test(form.brandColor)) errors.push('Choose a six-digit hex brand color.')
-  if (!kitDeliveryMode(form)) errors.push('Choose a website embed, a standalone app, or both.')
+  if (!/^#[0-9a-f]{6}$/i.test(form.brandColor)) errors.push('Choose a brand color using the color picker.')
+  if (!kitDeliveryMode(form)) errors.push('Choose your website, a standalone app, or both.')
   if (form.standalone && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.appSlug)) errors.push('Use lowercase letters, numbers and single hyphens for the app address.')
   if (form.embedded) {
     try {
@@ -33,7 +33,7 @@ export function kitExperienceErrors(form: KitExperienceForm): string[] {
       const url = new URL(value)
       if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash
         || (url.pathname !== '' && url.pathname !== '/') || url.origin !== value.replace(/\/$/, '')) throw new Error()
-    } catch { errors.push('Enter your website origin, for example https://www.example.com, without a page path.') }
+    } catch { errors.push('Enter your website address, for example https://www.example.com, without a page path.') }
   }
   return errors
 }
@@ -83,13 +83,30 @@ export function kitLatestAttempt(kit: ExperienceKitSummary, releases: Deployment
 export function kitAppPresentation(workspace: AIWorkspaceInstallationSummary | null | undefined, deploymentId: string,
   releases: DeploymentReleaseSummary[]) {
   if (!workspace) return { label: 'Setup needed', ready: false, active: false }
-  if (workspace.status === 'DISABLED') return { label: 'App disabled', ready: false, active: false }
+  if (workspace.status === 'DISABLED') return { label: 'Paused', ready: false, active: false }
   const assigned = workspace.releaseId && workspace.deploymentId === deploymentId
     ? releases.find(release => release.id === workspace.releaseId && release.deploymentId === deploymentId) : null
-  if (!assigned || !connectableRelease(assigned)) return { label: 'Verification needed', ready: false, active: false }
+  if (!assigned || !connectableRelease(assigned)) return { label: 'Not live yet', ready: false, active: false }
   if (!workspace.ready) return { label: 'Setup needed', ready: false, active: false }
   const active = workspace.status === 'ACTIVE'
-  return { label: active ? 'App active' : 'Ready to activate', ready: true, active }
+  return { label: active ? 'Live' : 'Ready to go live', ready: true, active }
+}
+
+// Presentation only: readiness codes/statuses and activation rules remain authoritative.
+export function kitReadinessText(check: AIWorkspaceReadinessCheck): string {
+  const messages: Record<string, [string, string]> = {
+    ASSIGNMENT: ['Your AI service connection is verified.', 'Test and connect your AI assistant before this workspace goes live.'],
+    ASSETS: ['Your workspace files are verified.', 'Your workspace files need attention. Contact LoomAI support.'],
+    EXPERIENCE_PACK: ['Your chosen experience is available.', 'Your chosen experience needs attention before you can go live.'],
+    CONNECTION_PROFILE: ['Your workspace connection settings are compatible.', 'Finish setting up how your workspace connects to your AI assistant.'],
+    ORIGINS: ['Your website addresses are configured.', 'Add the website addresses where customers will use your workspace.'],
+    AUTHENTICATION_PROFILE: ['Your customer sign-in settings are compatible.', 'Review customer sign-in settings before going live.'],
+    APP_DOMAIN: ['Your workspace web address is verified.', 'Verify your workspace web address before going live.'],
+    APP_DELIVERY: ['Your workspace website is reachable.', 'Your workspace web address is not ready yet.'],
+  }
+  const copy = Object.prototype.hasOwnProperty.call(messages, check.code) ? messages[check.code] : undefined
+  return copy && (check.status === 'PASSED' || check.status === 'BLOCKED')
+    ? copy[check.status === 'PASSED' ? 0 : 1] : check.message
 }
 
 export function kitEditorPath(kit: ExperienceKitSummary, preview = false, embedded = false) {

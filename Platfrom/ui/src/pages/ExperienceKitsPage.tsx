@@ -19,7 +19,7 @@ export function ExperienceKitsRefreshTemplates({ customerId }: { customerId: str
   const refresh = useMutation({ mutationFn: enrollPublicCustomerTemplates,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: experienceKitKeys.catalogue(customerId) }) })
   return <div className="ek-refresh-templates"><Button startIcon={<RefreshRounded />} disabled={refresh.isPending}
-    onClick={() => refresh.mutate()}>{refresh.isPending ? 'Refreshing templates...' : 'Refresh available templates'}</Button>
+    onClick={() => refresh.mutate()}>{refresh.isPending ? 'Refreshing experiences...' : 'Refresh available experiences'}</Button>
     {refresh.isError && <Alert severity="error">{refresh.error instanceof Error ? refresh.error.message : 'Templates could not be refreshed.'}</Alert>}
   </div>
 }
@@ -28,7 +28,7 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
   const kits = useQuery({ queryKey: experienceKitKeys.list(customerId), queryFn: ({ signal }) => fetchExperienceKits(signal), retry: false })
   const catalogue = useQuery({ queryKey: experienceKitKeys.catalogue(customerId), queryFn: ({ signal }) => fetchExperienceKitCatalogue(signal), retry: false })
   return <>
-    <div className="ek-section-heading"><div><h1>My kits</h1><p>Your connected AI products, in one experience.</p></div>
+    <div className="ek-section-heading"><div><h1>My kits</h1><p>Help your customers. Make each experience your own.</p></div>
       <Button component={Link} to="/experiences" startIcon={<AddRounded />}>Explore experiences</Button></div>
     {kits.isPending && <div className="ek-query-state" role="status"><CircularProgress size={24} />Loading your kits...</div>}
     {kits.isError && <Alert severity="error" action={<Button onClick={() => void kits.refetch()}>Retry</Button>}>{kits.error instanceof Error ? kits.error.message : 'Your kits could not be loaded.'}</Alert>}
@@ -38,7 +38,7 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
       const apps = kit.deliveryMode === 'both' ? [kit.workspace, kit.embeddedWorkspace] : [kit.workspace]
       const active = !missing && apps.every(app => app?.status === 'ACTIVE' && app.ready && app.deploymentId === kit.deploymentId && Boolean(app.releaseId))
       return <article className="ek-saved-kit" key={kit.id}><div className="ek-saved-kit-heading"><KitMark product={kit.kitCode === 'dealership-ai-experience' ? 'dealership' : 'engage'} />
-        <span className={`ek-badge${!active ? ' ek-badge-amber' : ''}`}>{missing ? 'Setup needed' : active ? apps.length > 1 ? 'Apps active' : 'App active' : 'Setup in progress'}</span></div>
+        <span className={`ek-badge${!active ? ' ek-badge-amber' : ''}`}>{missing ? 'Setup needed' : active ? 'Live' : 'Not live yet'}</span></div>
         <h2>{kit.name}</h2><p>{definition?.name ?? kit.kitCode}</p>
         <div className="ek-saved-kit-facts"><span>{kit.deliveryMode === 'both' ? 'Website embed + standalone' : kit.deliveryMode === 'embedded' ? 'Website embed' : 'Standalone app'}</span>
           <span>{kit.humanSupportEnabled ? 'Desk setup requested' : 'Desk optional'}</span></div>
@@ -46,7 +46,7 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
         <Button component={Link} to={`/kits/${encodeURIComponent(kit.id)}`} endIcon={<ArrowForwardRounded />}>Open kit</Button>
       </article>
     })}</div>}
-    {kits.isSuccess && !kits.data.length && <section className="ek-empty"><KitMark product="engage" large /><h2>Start with an experience</h2><p>Choose a kit, then adapt its deployment and workspace to your business.</p></section>}
+    {kits.isSuccess && !kits.data.length && <section className="ek-empty"><KitMark product="engage" large /><h2>Start helping your customers</h2><p>Choose an experience, add your information and give it your brand. Test it before you go live.</p></section>}
     <section className="ek-available-kits"><div className="ek-section-heading"><h2>Choose a starting point</h2><ExperienceKitsRefreshTemplates customerId={customerId} /></div>
       {catalogue.isPending && <CircularProgress size={24} aria-label="Loading available kits" />}
       {catalogue.isError && <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Available kits could not be loaded.'}</Alert>}

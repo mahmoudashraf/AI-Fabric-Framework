@@ -150,6 +150,24 @@ That initial failure is resolved by the focused deletion fix below.
 
 See `verification-support/experience-kits/2026-11-02-full-stack-qualification.md`.
 
+### Business-First Wording Pass
+
+The public site, Console catalogue, kit selection, setup and overview now lead
+with customer outcomes rather than deployment terminology. Product identities
+remain Platform, Engage and Desk; the kit overview describes them as **Your AI
+assistant**, **Your customer workspace** and **Human support**. Setup explains
+what will be created, what customers will see and what remains to go live.
+
+Catalogue migration V223 updates only the two platform-owned kit definitions'
+summary, description and feature text. Template references, versions, customer
+configuration, permissions and publishing remain unchanged. Main-screen
+readiness text uses exact known codes/statuses; original codes and diagnostics
+remain under **Technical details**, while unknown statuses/messages are retained.
+No AI prompt, routing, action, runtime or framework behavior changes are included.
+
+Qualification and hosted rollout evidence are recorded in the dated wording
+verification record. The administrative/operator views remain unchanged.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use

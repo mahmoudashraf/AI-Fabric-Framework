@@ -34,13 +34,13 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
             const Icon = icons[index % icons.length]
             return <div key={`${feature}:${index}`}><Icon /><span>{feature}</span></div>
           })}</div>
-          <div className="ek-choice-products"><small>Built with LoomAI products</small><KitProductLine dealership={dealership} /></div>
-          <div className="ek-desk-optional"><HeadsetMicOutlined /><span>Human support available with Desk</span></div>
+          <div className="ek-choice-products"><small>Included LoomAI products</small><KitProductLine dealership={dealership} /></div>
+          <div className="ek-desk-optional"><HeadsetMicOutlined /><span>Add your support team with Desk</span></div>
         </div>
       </div>
       <div className="ek-choice-actions"><Button component={Link} variant="contained" endIcon={<ArrowForwardRounded />}
         to={detailLinks ? `/experiences/${definition.code}` : authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>
-        {detailLinks ? dealership ? 'Explore dealership kit' : 'Explore experience' : 'Set up this kit'}</Button>
+        {detailLinks ? dealership ? 'Explore dealership experience' : 'Explore experience' : 'Get started'}</Button>
         {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try demo</Button>}
       </div>
     </article>

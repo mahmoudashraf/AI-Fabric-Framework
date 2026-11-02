@@ -150,22 +150,22 @@ test('latest attempt is separately labelled data and constrained to the exact de
   assert.equal(models.kitRelease(kit(), records), null)
 })
 
-test('business status says App active only for a ready app on its exact verified assigned release', () => {
+test('business status says Live only for a ready app on its exact verified assigned release', () => {
   const app = workspace({ status: 'ACTIVE', ready: true, releaseId: 'assigned' })
-  assert.deepEqual(models.kitAppPresentation(app, 'dep-one', [release('assigned')]), { label: 'App active', ready: true, active: true })
-  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('newer')]).label, 'Verification needed')
-  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { verificationStatus: 'FAILED' })]).label, 'Verification needed')
-  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { deploymentId: 'other' })]).label, 'Verification needed')
-  assert.equal(models.kitAppPresentation({ ...app, deploymentId: 'other' }, 'dep-one', [release('assigned')]).label, 'Verification needed')
+  assert.deepEqual(models.kitAppPresentation(app, 'dep-one', [release('assigned')]), { label: 'Live', ready: true, active: true })
+  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('newer')]).label, 'Not live yet')
+  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { verificationStatus: 'FAILED' })]).label, 'Not live yet')
+  assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { deploymentId: 'other' })]).label, 'Not live yet')
+  assert.equal(models.kitAppPresentation({ ...app, deploymentId: 'other' }, 'dep-one', [release('assigned')]).label, 'Not live yet')
 })
 
 test('draft, disabled and missing products have concise truthful business statuses', () => {
   const verified = [release('assigned')]
   assert.deepEqual(models.kitAppPresentation(workspace({ status: 'DRAFT', ready: true, releaseId: 'assigned' }), 'dep-one', verified),
-    { label: 'Ready to activate', ready: true, active: false })
+    { label: 'Ready to go live', ready: true, active: false })
   assert.equal(models.kitAppPresentation(workspace({ status: 'DRAFT', ready: false, releaseId: 'assigned' }), 'dep-one', verified).label, 'Setup needed')
-  assert.equal(models.kitAppPresentation(workspace({ status: 'ACTIVE', ready: true }), 'dep-one', verified).label, 'Verification needed')
-  assert.equal(models.kitAppPresentation(workspace({ status: 'DISABLED', ready: true, releaseId: 'assigned' }), 'dep-one', verified).label, 'App disabled')
+  assert.equal(models.kitAppPresentation(workspace({ status: 'ACTIVE', ready: true }), 'dep-one', verified).label, 'Not live yet')
+  assert.equal(models.kitAppPresentation(workspace({ status: 'DISABLED', ready: true, releaseId: 'assigned' }), 'dep-one', verified).label, 'Paused')
   assert.deepEqual(models.kitAppPresentation(null, 'dep-one', verified), { label: 'Setup needed', ready: false, active: false })
 })
 
@@ -189,6 +189,29 @@ test('outbound app and demo links reject unsafe protocols and embedded credentia
 
 test('only customer-staging targets are offered during kit bootstrap', () => {
   assert.deepEqual(models.kitStagingTargets({ targets: [{ id: 'stage', intent: 'CUSTOMER_STAGING' }, { id: 'prod', intent: 'CUSTOMER_PRODUCTION' }] }).map(item => item.id), ['stage'])
+})
+
+test('readiness wording uses stable check codes, without changing status or the original diagnostic', () => {
+  const check = { code: 'ASSIGNMENT', status: 'BLOCKED', message: 'A verified release binding is required.' }
+  const before = structuredClone(check)
+  assert.equal(models.kitReadinessText(check), 'Test and connect your AI assistant before this workspace goes live.')
+  assert.deepEqual(check, before)
+  assert.equal(models.kitReadinessText({ ...check, status: 'PASSED' }), 'Your AI service connection is verified.')
+})
+
+test('unknown checks and warning statuses retain their exact backend message', () => {
+  for (const code of ['NEW_CHECK', 'constructor', '__proto__']) {
+    assert.equal(models.kitReadinessText({ code, status: 'BLOCKED', message: 'Specific new failure.' }), 'Specific new failure.')
+  }
+  assert.equal(models.kitReadinessText({ code: 'APP_DOMAIN', status: 'WARNING', message: 'Check external sign-in redirects.' }), 'Check external sign-in redirects.')
+})
+
+test('plain-language readiness retains original codes, statuses and messages in technical details', async () => {
+  const source = await readFile(new URL('../src/components/kits/ExperienceKitOverview.tsx', import.meta.url), 'utf8')
+  assert.ok(source.includes('<summary>Technical details</summary>'))
+  assert.ok(source.includes('{check.code} ({check.status})'))
+  assert.ok(source.includes('<p>{check.message}</p>'))
+  assert.ok(source.includes('kitReadinessText(check)'))
 })
 
 test('public page is prop-driven outside Routes, retaining selected-kit sign-up links', async () => {

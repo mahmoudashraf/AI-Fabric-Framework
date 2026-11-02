@@ -49,9 +49,9 @@ class ExperienceKitMigrationPostgresTest {
     private JdbcTemplate jdbc;
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
-    @BeforeAll static void migrateRealSchemaThroughV222() {
+    @BeforeAll static void migrateRealSchemaThroughV223() {
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-            .locations("classpath:db/migration").target("222").load().migrate();
+            .locations("classpath:db/migration").target("223").load().migrate();
     }
 
     @BeforeEach void connect() {
@@ -74,6 +74,15 @@ class ExperienceKitMigrationPostgresTest {
             .isEqualTo("generic-workspace");
         assertThat(mapper.readTree((String) rows.get(1).get("definition_json")).path("experiencePackCode").asText())
             .isEqualTo("dealership");
+        var generic = mapper.readTree((String) rows.get(0).get("definition_json"));
+        var dealership = mapper.readTree((String) rows.get(1).get("definition_json"));
+        assertThat(generic.path("summary").asText()).isEqualTo("Give customers clear answers and useful next steps.");
+        assertThat(dealership.path("summary").asText()).isEqualTo("Turn your website into a helpful buying experience.");
+        assertThat(generic.path("name").asText()).isEqualTo("AI Customer Experience");
+        assertThat(dealership.path("name").asText()).isEqualTo("Dealership AI Experience");
+        assertThat(generic.path("version").asText()).isEqualTo("1.0.0");
+        assertThat(dealership.path("defaultWorkspaceName").asText()).isEqualTo("Your dealership AI");
+        assertThat(dealership.path("features").get(0).asText()).isEqualTo("Find and compare cars");
         assertThat(jdbc.queryForObject("""
             SELECT column_default FROM information_schema.columns
             WHERE table_schema=current_schema() AND table_name='platform_customer_experience_kits'
