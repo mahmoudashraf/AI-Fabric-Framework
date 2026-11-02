@@ -1,7 +1,7 @@
 # 010.56 Business AI Experience Kits
 
 Date: 2 November 2026
-Status: Implementation in progress
+Status: Implemented and deployed; final production UI qualification remains open
 
 ## Product Contract
 
@@ -42,12 +42,14 @@ claims about connected customer services. Existing admin/operator layout stays.
 
 - [x] K1: Catalogue, kit persistence, owner-scoped API, atomic/idempotent linked
   draft creation, editable experience settings and focused backend tests.
-- [ ] K2: Console chooser/detail/setup and My Kits/resource inspector, real API
+- [x] K2: Console chooser/detail/setup and My Kits/resource inspector, real API
   wiring, preview, auth return continuity, dark/light and basic narrow layout.
 - [x] K3: Public site business-kit layer and concise experience pages.
 - [ ] K4: Integration tests, exact-source builds/deployments, actual customer UI
   create/reload/edit/resource navigation and readiness/permission failure checks.
 - [ ] K5: Documentation, cleanup and accurate external/review prerequisites.
+  Guide and evidence are written. Configuration-only qualifiers are retained
+  for the final UI inspection; they have no services or funded allocations.
 
 No framework change is authorized. Any demonstrated gap is proposed separately.
 Work remains product-focused; no new capacity/recovery/draining architecture.
@@ -69,8 +71,53 @@ Work remains product-focused; no new capacity/recovery/draining architecture.
 - Draft preference for Desk is deliberately distinguished from an enabled Desk
   connection; the existing Human Support flow performs actual connection and
   assignment after a verified deployment exists.
-- Public and authenticated kits, previews and resource links are implemented;
-  hosted customer-journey qualification and exact-image rollout remain open.
+- Public and authenticated kits, previews and resource links are implemented.
+  The initial staged UI created and edited the dealership kit with both delivery
+  channels. Final production browser qualification is tracked below.
+
+### Hosted Rollout And API Qualification
+
+- Implementation `9ea92aa91a8d3c386acc71b6828a39b47be8e7f5` is live in both
+  backends and the public site. Core image workflow `41486149211` succeeded.
+  V222 is applied successfully on both control-plane databases.
+- UI follow-up `50fbe023fd571ab16f4a7f8f73c706ce8d538803` retains the selected
+  kit across initial workspace creation, email return and bookmarked setup
+  routes. Workflow `41526916999` succeeded; both UIs are exact-source healthy.
+  Final focused UI/auth suite: 33 passed, none skipped. The native image and
+  individual Coolify job identities are in the dated qualification record.
+- Production authenticated generic kit create/read/update passed with an
+  existing Supabase fixture, using normal public-template enrollment. Replay
+  returns the same kit; changed replay and stale edits return 409. Editing through
+  the normal Engage API is visible in the kit, and later kit edits preserve that
+  advanced field. A second customer's reads and writes return 404.
+- Real canonical rollback passed: an invalid second-channel origin returns 400;
+  kit, deployment, app and consumer counts all remain unchanged. Public catalogue
+  is readable anonymously; customer endpoints return 401 without authentication
+  and 403 to a staff API key. Console-origin CORS passed.
+- Both qualifiers have zero versions, releases, managed dependency graphs,
+  managed vectors and provider allocations. No customer runtime, framework,
+  business database, document storage, live assignment or paid resource changed.
+
+### Remaining K4 UI Evidence
+
+Final production create/edit/reload and resource-link traversal, first-signup
+return, and narrow-layout inspection remain unclosed. Browser automation could
+read old tabs but could not navigate or attach new ones after the interruption;
+the old tab retained its old bundle even after the backend and UI rollouts.
+Restoring an explicit viewport recovered screenshots, not navigation. The owner
+was asked to reopen the Browser panel. Do not substitute API success for this
+remaining UI evidence or mark the whole plan fully qualified yet.
+
+See `verification-support/experience-kits/2026-11-02-full-stack-qualification.md`.
+
+### Follow-Up Boundaries
+
+This release does not include a kit-definition authoring UI. Additional kits use
+the catalogue and existing template/experience-pack contracts, not another
+runtime service. Editing delivery modes independently in the advanced Engage
+editor merits a later read-model check against the kit's saved channel plan;
+do not infer that untested variant is already qualified. Current qualified
+creation/edit cases use the kit's explicit delivery selection.
 
 ### Explicit Boundaries
 

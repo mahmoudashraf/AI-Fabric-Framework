@@ -11913,3 +11913,39 @@ test is being called hosted acceptance. UI extraction remains last.
   cycle.md and2026-11-02-deferred-review-queue.md. Private receipts same acceptance-
   20261102 directory. Temporary fixture sessions signed out; user original auth
   untouched. Keep Hetzner access as owner requested; no firewall changes.
+
+### 2026-11-02 Business Experience Kits Hosted Rollout
+
+- Current task is01056, not01055 policy/S3 or framework repair. Two business
+  kits: AI Customer Experience and Dealership AI Experience; optional sharedDesk
+  for either. Canonical deployments/consumers/Engage apps, no new runtime type,
+  business database, paid provisioning or duplicate release mechanism.
+- Pushed9ea92aa91a8d3c386acc71b6828a39b47be8e7f5 fullstack; both backends exact
+  source healthy and V222true. Publicsite exact Coolify buildcommit, healthy,
+  actual light/dark homepage reviewed. Pushed50fbe023fd571ab16f4a7f8f73c706ce8d538803
+  first-signup/bookmarked-kit continuity, both UIs exact OCI source healthy.
+  Core runs41486149211/41526916999success. No framework/runtime rollout.
+- Tests:172 affected backend cases including5 realPG/V222 and33 finalUI/auth
+  pass, none skipped. Console/site builds, Astrocheck/static smoke pass.
+- Actual staging Acme UI created both-channel dealer kit62a92123/dep9b40e6db,
+  requestedDesk but notenabled. Interrupted title edit persisted on bothapps,
+  sameconsumer, revision1. Prod Acme normalSupabase/enrollment generickit76fd7547/
+  dep1ce96b9d actualAPI create/replay/edit/readback/stale409 pass. CanonicalEngage
+  field retained afterkit edit; separateNorthfield customer GET/PUT404. Actual
+  second-channel400 rollback leavesall4resourcecounts unchanged. Anonymous401,
+  staffkey403, publiccatalogue200/two, console-origin CORS200.
+- Both qualifiers have0 versions/releases/managedgraphs/vectors/provider
+  allocations. Configuration-only fixtures retained for pending UI inspection;
+  no orphan serving services. All existing runtime/app assignments unchanged.
+- NOT FULLY CLOSED: final production UI create/edit/reload, editor links,
+  first-signup and narrow screenshots pending. Browser newtabs attachtimeout/
+  navigationERR_ABORTED; oldtab68 retainsoldbundle. Viewport1280x900 restored
+  screenshot fromzero width but notnavigation. User saidopened; toolsstilldidnot
+  seeit. Async clarification asks whetheropenedinside thischatBrowser orChrome.
+  Do not replace actualUI proof withAPI results. No newproductdefect inferred.
+- Tracking01056 and verification-support/experience-kits/2026-11-02-full-stack-
+  qualification.md; externalguideLOOMAI_BUSINESS_EXPERIENCE_KITS_GUIDE.md.
+  Private exactjobs/authenticatedharness in ~/.codex/private/loomai-kits-01056/.
+  Do not rerun consumed applies/creates; use readback/operationreceipts.
+  Sharededitor delivery-mode read-model variant recorded as later qualification,
+  notclaimedpassed. No kitdefinitionauthoringUI inthisscope.
