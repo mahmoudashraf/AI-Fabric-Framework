@@ -25,6 +25,10 @@ test('only Providers and owned Connections mount one shared binding control, nev
   assert.equal([...providers.matchAll(/<CustomerExistingVectorBinding\b/g)].length, 1)
   assert.equal([...connections.matchAll(/<CustomerExistingVectorBinding\b/g)].length, 1)
   assert.match(connections, /mode === 'connections' && deployment \? <CustomerExistingVectorBinding/)
+  const vector = await read('../src/components/customer/CustomerExistingVectorBinding.tsx')
+  assert.match(vector, /import \{ connectionEnvironments, connectionEnvironmentSelection \} from '\.\/customerEngageConnection'/)
+  assert.equal([...vector.matchAll(/connectionEnvironmentSelection\(/g)].length, 2)
+  assert.doesNotMatch(vector, /\{value\.name\} \/ \{value\.environmentName\}/)
 })
 
 test('the published typed mode chooses only supported auth and does not rewrite configuration', () => {

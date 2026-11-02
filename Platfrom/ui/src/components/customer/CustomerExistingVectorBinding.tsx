@@ -4,13 +4,14 @@ import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typog
 import StorageOutlined from '@mui/icons-material/StorageOutlined'
 import LinkRounded from '@mui/icons-material/LinkRounded'
 import {
-  bindCustomerExistingVector, fetchCustomerExistingVectorBinding, fetchDeploymentTargetOptions,
+  bindCustomerExistingVector, fetchCustomerExistingVectorBinding, fetchDeploymentReleases, fetchDeploymentTargetOptions,
   fetchDeploymentVersions, fetchDeploymentVersionManifest, fetchDeploymentWorkspace, fetchPlatformAuthSession,
   PlatformApiError, type DeploymentVersionSummary, type PlatformAuthSessionSummary,
 } from '../../api/platformApi'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../../auth/customerSession'
 import { checkedExistingVectorBinding, existingVectorAuth, existingVectorRequest, type ExistingVectorForm } from './existingVectorBindingForm'
+import { connectionEnvironments, connectionEnvironmentSelection } from './customerEngageConnection'
 
 const emptyForm = (): ExistingVectorForm => ({ clusterId: '', projectId: '', regionId: '', expectedDeploymentOption: 'Free', token: '', username: '', password: '' })
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'The vector binding could not be read or saved.'
@@ -31,7 +32,7 @@ function ExistingVectorScope({ scope, session, deploymentId }: { scope: string; 
 }
 
 function VectorChoices({ scope, session, deploymentId }: { scope: string; session: PlatformAuthSessionSummary; deploymentId: string }) {
-  const [targetId, setTargetId] = useState('')
+  const [environment, setEnvironment] = useState('')
   const [versionId, setVersionId] = useState('')
   const workspace = useQuery({ queryKey: ['customer-existing-vector', scope, 'workspace'], retry: false,
     queryFn: async () => {
@@ -43,13 +44,25 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     } })
   const targets = useQuery({ queryKey: ['customer-existing-vector', scope, 'targets'], retry: false,
     enabled: workspace.isSuccess, queryFn: () => fetchDeploymentTargetOptions(deploymentId) })
+  const releases = useQuery({ queryKey: ['customer-existing-vector', scope, 'releases'], retry: false,
+    enabled: workspace.isSuccess, queryFn: () => fetchDeploymentReleases(deploymentId) })
   const versions = useQuery({ queryKey: ['customer-existing-vector', scope, 'versions'], retry: false,
     enabled: workspace.isSuccess, queryFn: () => fetchDeploymentVersions(deploymentId) })
   const selected = versions.data?.find(value => value.id === versionId && value.deploymentId === deploymentId && value.status === 'PUBLISHED')
-  const target = targets.data?.find(value => value.id === targetId && value.active)
+  const environments = connectionEnvironments(targets.data ?? [])
+  const choices = ['staging', 'production'].map(name => ({ name,
+    label: environments.find(value => value.name === name)?.label ?? (name === 'staging' ? 'Staging' : 'Production') }))
+  const selection = connectionEnvironmentSelection(environment, targets.data ?? [],
+    (releases.data ?? []).filter(value => value.deploymentId === deploymentId))
+  const target = targets.isSuccess && releases.isSuccess
+    ? targets.data.find(value => value.id === selection.targetId && value.active && value.environmentName === environment) : undefined
+  const selectionIssue = environment && targets.isSuccess && releases.isSuccess && !target
+    ? targets.data.some(value => value.active && value.environmentName === environment)
+      ? 'The vector target for this environment is ambiguous. An exact deployment target must be resolved before binding.'
+      : 'No active vector target is available for this environment.' : ''
   const manifest = useQuery({ queryKey: ['customer-existing-vector', scope, 'manifest', selected?.id, selected?.configHash], retry: false,
     enabled: Boolean(selected), queryFn: () => fetchDeploymentVersionManifest(deploymentId, selected!.id) })
-  const error = [workspace, targets, versions, manifest].find(value => value.isError)?.error
+  const error = [workspace, targets, releases, versions, manifest].find(value => value.isError)?.error
   let authType: 'TOKEN' | 'USERNAME_PASSWORD' | null = null, configError = ''
   if (manifest.data && selected) {
     try { authType = existingVectorAuth(manifest.data, deploymentId, selected.id) }
@@ -61,24 +74,26 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     {error ? <Alert severity="error">{errorText(error)}</Alert> : null}
     {workspace.isPending ? <CircularProgress size={20} aria-label="Loading vector binding scope" /> : null}
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-      <TextField fullWidth select label="Vector target" value={target?.id ?? ''} onChange={event => setTargetId(event.target.value)} disabled={!targets.isSuccess}>
-        {(targets.data ?? []).filter(value => value.active).map(value => <MenuItem key={value.id} value={value.id}>{value.name} / {value.environmentName}</MenuItem>)}
+      <TextField fullWidth select label="Vector target" value={environment} onChange={event => setEnvironment(event.target.value)} disabled={!targets.isSuccess || !releases.isSuccess}>
+        {choices.map(value => <MenuItem key={value.name} value={value.name}>{value.label}</MenuItem>)}
       </TextField>
       <TextField fullWidth select label="Published vector version" value={selected?.id ?? ''} onChange={event => setVersionId(event.target.value)} disabled={!versions.isSuccess}>
         {(versions.data ?? []).filter(value => value.deploymentId === deploymentId && value.status === 'PUBLISHED').map(value => <MenuItem key={value.id} value={value.id}>{value.versionLabel}</MenuItem>)}
       </TextField>
     </Stack>
+    {selectionIssue ? <Alert severity="warning">{selectionIssue}</Alert> : null}
     {versions.isSuccess && !versions.data.some(value => value.deploymentId === deploymentId && value.status === 'PUBLISHED') ? <Alert severity="info">No published version is available.</Alert> : null}
     {configError ? <Alert severity="error">{configError}</Alert> : null}
     {selected && manifest.isSuccess && !authType && !configError ? <Alert severity="info">This published version does not require a typed existing Milvus binding.</Alert> : null}
     {selected && target && authType && !error ? <VectorForm key={`${scope}:${target.id}:${selected.id}:${selected.configHash}:${authType}`}
       scope={scope} session={session} deploymentId={deploymentId} targetId={target.id} version={selected}
-      authType={authType} canBind={workspace.data?.access.canAdmin ?? false} /> : null}
+      environment={environment} authType={authType} canBind={workspace.data?.access.canAdmin ?? false} /> : null}
   </Stack>
 }
 
-function VectorForm({ scope, session, deploymentId, targetId, version, authType, canBind }: {
+function VectorForm({ scope, session, deploymentId, targetId, environment, version, authType, canBind }: {
   scope: string; session: PlatformAuthSessionSummary; deploymentId: string; targetId: string
+  environment: string
   version: DeploymentVersionSummary; authType: 'TOKEN' | 'USERNAME_PASSWORD'; canBind: boolean
 }) {
   const [form, setForm] = useState(emptyForm)
@@ -93,12 +108,13 @@ function VectorForm({ scope, session, deploymentId, targetId, version, authType,
   const save = useMutation({ retry: false, gcTime: 0,
     mutationFn: async () => {
       const fields = { ...form }
-      const [identity, workspace, targets, versions] = await Promise.all([fetchPlatformAuthSession(), fetchDeploymentWorkspace(deploymentId),
-        fetchDeploymentTargetOptions(deploymentId), fetchDeploymentVersions(deploymentId)])
+      const [identity, workspace, targets, releases, versions] = await Promise.all([fetchPlatformAuthSession(), fetchDeploymentWorkspace(deploymentId),
+        fetchDeploymentTargetOptions(deploymentId), fetchDeploymentReleases(deploymentId), fetchDeploymentVersions(deploymentId)])
       if (!alive.current || !isCustomerSession(identity) || identity.actorId !== session.actorId || identity.customerId !== session.customerId
         || identity.authenticationMode !== session.authenticationMode || workspace.deployment.id !== deploymentId
         || workspace.deployment.binding?.customerId !== session.customerId || !workspace.access.canAdmin
-        || !targets.some(value => value.id === targetId && value.active)
+        || !targets.some(value => value.id === targetId && value.active && value.environmentName === environment)
+        || connectionEnvironmentSelection(environment, targets, releases.filter(value => value.deploymentId === deploymentId)).targetId !== targetId
         || !versions.some(value => value.id === version.id && value.deploymentId === deploymentId && value.status === 'PUBLISHED' && value.configHash === version.configHash)) {
         throw new Error('The customer, target or published version changed. Reopen the connection before binding.')
       }

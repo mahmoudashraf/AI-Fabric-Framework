@@ -51,7 +51,8 @@ before(async () => {
 after(async () => { await browser?.close(); await server?.close(); if (cache) await rm(cache, { recursive: true, force: true }) })
 
 async function fixture(t, options = {}) {
-  const state = { calls: [], errors: [], bindings: {}, customerId: 'customer-a', probeError: false, readError: false, ...options }
+  const state = { calls: [], errors: [], bindings: {}, customerId: 'customer-a', probeError: false, readError: false,
+    targets: [target('staging', 'staging'), target('production', 'production')], releases: [], ...options }
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1440, height: 1000 } })
   t.after(() => context.close())
   const page = await context.newPage(); page.setDefaultTimeout(15000)
@@ -67,12 +68,12 @@ async function fixture(t, options = {}) {
     const match = path.match(/^\/api\/deployments\/(dep-[ab])\/(.*)$/)
     if (match) {
       const [, dep, resource] = match
-      if (resource === 'releases') return json(route, [])
+      if (resource === 'releases') return state.releaseError ? json(route, { message: 'Release read unavailable' }, 503) : json(route, state.releases)
       if (resource === 'workspace') {
         if (state.holdWorkspace) await state.holdWorkspace
         return json(route, { deployment: { id: dep, behaviorType: 'SMART_BRAIN', binding: { customerId: 'customer-a' } }, access: { canAdmin: !state.readOnly } })
       }
-      if (resource === 'target-profiles') return json(route, [{ id: 'staging', name: 'Staging', environmentName: 'staging', active: true }, { id: 'production', name: 'Production', environmentName: 'production', active: true }])
+      if (resource === 'target-profiles') return json(route, state.targets)
       if (resource === 'versions') return json(route, ['v1', 'v2'].map(id => ({ id, deploymentId: dep, status: 'PUBLISHED', versionLabel: id, configHash: 'hash-'+id })))
       if (resource.startsWith('versions/')) {
         const id = resource.split('/')[1]
@@ -80,7 +81,7 @@ async function fixture(t, options = {}) {
           vectorStoragePosture: 'SHARED', milvusExternalBindingRequired: !state.notRequired, milvusAuthenticationType: id === 'v1' ? 'TOKEN' : 'USERNAME_PASSWORD' } })
       }
     }
-    const binding = path.match(/^\/api\/customer-self-service\/deployments\/(dep-[ab])\/targets\/(staging|production)\/existing-vector-binding$/)
+    const binding = path.match(/^\/api\/customer-self-service\/deployments\/(dep-[ab])\/targets\/([^/]+)\/existing-vector-binding$/)
     if (binding) {
       const [, dep, target] = binding, key = dep+':'+target
       if (method === 'GET') return state.readError ? json(route, { message: 'Binding read unavailable' }, 503)
@@ -100,11 +101,22 @@ async function fixture(t, options = {}) {
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Existing vector service', exact: true }).count(), 1)
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).click()
-  await select(page, 'Vector target', 'Staging / staging'); await select(page, 'Published vector version', options.version ?? 'v1')
-  if (state.bindings['dep-a:staging']) await page.getByText('Stored vector binding:', { exact: false }).waitFor()
+  if (options.releaseError) { await page.getByText('Release read unavailable', { exact: true }).first().waitFor(); return { page, state } }
+  await select(page, 'Vector target', options.environment ?? 'Staging'); await select(page, 'Published vector version', options.version ?? 'v1')
+  if (options.unresolved) return { page, state }
+  if (state.bindings[`dep-a:${options.expectedTargetId ?? 'staging'}`]) await page.getByText('Stored vector binding:', { exact: false }).waitFor()
   else await page.getByLabel('Zilliz cluster ID', { exact: true }).waitFor()
   return { page, state }
 }
+function target(id, environmentName, sourceStrategy = 'IMAGE_SOURCE', extra = {}) {
+  return { id, name: id, environmentName, sourceStrategy, providerType: 'COOLIFY', active: true, defaultForRuntime: false, ...extra }
+}
+function release(targetProfileId, createdAt, extra = {}) {
+  return { id: `release-${targetProfileId}`, deploymentId: 'dep-a', targetProfileId, createdAt,
+    status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', provisioningStatus: 'ACTIVE', ...extra }
+}
+const profiles = [target('stage-git', 'staging', 'GIT_SOURCE'), target('prod-git', 'production', 'GIT_SOURCE'),
+  target('stage-image', 'staging'), target('prod-image', 'production')]
 function summary(dep, target) { return { bindingId: 'binding-'+target, deploymentId: dep, targetProfileId: target, versionId: 'v1',
   clusterId: 'cluster', deploymentOption: 'Free', endpointHost: 'cluster.zilliz.com', databaseName: 'default', collectionPrefix: 'scoped_'+target,
   lifecycle: 'RETAIN_EXTERNAL', fingerprint: 'fingerprint', checkedAt: '2026-11-02T12:00:00Z', authType: 'TOKEN' } }
@@ -145,10 +157,91 @@ for (const auth of ['TOKEN', 'USERNAME_PASSWORD']) test(`${auth} uses the shared
 
 test('target and version switches clear credentials and never reuse staging success for production', async t => {
   const { page, state } = await fixture(t)
-  await fill(page); await select(page, 'Vector target', 'Production / production')
+  await fill(page); await select(page, 'Vector target', 'Production')
   assert.equal(await page.getByLabel('Milvus serving token', { exact: true }).inputValue(), '')
   await fill(page); await select(page, 'Published vector version', 'v2')
   assert.equal(await page.getByLabel('Milvus password', { exact: true }).inputValue(), '')
+  assert.equal(state.calls.some(call => call.method === 'POST'), false)
+})
+
+for (const reversed of [false, true]) test(`duplicate profiles expose only environments and bind exact released targets (reversed=${reversed})`, async t => {
+  const { page, state } = await fixture(t, { targets: reversed ? [...profiles].reverse() : profiles,
+    releases: [release('stage-image', '2026-11-02'), release('prod-image', '2026-11-02'),
+      release('stage-git', '2026-11-03', { deploymentId: 'foreign-deployment' })] })
+  await page.getByRole('combobox', { name: /^Vector target(?: |$)/ }).click()
+  assert.deepEqual(await page.getByRole('option').allTextContents(), ['Staging', 'Production'])
+  await page.getByRole('option', { name: 'Staging', exact: true }).click()
+  await fill(page); await bindButton(page).click()
+  await page.getByText('Stored vector binding: binding-stage-image', { exact: true }).waitFor()
+  await select(page, 'Vector target', 'Production')
+  await page.getByLabel('Milvus serving token', { exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Milvus serving token', { exact: true }).inputValue(), '')
+  await fill(page); await bindButton(page).click()
+  await page.getByText('Stored vector binding: binding-prod-image', { exact: true }).waitFor()
+  assert.deepEqual(state.calls.filter(call => call.method === 'POST').map(call => call.path),
+    ['stage-image', 'prod-image'].map(id => `/api/customer-self-service/deployments/dep-a/targets/${id}/existing-vector-binding`))
+  assert.deepEqual(state.errors, [])
+})
+
+test('pre-release selection uses typed defaults, never misleading profile names', async t => {
+  const targets = profiles.map(item => ({ ...item, name: item.environmentName === 'staging' ? 'Production' : 'Staging',
+    defaultForRuntime: item.sourceStrategy === 'IMAGE_SOURCE' }))
+  const { page, state } = await fixture(t, { targets })
+  assert.ok(state.calls.some(call => call.path.includes('/targets/stage-image/existing-vector-binding')))
+  await select(page, 'Vector target', 'Production'); await fill(page); await bindButton(page).click()
+  await page.getByText('Stored vector binding: binding-prod-image', { exact: true }).waitFor()
+  assert.equal(state.calls.filter(call => call.method === 'POST')[0].path,
+    '/api/customer-self-service/deployments/dep-a/targets/prod-image/existing-vector-binding')
+})
+
+test('ambiguous same-environment profiles never choose the first target or expose credential inputs', async t => {
+  const { page, state } = await fixture(t, { targets: profiles, unresolved: true })
+  await page.getByText('The vector target for this environment is ambiguous.', { exact: false }).waitFor()
+  await select(page, 'Vector target', 'Production')
+  await page.getByText('The vector target for this environment is ambiguous.', { exact: false }).waitFor()
+  assert.equal(await page.getByLabel('Milvus serving token', { exact: true }).count(), 0)
+  assert.equal(state.calls.some(call => call.path.includes('/existing-vector-binding')), false)
+})
+
+test('unavailable production remains explicit and never substitutes staging or a custom environment', async t => {
+  const { page, state } = await fixture(t, { targets: [target('staging', 'staging'),
+    target('production', 'production', 'IMAGE_SOURCE', { active: false }), target('sandbox', 'sandbox')],
+    environment: 'Production', unresolved: true })
+  await page.getByText('No active vector target is available for this environment.', { exact: true }).waitFor()
+  await page.getByRole('combobox', { name: /^Vector target(?: |$)/ }).click()
+  assert.deepEqual(await page.getByRole('option').allTextContents(), ['Staging', 'Production'])
+  await page.keyboard.press('Escape')
+  assert.equal(await page.getByLabel('Milvus serving token', { exact: true }).count(), 0)
+  assert.equal(state.calls.some(call => call.path.includes('/existing-vector-binding')), false)
+})
+
+test('release read failure cannot resolve a vector target or expose a binding command', async t => {
+  const { page, state } = await fixture(t, { releaseError: true })
+  assert.equal(await page.getByRole('combobox', { name: /^Vector target(?: |$)/ }).isDisabled(), true)
+  assert.equal(await bindButton(page).count(), 0)
+  assert.equal(state.calls.some(call => call.path.includes('/existing-vector-binding')), false)
+})
+
+test('a new exact target in the same environment resets credentials on release refresh', async t => {
+  const { page, state } = await fixture(t, { targets: profiles, releases: [release('stage-image', '2026-11-02')] })
+  await fill(page)
+  state.releases = [release('stage-git', '2026-11-03')]
+  await page.evaluate(() => window.fixtureClient.invalidateQueries({
+    predicate: query => query.queryKey[0] === 'customer-existing-vector' && query.queryKey[2] === 'releases',
+  }))
+  await until(() => state.calls.some(call => call.path.includes('/targets/stage-git/existing-vector-binding')), 'Updated release target was not read')
+  assert.equal(await page.getByLabel('Milvus serving token', { exact: true }).inputValue(), '')
+  assert.equal(await bindButton(page).isDisabled(), true)
+  assert.equal(state.calls.some(call => call.method === 'POST'), false)
+})
+
+for (const change of ['release', 'target']) test(`a changed ${change} mapping during preflight cannot submit credentials to the previous target`, async t => {
+  const { page, state } = await fixture(t, { targets: profiles, releases: [release('stage-image', '2026-11-02')] })
+  await fill(page)
+  if (change === 'release') state.releases = [release('stage-git', '2026-11-03')]
+  else state.targets = profiles.map(item => item.id === 'stage-image' ? { ...item, active: false } : item)
+  await bindButton(page).click()
+  await page.getByText('The customer, target or published version changed.', { exact: false }).waitFor()
   assert.equal(state.calls.some(call => call.method === 'POST'), false)
 })
 
@@ -172,7 +265,7 @@ test('late staging bind response cannot mark the production target bound', async
   let release; state.holdBind = new Promise(resolve => { release = resolve })
   await bindButton(page).click()
   await until(() => state.calls.some(call => call.method === 'POST'), 'Bind did not reach the selected target')
-  await select(page, 'Vector target', 'Production / production')
+  await select(page, 'Vector target', 'Production')
   release(); state.holdBind = null
   await until(() => Boolean(state.bindings['dep-a:staging']), 'Staging response did not complete')
   await page.getByText('No vector binding is recorded for this target.', { exact: true }).waitFor()
