@@ -1,0 +1,31 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "production",
+  "frameworkVersion": "0.8.44",
+  "versionId": "ver-23e915cb",
+  "releaseId": "rel-b25e08d3",
+  "installationBindingRevision": 3,
+  "runtimeSource": "bd915ab055013de28881515ecb5cf836a59053c6",
+  "runtimeDigest": "sha256:861af22e29d2e0ff119e642b7674288dd122ee3b5664cd5837f2d908bba4ca12",
+  "provider": "OpenAI",
+  "model": "gpt-5.4-mini-2026-03-17",
+  "turns": [
+    {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 6484, "note": "Both delivery options use the same deployment; public installation identifiers are distinguished from private tokens and provider credentials. Custom DNS is optional."},
+    {"scenario": "installation", "index": 1, "verdict": "PASS", "elapsedMs": 4542, "note": "Neither delivery option requires new customer-owned DNS just to start. The supplied app address remains available."},
+    {"scenario": "index-state", "index": 0, "verdict": "PASS", "elapsedMs": 4743, "note": "Reports the verified applied release and 13 active registered sources. Explicitly discloses absent draft evidence rather than inventing a comparison."},
+    {"scenario": "index-state", "index": 1, "verdict": "PASS", "elapsedMs": 5123, "note": "Does not mistake registered index state for an upstream storage inspection; explains the unchecked source-freshness boundary."},
+    {"scenario": "index-state", "index": 2, "verdict": "PASS", "elapsedMs": 3999, "note": "Explains refresh, candidate review, index, reconcile and verify without first deleting working knowledge."},
+    {"scenario": "compound-investigation", "index": 0, "verdict": "PARTIAL", "elapsedMs": 14377, "note": "Keeps domain delivery unverified and identifies missing policy-quote evidence, but does not use all available readiness/index observations or deliver a complete two-issue investigation."},
+    {"scenario": "compound-investigation", "index": 1, "verdict": "FAIL", "elapsedMs": 5375, "note": "Again resolves the second issue to the domain instead of the older policy. No semantic override or additional optimization is applied; owner accepted this remaining limitation."},
+    {"scenario": "consent-and-specialists", "index": 0, "verdict": "PASS", "elapsedMs": 17415, "note": "Two configured resolution checks complete with SUCCEEDED and structured summary/answer findings. Approved documentation remains usable without private diagnostic consent; no private observation or human transfer is invented."},
+    {"scenario": "consent-and-specialists", "index": 1, "verdict": "PASS", "elapsedMs": 4070, "note": "Separates AI specialists from human agents and explains explicit handover and return. No transfer occurs in this quality scenario."}
+  ],
+  "summary": {"pass": 7, "partial": 1, "fail": 1, "medianMs": 5123, "maxObservedMs": 17415},
+  "decision": "OWNER_ACCEPTED_EXISTING_PRODUCTION_SUPPORT_UPGRADE_WITH_RETAINED_SEMANTIC_LIMITATIONS",
+  "limitations": [
+    "Small stochastic sample, not a reliability percentage or performance guarantee.",
+    "Wrong-subject follow-up and incomplete compound investigation remain explicitly unresolved.",
+    "Production deployment acceptance is not acceptance of all candidate settings as global template defaults.",
+    "All four generated quality cases were resolved, diagnostic consent revoked and all nine turns remained AI_ACTIVE; observed tool calls were read-only."
+  ]
+}

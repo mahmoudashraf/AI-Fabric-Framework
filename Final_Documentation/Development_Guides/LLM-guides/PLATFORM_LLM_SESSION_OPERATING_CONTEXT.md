@@ -82,9 +82,13 @@ not deterministic semantic rewrites. The initially empty Central-only product
 consumer cache passed 893 final tests and packaged core/execution/curated JAR
 identity checks; original failed verification attempts remain recorded. See
 `verification-support/support-quality-01054/2026-11-02-improvement-cycle.md`.
-Only formal Support staging was upgraded and infrastructure-verified on this
-source in that cycle; production remains on its prior verified release. Semantic follow-up and
-evidence-attribution failures prevented production/default-template adoption.
+Formal Support staging and production now use this source. Production adoption
+followed explicit owner acceptance of the recorded semantic limitations; its
+fresh nine-turn sample was 7 pass / 1 partial / 1 fail. Release/readiness and
+Desk lifecycle passed, and two hosted documentation-only specialist executions
+completed with structured findings. Wrong-subject follow-ups remain unresolved;
+global template candidates are not accepted as recommended defaults. The
+dealership deployment was not upgraded by the separate Support rollout.
 Do not infer fleet version or answer quality from the source BOM.
 The earlier0.8.33 authentication adoption remains historical evidence.
 Exact hosted image and assignment evidence belongs in `CODEX_WORKING_CONTEXT.md`

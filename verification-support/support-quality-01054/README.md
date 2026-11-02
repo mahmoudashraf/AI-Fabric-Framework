@@ -17,14 +17,28 @@ Two additional diagnostic turns were useful, but selected direct READs rather
 than a completed worker chain. No successful hosted worker-chain projection is
 claimed from that probe.
 
-**Production and recommended template defaults remain unchanged.** New generic
-`1.0.3` / internal `1.0.2` settings are reserved as source-only candidates, not
-published defaults. No lexical correction, hidden answer replacement or silent
-search-all was introduced. All eight cases were resolved and diagnostic consent
-revoked; all 17 turns remained under AI control with no write or human transfer.
+**Production Support is now upgraded in place after explicit owner acceptance
+of the remaining semantic limitations.** It uses `ver-23e915cb` /
+`rel-b25e08d3`, `APPLIED_VERIFIED/PASSED`, with the same installation at binding
+revision 3. The production nine-turn check was **7 pass / 1 partial / 1 fail**;
+the wrong-subject follow-up remains unresolved. Both documentation-only
+specialist executions completed successfully with structured findings. Actual
+Desk claim/reply, visitor delivery, no AI during human control and explicit AI
+return passed. The first handover runner's non-monotonic presentation-count
+assumption failed; original evidence is retained and the corrected message-ID
+check passed in a fresh run. No runtime change was needed for that test fix.
+
+Recommended global template defaults remain unchanged. New generic `1.0.3` /
+internal `1.0.2` settings are reserved as source-only candidates, not published
+defaults. No lexical correction, hidden answer replacement or silent search-all
+was introduced. Production verification cases were resolved and diagnostic
+consent revoked. This is acceptance of the existing Support deployment, not an
+all-green semantic result or a fleet/template-default promotion.
 
 See the [primary review](2026-11-02-staging-review.json) and
 [paraphrase review and remaining recommendations](2026-11-02-paraphrase-review.json).
+The [production review](2026-11-02-production-review.json) records the fresh
+production sample after the owner's acceptance.
 Earlier failed runs and original reviews below remain historical evidence.
 
 ## 2026-11-01 Decision

@@ -69,12 +69,15 @@ try {
     assert.ok(i < 19, 'Asynchronous human-message delivery deadline.');
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
-  const before = report.afterReply.completedTurns.length;
+  const beforeAiMessageIds = report.afterReply.participantMessages
+    .filter(message => message.role === 'AI').map(message => message.messageId);
   report.userWhileHuman = await request(environment, `${runtime}/messages`, { method: 'POST',
     operationKey: `support-quality-human-message-${randomUUID()}`,
     body: { query: 'Thank you. I will continue with the AI after this handover check.', mode: 'executor', position: 'search' } });
   report.afterHumanUser = await request(environment, runtime);
-  assert.equal(report.afterHumanUser.completedTurns.length, before, 'No AI generation while a human owns the conversation.');
+  assert.deepEqual(report.afterHumanUser.participantMessages
+    .filter(message => message.role === 'AI').map(message => message.messageId), beforeAiMessageIds,
+    'No AI generation while a human owns the conversation.');
   await save();
   report.returnIntentAt = new Date().toISOString();
   await save();
@@ -86,11 +89,21 @@ try {
     assert.ok(i < 19, 'Explicit AI-return confirmation deadline.');
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
+  report.followupOperationKey = `support-quality-ai-followup-${randomUUID()}`;
+  await save();
   report.followup = await request(environment, `${runtime}/messages`, { method: 'POST',
-    operationKey: `support-quality-ai-followup-${randomUUID()}`,
+    operationKey: report.followupOperationKey,
     body: { query: 'Now that I am back with AI, remind me what I must not put in the public website installation script.', mode: 'executor', position: 'search' } });
   report.afterReturn = await request(environment, runtime);
-  assert.ok(report.afterReturn.completedTurns.length > before, 'AI must resume after the explicit return.');
+  assert.equal(report.followup.success, true, 'AI must answer after the explicit return.');
+  const resumedMessage = report.afterReturn.participantMessages.find(message =>
+    message.role === 'AI' && message.clientMessageId === `${report.followupOperationKey}:ai`);
+  assert.ok(resumedMessage && !beforeAiMessageIds.includes(resumedMessage.messageId),
+    'A new AI message must be persisted after the explicit return.');
+  assert.equal(resumedMessage.content, report.followup.answer);
+  // Rich presentations are character-bounded; verify this turn, not list growth.
+  assert.ok(report.afterReturn.completedTurns.some(turn => turn.aiMessageId === resumedMessage.messageId),
+    'The resumed AI message must retain its completed presentation.');
   report.status = 'PASSED';
   await save();
   console.log(JSON.stringify({ environment, caseId: created.id, handoverId, status: report.status,

@@ -128,8 +128,8 @@ intent action; a turn may therefore show a direct specialist plus its bounded
 READ plan. Do not label that an automatic limit bypass or assume four calls would
 repair the model's semantic decision.
 
-**Production is not upgraded and global defaults are not promoted.** Its current
-Support release remains `rel-a1a27bce` on 0.8.43, with the original installation.
+**At this pre-acceptance checkpoint, production was not upgraded and global
+defaults were not promoted.** Support remained `rel-a1a27bce` on 0.8.43, with the original installation.
 Generic TEMPLATE `1.0.3` / internal `1.0.2` reserve the non-secret measured
 settings as source-only candidates. Earlier candidate and published template
 bytes remain unchanged. Ordinary customer source/provider/agent bindings are
@@ -142,3 +142,64 @@ Desk lifecycle proof from the preceding cycle is retained as history, not relabe
 as a new full lifecycle run. Next semantic recommendations are recorded, not
 silently implemented: better LLM-driven issue resolution, multi-issue synthesis
 and evidence-claim discipline. No further framework release is queued.
+
+## Owner Acceptance And Production Adoption
+
+The owner explicitly accepted this as sufficient optimization, requested the
+existing production Support upgrade and a return to first-customer integration.
+This supersedes the deployment hold above, not the retained failed judgments or
+the separate global-template-default decision. No further optimization or new
+framework release was implemented.
+
+- Production backend now uses compiler source
+  `80c98b599823fd520e0a6d553773043db3a75a33`; exact Coolify job
+  `um8qdxnupqipqlq1gj3wh181` finished and native health passed.
+- Runtime source `bd915ab055013de28881515ecb5cf836a59053c6` and the already
+  qualified immutable digest above were registered as production artifact
+  `dsa-4072d899`. Existing deployment `dep-757bc5bc` published `ver-23e915cb`
+  with `reindexRequired=false`; release `rel-b25e08d3` reached
+  `APPLIED_VERIFIED/PASSED` through ordinary cold replacement.
+- Only the two revised guides were uploaded to the separately authorized
+  production Support prefix, with private original backups and SHA-256 readback.
+  Normal refresh/index/reconcile activated version 2. After replacement all
+  13 registered sources were read back `ACTIVE`; no vector copy, collection
+  deletion or staging credential copy was used.
+- Existing installation `awi_pub_bb57aa3822a176ee770d93cf2e8a31e7` was reconnected
+  at binding revision 3, ready, with Desk `ENABLED`. Its public Console support
+  URL and identity remain unchanged. No new app, customer, database or permanent
+  verification service was created.
+- Fresh original nine turns: **7 pass / 1 partial / 1 fail**, median 5,123 ms,
+  maximum 17,415 ms. Partial compound investigation and wrong-subject follow-up
+  remain visible and accepted limitations. All four cases were resolved,
+  consent revoked and all nine turns stayed `AI_ACTIVE` with read-only tools.
+  See `2026-11-02-production-review.json`.
+- Unlike the earlier staging probe, this production run actually completed both
+  configured `workspace-setup` and `deployment-knowledge` resolution checks.
+  Each returned `SUCCEEDED` with structured `summary` and `answer` findings.
+  Summary lengths were 485/613 characters and answer lengths 2,556/2,455;
+  their planner evidence projections were 4,720/4,758 characters. No private
+  diagnostic access was claimed without consent. This proves those particular
+  hosted worker/projection paths, not all possible specialist executions.
+- The actual assigned Desk agent claimed a fresh case, replied, and the reply
+  appeared to the visitor. Human-owned messaging created no AI message;
+  explicit return restored AI and persisted its useful follow-up answer.
+  The corrected full lifecycle run passed and its case was resolved.
+- The original handover runner failed its final assertion even though AI had
+  answered and persisted that answer. It compared `completedTurns.length`, but
+  rich presentations have a 256,000-character aggregate budget: the initial
+  response was 185,477 characters and follow-up 172,200, so the older presentation
+  dropped out while both participant messages remained. The runner now verifies
+  the exact new AI message/client key and its completed presentation, not list
+  growth. The original failure and resolved case are retained; no product budget,
+  runtime behavior or trust boundary was changed.
+- Final native backend/runtime/connector health was `running:healthy` with exact
+  expected tags; the served deployment manifest reports AI Fabric 0.8.44.
+
+Private production evidence is under the existing `quality-20261102/` directory:
+`production-original`, `production-handover` (initial harness failure),
+`production-handover-r2` (passed), final release/assignment/readiness, source
+readback and native health receipts. No uncertain request was blindly replayed.
+
+First-customer work resumes from the separate
+[010.55 status](../paul-rigby-first-client/2026-11-02-return-to-integration-status.md).
+Northfield itself was not upgraded or requalified by this Support rollout.
