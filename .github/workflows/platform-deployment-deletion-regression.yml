@@ -1,6 +1,13 @@
 name: Platform Deployment Deletion Regression
 
 on:
+  push:
+    branches: [Platform-V11]
+    paths:
+      - .github/workflows/platform-deployment-deletion-regression.yml
+      - Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDeletionExecutionService.java
+      - Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/repository/CustomerOfferDeploymentRepository.java
+      - Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDeletionExecutionPostgresTest.java
   workflow_dispatch:
     inputs:
       source:
@@ -18,10 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source }}
+          ref: ${{ inputs.source || github.sha }}
       - name: Verify exact source
         env:
-          EXPECTED_SOURCE: ${{ inputs.source }}
+          EXPECTED_SOURCE: ${{ inputs.source || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE"
       - uses: actions/setup-java@v4
         with:
