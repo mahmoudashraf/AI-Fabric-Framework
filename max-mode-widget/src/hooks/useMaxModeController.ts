@@ -1054,6 +1054,10 @@ export function useMaxModeController({
   );
 
   const { handleConfirmation } = useConfirmationFlow({
+    chatMessages,
+    confirmationStatus,
+    isLoading,
+    enabled: !oldConversationLocked && handoverController.conversationControlState === "AI_ACTIVE",
     attachedItems,
     currentConversationId,
     currentMode,

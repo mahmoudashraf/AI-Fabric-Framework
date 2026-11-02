@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { useMaxModeContextOptional } from "@/context";
+import { restoreConfirmationHistory } from "@/confirmationState";
 
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { ChatMessage, Document } from "@/types";
@@ -51,7 +52,7 @@ export function useMaxModePersistence({
 
     const persistedState = maxModeContext.loadPersistedState();
     if (persistedState) {
-      setChatMessages(persistedState.chatMessages);
+      setChatMessages(restoreConfirmationHistory(persistedState.chatMessages));
       setAttachedItems(persistedState.attachedItems);
       setCurrentPosition(persistedState.currentPosition as MaxModePosition);
       setCurrentMode(persistedState.currentMode as MaxModeMode);

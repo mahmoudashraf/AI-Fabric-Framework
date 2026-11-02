@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
@@ -8,10 +8,16 @@ import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountCo
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
+import { getWidgetConfig } from "@/config";
+import { isConfirmationActionable } from "@/confirmationState";
 
 type ToastFn = (opts: any) => void;
 
 export function useConfirmationFlow({
+  chatMessages,
+  confirmationStatus,
+  isLoading,
+  enabled = true,
   attachedItems,
   currentConversationId,
   currentMode,
@@ -23,6 +29,10 @@ export function useConfirmationFlow({
   toast,
   onRuntimeResponse,
 }: {
+  chatMessages: ChatMessage[];
+  confirmationStatus: Record<string, "pending" | "confirmed" | "rejected">;
+  isLoading: boolean;
+  enabled?: boolean;
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
   currentMode: MaxModeMode;
@@ -34,8 +44,22 @@ export function useConfirmationFlow({
   toast: ToastFn;
   onRuntimeResponse?: (response: any) => void;
 }) {
+  const submitted = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const latest = chatMessages[chatMessages.length - 1];
+  const active = useRef({ latest, currentConversationId, confirmationStatus, enabled, isLoading });
+  active.current = { latest, currentConversationId, confirmationStatus, enabled, isLoading };
   const handleConfirmation = useCallback(
     async (messageId: string, confirmed: boolean) => {
+      const current = active.current;
+      const isCurrentConversation = () => mounted.current && active.current.currentConversationId === currentConversationId;
+      const key = JSON.stringify([currentConversationId, messageId]);
+      if (!isCurrentConversation() || current.latest !== latest || !current.enabled || current.isLoading
+        || getWidgetConfig().host?.readOnly || !currentConversationId
+        || submitted.current.has(key) || latest?.id !== messageId
+        || !isConfirmationActionable(latest, true, current.confirmationStatus[messageId])) return;
+      submitted.current.add(key);
       setConfirmationStatus((prev) => ({
         ...prev,
         [messageId]: confirmed ? "confirmed" : "rejected",
@@ -60,6 +84,7 @@ export function useConfirmationFlow({
           attachments: toRuntimeAttachments(attachedItems),
           mode: currentMode,
         }, { idempotencyKey: `confirmation-${userMessage.id}` });
+        if (!isCurrentConversation()) return;
         onRuntimeResponse?.(data);
 
         if (data.conversationId && !currentConversationId) {
@@ -103,6 +128,7 @@ export function useConfirmationFlow({
           description: confirmed ? "Your confirmation has been processed" : "Action cancelled",
         });
       } catch (error) {
+        if (!isCurrentConversation()) return;
         if (isPublicRuntimeSessionInvalidatedError(error)) {
           return;
         }
@@ -123,10 +149,14 @@ export function useConfirmationFlow({
 
         setChatMessages((prev) => [...prev, errorMessage]);
       } finally {
-        setIsLoading(false);
+        if (isCurrentConversation()) setIsLoading(false);
       }
     },
     [
+      chatMessages,
+      confirmationStatus,
+      enabled,
+      isLoading,
       attachedItems,
       currentConversationId,
       currentMode,

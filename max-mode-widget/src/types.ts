@@ -100,6 +100,8 @@ export interface ChatMessage {
   participantRole?: "ai" | "human" | "system";
   participantDisplayName?: string;
   historyPresentationUnavailable?: boolean;
+  /** Restored confirmation text is read-only, not a current server proposal. */
+  confirmationReadOnly?: boolean;
 }
 
 export type ConversationControlState =

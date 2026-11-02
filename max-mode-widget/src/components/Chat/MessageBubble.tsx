@@ -44,6 +44,7 @@ import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
 import { SourceEvidenceContent } from "../SourceEvidenceContent";
 import { sourceContentPreview } from "@/sourcePresentation";
+import { isConfirmationActionable } from "@/confirmationState";
 
 export type AiStyles = {
   icon: LucideIcon;
@@ -308,9 +309,7 @@ export function MessageBubble({
             </div>
           )}
 
-          {message.resultType === "CONFIRMATION_REQUIRED" &&
-            confirmationStatus[message.id] !== "confirmed" &&
-            confirmationStatus[message.id] !== "rejected" && (
+          {isConfirmationActionable(message, isLatest, confirmationStatus[message.id]) && (
               <div className="mt-4 flex gap-2">
                 <Button
                   onClick={() => onConfirm(message.id, true, message)}
@@ -331,6 +330,12 @@ export function MessageBubble({
                 </Button>
               </div>
             )}
+
+          {message.resultType === "CONFIRMATION_REQUIRED" && message.confirmationReadOnly && (
+            <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              Historical confirmation. Ask again for a current confirmation.
+            </p>
+          )}
 
           {message.resultType === "CONFIRMATION_REQUIRED" && confirmationStatus[message.id] === "confirmed" && (
             <div className="mt-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
