@@ -97,7 +97,12 @@ No model calls or new business-system databases occurred.
 After the interruption, new browser tabs failed to attach and navigation returned
 `net::ERR_ABORTED`; an existing tab retained its pre-rollout bundle. A zero-sized
 viewport was corrected, but navigation remained unavailable. The owner was asked
-to reopen this chat's Browser panel. Native HTTP, API, database and OCI evidence
+to reopen this chat's Browser panel and confirmed doing so. A fresh CUA session
+reset still exposed only the older tab inventory; creating a new Console tab
+timed out waiting for its webview to attach, and a normal refresh did not update
+the existing document. Repeating the request to reopen the page is not a useful
+next step. This is an unresolved browser-automation connection limitation, not
+evidence of an application defect. Native HTTP, API, database and OCI evidence
 above remain valid, but do not replace these outstanding observations:
 
 - Production customer create/edit/reload through the new UI.
