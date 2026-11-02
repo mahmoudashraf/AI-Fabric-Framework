@@ -61,6 +61,46 @@ class SpecialistAssistanceCompilerTest {
     }
 
     @Test
+    void separatesBoundedChainSummariesFromFullDirectAnswersWithAlignedPromptsAndSchemas() {
+        for (boolean parallel : List.of(false, true)) {
+            ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
+            ((ObjectNode) behavior.at("/specialistAssistance/resolutions/0")).put("allowParallel", parallel);
+            JsonNode compiled = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority())
+                .at("/specialistAssistance/compiled");
+            JsonNode output = resource(compiled, "SpecialistSchema", "assist-answer").at("/spec/schema");
+            assertThat(mapper.convertValue(output.path("required"), List.class)).containsExactly("summary", "answer");
+            assertThat(output.path("properties").size()).isEqualTo(2);
+            assertThat(output.path("additionalProperties").asBoolean()).isFalse();
+            assertThat(output.at("/properties/summary/type").asText()).isEqualTo("string");
+            assertThat(output.at("/properties/summary/minLength").asInt()).isEqualTo(1);
+            assertThat(output.at("/properties/summary/maxLength").asInt()).isEqualTo(2000);
+            assertThat(output.at("/properties/answer/type").asText()).isEqualTo("string");
+            assertThat(output.at("/properties/answer/minLength").asInt()).isEqualTo(1);
+            assertThat(output.at("/properties/answer/maxLength").asInt()).isEqualTo(4000);
+
+            JsonNode managerInput = resource(compiled, "SpecialistSchema", "assist-manager-investigate-input").at("/spec/schema");
+            assertThat(managerInput.at("/properties/completedResults/items/properties/summary"))
+                .isEqualTo(output.at("/properties/summary"));
+            JsonNode chain = resource(compiled, "SpecialistChain", "assist-chain-investigate");
+            for (JsonNode target : chain.at("/spec/targets")) {
+                assertThat(target.at("/result/summaryPointer").asText()).isEqualTo("/summary");
+            }
+            for (String name : List.of("assist-area-setup", "assist-area-account")) {
+                JsonNode worker = resource(compiled, "Specialist", name);
+                assertThat(worker.at("/spec/output/schemaRef").asText()).isEqualTo("assist-answer@1");
+                assertThat(worker.at("/spec/output/conversationTextPointer").asText()).isEqualTo("/answer");
+                assertThat(worker.at("/spec/output/finalValidatorRefs")).isEmpty();
+                assertThat(resource(compiled, "SpecialistPromptProfile", name).at("/spec/outputContract").asText())
+                    .contains("{\"summary\":\"...\",\"answer\":\"...\"}", "at most 2000 characters", "at most 4000 characters",
+                        "concise, nonblank", "full useful response", "uncertainty", "both fields");
+            }
+            assertThat(resource(compiled, "SpecialistPromptProfile", "assist-manager-investigate").at("/spec/constraints").asText())
+                .contains("completedResults contains concise worker summaries of at most 2000 characters, not full answers",
+                    "uncertainty and limitations");
+        }
+    }
+
+    @Test
     void directReadOnlyAreaNeedsNoVectorSpaceAndUsesConditionalGrounding() {
         ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
         ((ArrayNode) behavior.at("/specialistAssistance/areas")).remove(0);
@@ -71,6 +111,9 @@ class SpecialistAssistanceCompilerTest {
         assertThat(worker.at("/spec/capabilities/retrieval/enabled").asBoolean()).isFalse();
         assertThat(worker.at("/spec/grounding/requirement").asText()).isEqualTo("WHEN_CAPABILITY_USED");
         assertThat(worker.at("/spec/capabilities/actions/requestableReads/0").asText()).isEqualTo("get_account_status");
+        assertThat(worker.at("/spec/output/conversationTextPointer").asText()).isEqualTo("/answer");
+        assertThat(resource(compiled, "SpecialistSchema", "assist-answer").at("/spec/schema/properties/answer/maxLength").asInt())
+            .isEqualTo(4000);
         assertThat(compiled.path("invocations")).hasSize(1);
         assertThat(mapper.convertValue(compiled.path("invocations").get(0).path("requiredScopes"), List.class))
             .containsExactly("account:read", "action:get_account_status", "specialist:assist-area-account@1");
