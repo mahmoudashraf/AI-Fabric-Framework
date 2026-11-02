@@ -69,12 +69,23 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.44` through:
+The current private product source target is AI Fabric `0.8.45` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.44`
-- Git tag `ai-fabric-framework-v0.8.44`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.45`
+- Git tag `ai-fabric-framework-v0.8.45`
 
-This includes bounded conversation context plus the focused approved READ-evidence
+The bounded 0.8.45 patch removes keyword rejection of supplied action values
+and adds structured LLM cancellation of incomplete action drafts. Required
+types, trusted targets, ownership and final confirmation remain enforced.
+Framework affected-module tests and real-provider cases passed; the fresh
+Central-only product consumer passed 225 tests and packaged all 20 framework
+JARs at 0.8.45. A pre-existing Incident Room authorization integration failure
+keeps the broad automatic framework CI non-green. Do not hide that exception
+or infer deployment adoption from source. Exact Northfield rollout and UI
+acceptance are recorded in
+`verification-support/paul-rigby-first-client/2026-11-02-enquiry-and-desk-acceptance.md`.
+
+The prior 0.8.44 adoption includes bounded conversation context plus the focused approved READ-evidence
 projection and planner/generation guidance patch, release commit
 `c43d5dbee6311982c5aee82edb6bee8c61e91d5b`. History is not fresh evidence or an
 authority grant. Model-authored retrieval queries remain explicit and diagnostic,
@@ -130,7 +141,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.44`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.45`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 

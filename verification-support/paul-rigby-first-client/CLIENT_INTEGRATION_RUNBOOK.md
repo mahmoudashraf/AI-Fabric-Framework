@@ -117,13 +117,23 @@ Never put credentials in a global marketplace install, document or receipt.
    it. The separate platform-admin `GET/POST
    /api/deployments/{deploymentId}/targets/{targetId}/ai-state-storage-binding`
    is not a substitute customer workflow ([admin controller][sqladmin]).
-4. **External vectors:** `/providers` is a configuration editor, not the typed
-   existing-cluster binding form. The reviewed Milvus/Zilliz binding is
-   platform-admin `GET/POST
-   /api/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding`
-   ([controller][vectorcontroller], [service][vector]). No caller/form for this
-   endpoint was found in the inspected Console source. Treat customer UI reachability
-   as an open 010.55 gap; do not call staff API success a customer walkthrough.
+4. **External vectors:** the original inspected source exposed only platform-admin
+   `GET/POST /api/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding`
+   ([controller][vectorcontroller], [service][vector]). The 2 November customer
+   facade/form addition `b244195d4` reuses that same binder through customer
+   `GET/POST /api/customer-self-service/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding`.
+   The shared form appears only in Providers and owned Connections, not every
+   configuration editor. Select a published version and target, supply the
+   cluster/project/region and declared serving-auth type, then check and bind.
+   Platform derives approval identity; customers do not submit management keys
+   or caller approval references. Provider identity/readback, credential probes,
+   retained lifecycle and cross-target cluster isolation remain the existing
+   binder's responsibility. Real Zilliz management access and serving credentials
+   must still be available to qualify the provider. A stored readback is not a
+   fresh provider-health probe. The current demo's customer UI reachability and
+   stored production-binding readback passed on 2 November, including the final
+   Staging/Production labels. A fresh real-client bind/probe and the full customer
+   walkthrough remain open; do not call staff API success a customer walkthrough.
 5. **Documents:** `/document-knowledge?deploymentId=...` selects a target release;
    Manage reuses `DocumentKnowledgePage` ([surface][connections]). Bind external
    read-only S3 through `POST

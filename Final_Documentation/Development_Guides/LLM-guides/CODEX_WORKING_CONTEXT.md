@@ -11789,3 +11789,70 @@ test is being called hosted acceptance. UI extraction remains last.
   receipt: /private/tmp/loomai-northfield-cleanup-20261101.private.json. Exact
   Coolify jobs and regression evidence are in010.54 execution record. Unrelated
   dirty worktree files preserved; no required verification sessions left running.
+
+### 2026-11-02 First-Client Enquiry 0.8.45 Live Qualification
+
+- Supersedes the publication-in-progress checkpoint above. Framework 0.8.45,
+  c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1, immutable tag/release and Central
+  publication run 41397898560 passed. Final affected reactor: 1026 tests;
+  focused 84 plus six real OpenAI lifecycle cases passed. Fresh Central-only
+  product consumer: 225 tests, all 20 framework JARs 0.8.45 and identity checked.
+  Broad automatic Framework Build 41397841080 remains FAILED in unchanged,
+  pre-existing Incident Room caller/resource authorization integration. No
+  full-framework all-green claim. Original dirty framework checkout untouched.
+- Product source ce902573689a57f5e1b9a8bad2e19a2e937edce9, runtime build
+  41399952411, artifact dsa-b9150d6a, digest
+  95a2d2ccda6e29424602199893fe1300be7240cefec026efde6234ae1087639b.
+  V10 stage qualified supplied example-domain values but did not create an
+  incomplete draft: deployment instructions deferred write selection until
+  every contact existed. General cancellation was then misclassified. Retained
+  failure, not a hidden fallback or proof that draft cancellation passed.
+- Configuration-only v11/ver-1ff0cc54 fixes two engagement descriptions and
+  intent/action-selection guidance so clear requests enter existing draft
+  intake. No validators, auth, target resolution or confirmation were bypassed.
+  Stage rel-ce54abe2 and production rel-d587186a are APPLIED_VERIFIED/PASSED,
+  same dep-3c4dbe4f, app URLs/installations and normal consumer identities;
+  binding revisions 5/15. No reindex, copied vectors or new business database.
+- Actual UI on both targets: trusted result context, required contact form,
+  natural-language stored-draft cancellation with no write, example-domain
+  structured submission, final confirmation and matching receiver receipt PASS.
+  Three fictional receipts NFM-06562476/F419ADF5/0802E6FC created across v10/v11;
+  normal receiver detail verifies unchanged example email/name. All three marked
+  COMPLETED through CSRF-protected staff API. All 80 baseline records unchanged.
+- Production assigned-agent Desk actual UI: case b9c9cd658b2425c65cf95ee95e3db5b3
+  claimed, two-way delivered, no AI during human control, explicit AI return.
+  Kept-context follow-up answered Aster E1 GBP31,950 / 4,850 miles correctly.
+  UI button anonymous re-handover/cancel produced case 7ca9f4f5945bdf02283ec1c66bef9a19
+  CANCELLED; first case RETURNED_TO_AI, old waiting case untouched. Baseline
+  unpinned follow-up failure is not erased by this pinned-context pass.
+- Existing website embed installation awi_pub_53199a05a3e82c788c2dc84f8009925f
+  resolves the same production consumer/release. Actual anonymous embedded
+  stock question returned correct two cars. Basic 390x844 stage phone receipt
+  and configured rail passed without horizontal overflow; viewport reset.
+- Client template 1.2.0 is PUBLISHED in both hosted catalogues. READ stock and
+  approved customer docs with external vector/state choices and optional Desk;
+  no demo receiver/business writes/Basic Inbox. Customer existing-vector facade
+  and shared Providers/Connections form b244195d4 passed 132 backend tests,
+  frontend checks/build; backend/UI deployed healthy on both servers after
+  runtime rollout. Actual customer production/v11 readback shows old approved
+  target binding without probing or replacing it. UI-only a36c069b2 groups
+  environments via existing helpers; 48 checks/build and CI 41413797026 passed,
+  both UIs now exact-source healthy. Actual production menu shows only Staging/
+  Production and v11 reads the same original binding. An initial empty-panel
+  remount was observed; stable retry passed, cause not qualified. No serving
+  credentials or provider capacity was created/changed.
+- Test Desk agent and both standalone buyer fixture sessions were signed out;
+  both workspaces visibly returned to anonymous mode. Original Console auth
+  was not replaced or signed out. Temporary verification tabs were closed;
+  production workspace and customer Connections remain as review pages.
+- Still not all 010.55: richer dealership policy upload and real dealer rights,
+  sources, staff/enquiry decisions and external service scopes need owner input.
+  Full customer setup/promotion/source-storage qualification and remaining
+  policy/comparison/attachment checks remain open. Stage fresh stock synthesis
+  had contradictory opening count 3 vs actual 2 cards. Optional date in notes is
+  not typed preferredDate; historical confirmation controls reappear on reload,
+  replay not qualified. Concurrent continuation-after-cancel edge remains
+  explicitly deferred. Do not expand into recovery/draining or new matrices.
+- Detailed evidence: verification-support/paul-rigby-first-client/
+  2026-11-02-enquiry-and-desk-acceptance.md; private commands/receipts under
+  ~/.codex/private/loomai-paul-rigby-01055/acceptance-20261102/.
