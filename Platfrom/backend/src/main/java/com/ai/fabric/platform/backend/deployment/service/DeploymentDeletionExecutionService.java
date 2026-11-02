@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDeletionOperationEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
@@ -56,6 +57,7 @@ public class DeploymentDeletionExecutionService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
 
     public DeploymentDeletionExecutionService(DeploymentDeletionOperationRepository deletionOperationRepository,
                                               DeploymentRepository deploymentRepository,
@@ -75,7 +77,8 @@ public class DeploymentDeletionExecutionService {
                                               PlatformAuditService platformAuditService,
                                               ObjectMapper objectMapper,
                                               PlatformTransactionManager transactionManager,
-                                              PlatformCustomerConsumerService platformCustomerConsumerService) {
+                                              PlatformCustomerConsumerService platformCustomerConsumerService,
+                                              CustomerOfferDeploymentRepository customerOfferDeploymentRepository) {
         this.deletionOperationRepository = deletionOperationRepository;
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
@@ -95,6 +98,7 @@ public class DeploymentDeletionExecutionService {
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.platformCustomerConsumerService = platformCustomerConsumerService;
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
     }
 
     @Async("deploymentDeletionExecutor")
@@ -191,6 +195,9 @@ public class DeploymentDeletionExecutionService {
         deploymentManagedVectorResourceRepository.deleteByDeploymentId(deployment.getId());
         deploymentAssignmentService.deleteAssignmentsForDeployment(deployment.getId());
         publicApiDeploymentRepository.deleteByDeploymentId(deployment.getId());
+        // The bootstrap association belongs to this deployment, not to the reusable offer.
+        customerOfferDeploymentRepository.deleteById(deployment.getId());
+        customerOfferDeploymentRepository.flush();
         deploymentRepository.delete(deployment);
 
         Instant now = Instant.now();
