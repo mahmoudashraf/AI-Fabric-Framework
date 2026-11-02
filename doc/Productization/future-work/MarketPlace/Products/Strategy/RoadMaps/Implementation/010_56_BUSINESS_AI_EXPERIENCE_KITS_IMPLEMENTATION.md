@@ -1,7 +1,7 @@
 # 010.56 Business AI Experience Kits
 
 Date: 2 November 2026
-Status: Implemented and deployed; final production UI qualification remains open
+Status: Implemented, deployed and core production UI qualified; test-metadata cleanup follow-up open
 
 ## Product Contract
 
@@ -45,11 +45,13 @@ claims about connected customer services. Existing admin/operator layout stays.
 - [x] K2: Console chooser/detail/setup and My Kits/resource inspector, real API
   wiring, preview, auth return continuity, dark/light and basic narrow layout.
 - [x] K3: Public site business-kit layer and concise experience pages.
-- [ ] K4: Integration tests, exact-source builds/deployments, actual customer UI
+- [x] K4: Integration tests, exact-source builds/deployments, actual customer UI
   create/reload/edit/resource navigation and readiness/permission failure checks.
 - [ ] K5: Documentation, cleanup and accurate external/review prerequisites.
-  Guide and evidence are written. Configuration-only qualifiers are retained
-  for the final UI inspection; they have no services or funded allocations.
+  Guide and final UI evidence are written. Earlier qualifier apps/bindings are
+  removed and deployments archived. Final metadata deletion is blocked by an
+  existing offer/deployment foreign key; record below. One new intentional
+  configuration-only review kit remains, without services or funded allocations.
 
 No framework change is authorized. Any demonstrated gap is proposed separately.
 Work remains product-focused; no new capacity/recovery/draining architecture.
@@ -73,7 +75,7 @@ Work remains product-focused; no new capacity/recovery/draining architecture.
   assignment after a verified deployment exists.
 - Public and authenticated kits, previews and resource links are implemented.
   The initial staged UI created and edited the dealership kit with both delivery
-  channels. Final production browser qualification is tracked below.
+  channels. Final production browser qualification is recorded below.
 
 ### Hosted Rollout And API Qualification
 
@@ -98,15 +100,30 @@ Work remains product-focused; no new capacity/recovery/draining architecture.
   managed vectors and provider allocations. No customer runtime, framework,
   business database, document storage, live assignment or paid resource changed.
 
-### Remaining K4 UI Evidence
+### Production UI Qualification Completed
 
-Final production create/edit/reload and resource-link traversal, first-signup
-return, and narrow-layout inspection remain unclosed. Browser automation could
-read old tabs but could not navigate or attach new ones after the interruption;
-the old tab retained its old bundle even after the backend and UI rollouts.
-Restoring an explicit viewport recovered screenshots, not navigation. The owner
-was asked to reopen the Browser panel. Do not substitute API success for this
-remaining UI evidence or mark the whole plan fully qualified yet.
+The Browser connection recovered on the owner's next retry. Actual production
+customer navigation created kit `kit-4777f699-ae6c-45f9-bf54-e86d2166114a` and
+draft deployment `dep-4e084db3` from the Dealership simulator, with both Engage
+channels and optional Desk requested. A title/colour edit persisted after a real
+reload. The canonical Engage editor showed the same saved branding and rendered
+the dealership tool groups. Deployment, knowledge, connections, Desk and preview
+links resolved the correct resources; no missing release was presented as ready.
+
+My Kits and its navigation worked at 390px without horizontal document overflow;
+desktop inspection used 1440px. Six screenshots are retained under the dated
+evidence directory. No signup, runtime apply, domain activation, AI query or
+agent assignment was performed by this draft-creation walkthrough. First-signup
+selection continuity is covered by focused tests, not fresh hosted signup proof.
+
+The new review draft is intentionally retained for customer inspection. The two
+earlier Acme test qualifiers were checked to have zero releases and only exact
+unused DRAFT apps. Normal APIs removed those apps, revision-checked unbound and
+removed their consumers, and archived both deployments. Their final deletion
+jobs failed on the pre-existing `platform_customer_offer_deployments` foreign
+key to `platform_deployments`; no database deletion workaround or unrelated
+backend rollout was used. These are archived metadata, not orphan services.
+K5 stays open specifically for that cleanup-path fix/qualification.
 
 See `verification-support/experience-kits/2026-11-02-full-stack-qualification.md`.
 

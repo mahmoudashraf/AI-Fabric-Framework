@@ -11949,3 +11949,28 @@ test is being called hosted acceptance. UI extraction remains last.
   Do not rerun consumed applies/creates; use readback/operationreceipts.
   Sharededitor delivery-mode read-model variant recorded as later qualification,
   notclaimedpassed. No kitdefinitionauthoringUI inthisscope.
+
+### 2026-11-02 Business Kits Production UI Verification Recovered
+
+- Supersedes the browser-blocked status above: CUA recovered on owner retry.
+  Actual existing Northfield customer UI created kit4777f699/dep4e084db3 from
+  Dealership simulator, CUSTOMER_POSTGRES, both canonical Engage channels and
+  Desk setup requested only. Saved title Northfield Journey Verified AI/colour
+  #28bfa6, reloaded, verified persisted canonical Engage preview/tool groups.
+  Deployment/knowledge/connections/Desk links resolve correct draft; missing
+  verified release/domain are honestly blocked. No runtime launch or AI spend.
+- My Kits/navigation passed390px without horizontal overflow; desktop1440px.
+  Six screenshots in verification-support/experience-kits/live-ui-2026-11-02/.
+  Viewport reset; review kit tab retained. Existing owner auth/live assignments
+  unchanged. Fresh email signup not performed; continuity has focused tests.
+- K4closed. K5cleanup remains open, not browserblocked: original Acme stage/prod
+  apps removed, consumers revision-checked unbound/deleted, deployments archived.
+  Normal final-delete jobs del6c675a89/del-e8a4088d FAILED on existing
+  platform_customer_offer_deployments_deployment_id_fkey. Native readonly proof:
+  one original archiveddeployment/kit remains each, zero serving infrastructure.
+  Do not SQL-delete/disable FK or drift into recovery redesign. Focused normal
+  deletion-service offer-link lifecycle fix is separate follow-up; no fix made.
+  New Northfield review draft intentionally retained, not active orphan service.
+- Existing expanded support dock can obscure narrow setup bottom until minimized;
+  separate shell polish, not kit failure. No source/build/runtime changes this
+  verification cycle. Exact prior backend9ea/UI50f deployment proof unchanged.

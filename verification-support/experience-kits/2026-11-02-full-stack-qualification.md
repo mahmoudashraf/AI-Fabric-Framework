@@ -87,12 +87,45 @@ No role, ownership grant or email-confirmation state was manufactured.
   401. Staff-key customer collection: 403 on both environments.
 - Console-origin POST preflight returned 200 with the exact allowed origin.
 
-Both stage and production qualifiers have zero published versions, releases,
-managed dependency graphs, managed vector resources and provider allocations.
-They are inspectable configuration-only fixtures, not active orphan services.
-No model calls or new business-system databases occurred.
+Both original stage and production qualifiers had zero published versions,
+releases, managed dependency graphs, managed vector resources and provider
+allocations. Their later cleanup outcome is recorded below. No model calls or
+new business-system databases occurred.
 
-## Remaining Verification
+## Production UI Qualification
+
+The Browser connection recovered on the owner's subsequent retry. The prior
+connection limitation below is resolved, not an outstanding product blocker.
+
+- Used the existing signed-in Northfield customer account without replacing its
+  authentication or changing its existing deployments/assignments.
+- Navigated the public catalogue and dealership detail into the three-step setup.
+  Selected the actual Dealership simulator offer and customer-provided AI-state
+  storage, both Engage channels, public website origin and optional Desk setup.
+- Created `kit-4777f699-ae6c-45f9-bf54-e86d2166114a`, draft deployment
+  `dep-4e084db3`, standalone installation
+  `awi_pub_f58d250fc062f25e0d9daaec4a136fab` and embedded installation
+  `awi_pub_dcdd8b92192d16a314eb95a4e12124a2` through the production UI.
+- Changed the workspace title to `Northfield Journey Verified AI` and colour to
+  `#28bfa6`, saved, performed a real page reload and observed the persisted title.
+  The canonical Engage editor independently showed the same title/colour and
+  the actual dealership tool groups in its iframe preview.
+- Opened deployment setup, knowledge, connections, human support and the full
+  Engage preview. Each resolved the new configuration or selected deployment.
+  Knowledge/connections/Desk correctly require a target release; the draft does
+  not claim to be launched, stocked, staffed or ready for AI queries.
+- Verified My Kits lists the saved kit. At 390px, the navigation drawer and kit
+  portfolio work, cards stack, and document width does not exceed the viewport.
+  Desktop inspection used 1440px. Temporary viewport overrides were reset.
+- Saved six live screenshots in `live-ui-2026-11-02/`. Kept the new configuration-
+  only kit as an intentional customer review draft, not an active service.
+
+This closes the actual production create/edit/reload/navigation gap. A brand-new
+email signup was not performed in this cycle; selection continuity remains
+covered by the focused auth/UI tests, not claimed as fresh hosted signup proof.
+No new runtime was launched or AI query made by this configuration-layer test.
+
+### Resolved Browser Interruption
 
 After the interruption, new browser tabs failed to attach and navigation returned
 `net::ERR_ABORTED`; an existing tab retained its pre-rollout bundle. A zero-sized
@@ -103,11 +136,36 @@ timed out waiting for its webview to attach, and a normal refresh did not update
 the existing document. Repeating the request to reopen the page is not a useful
 next step. This is an unresolved browser-automation connection limitation, not
 evidence of an application defect. Native HTTP, API, database and OCI evidence
-above remain valid, but do not replace these outstanding observations:
+above remained valid while UI verification was pending. The subsequent actual
+UI observations above now supplement them.
 
-- Production customer create/edit/reload through the new UI.
-- Existing deployment, knowledge, integration, Engage preview and Desk links.
-- First-signup selection continuity and basic narrow layout of these screens.
+### Nonblocking Observations
+
+- The pre-existing expanded support dock can cover the bottom of a narrow setup
+  screen. Minimizing it immediately restores the form controls; the complete
+  narrow journey remains usable. Reserve bottom space or improve its initial
+  collapsed behavior in a separate support-shell polish task.
+- Independent delivery-mode edits in the advanced Engage editor and a fresh
+  email signup remain outside this hosted walkthrough. Their absence must not
+  be presented as verified behavior.
+
+## Qualification Fixture Cleanup
+
+- Checked the exact original Acme qualifiers again: zero releases, three total
+  unused DRAFT installations, no live assignment. Kept the new Northfield UI
+  qualification kit as an intentional inspectable draft.
+- Normal APIs removed the original three apps, revision-checked unbound and
+  removed the two original consumers, and archived deployments `dep-9b40e6db`
+  (staging control plane) and `dep-1ce96b9d` (production control plane).
+- Final metadata deletion jobs `del-6c675a89` and `del-e8a4088d` both FAILED.
+  Read-only native database evidence identifies the same existing constraint:
+  `platform_customer_offer_deployments_deployment_id_fkey`. The deletion path
+  does not remove its template-bootstrap linkage before the deployment row.
+- Each environment retains one archived deployment and its kit metadata from
+  this original qualifier. No serving resources remain or were provisioned.
+  K5 cleanup is not claimed complete. Fix the normal deletion service and cover
+  the offer-link lifecycle in a focused follow-up; do not manually delete rows
+  or weaken foreign keys to make this evidence green.
 
 ## Safety And Recovery
 
