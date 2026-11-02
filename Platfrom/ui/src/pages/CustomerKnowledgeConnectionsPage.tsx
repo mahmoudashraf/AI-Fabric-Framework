@@ -16,6 +16,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { CustomerConfigurationPanel } from '../components/customer/CustomerConfigurationPanel'
+import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
 import { DocumentKnowledgePage } from './DocumentKnowledgePage'
 import { IntegrationsPage, ConversationHandoverOperations, ConversationHandoverDeliveryNotices } from './IntegrationsPage'
 import { safeCustomerAppUrl } from '../components/customer/customerResourceModels'
@@ -81,6 +82,7 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
       </TextField>
     </Stack>
     {errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}
+    {mode === 'connections' && deployment ? <CustomerExistingVectorBinding deploymentId={deployment.deploymentId} /> : null}
     {deploymentId && portfolio.isSuccess && !deployment ? <Alert severity="error">The requested deployment is not available in this account. No alternative deployment was selected.</Alert> : null}
     {releaseId && releases.isSuccess && !release ? <Alert severity="error">The requested target release is not available. No alternative release was selected.</Alert> : null}
     {portfolio.isPending || (Boolean(deployment) && releases.isPending) || (Boolean(release) && context.isPending) ? <CircularProgress aria-label="Loading selected configuration" /> : null}

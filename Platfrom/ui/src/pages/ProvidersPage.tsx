@@ -32,6 +32,7 @@ import {
   type DeploymentSecretUsageItemSummary,
 } from '../api/platformApi'
 import { DeploymentProviderOperationsPanel } from '../components/DeploymentProviderOperationsPanel'
+import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
@@ -1814,6 +1815,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
           that later compile into runtime deployment settings without storing credentials in the draft.
         </Typography>
       </Box>
+
+      <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} />
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>

@@ -6332,6 +6332,33 @@ export function fetchDeploymentVersions(deploymentId: string) {
   return request<DeploymentVersionSummary[]>(`/api/deployments/${deploymentId}/versions`)
 }
 
+export type ExistingVectorBindingSummary = {
+  bindingId: string; deploymentId: string; targetProfileId: string; versionId: string
+  clusterId: string; deploymentOption: string; endpointHost: string; databaseName: string
+  collectionPrefix: string; lifecycle: string; fingerprint: string; checkedAt: string
+  authType: 'TOKEN' | 'USERNAME_PASSWORD'
+}
+
+export type ExistingVectorBindingRequest = {
+  versionId: string; clusterId: string; projectId: string; regionId: string
+  expectedDeploymentOption: 'Free' | 'Serverless' | 'Dedicated'; databaseName: string
+  authType: 'TOKEN' | 'USERNAME_PASSWORD'; username?: string; password?: string; token?: string
+}
+
+function customerExistingVectorPath(deploymentId: string, targetId: string) {
+  return `/api/customer-self-service/deployments/${encodeURIComponent(deploymentId)}/targets/${encodeURIComponent(targetId)}/existing-vector-binding`
+}
+
+export function fetchCustomerExistingVectorBinding(deploymentId: string, targetId: string) {
+  return request<ExistingVectorBindingSummary>(customerExistingVectorPath(deploymentId, targetId))
+}
+
+export function bindCustomerExistingVector(deploymentId: string, targetId: string, payload: ExistingVectorBindingRequest) {
+  return request<ExistingVectorBindingSummary>(customerExistingVectorPath(deploymentId, targetId), {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
 export function fetchDeploymentVersionManifest(deploymentId: string, versionId: string) {
   return request<unknown>(`/api/deployments/${encodeURIComponent(deploymentId)}/versions/${encodeURIComponent(versionId)}/artifacts/deployment-manifest.json`)
 }
