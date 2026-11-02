@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-loomai-support-workspace",
+  "version": "1.0.2",
+  "pluginType": "TEMPLATE",
+  "displayName": "LoomAI Internal Support Workspace",
+  "description": "Internal LoomAI customer support using isolated approved object-storage guides and explicitly authorized case-scoped diagnostic reads. Not a public customer default.",
+  "compatibility": {
+    "requiredCapabilities": [
+      "templates"
+    ],
+    "supportedDeploymentTargets": [
+      "custom-start-from-scratch"
+    ],
+    "supportedAuthModes": [
+      "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "PUBLIC_RUNTIME_AUTHENTICATED"
+    ]
+  },
+  "pricing": {
+    "pricingModel": "FREE"
+  },
+  "permissions": {
+    "contributesTemplate": true,
+    "contributesShellPresentation": true
+  },
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "curatedModuleId": "default",
+      "requiredPluginRefs": [
+        "mkp-data-ai-support-documents@1.0.0",
+        "mkp-action-loomai-support-diagnostics@1.0.3"
+      ],
+      "requiredPluginInstallDefaults": {
+        "mkp-action-loomai-support-diagnostics@1.0.3": {
+          "config": {},
+          "secretRefs": {}
+        }
+      },
+      "recommendedPluginIds": [
+        "mkp-integration-loomai-desk"
+      ],
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "verificationPackIds": [
+          "conversational-behavior-v1"
+        ],
+        "allowedChannelBindings": [
+          "BACKEND_API",
+          "DOCKED_COMPOSER",
+          "MAX_MODE",
+          "INLINE_ASSISTANT",
+          "QUERY_ONCE"
+        ],
+        "allowedExecutionExtensions": [
+          "SPECIALIST_ASSISTANCE",
+          "CONVERSATION_HANDOVER"
+        ],
+        "defaultExecutionExtensions": [],
+        "specialistAssistance": {
+          "enabled": false,
+          "areas": [
+            {
+              "id": "workspace-setup",
+              "name": "Workspace and integration setup",
+              "purpose": "Explain Engage installation, identity and domain setup; inspect authorized selected-app readiness when consent permits.",
+              "instructions": "Use approved LoomAI customer guides and the case-scoped readiness projection. Say whether a conclusion comes from documentation or an observed check. Request missing non-secret facts when needed. Never infer another customer's app, request secrets or select resources from user text. Declined or revoked diagnostics must not prevent documentation help.\n\nFollow the installed READ tool contracts. Parameterless case-scoped tools resolve the authorized selected resources on the backend and do not require a user-supplied identifier or attachment. If a projection is unavailable, state that limitation and provide approved documentation guidance; do not invent identifiers or ask for internal knowledge-domain names.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": [
+                "support_get_case_summary",
+                "support_get_engage_readiness"
+              ]
+            },
+            {
+              "id": "deployment-knowledge",
+              "name": "Deployment and knowledge health",
+              "purpose": "Explain release and document-indexing workflows; inspect authorized selected-deployment and connection freshness projections.",
+              "instructions": "Use the requesting customer's case-selected deployment and connection projections, not the AI support runtime's own state. The deployment-status read includes documentIndexing observations for the exact target/release of a selected connected Engage app; the connection-sync read covers selected integration connections, not document source versions. Report observed timestamps and limitations. Registered source states and active/candidate versions do not prove that upstream storage has no newer content. Separate source access, indexing completion and answer quality. Do not restart, redeploy, change settings, delete source objects or claim that any repair ran. Use approved guides if diagnostics are unavailable.\n\nFollow the installed READ tool contracts. Parameterless case-scoped tools resolve the authorized selected resources on the backend and do not require a user-supplied identifier or attachment. If a projection is unavailable, state that limitation and provide approved documentation guidance; do not invent identifiers or ask for internal knowledge-domain names.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": [
+                "support_get_deployment_status",
+                "support_get_connection_sync_status"
+              ]
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "workspace-and-data-investigation",
+              "name": "Workspace and data investigation",
+              "objective": "Investigate a workspace problem spanning installation/readiness and deployment/data freshness. Ask for missing facts. Consult both approved areas when both are needed, then synthesize actual findings and documented next steps without pretending to perform a repair.",
+              "areaIds": [
+                "workspace-setup",
+                "deployment-knowledge"
+              ],
+              "allowParallel": true
+            }
+          ],
+          "limits": {
+            "maxDecisions": 4,
+            "maxWorkerInvocations": 2,
+            "maxParallelWorkers": 2,
+            "deadlineSeconds": 75
+          }
+        }
+      },
+      "shell": {
+        "greeting": {
+          "title": "LoomAI Support",
+          "message": "Ask about LoomAI setup and approved support guidance. Current resource checks require your explicit diagnostic consent; human support depends on the connected team."
+        },
+        "enabledModuleIds": [
+          "support",
+          "docs"
+        ],
+        "defaultConversationMode": "executor"
+      },
+      "providerConfig": {
+        "openaiModel": "gpt-5.4-mini",
+        "orchestrationModeOverrides": {
+          "executor": {
+            "readActionResolution": {
+              "planningMode": "ITERATIVE",
+              "maxIterations": 2,
+              "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+              "maxPlannerContextChars": 12000,
+              "maxActionEvidenceCharsPerAction": 8000,
+              "maxActionEvidenceItems": 10,
+              "maxTotalActions": 2
+            },
+            "knowledgeBaseOverviewEnabled": true,
+            "semanticRecovery": {
+              "missingVectorSpace": "BOUNDED_ALLOWED_FAN_OUT"
+            },
+            "rag": {
+              "fanoutEnabled": true,
+              "maxSpaces": 1
+            }
+          }
+        }
+      },
+      "promptConfig": {
+        "systemPrompt": "You are the AI assistant for this deployment. Prefer grounded answers from configured knowledge and live action results. Do not invent customer data, policy outcomes, or action success.\n\nProvide product support from the configured approved knowledge and authorized observations. Explaining a documented setup, indexing, refresh or troubleshooting procedure is informational help, not an instruction to perform a write. A missing execution tool or declined private diagnostics must not make documented guidance out of scope. Keep documentation, live observations and proposed next steps distinct; never imply an unexecuted change or an unprobed source was checked.",
+        "intentExtractionPrompt": "Classify each request carefully as informational, action-oriented, or clarification-needed. Extract only parameters that are explicitly present or strongly implied by the user request. Set requiresTargetResolution only when the current message indirectly refers to previously selected or returned items. Do not mark requiresTargetResolution for broad new discovery or when the current message already contains an explicit item name or identifier.\n\nClassify requests for explanations and documented how-to guidance as INFORMATION when the configured knowledge supports them, even when the corresponding operation is not an available action. Only select an execution action when the user actually requests that operation. Retain the specific subjects of follow-up references from the conversation; an omitted internal source name is not a reason to mark a support question OUT_OF_SCOPE. Follow each registered tool parameter contract rather than inventing required inputs for parameterless reads.",
+        "actionSelectionPrompt": "Prefer read-only actions when they can answer factual questions from live systems. Do not choose mutating actions unless the request is clearly operational and the required parameters are present.\n\nPrefer direct approved knowledge retrieval for straightforward documented guidance. Use specialist assistance when distinct expertise or multiple authorized checks materially help; do not require a specialist or a private diagnostic read merely to explain documentation. If diagnostics are unavailable or not consented, continue with clearly attributed approved knowledge and disclose which live checks could not run. Do not invent required attachments or identifiers for parameterless read tools; the backend enforces their actual target and authorization contract.",
+        "clarificationPrompt": "Ask the shortest useful follow-up question when required details are missing. Do not ask for information that is already available from the request, context, or live system.\n\nDo not ask the user to name an internal knowledge domain, vector space, collection or source identifier. Resolve the subject from the request and conversation using the configured knowledge catalogue and authorized tools. Ask only for genuinely missing customer-facing details; if evidence is unavailable, state the uncertainty.",
+        "ragMaxDocumentsUsedForContext": 8,
+        "ragMaxContextChars": 8000,
+        "answerGenerationPrompt": "Respond with concise grounded answers. Summarize the relevant evidence first, then state the outcome clearly. If evidence is weak or missing, say so directly.\n\nResolve the current question against the supplied conversation before answering. Preserve the originating user's issue order and do not replace a referenced issue with a more prominent topic. Distinguish optional features and their conditional prerequisites from mandatory setup. Keep documented instructions, completed observations, clarification requests and proposed next steps separate. A specialist clarification is not a completed diagnosis; use approved documentation when relevant and disclose missing checks.",
+        "retrievalPrompt": "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, and policy-safe context over generic model knowledge.\n\nUse evidence for the exact subject the user means, including conversational follow-ups. Do not treat a custom-feature setup guide as a requirement for every delivery option. Compare relevant approved guides when their scope differs; do not infer a prerequisite just because the question presupposes one."
+      }
+    }
+  }
+}

@@ -69,19 +69,23 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.43` through:
+The current private product source target is AI Fabric `0.8.44` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.43`
-- Git tag `ai-fabric-framework-v0.8.43`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.44`
+- Git tag `ai-fabric-framework-v0.8.44`
 
-This adopts the focused conversation-context handoff patch, release commit
-`46e1563bcd75e8a77de0324c768e49701f12526f`. Bounded native conversation
-history reaches READ planning and generation; it is not fresh evidence or an
-authority grant. Optional model-authored retrieval queries stay explicit and
-diagnostic, not deterministic semantic rewrites.
-The current maintained product consumer passed an empty-cache Central-only
-build, 887 tests and packaged JAR identity checks. See
-`verification-support/paul-rigby-first-client/2026-11-01-framework-evidence-handoff.md`.
+This includes bounded conversation context plus the focused approved READ-evidence
+projection and planner/generation guidance patch, release commit
+`c43d5dbee6311982c5aee82edb6bee8c61e91d5b`. History is not fresh evidence or an
+authority grant. Model-authored retrieval queries remain explicit and diagnostic,
+not deterministic semantic rewrites. The initially empty Central-only product
+consumer cache passed 893 final tests and packaged core/execution/curated JAR
+identity checks; original failed verification attempts remain recorded. See
+`verification-support/support-quality-01054/2026-11-02-improvement-cycle.md`.
+Only formal Support staging was upgraded and infrastructure-verified on this
+source in that cycle; production remains on its prior verified release. Semantic follow-up and
+evidence-attribution failures prevented production/default-template adoption.
+Do not infer fleet version or answer quality from the source BOM.
 The earlier0.8.33 authentication adoption remains historical evidence.
 Exact hosted image and assignment evidence belongs in `CODEX_WORKING_CONTEXT.md`
 and the dated verification record; do not infer it from HEAD or these defaults.
@@ -122,7 +126,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.43`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.44`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 

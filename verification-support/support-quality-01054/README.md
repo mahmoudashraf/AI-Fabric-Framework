@@ -1,6 +1,33 @@
 # Support Quality Profile Qualification
 
-## Final Decision
+## Latest: 2026-11-02 Improvement Cycle
+
+Approved compiler, evidence-projection, clarification and prompt fixes are
+implemented. AI Fabric 0.8.44 is published and the existing staging Support
+installation now uses `ver-704e28d5` / `rel-abaecf27`, binding revision 12.
+Its exact immutable image and verification are in the
+[execution record](2026-11-02-improvement-cycle.md).
+
+The identical nine-turn suite improved from **6 pass / 2 partial / 1 fail** to
+**7 / 1 / 1**. Observed median time fell from 11,984 to 5,370 ms, but this is a
+small stochastic sample, not a performance guarantee. Six supplementary turns
+were **2 / 2 / 2**: wrong-issue follow-ups remain and one specialist asserted a
+negative policy finding without inspecting the actual answer/storage content.
+Two additional diagnostic turns were useful, but selected direct READs rather
+than a completed worker chain. No successful hosted worker-chain projection is
+claimed from that probe.
+
+**Production and recommended template defaults remain unchanged.** New generic
+`1.0.3` / internal `1.0.2` settings are reserved as source-only candidates, not
+published defaults. No lexical correction, hidden answer replacement or silent
+search-all was introduced. All eight cases were resolved and diagnostic consent
+revoked; all 17 turns remained under AI control with no write or human transfer.
+
+See the [primary review](2026-11-02-staging-review.json) and
+[paraphrase review and remaining recommendations](2026-11-02-paraphrase-review.json).
+Earlier failed runs and original reviews below remain historical evidence.
+
+## 2026-11-01 Decision
 
 The tuning cycle is complete, but **the candidates are not accepted as defaults
 for all new production Support deployments**. Staging improved modestly;
@@ -82,6 +109,11 @@ An optional fourth argument selects explicit scenario IDs, for example
 `installation,compound-investigation`. Use a new output directory, predeclare
 the fixed repetition and retain the original results. This is a measurement
 tool, not an automatic retry/fallback in the customer product.
+
+An optional fifth argument supplies an absolute scenario JSON path. The fixed
+`followup-paraphrases.json` and `specialist-contract-probe.json` supplement, never
+replace, the original suite. Their judgments require reading the full actual
+response and action/plan evidence; no query-term pass/fail grader is provided.
 
 ## 2026-11-01 Baseline
 

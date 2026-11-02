@@ -23,6 +23,19 @@ This package adds no service, database, execution engine or plugin type.
 
 ## Reserved Quality Candidates
 
+The 2026-11-02 follow-up reserves generic `1.0.3` and internal `1.0.2` as
+**source-only** candidates, using `fixtures/balanced-support-quality-v2.json`.
+They retain generic trust boundaries and the two-action READ-planning maximum,
+and add the measured generation/retrieval guidance. No existing published bytes
+are replaced and neither is a recommended production default. The current
+staging Support release is `rel-abaecf27` on AI Fabric 0.8.44; production remains
+`rel-a1a27bce` on 0.8.43. The original nine-turn score improved to 7 pass / 1
+partial / 1 fail, but six paraphrases scored 2 / 2 / 2, including an unsupported
+negative specialist finding. This is not sufficient default qualification.
+See the [dated follow-up](../../verification-support/support-quality-01054/2026-11-02-improvement-cycle.md).
+
+The preceding cycle remains separate:
+
 Customer candidate `1.0.2` and internal candidate `1.0.1` reserve the bounded
 configuration tested on LoomAI support. Both are published only on the developer
 staging control plane, not accepted as production starter defaults. They are
@@ -55,8 +68,8 @@ new customers. The retained staging sample improved from
 specialist projection failure remain; production also produced incorrect optional-
 DNS advice in one run, and repeated the wrong-subject follow-up. No original
 failure was hidden by a successful retry, text matching or fabricated evidence.
-The existing LoomAI support deployment is running the tuned configuration for
-continued qualification; production template defaults remain unchanged. See
+The production LoomAI support deployment retains that earlier tuned configuration;
+the staging follow-up is identified above. Production template defaults remain unchanged. See
 [quality qualification](../../verification-support/support-quality-01054/README.md).
 
 ## Product Contract

@@ -68,6 +68,31 @@ test('mixed production quality does not silently become the recommended customer
     'manifests/ai-support-workspace.1.0.1.manifest.json');
   assert.equal(catalog.entries.find(e => e.pluginSlug === 'loomai-support-workspace').manifest,
     'manifests/loomai-support-workspace.manifest.json');
-  assert.equal(catalog.qualityCandidates.length, 2);
+  assert.equal(catalog.qualityCandidates.length, 4);
   assert.ok(catalog.qualityCandidates.every(c => c.productionDefaultAccepted === false));
+});
+
+test('evidence-handoff improvements remain new source-only candidates, not rewritten history', () => {
+  const next = read('fixtures/balanced-support-quality-v2.json');
+  const generic = read('manifests/ai-support-workspace.1.0.3.manifest.json');
+  const connected = read('manifests/loomai-support-workspace.1.0.2.manifest.json');
+  assert.equal(next.frameworkVersion, '0.8.44');
+  assert.equal(next.qualityEvidence.productionRollout, false);
+  assert.equal(next.providerConfig.orchestrationModeOverrides.executor.readActionResolution.maxTotalActions, 2);
+  for (const manifest of [generic, connected]) {
+    assert.deepEqual(manifest.contributions.template.providerConfig, next.providerConfig);
+    assert.deepEqual(manifest.contributions.template.promptConfig, next.promptConfig);
+  }
+  const contributionsOnly = manifest => {
+    const copy = structuredClone(manifest);
+    delete copy.version;
+    delete copy.contributions.template.providerConfig;
+    delete copy.contributions.template.promptConfig;
+    return copy;
+  };
+  assert.deepEqual(contributionsOnly(generic), contributionsOnly(reusable));
+  assert.deepEqual(contributionsOnly(connected), contributionsOnly(internal));
+  const candidates = read('catalog.json').qualityCandidates.filter(c => c.publicationScope === 'SOURCE_ONLY');
+  assert.equal(candidates.length, 2);
+  assert.ok(candidates.every(c => c.productionDefaultAccepted === false && !c.stagingVersionId));
 });

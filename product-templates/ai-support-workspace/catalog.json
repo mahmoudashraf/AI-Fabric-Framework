@@ -11,7 +11,9 @@
   ],
   "qualityCandidates": [
     {"manifest": "manifests/ai-support-workspace.1.0.2.manifest.json", "pluginSlug": "ai-support-workspace", "stagingVersionId": "mkv-df908fe5", "productionDefaultAccepted": false},
-    {"manifest": "manifests/loomai-support-workspace.1.0.1.manifest.json", "pluginSlug": "loomai-support-workspace", "stagingVersionId": "mkv-d1cd604a", "productionDefaultAccepted": false}
+    {"manifest": "manifests/loomai-support-workspace.1.0.1.manifest.json", "pluginSlug": "loomai-support-workspace", "stagingVersionId": "mkv-d1cd604a", "productionDefaultAccepted": false},
+    {"manifest": "manifests/ai-support-workspace.1.0.3.manifest.json", "pluginSlug": "ai-support-workspace", "qualityProfile": "fixtures/balanced-support-quality-v2.json", "publicationScope": "SOURCE_ONLY", "productionDefaultAccepted": false},
+    {"manifest": "manifests/loomai-support-workspace.1.0.2.manifest.json", "pluginSlug": "loomai-support-workspace", "qualityProfile": "fixtures/balanced-support-quality-v2.json", "publicationScope": "SOURCE_ONLY", "productionDefaultAccepted": false}
   ],
   "immutableHistory": [
     {"manifest": "manifests/loomai-support-diagnostics.1.0.2.manifest.json", "version": "1.0.2", "stagingPublication": "PUBLISHED_DOUBLE_DATA_ROOT_EVIDENCE_DEFECT_RECORDED", "republish": false},

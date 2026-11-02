@@ -1,0 +1,30 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "staging",
+  "frameworkVersion": "0.8.44",
+  "releaseId": "rel-abaecf27",
+  "turns": [
+    {"scenario": "ordered-issues", "index": 0, "verdict": "FAIL", "elapsedMs": 14947, "note": "A successful direct specialist invents a negative finding: no answer content appeared to quote an outdated policy. Actual reads expose registered release/index state, not the customer's quoted answer or storage files. The outer answer repeats it as live evidence. Structured evidence transport is fixed, but semantic evidence attribution is not."},
+    {"scenario": "ordered-issues", "index": 1, "verdict": "PASS", "elapsedMs": 9496, "note": "Correctly resolves latter issue to policy freshness and explains that original storage files were not checked; cannot rule out outdated content."},
+    {"scenario": "reversed-issues", "index": 0, "verdict": "PARTIAL", "elapsedMs": 4288, "note": "Accurately explains unprobed custom-domain delivery, but omits the first issue, old policy content."},
+    {"scenario": "reversed-issues", "index": 1, "verdict": "FAIL", "elapsedMs": 9068, "note": "Explicit first problem, not the address problem still produces route/HTTPS advice. It even calls address issues separate while continuing to answer them. This is a model semantic decision, not absent history or an access validator."},
+    {"scenario": "optional-domain", "index": 0, "verdict": "PARTIAL", "elapsedMs": 9206, "note": "Correctly makes custom-domain DNS optional and retains one deployment, but later adding to an existing website is conflated with attaching a custom hostname instead of explaining website embedding."},
+    {"scenario": "optional-domain", "index": 1, "verdict": "PASS", "elapsedMs": 3466, "note": "Explicitly says no TXT/CNAME is needed without a requested custom hostname; the provided address is sufficient."}
+  ],
+  "summary": {"pass": 2, "partial": 2, "fail": 2, "medianMs": 9137, "maxObservedMs": 14947},
+  "additionalDiagnosticProbe": {
+    "turns": 2,
+    "semanticPass": 2,
+    "maxObservedMs": 4476,
+    "note": "Selected app readiness and registered indexing checks are useful and distinguish upstream storage. The model selected direct READs rather than the requested named chain; no completed worker-chain claim is made."
+  },
+  "decision": "KEEP_PRODUCTION_AND_RECOMMENDED_TEMPLATE_DEFAULTS_UNCHANGED",
+  "cleanup": {"allEightCasesResolved": true, "allDiagnosticConsentRevoked": true, "unintendedHumanTransitions": 0, "writeActionsExecuted": 0},
+  "nextRecommendationsNotImplemented": [
+    "Qualify LLM-driven current-subject and multi-issue planning using original and reversed issue order; do not add ordinal regexes or lexical correction.",
+    "Improve specialist and final-generation evidence guidance so unobserved answer/storage content cannot be reported as an actual negative finding. Preserve uncertainty instead of adding blanket semantic rejection.",
+    "Treat website embedding and optional custom-hostname routing as different operations in specialist instructions and examples.",
+    "Run an explicit completed-worker-chain qualification before claiming that hosted path is proven; current focused projection and compiler tests are separate evidence.",
+    "Do not raise the action limit solely to compensate for a model plan that already declares its work complete."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "reviewType": "MANUAL_CONTRACT_AND_SEMANTIC_REVIEW",
+  "sessions": [
+    {
+      "id": "explicit-resolution",
+      "topic": "General",
+      "diagnosticConsent": true,
+      "queries": [
+        "Use the configured Workspace and data investigation resolution to check the selected Engage app readiness and the selected deployment's registered document indexing state. Both resources are already selected on this request and diagnostics are authorized. Use the case-scoped read tools for the selected resources. Report actual observations separately from documented guidance. Do not change anything.",
+        "Summarize the findings from that resolution. Which checks actually completed, which remain unverified, and did any specialist ask for missing information?"
+      ],
+      "reviewCriteria": "Inspect the actual chain status and projected worker summaries, not merely outer HTTP success. A clarification remains insufficient diagnostic grounding. Successful approved summaries survive the LLM evidence projection; no raw worker trace or new authority is granted."
+    }
+  ]
+}

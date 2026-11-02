@@ -1,0 +1,31 @@
+{
+  "reviewType": "MANUAL_SEMANTIC_REVIEW_NOT_TEXT_MATCHING",
+  "environment": "staging",
+  "frameworkVersion": "0.8.44",
+  "versionId": "ver-704e28d5",
+  "releaseId": "rel-abaecf27",
+  "installationBindingRevision": 12,
+  "runtimeSource": "bd915ab055013de28881515ecb5cf836a59053c6",
+  "runtimeDigest": "sha256:861af22e29d2e0ff119e642b7674288dd122ee3b5664cd5837f2d908bba4ca12",
+  "provider": "OpenAI",
+  "turns": [
+    {"scenario": "installation", "index": 0, "verdict": "PASS", "elapsedMs": 13221, "note": "Both delivery forms share the existing deployment; no credentials or deployment token belong in the public script. Direct specialist findings remain structured, with a 3195-character approved LLM evidence projection rather than 240-character record text."},
+    {"scenario": "installation", "index": 1, "verdict": "PASS", "elapsedMs": 3699, "note": "Neither initial delivery option requires customer-owned DNS. Custom-hostname DNS is conditional, not a standalone prerequisite."},
+    {"scenario": "index-state", "index": 0, "verdict": "PASS", "elapsedMs": 6054, "note": "Uses authorized deployment/readiness observations: 13 active registered sources and verified applied release. Does not mistake missing draft evidence or unprobed delivery for failed active knowledge."},
+    {"scenario": "index-state", "index": 1, "verdict": "PASS", "elapsedMs": 4892, "note": "Explicitly distinguishes registered source state from an upstream-storage probe; does not claim the files were inspected."},
+    {"scenario": "index-state", "index": 2, "verdict": "PASS", "elapsedMs": 3996, "note": "Explains refresh, candidate review, index, reconcile and verify, preserving the active version on replacement failure."},
+    {"scenario": "compound-investigation", "index": 0, "verdict": "PARTIAL", "elapsedMs": 10012, "note": "Investigates domain readiness and discloses absent delivery probes, but underuses available registered-index observations and does not provide a useful policy-freshness investigation. The plan declares needsMoreSteps=false; the trace does not establish that a larger action budget would fix it."},
+    {"scenario": "compound-investigation", "index": 1, "verdict": "FAIL", "elapsedMs": 5370, "note": "READ planner resolves second issue to custom-domain troubleshooting instead of the older policy despite two untruncated native history messages (2046 characters). The chain clarification is now faithfully preserved as ASKED_USER/INSUFFICIENT, but its wrong subject is repeated in the final answer."},
+    {"scenario": "consent-and-specialists", "index": 0, "verdict": "PASS", "elapsedMs": 4445, "note": "Uses approved documentation without private diagnostics or a forced human transfer. No projection error occurred; this request chose RAG only, so it is not proof of a completed worker-chain projection."},
+    {"scenario": "consent-and-specialists", "index": 1, "verdict": "PASS", "elapsedMs": 9099, "note": "Clearly separates AI specialists from human operators and explicit handover/return. No transfer was executed."}
+  ],
+  "summary": {"pass": 7, "partial": 1, "fail": 1, "medianMs": 5370, "maxObservedMs": 13221},
+  "previousIdenticalSuite": {"frameworkVersion": "0.8.43", "pass": 6, "partial": 2, "fail": 1, "medianMs": 11984, "maxObservedMs": 20501},
+  "decision": "OBSERVED_MODEST_QUALITY_AND_LATENCY_IMPROVEMENT_NOT_PRODUCTION_DEFAULT_ACCEPTANCE",
+  "limitations": [
+    "Small stochastic sample; observed latency differences are not a population benchmark or causal guarantee.",
+    "The failed ordinal-follow-up answer remains retained and unresolved.",
+    "Absence of projection errors is not a successful hosted completed-worker-chain proof.",
+    "All four generated support cases were resolved, diagnostic consent revoked, and conversation control remained AI_ACTIVE."
+  ]
+}

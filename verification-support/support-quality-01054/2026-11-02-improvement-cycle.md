@@ -18,15 +18,15 @@ grants, or unrelated infrastructure/recovery work is permitted.
   preserving useful text within the declared evidence budget.
 - [x] Prompts: improve conversational subject resolution in the READ planner;
   distinguish approved product documentation from undisclosed internals.
-- [ ] Knowledge/generation: clarify optional custom-domain DNS versus the
+- [x] Knowledge/generation: clarify optional custom-domain DNS versus the
   supplied standalone address and distinguish optional requirements generally.
-- [ ] Qualification: focused contract, projection, trust-boundary, prompt,
+- [x] Qualification: focused contract, projection, trust-boundary, prompt,
   consumer, and released-artifact checks; exact staging deployment readback.
-- [ ] Quality: repeat the original nine turns plus fixed paraphrases using real
+- [x] Quality: repeat the original nine turns plus fixed paraphrases using real
   signed-in Support routes; retain every result and manually review semantics.
-- [ ] Consider a four-action maximum only if the corrected run still lacks
+- [x] Consider a four-action maximum only if the corrected run still lacks
   diagnostic budget; retain two iterations and compare explicitly.
-- [ ] Production/template decision: adopt only the qualified changes, preserve
+- [x] Production/template decision: adopt only the qualified changes, preserve
   app/deployment identity, and do not label mixed results all-green.
 
 ## Baseline
@@ -72,7 +72,18 @@ authorized storage access; local knowledge edits alone are not a hosted update.
   0.8.43; its 588-test runtime run had no other failures. The assertions are
   updated to the new declared version, without bypassing the failed job.
 - Runtime/source commit `26eb2cdee` is pushed. The first staging version is
-  `ver-704e28d5`, with `reindexRequired=false`; no runtime apply is claimed yet.
+  `ver-704e28d5`, with `reindexRequired=false`; runtime apply was not yet complete
+  at that checkpoint.
+- Corrected runtime source `bd915ab055013de28881515ecb5cf836a59053c6`
+  passed workflow `41367990965`. The immutable image digest is
+  `sha256:861af22e29d2e0ff119e642b7674288dd122ee3b5664cd5837f2d908bba4ca12`.
+  Staging artifact `dsa-839d9e3f` is registered; release `rel-abaecf27` is applying.
+- The initially empty Central-only consumer cache resolved 20 framework JARs
+  at 0.8.44. Packaged core, execution, default and support curated JAR bytes
+  match Central. Final consumer verification passed 893 tests with no skips.
+  Initial version-assertion failures and a separate unchanged rate-limit timing
+  test failure (45 ms against a 50 ms assertion) are retained; the full repeated
+  connector/runtime suites passed without changing that rate limiter or test.
 - Live implementation receipts and the bounded operator helper are private at
   `~/.codex/private/loomai-support-01054/quality-20261102/`. Existing production
   Support remains on its previous verified release until qualification.
@@ -81,3 +92,53 @@ Known bounded follow-up: JSON Schema string lengths and Java projection lengths
 use different Unicode counting units. English summary boundaries 1/2000/2001
 were verified; supplementary-character compatibility is not claimed in this
 cycle. Do not silently widen or bypass projection budgets to hide that limitation.
+
+## Final Hosted Result And Decision
+
+Staging `rel-abaecf27` is `APPLIED_VERIFIED` / `PASSED`; the unchanged installation
+uses binding revision 12. Runtime and connector are healthy on the exact digest
+above, Desk target readiness is `ENABLED`, and all 13 sources remain `ACTIVE`.
+The two revised guides remain active version 2. No new deployment, service,
+database, customer identity or app was created.
+
+Original nine-turn suite: **7 pass / 1 partial / 1 fail**, versus **6 / 2 / 1**
+before this cycle. Median observed latency is 5,370 ms versus 11,984 ms; maximum
+13,221 versus 20,501 ms. These are small-sample observations, not causal or fleet
+performance claims. Structured approved specialist text now survives in a
+3,195-character LLM evidence projection; the `ASKED_USER` clarification message
+and `INSUFFICIENT` grounding are visible rather than a false completed diagnosis.
+
+Six fixed supplementary turns: **2 pass / 2 partial / 2 fail**. The model still
+misresolves the first/second issue even with native history, and one specialist
+reports that no outdated policy was quoted without inspecting that answer or
+the original files. Another answer conflates embedding a workspace in an existing
+website with adding a custom hostname. All originals are retained in the primary
+and supplementary JSON reviews. No script regrades them by word matching.
+
+Two extra explicit diagnostic turns were useful and performed the actual selected
+resource reads, but the model chose direct actions rather than a completed worker
+chain. The compiler/framework projection boundary tests passed; this live sample
+does not establish successful hosted worker-chain projection. No projection error
+was observed across these turns, which is a narrower statement.
+
+The four-action expansion is **not adopted**: the failing primary compound plan
+declares `needsMoreSteps=false`, and the wrong-subject follow-up is not evidence
+of a budget shortage. Planner READ-action limits are separate from a top-level
+intent action; a turn may therefore show a direct specialist plus its bounded
+READ plan. Do not label that an automatic limit bypass or assume four calls would
+repair the model's semantic decision.
+
+**Production is not upgraded and global defaults are not promoted.** Its current
+Support release remains `rel-a1a27bce` on 0.8.43, with the original installation.
+Generic TEMPLATE `1.0.3` / internal `1.0.2` reserve the non-secret measured
+settings as source-only candidates. Earlier candidate and published template
+bytes remain unchanged. Ordinary customer source/provider/agent bindings are
+still required; no internal diagnostics or credentials are granted by a generic
+template.
+
+All eight generated cases were resolved and consent revoked; all 17 live turns
+remained `AI_ACTIVE`, with no failed action transport, write or human transfer.
+Desk lifecycle proof from the preceding cycle is retained as history, not relabelled
+as a new full lifecycle run. Next semantic recommendations are recorded, not
+silently implemented: better LLM-driven issue resolution, multi-issue synthesis
+and evidence-claim discipline. No further framework release is queued.
