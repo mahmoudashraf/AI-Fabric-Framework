@@ -1,0 +1,59 @@
+name: Platform Deployment Deletion Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Exact Platform source commit to qualify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deletion-and-kit-persistence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source }}
+      - name: Verify exact source
+        env:
+          EXPECTED_SOURCE: ${{ inputs.source }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: Platfrom/backend/pom.xml
+      - name: Run focused PostgreSQL and deletion regressions
+        run: >-
+          mvn -B -f Platfrom/backend/pom.xml
+          -Dtest=DeploymentDeletionExecutionPostgresTest,DeploymentDeletionServiceTest,ExperienceKitMigrationPostgresTest test
+      - name: Reject skipped database qualification
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import xml.etree.ElementTree as ET
+          expected = {
+              'DeploymentDeletionExecutionPostgresTest': 4,
+              'DeploymentDeletionServiceTest': 4,
+              'ExperienceKitMigrationPostgresTest': 5,
+          }
+          reports = pathlib.Path('Platfrom/backend/target/surefire-reports')
+          for name, count in expected.items():
+              matches = list(reports.glob(f'TEST-*.{name}.xml'))
+              assert len(matches) == 1, f'Missing report: {name}'
+              suite = ET.parse(matches[0]).getroot()
+              assert int(suite.get('tests', '0')) == count, name
+              assert all(int(suite.get(key, '0')) == 0 for key in ('skipped', 'errors', 'failures')), name
+              print(f'{name}: {count} passed, no skips')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deletion-regression-reports
+          path: Platfrom/backend/target/surefire-reports/
