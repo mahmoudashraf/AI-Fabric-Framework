@@ -161,11 +161,39 @@ UI observations above now supplement them.
   Read-only native database evidence identifies the same existing constraint:
   `platform_customer_offer_deployments_deployment_id_fkey`. The deletion path
   does not remove its template-bootstrap linkage before the deployment row.
-- Each environment retains one archived deployment and its kit metadata from
-  this original qualifier. No serving resources remain or were provisioned.
-  K5 cleanup is not claimed complete. Fix the normal deletion service and cover
-  the offer-link lifecycle in a focused follow-up; do not manually delete rows
-  or weaken foreign keys to make this evidence green.
+- Those archived records were retained pending the normal-service fix. The
+  successful follow-up below now closes K5; no foreign key was weakened and no
+  manual row-deletion workaround was used.
+
+### Cleanup Fix And Final Hosted Proof
+
+Source: `7c1a5a631154ca366182704560090b7e16d7c3bf`.
+`DeploymentDeletionExecutionService` now removes the deployment-owned template
+bootstrap association through its canonical JPA repository and flushes it before
+the parent deletion, within the existing deletion transaction. It does not
+delete the reusable offer or customer and retains existing consumer guards.
+
+- Local: 28 kit service tests and one offer migration test pass; compilation and
+  four existing deletion tests also pass. Local Docker was initially stopped,
+  so skipped PostgreSQL runs were not accepted as qualification.
+- GitHub run `41539591010`: four new PostgreSQL/JPA execution tests, four existing
+  deletion tests and five kit PostgreSQL tests pass; a separate report assertion
+  verifies zero skips/errors/failures. Checkout is the CI-only revision
+  `1d765e796a18a85dcac776be7b79f8a65461013d`; its `Platfrom/backend` tree is
+  identical to image source `7c1a5a631154ca366182704560090b7e16d7c3bf`.
+- Backend image run `41538946059`: success. UI/framework images unchanged.
+- Staging job `gr96wrq6733fpikp4i25j803`: finished. Container
+  `/aa3dylvh4stfeg0ersfzdjjm-224540804940`: healthy, exact source OCI label.
+- Production job `msntu1442cegilrzke781nbd`: finished. Container
+  `/sbdv2pkkqrbsy9m59034hb5j-224845832698`: healthy, exact source OCI label.
+- Supported API retry of original staging failure created `del-82e418e4`:
+  SUCCEEDED, no error. The production retry created `del-df8401c3`: SUCCEEDED,
+  no error. Each environment's native readback is `0|0|0` for the exact original
+  deployment, bootstrap association and kit metadata. Original failed and later
+  successful deletion receipts remain for audit.
+- The intentionally retained Northfield review kit still loads and refreshes
+  in the production Browser after the backend rollout. Its draft status,
+  branding, both Engage channels and requested-only Desk state are unchanged.
 
 ## Safety And Recovery
 

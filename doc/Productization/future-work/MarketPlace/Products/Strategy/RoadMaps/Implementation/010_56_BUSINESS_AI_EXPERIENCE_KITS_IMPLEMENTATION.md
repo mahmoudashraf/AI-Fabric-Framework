@@ -1,7 +1,7 @@
 # 010.56 Business AI Experience Kits
 
 Date: 2 November 2026
-Status: Implemented, deployed and core production UI qualified; test-metadata cleanup follow-up open
+Status: Implemented, deployed and core production UI qualified; original test-fixture cleanup complete
 
 ## Product Contract
 
@@ -47,11 +47,11 @@ claims about connected customer services. Existing admin/operator layout stays.
 - [x] K3: Public site business-kit layer and concise experience pages.
 - [x] K4: Integration tests, exact-source builds/deployments, actual customer UI
   create/reload/edit/resource navigation and readiness/permission failure checks.
-- [ ] K5: Documentation, cleanup and accurate external/review prerequisites.
-  Guide and final UI evidence are written. Earlier qualifier apps/bindings are
-  removed and deployments archived. Final metadata deletion is blocked by an
-  existing offer/deployment foreign key; record below. One new intentional
-  configuration-only review kit remains, without services or funded allocations.
+- [x] K5: Documentation, cleanup and accurate external/review prerequisites.
+  Guide and final UI evidence are written. Earlier qualifier apps, bindings and
+  archived deployment/kit metadata are removed through the corrected normal
+  deletion path. One intentional configuration-only review kit remains,
+  without services or funded allocations.
 
 No framework change is authorized. Any demonstrated gap is proposed separately.
 Work remains product-focused; no new capacity/recovery/draining architecture.
@@ -123,7 +123,30 @@ removed their consumers, and archived both deployments. Their final deletion
 jobs failed on the pre-existing `platform_customer_offer_deployments` foreign
 key to `platform_deployments`; no database deletion workaround or unrelated
 backend rollout was used. These are archived metadata, not orphan services.
-K5 stays open specifically for that cleanup-path fix/qualification.
+That initial failure is resolved by the focused deletion fix below.
+
+### Template-Bootstrap Deletion Fix Verified
+
+- Backend fix `7c1a5a631154ca366182704560090b7e16d7c3bf` deletes and flushes
+  only the deployment-owned bootstrap association before deleting the parent,
+  inside the existing transaction. Shared offers/customers and audit history are
+  retained. No foreign key, ownership guard or approval was disabled; no manual
+  data deletion or framework change was used.
+- Thirteen focused deletion/kit tests passed on GitHub's Docker-enabled runner,
+  with no skips (run `41539591010`). This includes real PostgreSQL/JPA deletion,
+  rollback after a later failure, preservation of another deployment and its
+  shared offer, no-association deletion, and the bound-consumer guard. Twenty-nine
+  additional local kit/offer tests passed. The CI-only commits have the identical
+  backend tree as the deployed image source; initial Docker-unavailable skips
+  were not counted as successful PostgreSQL qualification.
+- Backend image run `41538946059` succeeded. Staging deployment job
+  `gr96wrq6733fpikp4i25j803` and production job `msntu1442cegilrzke781nbd`
+  finished; native container labels match the exact fix source and are healthy.
+- Normal retry operations `del-82e418e4` (staging) and `del-df8401c3`
+  (production) SUCCEEDED. Native readback shows zero original deployment rows,
+  bootstrap links and kit metadata in each environment. Historical deletion
+  receipts remain for audit. The separate Northfield review kit still refreshes
+  through the production UI. No UI or customer-runtime redeployment was needed.
 
 See `verification-support/experience-kits/2026-11-02-full-stack-qualification.md`.
 

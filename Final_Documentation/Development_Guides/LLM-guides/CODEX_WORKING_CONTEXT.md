@@ -11974,3 +11974,30 @@ test is being called hosted acceptance. UI extraction remains last.
 - Existing expanded support dock can obscure narrow setup bottom until minimized;
   separate shell polish, not kit failure. No source/build/runtime changes this
   verification cycle. Exact prior backend9ea/UI50f deployment proof unchanged.
+
+### 2026-11-02 Kit Cleanup Fix Closed
+
+- Supersedes the K5 cleanup blocker above. Backend7c1a5a631154ca366182704560090b7e16d7c3bf
+  removes and flushes the deployment-owned CustomerOfferDeployment association before
+  deleting the deployment in the existing transaction. No FK/auth/approval
+  weakening, SQL-delete workaround, framework or customer-runtime change.
+- Local29 kit/offer cases pass plus existing4 deletion cases. Local Docker was
+  stopped initially; skippedPG was NOT accepted. CI41539591010 passed all13
+  focused tests with explicit zero-skip assertion, including4 new realPG/JPA
+  deletion/rollback/isolation/consumer-guard cases. CI-only1d765e796 backendtree
+  matches image7c1 exactly. Owner subsequently started localDocker; no duplicate
+  test run was necessary. Imagebuild41538946059 succeeded, UI not rebuilt.
+- Stagingjobgr96wrq6733fpikp4i25j803 and prodjobmsntu1442cegilrzke781nbd finished.
+  Nativebackendcontainers aa3dylvh4stfeg0ersfzdjjm-224540804940 and
+  sbdv2pkkqrbsy9m59034hb5j-224845832698 healthy, exact7c1 OCI source. UI stays50f.
+- Normal retryAPI created del-82e418e4(stage)/del-df8401c3(prod), bothSUCCEEDED.
+  Nativecounts originaldep/bootstraplink/kit metadata0/0/0 each. Old failure
+  receipts retained for audit, not an outstanding cleanup failure. K1-K5closed
+  for configuration-layer scope. New Northfieldkit4777f699/dep4e084db3 is an
+  intentional unlaunched review draft and stillrefreshes via productionUI.
+  No paid resources, AI calls or changes to existing live customer assignments.
+- Full detail in01056 and verification-support/experience-kits/2026-11-02-full-
+  stack-qualification.md. Operational receipts under/tmp/loomai-kit-cleanup-rollout/;
+  do not repeat consumed applies/retries. Production newkit still needs normal
+  customer connections, verified runtime release and explicit app activation;
+  configuration-layer completion is not a claim of new liveAI rollout.
