@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/platform-deployment-deletion-regression.yml
       - Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDeletionExecutionService.java
+      - Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/authority/DeploymentAuthorityCleanupService.java
       - Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/repository/CustomerOfferDeploymentRepository.java
       - Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDeletionExecutionPostgresTest.java
   workflow_dispatch:
@@ -46,7 +47,7 @@ jobs:
           import pathlib
           import xml.etree.ElementTree as ET
           expected = {
-              'DeploymentDeletionExecutionPostgresTest': 4,
+              'DeploymentDeletionExecutionPostgresTest': 5,
               'DeploymentDeletionServiceTest': 4,
               'ExperienceKitMigrationPostgresTest': 5,
           }
