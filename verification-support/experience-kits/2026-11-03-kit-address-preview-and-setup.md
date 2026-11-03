@@ -51,6 +51,9 @@ Production browser checks after the UI rollout:
 - A full URL is invalid inline; the actual canvas address disappears and the
   field shows a labelled example, not a stale or malformed link.
 - A 63-character name fits at actual 390px width without horizontal overflow.
+- The saved kit editor also renders the shared preview at a fresh 390 x 844
+  viewport with a 63-character name. The unsaved test was cancelled; the saved
+  app name was not changed. Its screenshot replaces an earlier scaled capture.
 - Light/dark surfaces are readable. Embedded-only hides both standalone field
   and preview; switching to both restores them.
 - Review for both channels displays the complete app URL and website origin.
