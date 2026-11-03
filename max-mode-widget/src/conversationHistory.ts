@@ -25,6 +25,7 @@ export function toChatMessages(data: ConversationDetail, conversationId: string)
         if (!response || typeof response !== "object" || Array.isArray(response)
           || (response.conversationId && response.conversationId !== conversationId)) return unavailable;
         if (!RESTORABLE_RESULT_TYPES.includes(response.type || "INFORMATION_PROVIDED")) return unavailable;
+        if (response.metadata?.historyPresentationLimited === true) return unavailable;
         const result = canonicalChatResult({
           type: response.type, success: response.success,
           // Canonical text wins even when the retained response contains a different answer.

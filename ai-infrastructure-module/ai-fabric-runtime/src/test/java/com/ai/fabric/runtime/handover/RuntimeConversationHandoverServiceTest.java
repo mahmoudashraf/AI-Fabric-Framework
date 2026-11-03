@@ -224,6 +224,43 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void historyBudgetCountsPublicProjectionNotDiagnosticsOrDuplicateRetrievalContext() {
+        var user = service.appendUserMessage(owner, CONVERSATION_ID, "large-context", "Explain setup", Map.of());
+        service.claimAiInteraction(owner, CONVERSATION_ID, "large-context", user.messageId(), Map.of("query", "Explain setup"));
+        var turn = service.beginAiTurn(owner, CONVERSATION_ID, user.sequence(), "large-context");
+        var sources = List.<Object>of(Map.of("title", "Setup guide", "content", "Approved setup information"));
+        var response = ChatQueryResponse.builder().success(true).type("INFORMATION_PROVIDED")
+            .answer("Use the approved setup guide.").sources(sources)
+            .ragResponse(Map.of("context", "x".repeat(280_000), "documents", sources, "success", true))
+            .metadata(Map.of("debug", "private".repeat(50_000))).build();
+        service.commitAiInteraction(turn, "large-context", 200, response);
+
+        var presentation = service.completedPresentations(owner, CONVERSATION_ID);
+        assertThat(presentation).hasSize(1);
+        assertThat(presentation.getFirst().response().getSources()).isEqualTo(sources);
+        assertThat(presentation.getFirst().response().getRagResponse()).containsEntry("success", true)
+            .doesNotContainKeys("context", "documents");
+        assertThat(presentation.getFirst().response().getMetadata()).isEmpty();
+    }
+
+    @Test
+    void oversizedOptionalHistoryDetailsRetainCanonicalAnswerWithVisiblePresentationLimit() {
+        var user = service.appendUserMessage(owner, CONVERSATION_ID, "large-details", "Explain setup", Map.of());
+        service.claimAiInteraction(owner, CONVERSATION_ID, "large-details", user.messageId(), Map.of("query", "Explain setup"));
+        var turn = service.beginAiTurn(owner, CONVERSATION_ID, user.sequence(), "large-details");
+        var response = ChatQueryResponse.builder().success(true).type("INFORMATION_PROVIDED")
+            .answer("The actual accepted answer.").sources(List.of(Map.of("content", "x".repeat(280_000)))).build();
+        service.commitAiInteraction(turn, "large-details", 200, response);
+
+        var presentation = service.completedPresentations(owner, CONVERSATION_ID);
+        assertThat(presentation).hasSize(1);
+        assertThat(presentation.getFirst().response().getAnswer()).isEqualTo("The actual accepted answer.");
+        assertThat(presentation.getFirst().response().getSources()).isEmpty();
+        assertThat(presentation.getFirst().response().getMetadata()).containsExactlyEntriesOf(Map.of("historyPresentationLimited", true));
+        assertThat(service.history(owner, CONVERSATION_ID).messages()).anyMatch(message -> "The actual accepted answer.".equals(message.content()));
+    }
+
+    @Test
     void blankOptionalAiMetadataDoesNotDiscardTheActualResponse() {
         ConversationMessage user = service.appendUserMessage(owner, CONVERSATION_ID,
             "metadata-message", "Show current stock.", Map.of());

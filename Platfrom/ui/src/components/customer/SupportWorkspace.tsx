@@ -83,7 +83,9 @@ export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: 
       frame = await createIsolatedWorkspaceHost<SupportChatApi>({ url: initial.workspaceAssetUrl, integrity: initial.workspaceIntegrity }, { layer: latestLayer.current })
       if (!active) { frame.destroy(); return }
       workspaceFrame.current = frame
-      const host: SupportHostAdapter = { runtimeCredentialMode: 'host-mediated', getIdentityAccessToken: token,
+      const host: SupportHostAdapter = { runtimeCredentialMode: 'host-mediated',
+        apiBaseUrl: new URL('/api/support', new URL(getPlatformApiBaseUrl(), document.baseURI)).href,
+        getIdentityAccessToken: token,
         fetchWorkspace, onRequestSelected: request => { if (active) selectedRequest(request?.id ?? null) } }
       const context: SupportMountContext = {
         installationId: initial.installationId, assignmentRevision: initial.assignmentRevision,

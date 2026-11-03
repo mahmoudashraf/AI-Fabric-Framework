@@ -211,6 +211,8 @@ export interface StoredChatQueryResponse {
   ragResponse?: Record<string, unknown>;
   actions?: unknown[];
   results?: unknown[];
+  /** Display-only projection state; no retained model/debug metadata. */
+  metadata?: { historyPresentationLimited?: boolean };
 }
 
 export interface RuntimeAuthContextSummary {

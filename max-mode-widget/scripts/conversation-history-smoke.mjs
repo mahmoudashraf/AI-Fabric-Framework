@@ -42,6 +42,7 @@ assert.equal(restored[4].historyPresentationUnavailable, undefined, 'HUMAN text 
 assert.equal(JSON.stringify(restored).includes('not-for-widget'), false, 'No raw debug/auth/result restore')
 for (const [label, completedTurns] of [
   ['empty completed-turn history', []],
+  ['bounded optional display details', [receipt('u1', 'ai1', { metadata: { historyPresentationLimited: true } })]],
   ['missing response', [{ ...receipt('u1', 'ai1'), response: undefined }]],
   ['non-object response', [{ ...receipt('u1', 'ai1'), response: 'invalid' }]],
   ['array response', [{ ...receipt('u1', 'ai1'), response: [] }]],

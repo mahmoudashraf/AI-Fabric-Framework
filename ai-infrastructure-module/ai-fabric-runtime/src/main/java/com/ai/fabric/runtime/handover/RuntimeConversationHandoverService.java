@@ -356,19 +356,31 @@ public class RuntimeConversationHandoverService {
         List<com.ai.fabric.runtime.web.dto.CompletedConversationTurnResponse> result = new ArrayList<>();
         int remainingCharacters = 256_000;
         for (var record : repository.completedPresentations(scope)) {
-            if (record.responseJson() == null || record.responseJson().length() > remainingCharacters) continue;
-            remainingCharacters -= record.responseJson().length();
+            if (record.responseJson() == null) continue;
             ChatQueryResponse stored = readJson(record.responseJson(), ChatQueryResponse.class);
             // Only already-public presentation fields; no diagnostic metadata, identity,
             // authentication requirements, pending confirmation or executable suggestions.
             if (!Set.of("INFORMATION_PROVIDED", "ACTION_EXECUTED", "ACTION_DENIED", "COMPOUND_HANDLED",
                 "OUT_OF_SCOPE", "ERROR").contains(stored.getType() == null ? "" : stored.getType())) continue;
+            var rag = new java.util.LinkedHashMap<String, Object>(stored.getRagResponse() == null ? Map.of() : stored.getRagResponse());
+            rag.remove("context");
+            if (stored.getSources() != null && !stored.getSources().isEmpty()) rag.remove("documents");
             ChatQueryResponse safe = ChatQueryResponse.builder()
                 .success(stored.isSuccess()).type(stored.getType()).conversationId(conversationId)
                 .answer(stored.getAnswer()).safeSummary(stored.getSafeSummary())
-                .sources(stored.getSources()).ragResponse(stored.getRagResponse())
+                .sources(stored.getSources()).ragResponse(rag)
                 .actions(stored.getActions()).results(stored.getResults()).fallbackReason(stored.getFallbackReason())
                 .build();
+            int presentationCharacters = writeJson(safe).length();
+            if (presentationCharacters > remainingCharacters) {
+                // Bound optional display details, not acceptance or persistence of the AI turn.
+                safe = ChatQueryResponse.builder().success(stored.isSuccess()).type(stored.getType())
+                    .conversationId(conversationId).answer(stored.getAnswer()).safeSummary(stored.getSafeSummary())
+                    .fallbackReason(stored.getFallbackReason()).metadata(Map.of("historyPresentationLimited", true)).build();
+                presentationCharacters = writeJson(safe).length();
+            }
+            if (presentationCharacters > remainingCharacters) continue;
+            remainingCharacters -= presentationCharacters;
             result.add(new com.ai.fabric.runtime.web.dto.CompletedConversationTurnResponse(
                 record.userMessageId(), record.aiMessageId(), safe, record.completedAt()));
         }

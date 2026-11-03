@@ -59,6 +59,7 @@ test('bootstrap guards exact BFF targets and Platform-origin SRI assets', async 
   const workspace = await source('components/customer/SupportWorkspace.tsx')
   assert.match(workspace, /runtime\.pathname !== expected/)
   assert.match(workspace, /runtime\.origin !== origin/)
+  assert.match(workspace, /apiBaseUrl: new URL\('\/api\/support', new URL\(getPlatformApiBaseUrl\(\), document\.baseURI\)\)\.href/)
   assert.match(workspace, /\/api\/support\/requests\//)
   assert.match(workspace, /\/api\/support\/conversations\//)
   assert.match(workspace, /encodeURIComponent\(value\.conversationId\)/)
