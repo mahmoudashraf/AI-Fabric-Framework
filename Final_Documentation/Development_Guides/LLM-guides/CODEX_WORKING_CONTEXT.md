@@ -12021,3 +12021,24 @@ test is being called hosted acceptance. UI extraction remains last.
   resource was created. The existing Northfield review kit/session is retained.
 - Exact jobs, viewport limits and screenshots:
   `verification-support/experience-kits/2026-11-02-business-first-wording.md`.
+
+## 2026-11-03 Visual Capability Catalogue Closed
+
+- Source `c6abd77f7db3dc1b69c7d6a394e1249cff64a04b` is pushed on
+  `Platform-V11`. Core workflow `41561636691` published only the UI image;
+  backend correctly skipped. Staging UI `qio6ikh6ok78iycvatbp9j7h` and production
+  UI `jvr0w00sh9vsklrm6ewi9mes` finished; native OCI revisions match and are
+  healthy. Production site `p2dfjyyd7avyarksts5y7cav` finished at exact source,
+  native healthy. Backends remain the prior source, unchanged by this task.
+- Experience cards now show adaptive versus dealership scope, sample products,
+  actions and optional Desk, plus website/Max/standalone miniatures. Dismissible
+  previews are illustrative and local-only. Max remains a layout, not a new
+  delivery mode. No backend/runtime/framework/AI/configuration/auth changes.
+- 45 focused Console/auth tests passed; UI/site builds, Astro/content/static
+  checks passed. Live Console desktop/phone, local interactions, all formats,
+  X/Escape/backdrop and focus restoration passed. Public-site production preview
+  controls passed; exact local/live mobile boundaries are in the dated record.
+- Evidence: `verification-support/experience-kits/2026-11-03-visual-capability-catalogue.md`.
+  The owner now asks whether the OLD homepage document/consultation hero montage
+  is needed or should be improved. It is unchanged; answer/design discussion only
+  unless a new change is requested. Capability-card implementation is complete.

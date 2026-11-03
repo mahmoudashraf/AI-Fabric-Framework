@@ -199,6 +199,13 @@ provenance in the product-media README. Console and site samples have a focused
 parity regression. Focused tests/builds and desktop/phone live UI evidence are
 recorded in the visual-catalogue verification record.
 
+Completed: source `c6abd77f7`, UI image workflow `41561636691` (backend skipped),
+both healthy Console UIs and the healthy production site. Forty-five focused
+Console/auth tests, builds and site checks passed. Production Console verified
+all preview formats, local example interactions, dismissal/focus and selected-kit
+links; phone/desktop evidence and public-site verification boundaries are in
+`verification-support/experience-kits/2026-11-03-visual-capability-catalogue.md`.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use
