@@ -12042,3 +12042,20 @@ test is being called hosted acceptance. UI extraction remains last.
   The owner now asks whether the OLD homepage document/consultation hero montage
   is needed or should be improved. It is unchanged; answer/design discussion only
   unless a new change is requested. Capability-card implementation is complete.
+
+## 2026-11-03 Compact Public Products Portfolio Closed
+
+- Owner requested a homepage section proposal and implementation of a compact
+  hierarchy on `/products`. Built-in image tool produced the unified illustrative
+  customer-journey proposal; homepage code is unchanged pending owner review.
+- Public Products now shows kits (general/industry), Engage and optional Desk,
+  Platform technology, then independent Framework/Chat UI foundations. Existing
+  detail, Console and demo routes remain; no new backend/runtime/AI behavior.
+- Source `ac689635058bce9d2aefa426dcb79d264a8f65aa` pushed on `Platform-V11`.
+  Production site job `f1v4e0pxsprmdgk0qdhyyt67` finished at exact source;
+  native container `/t3r7unm08sh3tfatpadz7qky-022450904828` healthy. No Console
+  or customer deployment rollout. Astro check (79 files), build and content/static
+  smoke passed. Live desktop/phone, both themes, assets and main links passed.
+- Evidence: `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
+  Temporary local Astro server stopped and viewport reset. Unrelated worktree
+  changes remain untouched; only this new execution section should be staged.

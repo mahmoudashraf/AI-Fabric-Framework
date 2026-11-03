@@ -26,5 +26,19 @@ The old homepage montage is unchanged pending review of the generated proposal.
 
 ## Hosted Verification
 
-Pending source publication and production public-site rollout. No Console,
-backend or customer deployment rollout is required.
+Source `ac689635058bce9d2aefa426dcb79d264a8f65aa` is committed and pushed on
+`Platform-V11`. Production site job `f1v4e0pxsprmdgk0qdhyyt67` finished at
+that exact source. Native container
+`/t3r7unm08sh3tfatpadz7qky-022450904828` is healthy. No Console, backend or
+customer deployment rollout was performed.
+
+Production browser checks confirmed all four ordered layers, loaded images,
+light/dark themes at actual 1280px desktop and 390px phone, and no main-content
+horizontal overflow. Dealership-kit, Engage and Desk links open their existing
+public detail pages, and browser Back returns to the overview. Generic-kit
+navigation was checked locally. This was navigation/presentation qualification,
+not a new paid-kit creation or AI/provider quality run.
+
+Screenshots: `compact-products-live-2026-11-03/`. The homepage proposal was
+generated with the built-in image tool as a review-only image; it is not a new
+runtime, live workspace, or promise of a preconnected customer catalogue.

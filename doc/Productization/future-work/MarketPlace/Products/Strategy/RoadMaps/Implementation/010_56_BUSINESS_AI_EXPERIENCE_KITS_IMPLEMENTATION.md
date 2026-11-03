@@ -220,6 +220,11 @@ discovery, approved knowledge, an enquiry receipt and optional human help into
 one illustrative workspace. It is not installed on the homepage by this change.
 Verification: `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
 
+Completed at source `ac6896350`: public-site deployment
+`f1v4e0pxsprmdgk0qdhyyt67` finished and is natively healthy. Astro check,
+production build, static/content smoke and live desktop/phone theme/navigation
+checks passed. The homepage customer-journey proposal remains review-only.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use
