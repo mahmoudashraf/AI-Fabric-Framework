@@ -49,7 +49,7 @@ jobs:
           expected = {
               'DeploymentDeletionExecutionPostgresTest': 5,
               'DeploymentDeletionServiceTest': 4,
-              'ExperienceKitMigrationPostgresTest': 5,
+              'ExperienceKitMigrationPostgresTest': 6,
           }
           reports = pathlib.Path('Platfrom/backend/target/surefire-reports')
           for name, count in expected.items():
