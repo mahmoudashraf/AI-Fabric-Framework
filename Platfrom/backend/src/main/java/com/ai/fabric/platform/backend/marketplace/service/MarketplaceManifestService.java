@@ -139,7 +139,8 @@ public class MarketplaceManifestService {
         "ragMaxDocumentsUsedForContext", "ragMaxContextChars"
     );
     private static final Set<String> TEMPLATE_PROMPT_TEXT_FIELDS = Set.of(
-        "systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt", "clarificationPrompt"
+        "systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt", "clarificationPrompt",
+        "answerGenerationPrompt", "retrievalPrompt", "assistantUiPrompt"
     );
     private static final Set<String> TEMPLATE_PROMPT_FIELDS = java.util.stream.Stream.concat(
         TEMPLATE_PROMPT_BUDGET_FIELDS.stream(), TEMPLATE_PROMPT_TEXT_FIELDS.stream()

@@ -6,8 +6,10 @@ answer-quality acceptance is implied by these files.
 - Pack: `support@1.0.0`; configuration: `loomai-support-experience-config-v1`.
 - Bundle: `experience-packs/support-experience/dist/support-experience.iife.js`.
 - Kit: `ai-support-experience@1.0.0`; preset: Technical Support.
-- Template family: `mkp-template-ai-support-workspace`; new revision `1.1.0`.
-- Platform migration: `V225`. Console provisioning and retirement are separate.
+- Public template family: `mkp-template-ai-support-workspace`; new revision `1.1.0`.
+- Internal instance family: `mkp-template-loomai-support-workspace@1.1.0`.
+- Platform migrations: `V225` and the additive instance mapping `V229`. Console
+  provisioning and retirement are separate.
 
 The pack uses the section 13 configuration: `app`, `support`, `capabilities`,
 plus existing `page`, `copy`, `theme`, `toolGroups`, `toolRail`, `requestContext`.
@@ -60,10 +62,11 @@ ticket-specific confirmation, receipt and independent-handover guidance.
 No sources, identity settings, credentials or diagnostics were copied. This
 is a source candidate awaiting fresh live quality proof, not an accepted new
 default for every template. Historical published versions are not rewritten.
-The current TEMPLATE schema does not accept the draft-only
-`vectorSpaceSelectionRequired`, `answerGenerationPrompt`, `retrievalPrompt`, or
-`assistantUiPrompt` leaves. They are not silently smuggled through other fields;
-full prompt parity requires an explicit schema decision and fresh qualification.
+The current TEMPLATE schema also accepts `answerGenerationPrompt`,
+`retrievalPrompt` and `assistantUiPrompt`; the new candidate includes the reviewed
+nonsecret baseline for all three. `vectorSpaceSelectionRequired` remains a
+draft-only field and is not smuggled through other fields. Source prompt parity
+is not live quality qualification.
 
 The new template also sets `providerConfig.canonicalConversationsEnabled:true`
 for owned conversation initialization, messages and control independently of
@@ -84,6 +87,39 @@ normalized manifest hash and published framework-version checks. Old
 `conversation-control` or orchestration-state metadata cannot substitute for
 the new marker. A missing gate is reported as `CANONICAL_CONVERSATIONS` readiness.
 Existing published template versions remain unchanged.
+
+## Internal LoomAI Instance
+
+`manifests/loomai-support-workspace.1.1.0.manifest.json` is a separate, source-only
+instance composition, not a public customer default. Its provider, prompt and
+deployment-behavior defaults match the new generic `1.1.0`, including the canonical
+conversation requirement and ticket confirmation/receipt guidance. It requires
+exactly:
+
+- `mkp-data-ai-support-documents@1.0.0`
+- `mkp-action-support-tickets@1.0.0`
+- `mkp-action-loomai-support-diagnostics@1.0.3`
+- `mkp-integration-loomai-desk@1.0.1`
+- `mkp-action-conversation-handover@1.1.0`
+
+There are no `requiredPluginInstallDefaults` in this variant. In particular,
+native Desk ticket aliases must not precede the Console ticket ACTION's reviewed
+`EXTERNAL_SERVICE` profile aliases. The existing offer/bootstrap initializer
+configures ticket and diagnostics fields through those two profiles. Endpoint
+approval and target-scoped credential binding remain normal API operations;
+neither endpoint values nor keys are template defaults. Empty required install
+inputs use the ordinary deferred-input path. Configure/enable the Desk channel
+through its normal API before enabling the human extension; requiring its pin
+does not activate handover. Customer-owned S3 and identity remain unchanged.
+
+`V229` adds the internal template family alongside the generic family in the
+existing `ai-support-experience` definition. It creates no offer, installation,
+source binding, release or authority. The pure offer builder accepts either
+reviewed `1.1.0` family and enforces the exact required plugin set and actual
+published version metadata. The internal family additionally requires an explicit
+reviewed `BACKEND_MEDIATED_PRIVATE_RUNTIME` / `platform-support-case-host` workspace
+profile; it cannot inherit the direct Supabase profile by default. The backend
+still enforces the configured Console owner and private-host registration.
 
 ## Managed External Activation
 

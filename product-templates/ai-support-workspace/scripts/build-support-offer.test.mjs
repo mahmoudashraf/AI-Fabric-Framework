@@ -96,3 +96,37 @@ test('only public supported authentication keys and exact customer origins are a
   for (const projectUrl of ['http://auth.example.test', 'https://user:password@auth.example.test', 'https://auth.example.test/path'])
     assert.throws(() => buildSupportWorkspaceProfile({ authentication: { ...auth, projectUrl } }))
 })
+
+test('LoomAI reviewed instance requires its explicit private host profile and all five published pins', () => {
+  const input = inputs()
+  input.template = published(read('manifests/loomai-support-workspace.1.1.0.manifest.json'))
+  input.pluginVersions = input.template.manifest.contributions.template.requiredPluginRefs.map(reference => {
+    const [pluginId, version] = reference.split('@')
+    return published({ pluginId, version })
+  })
+  assert.throws(() => buildSupportOffer(input), /explicitly reviewed private LoomAI workspace profile/)
+  const configuration = read('fixtures/support-experience-config.json')
+  const theme = configuration.theme; delete configuration.theme
+  input.workspaceProfile = { id: 'reviewed-console-support', label: 'LoomAI Console support', theme,
+    interaction: { packCode: 'support', packVersion: '1.0.0', connectionMode: 'BACKEND_MEDIATED_PRIVATE_RUNTIME',
+      connectionProfileCode: 'platform-support-case-host', connectionProfileVersion: '1.0.0',
+      connectionConfiguration: {}, deliveryMode: 'EMBEDDED', configuration },
+    authentication: { profileCode: 'none', profileVersion: '1.0.0', interactionPolicy: 'PUBLIC', configuration: {} } }
+  const before = structuredClone(input)
+  const result = buildSupportOffer(input)
+  assert.deepEqual(input, before)
+  assert.equal(result.definition.template.pluginId, 'mkp-template-loomai-support-workspace')
+  assert.equal(result.definition.plugins.length, 5)
+  assert.deepEqual(result.definition.workspaceProfiles, [input.workspaceProfile])
+  assert.equal(result.definition.workspaceProfiles[0].authentication.profileCode, 'none')
+  const missing = structuredClone(input); missing.pluginVersions.pop()
+  assert.throws(() => buildSupportOffer(missing), /Missing required published plugin/)
+  const external = structuredClone(input); external.workspaceProfile = buildSupportWorkspaceProfile({ authentication: auth })
+  assert.throws(() => buildSupportOffer(external), /BACKEND_MEDIATED_PRIVATE_RUNTIME/)
+})
+
+test('offer pins remain an exact bootstrap set rather than an allowed optional-plugin superset', () => {
+  const input = inputs()
+  input.pluginVersions.push(published(read('manifests/loomai-support-diagnostics.1.0.3.manifest.json')))
+  assert.throws(() => buildSupportOffer(input), /exactly match the reviewed template requiredPluginRefs/)
+})

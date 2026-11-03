@@ -67,7 +67,8 @@ const reviewFields = ['name', 'operations', 'settings', 'bindingSlots', 'documen
 export function buildSupportOffer({ offerId, reviewReference, template, pluginVersions, artifacts, targets, review,
   workspaceProfile, authentication, loginRequired } = {}) {
   assert.ok(typeof offerId === 'string' && offerId.length > 0 && typeof reviewReference === 'string' && reviewReference.length > 0)
-  assert.equal(template?.pluginId, 'mkp-template-ai-support-workspace')
+  assert.ok(['mkp-template-ai-support-workspace', 'mkp-template-loomai-support-workspace'].includes(template?.pluginId),
+    'Supply a reviewed generic or LoomAI Support template')
   assert.equal(template.version, '1.1.0')
   const templatePin = publishedPin(template)
   assert.equal(template.manifest.pluginType, 'TEMPLATE')
@@ -86,6 +87,14 @@ export function buildSupportOffer({ offerId, reviewReference, template, pluginVe
   assert.equal(new Set(plugins.map(pin => pin.pluginId)).size, plugins.length)
   for (const reference of template.manifest.contributions.template.requiredPluginRefs ?? []) {
     assert.ok(pluginVersions.some(version => `${version.pluginId}@${version.version}` === reference), `Missing required published plugin ${reference}`)
+  }
+  assert.deepEqual(pluginVersions.map(version => `${version.pluginId}@${version.version}`).sort(),
+    [...template.manifest.contributions.template.requiredPluginRefs].sort(),
+    'Offer plugin pins must exactly match the reviewed template requiredPluginRefs')
+  if (template.pluginId === 'mkp-template-loomai-support-workspace') {
+    assert.ok(workspaceProfile, 'Supply the explicitly reviewed private LoomAI workspace profile; public defaults do not apply')
+    assert.equal(workspaceProfile.interaction?.connectionMode, 'BACKEND_MEDIATED_PRIVATE_RUNTIME')
+    assert.equal(workspaceProfile.interaction?.connectionProfileCode, 'platform-support-case-host')
   }
   const profile = workspaceProfile ? structuredClone(workspaceProfile) : buildSupportWorkspaceProfile({ authentication, loginRequired })
   assert.equal(profile.interaction?.packCode, 'support')

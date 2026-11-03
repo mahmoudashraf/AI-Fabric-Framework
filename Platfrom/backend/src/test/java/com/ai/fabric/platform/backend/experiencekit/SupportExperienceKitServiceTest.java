@@ -67,6 +67,33 @@ class SupportExperienceKitServiceTest {
         verifyNoInteractions(f.bootstrap, f.consumers, f.workspaces);
     }
 
+    @Test void mappedLoomaiInstanceUsesItsExplicitPrivateHostProfileThroughNormalKitCreation() {
+        var definition = f.definition(SUPPORT, "support", List.of("mkp-template-ai-support-workspace", "mkp-template-loomai-support-workspace"));
+        when(f.definitions.findById(SUPPORT)).thenReturn(Optional.of(definition));
+        f.version("internal-support-version", "mkp-template-loomai-support-workspace");
+        var original = f.catalogue.offer(OFFER).workspaceProfiles().getFirst();
+        var interaction = (ObjectNode) original.interaction().deepCopy();
+        interaction.put("connectionMode", "BACKEND_MEDIATED_PRIVATE_RUNTIME")
+            .put("connectionProfileCode", "platform-support-case-host");
+        var authentication = f.mapper.createObjectNode().put("interactionPolicy", "PUBLIC")
+            .put("profileCode", "none").put("profileVersion", "1.0.0");
+        authentication.putObject("configuration");
+        var profile = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.WorkspaceProfile(
+            original.id(), "Reviewed internal support", interaction, original.theme(), authentication);
+        when(f.catalogue.offer(OFFER)).thenReturn(f.offer(OFFER, "internal-support-version", profile, TARGET, TargetIntent.CUSTOMER_STAGING));
+
+        var result = f.service.create(request(true, true, "desk"));
+
+        assertThat(result.workspace().connectionMode()).isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
+        assertThat(result.workspace().connectionProfileCode()).isEqualTo("platform-support-case-host");
+        assertThat(result.workspace().authProfileCode()).isEqualTo("none");
+        assertThat(result.workspace().authConfiguration()).isEmpty();
+        assertThat(result.workspace().status()).isEqualTo("DRAFT");
+        assertThat(result.workspace().configuration().at("/support/spaceId").isMissingNode()).isTrue();
+        verify(f.bootstrap).bootstrap(eq(OFFER), any());
+        verify(f.workspaces, never()).activate(anyString(), anyString());
+    }
+
     @ParameterizedTest @CsvSource({"true,", "true,unregistered", "false,unregistered"})
     void invalidProviderSelectionFailsBeforeAnyBootstrap(boolean enabled, String provider) {
         assertThatThrownBy(() -> f.service.create(request(enabled, false, provider))).isInstanceOf(ResponseStatusException.class);

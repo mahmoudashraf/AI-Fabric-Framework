@@ -24,6 +24,7 @@ const scriptCheck = spawnSync(process.execPath, ['--test', resolve(root, 'script
   resolve(root, 'scripts/quality-defaults.test.mjs'), resolve(root, 'scripts/compose-support-experience.test.mjs'),
   resolve(root, 'scripts/support-experience-quality.test.mjs'),
   resolve(root, 'scripts/build-support-offer.test.mjs'),
+  resolve(root, 'scripts/loomai-support-experience.test.mjs'),
   resolve(root, 'fixtures/service/server.test.mjs')], {
   encoding: 'utf8', maxBuffer: 1024 * 1024,
 });
@@ -35,7 +36,7 @@ if (scriptCheck.status !== 0) {
 // Use the real control-plane validator offline; a JSON parse alone is not contract qualification.
 const check = spawnSync('mvn', [
   '-o', '-q', '-f', resolve(repository, 'Platfrom/backend/pom.xml'),
-  '-Dtest=SupportWorkspaceProductTemplateTest,SupportExperienceProductTemplateTest,SpecialistAssistanceVerificationPackTest', `-Dsupport.template.root=${root}`, 'test',
+  '-Dtest=SupportWorkspaceProductTemplateTest,SupportExperienceProductTemplateTest,LoomaiSupportExperienceBootstrapTest,SpecialistAssistanceVerificationPackTest', `-Dsupport.template.root=${root}`, 'test',
 ], { cwd: repository, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
 if (check.status !== 0) {
   process.stderr.write(check.stdout ?? '');
@@ -50,7 +51,8 @@ process.stdout.write(JSON.stringify({
   qualityDefaultTests: 6,
   supportCompositionTests: 5,
   supportExperienceQualityTests: 4,
-  supportOfferTests: 6,
+  supportOfferTests: 8,
+  loomaiSupportExperienceTests: 3,
   simulatedServiceTests: 2,
   status: catalog.status,
   requests,

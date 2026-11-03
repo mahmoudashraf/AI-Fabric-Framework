@@ -38,14 +38,15 @@ test('canonical conversations are enabled without requiring a human channel or c
 
 test('baseline prompt guidance is retained alongside confirmed ticket receipts and independent humans', () => {
   const prior = read('fixtures/balanced-support-quality-v2.json').promptConfig
-  for (const field of ['intentExtractionPrompt', 'actionSelectionPrompt', 'clarificationPrompt'])
+  for (const field of ['intentExtractionPrompt', 'actionSelectionPrompt', 'clarificationPrompt',
+    'answerGenerationPrompt', 'retrievalPrompt'])
     assert.equal(template.promptConfig[field], prior[field])
+  assert.equal(template.promptConfig.assistantUiPrompt,
+    'Write in a clear operator-friendly style suitable for product UIs. Keep formatting compact and easy to scan.')
   assert.ok(template.promptConfig.systemPrompt.startsWith(`${prior.systemPrompt}\n\n`))
   assert.match(template.promptConfig.systemPrompt, /installed confirmed ticket action/)
   assert.match(template.promptConfig.systemPrompt, /successful provider receipt/)
   assert.match(template.promptConfig.systemPrompt, /Human handover is independent/)
-  for (const field of ['answerGenerationPrompt', 'retrievalPrompt', 'assistantUiPrompt'])
-    assert.equal(template.promptConfig[field], undefined, 'Only the current TEMPLATE prompt allowlist is contributed')
   for (const section of [template.providerConfig, template.promptConfig])
     assert.doesNotMatch(JSON.stringify(section), /loomai|supabase|s3:\/\/|service_role|secretRef|openaiApiKey/i)
 })

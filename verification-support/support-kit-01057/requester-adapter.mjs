@@ -148,7 +148,7 @@ export async function runLifecycle(client, { save = async () => {} } = {}) {
   const report = { requests: [] };
   const keep = async ticket => { report.requests.push(ticket); await save(report); return ticket; };
   let ticket = await keep(await client.create({ subject: 'Support kit lifecycle qualification',
-    details: 'Explain how to use embedded and standalone delivery without exposing credentials.', topic: 'General' }));
+    details: 'Explain how to use embedded and standalone delivery without exposing credentials.' }));
   ticket = await keep(await client.start(ticket));
   assert.equal(ticket.conversation?.delivery, 'DELIVERED', 'Unconfirmed opening; do not replay.');
   const workspace = await client.workspace(ticket.id);
@@ -175,7 +175,7 @@ export async function runLifecycle(client, { save = async () => {} } = {}) {
   assert.equal(report.casualResponse?.success, true, 'Failed casual response; stop without replay.');
   const history = await client.canonical(casual);
   let linked = await keep(await client.create({ subject: 'Support kit linked conversation qualification', details: 'Track this existing conversation.',
-    topic: 'General', existingConversationId: casual.conversationId }));
+    existingConversationId: casual.conversationId }));
   assert.equal(linked.conversation?.conversationId, casual.conversationId);
   assert.equal(linked.conversation?.delivery, 'NOT_REQUIRED');
   assert.equal(linked.openingMessageRequired, false);

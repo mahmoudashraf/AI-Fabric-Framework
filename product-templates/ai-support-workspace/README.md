@@ -19,6 +19,14 @@ credential references. Canonical conversations require a newly registered
 runtime artifact advertising `standalone-conversation-control`; historical
 handover/orchestration-state capabilities alone do not qualify.
 
+The separately reviewed internal `mkp-template-loomai-support-workspace@1.1.0`
+source adds diagnostics, Desk and handover pins without changing public defaults.
+It uses explicit private-host and `EXTERNAL_SERVICE` profiles, not generic native
+ticket install aliases. V229 only adds its family to the existing kit mapping.
+See the [internal composition contract](SUPPORT_EXPERIENCE_CONTRACT.md#internal-loomai-instance)
+for exact pins, deferred Desk setup and the ordinary API lifecycle. This is not
+publication, activation or new live quality evidence.
+
 ## Existing Qualified Baseline
 
 Reusable Marketplace support configuration for 010.54. The customer starter is
@@ -143,6 +151,9 @@ template.
   template, with the reviewed diagnostics dependency. It is not a public
   customer default and supplies no credentials. The reusable customer starter
   above remains independent of LoomAI's case service and diagnostic tools.
+- `manifests/loomai-support-workspace.1.1.0.manifest.json`: source-only internal
+  Support Experience composition; exact ticket/diagnostics/Desk/handover pins,
+  no required install defaults, credentials or owned source locations.
 - `manifests/acme-cloud-support-reads.1.0.1.manifest.json`: a second, fictional
   company's own `ACTION` integration; no LoomAI diagnostic authority.
 - The two unversioned ACTION filenames retain their immutable `1.0.0` contents;

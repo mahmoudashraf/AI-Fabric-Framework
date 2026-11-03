@@ -52,7 +52,10 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
         "systemPrompt", "Informational guidance remains in scope without a write tool.",
         "intentExtractionPrompt", "Do not invent target parameters for parameterless authorized READs.",
         "actionSelectionPrompt", "Simple document guidance does not require private diagnostics or a specialist chain.",
-        "clarificationPrompt", "Use the knowledge catalogue and authorized tools; ask only missing customer-facing details and disclose uncertainty."
+        "clarificationPrompt", "Use the knowledge catalogue and authorized tools; ask only missing customer-facing details and disclose uncertainty.",
+        "answerGenerationPrompt", "Preserve the user's issue order and distinguish documented guidance from observations.",
+        "retrievalPrompt", "Retrieve evidence for the exact subject and preserve conditional prerequisites.",
+        "assistantUiPrompt", "Keep customer-facing answers compact and readable."
     );
     private static final Instant NOW = Instant.parse("2026-10-25T00:00:00Z");
 

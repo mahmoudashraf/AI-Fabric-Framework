@@ -2,7 +2,7 @@ Title: Request integration support and control diagnostic access
 Document ID: loomai-support-12
 Product: LoomAI Console - Integration support
 Audience: Signed-in customer administrators requesting help with their own setup
-Reviewed: 2026-10-31
+Reviewed: 2026-11-03
 
 Availability and ownership
 
@@ -19,23 +19,31 @@ before creating a deployment and without granting diagnostic permission.
 
 Submit a useful request
 
-1. Open Integration support and select New request or Request integration support.
-   Enter a concise Summary and, optionally, Details and a Product. Explain what
+1. Open Integration support. You can ask the AI a documentation question without
+   opening a request. To save an issue, select Request help. Enter a concise
+   Subject and the required Details; Topic is optional. Explain what
    you tried, what you expected, what happened and the approximate time. Keep
    passwords, tokens, raw logs and private customer records out of the form.
-2. Select only relevant resources you own. Deployment, Engage app and connection
+2. Submit the request once. If the form offers to link the current conversation,
+   select that option only when it is the discussion you want to track. Linking
+   retains the canonical conversation without resending its earlier messages.
+   Otherwise the submitted form becomes the first user message of a new
+   conversation. Saving a request and delivering its opening message are distinct.
+3. Select the saved request and use Configure diagnostics when status checks
+   would help. Select only relevant resources you own. Deployment, Engage app and connection
    selections provide trusted context; typing a resource identifier into the
    message does not authorize access. For document-index status on an exact
    target, select the deployment and its connected Engage app.
-3. Decide whether to grant Status-check permission. The checkbox allows AI and
+4. Save the selected resources, then decide whether to grant Status-check
+   permission. The checkbox allows AI and
    the integration team to inspect the selected resources for this request.
-   Declining it still permits documentation help. Select Submit request once.
-4. Read the delivery status. The request can be saved before its conversation
-   starts. If Start conversation appears, it explicitly sends the stored intake.
-   Check same delivery inspects an uncertain delivery using that same message;
-   do not create a replacement case just because an AI response is delayed.
-5. Continue in the embedded workspace. The submitted form becomes the initial
-   user message in the canonical conversation. Ask follow-up questions or request
+   Declining it still permits documentation help. Resource selection alone is
+   not consent, and consent is not required to save a support request.
+5. Read the delivery status. A saved request may remain available while the AI
+   runtime is unavailable. Check conversation delivery reads an uncertain opening;
+   it does not submit the form again. Do not create another request just because
+   an AI response is delayed or a success has not been confirmed.
+6. Continue in the embedded workspace. Ask follow-up questions or request
    a human through the available handover controls. Reloading the page is not
    an instruction to replay the intake or retry a failed AI turn.
 
@@ -45,7 +53,7 @@ Consented checks are bounded status and metadata projections: release and
 verification state, local app readiness, selected connection synchronization
 state and registered document-index state when the exact target is available.
 They do not expose credentials, raw logs, source file contents or business records.
-Current requester membership, case ownership, selected-resource ownership and
+Current requester membership, request ownership, selected-resource ownership and
 consent are checked for each read.
 
 Local readiness does not prove the public route or HTTPS works. Stored release
@@ -56,7 +64,7 @@ unavailable or incomplete observations must not be interpreted as a healthy resu
 
 Manage permission and the request
 
-Use Edit resources to correct selections. Changing them revokes the previous
+Use Configure diagnostics to correct resource selections. Changing them revokes the previous
 diagnostic consent; grant it again only after reviewing the new selection. You
 can revoke permission on an open request. Revocation stops subsequent checks;
 it is not a deletion of conversation history or observations already shared.
@@ -64,7 +72,14 @@ it is not a deletion of conversation history or observations already shared.
 Resolve or Cancel request when appropriate. Both revoke diagnostic consent and
 are separate from returning to AI or closing the human conversation. Reopen
 request does not restore consent or resend the original form. If its conversation
-is closed, Start new conversation creates a new episode, not a migrated transcript.
+is closed, Continue in a new conversation creates an empty new episode. Previous
+conversations remain readable, but are not copied or replayed into the new one.
+Human handover, returning to AI and resolving a request are separate operations.
+
+When configured, you can also ask the AI to submit a request. Review its proposed
+subject and details and confirm the action. A request exists only after the
+selected ticket provider returns a successful receipt and reference. A pending
+confirmation or an uncertain provider response is not proof that one was created.
 
 Ask the integration team when delivery remains uncertain, resources are missing,
 access is denied unexpectedly or observations cannot explain the problem. Keep

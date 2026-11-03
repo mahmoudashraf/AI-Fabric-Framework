@@ -71,11 +71,33 @@ pins from these inputs. It supplies no policy approvals, capacity, customer
 entitlements, funding or storage credentials. Those remain normal API review
 and admission requirements, not values cloned from an internal canary.
 
-An internal Console offer may pass its separately reviewed `workspaceProfile`
-explicitly; the builder never selects the private Console host by default.
-Main owns that private profile and safe bootstrap projection. Publishing the
+The builder accepts only the reviewed generic or LoomAI instance TEMPLATE
+`1.1.0`, with exactly its required published plugin pins. Extra optional pins
+cannot be added to a different reviewed composition. For the internal
+`mkp-template-loomai-support-workspace`, pass its separately reviewed
+`workspaceProfile` explicitly with `BACKEND_MEDIATED_PRIVATE_RUNTIME` and
+`platform-support-case-host`; direct public defaults are not used. Main owns
+that owner-scoped private profile and safe bootstrap projection. Publishing the
 offer, enrolling the real owner and creating the fresh kit remain explicit API
 operations. A generated request is neither a published offer nor live proof.
+
+### Internal Instance Composition
+
+The separate LoomAI `1.1.0` source requires document DATA `1.0.0`, ticket ACTION
+`1.0.0`, diagnostics ACTION `1.0.3`, Desk channel `1.0.1`, and conversation-handover
+ACTION `1.1.0`. It copies the generic candidate's current quality and ticket
+guidance, but does not include generic native ticket install defaults. Review
+two `EXTERNAL_SERVICE` slots/profiles for ticket and diagnostics before creating
+the offer. The existing bootstrap initializer installs their symbolic fields;
+normal target-bound endpoint approval and credential binding supply actual
+values separately for each selected target. Do not transition native Desk
+aliases or copy another customer's S3, secrets, funding or identity settings.
+
+V229 only permits this additional family in the existing support kit definition.
+Required dependencies with missing form fields remain deferred under ordinary
+bootstrap. Configure and enable Desk through its existing API and enable the
+human extension only when ready. No template pin, kit preference or initializer
+performs support-space registration, release apply, staffing or activation.
 
 ## Host Installation And Identity
 
@@ -148,7 +170,7 @@ answer for a human-controlled conversation. Human return/close stays explicit.
 Run `node --test product-templates/ai-support-workspace/scripts/*.test.mjs` and
 the package's offline `scripts/validate-dry-run.mjs`. The latter invokes the real
 Marketplace validator and sends no API requests. Run focused Platform pack/kit
-tests plus PostgreSQL migration tests through V225. The backend asset packaging
+tests plus PostgreSQL migration tests through V229. The backend asset packaging
 tests verify support discovery, immutable hashes and missing-output failure.
 
 `scripts/compose-support-experience.mjs` takes a saved owned installation and

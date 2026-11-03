@@ -11,6 +11,12 @@ node verification-support/support-kit-01057/run.mjs quality staging /absolute/ne
 
 Optional quality arguments: comma-separated scenario IDs, then an absolute scenario JSON path. Production writes also require `SUPPORT_KIT_ALLOW_PRODUCTION_WRITES=true`. Each invocation requires a fresh output directory; evidence is private (directory 0700, files 0600), never generated in this repository.
 
+The historical quality scenarios use the old Console topic labels. Supply a reviewed
+scenario copy with topic codes registered on the new support space (for the generic
+fixture these are `setup` and `service`). This changes ticket classification only,
+not queries, AI source routing or review criteria. Lifecycle qualification omits the
+optional topic rather than assuming any company's category names.
+
 ## Trusted Adapter
 
 The existing private 01054 transport signature is accepted:

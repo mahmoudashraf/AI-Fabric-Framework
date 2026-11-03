@@ -21,7 +21,7 @@ class SupportExperienceProductTemplateTest {
     private final Path root = root();
 
     @Test void newContributionsUseActualTemplateActionAndIntegrationPrimitives() throws Exception {
-        for (String file : List.of("ai-support-workspace.1.1.0", "support-tickets.1.0.0", "loomai-desk-support-channel.1.0.1")) {
+        for (String file : List.of("ai-support-workspace.1.1.0", "loomai-support-workspace.1.1.0", "support-tickets.1.0.0", "loomai-desk-support-channel.1.0.1")) {
             var manifest = read("manifests/" + file + ".manifest.json");
             var plugin = new MarketplacePluginEntity();
             plugin.setId(manifest.path("pluginId").asText()); plugin.setPluginType(manifest.path("pluginType").asText());
@@ -72,7 +72,7 @@ class SupportExperienceProductTemplateTest {
         var catalogue = read("catalog.json");
         assertThat(catalogue.path("entries").get(1).path("manifest").asText())
             .isEqualTo("manifests/ai-support-workspace.1.0.1.manifest.json");
-        assertThat(catalogue.path("supportExperienceCandidates")).hasSize(3);
+        assertThat(catalogue.path("supportExperienceCandidates")).hasSize(4);
         for (JsonNode candidate : catalogue.path("supportExperienceCandidates")) {
             assertThat(candidate.path("publicationScope").asText()).isEqualTo("SOURCE_ONLY");
             assertThat(candidate.path("productionDefaultAccepted").asBoolean()).isFalse();
