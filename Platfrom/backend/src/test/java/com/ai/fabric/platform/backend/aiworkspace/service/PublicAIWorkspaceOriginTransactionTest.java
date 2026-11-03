@@ -157,7 +157,7 @@ class PublicAIWorkspaceOriginTransactionTest {
         when(consumerService.resolvePublicConsumer(consumer.getConsumerId()))
             .thenReturn(new PlatformCustomerConsumerService.ResolvedPublicConsumer(consumer, deployment, release));
         when(assignments.resolveCurrent(consumer)).thenReturn(assignment);
-        when(readiness.evaluate(any())).thenReturn(new AIWorkspaceReadinessSummary(true, INSTALLATION_ID,
+        when(readiness.evaluateForManifest(any())).thenReturn(new AIWorkspaceReadinessSummary(true, INSTALLATION_ID,
             "public-runtime-anonymous", "northfield-web", "dep-1", "rel-1", "https://dep-example.loomai.test",
             assignment.assignmentRevision(), List.of()));
         when(assets.installer()).thenReturn(asset("installer"));
@@ -167,7 +167,8 @@ class PublicAIWorkspaceOriginTransactionTest {
         manifests = transactional(new PublicAIWorkspaceManifestService(installationRepository, consumers, consumerService,
             assignments, readiness, assets, packs, new AIWorkspaceConnectionProfileRegistry(properties),
             new AIWorkspaceAuthenticationProfileRegistry(mapper), domains,
-            new PlatformDeliveryProperties("https://api.loomai.test", true, Duration.ofMinutes(10)), properties, mapper));
+            new PlatformDeliveryProperties("https://api.loomai.test", true, Duration.ofMinutes(10)), properties, mapper,
+            mock(com.ai.fabric.platform.backend.desk.DeskSupportSpaceService.class)));
         var rateLimiter = mock(AIWorkspaceManifestRateLimiter.class);
         when(rateLimiter.allow(anyString())).thenReturn(true);
         filter = new AIWorkspacePublicBoundaryFilter(manifests, rateLimiter,

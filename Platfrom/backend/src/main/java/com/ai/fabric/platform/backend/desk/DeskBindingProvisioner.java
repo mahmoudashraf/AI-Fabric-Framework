@@ -68,10 +68,16 @@ public class DeskBindingProvisioner {
     @Transactional
     public void prepareForApply(DeploymentEntity deployment, DeploymentVersionEntity version,
                                 DeploymentReleaseEntity release, DeploymentTargetProfileEntity target) {
+        boolean human;
+        boolean tickets;
         try {
             var behavior = mapper.readTree(version.getBehaviorConfigJson());
-            if (!DeskTargetConfigurationResolver.usesDesk(behavior)) return;
-            if (!DeskTargetConfigurationResolver.isTargetIndependent(behavior))
+            human = DeskTargetConfigurationResolver.usesDesk(behavior);
+            tickets = DeskSupportTicketConfiguration.requested(
+                mapper.readTree(version.getActionsConfigJson() == null ? "{}" : version.getActionsConfigJson()),
+                mapper.readTree(version.getRoutingConfigJson() == null ? "{}" : version.getRoutingConfigJson()));
+            if (!human && !tickets) return;
+            if (human && !DeskTargetConfigurationResolver.isTargetIndependent(behavior))
                 throw new ResponseStatusException(CONFLICT, "Desk requires target-independent published configuration.");
         } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
             throw new ResponseStatusException(CONFLICT, "Desk configuration is unavailable.");
@@ -82,9 +88,56 @@ public class DeskBindingProvisioner {
             || !Objects.equals(target.getId(), release.getTargetProfileId())) {
             throw new ResponseStatusException(CONFLICT, "Desk release does not match its deployment target.");
         }
+        if (!human) {
+            prepareTicketActionBinding(deployment, target, release.getId(), "apply:" + release.getId());
+            return;
+        }
         var binding = prepareBinding(deployment, target, release.getId(), "apply:" + release.getId());
+        if (tickets) ticketConnectorKey(binding);
         binding.setReleaseId(release.getId()); binding.setVersionId(version.getId());
         bindings.save(binding);
+    }
+
+    /** Registers shared Desk infrastructure, not a runtime handover extension or a new release. */
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public DeskBindingEntity prepareSupportBinding(DeploymentEntity deployment, DeploymentTargetProfileEntity target,
+            String sourceReleaseId, String operationKey, String connectorBaseUrl) {
+        var previous = bindings.findByDeploymentIdAndTargetProfileId(deployment.getId(), target.getId());
+        String channelStatus = previous.map(DeskBindingEntity::getStatus).orElse("SUPPORT_ONLY");
+        var binding = prepareBinding(deployment, target, sourceReleaseId, operationKey);
+        try { registerCallback(deployment, target, connectorBaseUrl); }
+        catch (ResponseStatusException error) {
+            binding.setStatus(channelStatus); binding.setErrorMessage("Support registration did not complete. Check the managed support status before retrying.");
+            binding.setUpdatedAt(Instant.now()); bindings.saveAndFlush(binding);
+            throw error;
+        }
+        binding.setStatus(channelStatus);
+        binding.setUpdatedAt(Instant.now());
+        return bindings.saveAndFlush(binding);
+    }
+
+    /** One stable, distinct server-only ticket connector credential per owned target binding. */
+    @Transactional
+    public String ticketConnectorKey(DeskBindingEntity binding) {
+        String name = ticketConnectorKeyReference(binding);
+        if (secrets.resolveSecret(name) == null) store(binding, "TICKET_CONNECTOR", name);
+        return secrets.resolveSecret(name);
+    }
+
+    public static String ticketConnectorKeyReference(DeskBindingEntity binding) {
+        return secretName(binding.getId(), "TICKET_CONNECTOR");
+    }
+
+    /** Normal apply prepares the selected target's action credential without enabling human handover. */
+    @Transactional
+    public DeskBindingEntity prepareTicketActionBinding(DeploymentEntity deployment, DeploymentTargetProfileEntity target,
+            String sourceReleaseId, String operationKey) {
+        String previous = bindings.findByDeploymentIdAndTargetProfileId(deployment.getId(), target.getId())
+            .map(DeskBindingEntity::getStatus).orElse("SUPPORT_ONLY");
+        var binding = prepareBinding(deployment, target, sourceReleaseId, operationKey);
+        ticketConnectorKey(binding);
+        binding.setStatus(previous); binding.setUpdatedAt(Instant.now());
+        return bindings.saveAndFlush(binding);
     }
 
     @Transactional

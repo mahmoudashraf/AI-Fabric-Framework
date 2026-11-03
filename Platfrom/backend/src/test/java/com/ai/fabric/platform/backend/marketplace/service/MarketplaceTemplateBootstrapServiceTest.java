@@ -74,6 +74,7 @@ class MarketplaceTemplateBootstrapServiceTest {
                   }
                 },
                 "providerConfig": {
+                  "canonicalConversationsEnabled": true,
                   "vectorStrategy": "milvus",
                   "vectorProvisioningMode": "PLATFORM_MANAGED",
                   "orchestrationModeOverrides":{"executor":{
@@ -113,6 +114,7 @@ class MarketplaceTemplateBootstrapServiceTest {
         when(draft.promptConfig()).thenReturn(mapper.createObjectNode().put("systemPrompt", "Base prompt"));
         when(deployments.getActiveDraftForDeployment("deployment")).thenReturn(draft);
         var providerBaseline = mapper.createObjectNode()
+            .put("canonicalConversationsEnabled", true)
             .put("vectorStrategy", "milvus")
             .put("vectorProvisioningMode", "PLATFORM_MANAGED");
         providerBaseline.set("orchestrationModeOverrides",

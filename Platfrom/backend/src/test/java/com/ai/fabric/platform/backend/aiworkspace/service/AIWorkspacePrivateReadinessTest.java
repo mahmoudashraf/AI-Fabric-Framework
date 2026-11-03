@@ -54,7 +54,8 @@ class AIWorkspacePrivateReadinessTest {
             .withProperty("platform.support.customer-id", "customer-1");
         service = new AIWorkspaceReadinessService(consumers, assignments, assets, packs,
             new AIWorkspaceConnectionProfileRegistry(properties, environment),
-            new AIWorkspaceAuthenticationProfileRegistry(mapper), domains, authority, properties, mapper);
+            new AIWorkspaceAuthenticationProfileRegistry(mapper), domains, authority, properties, mapper,
+            List.of(mock(com.ai.fabric.platform.backend.desk.DeskSupportSpaceService.class)));
         consumer.setId("consumer-1"); consumer.setCustomerId("customer-1"); consumer.setConsumerId("customer-web");
         consumer.setBoundDeploymentId("dep-1"); consumer.setBoundReleaseId("rel-1"); consumer.setBoundTargetProfileId("target-stage");
         deployment.setId("dep-1"); deployment.setCustomerId("customer-1"); deployment.setTenantId("tenant-1");

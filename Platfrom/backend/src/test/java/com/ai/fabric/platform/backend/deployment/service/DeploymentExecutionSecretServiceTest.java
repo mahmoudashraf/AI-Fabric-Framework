@@ -106,6 +106,19 @@ class DeploymentExecutionSecretServiceTest {
         );
     }
 
+    @Test
+    void canonicalConversationFoundationHasOwnSecretsWithoutEnablingHumanChannelOrBusinessDatabase() {
+        var version = version("{\"type\":\"CONVERSATIONAL\",\"executionExtensions\":[]}");
+        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
+        var required = service.requiredSecretNames(deployment(), version);
+        assertThat(required).contains(
+            DeploymentExecutionSecretService.conversationHandoverEncryptionSecretName("dep-1"),
+            DeploymentExecutionSecretService.conversationControlFingerprintSecretName("dep-1"));
+        assertThat(required).doesNotContain(DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-1"));
+        assertThat(DeploymentExecutionSecretService.deploymentManagedSecretNames("dep-1")).containsAll(required);
+    }
+
     private DeploymentEntity deployment() {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-1");

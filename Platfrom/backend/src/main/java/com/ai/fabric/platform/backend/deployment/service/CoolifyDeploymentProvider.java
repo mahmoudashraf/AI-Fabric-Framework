@@ -302,7 +302,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
         validateExpectedWebhookConnectorDomain(version, connectorDomain);
         boolean deskEnabled = DeskTargetConfigurationResolver.usesDesk(readJson(version.getBehaviorConfigJson()));
-        if (deskEnabled) {
+        boolean ticketActions = com.ai.fabric.platform.backend.desk.DeskSupportTicketConfiguration.requested(
+            readJson(version.getActionsConfigJson()), readJson(version.getRoutingConfigJson()));
+        if (deskEnabled || ticketActions) {
             if (deskBindingProvisioner == null) throw new IllegalStateException("Desk target provisioner is unavailable.");
             tracked(progressTracker, "prepare_desk_target_binding", "Prepare the selected target's Desk binding and credentials.", () -> {
                 deskBindingProvisioner.prepareForApply(deployment, version, release, profile);

@@ -51,6 +51,7 @@ public class PublicAIWorkspaceManifestService {
     private final PlatformDeliveryProperties deliveryProperties;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
+    private final com.ai.fabric.platform.backend.desk.DeskSupportSpaceService supportSpaces;
 
     public PublicAIWorkspaceManifestService(AIWorkspaceInstallationRepository repository,
                                             PlatformConsumerRepository consumerRepository,
@@ -64,7 +65,8 @@ public class PublicAIWorkspaceManifestService {
                                             AIWorkspaceDomainService domainService,
                                             PlatformDeliveryProperties deliveryProperties,
                                             PlatformAIWorkspaceProperties properties,
-                                            ObjectMapper objectMapper) {
+                                            ObjectMapper objectMapper,
+                                            com.ai.fabric.platform.backend.desk.DeskSupportSpaceService supportSpaces) {
         this.repository = repository;
         this.consumerRepository = consumerRepository;
         this.consumerService = consumerService;
@@ -78,6 +80,7 @@ public class PublicAIWorkspaceManifestService {
         this.deliveryProperties = deliveryProperties;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.supportSpaces = supportSpaces;
     }
 
     @Transactional(readOnly = true)
@@ -91,7 +94,7 @@ public class PublicAIWorkspaceManifestService {
         // Keep public consumer assignment rules canonical without exposing the privileged assignment DTO.
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = consumerService
             .resolvePublicConsumer(consumer.getConsumerId());
-        var readiness = readinessService.evaluate(installation);
+        var readiness = readinessService.evaluateForManifest(installation);
         if (!readiness.ready()) unavailable();
         AIWorkspaceAssignmentService.Assignment assignment = assignmentService.resolveCurrent(resolved.consumer());
         JsonNode connectionConfiguration = readJson(installation.getConnectionConfigurationJson());
@@ -113,7 +116,8 @@ public class PublicAIWorkspaceManifestService {
             assignment.runtimeBaseUrl(),
             profile,
             interactionPolicy,
-            behaviorConfiguration
+            behaviorConfiguration,
+            readJson(assignment.version().getProviderConfigJson()).path("canonicalConversationsEnabled").asBoolean(false)
         );
         ObjectNode delivery = delivery(installation, origin);
         ObjectNode authentication = authentication(interactionPolicy, authenticationProfile);
@@ -122,7 +126,12 @@ public class PublicAIWorkspaceManifestService {
         ObjectNode packNode = assetProjection(pack.asset());
         packNode.put("code", pack.code());
         workspace.set("experiencePack", packNode);
-        workspace.set("configuration", readJson(installation.getConfigurationJson()));
+        JsonNode configuration = readJson(installation.getConfigurationJson());
+        if (AIWorkspaceExperiencePackRegistry.SUPPORT_CODE.equals(installation.getExperiencePackCode())) {
+            try { configuration = supportSpaces.publicConfiguration(installation, assignment); }
+            catch (RuntimeException unavailableSupport) { throw unavailableException(); }
+        }
+        workspace.set("configuration", configuration);
 
         Instant generatedAt = latest(
             installation.getUpdatedAt(), installation.getCreatedAt(),
@@ -150,7 +159,7 @@ public class PublicAIWorkspaceManifestService {
         if (installation.getStatus() != AIWorkspaceInstallationStatus.ACTIVE
             || effectiveDeliveryMode(installation) != AIWorkspaceDeliveryMode.STANDALONE
             || !readOrigins(installation.getAllowedOriginsJson()).contains(origin)
-            || !readinessService.evaluate(installation).ready()) {
+            || !readinessService.evaluateForManifest(installation).ready()) {
             unavailable();
         }
         AIWorkspaceInteractionPolicy policy = effectiveInteractionPolicy(installation);
@@ -207,7 +216,7 @@ public class PublicAIWorkspaceManifestService {
                                   String runtimeBaseUrl,
                                   AIWorkspaceConnectionProfileRegistry.ConnectionProfile profile,
                                   AIWorkspaceInteractionPolicy interactionPolicy,
-                                  JsonNode behaviorConfiguration) {
+                                  JsonNode behaviorConfiguration, boolean canonicalConversationsEnabled) {
         ObjectNode connection = objectMapper.createObjectNode();
         connection.put("mode", mode.manifestValue());
         connection.put("profileCode", profile.code());
@@ -218,7 +227,7 @@ public class PublicAIWorkspaceManifestService {
         connection.set("conversationHandover", handover);
         if (mode != AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME) {
             connection.put("runtimeBaseUrl", runtimeBaseUrl);
-            connection.set("routes", directRuntimeRoutes(handoverEnabled));
+            connection.set("routes", directRuntimeRoutes(canonicalConversationsEnabled || handoverEnabled, handoverEnabled));
         }
         if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS) {
             ObjectNode bootstrap = objectMapper.createObjectNode();
@@ -296,7 +305,7 @@ public class PublicAIWorkspaceManifestService {
         return URI.create(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/").resolve(path.substring(1)).toString();
     }
 
-    private ObjectNode directRuntimeRoutes(boolean conversationHandoverEnabled) {
+    private ObjectNode directRuntimeRoutes(boolean canonicalConversationsEnabled, boolean conversationHandoverEnabled) {
         ObjectNode routes = objectMapper.createObjectNode();
         routes.put("queryUrl", "/api/chat/me/query");
         routes.put("suggestionsUrl", "/api/chat/me/suggestions");
@@ -304,13 +313,15 @@ public class PublicAIWorkspaceManifestService {
         routes.put("shellConfigUrl", "/api/chat/me/shell-config");
         routes.put("conversationsUrl", "/api/chat/me/conversations");
         routes.put("conversationItemUrlTemplate", "/api/chat/me/conversations/{conversationId}");
-        if (conversationHandoverEnabled) {
+        if (canonicalConversationsEnabled) {
             routes.put("conversationMessageUrlTemplate", "/api/chat/me/conversations/{conversationId}/messages");
+            routes.put("conversationControlUrlTemplate", "/api/chat/me/conversations/{conversationId}/control");
+            routes.put("conversationEventsUrlTemplate", "/api/chat/me/conversations/{conversationId}/events");
+        }
+        if (conversationHandoverEnabled) {
             routes.put("handoverRequestUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests");
             routes.put("handoverCancelUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/cancel");
             routes.put("handoverRetryUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/retry");
-            routes.put("conversationControlUrlTemplate", "/api/chat/me/conversations/{conversationId}/control");
-            routes.put("conversationEventsUrlTemplate", "/api/chat/me/conversations/{conversationId}/events");
             routes.put("aiResumeRequestUrlTemplate", "/api/chat/me/conversations/{conversationId}/ai-resume-requests");
         }
         return routes;

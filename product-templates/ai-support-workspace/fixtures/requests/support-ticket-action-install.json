@@ -1,0 +1,6 @@
+{
+  "pluginId": "mkp-action-support-tickets",
+  "pluginVersion": "1.0.0",
+  "config": {"ticketCommandsUrl":"${MANAGED_DESK_TICKET_COMMANDS_URL}"},
+  "secretRefs": {"ticketConnectorKey":"MANAGED_DESK_TICKET_CONNECTOR_KEY"}
+}

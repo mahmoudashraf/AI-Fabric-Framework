@@ -77,6 +77,10 @@ public class DeploymentExecutionSecretService {
             names.add(integrationServiceApiKeyName(deployment.getId()));
             names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
         }
+        if (readJson(version.getProviderConfigJson()).path("canonicalConversationsEnabled").asBoolean(false)) {
+            names.add(conversationHandoverEncryptionSecretName(deployment.getId()));
+            names.add(conversationControlFingerprintSecretName(deployment.getId()));
+        }
         if (hasExternalHttpDataset(marketplaceDatasets)) {
             names.add(integrationServiceApiKeyName(deployment.getId()));
             names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
@@ -106,6 +110,7 @@ public class DeploymentExecutionSecretService {
             reviewEncryptionSecretName(deploymentId),
             reviewFingerprintSecretName(deploymentId),
             conversationHandoverEncryptionSecretName(deploymentId),
+            conversationControlFingerprintSecretName(deploymentId),
             connectorInvocationApiKeyName(deploymentId),
             connectorAdminApiKeyName(deploymentId),
             integrationServiceApiKeyName(deploymentId),
@@ -155,6 +160,10 @@ public class DeploymentExecutionSecretService {
 
     public static String conversationHandoverEncryptionSecretName(String deploymentId) {
         return managedName("CONVERSATION_HANDOVER_ENCRYPTION", deploymentId);
+    }
+
+    public static String conversationControlFingerprintSecretName(String deploymentId) {
+        return managedName("CONVERSATION_CONTROL_FINGERPRINT", deploymentId);
     }
 
     public static String actionReceiptFingerprintSecretName(String deploymentId) {

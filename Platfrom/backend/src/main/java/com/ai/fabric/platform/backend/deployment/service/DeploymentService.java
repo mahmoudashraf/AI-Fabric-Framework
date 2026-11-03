@@ -107,6 +107,8 @@ public class DeploymentService {
     @Autowired(required = false)
     private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
     @Autowired(required = false)
+    private StandaloneConversationRuntimeArtifactGate standaloneConversationArtifacts;
+    @Autowired(required = false)
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
 
     private final DeploymentRepository deploymentRepository;
@@ -388,6 +390,10 @@ public class DeploymentService {
                                            DeploymentVersionEntity version,
                                            DeploymentBehaviorCatalogService.RuntimeRequirements requirements) {
         try {
+            if (StandaloneConversationRuntimeArtifactGate.required(readJson(version.getProviderConfigJson()))) {
+                if (standaloneConversationArtifacts == null) return false;
+                standaloneConversationArtifacts.require(version, artifact.id());
+            }
             boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
             boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
             boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
@@ -1752,6 +1758,10 @@ public class DeploymentService {
         targetMutations.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
         JsonNode reviewedProviderConfig = readJson(version.getProviderConfigJson());
+        if (StandaloneConversationRuntimeArtifactGate.required(reviewedProviderConfig)) {
+            if (standaloneConversationArtifacts == null) throw new StandaloneConversationRuntimeArtifactGate.Required();
+            standaloneConversationArtifacts.require(version, sourceArtifactId);
+        }
         if (DeploymentAiStateStorageSelection.selected(reviewedProviderConfig) != null) {
             if (aiStateStorageBindings == null) throw new IllegalStateException("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
             aiStateStorageBindings.requireForApply(deployment, version, targetProfile.getId());

@@ -10,14 +10,17 @@ public final class ExperienceKitContracts {
     private ExperienceKitContracts() { }
     public record Definition(String code, String version, String name, String summary, String description,
         String experiencePackCode, String defaultWorkspaceName, List<String> features, String demoUrl) { }
-    public record CatalogueEntry(Definition definition, List<OfferSummary> offers) { }
+    public record TicketProviderOption(String code, String name, List<String> declaredOperations) { }
+    public record CatalogueEntry(Definition definition, List<OfferSummary> offers,
+        List<TicketProviderOption> ticketProviders) { }
     public record CreateRequest(@NotBlank String kitCode, @NotBlank @Size(max=120) String name,
         @NotBlank String offerId, @NotBlank String targetProfileId, @NotBlank String workspaceProfileId,
         String aiStateStorageMode, @NotBlank @Size(max=120) String workspaceName,
         @NotBlank @Pattern(regexp="#[0-9a-fA-F]{6}") String brandColor,
         @NotBlank @Pattern(regexp="standalone|embedded|both") String deliveryMode,
         @Size(max=63) String appSlug, @Size(max=255) String websiteOrigin, boolean humanSupportEnabled,
-        @NotBlank @Pattern(regexp="[A-Za-z0-9._:-]{1,128}") String operationKey) { }
+        @NotBlank @Pattern(regexp="[A-Za-z0-9._:-]{1,128}") String operationKey,
+        boolean ticketingEnabled, @Size(max=64) String ticketProvider) { }
     public record UpdateRequest(@NotBlank @Size(max=120) String name,
         @NotBlank @Size(max=120) String workspaceName,
         @NotBlank @Pattern(regexp="#[0-9a-fA-F]{6}") String brandColor,
@@ -25,10 +28,12 @@ public final class ExperienceKitContracts {
         @Size(max=63) String appSlug, @Size(max=255) String websiteOrigin,
         boolean humanSupportEnabled, @PositiveOrZero long expectedRevision,
         @NotNull @PositiveOrZero Long expectedWorkspaceRevision,
-        @PositiveOrZero Long expectedEmbeddedWorkspaceRevision) { }
+        @PositiveOrZero Long expectedEmbeddedWorkspaceRevision,
+        boolean ticketingEnabled, @Size(max=64) String ticketProvider) { }
     public record Summary(String id, String kitCode, String kitVersion, String name, String deploymentId,
         String consumerId, String installationId, String offerId, String targetProfileId,
         boolean humanSupportEnabled, long revision, Instant createdAt, Instant updatedAt,
         AIWorkspaceInstallationSummary workspace, String embeddedInstallationId,
-        AIWorkspaceInstallationSummary embeddedWorkspace, String deliveryMode) { }
+        AIWorkspaceInstallationSummary embeddedWorkspace, String deliveryMode,
+        boolean ticketingEnabled, String ticketProvider) { }
 }

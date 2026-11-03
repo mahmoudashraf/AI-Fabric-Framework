@@ -91,6 +91,18 @@ class AIWorkspaceExternalIdentityProjectionTest {
     }
 
     @Test
+    void canonicalOnlyIdentityCanMessageAndReadControlButCannotTransitionToHuman() throws Exception {
+        ObjectNode security = security();
+        var installations = List.of(auth("https://example.supabase.co"));
+        projection.project(security, installations, null, true);
+        assertThat(security.path("externalIdentityGrantedScopes").asText())
+            .isEqualTo(BASE_SCOPES + ",chat:messages,chat:handover:read")
+            .doesNotContain("chat:handover:request", "chat:handover:control");
+        projection.project(security, installations, null, false);
+        assertThat(security.path("externalIdentityGrantedScopes").asText()).isEqualTo(BASE_SCOPES);
+    }
+
+    @Test
     void preservesMatchingManualBrokerIncludingExplicitScopesAndEmailPolicy() throws Exception {
         ObjectNode security = manualBroker();
         security.put("externalIdentityProvider", "supabase");

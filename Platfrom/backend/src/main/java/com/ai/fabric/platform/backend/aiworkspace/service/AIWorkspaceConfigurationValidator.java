@@ -130,6 +130,68 @@ public class AIWorkspaceConfigurationValidator {
         validateTheme(configuration.path("theme"));
     }
 
+    public void validateSupportConfiguration(JsonNode configuration) {
+        validatePublicConfiguration(configuration);
+        // This public contract cannot carry executable endpoints, credentials or requester authority.
+        rejectUnknown(configuration, Set.of("schemaVersion", "app", "support", "page", "capabilities",
+            "copy", "toolGroups", "toolRail", "requestContext", "theme"), "configuration");
+        if (!AIWorkspaceExperiencePackRegistry.SUPPORT_SCHEMA.equals(
+            requireText(configuration, "schemaVersion", "schemaVersion", 80))) {
+            throw badRequest("Unsupported support experience configuration schema.");
+        }
+        JsonNode app = requireObject(configuration, "app", "app");
+        rejectUnknown(app, Set.of("assistantLabel", "title"), "app");
+        requireText(app, "assistantLabel", "app.assistantLabel", 128);
+        optionalText(app, "title", "app.title", 160);
+        JsonNode support = requireObject(configuration, "support", "support");
+        rejectUnknown(support, Set.of("ticketProviderBindingId", "spaceId", "requesterOrigin", "requestLabel", "topics", "teamVisible"), "support");
+        for (String field : List.of("ticketProviderBindingId", "spaceId")) {
+            JsonNode reference = support.path(field);
+            if (reference.isTextual() && reference.asText().isEmpty()) continue;
+            optionalIdentifier(support, field, "support." + field);
+        }
+        if (support.has("requesterOrigin")) {
+            String origin = requireText(support, "requesterOrigin", "support.requesterOrigin", 512);
+            if (!origin.equals(support.path("requesterOrigin").asText()) || !origin.equals(normalizeOrigin(origin))) {
+                throw badRequest("support.requesterOrigin must be an exact normalized HTTPS origin.");
+            }
+        }
+        optionalText(support, "requestLabel", "support.requestLabel", 100);
+        optionalBoolean(support, "teamVisible", "support.teamVisible");
+        if (support.has("topics")) {
+            JsonNode topics = boundedArray(support.path("topics"), "support.topics", 20);
+            Set<String> codes = new LinkedHashSet<>();
+            for (JsonNode topic : topics) {
+                requireObjectNode(topic, "support.topics[]");
+                rejectUnknown(topic, Set.of("code", "label"), "support.topics[]");
+                String code = requireText(topic, "code", "support.topics[].code", 64);
+                if (!code.matches("[a-z0-9][a-z0-9-]*") || !codes.add(code)) {
+                    throw badRequest("Support topic codes must be unique lower-kebab-case identifiers.");
+                }
+                requireText(topic, "label", "support.topics[].label", 100);
+            }
+        }
+        JsonNode capabilities = requireObject(configuration, "capabilities", "capabilities");
+        rejectUnknown(capabilities, Set.of("tickets", "handover", "attachments", "currentPage"), "capabilities");
+        for (String field : List.of("tickets", "handover", "attachments", "currentPage")) {
+            optionalBoolean(capabilities, field, "capabilities." + field);
+        }
+        // Draft capability preferences grant no authority. Activation resolves managed references/readiness.
+        JsonNode page = configuration.path("page");
+        if (!page.isMissingNode() && !page.isNull()) {
+            requireObjectNode(page, "page");
+            rejectUnknown(page, Set.of("rootSelector", "contextLabel", "maxChars", "maxPages", "maxTotalChars"), "page");
+            optionalText(page, "rootSelector", "page.rootSelector", 256);
+            optionalText(page, "contextLabel", "page.contextLabel", 160);
+            validatePageLimits(page);
+        }
+        validateCopy(configuration.path("copy"));
+        validateToolGroups(configuration.path("toolGroups"));
+        validateToolRail(configuration.path("toolRail"));
+        validateRequestContext(configuration.path("requestContext"));
+        validateTheme(configuration.path("theme"));
+    }
+
     public void validatePublicConfiguration(JsonNode configuration) {
         if (configuration == null || !configuration.isObject()) {
             throw new ResponseStatusException(BAD_REQUEST, "AI Workspace configuration must be an object.");

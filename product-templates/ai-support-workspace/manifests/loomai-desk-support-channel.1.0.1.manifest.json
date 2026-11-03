@@ -1,0 +1,47 @@
+{
+  "schemaVersion":1,
+  "pluginId":"mkp-integration-loomai-desk",
+  "version":"1.0.1",
+  "pluginType":"INTEGRATION",
+  "displayName":"LoomAI Desk human support channel",
+  "description":"Optional target-scoped human conversation channel for Support experiences. This integration does not enable ticket storage or assign agents.",
+  "compatibility":{"requiredCapabilities":["integrations"],"supportedDeploymentTargets":["custom-start-from-scratch"],"supportedAuthModes":["PRIVATE_RUNTIME_BACKEND_MEDIATED","PUBLIC_RUNTIME_AUTHENTICATED","PUBLIC_RUNTIME_ANONYMOUS"]},
+  "pricing":{"pricingModel":"FREE"},
+  "permissions":{"contributesIntegrations":true,"requiresExternalHttpExecution":true,"requiresDeploymentSecrets":true},
+  "installForm":[
+    {"id":"bindingId","label":"Target-scoped channel binding","type":"text","required":true},
+    {"id":"providerBaseUrl","label":"Registered Desk provider origin","type":"url","required":true},
+    {"id":"operatorConsoleUrl","label":"Operator console URL","type":"url","required":false},
+    {"id":"providerApiKeySecretRef","label":"Provider dispatch credential reference","type":"secretRef","required":true},
+    {"id":"runtimeCallbackSigningSecretRef","label":"Runtime callback signing reference","type":"secretRef","required":true},
+    {"id":"providerWebhookSigningSecretRef","label":"Provider webhook signing reference","type":"secretRef","required":true}
+  ],
+  "contributions":{
+    "conversationChannel":{
+      "contractVersion":"LOOMAI_CONVERSATION_CHANNEL_V1",
+      "bindingIdField":"bindingId",
+      "adapterImplementationId":"loomai-basic-inbox",
+      "adapterVersion":"1",
+      "compatibleBehaviorTypes":["CONVERSATIONAL"],
+      "capabilities":["DISPATCH","CLAIM","INBOUND_MESSAGE","OUTBOUND_MESSAGE","RETURN_TO_AI","CLOSE","AVAILABILITY"],
+      "providerBaseUrlField":"providerBaseUrl",
+      "providerApiKeySecretRefField":"providerApiKeySecretRef",
+      "runtimeCallbackSigningSecretRefField":"runtimeCallbackSigningSecretRef",
+      "providerWebhookSigningSecretRefField":"providerWebhookSigningSecretRef",
+      "operatorConsoleUrlField":"operatorConsoleUrl",
+      "requiredRuntimeCapabilityIds":["conversation-control","canonical-conversation-orchestration-state","conversation-channel-outbox","conversation-event-stream"],
+      "requiredMigrationIds":["loomai-conversation-handover-v1","loomai-conversation-orchestration-state-v1"],
+      "verificationPackIds":["conversation-handover-v1"],
+      "configuration":{
+        "modelInitiatedPolicy":"REQUIRE_USER_CONFIRMATION",
+        "userCanCancelPending":true,
+        "userCanResumeAi":true,
+        "activeIdleAutoResume":false,
+        "queueTimeoutSeconds":900,
+        "queueTimeoutOutcome":"EXPIRED_REQUIRES_EXPLICIT_RECOVERY",
+        "transcriptProjection":"SAFE_TEXT_AND_ATTACHMENT_REFS",
+        "intake":{"anonymousAllowed":true,"fields":[]}
+      }
+    }
+  }
+}

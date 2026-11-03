@@ -102,13 +102,13 @@ final class ExperienceKitTestFixture {
     ExperienceKitContracts.CreateRequest request(String delivery, boolean human) {
         return new ExperienceKitContracts.CreateRequest(DEALERSHIP, " Northfield experience ", OFFER, TARGET, PROFILE,
             "CUSTOMER_POSTGRES", " Northfield AI ", "#2563eb", delivery, "northfield-ai",
-            " https://dealer.example.test ", human, "kit-create-1");
+            " https://dealer.example.test ", human, "kit-create-1", false, null);
     }
 
     ExperienceKitContracts.UpdateRequest update(String delivery, boolean human, long revision) {
         return new ExperienceKitContracts.UpdateRequest(" Updated experience ", " Updated AI ", "#18a999",
             delivery, "updated-ai", "https://updated.example.test", human, revision, 4L,
-            saved != null && saved.getEmbeddedInstallationEntityId() != null ? 4L : null);
+            saved != null && saved.getEmbeddedInstallationEntityId() != null ? 4L : null, false, null);
     }
 
     OfferSummary offer(String id, String templateVersion, WorkspaceProfile workspace, String target, TargetIntent intent) {

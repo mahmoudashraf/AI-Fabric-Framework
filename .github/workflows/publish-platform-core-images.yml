@@ -11,6 +11,7 @@ on:
       - "max-mode-widget/**"
       - "experience-packs/dealership-experience/**"
       - "experience-packs/generic-workspace-experience/**"
+      - "experience-packs/support-experience/**"
       - "ai-fabric-product/**"
       - "scripts/**"
   workflow_dispatch:
@@ -63,12 +64,12 @@ jobs:
           ui=false
           while IFS= read -r path; do
             case "$path" in
-              .github/workflows/publish-platform-core-images.yml|Platfrom/backend/*|max-mode-widget/*|experience-packs/dealership-experience/*|experience-packs/generic-workspace-experience/*|ai-fabric-product/*|scripts/*)
+              .github/workflows/publish-platform-core-images.yml|Platfrom/backend/*|max-mode-widget/*|experience-packs/dealership-experience/*|experience-packs/generic-workspace-experience/*|experience-packs/support-experience/*|ai-fabric-product/*|scripts/*)
                 backend=true
                 ;;
             esac
             case "$path" in
-              .github/workflows/publish-platform-core-images.yml|Platfrom/ui/*|max-mode-widget/*)
+              .github/workflows/publish-platform-core-images.yml|Platfrom/ui/*|max-mode-widget/*|experience-packs/support-experience/*)
                 ui=true
                 ;;
             esac

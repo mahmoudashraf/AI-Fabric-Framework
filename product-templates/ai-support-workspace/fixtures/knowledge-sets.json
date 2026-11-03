@@ -15,5 +15,13 @@
       {"path": "documents/acme-cloud/02-service-status-and-maintenance.txt", "metadata": {"sourceCategory": "service-operations", "publicationStatus": "PUBLIC_APPROVED"}},
       {"path": "documents/acme-cloud/03-support-and-escalation.txt", "metadata": {"sourceCategory": "support-policy", "publicationStatus": "PUBLIC_APPROVED"}}
     ]
+  },
+  "acme-support-experience": {
+    "ownership":"Fictional Acme-owned 010.57 support-kit sample; isolated source binding, no LoomAI diagnostics",
+    "documents":[
+      {"path":"documents/acme-cloud/01-project-and-connector-setup.txt","metadata":{"sourceCategory":"project-setup","publicationStatus":"PUBLIC_APPROVED"}},
+      {"path":"documents/acme-cloud/02-service-status-and-maintenance.txt","metadata":{"sourceCategory":"service-operations","publicationStatus":"PUBLIC_APPROVED"}},
+      {"path":"documents/acme-cloud/04-tracked-request-lifecycle.txt","metadata":{"sourceCategory":"support-policy","publicationStatus":"PUBLIC_APPROVED"}}
+    ]
   }
 }

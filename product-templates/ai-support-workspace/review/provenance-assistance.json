@@ -146,8 +146,8 @@
       "sourceFiles": [
         "Platfrom/ui/src/pages/CustomerSupportPage.tsx",
         "Platfrom/ui/src/components/customer/SupportResourcePicker.tsx",
-        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportCaseController.java",
-        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportCaseService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportTicketController.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportTicketService.java",
         "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportRequesterService.java",
         "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportDiagnosticService.java",
         "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportResourceService.java",
@@ -156,6 +156,8 @@
         "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/support/SupportSettings.java",
         "doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_54_SUPPORT_WORKSPACE_EXECUTION_RECORD.md"
       ],
+      "sourceReferencesUpdatedAt": "2026-11-03",
+      "sourceReferenceUpdateNote": "Ticket controller/service references replace the retired Console-local case paths. Existing guide bytes remain unchanged; this metadata update does not upload, index or qualify a live release.",
       "claims": [
         "The guide describes the implemented workflow only when Console exposes the module; transient rollout and production-launch status are deliberately kept out of indexed customer guidance.",
         "CustomerSupportPage exposes summary, optional details/product/resources, consent, saved delivery states and a canonical embedded conversation with explicit start/check controls.",

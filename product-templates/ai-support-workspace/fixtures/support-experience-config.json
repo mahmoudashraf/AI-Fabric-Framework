@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "loomai-support-experience-config-v1",
+  "app": {"assistantLabel":"Your support AI","title":"Help and support"},
+  "support": {
+    "requestLabel":"My requests",
+    "topics":[{"code":"setup","label":"Setup"},{"code":"service","label":"Service and support"}],
+    "teamVisible":false
+  },
+  "capabilities":{"tickets":false,"handover":false,"attachments":true,"currentPage":false},
+  "copy":{"welcomeMessage":"Ask a question about our approved support knowledge."},
+  "theme":{"primaryColor":"#0d766e","darkMode":"auto"}
+}

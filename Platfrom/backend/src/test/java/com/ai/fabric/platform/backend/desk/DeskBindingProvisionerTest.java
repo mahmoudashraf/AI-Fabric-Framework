@@ -96,6 +96,60 @@ class DeskBindingProvisionerTest {
         verifyNoInteractions(bindings, secrets, desk, users, identities);
     }
 
+    @Test void normalApplyPreparesOnlyTheSelectedTicketActionCredentialAndDoesNotEnableHandover() {
+        var binding = provisioner.prepareTicketActionBinding(deployment(), target("production"), "rel-verified", "apply-1");
+        var originals = Map.copyOf(storedSecrets);
+        assertThat(binding.getStatus()).isEqualTo("SUPPORT_ONLY");
+        assertThat(binding.getReleaseId()).isNull();
+        assertThat(storedSecrets).hasSize(5);
+        provisioner.prepareTicketActionBinding(deployment(), target("production"), "rel-upgrade", "apply-2");
+        assertThat(storedSecrets).containsExactlyInAnyOrderEntriesOf(originals);
+        verify(desk, never()).put(any(), anyString(), any());
+    }
+
+    @Test void normalApplyWithManagedTicketActionsPreparesStableCredentialEvenWithoutAHumanChannel() {
+        var version = version(); version.setBehaviorConfigJson("{}");
+        version.setActionsConfigJson("""
+            {"actions":[{"route":{"url":"${MANAGED_DESK_TICKET_COMMANDS_URL}",
+             "headers":{"X-LoomAI-Ticket-Connector-Key":"${MANAGED_DESK_TICKET_CONNECTOR_KEY}"}}}]}
+            """);
+        provisioner.prepareForApply(deployment(), version, release("production", "rel-tickets"), target("production"));
+        var binding = rows.get("dep-a:production");
+        assertThat(binding.getStatus()).isEqualTo("SUPPORT_ONLY");
+        assertThat(binding.getReleaseId()).isNull();
+        assertThat(storedSecrets).containsKey(DeskBindingProvisioner.ticketConnectorKeyReference(binding));
+        var original = Map.copyOf(storedSecrets);
+        provisioner.prepareForApply(deployment(), version, release("production", "rel-upgrade"), target("production"));
+        assertThat(storedSecrets).containsExactlyInAnyOrderEntriesOf(original);
+        verify(desk, never()).put(any(), anyString(), any());
+    }
+
+    @Test void ticketOnlyRegistrationReusesInfrastructureWithoutClaimingRuntimeHandoverOrPublishing() {
+        var target = target("production");
+        var binding = provisioner.prepareSupportBinding(deployment(), target, "rel-verified", "support-register", "https://connector.example");
+        assertThat(binding.getStatus()).isEqualTo("SUPPORT_ONLY");
+        assertThat(binding.getReleaseId()).isNull();
+        assertThat(binding.getVersionId()).isNull();
+        String ticketKey = provisioner.ticketConnectorKey(binding);
+        assertThat(ticketKey).hasSizeGreaterThanOrEqualTo(32);
+        assertThat(storedSecrets.values()).hasSize(5).doesNotHaveDuplicates();
+        clearInvocations(secrets);
+        assertThat(provisioner.ticketConnectorKey(binding)).isEqualTo(ticketKey);
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        var second = provisioner.prepareSupportBinding(deployment(), target, "rel-upgrade", "support-register-2", "https://connector-new.example");
+        assertThat(second).isSameAs(binding);
+        assertThat(second.getStatus()).isEqualTo("SUPPORT_ONLY");
+        assertThat(second.getSourceReleaseId()).isEqualTo("rel-verified");
+    }
+
+    @Test void supportSetupDoesNotResetAnExistingHumanChannelActivationStatus() {
+        provisioner.prepareForApply(deployment(), version(), release("production", "rel-human"), target("production"));
+        var row = rows.get("dep-a:production"); row.setStatus("ENABLED");
+        var actual = provisioner.prepareSupportBinding(deployment(), target("production"), "rel-human", "support", "https://connector.example");
+        assertThat(actual.getStatus()).isEqualTo("ENABLED");
+        assertThat(actual.getReleaseId()).isEqualTo("rel-human");
+    }
+
     @Test void releaseTargetMismatchAndExistingOwnershipMismatchStopBeforeCredentialsOrRegistration() {
         assertThatThrownBy(() -> provisioner.prepareForApply(deployment(), version(), release("staging", "rel-stage"), target("production")))
             .isInstanceOf(ResponseStatusException.class);

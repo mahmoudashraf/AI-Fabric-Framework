@@ -118,6 +118,7 @@ public class MarketplaceManifestService {
         "zillizCloudCuSize"
     );
     private static final Set<String> TEMPLATE_PROVIDER_BOOLEAN_FIELDS = Set.of(
+        "canonicalConversationsEnabled",
         "qdrantPreferGrpc",
         "qdrantManagedCollectionsEnabled",
         "pineconeManagedIndexEnabled",
@@ -639,7 +640,8 @@ public class MarketplaceManifestService {
         TemplateBehaviorContribution behavior = parseTemplateBehaviorContribution(
             plugin,
             version,
-            template.path("deploymentBehavior")
+            template.path("deploymentBehavior"),
+            template.path("providerConfig")
         );
         JsonNode assistance = template.path("deploymentBehavior").path(SpecialistAssistanceCompiler.FIELD);
         if (!assistance.isMissingNode() && !assistance.isNull()) {
@@ -757,7 +759,8 @@ public class MarketplaceManifestService {
 
     private TemplateBehaviorContribution parseTemplateBehaviorContribution(MarketplacePluginEntity plugin,
                                                                             MarketplacePluginVersionEntity version,
-                                                                            JsonNode behavior) {
+                                                                            JsonNode behavior,
+                                                                            JsonNode providerConfig) {
         if (behavior.isMissingNode() || behavior.isNull()) {
             return TemplateBehaviorContribution.empty();
         }
@@ -782,12 +785,15 @@ public class MarketplaceManifestService {
                 "template deploymentBehavior.contractVersion must be " + contract.contractVersion() + "."
             );
         }
+        List<String> expectedCapabilities = new ArrayList<>(contract.requiredRuntimeCapabilities());
+        if (com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.required(providerConfig))
+            expectedCapabilities.add(com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.CAPABILITY);
         List<String> requiredCapabilities = resolvedExactTemplateValues(
             plugin,
             version,
             behavior,
             "requiredRuntimeCapabilityIds",
-            contract.requiredRuntimeCapabilities()
+            expectedCapabilities
         );
         List<String> verificationPacks = resolvedExactTemplateValues(
             plugin,

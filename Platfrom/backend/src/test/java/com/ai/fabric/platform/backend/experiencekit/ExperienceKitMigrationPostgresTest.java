@@ -49,9 +49,9 @@ class ExperienceKitMigrationPostgresTest {
     private JdbcTemplate jdbc;
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
-    @BeforeAll static void migrateRealSchemaThroughV223() {
+    @BeforeAll static void migrateRealSchemaThroughV225() {
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-            .locations("classpath:db/migration").target("223").load().migrate();
+            .locations("classpath:db/migration").target("225").load().migrate();
     }
 
     @BeforeEach void connect() {
@@ -59,12 +59,16 @@ class ExperienceKitMigrationPostgresTest {
         jdbc = new JdbcTemplate(dataSource);
     }
 
-    @Test void seedsTheTwoKitsWithExactCanonicalTemplateIdsAndOptionalNotAutomaticHumanSupport() throws Exception {
+    @Test void seedsKitsWithExactCanonicalTemplateIdsAndOptionalNotAutomaticHumanSupport() throws Exception {
         var rows = jdbc.queryForList("""
             SELECT code, definition_json, template_plugin_ids_json
             FROM platform_experience_kit_definitions ORDER BY sort_order
             """);
-        assertThat(rows).extracting(row -> row.get("code")).containsExactly(GENERIC, DEALERSHIP);
+        assertThat(rows).extracting(row -> row.get("code")).containsExactly(GENERIC, DEALERSHIP, "ai-support-experience");
+        assertThat(mapper.readTree((String) rows.get(2).get("template_plugin_ids_json")))
+            .isEqualTo(mapper.valueToTree(List.of("mkp-template-ai-support-workspace")));
+        assertThat(mapper.readTree((String) rows.get(2).get("definition_json")).path("experiencePackCode").asText())
+            .isEqualTo("support");
         assertThat(mapper.readTree((String) rows.get(0).get("template_plugin_ids_json")))
             .isEqualTo(mapper.valueToTree(List.of("mkp-template-document-knowledge-assistant")));
         assertThat(mapper.readTree((String) rows.get(1).get("template_plugin_ids_json")))
@@ -88,6 +92,22 @@ class ExperienceKitMigrationPostgresTest {
             WHERE table_schema=current_schema() AND table_name='platform_customer_experience_kits'
               AND column_name='human_support_enabled'
             """, String.class)).isEqualTo("false");
+    }
+
+    @Test void ticketingDefaultsOffAndIsIndependentOfHumanSupportForSupportKitsOnly() {
+        var p = parents(null);
+        String kit = unique("kit");
+        insertKit(kit, p, "ai-support-experience", "both", "support-ticket-preference");
+        assertThat(jdbc.queryForMap("SELECT ticketing_enabled,ticket_provider,human_support_enabled FROM platform_customer_experience_kits WHERE id=?", kit))
+            .containsEntry("ticketing_enabled", false).containsEntry("ticket_provider", null).containsEntry("human_support_enabled", false);
+        assertSqlState("23514", () -> jdbc.update("UPDATE platform_customer_experience_kits SET ticketing_enabled=true WHERE id=?", kit));
+        jdbc.update("UPDATE platform_customer_experience_kits SET ticketing_enabled=true,ticket_provider='desk' WHERE id=?", kit);
+        assertThat(jdbc.queryForMap("SELECT ticketing_enabled,human_support_enabled FROM platform_customer_experience_kits WHERE id=?", kit))
+            .containsEntry("ticketing_enabled", true).containsEntry("human_support_enabled", false);
+        var generic = parents(null);
+        String ordinary = unique("kit");
+        insertKit(ordinary, generic, GENERIC, "standalone", "ordinary-kit");
+        assertSqlState("23514", () -> jdbc.update("UPDATE platform_customer_experience_kits SET ticketing_enabled=true,ticket_provider='desk' WHERE id=?", ordinary));
     }
 
     @Test void enforcesPerCustomerOperationKeysResourceUniquenessAndAllDeclaredForeignKeys() {
@@ -254,7 +274,7 @@ class ExperienceKitMigrationPostgresTest {
             var request = f.request("both", true);
             var failing = new ExperienceKitContracts.CreateRequest(request.kitCode(), request.name(), request.offerId(),
                 request.targetProfileId(), request.workspaceProfileId(), request.aiStateStorageMode(), request.workspaceName(),
-                request.brandColor(), request.deliveryMode(), "failing-kit-app", request.websiteOrigin(), true, "failed-kit-create");
+                request.brandColor(), request.deliveryMode(), "failing-kit-app", request.websiteOrigin(), true, "failed-kit-create", false, null);
             assertThatThrownBy(() -> service.create(failing)).isInstanceOf(IllegalStateException.class)
                 .hasMessage("Second canonical app failed");
 

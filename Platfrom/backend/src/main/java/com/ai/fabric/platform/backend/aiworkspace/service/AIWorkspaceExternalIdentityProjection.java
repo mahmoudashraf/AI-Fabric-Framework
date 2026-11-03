@@ -37,10 +37,14 @@ public class AIWorkspaceExternalIdentityProjection {
     }
 
     public void project(ObjectNode security, List<AIWorkspaceInstallationEntity> installations, JsonNode behavior) {
+        project(security, installations, behavior, false);
+    }
+
+    public void project(ObjectNode security, List<AIWorkspaceInstallationEntity> installations, JsonNode behavior, boolean canonicalConversationsEnabled) {
         if (security == null || installations == null) throw conflict();
         ObjectNode updated = security.deepCopy();
         restorePrevious(updated);
-        ObjectNode desired = desiredIdentity(installations, behavior);
+        ObjectNode desired = desiredIdentity(installations, behavior, canonicalConversationsEnabled);
         if (desired != null) {
             JsonNode enabled = updated.get(ENABLED);
             if (enabled != null && !enabled.isBoolean()) throw conflict();
@@ -72,7 +76,7 @@ public class AIWorkspaceExternalIdentityProjection {
         }
     }
 
-    private ObjectNode desiredIdentity(List<AIWorkspaceInstallationEntity> installations, JsonNode behavior) {
+    private ObjectNode desiredIdentity(List<AIWorkspaceInstallationEntity> installations, JsonNode behavior, boolean canonicalConversationsEnabled) {
         ObjectNode desired = null;
         for (AIWorkspaceInstallationEntity installation : installations) {
             if (installation == null || installation.getInteractionPolicy() == null) throw conflict();
@@ -97,6 +101,7 @@ public class AIWorkspaceExternalIdentityProjection {
             candidate.put("externalIdentityJwkSetUri", issuer + "/.well-known/jwks.json");
             candidate.put("externalIdentityAudience", "authenticated");
             LinkedHashSet<String> scopes = new LinkedHashSet<>(CHAT_SCOPES);
+            if (canonicalConversationsEnabled) scopes.addAll(List.of("chat:messages", "chat:handover:read"));
             if (handoverEnabled(behavior)) scopes.addAll(HANDOVER_SCOPES);
             candidate.put(SCOPES, String.join(",", scopes));
             if (desired != null && !desired.equals(candidate)) throw conflict();

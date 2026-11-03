@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-action-support-tickets",
+  "version": "1.0.0",
+  "pluginType": "ACTION",
+  "displayName": "Support requests",
+  "description": "Confirmed request creation and authorized own-request reads through the selected support-space Ticket Provider. Connector identity and verified caller context are both required.",
+  "compatibility": {"requiredCapabilities":["actions"]},
+  "pricing": {"pricingModel":"FREE"},
+  "permissions": {"contributesActions":true,"requiresExternalHttpExecution":true,"requiresDeploymentSecrets":true},
+  "installForm": [
+    {"id":"ticketCommandsUrl","label":"Registered server-connector command endpoint","type":"url","required":true},
+    {"id":"ticketConnectorKey","label":"Scoped ticket connector credential reference","type":"secretRef","required":true}
+  ],
+  "contributions": {
+    "actions": [
+      {
+        "actionId":"support_create_request","adapterType":"connector-http","category":"support-requests",
+        "description":"Create a support request only after the requester asks to submit it and confirms. Subject and details describe the issue, not passwords or tokens. The backend resolves requester and conversation ownership from trusted runtime context.",
+        "readOnly":false,"anonymousAllowed":false,"confirmationRequired":true,
+        "params":[
+          {"name":"subject","type":"STRING","required":true,"description":"Short issue subject, maximum 240 characters."},
+          {"name":"details","type":"STRING","required":true,"description":"Issue details, maximum 12000 characters. Exclude credentials."},
+          {"name":"topic","type":"STRING","required":false,"description":"Optional configured topic code."}
+        ],
+        "route": {
+          "method":"POST","managedUrlField":"ticketCommandsUrl","idempotencyHeader":"Idempotency-Key",
+          "managedHeaderSecretRefFields":{"X-LoomAI-Ticket-Connector-Key":"ticketConnectorKey"},
+          "request":{"body":{"operation":"CREATE","subject":"{{params.subject}}","details":"{{params.details}}","topic":"{{params.topic}}"}},
+          "response":{"successHttpStatus":[200,201],"result":"{{body}}"}
+        }
+      },
+      {
+        "actionId":"support_list_own_requests","adapterType":"connector-http","category":"support-requests",
+        "description":"List only the authenticated requester's own saved support requests. Ownership is enforced by the selected provider, not a model-supplied customer or requester ID.",
+        "readOnly":true,"anonymousAllowed":false,"confirmationRequired":false,"groundingEligible":true,"readActionResolutionEligible":true,
+        "params":[],
+        "route": {
+          "method":"POST","managedUrlField":"ticketCommandsUrl","idempotencyHeader":"Idempotency-Key",
+          "managedHeaderSecretRefFields":{"X-LoomAI-Ticket-Connector-Key":"ticketConnectorKey"},
+          "request":{"body":{"operation":"LIST"}},
+          "response":{"successHttpStatus":[200],"result":"{{body}}"}
+        }
+      },
+      {
+        "actionId":"support_get_own_request","adapterType":"connector-http","category":"support-requests",
+        "description":"Read an explicitly referenced own support request. A reference never grants access to another requester's ticket, transcript or diagnostic resources.",
+        "readOnly":true,"anonymousAllowed":false,"confirmationRequired":false,"groundingEligible":true,"readActionResolutionEligible":true,
+        "params":[{"name":"requestId","type":"STRING","required":true,"description":"Opaque ID of the request to inspect; the provider enforces ownership."}],
+        "route": {
+          "method":"POST","managedUrlField":"ticketCommandsUrl","idempotencyHeader":"Idempotency-Key",
+          "managedHeaderSecretRefFields":{"X-LoomAI-Ticket-Connector-Key":"ticketConnectorKey"},
+          "request":{"body":{"operation":"GET","requestId":"{{params.requestId}}"}},
+          "response":{"successHttpStatus":[200],"result":"{{body}}"}
+        }
+      }
+    ]
+  }
+}

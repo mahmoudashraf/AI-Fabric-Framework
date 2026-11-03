@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.desk.DeskTargetConfigurationResolver;
+import com.ai.fabric.platform.backend.desk.DeskSupportTicketConfiguration;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyLifecycleService;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRuntimeEnvironmentResolver;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
@@ -95,6 +96,9 @@ public class RailwayProvisioningPlanService {
 
     @Autowired(required = false)
     private DeskTargetConfigurationResolver deskTargetConfigurationResolver;
+
+    @Autowired(required = false)
+    private DeskSupportTicketConfiguration deskSupportTicketConfiguration;
 
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
@@ -413,6 +417,8 @@ public class RailwayProvisioningPlanService {
             "CONVERSATION_HANDOVER"
         );
         JsonNode conversationHandover = behaviorConfig.path("conversationHandover");
+        boolean canonicalConversationsEnabled = conversationHandoverEnabled
+            || providerConfig.path("canonicalConversationsEnabled").asBoolean(false);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
             Boolean.toString(specialistChainsEnabled)
@@ -529,6 +535,19 @@ public class RailwayProvisioningPlanService {
             "LOOMAI_CONVERSATION_HANDOVER_ENABLED",
             Boolean.toString(conversationHandoverEnabled)
         ));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_CONVERSATION_CONTROL_ENABLED", Boolean.toString(canonicalConversationsEnabled)));
+        if (canonicalConversationsEnabled && !conversationHandoverEnabled) {
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_CONVERSATION_CONTROL_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.conversationHandoverEncryptionSecretName(deployment.getId()) + "}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_CONVERSATION_CONTROL_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.conversationControlFingerprintSecretName(deployment.getId()) + "}"));
+            if (!ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(securityConfig)) {
+                String scopes = "chat:query,chat:suggestions,chat:conversations,chat:messages,chat:handover:read";
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES", scopes));
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES", scopes));
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES", scopes));
+            }
+        }
         if (conversationHandoverEnabled) {
             JsonNode channel = conversationHandover.path("channel");
             if (targetMaterializedDesk) {
@@ -745,6 +764,12 @@ public class RailwayProvisioningPlanService {
             "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName(deployment.getId()) + "}"
         ));
         connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        if (DeskSupportTicketConfiguration.requested(actionsConfig, routingConfig)) {
+            if (deskSupportTicketConfiguration == null)
+                throw new IllegalStateException("Managed ticket action configuration is unavailable.");
+            deskSupportTicketConfiguration.connectorEnvironment(deployment, version, targetProfileId)
+                .forEach((key, value) -> connectorEnv.add(new RailwayEnvVarSummary(key, value)));
+        }
         addConnectorSecretEnv(connectorEnv, routingConfig, marketplaceDatasetConfig);
         if (externalHttpIntegration || conversationHandoverEnabled) {
             String connectorDatabaseRole = integrationConnectorDatabaseRole(deployment.getId());

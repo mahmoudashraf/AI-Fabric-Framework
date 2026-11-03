@@ -24,6 +24,12 @@ RUN npm ci
 COPY experience-packs/generic-workspace-experience ./
 RUN npm run typecheck && npm run build
 
+WORKDIR /workspace/experience-packs/support-experience
+COPY experience-packs/support-experience/package.json experience-packs/support-experience/package-lock.json ./
+RUN npm ci
+COPY experience-packs/support-experience ./
+RUN npm run typecheck && npm run build
+
 WORKDIR /workspace
 COPY Platfrom/backend/scripts/build-ai-workspace-assets.mjs Platfrom/backend/scripts/build-ai-workspace-assets.mjs
 RUN node Platfrom/backend/scripts/build-ai-workspace-assets.mjs --output /workspace/ai-workspace-assets

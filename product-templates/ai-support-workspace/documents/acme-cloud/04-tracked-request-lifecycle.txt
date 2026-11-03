@@ -1,0 +1,12 @@
+Title: Acme Cloud tracked requests
+Audience: Fictional Acme Cloud customers. Illustrative support-kit procedure, not a real service promise.
+
+When Acme has enabled request tracking, submit a subject, issue details and an optional listed topic. Do not include passwords, access keys or session tokens. Opening support or asking a question does not create a request. The submitted request appears in My requests only after the selected provider confirms that it was saved. An uncertain or unavailable response is not a successful submission.
+
+Sign in with the configured Acme identity to return to your own requests. Contact email is profile information, not an ownership key. Another person's reference does not grant access. Ticket details show the actual provider reference, status and conversation link. Opening-message delivery may be pending or uncertain; it does not prove that AI completed an answer.
+
+Use the available request controls to resolve, cancel or reopen deliberately. A resolved request records workflow status, not a guaranteed fix. Only transitions supported by the selected provider appear. Reopening a request whose conversation ended can create a linked new episode; it does not silently revive a closed conversation.
+
+Request tracking can be enabled without a staffed human channel. A displayed team profile means an assigned support person, not live presence or a response-time guarantee. Human support requires an enabled channel and an actually assigned team. Request status and conversation control are separate: resolving a request does not close a human conversation or return it to AI.
+
+If tracking is unavailable, the workspace must not invent a saved reference or silently use another provider. Keep the same submit key when checking an uncertain attempt. Production and staging use separate request records and identities.

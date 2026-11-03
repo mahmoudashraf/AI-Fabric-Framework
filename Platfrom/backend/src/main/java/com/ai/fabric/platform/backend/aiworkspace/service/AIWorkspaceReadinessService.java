@@ -32,6 +32,7 @@ public class AIWorkspaceReadinessService {
     private final DeploymentRuntimeAuthorityService runtimeAuthorityService;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
+    private final List<AIWorkspaceSupportReadinessAdapter> supportAdapters;
 
     public AIWorkspaceReadinessService(PlatformConsumerRepository consumerRepository,
                                        AIWorkspaceAssignmentService assignmentService,
@@ -42,7 +43,8 @@ public class AIWorkspaceReadinessService {
                                        AIWorkspaceDomainService domainService,
                                        DeploymentRuntimeAuthorityService runtimeAuthorityService,
                                        PlatformAIWorkspaceProperties properties,
-                                       ObjectMapper objectMapper) {
+                                       ObjectMapper objectMapper,
+                                       List<AIWorkspaceSupportReadinessAdapter> supportAdapters) {
         this.consumerRepository = consumerRepository;
         this.assignmentService = assignmentService;
         this.assetCatalogService = assetCatalogService;
@@ -53,34 +55,39 @@ public class AIWorkspaceReadinessService {
         this.runtimeAuthorityService = runtimeAuthorityService;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.supportAdapters = List.copyOf(supportAdapters);
     }
 
     public AIWorkspaceReadinessSummary evaluate(AIWorkspaceInstallationEntity installation) {
-        return evaluate(installation, true);
+        return evaluate(installation, true, true);
+    }
+
+    public AIWorkspaceReadinessSummary evaluateForManifest(AIWorkspaceInstallationEntity installation) {
+        return evaluate(installation, true, false);
     }
 
     public AIWorkspaceReadinessSummary evaluateLocal(AIWorkspaceInstallationEntity installation) {
-        return evaluate(installation, false);
+        return evaluate(installation, false, false);
     }
 
-    private AIWorkspaceReadinessSummary evaluate(AIWorkspaceInstallationEntity installation, boolean probeDelivery) {
+    private AIWorkspaceReadinessSummary evaluate(AIWorkspaceInstallationEntity installation, boolean probeDelivery, boolean probeSupport) {
         PlatformConsumerEntity consumer = consumerRepository.findById(installation.getConsumerEntityId()).orElse(null);
         return evaluateAgainst(installation, consumer,
             consumer == null ? null : consumer.getBoundDeploymentId(),
-            consumer == null ? null : consumer.getBoundReleaseId(), probeDelivery);
+            consumer == null ? null : consumer.getBoundReleaseId(), probeDelivery, probeSupport);
     }
 
     public AIWorkspaceReadinessSummary evaluateAgainst(AIWorkspaceInstallationEntity installation,
                                                         PlatformConsumerEntity consumer,
                                                         String deploymentId,
                                                         String releaseId) {
-        return evaluateAgainst(installation, consumer, deploymentId, releaseId, true);
+        return evaluateAgainst(installation, consumer, deploymentId, releaseId, true, true);
     }
 
     private AIWorkspaceReadinessSummary evaluateAgainst(AIWorkspaceInstallationEntity installation,
                                                         PlatformConsumerEntity consumer,
                                                         String deploymentId, String releaseId,
-                                                        boolean probeDelivery) {
+                                                        boolean probeDelivery, boolean probeSupport) {
         List<AIWorkspaceReadinessCheck> checks = new ArrayList<>();
         AIWorkspaceAssignmentService.Assignment assignment = null;
         if (consumer == null) {
@@ -164,6 +171,26 @@ public class AIWorkspaceReadinessService {
                     validateExternalIdentityBinding(authenticationProfile, assignment.securityConfig(), checks);
                 }
                 validateExternalIdentityScopes(assignment, checks);
+            }
+            if (AIWorkspaceExperiencePackRegistry.SUPPORT_CODE.equals(installation.getExperiencePackCode())) {
+                JsonNode configuration = readJson(installation.getConfigurationJson());
+                boolean needsSupport = configuration.at("/capabilities/tickets").asBoolean(false)
+                    || configuration.at("/capabilities/handover").asBoolean(false);
+                if (!needsSupport) passed(checks, "SUPPORT_SPACE", "Ticketing and human support are not requested.");
+                else if (!probeDelivery) blocked(checks, "SUPPORT_SPACE", "Managed support requires explicit current readiness verification.");
+                else try {
+                    var adapters = supportAdapters.stream().filter(adapter -> adapter.supports(installation)).toList();
+                    if (adapters.size() != 1) throw new IllegalStateException("Exactly one reviewed support identity adapter is required.");
+                    if (probeSupport) adapters.getFirst().validate(installation, assignment);
+                    else adapters.getFirst().validatePublishedProjection(installation, assignment);
+                    passed(checks, "SUPPORT_SPACE", probeSupport
+                        ? "The assigned target's support provider, identity, origins and requested features are ready."
+                        : "Registered support references are verified; requester sessions determine current provider availability.");
+                } catch (com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.Required error) {
+                    blocked(checks, "CANONICAL_CONVERSATIONS", error.getReason());
+                } catch (RuntimeException error) {
+                    blocked(checks, "SUPPORT_SPACE", error.getMessage());
+                }
             }
         }
 

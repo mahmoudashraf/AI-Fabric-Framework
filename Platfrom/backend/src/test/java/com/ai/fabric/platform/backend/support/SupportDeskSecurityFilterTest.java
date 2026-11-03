@@ -1,5 +1,12 @@
 package com.ai.fabric.platform.backend.support;
 
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.*;
 import com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleGatewayProperties;
@@ -11,8 +18,13 @@ import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedP
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.*;
 import com.ai.fabric.platform.backend.security.service.*;
+import com.ai.fabric.platform.backend.support.runtime.SupportRuntimeAccessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,157 +41,374 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-/** Real root security/filter chain and authorization services; only external identity/Desk ports are mocked. */
+/**
+ * Real root security/filter chain and authorization services; only external identity/Desk ports are
+ * mocked.
+ */
 class SupportDeskSecurityFilterTest {
-    private AnnotationConfigWebApplicationContext web;
-    private SupportDeskFixture f;
-    private MockMvc mvc;
-    private SupportDeskContracts.Request lookup;
+  private AnnotationConfigWebApplicationContext web;
+  private SupportDeskFixture f;
+  private MockMvc mvc;
+  private SupportDeskContracts.Request lookup;
 
-    @BeforeEach void setup() {
-        web = new AnnotationConfigWebApplicationContext(); web.setServletContext(new MockServletContext());
-        web.register(SecurityFixture.class); web.refresh();
-        f = web.getBean(SupportDeskFixture.class);
-        lookup = f.lookup(f.create(false).id());
-        SecurityContextHolder.clearContext();
-        mvc = MockMvcBuilders.webAppContextSetup(web).apply(springSecurity()).build();
-    }
-    @AfterEach void close() { SecurityContextHolder.clearContext(); if (web != null) web.close(); }
+  @BeforeEach
+  void setup() {
+    web = new AnnotationConfigWebApplicationContext();
+    web.setServletContext(new MockServletContext());
+    web.register(SecurityFixture.class);
+    web.refresh();
+    f = web.getBean(SupportDeskFixture.class);
+    lookup = f.lookup(f.create(false).id());
+    SecurityContextHolder.clearContext();
+    mvc = MockMvcBuilders.webAppContextSetup(web).apply(springSecurity()).build();
+  }
 
-    @Test void actualDeskOnlyIdentityCanLookupAndReadIntakeWithoutConsoleMembership() throws Exception {
-        assertThat(f.links.findByIssuerAndSubject(SupportDeskFixture.ISSUER, SupportDeskFixture.SUBJECT)).isEmpty();
-        mvc.perform(post("/api/integrations/support/desk/context").headers(f.deskHeaders())
-            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsBytes(lookup)))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("AVAILABLE"))
-            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
-        mvc.perform(get("/api/support/staff/intake").header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$[0].reference").isNotEmpty());
-        verify(f.desk, times(2)).get(eq(f.connection), contains("permission=SUPPORT"));
-        // A path exemption, not a bypass of identity verification: both calls pass the real verifier service.
-        verify(web.getBean(CustomerSupabaseUserVerifier.class), times(2)).requireVerifiedUser("actual-agent-token", SupportDeskFixture.SUBJECT);
-    }
+  @AfterEach
+  void close() {
+    SecurityContextHolder.clearContext();
+    if (web != null) web.close();
+  }
 
-    @Test void serviceSecretAloneAndAdminCookieOrApiKeyCannotReplaceAgentJwt() throws Exception {
-        var serviceOnly = f.deskHeaders(); serviceOnly.remove(HttpHeaders.AUTHORIZATION);
-        mvc.perform(post("/api/integrations/support/desk/context").headers(serviceOnly)
-            .header("X-PLATFORM-API-KEY", "admin-security-key").cookie(new Cookie("platform_session", "admin-session"))
-            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsBytes(lookup)))
-            .andExpect(status().isForbidden());
-        mvc.perform(get("/api/support/staff/intake").header("X-PLATFORM-API-KEY", "admin-security-key")
-            .cookie(new Cookie("platform_session", "admin-session"))).andExpect(status().isForbidden());
-        mvc.perform(get("/api/support/staff/intake")).andExpect(status().isForbidden());
-        verifyNoInteractions(f.desk);
-    }
+  @Test
+  void actualDeskOnlyIdentityCanLookupWithoutConsoleMembershipAndCannotUseRetiredIntake()
+      throws Exception {
+    assertThat(
+            f.links.findByIssuerAndSubject(SupportDeskFixture.ISSUER, SupportDeskFixture.SUBJECT))
+        .isEmpty();
+    mvc.perform(
+            post("/api/integrations/support/desk/context")
+                .headers(f.deskHeaders())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(f.json.writeValueAsBytes(lookup)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("AVAILABLE"))
+        .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+    mvc.perform(
+            get("/api/support/staff/intake")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
+        .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403, 404));
+    verify(f.desk).get(eq(f.connection), contains("permission=SUPPORT"));
+    // A path exemption, not a bypass of identity verification: both calls pass the real verifier
+    // service.
+    verify(web.getBean(CustomerSupabaseUserVerifier.class), times(2))
+        .requireVerifiedUser("actual-agent-token", SupportDeskFixture.SUBJECT);
+  }
 
-    @Test void validJwtStillRequiresContextSecretAndCurrentSupportAssignment() throws Exception {
-        var jwtOnly = f.deskHeaders(); jwtOnly.remove(SupportDeskAuthorization.SERVICE_HEADER);
-        mvc.perform(post("/api/integrations/support/desk/context").headers(jwtOnly)
-            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsBytes(lookup))).andExpect(status().isForbidden());
-        when(f.desk.get(eq(f.connection), anyString())).thenReturn(f.json.createObjectNode().put("authorized", false));
-        mvc.perform(post("/api/integrations/support/desk/context").headers(f.deskHeaders())
-            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsBytes(lookup))).andExpect(status().isForbidden());
-        mvc.perform(get("/api/support/staff/intake").header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test void invalidOrExpiredJwtCannotFallBackToValidAdminCredentials() throws Exception {
-        for (String token : List.of("invalid-token", "expired-token")) {
-            var headers = f.deskHeaders(); headers.setBearerAuth(token);
-            mvc.perform(post("/api/integrations/support/desk/context").headers(headers)
+  @Test
+  void serviceSecretAloneAndAdminCookieOrApiKeyCannotReplaceAgentJwt() throws Exception {
+    var serviceOnly = f.deskHeaders();
+    serviceOnly.remove(HttpHeaders.AUTHORIZATION);
+    mvc.perform(
+            post("/api/integrations/support/desk/context")
+                .headers(serviceOnly)
                 .header("X-PLATFORM-API-KEY", "admin-security-key")
-                .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsBytes(lookup)))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
-            mvc.perform(get("/api/support/staff/intake").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .cookie(new Cookie("platform_session", "admin-session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(f.json.writeValueAsBytes(lookup)))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            get("/api/support/staff/intake")
+                .header("X-PLATFORM-API-KEY", "admin-security-key")
+                .cookie(new Cookie("platform_session", "admin-session")))
+        .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403, 404));
+    mvc.perform(get("/api/support/staff/intake"))
+        .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403, 404));
+    verifyNoInteractions(f.desk);
+  }
+
+  @Test
+  void validJwtStillRequiresContextSecretAndCurrentSupportAssignment() throws Exception {
+    var jwtOnly = f.deskHeaders();
+    jwtOnly.remove(SupportDeskAuthorization.SERVICE_HEADER);
+    mvc.perform(
+            post("/api/integrations/support/desk/context")
+                .headers(jwtOnly)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(f.json.writeValueAsBytes(lookup)))
+        .andExpect(status().isForbidden());
+    when(f.desk.get(eq(f.connection), anyString()))
+        .thenReturn(f.json.createObjectNode().put("authorized", false));
+    mvc.perform(
+            post("/api/integrations/support/desk/context")
+                .headers(f.deskHeaders())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(f.json.writeValueAsBytes(lookup)))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            get("/api/support/staff/intake")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
+        .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403, 404));
+  }
+
+  @Test
+  void invalidOrExpiredJwtCannotFallBackToValidAdminCredentials() throws Exception {
+    for (String token : List.of("invalid-token", "expired-token")) {
+      var headers = f.deskHeaders();
+      headers.setBearerAuth(token);
+      mvc.perform(
+              post("/api/integrations/support/desk/context")
+                  .headers(headers)
+                  .header("X-PLATFORM-API-KEY", "admin-security-key")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(f.json.writeValueAsBytes(lookup)))
+          .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
+      mvc.perform(
+              get("/api/support/staff/intake")
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                  .header("X-PLATFORM-API-KEY", "admin-security-key"))
+          .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
+    }
+    verifyNoInteractions(f.desk);
+  }
+
+  @Test
+  void exactCallbackAndIntakeExceptionsDoNotOpenAdjacentInternalOrCustomerApis() throws Exception {
+    for (String path :
+        List.of(
+            "/api/internal/support/not-registered",
+            "/api/integrations/support/desk/not-registered",
+            "/api/support/staff/intake/not-registered",
+            "/api/support/requests/not-registered",
+            "/api/integrations/support/ticket-commands/not-registered")) {
+      mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    }
+    // Outside those exact paths, the normal customer bearer filter still refuses an unlinked Desk
+    // identity.
+    mvc.perform(
+            get("/api/internal/support/not-registered")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.errorCode").value("CUSTOMER_IDENTITY_NOT_LINKED"));
+    mvc.perform(
+            get("/api/internal/support/not-registered")
                 .header("X-PLATFORM-API-KEY", "admin-security-key"))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
-        }
-        verifyNoInteractions(f.desk);
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void connectorRequiresDedicatedKeyAndVerifiedRuntimeScopeThroughActualRootChain()
+      throws Exception {
+    String id = f.remoteTickets.keySet().iterator().next();
+    f.login("alice");
+    var owned = f.service.requireOwnedCase(id);
+    SecurityContextHolder.clearContext();
+    var trusted = f.headers(owned);
+    trusted.remove(SupportDiagnosticAuthentication.SERVICE_KEY_HEADER);
+    trusted.set("X-LoomAI-Ticket-Connector-Key", "dedicated-ticket-connector-key");
+    trusted.set("X-AIFABRIC-AUTH-SCOPES", "support:tickets:read");
+    String body =
+        f.json.writeValueAsString(
+            new SupportTicketCommandController.Command("GET", id, null, null, null));
+    mvc.perform(
+            post("/api/integrations/support/ticket-commands")
+                .headers(trusted)
+                .header("Idempotency-Key", "lookup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(id))
+        .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+    trusted.remove("X-LoomAI-Ticket-Connector-Key");
+    mvc.perform(
+            post("/api/integrations/support/ticket-commands")
+                .headers(trusted)
+                .header("Idempotency-Key", "missing-key")
+                .header("X-PLATFORM-API-KEY", "admin-security-key")
+                .cookie(new Cookie("platform_session", "admin-session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isForbidden());
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  @EnableWebMvc
+  @EnableWebSecurity
+  @Import(PlatformSecurityConfiguration.class)
+  static class SecurityFixture {
+    @Bean
+    SupportDeskFixture fixture() {
+      return new SupportDeskFixture();
     }
 
-    @Test void exactCallbackAndIntakeExceptionsDoNotOpenAdjacentInternalOrCustomerApis() throws Exception {
-        for (String path : List.of("/api/internal/support/not-registered", "/api/integrations/support/desk/not-registered",
-            "/api/support/staff/intake/not-registered", "/api/support/cases/not-registered")) {
-            mvc.perform(get(path)).andExpect(status().isUnauthorized());
-        }
-        // Outside those exact paths, the normal customer bearer filter still refuses an unlinked Desk identity.
-        mvc.perform(get("/api/internal/support/not-registered").header(HttpHeaders.AUTHORIZATION, "Bearer actual-agent-token"))
-            .andExpect(status().isForbidden()).andExpect(jsonPath("$.errorCode").value("CUSTOMER_IDENTITY_NOT_LINKED"));
-        mvc.perform(get("/api/internal/support/not-registered").header("X-PLATFORM-API-KEY", "admin-security-key"))
-            .andExpect(status().isOk());
+    @Bean
+    ObjectMapper objectMapper(SupportDeskFixture f) {
+      return f.json;
     }
 
-    @Configuration(proxyBeanMethods = false)
-    @EnableWebMvc
-    @EnableWebSecurity
-    @Import(PlatformSecurityConfiguration.class)
-    static class SecurityFixture {
-        @Bean SupportDeskFixture fixture() { return new SupportDeskFixture(); }
-        @Bean ObjectMapper objectMapper(SupportDeskFixture f) { return f.json; }
-        @Bean PlatformAuthProperties platformAuthProperties() {
-            return new PlatformAuthProperties(true, "X-PLATFORM-API-KEY", true, true, "platform_session", Duration.ofHours(1),
-                false, "Lax", "operator-security-key", "admin-security-key", false, null, null, null);
-        }
-        @Bean PlatformPublicApiProperties publicApiProperties() { return new PlatformPublicApiProperties(false, "X-CLIENT-ID", "X-CLIENT-KEY", Map.of()); }
-        @Bean PlatformConsumerRuntimeAssignmentApiProperties assignmentProperties() { return new PlatformConsumerRuntimeAssignmentApiProperties(false, null, null, null, null); }
-        @Bean LifecycleGatewayProperties lifecycle() { return new LifecycleGatewayProperties(); }
-        @Bean PartnerSupabaseAuthProperties partnerProperties() { return new PartnerSupabaseAuthProperties(false, null, null, null, null, false, List.of(), null, null); }
-        @Bean PlatformSecretService secrets(SupportDeskFixture f) { return f.secrets; }
-        @Bean PlatformManagedProductServiceRepository products() { return mock(PlatformManagedProductServiceRepository.class); }
-        @Bean PartnerMemberRepository partnerMembers() { return mock(PartnerMemberRepository.class); }
-        @Bean DeskActivationService deskActivation() { return mock(DeskActivationService.class); }
-        @Bean DeskServiceClient deskClient(SupportDeskFixture f) { return f.desk; }
-        @Bean DeploymentTargetProfileRepository targets(SupportDeskFixture f) { return f.targets; }
-        @Bean PlatformIdentityService platformIdentityService() {
-            var service = mock(PlatformIdentityService.class);
-            when(service.authenticateSessionToken("admin-session")).thenReturn(new PlatformPrincipal("admin", PlatformRole.PLATFORM_ADMIN, "Admin", "SESSION", "admin-user"));
-            return service;
-        }
-        @Bean CustomerSupabaseAuthProperties customerProperties() {
-            return new CustomerSupabaseAuthProperties(true, "https://identity.example.test", "publishable-test", SupportDeskFixture.ISSUER,
-                SupportDeskFixture.ISSUER + "/.well-known/jwks.json", "authenticated", List.of());
-        }
-        @Bean(name = "customerSupabaseJwtDecoder") JwtDecoder decoder() {
-            var decoder = mock(JwtDecoder.class);
-            when(decoder.decode(anyString())).thenAnswer(call -> {
+    @Bean
+    PlatformAuthProperties platformAuthProperties() {
+      return new PlatformAuthProperties(
+          true,
+          "X-PLATFORM-API-KEY",
+          true,
+          true,
+          "platform_session",
+          Duration.ofHours(1),
+          false,
+          "Lax",
+          "operator-security-key",
+          "admin-security-key",
+          false,
+          null,
+          null,
+          null);
+    }
+
+    @Bean
+    PlatformPublicApiProperties publicApiProperties() {
+      return new PlatformPublicApiProperties(false, "X-CLIENT-ID", "X-CLIENT-KEY", Map.of());
+    }
+
+    @Bean
+    PlatformConsumerRuntimeAssignmentApiProperties assignmentProperties() {
+      return new PlatformConsumerRuntimeAssignmentApiProperties(false, null, null, null, null);
+    }
+
+    @Bean
+    LifecycleGatewayProperties lifecycle() {
+      return new LifecycleGatewayProperties();
+    }
+
+    @Bean
+    PartnerSupabaseAuthProperties partnerProperties() {
+      return new PartnerSupabaseAuthProperties(
+          false, null, null, null, null, false, List.of(), null, null);
+    }
+
+    @Bean
+    PlatformSecretService secrets(SupportDeskFixture f) {
+      return f.secrets;
+    }
+
+    @Bean
+    PlatformManagedProductServiceRepository products() {
+      return mock(PlatformManagedProductServiceRepository.class);
+    }
+
+    @Bean
+    PartnerMemberRepository partnerMembers() {
+      return mock(PartnerMemberRepository.class);
+    }
+
+    @Bean
+    DeskActivationService deskActivation() {
+      return mock(DeskActivationService.class);
+    }
+
+    @Bean
+    DeskServiceClient deskClient(SupportDeskFixture f) {
+      return f.desk;
+    }
+
+    @Bean
+    DeploymentTargetProfileRepository targets(SupportDeskFixture f) {
+      return f.targets;
+    }
+
+    @Bean
+    PlatformIdentityService platformIdentityService() {
+      var service = mock(PlatformIdentityService.class);
+      when(service.authenticateSessionToken("admin-session"))
+          .thenReturn(
+              new PlatformPrincipal(
+                  "admin", PlatformRole.PLATFORM_ADMIN, "Admin", "SESSION", "admin-user"));
+      return service;
+    }
+
+    @Bean
+    CustomerSupabaseAuthProperties customerProperties() {
+      return new CustomerSupabaseAuthProperties(
+          true,
+          "https://identity.example.test",
+          "publishable-test",
+          SupportDeskFixture.ISSUER,
+          SupportDeskFixture.ISSUER + "/.well-known/jwks.json",
+          "authenticated",
+          List.of());
+    }
+
+    @Bean(name = "customerSupabaseJwtDecoder")
+    JwtDecoder decoder() {
+      var decoder = mock(JwtDecoder.class);
+      when(decoder.decode(anyString()))
+          .thenAnswer(
+              call -> {
                 String token = call.getArgument(0);
                 if ("invalid-token".equals(token)) throw new JwtException("Rejected test identity");
-                return SupportDeskFixture.jwt(SupportDeskFixture.ISSUER, SupportDeskFixture.SUBJECT, "authenticated",
+                return SupportDeskFixture.jwt(
+                    SupportDeskFixture.ISSUER,
+                    SupportDeskFixture.SUBJECT,
+                    "authenticated",
                     Instant.now().plusSeconds("expired-token".equals(token) ? -1 : 300));
-            });
-            return decoder;
-        }
-        @Bean CustomerSupabaseUserVerifier userVerifier() { return mock(CustomerSupabaseUserVerifier.class); }
-        @Bean CustomerSupabaseIdentityService customerIdentities(CustomerSupabaseAuthProperties properties,
-            @Qualifier("customerSupabaseJwtDecoder") ObjectProvider<JwtDecoder> decoder,
-            CustomerSupabaseUserVerifier verifier, SupportDeskFixture f) {
-            return new CustomerSupabaseIdentityService(properties, decoder, verifier, f.links, f.users,
-                new PlatformCustomerAccessService(f.users, f.customers), mock(PlatformAuditService.class));
-        }
-        @Bean SupportDeskContextController deskContextController(SupportDeskFixture f,
-            CustomerSupabaseIdentityService identities, CustomerSupabaseAuthProperties policy) {
-            var auth = new SupportDeskAuthorization(f.settings, f.secrets, identities, policy, f.deskBindings, f.targets, f.desk);
-            var service = f.transactional(new SupportDeskContextService(auth, f.settings, f.store, f.deskStore, f.requesters, f.resources, f.customers));
-            return new SupportDeskContextController(service);
-        }
-        @Bean ProtectedProbes probes() { return new ProtectedProbes(); }
+              });
+      return decoder;
     }
 
-    @RestController
-    static class ProtectedProbes {
-        @GetMapping({"/api/internal/support/not-registered", "/api/integrations/support/desk/not-registered",
-            "/api/support/staff/intake/not-registered", "/api/support/cases/not-registered"})
-        Map<String, Boolean> protectedApi() { return Map.of("reached", true); }
+    @Bean
+    CustomerSupabaseUserVerifier userVerifier() {
+      return mock(CustomerSupabaseUserVerifier.class);
     }
+
+    @Bean
+    CustomerSupabaseIdentityService customerIdentities(
+        CustomerSupabaseAuthProperties properties,
+        @Qualifier("customerSupabaseJwtDecoder") ObjectProvider<JwtDecoder> decoder,
+        CustomerSupabaseUserVerifier verifier,
+        SupportDeskFixture f) {
+      return new CustomerSupabaseIdentityService(
+          properties,
+          decoder,
+          verifier,
+          f.links,
+          f.users,
+          new PlatformCustomerAccessService(f.users, f.customers),
+          mock(PlatformAuditService.class));
+    }
+
+    @Bean
+    SupportDeskContextController deskContextController(
+        SupportDeskFixture f,
+        CustomerSupabaseIdentityService identities,
+        CustomerSupabaseAuthProperties policy) {
+      var auth =
+          new SupportDeskAuthorization(
+              f.settings, f.secrets, identities, policy, f.deskBindings, f.targets, f.desk);
+      var service =
+          f.transactional(
+              new SupportDeskContextService(
+                  auth, f.settings, f.contextStore, f.service, f.resources, f.customers));
+      return new SupportDeskContextController(service);
+    }
+
+    @Bean
+    SupportTicketCommandController ticketCommands(SupportDeskFixture f) {
+      var assertions = mock(SupportRequesterAssertionService.class);
+      when(assertions.connectorKey()).thenReturn("dedicated-ticket-connector-key");
+      return new SupportTicketCommandController(
+          f.authentication,
+          assertions,
+          f.conversations,
+          f.service,
+          mock(SupportRuntimeAccessService.class));
+    }
+
+    @Bean
+    ProtectedProbes probes() {
+      return new ProtectedProbes();
+    }
+  }
+
+  @RestController
+  static class ProtectedProbes {
+    @GetMapping({
+      "/api/internal/support/not-registered",
+      "/api/integrations/support/desk/not-registered",
+      "/api/support/staff/intake/not-registered",
+      "/api/support/requests/not-registered",
+      "/api/integrations/support/ticket-commands/not-registered"
+    })
+    Map<String, Boolean> protectedApi() {
+      return Map.of("reached", true);
+    }
+  }
 }

@@ -1,0 +1,33 @@
+{
+  "illustrativeOnly":true,
+  "providerId":"desk",
+  "providerBindingId":"tpb-acme-example",
+  "capabilities":["CREATE","LIST","GET","LINK_CONVERSATION","RESOLVE","CANCEL","REOPEN","SEEN"],
+  "items":[
+    {
+      "id":"req-acme-guide","reference":"SUP-1042","providerBindingId":"tpb-acme-example",
+      "subject":"Approved setup guide missing from answers",
+      "details":"Our connector was verified yesterday. A newly approved setup guide is not in answers yet.",
+      "topic":"setup","status":"OPEN","version":"opaque-version-1",
+      "createdAt":"2026-11-03T09:00:00Z","updatedAt":"2026-11-03T09:00:00Z",
+      "upstreamStatus":null,"unread":false,"openingMessageRequired":true,
+      "conversation":{"episodeId":"episode-acme-guide","conversationId":"conversation-acme-guide","delivery":"PENDING"},
+      "episodes":[{"episodeId":"episode-acme-guide","conversationId":"conversation-acme-guide","number":1,"runtimeBaseUrl":"https://runtime.example.test","openingMessageRequired":true,"delivery":"PENDING","createdAt":"2026-11-03T09:00:00Z"}],
+      "events":[{"type":"CREATED","actorId":"requester-acme-example","createdAt":"2026-11-03T09:00:00Z"}],
+      "capabilities":["GET","RESOLVE","CANCEL","SEEN"]
+    },
+    {
+      "id":"req-acme-maintenance","reference":"SUP-1041","providerBindingId":"tpb-acme-example",
+      "subject":"Maintenance schedule clarification","details":"Please confirm where the documented maintenance window is shown.",
+      "topic":"service","status":"RESOLVED","version":"opaque-version-2",
+      "createdAt":"2026-11-02T14:00:00Z","updatedAt":"2026-11-03T08:00:00Z",
+      "upstreamStatus":null,"unread":true,"openingMessageRequired":true,
+      "conversation":{"episodeId":"episode-acme-maintenance","conversationId":"conversation-acme-maintenance","delivery":"DELIVERED"},
+      "episodes":[{"episodeId":"episode-acme-maintenance","conversationId":"conversation-acme-maintenance","number":1,"runtimeBaseUrl":"https://runtime.example.test","openingMessageRequired":true,"delivery":"DELIVERED","createdAt":"2026-11-02T14:00:00Z"}],
+      "events":[{"type":"RESOLVED","actorId":"requester-acme-example","createdAt":"2026-11-03T08:00:00Z"}],
+      "capabilities":["GET","REOPEN","SEEN"]
+    }
+  ],
+  "deliveryStates":["PENDING","DELIVERED","UNKNOWN"],
+  "unavailable":{"code":"TICKET_PROVIDER_UNAVAILABLE","message":"Request tracking is temporarily unavailable."}
+}

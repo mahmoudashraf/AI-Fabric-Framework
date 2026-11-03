@@ -1,0 +1,13 @@
+{
+  "id": "support-direct-v1",
+  "label": "Technical support",
+  "interaction": {
+    "packCode": "support",
+    "packVersion": "1.0.0",
+    "connectionMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+    "connectionProfileCode": "runtime-authenticated-broker",
+    "connectionProfileVersion": "1.0.0",
+    "deliveryMode": "STANDALONE",
+    "connectionConfiguration": {}
+  }
+}

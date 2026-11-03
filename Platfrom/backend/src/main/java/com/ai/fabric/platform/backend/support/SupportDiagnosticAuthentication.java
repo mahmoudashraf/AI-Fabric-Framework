@@ -30,7 +30,13 @@ public class SupportDiagnosticAuthentication {
         settings.requireEnabled();
         var expectedKey = secrets.resolveSecret(settings.diagnosticServiceKeySecretName());
         if (expectedKey == null || expectedKey.isBlank()) throw SupportPolicy.unavailable();
-        String supplied = single(headers, SERVICE_KEY_HEADER);
+        return verify(headers, SERVICE_KEY_HEADER, expectedKey, DIAGNOSTIC_SCOPE);
+    }
+
+    public VerifiedCaller verify(HttpHeaders headers, String keyHeader, String expectedKey, String requiredScope) {
+        settings.requireEnabled();
+        if (expectedKey == null || expectedKey.isBlank()) throw SupportPolicy.unavailable();
+        String supplied = single(headers, keyHeader);
         if (supplied.length() > 8192 || !MessageDigest.isEqual(expectedKey.getBytes(StandardCharsets.UTF_8), supplied.getBytes(StandardCharsets.UTF_8))) {
             throw SupportPolicy.denied();
         }
@@ -44,7 +50,7 @@ public class SupportDiagnosticAuthentication {
         equal(headers, "X-AIFABRIC-AUTH-TENANT-ID", binding.tenantId());
         equal(headers, "X-AIFABRIC-AUTH-ISSUER", binding.issuer());
         if (!values(single(headers, "X-AIFABRIC-AUTH-AUDIENCES")).contains(binding.audience())
-            || !values(single(headers, "X-AIFABRIC-AUTH-SCOPES")).contains(DIAGNOSTIC_SCOPE)) throw SupportPolicy.denied();
+            || !values(single(headers, "X-AIFABRIC-AUTH-SCOPES")).contains(requiredScope)) throw SupportPolicy.denied();
         try {
             if (!Instant.parse(single(headers, "X-AIFABRIC-AUTH-EXPIRES-AT")).isAfter(Instant.now())) throw SupportPolicy.denied();
         } catch (java.time.format.DateTimeParseException invalid) { throw SupportPolicy.denied(); }

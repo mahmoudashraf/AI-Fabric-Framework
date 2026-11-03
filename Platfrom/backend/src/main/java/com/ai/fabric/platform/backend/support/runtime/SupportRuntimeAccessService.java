@@ -8,8 +8,14 @@ import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAssignmentS
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAssetCatalogService;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceConfigurationValidator;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceConnectionProfileRegistry;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceExperiencePackRegistry;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
-import com.ai.fabric.platform.backend.support.SupportCaseService;
+import com.ai.fabric.platform.backend.support.SupportTicketService;
+import com.ai.fabric.platform.backend.support.SupportRequesterService;
+import com.ai.fabric.platform.backend.support.SupportSettings;
+import com.ai.fabric.platform.backend.support.SupportConversationScopeService;
+import com.ai.fabric.platform.backend.support.SupportContracts.CaseStatus;
+import com.ai.fabric.platform.backend.support.SupportContracts.DeliveryStatus;
 import com.ai.fabric.platform.backend.support.SupportContracts.OwnedCase;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,7 +32,10 @@ import org.springframework.web.server.ResponseStatusException;
 /** Case authorization precedes access to the ordinary Engage assignment and exact target keys. */
 @Service
 public class SupportRuntimeAccessService {
-    private final SupportCaseService cases;
+    private final SupportTicketService cases;
+    private final SupportRequesterService requesters;
+    private final SupportSettings settings;
+    private final SupportConversationScopeService conversations;
     private final AIWorkspaceInstallationRepository installations;
     private final PlatformConsumerRepository consumers;
     private final AIWorkspaceAssignmentService assignments;
@@ -36,17 +45,39 @@ public class SupportRuntimeAccessService {
     private final ObjectMapper mapper;
     private final AIWorkspaceConfigurationValidator configurationValidator;
 
-    public SupportRuntimeAccessService(SupportCaseService cases, AIWorkspaceInstallationRepository installations,
+    public SupportRuntimeAccessService(SupportTicketService cases, SupportRequesterService requesters, SupportSettings settings,
+        SupportConversationScopeService conversations, AIWorkspaceInstallationRepository installations,
         PlatformConsumerRepository consumers, AIWorkspaceAssignmentService assignments, AIWorkspaceAssetCatalogService assets,
         DeploymentRuntimeAuthorityService authority, Environment environment, ObjectMapper mapper,
         AIWorkspaceConfigurationValidator configurationValidator) {
-        this.cases = cases; this.installations = installations; this.consumers = consumers; this.assignments = assignments;
+        this.cases = cases; this.requesters = requesters; this.settings = settings; this.installations = installations; this.consumers = consumers; this.assignments = assignments;
+        this.conversations = conversations;
         this.assets = assets; this.authority = authority; this.environment = environment; this.mapper = mapper;
         this.configurationValidator = configurationValidator;
     }
 
     public Access resolve(String caseId) {
         OwnedCase owned = cases.requireOwnedCase(caseId);
+        return resolve(owned);
+    }
+
+    public Access resolveEpisode(String caseId, String conversationId) {
+        return resolve(cases.requireOwnedConversation(caseId, conversationId));
+    }
+
+    public Access resolveConversation(String conversationId) {
+        return conversationAccess(conversations.current(conversationId));
+    }
+
+    public Access conversationAccess(SupportConversationScopeService.Scope scope) {
+        requesters.requireActive(scope.requester());
+        var b = settings.binding();
+        return resolve(new OwnedCase(null, null, b.deploymentId(), b.targetProfileId(), b.customerId(), b.tenantId(),
+            scope.runtimePrincipal(), scope.conversationId(), scope.conversationId(), 1, false, null, null,
+            DeliveryStatus.COMPLETED, CaseStatus.OPEN, b.issuer(), b.audience()));
+    }
+
+    private Access resolve(OwnedCase owned) {
         String installationId = environment.getProperty("platform.support.installation-id", "");
         AIWorkspaceInstallationEntity installation = installations.findByInstallationId(installationId)
             .filter(value -> value.getStatus() == AIWorkspaceInstallationStatus.ACTIVE
@@ -61,8 +92,9 @@ public class SupportRuntimeAccessService {
             || !owned.targetProfileId().equals(assignment.release().getTargetProfileId())
             || !owned.tenantId().equals(assignment.deployment().getTenantId())) throw unavailable();
         JsonNode behavior = json(assignment.version().getBehaviorConfigJson());
-        var scopes = new LinkedHashSet<>(List.of("chat:query", "chat:conversations", "chat:messages", "chat:shell",
-            "chat:auth-context", "chat:handover:request", "chat:handover:control", "chat:handover:read", "support:diagnostics:read"));
+        var scopes = new LinkedHashSet<>(List.of("chat:query", "chat:suggestions", "chat:conversations", "chat:messages", "chat:shell",
+            "chat:auth-context", "chat:handover:request", "chat:handover:control", "chat:handover:read", "support:diagnostics:read",
+            "support:tickets:read", "support:tickets:create"));
         // These are deployed, reviewed capabilities; model parameters never add authority.
         if (behavior.path("specialistAssistance").path("enabled").asBoolean(false)) {
             behavior.path("specialistAssistance").path("compiled").path("invocations").forEach(invocation ->
@@ -76,10 +108,21 @@ public class SupportRuntimeAccessService {
         return new Access(owned, installation, assignment, behavior, headers);
     }
 
-    public Bootstrap bootstrap(String caseId) {
-        var access = resolve(caseId);
+    public Bootstrap bootstrap(String caseId) { return bootstrap(resolve(caseId), caseId); }
+
+    public Bootstrap bootstrapConversation() { return bootstrap(conversationAccess(conversations.create()), null); }
+
+    private Bootstrap bootstrap(Access access, String caseId) {
         var configuration = json(access.installation().getConfigurationJson());
-        configurationValidator.validatePublicConfiguration(configuration);
+        if (!AIWorkspaceExperiencePackRegistry.SUPPORT_CODE.equals(access.installation().getExperiencePackCode())
+            || !AIWorkspaceExperiencePackRegistry.SUPPORT_VERSION.equals(access.installation().getExperiencePackVersion())) throw unavailable();
+        configurationValidator.validateSupportConfiguration(configuration);
+        var publicConfiguration = ((com.fasterxml.jackson.databind.node.ObjectNode) configuration).deepCopy();
+        var support = publicConfiguration.with("support");
+        support.remove("requesterOrigin");
+        // Console's reviewed native provider uses its registered target binding as both IDs.
+        // Session/capability checks happen separately, so a Desk outage does not hide ordinary AI help.
+        support.put("spaceId", settings.deskBindingId()).put("ticketProviderBindingId", settings.deskBindingId());
         var workspace = assets.workspace();
         var pack = assets.experiencePack(access.installation().getExperiencePackCode(), access.installation().getExperiencePackVersion());
         var handover = mapper.createObjectNode();
@@ -87,11 +130,13 @@ public class SupportRuntimeAccessService {
         for (String field : List.of("enabled", "contractVersion", "modelInitiatedPolicy", "userCanCancelPending", "userCanResumeAi", "queueTimeoutSeconds", "intake")) {
             if (configured.has(field)) handover.set(field, configured.path(field));
         }
-        return new Bootstrap(access.owned().conversationId(), "support:" + caseId + ":" + access.owned().episodeId(),
-            "/api/support/cases/" + caseId + "/runtime/api", access.installation().getInstallationId(),
+        String base = caseId == null ? "/api/support/conversations/" + access.owned().conversationId() + "/runtime/api"
+            : "/api/support/requests/" + caseId + "/runtime/api";
+        return new Bootstrap(access.owned().conversationId(), "support:" + (caseId == null ? access.owned().conversationId() : caseId) + ":" + access.owned().episodeId(),
+            base, access.installation().getInstallationId(),
             workspace.requestPath(), workspace.integrity(), pack.requestPath(), pack.integrity(),
             access.owned().reference(), access.owned().status().name(), access.owned().initialMessageDelivery().name(),
-            access.assignment().assignmentRevision(), configuration, handover);
+            access.assignment().assignmentRevision(), publicConfiguration, handover);
     }
 
     private JsonNode json(String value) {

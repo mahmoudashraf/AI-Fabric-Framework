@@ -24,6 +24,8 @@ public class DeskBindingEntity {
     private String callbackKeyRef;
     private String runtimeCallbackKeyRef;
     private String bridgeKeyRef;
+    @Column(columnDefinition = "text")
+    private String supportRegistrationJson;
     private String errorMessage;
     private Instant createdAt;
     private Instant updatedAt;

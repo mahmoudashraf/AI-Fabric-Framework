@@ -1300,7 +1300,16 @@ class CoolifyDeploymentProviderTest {
         provisionConversationHandover(true, true);
     }
 
+    @Test
+    void ticketOnlyApplyPreparesItsManagedCredentialBeforePlanningWithoutHumanCallback() throws Exception {
+        provisionConversationHandover(false, false, true);
+    }
+
     private void provisionConversationHandover(boolean deskEnabled, boolean rejectRegistration) throws Exception {
+        provisionConversationHandover(deskEnabled, rejectRegistration, false);
+    }
+
+    private void provisionConversationHandover(boolean deskEnabled, boolean rejectRegistration, boolean ticketActions) throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -1381,6 +1390,13 @@ class CoolifyDeploymentProviderTest {
             var behavior = (ObjectNode) objectMapper.readTree(handoverVersion.getBehaviorConfigJson());
             behavior.putObject("conversationHandover").put("marketplacePluginId", "mkp-integration-loomai-desk");
             handoverVersion.setBehaviorConfigJson(behavior.toString());
+        }
+        if (ticketActions) {
+            handoverVersion.setBehaviorConfigJson("{}");
+            handoverVersion.setActionsConfigJson("""
+                {"actions":[{"route":{"url":"${MANAGED_DESK_TICKET_COMMANDS_URL}",
+                 "headers":{"X-LoomAI-Ticket-Connector-Key":"${MANAGED_DESK_TICKET_CONNECTOR_KEY}"}}}]}
+                """);
         }
 
         when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
@@ -1464,11 +1480,13 @@ class CoolifyDeploymentProviderTest {
             ProvisioningProgressTracker.noop()
         );
         assertCreatedReceipts(receipts, 3);
-        if (deskEnabled) {
+        if (deskEnabled || ticketActions) {
             var order = inOrder(deskProvisioner, railwayProvisioningPlanService, coolifyApiClient);
             order.verify(deskProvisioner).prepareForApply(any(), eq(handoverVersion), eq(release), eq(profile));
             order.verify(railwayProvisioningPlanService).buildPlan(any(), eq(handoverVersion), isNull(), eq("dtp-coolify-production"), nullable(String.class));
-            order.verify(deskProvisioner).registerCallback(any(), eq(profile), eq("https://dep-123-connector.runtime.example.test"));
+            if (deskEnabled)
+                order.verify(deskProvisioner).registerCallback(any(), eq(profile), eq("https://dep-123-connector.runtime.example.test"));
+            else verify(deskProvisioner, never()).registerCallback(any(), any(), anyString());
             order.verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("runtime-uuid"), any());
             order.verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("connector-uuid"), any());
             order.verify(coolifyApiClient).start(eq(connection), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean());
@@ -1477,6 +1495,8 @@ class CoolifyDeploymentProviderTest {
         }
 
         assertThat(result.detailsJson()).contains("connector-uuid", "db-uuid", "COOLIFY_POSTGRES");
+        // The remaining shared fixture assertions concern the optional human-channel private network.
+        if (ticketActions) return;
         verify(coolifyApiClient).configurePrivateApplicationNetwork(
             connection,
             "runtime-uuid",

@@ -22,6 +22,8 @@ public class CustomerExperienceKitEntity {
     @Column(nullable = false, length = 64) private String offerId;
     @Column(nullable = false, length = 64) private String targetProfileId;
     @Column(nullable = false) private boolean humanSupportEnabled;
+    @Column(nullable = false) private boolean ticketingEnabled;
+    @Column(length = 64) private String ticketProvider;
     @Column(nullable = false, length = 128) private String operationKey;
     @Column(nullable = false, length = 64) private String requestFingerprint;
     @Column(nullable = false) private Instant createdAt;

@@ -184,7 +184,7 @@ class ExperienceKitServiceTest {
                 TargetIntent.CUSTOMER_STAGING));
             request = new ExperienceKitContracts.CreateRequest(GENERIC, request.name(), request.offerId(),
                 request.targetProfileId(), request.workspaceProfileId(), request.aiStateStorageMode(), request.workspaceName(),
-                request.brandColor(), request.deliveryMode(), request.appSlug(), request.websiteOrigin(), human, request.operationKey());
+                request.brandColor(), request.deliveryMode(), request.appSlug(), request.websiteOrigin(), human, request.operationKey(), false, null);
         }
         var result = f.service.create(request);
         var captured = ArgumentCaptor.forClass(CreateAIWorkspaceInstallationRequest.class);
@@ -247,7 +247,7 @@ class ExperienceKitServiceTest {
         var request = f.update("both", true, stale.equals("kit") ? 1 : 0);
         var changed = new ExperienceKitContracts.UpdateRequest(request.name(), request.workspaceName(), request.brandColor(),
             request.deliveryMode(), request.appSlug(), request.websiteOrigin(), request.humanSupportEnabled(),
-            request.expectedRevision(), stale.equals("primary") ? 5L : 4L, stale.equals("embedded") ? 5L : 4L);
+            request.expectedRevision(), stale.equals("primary") ? 5L : 4L, stale.equals("embedded") ? 5L : 4L, false, null);
 
         assertStatus(CONFLICT, () -> f.service.update(result.id(), changed));
 
@@ -274,7 +274,7 @@ class ExperienceKitServiceTest {
 
         if (metadataOnly) {
             var metadata = new ExperienceKitContracts.UpdateRequest("Renamed experience", result.workspace().displayName(),
-                "#2563eb", "both", result.workspace().appSlug(), "https://dealer.example.test", true, 0, 4L, 4L);
+                "#2563eb", "both", result.workspace().appSlug(), "https://dealer.example.test", true, 0, 4L, 4L, false, null);
             var updated = f.service.update(result.id(), metadata);
             assertThat(updated.name()).isEqualTo("Renamed experience");
             assertThat(updated.humanSupportEnabled()).isTrue();
@@ -315,7 +315,7 @@ class ExperienceKitServiceTest {
         var request = f.update("embedded", true, 0);
         if (scenario.equals("preserve-multiple")) request = new ExperienceKitContracts.UpdateRequest(request.name(),
             request.workspaceName(), request.brandColor(), request.deliveryMode(), request.appSlug(), originalOrigins.getFirst(),
-            true, 0, 4L, null);
+            true, 0, 4L, null, false, null);
         var update = request;
 
         if (scenario.equals("replace-multiple")) {

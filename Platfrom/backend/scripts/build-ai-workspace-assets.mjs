@@ -16,9 +16,11 @@ const outputRoot = path.resolve(
 const widgetPackage = await json(path.join(repoRoot, 'max-mode-widget/package.json'))
 const packPackage = await json(path.join(repoRoot, 'experience-packs/dealership-experience/package.json'))
 const genericPackPackage = await json(path.join(repoRoot, 'experience-packs/generic-workspace-experience/package.json'))
+const supportPackPackage = await json(path.join(repoRoot, 'experience-packs/support-experience/package.json'))
 const widgetVersion = exactVersion(widgetPackage.version, 'Max Mode widget')
 const packVersion = exactVersion(packPackage.version, 'dealership experience pack')
 const genericPackVersion = exactVersion(genericPackPackage.version, 'generic workspace experience pack')
+const supportPackVersion = exactVersion(supportPackPackage.version, 'support experience pack')
 
 await rm(outputRoot, { recursive: true, force: true })
 await mkdir(outputRoot, { recursive: true })
@@ -64,7 +66,15 @@ const catalog = {
   schemaVersion: 'loomai-ai-workspace-assets-v1',
   installer,
   workspace,
-  experiencePacks: [genericWorkspace, dealership],
+  experiencePacks: [genericWorkspace, dealership, await publishHashed({
+    role: 'experience-pack',
+    code: 'support',
+    version: supportPackVersion,
+    source: path.join(repoRoot, 'experience-packs/support-experience/dist/support-experience.iife.js'),
+    requestDirectory: `/api/public/ai-workspace/assets/support/${supportPackVersion}`,
+    relativeDirectory: `assets/support/${supportPackVersion}`,
+    baseName: 'support-experience',
+  })],
 }
 await writeFile(path.join(outputRoot, 'catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8')
 

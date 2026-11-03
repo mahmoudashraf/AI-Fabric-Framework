@@ -5,8 +5,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 import static com.ai.fabric.platform.backend.support.SupportDeskContracts.*;
 
 @RestController
@@ -19,9 +17,4 @@ public class SupportDeskContextController {
         return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store").body(context.handle(input, headers));
     }
 
-    @GetMapping("/api/support/staff/intake")
-    public ResponseEntity<List<StaffIntake>> intake(@RequestHeader HttpHeaders headers,
-        @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "25") int size) {
-        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store").body(context.intake(headers, page, size));
-    }
 }

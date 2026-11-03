@@ -18,6 +18,8 @@ import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerSer
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Path;
@@ -44,6 +46,7 @@ class PublicAIWorkspaceManifestServiceTest {
     private final AIWorkspaceAuthenticationProfileRegistry authenticationProfiles =
         new AIWorkspaceAuthenticationProfileRegistry(objectMapper);
     private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
+    private final com.ai.fabric.platform.backend.desk.DeskSupportSpaceService supportSpaces = mock(com.ai.fabric.platform.backend.desk.DeskSupportSpaceService.class);
     private final PlatformAIWorkspaceProperties properties = new PlatformAIWorkspaceProperties(
         Path.of("."), false, 120, Duration.ofSeconds(60), null, "https://shopify-bridge.loomai.pro",
         "apps.loomai.test", "https://workspace.loomai.test");
@@ -58,8 +61,9 @@ class PublicAIWorkspaceManifestServiceTest {
         org.mockito.Mockito.verifyNoInteractions(consumers, consumerService, assignments);
     }
 
-    @Test
-    void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin(boolean canonicalOnly) throws Exception {
         AIWorkspaceInstallationEntity installation = installation();
         PlatformConsumerEntity consumer = consumer();
         DeploymentEntity deployment = deployment();
@@ -67,6 +71,7 @@ class PublicAIWorkspaceManifestServiceTest {
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-1");
         version.setSecurityConfigJson("{\"privateSecret\":\"must-not-leak\"}");
+        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":" + canonicalOnly + "}");
         AIWorkspaceAssignmentService.Assignment assignment = new AIWorkspaceAssignmentService.Assignment(
             consumer, deployment, release, version, objectMapper.readTree(version.getSecurityConfigJson()),
             "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64));
@@ -77,7 +82,7 @@ class PublicAIWorkspaceManifestServiceTest {
         when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
         when(consumerService.resolvePublicConsumer(consumer.getConsumerId()))
             .thenReturn(new PlatformCustomerConsumerService.ResolvedPublicConsumer(consumer, deployment, release));
-        when(readiness.evaluate(installation)).thenReturn(new AIWorkspaceReadinessSummary(
+        when(readiness.evaluateForManifest(installation)).thenReturn(new AIWorkspaceReadinessSummary(
             true, installation.getInstallationId(), "public-runtime-anonymous", consumer.getConsumerId(),
             deployment.getId(), release.getId(), assignment.runtimeBaseUrl(), assignment.assignmentRevision(), java.util.List.of()));
         when(assignments.resolveCurrent(consumer)).thenReturn(assignment);
@@ -93,6 +98,11 @@ class PublicAIWorkspaceManifestServiceTest {
             .isEqualTo("https://dep-example.loomai.pro");
         assertThat(result.manifest().connection().path("anonymousBootstrap").path("url").asText())
             .isEqualTo("/api/public/chat/session");
+        var routes = result.manifest().connection().path("routes");
+        assertThat(routes.has("conversationMessageUrlTemplate")).isEqualTo(canonicalOnly);
+        assertThat(routes.has("conversationControlUrlTemplate")).isEqualTo(canonicalOnly);
+        assertThat(routes.has("handoverRequestUrlTemplate")).isFalse();
+        assertThat(result.manifest().connection().path("conversationHandover").path("enabled").asBoolean()).isFalse();
         assertThat(json)
             .doesNotContain("must-not-leak")
             .doesNotContain("allowedOrigins")
@@ -244,7 +254,7 @@ class PublicAIWorkspaceManifestServiceTest {
         domain.setHostname("northfield.apps.loomai.test");
         when(domains.resolveVerifiedOrigin("https://northfield.apps.loomai.test")).thenReturn(domain);
         when(repository.findById(installation.getId())).thenReturn(Optional.of(installation));
-        when(readiness.evaluate(installation)).thenReturn(new AIWorkspaceReadinessSummary(
+        when(readiness.evaluateForManifest(installation)).thenReturn(new AIWorkspaceReadinessSummary(
             true, installation.getInstallationId(), "public-runtime-anonymous", "northfield-web",
             "dep-1", "rel-1", "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64),
             java.util.List.of()));
@@ -282,12 +292,28 @@ class PublicAIWorkspaceManifestServiceTest {
             new AIWorkspaceConnectionProfileRegistry(serviceProperties),
             authenticationProfiles, domains,
             new PlatformDeliveryProperties("https://api.loomai.pro", true, Duration.ofMinutes(10)),
-            serviceProperties, objectMapper
+            serviceProperties, objectMapper, supportSpaces
         );
     }
 
     private void stubReadyInstallation(AIWorkspaceInstallationEntity installation) throws Exception {
         stubReadyInstallation(installation, null);
+    }
+
+    @Test void supportManifestUsesManagedProjectionNotEditableBindingOrEndpointFields() throws Exception {
+        var installation = installation();
+        installation.setExperiencePackCode("support"); installation.setExperiencePackVersion("1.0.0");
+        installation.setConfigurationJson("{\"support\":{\"spaceId\":\"foreign\",\"requesterOrigin\":\"https://untrusted.example\"}}");
+        stubReadyInstallation(installation);
+        var asset = asset("experience-pack", "support", "/api/public/ai-workspace/assets/support/1.0.0/pack.js");
+        when(packs.resolve("support", "1.0.0")).thenReturn(new AIWorkspaceExperiencePackRegistry.ExperiencePack(
+            "support", "1.0.0", "Support", "loomai-support-experience-config-v1", true, asset));
+        var managed = objectMapper.readTree("{\"support\":{\"spaceId\":\"managed-desk\",\"requesterOrigin\":\"https://desk.example\"}}");
+        when(supportSpaces.publicConfiguration(org.mockito.ArgumentMatchers.eq(installation), org.mockito.ArgumentMatchers.any()))
+            .thenReturn((com.fasterxml.jackson.databind.node.ObjectNode) managed);
+        var manifest = service().resolve(installation.getInstallationId(), "https://dealer.example").manifest();
+        assertThat(manifest.workspace().path("configuration")).isEqualTo(managed);
+        assertThat(objectMapper.writeValueAsString(manifest)).doesNotContain("untrusted.example", "foreign", "privateSecret");
     }
 
     private void stubReadyInstallation(AIWorkspaceInstallationEntity installation,
@@ -311,7 +337,7 @@ class PublicAIWorkspaceManifestServiceTest {
         when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
         when(consumerService.resolvePublicConsumer(consumer.getConsumerId()))
             .thenReturn(new PlatformCustomerConsumerService.ResolvedPublicConsumer(consumer, deployment, release));
-        when(readiness.evaluate(installation)).thenReturn(new AIWorkspaceReadinessSummary(
+        when(readiness.evaluateForManifest(installation)).thenReturn(new AIWorkspaceReadinessSummary(
             true, installation.getInstallationId(), installation.getConnectionMode().manifestValue(),
             consumer.getConsumerId(), deployment.getId(), release.getId(), assignment.runtimeBaseUrl(),
             assignment.assignmentRevision(), java.util.List.of()));

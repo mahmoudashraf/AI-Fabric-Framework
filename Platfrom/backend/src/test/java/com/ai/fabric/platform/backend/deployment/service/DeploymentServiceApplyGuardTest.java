@@ -303,6 +303,21 @@ class DeploymentServiceApplyGuardTest {
         assertThat(deployment.getStatus()).isEqualTo("PROVISIONING");
     }
 
+    @Test
+    void standaloneCanonicalArtifactRejectionPrecedesApprovalConsumptionAndReleasePersistence() throws Exception {
+        prepareTokenApply();
+        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
+        var gate = spy(new StandaloneConversationRuntimeArtifactGate(sourceArtifactService, capabilityManifestService));
+        ReflectionTestUtils.setField(service, "standaloneConversationArtifacts", gate);
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(StandaloneConversationRuntimeArtifactGate.Required.class)
+            .hasMessageContaining("standalone-conversation-control");
+        verify(gate).require(version, "runtime");
+        verifyNoInteractions(deploymentOperationApprovalService, deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
     private DeploymentSourceArtifactEntity prepareTokenApply() throws Exception {
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         deployment.setApprovalRequiredForApply(true);

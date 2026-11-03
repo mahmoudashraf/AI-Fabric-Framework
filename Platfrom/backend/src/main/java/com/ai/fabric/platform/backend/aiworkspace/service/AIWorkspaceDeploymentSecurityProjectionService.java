@@ -163,7 +163,8 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         else security.put("corsAllowedOrigins", String.join(",", combined));
         ArrayNode managedNode = security.putArray(MANAGED_ORIGINS_FIELD);
         managed.forEach(managedNode::add);
-        externalIdentity.project(security, projectedInstallations, readBehavior(draft.getBehaviorConfigJson()));
+        externalIdentity.project(security, projectedInstallations, readBehavior(draft.getBehaviorConfigJson()),
+            canonicalConversationsEnabled(draft.getProviderConfigJson()));
 
         String updated = writeJson(security);
         if (updated.equals(draft.getSecurityConfigJson())) return;
@@ -191,6 +192,19 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         }
         throw new ResponseStatusException(CONFLICT,
             "Deployment behavior configuration requires reconciliation before AI Workspace configuration.");
+    }
+
+    private boolean canonicalConversationsEnabled(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        try {
+            var provider = objectMapper.readTree(raw);
+            var value = provider == null ? null : provider.get("canonicalConversationsEnabled");
+            if (provider != null && provider.isObject() && (value == null || value.isBoolean()))
+                return value != null && value.booleanValue();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+            // A malformed transport configuration cannot choose an identity-scope projection.
+        }
+        throw new ResponseStatusException(CONFLICT, "Deployment conversation transport configuration requires reconciliation.");
     }
 
     private ObjectNode readSecurity(String raw) {

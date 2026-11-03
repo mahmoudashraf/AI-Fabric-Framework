@@ -38,6 +38,7 @@ class AIWorkspaceReadinessServiceTest {
     private final AIWorkspaceExperiencePackRegistry packs = mock(AIWorkspaceExperiencePackRegistry.class);
     private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
     private final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
+    private final com.ai.fabric.platform.backend.desk.DeskSupportSpaceService supportSpaces = mock(com.ai.fabric.platform.backend.desk.DeskSupportSpaceService.class);
     private final PlatformAIWorkspaceProperties properties = new PlatformAIWorkspaceProperties(
         Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
         "apps.loomai.test", "https://workspace.loomai.test");
@@ -134,8 +135,43 @@ class AIWorkspaceReadinessServiceTest {
             domains,
             authority,
             properties,
-            objectMapper
+            objectMapper, List.of(supportSpaces)
         );
+    }
+
+    @Test void requestedSupportUsesManagedReadinessAndLocalDraftEvaluationMakesNoProviderProbe() throws Exception {
+        var installation = installation(); installation.setExperiencePackCode("support");
+        installation.setDeliveryMode(AIWorkspaceDeliveryMode.EMBEDDED);
+        installation.setConfigurationJson("{\"capabilities\":{\"tickets\":true,\"handover\":false},\"support\":{}}");
+        var consumer = consumer();
+        var assignment = assignment(security("https://example.supabase.co/auth/v1"));
+        when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
+        when(assignments.resolveTarget(consumer, "dep-1", "rel-1")).thenReturn(assignment);
+        when(assets.health()).thenReturn(new AIWorkspaceAssetCatalogService.CatalogHealth(true, "READY", "1.1.0"));
+        when(authority.requireReleaseUnchangedForRead(any(), any(), any())).thenReturn(mock(RuntimeAuthorityBinding.Snapshot.class));
+        var local = service().evaluateLocal(installation);
+        org.mockito.Mockito.verifyNoInteractions(supportSpaces);
+        assertThat(local.checks()).anySatisfy(c -> { assertThat(c.code()).isEqualTo("SUPPORT_SPACE"); assertThat(c.status()).isEqualTo("BLOCKED"); });
+        when(supportSpaces.supports(installation)).thenReturn(true);
+        assertThat(service().evaluateForManifest(installation).checks()).anySatisfy(c -> {
+            assertThat(c.code()).isEqualTo("SUPPORT_SPACE"); assertThat(c.status()).isEqualTo("PASSED");
+        });
+        org.mockito.Mockito.verify(supportSpaces).validatePublishedProjection(installation, assignment);
+        org.mockito.Mockito.verify(supportSpaces, org.mockito.Mockito.never()).validate(any(), any());
+        assertThat(service().evaluate(installation).checks()).anySatisfy(c -> {
+            assertThat(c.code()).isEqualTo("SUPPORT_SPACE"); assertThat(c.status()).isEqualTo("PASSED");
+        });
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Provider disabled"))
+            .when(supportSpaces).validate(installation, assignment);
+        assertThat(service().evaluate(installation).checks()).anySatisfy(c -> {
+            assertThat(c.code()).isEqualTo("SUPPORT_SPACE"); assertThat(c.status()).isEqualTo("BLOCKED");
+        });
+        org.mockito.Mockito.doThrow(new com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.Required())
+            .when(supportSpaces).validate(installation, assignment);
+        assertThat(service().evaluate(installation).checks()).anySatisfy(c -> {
+            assertThat(c.code()).isEqualTo("CANONICAL_CONVERSATIONS"); assertThat(c.status()).isEqualTo("BLOCKED");
+            assertThat(c.message()).contains("standalone-conversation-control");
+        });
     }
 
     private AIWorkspaceInstallationEntity installation() {

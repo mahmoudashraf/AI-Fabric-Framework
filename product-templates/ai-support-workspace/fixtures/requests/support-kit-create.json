@@ -1,0 +1,17 @@
+{
+  "kitCode":"ai-support-experience",
+  "name":"Acme Cloud support",
+  "offerId":"replace-with-owned-support-offer",
+  "targetProfileId":"replace-with-customer-staging-target",
+  "workspaceProfileId":"support-workspace",
+  "aiStateStorageMode":"CUSTOMER_POSTGRES",
+  "workspaceName":"Acme support AI",
+  "brandColor":"#0d766e",
+  "deliveryMode":"both",
+  "appSlug":"acme-support",
+  "websiteOrigin":"https://support.example.test",
+  "humanSupportEnabled":false,
+  "ticketingEnabled":true,
+  "ticketProvider":"desk",
+  "operationKey":"support-kit-example-1"
+}

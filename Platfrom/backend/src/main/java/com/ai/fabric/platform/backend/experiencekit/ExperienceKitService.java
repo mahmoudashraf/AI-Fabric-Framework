@@ -32,6 +32,8 @@ import static org.springframework.http.HttpStatus.*;
 /** Kit metadata links canonical resources; creation never publishes, applies or activates them. */
 @Service
 public class ExperienceKitService {
+    private static final String SUPPORT_PACK = "support";
+    private static final String NATIVE_TICKET_PROVIDER = "desk";
     private final ExperienceKitDefinitionRepository definitions;
     private final CustomerExperienceKitRepository kits;
     private final CustomerOfferEntitlementService access;
@@ -69,7 +71,8 @@ public class ExperienceKitService {
         access.requireCustomerActor();
         var offers = catalogue.catalogue();
         return definitions.findAllByOrderBySortOrderAsc().stream()
-            .map(d -> new CatalogueEntry(definition(d), offers.stream().filter(o -> matches(d,o)).toList())).toList();
+            .map(d -> new CatalogueEntry(definition(d), offers.stream().filter(o -> matches(d,o)).toList(),
+                ticketProviders(definition(d).experiencePackCode()))).toList();
     }
 
     @Transactional(readOnly=true)
@@ -106,6 +109,7 @@ public class ExperienceKitService {
         var d=definition(definition);
         if(!d.experiencePackCode().equals(profile.interaction().path("packCode").asText()))
             throw badRequest("The workspace profile does not match this kit.");
+        validateTicketing(d.experiencePackCode(),request.ticketingEnabled(),request.ticketProvider());
         String id="kit-"+UUID.randomUUID();
         var created=bootstrap.bootstrap(request.offerId(),new CustomerDeploymentBootstrapContracts.Request(
             request.targetProfileId(),request.name().trim(),offer.entitlement().revision(),id,request.aiStateStorageMode()));
@@ -116,18 +120,19 @@ public class ExperienceKitService {
         String mode=primaryMode(request.deliveryMode());
         String slug="embedded".equals(mode)?null:slug(request.appSlug(),id);
         var input=profileRequest(consumer.consumerId(),profile,request.workspaceName(),request.brandColor(),
-            mode,slug,request.websiteOrigin(),request.humanSupportEnabled());
+            mode,slug,request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled());
         var app=workspaces.create(actor.customerId(),input,id+"-app");
         AIWorkspaceInstallationSummary embedded=null;
         if("both".equals(request.deliveryMode())) embedded=workspaces.create(actor.customerId(),
             profileRequest(consumer.consumerId(),profile,request.workspaceName(),request.brandColor(),
-                "embedded",null,request.websiteOrigin(),request.humanSupportEnabled()),id+"-embed");
+                "embedded",null,request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled()),id+"-embed");
         var now=Instant.now(); var kit=new CustomerExperienceKitEntity();
         kit.setId(id); kit.setCustomerId(actor.customerId()); kit.setKitCode(d.code()); kit.setKitVersion(d.version());
         kit.setName(request.name().trim()); kit.setDeploymentId(created.deploymentId()); kit.setConsumerId(consumer.consumerId());
         kit.setInstallationEntityId(app.id()); kit.setEmbeddedInstallationEntityId(embedded==null?null:embedded.id());
         kit.setDeliveryMode(request.deliveryMode()); kit.setOfferId(request.offerId()); kit.setTargetProfileId(request.targetProfileId());
         kit.setHumanSupportEnabled(request.humanSupportEnabled()); kit.setOperationKey(request.operationKey());
+        kit.setTicketingEnabled(request.ticketingEnabled()); kit.setTicketProvider(request.ticketProvider());
         kit.setRequestFingerprint(fingerprint); kit.setCreatedAt(now); kit.setUpdatedAt(now);
         kits.saveAndFlush(kit);
         audit.record("CUSTOMER_EXPERIENCE_KIT_CREATED","EXPERIENCE_KIT",id,Map.of(
@@ -143,6 +148,10 @@ public class ExperienceKitService {
         if(kit.getRevision()!=request.expectedRevision()) throw conflict("This experience changed. Reload before saving.");
         var current=workspace(kit.getCustomerId(),kit.getInstallationEntityId());
         if(current==null) throw conflict("The linked Engage draft was removed. Open Engage apps to review its configuration.");
+        validateTicketing(current.experiencePackCode(),request.ticketingEnabled(),request.ticketProvider());
+        if(!Objects.equals(kit.getTicketProvider(),request.ticketProvider())
+            && current.configuration().path("support").hasNonNull("ticketProviderBindingId"))
+            throw conflict("Change a configured ticket provider through its scoped connection setup.");
         var embedded=workspace(kit.getCustomerId(),kit.getEmbeddedInstallationEntityId());
         if(!Objects.equals(request.expectedWorkspaceRevision(),current.rowVersion())
             || embedded!=null && !Objects.equals(request.expectedEmbeddedWorkspaceRevision(),embedded.rowVersion())
@@ -159,11 +168,11 @@ public class ExperienceKitService {
         String mode=primaryMode(request.deliveryMode());
         String slug="embedded".equals(mode)?null:slug(request.appSlug(),kit.getId());
         var input=existingRequest(current,request.workspaceName(),request.brandColor(),mode,slug,
-            request.websiteOrigin(),request.humanSupportEnabled());
+            request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled());
         updateWorkspace(kit.getCustomerId(),current,input);
         if("both".equals(request.deliveryMode())) {
             var embeddedInput=existingRequest(embedded==null?current:embedded,request.workspaceName(),request.brandColor(),"embedded",null,
-                request.websiteOrigin(),request.humanSupportEnabled());
+                request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled());
             if(embedded==null) {
                 embedded=workspaces.create(kit.getCustomerId(),embeddedInput,kit.getId()+"-embed-"+kit.getRevision());
                 kit.setEmbeddedInstallationEntityId(embedded.id());
@@ -177,6 +186,7 @@ public class ExperienceKitService {
 
     private void saveMetadata(CustomerExperienceKitEntity kit,UpdateRequest request) {
         kit.setName(request.name().trim()); kit.setHumanSupportEnabled(request.humanSupportEnabled());
+        kit.setTicketingEnabled(request.ticketingEnabled()); kit.setTicketProvider(request.ticketProvider());
         kit.setDeliveryMode(request.deliveryMode()); kit.setUpdatedAt(Instant.now()); kits.saveAndFlush(kit);
         audit.record("CUSTOMER_EXPERIENCE_KIT_UPDATED","EXPERIENCE_KIT",kit.getId(),Map.of(
             "customerId",kit.getCustomerId(),"revision",kit.getRevision(),"deliveryMode",kit.getDeliveryMode()));
@@ -195,11 +205,11 @@ public class ExperienceKitService {
     }
 
     private CreateAIWorkspaceInstallationRequest profileRequest(String consumerId,WorkspaceProfile profile,
-        String name,String color,String mode,String slug,String origin,boolean human) {
+        String name,String color,String mode,String slug,String origin,boolean human,boolean tickets) {
         var interaction=profile.interaction(); var authentication=profile.authentication();
         var config=object(interaction.path("configuration")).deepCopy();
         if(profile.theme()!=null && profile.theme().isObject()) config.set("theme",profile.theme().deepCopy());
-        shape(config,text(interaction,"packCode"),name,color,human);
+        shape(config,text(interaction,"packCode"),name,color,human,tickets);
         return new CreateAIWorkspaceInstallationRequest(consumerId,name.trim(),text(interaction,"packCode"),
             text(interaction,"packVersion"),text(interaction,"connectionMode"),text(interaction,"connectionProfileCode"),
             text(interaction,"connectionProfileVersion"),interaction.path("connectionConfiguration"),origins(mode,origin),
@@ -208,8 +218,8 @@ public class ExperienceKitService {
     }
 
     private CreateAIWorkspaceInstallationRequest existingRequest(AIWorkspaceInstallationSummary app,String name,
-        String color,String mode,String slug,String origin,boolean human) {
-        var config=object(app.configuration()).deepCopy(); shape(config,app.experiencePackCode(),name,color,human);
+        String color,String mode,String slug,String origin,boolean human,boolean tickets) {
+        var config=object(app.configuration()).deepCopy(); shape(config,app.experiencePackCode(),name,color,human,tickets);
         return new CreateAIWorkspaceInstallationRequest(app.consumerId(),name.trim(),app.experiencePackCode(),
             app.experiencePackVersion(),app.connectionMode(),app.connectionProfileCode(),app.connectionProfileVersion(),
             app.connectionConfiguration(),existingOrigins(app,mode,origin),config,mode,slug,
@@ -224,17 +234,37 @@ public class ExperienceKitService {
             r.interactionPolicy(),r.authProfileCode(),r.authProfileVersion(),r.authConfiguration(),app.rowVersion()));
     }
 
-    private void shape(ObjectNode config,String packCode,String name,String color,boolean human) {
+    private void shape(ObjectNode config,String packCode,String name,String color,boolean human,boolean tickets) {
         String identityKey=switch(packCode) {
-            case "generic-workspace" -> "app";
+            case "generic-workspace", SUPPORT_PACK -> "app";
             case "dealership" -> "dealer";
             default -> throw conflict("Use the Engage editor for this experience pack's appearance.");
         };
         var identity=object(config.get(identityKey)).deepCopy(); identity.put("assistantLabel",name.trim()); config.set(identityKey,identity);
         var theme=object(config.get("theme")).deepCopy(); theme.put("primaryColor",color); config.set("theme",theme);
-        if("generic-workspace".equals(packCode)) {
+        if("generic-workspace".equals(packCode) || SUPPORT_PACK.equals(packCode)) {
             var capabilities=object(config.get("capabilities")).deepCopy(); capabilities.put("handover",human); config.set("capabilities",capabilities);
+            if(SUPPORT_PACK.equals(packCode)) {
+                capabilities.put("tickets",tickets);
+            }
         }
+    }
+
+    private List<TicketProviderOption> ticketProviders(String pack) {
+        if(!SUPPORT_PACK.equals(pack)) return List.of();
+        return List.of(new TicketProviderOption(NATIVE_TICKET_PROVIDER,"Desk-managed tickets",List.of(
+            "createRequest","listOwnRequests","getOwnRequest","linkConversation",
+            "resolveRequest","cancelRequest","reopenRequest")));
+    }
+
+    private void validateTicketing(String pack,boolean enabled,String provider) {
+        if(!SUPPORT_PACK.equals(pack)) {
+            if(enabled || provider!=null) throw badRequest("Ticketing requires the Support experience kit.");
+            return;
+        }
+        if(provider!=null && ticketProviders(pack).stream().noneMatch(p->p.code().equals(provider)))
+            throw badRequest("Select an available ticket provider.");
+        if(enabled && provider==null) throw badRequest("Select a ticket provider before requesting ticketing setup.");
     }
 
     private List<String> origins(String mode,String origin) {
@@ -281,7 +311,8 @@ public class ExperienceKitService {
         var embedded=workspace(k.getCustomerId(),k.getEmbeddedInstallationEntityId());
         return new Summary(k.getId(),k.getKitCode(),k.getKitVersion(),k.getName(),k.getDeploymentId(),k.getConsumerId(),
             app==null?null:app.installationId(),k.getOfferId(),k.getTargetProfileId(),k.isHumanSupportEnabled(),k.getRevision(),
-            k.getCreatedAt(),k.getUpdatedAt(),app,embedded==null?null:embedded.installationId(),embedded,k.getDeliveryMode());
+            k.getCreatedAt(),k.getUpdatedAt(),app,embedded==null?null:embedded.installationId(),embedded,k.getDeliveryMode(),
+            k.isTicketingEnabled(),k.getTicketProvider());
     }
     private ResponseStatusException notFound() { return new ResponseStatusException(NOT_FOUND,"Experience not found."); }
     private ResponseStatusException conflict(String message) { return new ResponseStatusException(CONFLICT,message); }

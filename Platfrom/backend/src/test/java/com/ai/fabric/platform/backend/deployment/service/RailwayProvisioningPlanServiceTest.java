@@ -42,6 +42,27 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void canonicalConversationFoundationDoesNotEnableOrRequireAHumanChannel() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), new ObjectMapper());
+        var version = version();
+        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
+        var env = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+        assertThat(env).containsEntry("LOOMAI_CONVERSATION_CONTROL_ENABLED", "true")
+            .containsEntry("LOOMAI_CONVERSATION_HANDOVER_ENABLED", "false")
+            .containsEntry("LOOMAI_CONVERSATION_CONTROL_ENCRYPTION_SECRET", "${secret:" + DeploymentExecutionSecretService.conversationHandoverEncryptionSecretName("dep-123") + "}")
+            .containsEntry("LOOMAI_CONVERSATION_CONTROL_FINGERPRINT_SECRET", "${secret:" + DeploymentExecutionSecretService.conversationControlFingerprintSecretName("dep-123") + "}");
+        assertThat(env).doesNotContainKey("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID");
+        assertThat(env.get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES"))
+            .contains("chat:messages", "chat:handover:read").doesNotContain("chat:handover:request", "chat:handover:control");
+    }
+
+    @Test
     void specialistAssistanceUsesExactPublicationBytesAndExistingRuntimeWithoutRebuild() throws Exception {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
@@ -80,6 +101,40 @@ class RailwayProvisioningPlanServiceTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) behavior.at("/specialistAssistance/compiled/invocations/0")).put("targetRef", "outside@1");
         version.setBehaviorConfigJson(behavior.toString());
         assertThatThrownBy(() -> service.buildPlan(deployment(), version)).hasMessageContaining("hash mismatch");
+    }
+
+    @Test
+    void ticketOnlyActionsReceiveTargetScopedManagedConnectorEnvironmentWithoutHumanChannel() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), mapper);
+        var tickets = mock(com.ai.fabric.platform.backend.desk.DeskSupportTicketConfiguration.class);
+        ReflectionTestUtils.setField(service, "deskSupportTicketConfiguration", tickets);
+        var deployment = deployment(); var version = version();
+        version.setActionsConfigJson("""
+            {"actions":[{"route":{"url":"${MANAGED_DESK_TICKET_COMMANDS_URL}",
+             "headers":{"X-LoomAI-Ticket-Connector-Key":"${MANAGED_DESK_TICKET_CONNECTOR_KEY}"}}}]}
+            """);
+        when(tickets.connectorEnvironment(deployment, version, "production")).thenReturn(Map.of(
+            "MANAGED_DESK_TICKET_COMMANDS_URL", "https://desk.example/api/desk/integrations/v1/spaces/desk-owned/server-ticket-commands",
+            "MANAGED_DESK_TICKET_CONNECTOR_KEY", "${secret:MANAGED_TICKET_KEY_OWNED}"));
+        String published = version.getActionsConfigJson();
+        var plan = service.buildPlan(deployment, version, null, "production");
+        assertThat(envMap(plan.services().restConnector().env()))
+            .containsEntry("MANAGED_DESK_TICKET_COMMANDS_URL", "https://desk.example/api/desk/integrations/v1/spaces/desk-owned/server-ticket-commands")
+            .containsEntry("MANAGED_DESK_TICKET_CONNECTOR_KEY", "${secret:MANAGED_TICKET_KEY_OWNED}")
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_ENABLED", "false");
+        assertThat(envMap(plan.services().runtime().env())).doesNotContainKeys(
+            "MANAGED_DESK_TICKET_COMMANDS_URL", "MANAGED_DESK_TICKET_CONNECTOR_KEY");
+        assertThat(plan.services().restConnector().env().stream()
+            .filter(env -> env.key().equals("MANAGED_DESK_TICKET_CONNECTOR_KEY")).count()).isEqualTo(1);
+        assertThat(version.getActionsConfigJson()).isEqualTo(published);
+        org.mockito.Mockito.verify(tickets).connectorEnvironment(deployment, version, "production");
     }
 
     @Test

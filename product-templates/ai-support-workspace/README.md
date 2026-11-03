@@ -1,5 +1,26 @@
 # AI Support Workspace
 
+## 010.57 Support Experience Source
+
+The source catalogue now also includes Support TEMPLATE `1.1.0`, ticket ACTION
+`1.0.0` and optional Desk human-channel INTEGRATION `1.0.1`. They are unqualified
+source candidates, not published/live revisions or accepted quality defaults.
+See [composition contracts](SUPPORT_EXPERIENCE_CONTRACT.md) and the
+[setup and operations guide](SUPPORT_EXPERIENCE_GUIDE.md). The support pack is
+`support@1.0.0`; its Technical Support kit uses the ordinary catalogue/bootstrap
+and creates configuration only. No ticket history migration is provided.
+
+The template retains customer-owned S3 document DATA and optional specialists.
+It does not inherit LoomAI diagnostics, credentials or Console requester roles.
+Ticketing and human support are independent. Effective provider capabilities
+come from the authenticated requester session, not a template or boolean.
+Fresh bootstrap also installs the ticket ACTION using managed target URL and
+credential references. Canonical conversations require a newly registered
+runtime artifact advertising `standalone-conversation-control`; historical
+handover/orchestration-state capabilities alone do not qualify.
+
+## Existing Qualified Baseline
+
 Reusable Marketplace support configuration for 010.54. The customer starter is
 TEMPLATE `1.0.1` with the required S3 DATA `1.0.0`. The internal LoomAI instance
 adds its separately reviewed diagnostics ACTION `1.0.3`; customers do not inherit

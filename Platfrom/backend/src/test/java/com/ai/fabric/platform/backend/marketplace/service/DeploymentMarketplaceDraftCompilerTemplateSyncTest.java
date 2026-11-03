@@ -157,6 +157,38 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     }
 
     @Test
+    void supportRequiredActionDefaultsCompileRealConfirmedCreateAndOwnReadRoutesWithoutCustomerKeys() throws Exception {
+        java.nio.file.Path root = null;
+        for (var dir = java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath(); dir != null; dir = dir.getParent()) {
+            var candidate = dir.resolve("product-templates/ai-support-workspace");
+            if (java.nio.file.Files.isDirectory(candidate)) { root = candidate; break; }
+        }
+        if (root == null) root = java.nio.file.Path.of(System.getProperty("support.template.root"));
+        var source = mapper.readTree(java.nio.file.Files.readString(root.resolve("manifests/ai-support-workspace.1.1.0.manifest.json")));
+        String pluginId = "mkp-action-support-tickets";
+        registerPlugin(pluginId, "ACTION", java.nio.file.Files.readString(root.resolve("manifests/support-tickets.1.0.0.manifest.json")));
+        var defaults = source.at("/contributions/template/requiredPluginInstallDefaults/mkp-action-support-tickets@1.0.0");
+        var install = installs.stream().filter(row -> pluginId.equals(row.getPluginId())).findFirst().orElseThrow();
+        install.setConfigJson(defaults.path("config").toString());
+        install.setSecretRefsJson(defaults.path("secretRefs").toString());
+        var result = compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
+        assertThat(com.ai.fabric.platform.backend.desk.DeskSupportTicketConfiguration.requested(
+            result.actionsConfig(), result.routingConfig())).isTrue();
+        assertThat(result.actionsConfig().path("actions")).filteredOn(action -> pluginId.equals(action.path("marketplacePluginId").asText()))
+            .extracting(action -> action.path("name").asText())
+            .containsExactlyInAnyOrder("support_create_request", "support_list_own_requests", "support_get_own_request");
+        for (var action : result.actionsConfig().path("actions")) if (pluginId.equals(action.path("marketplacePluginId").asText())) {
+            assertThat(action.at("/route/url").asText()).isEqualTo("${MANAGED_DESK_TICKET_COMMANDS_URL}");
+            assertThat(action.at("/route/headers/X-LoomAI-Ticket-Connector-Key").asText())
+                .isEqualTo("${MANAGED_DESK_TICKET_CONNECTOR_KEY}");
+            assertThat(action.at("/route/request/body").has("conversationId")).isFalse();
+            assertThat(action.at("/route/request/body").has("trace")).isFalse();
+        }
+        assertThat(result.behaviorConfig().path("executionExtensions")).extracting(JsonNode::asText)
+            .doesNotContain("CONVERSATION_HANDOVER");
+    }
+
+    @Test
     void templateBaselinesMergeOnlyDeclaredLeavesWithoutMutatingInputs() throws Exception {
         var version = runtimeDefaultsVersion();
         var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
@@ -179,7 +211,7 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
 
         ObjectNode mergedProvider = compiler.compileTemplateProviderBaseline(plugin, version, provider);
         ObjectNode mergedPrompts = compiler.compileTemplatePromptBaseline(plugin, version, prompts);
-        ObjectNode expectedProvider = provider.deepCopy();
+        ObjectNode expectedProvider = provider.deepCopy().put("canonicalConversationsEnabled", true);
         ((ObjectNode) expectedProvider.at("/orchestrationModeOverrides/executor/readActionResolution"))
             .put("planningMode", "ITERATIVE").put("maxIterations", 2).put("maxPlannerContextChars", 12000)
             .put("maxActionEvidenceCharsPerAction", 8000).put("ragCooperationMode", "RAG_IF_ACTIONS_INSUFFICIENT");
@@ -203,11 +235,29 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
     }
 
     @Test
+    void explicitTemplateVersionTransitionReplacesOnlyRecordedCanonicalPreference() throws Exception {
+        var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
+        var current = runtimeDefaultsVersion();
+        var target = new MarketplacePluginVersionEntity();
+        target.setId("target-version"); target.setPluginId(TEMPLATE_ID); target.setVersion("2.0.0");
+        ObjectNode manifest = (ObjectNode) mapper.readTree(current.getManifestJson());
+        ((ObjectNode) manifest.at("/contributions/template/providerConfig")).put("canonicalConversationsEnabled", false);
+        target.setManifestJson(manifest.toString());
+        var owner = mapper.createObjectNode().put("canonicalConversationsEnabled", true)
+            .put("openaiModel", "owner-model").put("customerConnectionRef", "owned-document-connection");
+        var result = compiler.compileTemplateProviderVersionTransition(plugin, current, target, owner);
+        assertThat(result.path("canonicalConversationsEnabled").asBoolean()).isFalse();
+        assertThat(result.path("openaiModel").asText()).isEqualTo("owner-model");
+        assertThat(result.path("customerConnectionRef").asText()).isEqualTo("owned-document-connection");
+        assertThat(owner.path("canonicalConversationsEnabled").asBoolean()).isTrue();
+    }
+
+    @Test
     void absentTemplateRuntimeDefaultsLeaveExistingConfigurationUnchanged() throws Exception {
         var version = catalog.requirePluginVersionEntityById(TEMPLATE_ID + "-version-1");
         var plugin = catalog.requirePluginEntity(TEMPLATE_ID);
         ObjectNode provider = (ObjectNode) mapper.readTree("""
-            {"orchestrationModeOverrides":{"executor":{"readActionResolution":{"maxIterations":3}}}}
+            {"canonicalConversationsEnabled":false,"orchestrationModeOverrides":{"executor":{"readActionResolution":{"maxIterations":3}}}}
             """);
         ObjectNode prompts = mapper.createObjectNode().put("systemPrompt", "Owner prompt").put("ragMaxContextChars", 5000);
         assertThat(compiler.compileTemplateProviderBaseline(plugin, version, provider)).isEqualTo(provider).isNotSameAs(provider);
@@ -223,6 +273,7 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
             compiler.compileTemplateProviderBaseline(plugin, version, draft.providerConfig()),
             compiler.compileTemplatePromptBaseline(plugin, version, draft.promptConfig()));
         compiler.syncDeploymentDraftForTrustedTemplateBootstrap(DEPLOYMENT_ID);
+        ((ObjectNode) draft.providerConfig()).put("canonicalConversationsEnabled", false);
         ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor/readActionResolution"))
             .put("planningMode", "SINGLE_PASS").put("maxIterations", 1).remove("maxPlannerContextChars");
         ((ObjectNode) draft.providerConfig().at("/orchestrationModeOverrides/executor"))
@@ -262,7 +313,7 @@ class DeploymentMarketplaceDraftCompilerTemplateSyncTest {
         ObjectNode manifest = (ObjectNode) mapper.readTree(version.getManifestJson());
         ObjectNode template = (ObjectNode) manifest.at("/contributions/template");
         template.set("providerConfig", mapper.readTree("""
-            {"orchestrationModeOverrides":{"executor":{
+            {"canonicalConversationsEnabled":true,"orchestrationModeOverrides":{"executor":{
              "knowledgeBaseOverviewEnabled":true,"rag":{"fanoutEnabled":true,"maxSpaces":1},
              "semanticRecovery":{"missingVectorSpace":"BOUNDED_ALLOWED_FAN_OUT"},"readActionResolution":{
              "planningMode":"ITERATIVE","maxIterations":2,"maxPlannerContextChars":12000,

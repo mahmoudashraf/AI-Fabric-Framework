@@ -9,6 +9,7 @@ import java.net.URI;
 import java.net.http.*;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import static org.springframework.http.HttpStatus.*;
 
 @Component
@@ -53,6 +54,13 @@ public class DeskServiceClient {
         return send(connection, "GET", path, null);
     }
 
+    public Optional<JsonNode> getOptional(Connection connection, String path) {
+        var response = exchange(connection, "GET", path, null, "application/json", 262144);
+        if (response.status() == 404) return Optional.empty();
+        requireSuccess(response);
+        return Optional.of(json(response));
+    }
+
     public byte[] getPhoto(Connection connection, String path) {
         var response = exchange(connection, "GET", path, null, "image/jpeg", 131072);
         if (response.status() == 404) throw new ResponseStatusException(NOT_FOUND, "Desk profile photo not found.");
@@ -68,6 +76,10 @@ public class DeskServiceClient {
     private JsonNode send(Connection connection, String method, String path, Object body) {
         var response = exchange(connection, method, path, body, "application/json", 262144);
         requireSuccess(response);
+        return json(response);
+    }
+
+    private JsonNode json(DeskResponse response) {
         try {
             return response.data().length == 0 ? mapper.valueToTree(Map.of()) : mapper.readTree(response.data());
         } catch (Exception error) {

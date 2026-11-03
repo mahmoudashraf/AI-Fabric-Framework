@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.support.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ai.fabric.platform.backend.support.SupportTicketService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -10,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
-@RequestMapping("/api/support/cases/{caseId}")
+@RequestMapping("/api/support/requests/{caseId}")
 @PreAuthorize("hasRole('CUSTOMER_ADMIN')")
 public class SupportWorkspaceController {
     private final SupportRuntimeAccessService access;
@@ -23,8 +25,14 @@ public class SupportWorkspaceController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(access.bootstrap(caseId));
     }
     @PostMapping("/start")
-    public ResponseEntity<SupportWorkspaceService.StartReceipt> start(@PathVariable String caseId) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(workspace.start(caseId));
+    public ResponseEntity<JsonNode> start(@PathVariable String caseId,
+        @Valid @RequestBody SupportTicketService.Version input, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(workspace.start(caseId, input, key));
+    }
+    @PostMapping("/{operation:episodes|activity}")
+    public ResponseEntity<JsonNode> conversationCommand(@PathVariable String caseId, @PathVariable String operation,
+        @Valid @RequestBody SupportTicketService.Version input, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(workspace.conversationCommand(caseId, operation, input, key));
     }
     @GetMapping(value = "/runtime/api/chat/me/conversations/{conversationId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<StreamingResponseBody> events(@PathVariable String caseId, @PathVariable String conversationId,

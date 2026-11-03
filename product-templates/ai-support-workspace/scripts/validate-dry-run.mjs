@@ -11,14 +11,20 @@ if (process.argv.slice(2).some(value => value !== '--dry-run')) {
 }
 const read = path => JSON.parse(readFileSync(resolve(root, path), 'utf8'));
 const catalog = read('catalog.json');
-const requests = catalog.entries.map(entry => ({
+const submission = entry => ({
   method: 'POST',
   path: '/api/marketplace/publishers/{verifiedPublisherId}/submissions',
   body: { pluginSlug: entry.pluginSlug, releaseChannel: entry.releaseChannel ?? 'EARLY_ACCESS', manifest: read(entry.manifest) },
   usage: entry.usage,
-}));
+  publicationScope: entry.publicationScope ?? 'EXISTING_CATALOGUE_SOURCE',
+});
+const requests = catalog.entries.map(submission);
+const supportExperienceSourceCandidates = (catalog.supportExperienceCandidates ?? []).map(submission);
 const scriptCheck = spawnSync(process.execPath, ['--test', resolve(root, 'scripts/compose-draft.test.mjs'),
-  resolve(root, 'scripts/quality-defaults.test.mjs'), resolve(root, 'fixtures/service/server.test.mjs')], {
+  resolve(root, 'scripts/quality-defaults.test.mjs'), resolve(root, 'scripts/compose-support-experience.test.mjs'),
+  resolve(root, 'scripts/support-experience-quality.test.mjs'),
+  resolve(root, 'scripts/build-support-offer.test.mjs'),
+  resolve(root, 'fixtures/service/server.test.mjs')], {
   encoding: 'utf8', maxBuffer: 1024 * 1024,
 });
 if (scriptCheck.status !== 0) {
@@ -29,7 +35,7 @@ if (scriptCheck.status !== 0) {
 // Use the real control-plane validator offline; a JSON parse alone is not contract qualification.
 const check = spawnSync('mvn', [
   '-o', '-q', '-f', resolve(repository, 'Platfrom/backend/pom.xml'),
-  '-Dtest=SupportWorkspaceProductTemplateTest,SpecialistAssistanceVerificationPackTest', `-Dsupport.template.root=${root}`, 'test',
+  '-Dtest=SupportWorkspaceProductTemplateTest,SupportExperienceProductTemplateTest,SpecialistAssistanceVerificationPackTest', `-Dsupport.template.root=${root}`, 'test',
 ], { cwd: repository, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
 if (check.status !== 0) {
   process.stderr.write(check.stdout ?? '');
@@ -41,8 +47,12 @@ process.stdout.write(JSON.stringify({
   networkApiCalls: 0,
   validatedBy: 'MarketplaceManifestService + ExternalIntegrationPolicy + SpecialistAssistanceCompiler via SupportWorkspaceProductTemplateTest',
   draftCompositionTests: 4,
-  qualityDefaultTests: 5,
+  qualityDefaultTests: 6,
+  supportCompositionTests: 5,
+  supportExperienceQualityTests: 4,
+  supportOfferTests: 6,
   simulatedServiceTests: 2,
   status: catalog.status,
   requests,
+  supportExperienceSourceCandidates,
 }, null, 2) + '\n');

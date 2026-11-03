@@ -17,6 +17,9 @@ public class AIWorkspaceExperiencePackRegistry {
     public static final String DEALERSHIP_VERSION = "1.1.0";
     public static final String GENERIC_CODE = "generic-workspace";
     public static final String GENERIC_VERSION = "1.0.0";
+    public static final String SUPPORT_CODE = "support";
+    public static final String SUPPORT_VERSION = "1.0.0";
+    public static final String SUPPORT_SCHEMA = "loomai-support-experience-config-v1";
 
     private final AIWorkspaceAssetCatalogService assets;
     private final AIWorkspaceConfigurationValidator validator;
@@ -52,13 +55,15 @@ public class AIWorkspaceExperiencePackRegistry {
         resolve(code, version);
         if (DEALERSHIP_CODE.equals(code)) validator.validateDealershipConfiguration(configuration);
         else if (GENERIC_CODE.equals(code)) validator.validateGenericConfiguration(configuration);
+        else if (SUPPORT_CODE.equals(code)) validator.validateSupportConfiguration(configuration);
         else throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace experience pack.");
     }
 
     public List<AIWorkspaceCatalogSummary.ExperiencePackSummary> summaries() {
         return List.of(
             summary(GENERIC_CODE, GENERIC_VERSION),
-            summary(DEALERSHIP_CODE, DEALERSHIP_VERSION)
+            summary(DEALERSHIP_CODE, DEALERSHIP_VERSION),
+            summary(SUPPORT_CODE, SUPPORT_VERSION)
         );
     }
 
@@ -80,6 +85,9 @@ public class AIWorkspaceExperiencePackRegistry {
         }
         if (GENERIC_CODE.equals(code) && GENERIC_VERSION.equals(version)) {
             return new ExperiencePackDefinition("Generic knowledge and service experience", "loomai-generic-workspace-config-v1");
+        }
+        if (SUPPORT_CODE.equals(code) && SUPPORT_VERSION.equals(version)) {
+            return new ExperiencePackDefinition("AI Support Experience", SUPPORT_SCHEMA);
         }
         return null;
     }

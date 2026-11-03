@@ -181,7 +181,8 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         when(assets.health()).thenReturn(new AIWorkspaceAssetCatalogService.CatalogHealth(false, "NOT_READY", "1"));
         var readiness = new AIWorkspaceReadinessService(consumers, mock(AIWorkspaceAssignmentService.class), assets,
             packs, connections, new AIWorkspaceAuthenticationProfileRegistry(mapper), domains,
-            mock(DeploymentRuntimeAuthorityService.class), properties, mapper);
+            mock(DeploymentRuntimeAuthorityService.class), properties, mapper,
+            List.of(mock(com.ai.fabric.platform.backend.desk.DeskSupportSpaceService.class)));
         var offers = mock(CustomerSelfServiceOperationBoundary.class);
         when(offers.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
         when(offers.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
