@@ -859,8 +859,19 @@ public class RestActionExecutionService {
             }
         }
 
+        if (request != null && StringUtils.hasText(request.idempotencyKey())
+            && StringUtils.hasText(route.getIdempotencyHeader())) {
+            String header = route.getIdempotencyHeader().trim();
+            out.keySet().removeIf(header::equalsIgnoreCase);
+            out.put(header, request.idempotencyKey().trim());
+        }
+
         if (request != null && request.trace() != null) {
-            out.putAll(TraceContextSupport.forwardHeaders(request.trace()));
+            // HTTP header names are case-insensitive; verified trace remains authoritative.
+            TraceContextSupport.forwardHeaders(request.trace()).forEach((name, value) -> {
+                out.keySet().removeIf(name::equalsIgnoreCase);
+                out.put(name, value);
+            });
         }
 
         return out;

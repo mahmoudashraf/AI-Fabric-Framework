@@ -14,6 +14,9 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,6 +26,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -209,6 +213,142 @@ class RestActionExecutionServiceTest {
             .isEqualTo("create_cart");
         assertThat(payload.path("trace").path("mcpSecretValues").path("MCP_PROFILE_REF").asText())
             .isEqualTo("profile-value");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Idempotency-Key", "X-Command-Key"})
+    void ordinaryRouteForwardsConfiguredIdempotencyHeaderFromRequest(String header) throws Exception {
+        AtomicReference<List<String>> received = new AtomicReference<>();
+        AtomicReference<String> subject = new AtomicReference<>();
+        AtomicReference<String> label = new AtomicReference<>();
+        AtomicReference<String> defaultHeader = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            received.set(exchange.getRequestHeaders().get(header));
+            subject.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
+            label.set(exchange.getRequestHeaders().getFirst("X-Route-Label"));
+            defaultHeader.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.start();
+
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.setIdempotencyHeader(header);
+        route.setHeaders(Map.of(
+            header.toLowerCase(Locale.ROOT), "{{params.idempotencyKey}}",
+            "X-Route-Label", "unchanged"
+        ));
+        ActionExecuteRequestDto request = new ActionExecuteRequestDto(
+            "cancel_order", Map.of("idempotencyKey", "model-supplied-spoof"),
+            "existing-action-key:123", verifiedTrace()
+        );
+
+        ActionResultDto result = service(config).execute(request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(received.get()).containsExactly("existing-action-key:123");
+        assertThat(request.idempotencyKey()).isEqualTo("existing-action-key:123");
+        assertThat(subject.get()).isEqualTo("customer-123");
+        assertThat(label.get()).isEqualTo("unchanged");
+        if (!"Idempotency-Key".equals(header)) {
+            assertThat(defaultHeader.get()).isNull();
+        }
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" \t "})
+    void ordinaryRouteDoesNotInventMissingIdempotencyKey(String key) throws Exception {
+        AtomicReference<List<String>> received = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            received.set(exchange.getRequestHeaders().get("X-Command-Key"));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.start();
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.setIdempotencyHeader("X-Command-Key");
+
+        ActionResultDto result = service(config).execute(new ActionExecuteRequestDto(
+            "cancel_order", Map.of(), key, verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(received.get()).isNull();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" \t "})
+    void ordinaryRouteDoesNotAddUnconfiguredIdempotencyHeader(String header) throws Exception {
+        AtomicReference<List<String>> received = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            received.set(exchange.getRequestHeaders().get("Idempotency-Key"));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.start();
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.setIdempotencyHeader(header);
+
+        ActionResultDto result = service(config).execute(new ActionExecuteRequestDto(
+            "cancel_order", Map.of(), "existing-action-key:123", verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(received.get()).isNull();
+    }
+
+    @Test
+    void ordinaryRoutePreservesStaticHeadersWhenIdempotencyForwardingIsUnconfigured() throws Exception {
+        AtomicReference<List<String>> received = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            received.set(exchange.getRequestHeaders().get("Idempotency-Key"));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.start();
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.setHeaders(Map.of("Idempotency-Key", "existing-static-value"));
+
+        ActionResultDto result = service(config).execute(new ActionExecuteRequestDto(
+            "cancel_order", Map.of(), "existing-action-key:123", verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(received.get()).containsExactly("existing-static-value");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"X-AIFABRIC-AUTH-SUBJECT-ID", "x-aifabric-auth-subject-id"})
+    void ordinaryRouteKeepsTrustedTraceHeaderPrecedenceOverConfiguredIdempotencyHeader(String header) throws Exception {
+        AtomicReference<List<String>> received = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            received.set(exchange.getRequestHeaders().get("X-AIFABRIC-AUTH-SUBJECT-ID"));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.start();
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.setIdempotencyHeader(header);
+        route.setHeaders(Map.of(header, "untrusted-route-value"));
+
+        ActionResultDto result = service(config).execute(new ActionExecuteRequestDto(
+            "cancel_order", Map.of(), "existing-action-key:123", verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(received.get()).containsExactly("customer-123");
     }
 
     @Test
