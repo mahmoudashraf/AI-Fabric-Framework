@@ -138,6 +138,8 @@ class SupportSpaceProvisioningServiceTest {
     assertThat(input.path("providerBindingId").asText()).isEqualTo("support-binding");
     assertThat(input.path("providerId").asText()).isEqualTo("desk");
     assertThat(input.path("runtimeBaseUrl").asText()).isEqualTo(assignment.runtimeBaseUrl());
+    assertThat(input.at("/conversation/mode").asText()).isEqualTo("executor");
+    assertThat(input.path("conversation").has("position")).isFalse();
     assertThat(input.path("runtimeTrustedKeyHeader").asText())
         .isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
     assertThat(input.path("expectedVersion").isMissingNode()).isTrue();

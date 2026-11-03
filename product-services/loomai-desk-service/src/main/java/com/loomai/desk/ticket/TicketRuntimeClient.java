@@ -10,7 +10,6 @@ import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Map;
 import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -131,12 +130,18 @@ public class TicketRuntimeClient {
       if (e.status() != 404) throw e;
     }
     try {
+      var message =
+          json.createObjectNode()
+              .put("query", opening)
+              .put("mode", space.view().conversation().mode());
+      if (space.view().conversation().position() != null)
+        message.put("position", space.view().conversation().position());
       JsonNode response =
           call(
               space,
               credential,
               "/api/chat/me/conversations/" + conversationId + "/messages",
-              Map.of("query", opening),
+              message,
               key);
       if (conversationId.equals(response.path("conversationId").asText())
           && response.path("success").asBoolean(false)) return Delivery.DELIVERED;

@@ -1,5 +1,52 @@
 # 010.48 Backend Foundation Verification
 
+## 010.57 Opening Mode Consistency Fix (2026-11-03)
+
+Local-only bounded fix: support spaces carry typed `conversation` settings with
+bounded string codes, not a Desk-owned enum. Syntax/size checks permit 1-64 ASCII
+characters matching `[A-Za-z0-9][A-Za-z0-9._-]*`; values are forwarded unchanged.
+The runtime owns the active catalogue; unknown codes are not defaulted or repaired.
+Omitted mode is explicitly `executor`; position is optional. Desk sends those
+registered settings with a saved form opening. Direct Supabase and private
+Console Platform provisioning both deliberately register executor with no fixed
+position, consistent with the Support experience pack. No text inference,
+permission changes, automatic retries, framework changes or remote operations.
+
+Focused qualification passed:
+
+- Desk: **66 tests, zero failures/errors/skips**, including real PostgreSQL
+  16.15 plus H2 persistence and V4-to-V5 migration. The migration changes only
+  space configuration; existing ticket rows and space revision are unchanged.
+- Platform: **43 tests, zero failures/errors/skips** for
+  `DeskSupportSpaceServiceTest,SupportSpaceProvisioningServiceTest`.
+- HTTP contract cases cover direct/private identities, omitted/configured modes,
+  optional position, exact runtime payload, credential forwarding and one opening
+  POST after idempotent replay. `thinker`, `support_assistant`, future custom mode
+  and position codes are accepted and preserved through HTTP and persistence.
+  DTO cases cover missing/null defaults, unknown-code preservation and only
+  syntax/size rejection, not semantic validation of user text. Breakdown:
+  contract 27, HTTP 21, lifecycle/persistence 14, migrations 4.
+
+Commands, run in the corresponding Maven module (supply a disposable local
+PostgreSQL URL for Desk):
+
+```sh
+mvn -B -ntp -Ddesk.test.postgres.url=jdbc:postgresql://127.0.0.1:<port>/desk \
+  -Ddesk.test.postgres.required=true \
+  -Dtest=SupportSpaceConversationContractTest,SupportTicketHttpTest,SupportTicketsTest,SupportTicketMigrationTest test
+mvn -B -ntp -Dtest=DeskSupportSpaceServiceTest,SupportSpaceProvisioningServiceTest test
+```
+
+The first Desk attempt exposed an ambiguous AssertJ generic assertion in the new
+test, corrected before an initial 46-test successful run. Main review then found
+that its closed enum incorrectly copied widget modes and omitted valid runtime
+codes. It was replaced with bounded strings and requalified with the 66-test
+Desk run plus the 43-test Platform rerun. The dedicated local PostgreSQL
+container was removed afterward. No commit, push or hosted qualification is
+claimed; UI origin and oversized runtime presentation fixes are separate work.
+
+---
+
 Date: 2026-10-26. Scope: `product-services/loomai-desk-service` backend, build, contracts and tests only. No commits made. No Platform, runtime, framework, original Basic Inbox, or UI source changes made by the backend implementation task.
 
 ## Qualified

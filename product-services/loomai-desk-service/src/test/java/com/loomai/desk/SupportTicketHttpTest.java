@@ -53,6 +53,103 @@ class SupportTicketHttpTest {
           "ACTIVITY",
           "TICKET_COMMAND");
 
+  @ParameterizedTest
+  @CsvSource({
+    "private,,",
+    "direct,,",
+    "private,thinker,",
+    "direct,thinker,",
+    "private,support_assistant,support",
+    "direct,support_assistant,support",
+    "private,future-support.v2,future_help-v2",
+    "direct,future-support.v2,future_help-v2"
+  })
+  void openingUsesOnlyRegisteredConversationSettingsAndKeepsIdentityAndIdempotency(
+      String profile, String configuredMode, String configuredPosition) throws Exception {
+    try (var h = new Harness("h2")) {
+      boolean privateHost = profile.equals("private");
+      var input =
+          DeskIsolationTest.JSON.valueToTree(
+              h.input(
+                  profile,
+                  privateHost ? IdentityMode.TRUSTED_PRIVATE_HOST : IdentityMode.SUPABASE));
+      var body = (com.fasterxml.jackson.databind.node.ObjectNode) input;
+      body.put("expectedVersion", "0");
+      body.remove("conversation");
+      if (configuredMode != null) {
+        var settings = body.putObject("conversation").put("mode", configuredMode);
+        if (configuredPosition != null) settings.put("position", configuredPosition);
+      }
+      String path = "/api/desk/admin/v1/bindings/" + (privateHost ? "a" : "b") + "/support-space";
+      var registered =
+          h.raw(
+              "PUT",
+              path,
+              null,
+              body,
+              null,
+              Map.of("X-LoomAI-Desk-Service-Key", DeskHttpSecurityTest.ADMIN));
+      assertThat(registered.statusCode()).withFailMessage(registered.body()).isEqualTo(200);
+      var conversation = DeskIsolationTest.JSON.readTree(registered.body()).path("conversation");
+      assertThat(conversation.path("mode").asText())
+          .isEqualTo(configuredMode == null ? "executor" : configuredMode);
+      assertThat(conversation.has("position")).isEqualTo(configuredPosition != null);
+      assertThat(registered.body()).doesNotContain(PRIVATE_KEY, CONNECTOR);
+      String token = h.token("user", profile, privateHost, OPS, 300, "requesters");
+      var created =
+          h.request(
+              "POST",
+              profile + "/requests",
+              token,
+              new CreateInput("Opening settings", "Original details", null, null),
+              "create-settings",
+              privateHost ? h.privateHeaders() : null);
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+      String id = DeskIsolationTest.JSON.readTree(created.body()).path("id").asText();
+      h.runtimeSubject = privateHost ? "support-ticket:" + id : "user";
+      h.runtimeBinding = privateHost ? "a" : "b";
+      var proof =
+          privateHost
+              ? h.runtimeHeaders()
+              : Map.of("X-LoomAI-Runtime-Authorization", "Bearer direct-runtime-test");
+      var started =
+          h.request(
+              "POST",
+              profile + "/requests/" + id + "/start",
+              token,
+              new VersionInput("0"),
+              "start-settings",
+              proof);
+      assertThat(started.statusCode()).withFailMessage(started.body()).isEqualTo(200);
+      assertThat(h.messageBodies).hasSize(1);
+      var expected = conversation.deepCopy();
+      ((com.fasterxml.jackson.databind.node.ObjectNode) expected)
+          .put("query", "Opening settings\n\nOriginal details");
+      assertThat(h.messageBodies.getFirst()).isEqualTo(expected);
+      assertThat(
+              h.request(
+                      "POST",
+                      profile + "/requests/" + id + "/start",
+                      token,
+                      new VersionInput("0"),
+                      "start-settings",
+                      proof)
+                  .statusCode())
+          .isEqualTo(200);
+      assertThat(h.messageKeys).hasSize(1);
+      assertThat(h.runtimeHeadersSeen)
+          .allSatisfy(
+              headers -> {
+                assertThat(headers.get("public"))
+                    .isEqualTo(privateHost ? "" : "Bearer direct-runtime-test");
+                assertThat(headers.get("private"))
+                    .isEqualTo(privateHost ? "Bearer rpa1.private-test" : "");
+                assertThat(headers.get("key"))
+                    .isEqualTo(privateHost ? "runtime-backend-key-12345678901234567890" : "");
+              });
+    }
+  }
+
   @org.junit.jupiter.api.Test
   void openingInferenceMayOutlastShortReadDeadlineWithoutAutomaticReplay() throws Exception {
     try (var h = new Harness("h2")) {
@@ -772,6 +869,7 @@ class SupportTicketHttpTest {
     final String base;
     final HttpClient http = HttpClient.newHttpClient();
     final List<String> messageKeys = new CopyOnWriteArrayList<>();
+    final List<JsonNode> messageBodies = new CopyOnWriteArrayList<>();
     final List<Map<String, String>> runtimeHeadersSeen = new CopyOnWriteArrayList<>();
     final List<String> runtimePaths = new CopyOnWriteArrayList<>();
     volatile String runtimeSubject;
@@ -845,6 +943,7 @@ class SupportTicketHttpTest {
             else {
               String conversation = path.split("/")[5];
               if (path.endsWith("messages")) {
+                messageBodies.add(DeskIsolationTest.JSON.readTree(exchange.getRequestBody()));
                 messageKeys.add(headers.getFirst("Idempotency-Key"));
                 canonicalOpenings.put(conversation, headers.getFirst("Idempotency-Key"));
                 try {
@@ -949,7 +1048,8 @@ class SupportTicketHttpTest {
                   origin,
                   "public-runtime",
                   List.of("chat:conversations"))
-              : null);
+              : null,
+          null);
     }
 
     Map<String, String> connectorHeaders(String subject, String conversation) {

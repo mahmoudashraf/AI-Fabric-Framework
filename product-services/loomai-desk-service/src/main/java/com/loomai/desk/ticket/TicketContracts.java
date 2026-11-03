@@ -13,6 +13,21 @@ public final class TicketContracts {
     TRUSTED_PRIVATE_HOST
   }
 
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ConversationSettings(String mode, String position) {
+    public ConversationSettings {
+      if (mode == null) mode = "executor";
+      // Bound wire identifiers only; the runtime owns its active mode/position catalogue.
+      code(mode, "conversation.mode");
+      if (position != null) code(position, "conversation.position");
+    }
+
+    private static void code(String value, String field) {
+      if (value.length() > 64 || !value.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
+        throw TicketException.invalid(field);
+    }
+  }
+
   public enum Status {
     OPEN,
     RESOLVED,
@@ -71,10 +86,12 @@ public final class TicketContracts {
       List<String> allowedOrigins,
       List<String> topics,
       int closedRetentionDays,
-      ServerConnectorInput serverConnector) {
+      ServerConnectorInput serverConnector,
+      ConversationSettings conversation) {
     public SupportSpaceInput {
       if (closedRetentionDays == 0) closedRetentionDays = 30;
       if (runtimeTrustedKeyHeader == null) runtimeTrustedKeyHeader = "X-AIFABRIC-RUNTIME-API-KEY";
+      if (conversation == null) conversation = new ConversationSettings(null, null);
     }
 
     @Override
@@ -114,7 +131,12 @@ public final class TicketContracts {
       List<String> allowedOrigins,
       List<String> topics,
       int closedRetentionDays,
-      Set<Capability> capabilities) {}
+      Set<Capability> capabilities,
+      ConversationSettings conversation) {
+    public SpaceView {
+      if (conversation == null) conversation = new ConversationSettings(null, null);
+    }
+  }
 
   public record Space(
       SpaceView view,

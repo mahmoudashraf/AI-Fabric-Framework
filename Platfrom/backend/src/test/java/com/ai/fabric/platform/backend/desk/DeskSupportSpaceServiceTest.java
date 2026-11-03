@@ -135,6 +135,8 @@ class DeskSupportSpaceServiceTest {
         assertThat(body.path("providerBindingId").asText()).isEqualTo(binding.getId());
         assertThat(body.path("providerId").asText()).isEqualTo("desk");
         assertThat(body.path("runtimeBaseUrl").asText()).isEqualTo("https://runtime.example.test");
+        assertThat(body.at("/conversation/mode").asText()).isEqualTo("executor");
+        assertThat(body.path("conversation").has("position")).isFalse();
         assertThat(body.at("/identity/issuer").asText()).isEqualTo("https://auth.example.test/auth/v1");
         assertThat(body.at("/identity/requesterNamespace").asText()).isEqualTo("engage:" + binding.getId());
         assertThat(body.at("/identity/privateServerKey").isMissingNode()).isTrue();
@@ -144,6 +146,8 @@ class DeskSupportSpaceServiceTest {
         assertThat(body.path("serverConnector").has("credentialUrl")).isFalse();
         assertThat(body.path("serverConnector").has("credentialKey")).isFalse();
         assertThat(body.path("enabled").asBoolean()).isTrue(); assertThat(body.path("humanHandoverEnabled").asBoolean()).isFalse();
+        assertThat(result.space().at("/conversation/mode").asText()).isEqualTo("executor");
+        assertThat(mapper.readTree(binding.getSupportRegistrationJson()).at("/space/conversation/mode").asText()).isEqualTo("executor");
         assertThat(mapper.writeValueAsString(result)).doesNotContain("private-service-key", "connectorKey", "dedicated-ticket-key", "jwksUri", "credentialKey", "distinct-proof-key");
         verify(audit).record(eq("SUPPORT_SPACE_CONFIGURED"), anyString(), anyString(), anyMap());
     }
@@ -361,6 +365,7 @@ class DeskSupportSpaceServiceTest {
         var view = mapper.createObjectNode().put("spaceId", binding.getId()).put("bindingId", binding.getId()).put("name", "Acme Support")
             .put("enabled", true).put("humanHandoverEnabled", false).put("providerId", "desk").put("providerBindingId", binding.getId())
             .put("version", "0").put("closedRetentionDays", 30);
+        view.putObject("conversation").put("mode", "executor");
         view.putObject("identity").put("mode", "SUPABASE").put("issuer", "https://auth.example.test/auth/v1")
             .put("audience", "authenticated").put("requesterNamespace", "engage:" + binding.getId());
         view.putArray("allowedOrigins").add("https://help.example.test"); view.putArray("topics").add("setup");

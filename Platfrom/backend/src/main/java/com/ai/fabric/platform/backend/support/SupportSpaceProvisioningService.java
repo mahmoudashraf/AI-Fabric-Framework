@@ -53,6 +53,7 @@ public class SupportSpaceProvisioningService implements AIWorkspaceSupportReadin
             .put("providerBindingId", settings.deskBindingId()).put("runtimeBaseUrl", assignment.runtimeBaseUrl())
             .put("runtimeTrustedKeyHeader", com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER)
             .put("connectorKey", assertions.connectorKey()).put("closedRetentionDays", 30);
+        body.putObject("conversation").put("mode", "executor");
         if (previous != null) body.put("expectedVersion", previous.path("version").asText());
         body.set("identity", mapper.valueToTree(Map.of("mode", "TRUSTED_PRIVATE_HOST", "issuer", assertions.issuer(),
             "jwksUri", assertions.jwksUri(), "audience", assertions.audience(settings.deskBindingId()),

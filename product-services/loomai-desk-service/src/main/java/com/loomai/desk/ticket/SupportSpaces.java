@@ -128,7 +128,7 @@ public class SupportSpaces {
       version = Long.parseLong(s.view().version()) + 1;
       jdbc.update(
           "UPDATE desk_support_space SET"
-              + " name=?,enabled=?,human_enabled=?,provider_id=?,provider_binding_id=?,runtime_base_url=?,runtime_trusted_key_header=?,protected_identity=?,protected_connector_key=?,protected_server_connector=?,origins_json=?,topics_json=?,retention_days=?,version=?"
+              + " name=?,enabled=?,human_enabled=?,provider_id=?,provider_binding_id=?,runtime_base_url=?,runtime_trusted_key_header=?,protected_identity=?,protected_connector_key=?,protected_server_connector=?,origins_json=?,topics_json=?,retention_days=?,conversation_json=?,version=?"
               + " WHERE space_id=?",
           in.name(),
           in.enabled(),
@@ -143,6 +143,7 @@ public class SupportSpaces {
           write(in.allowedOrigins()),
           write(in.topics()),
           in.closedRetentionDays(),
+          write(in.conversation()),
           version,
           in.spaceId());
     } else {
@@ -151,8 +152,8 @@ public class SupportSpaces {
             409, "SPACE_VERSION_CONFLICT", "Support space does not exist yet.");
       jdbc.update(
           "INSERT INTO"
-              + " desk_support_space(space_id,binding_id,name,enabled,human_enabled,provider_id,provider_binding_id,runtime_base_url,runtime_trusted_key_header,protected_identity,protected_connector_key,protected_server_connector,origins_json,topics_json,retention_days,version)"
-              + " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              + " desk_support_space(space_id,binding_id,name,enabled,human_enabled,provider_id,provider_binding_id,runtime_base_url,runtime_trusted_key_header,protected_identity,protected_connector_key,protected_server_connector,origins_json,topics_json,retention_days,conversation_json,version)"
+              + " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           in.spaceId(),
           bindingId,
           in.name(),
@@ -168,6 +169,7 @@ public class SupportSpaces {
           write(in.allowedOrigins()),
           write(in.topics()),
           in.closedRetentionDays(),
+          write(in.conversation()),
           version);
     }
     directory.audit(
@@ -289,7 +291,8 @@ public class SupportSpaces {
             r.getInt("retention_days"),
             r.getBoolean("enabled")
                 ? provider(r.getString("provider_id")).capabilities()
-                : java.util.Set.of());
+                : java.util.Set.of(),
+            readJson(r.getString("conversation_json"), ConversationSettings.class));
     return new Space(
         view,
         r.getString("runtime_base_url"),

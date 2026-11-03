@@ -121,6 +121,7 @@ public class DeskSupportSpaceService implements AIWorkspaceSupportReadinessAdapt
             .put("runtimeTrustedKeyHeader", RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER)
             .put("connectorKey", provisioner.ticketConnectorKey(binding))
             .put("closedRetentionDays", retention);
+        body.putObject("conversation").put("mode", "executor");
         if (request.expectedVersion() == null) body.putNull("expectedVersion");
         else body.put("expectedVersion", request.expectedVersion());
         body.set("identity", identity); body.set("allowedOrigins", mapper.valueToTree(scope.origins()));
@@ -382,7 +383,7 @@ public class DeskSupportSpaceService implements AIWorkspaceSupportReadinessAdapt
     private ObjectNode safeSpace(JsonNode space) {
         ObjectNode safe = mapper.createObjectNode();
         for (String field : List.of("spaceId", "bindingId", "name", "enabled", "humanHandoverEnabled", "providerId",
-                "providerBindingId", "version", "allowedOrigins", "topics", "closedRetentionDays", "capabilities"))
+                "providerBindingId", "version", "allowedOrigins", "topics", "closedRetentionDays", "capabilities", "conversation"))
             safe.set(field, space.path(field).deepCopy());
         return safe;
     }

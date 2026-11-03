@@ -93,6 +93,7 @@ class SupportTicketsTest {
           List.of("https://page.example"),
           List.of("knowledge"),
           30,
+          null,
           null);
     }
 
@@ -115,6 +116,30 @@ class SupportTicketsTest {
     assertThatThrownBy(action)
         .isInstanceOfSatisfying(
             TicketException.class, e -> assertThat(e.status()).isEqualTo(status));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"h2", "postgres"})
+  void conversationSettingsPersistAndUpdateWithoutChangingTickets(String engine) throws Exception {
+    try (var f = new Fixture(engine)) {
+      Ticket ticket = f.create("preserve-ticket");
+      assertThat(f.spaces.get("space-a").view().conversation().mode()).isEqualTo("executor");
+      var input = JSON.valueToTree(f.input("space-a", "0", "desk", true));
+      ((com.fasterxml.jackson.databind.node.ObjectNode) input)
+          .putObject("conversation")
+          .put("mode", "future-support.v2")
+          .put("position", "support");
+      var configured = JSON.treeToValue(input, SupportSpaceInput.class);
+      f.tx.execute(ignored -> f.spaces.put("a", configured));
+      var readback = f.spaces.get("space-a");
+      assertThat(readback.view().version()).isEqualTo("1");
+      assertThat(readback.view().conversation())
+          .isEqualTo(new ConversationSettings("future-support.v2", "support"));
+      assertThat(JSON.readValue(JSON.writeValueAsString(readback), Space.class))
+          .isEqualTo(readback);
+      assertThat(f.tickets.get(readback, f.user, ticket.id())).isEqualTo(ticket);
+      rejected(409, () -> f.tx.execute(ignored -> f.spaces.put("a", configured)));
+    }
   }
 
   @ParameterizedTest

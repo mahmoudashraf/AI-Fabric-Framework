@@ -21,6 +21,7 @@ Existing service-admin authentication remains
   "providerBindingId": "tpb-example",
   "runtimeBaseUrl": "https://registered-runtime.example",
   "runtimeTrustedKeyHeader": "X-AIFABRIC-RUNTIME-API-KEY",
+  "conversation": {"mode": "executor"},
   "identity": {
     "mode": "TRUSTED_PRIVATE_HOST",
     "issuer": "https://registered-console.example",
@@ -45,6 +46,32 @@ The space ID and identity mode/issuer/namespace cannot be reassigned. Disabling
 the space gates all ticket CRUD and exposes empty ticket capability sets, without
 deleting stored requests. SESSION/TEAM/photo remain available when human handover
 is enabled, independently of tickets. A disabled Desk binding denies all requester access.
+
+`conversation` is typed, server-owned opening-message configuration, included in
+the safe space view. Omitting the object or its mode explicitly defaults to
+`executor`, matching the Support experience pack; Desk never relies on the
+runtime's omitted-mode default. Mode and optional position are bounded strings,
+not Desk enums: 1-64 ASCII characters, starting with a letter or number and
+continuing with letters, numbers, `.`, `_` or `-`. Values are forwarded unchanged;
+Desk validates syntax/size only, not membership in an active runtime catalogue.
+For example `thinker`, `support_assistant` and a future registered custom mode
+are accepted without rewriting them to executor. Explicit blank/malformed values
+are rejected rather than defaulted. Omitted position stays absent. The runtime
+owns active-code acceptance and any configured routing/rejection policy.
+Both Platform's direct Supabase and private Console support-space provisioning deliberately send
+`{"mode":"executor"}` without pinning a position. The Support pack chooses its
+page-context position independently. A caller providing another mode must align
+its workspace configuration deliberately; Desk does not infer it from ticket text.
+
+For a form-first `/start`, Desk sends the saved intake plus these registered
+`mode`/optional `position` fields to the canonical runtime messages endpoint.
+Requesters cannot override them through ticket create/start inputs. This selects
+the existing orchestration policy, not additional permissions: runtime identity,
+action authorization/confirmation and scoped idempotency remain unchanged.
+Linked conversations and continuation episodes never resend intake. Delivery
+observation does not automatically repeat an uncertain POST. V5 adds only a JSON
+configuration field on support spaces, with the explicit executor default; no
+ticket data rewrite or migration is needed.
 
 Runtime, issuer, JWKS and browser origins are registered by
 the authenticated administrator. Ticket onboarding does not require a per-project
