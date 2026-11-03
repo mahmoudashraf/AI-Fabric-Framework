@@ -61,6 +61,8 @@ test('real engine survives page/widget/SPA changes and generic request lifecycle
       await page.waitForFunction(() => window.fixtureReady && !window.controller.getState().busy)
       const frame = page.frameLocator('iframe[data-loomai-workspace-frame]')
       await frame.getByText('This is a synthetic conversation from the fixture preview. No live support service was contacted.', { exact: true }).waitFor()
+      assert.equal(await frame.getByRole('button', { name: 'How can this support experience help?', exact: true }).count(), 0,
+        'Starter suggestions must not cover a restored conversation')
       await frame.locator('textarea').fill('An unsent draft that must survive layout changes')
       const bounds = await frame.locator('textarea').boundingBox()
       assert.ok(bounds.y + bounds.height <= viewport.height, 'The contained composer must fit inside the viewport')
@@ -184,7 +186,16 @@ test('terminal continuation is explicit and empty, old history remains readable,
       await page.waitForFunction(() => !window.fixtureFrame.maxMode.getState().busy)
       await page.evaluate(id => window.controller.openRequest(id), second.id)
       const frame = page.frameLocator('iframe[data-loomai-workspace-frame]')
-      await page.getByRole('button', { name: 'Continue in a new conversation', exact: true }).waitFor()
+      try {
+        await page.getByRole('button', { name: 'Continue in a new conversation', exact: true }).waitFor()
+      } catch (error) {
+        error.message += '\nContinuation state: ' + JSON.stringify(await page.evaluate(() => ({
+          chat: window.fixtureFrame.maxMode.getState(), request: window.controller.getState().request,
+          error: window.controller.getState().error,
+          panel: document.querySelector('[data-loomai-support]')?.shadowRoot?.querySelector('.panel')?.textContent,
+        }))) + '\nPage errors: ' + JSON.stringify(errors)
+        throw error
+      }
       const beforeStatus = fixture.requests.length
       await page.getByRole('button', { name: 'Resolve request', exact: true }).click()
       await page.waitForFunction(() => window.controller.getState().request.status === 'RESOLVED' && !window.controller.getState().busy)

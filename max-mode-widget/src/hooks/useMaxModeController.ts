@@ -881,6 +881,7 @@ export function useMaxModeController({
     attachedItems,
     starterSuggestions: hostStarterSuggestions,
     requestContext: hostRequestContext,
+    hasConversationMessages: chatMessages.some(message => message.type === 'user'),
   });
 
   const {

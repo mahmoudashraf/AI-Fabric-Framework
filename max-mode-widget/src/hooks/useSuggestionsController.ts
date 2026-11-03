@@ -9,10 +9,12 @@ export function useSuggestionsController({
   attachedItems,
   starterSuggestions,
   requestContext,
+  hasConversationMessages,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   starterSuggestions: string[];
   requestContext?: Record<string, any>;
+  hasConversationMessages: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -21,8 +23,8 @@ export function useSuggestionsController({
 
   useEffect(() => {
     if (attachedItems.length === 0) {
-      setSuggestions(starterSuggestions);
-      setShowSuggestions(starterSuggestions.length > 0);
+      setSuggestions(hasConversationMessages ? [] : starterSuggestions);
+      setShowSuggestions(!hasConversationMessages && starterSuggestions.length > 0);
       return;
     }
 
@@ -69,7 +71,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems, starterSuggestions, requestContext]);
+  }, [attachedItems, starterSuggestions, requestContext, hasConversationMessages]);
 
   return {
     suggestions,
