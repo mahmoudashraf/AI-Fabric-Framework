@@ -95,6 +95,13 @@ test('real engine survives page/widget/SPA changes and generic request lifecycle
       assert.equal(await frame.locator('textarea').inputValue(), 'An unsent draft that must survive layout changes')
       await page.getByRole('button', { name: 'Request help', exact: true }).click()
       await page.getByLabel('Subject', { exact: true }).fill('A sample issue')
+      const beforeFormRefresh = fixture.requests.length
+      await page.evaluate(() => window.controller.refresh())
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+      await page.waitForTimeout(350)
+      assert.equal(fixture.requests.length, beforeFormRefresh, 'Background chat reads must not block intake editing')
+      assert.equal(await page.getByLabel('Subject', { exact: true }).inputValue(), 'A sample issue')
+      assert.equal(await page.getByLabel('Subject', { exact: true }).isEnabled(), true)
       await page.getByLabel('Details', { exact: true }).fill('Synthetic issue details for this fixture.')
       await page.getByLabel('Topic', { exact: true }).selectOption('guidance')
       await page.screenshot({ path: new URL(`support-form-${viewport.width}.png`, output).pathname, fullPage: true })

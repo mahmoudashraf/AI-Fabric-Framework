@@ -123,7 +123,9 @@ public class SupportResourceService {
         facts.put("localReadinessPassed", result.ready());
         facts.put("checks", checks);
         facts.put("deliveryProbed", false);
-        facts.put("guidance", "Use the app readiness screen for explicit route and HTTPS verification.");
+        facts.put("providerConnectivityProbed", false);
+        facts.put("observationBasis", "LOCAL_CONFIGURATION_ONLY");
+        facts.put("guidance", "Use explicit app readiness verification for support-provider, route and HTTPS checks. A blocked local-only external check is unverified, not proof of a failed live provider probe.");
         return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
     }
     private ResourceDiagnostic connectionStatus(Requester owner, ResourceRef ref) {
@@ -162,7 +164,7 @@ public class SupportResourceService {
     private static final Set<String> READINESS_CODES = Set.of("CONSUMER", "ASSIGNMENT", "ASSETS", "EXPERIENCE_PACK",
         "CONNECTION_PROFILE", "ORIGINS", "AUTHENTICATION_PROFILE", "APP_DOMAIN", "APP_DELIVERY", "RUNTIME_URL",
         "EXTERNAL_IDENTITY_BROKER", "EXTERNAL_IDENTITY_SCOPES", "EXTERNAL_IDENTITY_BINDING", "PUBLIC_TOKEN_KEY",
-        "PRIVATE_ASSERTION_KEY", "PRIVATE_ASSERTION_POLICY", "RUNTIME_CORS", "ANONYMOUS_BOOTSTRAP", "PUBLIC_TOKEN_POLICY");
+        "PRIVATE_ASSERTION_KEY", "PRIVATE_ASSERTION_POLICY", "RUNTIME_CORS", "ANONYMOUS_BOOTSTRAP", "PUBLIC_TOKEN_POLICY", "SUPPORT_SPACE");
     private static String safe(String value, Set<String> allowed) { return allowed.contains(value == null ? "" : value) ? value : "UNKNOWN"; }
     private static void put(Map<String, Object> map, String key, Object value) { if (value != null) map.put(key, value); }
 }

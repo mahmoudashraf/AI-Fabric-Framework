@@ -46,10 +46,13 @@ class SupportResourceServiceTest {
         when(f.apps.findByCustomerIdAndInstallationId("customer-a", app.getInstallationId())).thenReturn(Optional.of(app));
         when(f.consumers.findById("consumer")).thenReturn(Optional.of(consumer));
         when(f.readiness.evaluateLocal(app)).thenReturn(new AIWorkspaceReadinessSummary(false, app.getInstallationId(), "private", "consumer", "dep", "release",
-            "https://private.example", "rev", List.of(new AIWorkspaceReadinessCheck("ASSIGNMENT", "BLOCKED", "DO_NOT_DISCLOSE raw exception"))));
+            "https://private.example", "rev", List.of(new AIWorkspaceReadinessCheck("ASSIGNMENT", "BLOCKED", "DO_NOT_DISCLOSE raw exception"),
+                new AIWorkspaceReadinessCheck("SUPPORT_SPACE", "BLOCKED", "DO_NOT_DISCLOSE provider details"))));
         var c = f.create(true, new ResourceRef(ResourceType.ENGAGE_APP, app.getInstallationId()));
         var result = f.diagnostics.read("support_get_engage_readiness", f.headers(f.service.requireOwnedCase(c.id())));
-        assertThat(f.json.writeValueAsString(result)).contains("ASSIGNMENT", "BLOCKED").doesNotContain("DO_NOT_DISCLOSE", "private.example");
+        assertThat(f.json.writeValueAsString(result)).contains("ASSIGNMENT", "SUPPORT_SPACE", "BLOCKED").doesNotContain("DO_NOT_DISCLOSE", "private.example", "UNKNOWN");
+        assertThat(result.resources().getFirst().facts()).containsEntry("observationBasis", "LOCAL_CONFIGURATION_ONLY")
+            .containsEntry("providerConnectivityProbed", false).containsEntry("deliveryProbed", false);
         assertThat(result.availability()).isEqualTo(Availability.INCOMPLETE);
         verify(f.readiness, never()).evaluate(app);
     }

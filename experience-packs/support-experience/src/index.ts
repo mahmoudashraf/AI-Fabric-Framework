@@ -209,21 +209,16 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
   })
   const observer = new MutationObserver(place)
   let poll: ReturnType<typeof setInterval>
-  let focusRefresh: ReturnType<typeof setTimeout> | undefined
   const refresh = async () => {
     ensureActive()
     if (!requesterEnabled || document.visibilityState === 'hidden') return
     const state = store.getState()
+    if (state.view === 'form') return
     if (state.view === 'requests') await store.run(() => store.list())
     else if (state.view === 'detail' && state.request) await store.run(() => store.detail(state.request!.id))
     else if (initialized && shell.chatVisible() && currentChat().conversationId && !currentChat().busy) {
       await store.run(async () => { await context.maxMode.refreshConversation() }, true)
     }
-  }
-  const onFocus = () => {
-    clearTimeout(focusRefresh)
-    // A focus read must not replace a command button between pointer-down and click.
-    focusRefresh = setTimeout(() => { if (!destroyed && shell.visible()) void refresh() }, 250)
   }
   const onResize = () => layout()
   const controller: SupportExperienceController = {
@@ -257,8 +252,8 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     onStateChange(listener) { ensureActive(); return store.subscribe(listener) },
     destroy() {
       if (destroyed) return
-      destroyed = true; activity.destroy(); clearInterval(poll); clearTimeout(focusRefresh); observer.disconnect(); releaseStore(); releaseChat?.()
-      removeEventListener('focus', onFocus); removeEventListener('resize', onResize); document.removeEventListener('visibilitychange', onFocus)
+      destroyed = true; activity.destroy(); clearInterval(poll); observer.disconnect(); releaseStore(); releaseChat?.()
+      removeEventListener('resize', onResize)
       store.destroy()
       try { shell.destroy() } finally {
         try { context.workspaceFrame.destroy() } finally { if (activeController === controller) activeController = undefined }
@@ -271,8 +266,12 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     store.update({ presentation: mode })
     place()
     observer.observe(document.body, { childList: true, subtree: true })
-    addEventListener('focus', onFocus); addEventListener('resize', onResize); document.addEventListener('visibilitychange', onFocus)
-    poll = setInterval(() => { if (shell.visible()) void refresh() }, 15000)
+    addEventListener('resize', onResize)
+    // The engine owns live chat delivery. Shell polling must not replace chat controls on focus.
+    poll = setInterval(() => {
+      const view = store.getState().view
+      if (shell.visible() && (view === 'requests' || view === 'detail')) void refresh()
+    }, 15000)
     if (requesterEnabled && context.credentials?.getIdentity?.()?.status !== 'anonymous') await store.run(() => store.loadSession())
     try {
       if (host.fetchWorkspace) {
