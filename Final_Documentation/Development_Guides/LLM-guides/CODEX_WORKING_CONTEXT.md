@@ -12059,3 +12059,21 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence: `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
   Temporary local Astro server stopped and viewport reset. Unrelated worktree
   changes remain untouched; only this new execution section should be staged.
+
+## 2026-11-03 Homepage Removal And Product Visuals Closed
+
+- Owner chose removal of the old Oak & Co document/consultation homepage montage,
+  not implementation of the generated replacement proposal. Hero headline/actions
+  and both experience cards remain. Detail-page shared previews unchanged.
+- Compact Products now includes illustrative Engage/Desk conversations and
+  fictional agent portraits, document samples and reused source-system logos.
+  Human support stays explicitly optional; no backend/runtime/AI changes.
+- Source `04445eefc6e23c7f6993ad8447dc7501298a4703` pushed on `Platform-V11`.
+  Production site job `t4fqjarne9wxjiuasve99zf3` finished at exact source;
+  native `/t3r7unm08sh3tfatpadz7qky-112846319367` healthy. Astro check, build,
+  content/static smoke passed. Production desktop/390px phone checks verify
+  removal, loaded visuals, both themes and no main-content horizontal overflow.
+- Follow-up evidence and screenshots are linked from
+  `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
+  Local Astro server stopped and browser viewport reset. Unrelated dirty files
+  are preserved.

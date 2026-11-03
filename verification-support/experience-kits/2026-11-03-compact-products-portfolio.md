@@ -57,4 +57,14 @@ is labelled explicitly. No new backend, configured integration or AI behavior.
 Local qualification: Astro check (79 files), production build and 28-route/content
 smoke passed. Both themes at desktop/390px phone fit without main-content
 horizontal overflow. Homepage has zero montage figures and two experience cards.
-Hosted follow-up verification is pending publication.
+Hosted follow-up source `04445eefc6e23c7f6993ad8447dc7501298a4703` is pushed.
+Production public-site job `t4fqjarne9wxjiuasve99zf3` finished at exact source;
+native `/t3r7unm08sh3tfatpadz7qky-112846319367` is healthy.
+
+Live desktop and actual 390px phone checks confirm zero homepage montages and
+two unchanged experience cards. Products has two illustrative conversation
+scenes, two agent portraits and two document examples; source logos and visible
+assets load. Both themes fit without main-content horizontal overflow.
+Screenshots: `home-product-visuals-live-2026-11-03/`. No backend, Console,
+customer deployment, credentials or AI behavior changed. Temporary local server
+stopped; browser viewport reset.
