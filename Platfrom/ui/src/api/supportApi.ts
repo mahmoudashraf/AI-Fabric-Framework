@@ -1,65 +1,86 @@
+import { createRequesterApi, SupportApiError } from '../../../../experience-packs/support-experience/src/api'
+import type { SupportAgent, SupportHostAdapter, SupportMountContext, SupportWorkspaceBootstrap } from '../../../../experience-packs/support-experience/src/types'
 import { getPlatformApiBaseUrl, getStoredPlatformApiKey, platformCredentials, PlatformApiError, platformRequest } from './platformApi'
 
 export type SupportResource = { type: 'DEPLOYMENT' | 'ENGAGE_APP' | 'CONNECTION'; id: string }
-export type SupportDelivery = 'PENDING' | 'UNKNOWN' | 'USER_MESSAGE_PERSISTED' | 'COMPLETED' | 'FAILED'
-export type SupportCase = {
-  id: string; reference: string; summary: string; details: string | null; topic: string | null
-  resources: SupportResource[]; status: 'OPEN' | 'RESOLVED' | 'CANCELLED'
-  consent: { granted: boolean; version: number; changedAt: string; revokedAt: string | null }
-  revision: number; initialMessageDelivery: SupportDelivery; deliveryObservedAt: string | null
-  episodes: Array<{ id: string; number: number; conversationId: string; terminal: boolean; createdAt: string }>
-  createdAt: string; updatedAt: string; closedAt: string | null
+export type SupportRequestContext = {
+  ticketId: string
+  resources: SupportResource[]
+  consent: { granted: boolean; version: number; changedAt: string | null; revokedAt: string | null }
+  revision: number
 }
-export type CreateSupportCase = { summary: string; details: string; topic: string; resources: SupportResource[]; diagnosticConsent: boolean }
-export type SupportWorkspaceBootstrap = {
-  conversationId: string; principalNamespace: string; apiBaseUrl: string; installationId: string
-  workspaceAssetUrl: string; workspaceIntegrity: string; experienceModuleUrl: string; experienceIntegrity: string
-  reference: string; status: SupportCase['status']; initialMessageDelivery: SupportDelivery
-  assignmentRevision: string; configuration: Record<string, unknown>
-  conversationHandover?: { enabled: boolean; [key: string]: unknown }
+export interface ConsoleSupportWorkspaceBootstrap extends SupportWorkspaceBootstrap {
+  conversationId: string
+  principalNamespace: string
+  installationId: string
+  workspaceAssetUrl: string
+  workspaceIntegrity: string
+  experienceModuleUrl: string
+  experienceIntegrity: string
+  assignmentRevision: string
+  configuration: Record<string, unknown>
 }
-const collection = '/api/support/cases'
-const path = (id: string) => `${collection}/${encodeURIComponent(id)}`
-export const listSupportCases = (page = 0) => platformRequest<SupportCase[]>(`${collection}?page=${page}&size=25`)
-export const getSupportCase = (id: string) => platformRequest<SupportCase>(path(id))
-export const createSupportCase = (body: CreateSupportCase, key: string) => platformRequest<SupportCase>(collection, {
-  method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(body),
+const root = '/api/support'
+const item = (id: string) => `${root}/requests/${encodeURIComponent(id)}`
+export const getSupportWorkspace = (id?: string, signal?: AbortSignal) => platformRequest<ConsoleSupportWorkspaceBootstrap>(
+  id ? `${item(id)}/workspace` : `${root}/workspace`, { signal },
+)
+export const getSupportRequestContext = (id: string, signal?: AbortSignal) => platformRequest<SupportRequestContext>(`${item(id)}/context`, { signal })
+export const updateSupportResources = (context: SupportRequestContext, resources: SupportResource[]) => platformRequest<SupportRequestContext>(`${item(context.ticketId)}/context`, {
+  method: 'PUT', body: JSON.stringify({ resources, expectedRevision: context.revision }),
 })
-export const changeSupportConsent = (supportCase: SupportCase, granted: boolean) => platformRequest<SupportCase>(`${path(supportCase.id)}/consent`, {
-  method: 'PUT', body: JSON.stringify({ granted, expectedVersion: supportCase.consent.version }),
+export const changeSupportConsent = (context: SupportRequestContext, granted: boolean) => platformRequest<SupportRequestContext>(`${item(context.ticketId)}/context/consent`, {
+  method: 'PUT', body: JSON.stringify({ granted, expectedVersion: context.consent.version }),
 })
-export const changeSupportStatus = (supportCase: SupportCase, action: 'resolve' | 'cancel' | 'reopen') => platformRequest<SupportCase>(`${path(supportCase.id)}/${action}`, {
-  method: 'POST', body: JSON.stringify({ expectedRevision: supportCase.revision }),
-})
-export const updateSupportResources = (supportCase: SupportCase, resources: SupportResource[]) => platformRequest<SupportCase>(path(supportCase.id), {
-  method: 'PATCH', body: JSON.stringify({ topic: supportCase.topic, resources, expectedRevision: supportCase.revision }),
-})
-export const getSupportWorkspace = (id: string) => platformRequest<SupportWorkspaceBootstrap>(`${path(id)}/workspace`)
-// The server owns the immutable body and canonical idempotency key. Never pass a new message from the browser.
-export const startSupportConversation = (id: string) => platformRequest<{ supportCase: SupportCase; runtimeStatus: number; response: unknown }>(`${path(id)}/start`, { method: 'POST' })
 
-export type SupportTeamAgent = { agentReference: string; displayName: string; photoAvailable: boolean }
-export const getSupportTeam = () => platformRequest<{ agents: SupportTeamAgent[] }>('/api/support/team')
+export function supportErrorMessage(error: unknown) {
+  if (error instanceof PlatformApiError || error instanceof SupportApiError) {
+    if (error.status === 401) return 'Your customer session has expired. Sign in again to continue.'
+    if (error.status === 403) return 'This request or resource is not available to your customer account.'
+    if (error.status === 404) return 'This support request is unavailable.'
+    if (error.status === 409) return 'The request context changed. Refresh and review it before trying again.'
+  }
+  return 'Support is temporarily unavailable. No success has been confirmed.'
+}
+
 export async function getSupportAgentPhoto(reference: string, signal: AbortSignal) {
-  const route = `/api/support/team/${encodeURIComponent(reference)}/photo`
+  const route = `${root}/team/${encodeURIComponent(reference)}/photo`
   const credentials = await platformCredentials(route, getStoredPlatformApiKey())
   const response = await fetch(getPlatformApiBaseUrl() + route, {
     ...credentials, signal, redirect: 'error', cache: 'no-store',
   })
-  if (!response.ok) throw new PlatformApiError(response.status, 'Agent photo is unavailable.')
-  if (!response.headers.get('content-type')?.startsWith('image/jpeg')) throw new Error('Agent photo is unavailable.')
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('image/jpeg')) throw new Error('Agent photo is unavailable.')
   return response.blob()
 }
 
-export type SupportStaffIntake = {
-  caseId: string; reference: string; summary: string; details: string; status: string; version: number
-  accountLabel: string; resourceLabels: string[]
-  consent: { status: string; summary: string; updatedAt: string | null }
-  initialMessageDelivery: SupportDelivery; createdAt: string; updatedAt: string
+/** Ticket transport and state belong to the pack; only authenticated Console portraits are adapted here. */
+export function createConsoleSupportApi(context: SupportMountContext, host: SupportHostAdapter, assertOwner: () => void) {
+  const api = createRequesterApi(context, { ...host, apiBaseUrl: `${getPlatformApiBaseUrl().replace(/\/$/, '')}${root}` })
+  const photos = new Set<string>()
+  const controller = new AbortController()
+  return {
+    api: {
+      ...api,
+      async team() {
+        assertOwner()
+        const team = await platformRequest<{ agents: { agentReference: string; displayName: string; photoAvailable: boolean }[] }>(`${root}/team`)
+        assertOwner()
+        const agents = team.agents.map(agent => ({ profileRef: agent.agentReference, displayName: agent.displayName, photoAvailable: agent.photoAvailable }))
+        const result = await Promise.all(agents.map(async (agent): Promise<SupportAgent> => {
+          if (!agent.photoAvailable) return { ...agent, photoUrl: undefined }
+          try {
+            const blob = await getSupportAgentPhoto(agent.profileRef, controller.signal)
+            assertOwner()
+            if (controller.signal.aborted) return { ...agent, photoUrl: undefined }
+            const photoUrl = URL.createObjectURL(blob)
+            photos.add(photoUrl)
+            return { ...agent, photoUrl }
+          } catch { return { ...agent, photoUrl: undefined } }
+        }))
+        assertOwner()
+        return result
+      },
+    },
+    destroy() { controller.abort(); for (const url of photos) URL.revokeObjectURL(url); photos.clear() },
+  }
 }
-
-// This route authorizes the actual Supabase agent, independently of Console membership or API keys.
-export const listSupportStaffIntake = (token: string, page = 0, size = 25) => platformRequest<SupportStaffIntake[]>(
-  `/api/support/staff/intake?page=${page}&size=${size}`,
-  { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' }, 'none',
-)

@@ -29,7 +29,7 @@ import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/
 import { DeploymentWorkspaceUnresolvedState } from '../components/DeploymentWorkspaceUnresolvedState'
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
 import { CustomerSupportAssistant } from '../components/customer/CustomerSupportAssistant'
-import { SupportRequestForm } from '../components/customer/SupportRequestForm'
+import { SupportResourceDialog } from '../components/customer/SupportResourceDialog'
 
 const navigation = [
   { path: '/home', label: 'Home', icon: SpaceDashboardOutlined },
@@ -147,5 +147,5 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
       </Toolbar>
       <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, minWidth: 0 }}>{children}{supportEnabled && <CustomerSupportAssistant />}</Box>
     </Box>
-  </Box>{supportEnabled && <SupportRequestForm />}</>
+  </Box>{supportEnabled && <SupportResourceDialog />}</>
 }

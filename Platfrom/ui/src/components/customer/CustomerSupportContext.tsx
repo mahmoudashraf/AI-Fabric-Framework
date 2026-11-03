@@ -1,109 +1,71 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
-import { createSupportCase, startSupportConversation, type CreateSupportCase, type SupportCase } from '../../api/supportApi'
-import { PlatformApiError } from '../../api/platformApi'
-import type { GenericWorkspaceState } from '../../../../../experience-packs/generic-workspace-experience/src/types'
+import { isCustomerSession } from '../../auth/customerSession'
+import type { SupportExperienceController } from '../../../../../experience-packs/support-experience/src/types'
 
-type Preferences = { caseId: string | null; side: 'left' | 'right'; minimized: boolean }
+type Preferences = { requestId: string | null; side: 'left' | 'right'; minimized: boolean }
+type View = { kind: 'chat' | 'form' | 'requests' } | { kind: 'request'; id: string }
 type SupportContext = {
-  customerId: string; actorId: string; caseId: string | null; selectCase(id: string | null): void
+  customerId: string; actorId: string; ownerKey: string; requestId: string | null
   side: 'left' | 'right'; changeSide(): void; minimized: boolean; setMinimized(value: boolean): void
-  requestOpen: boolean; setRequestOpen(value: boolean): void
-  saving: boolean; intakeError: string | null; savedCase: SupportCase | null
-  submitIntake(body: CreateSupportCase, navigateToCase: boolean): Promise<boolean>
-  pendingIntake: boolean; pendingBody: CreateSupportCase | null; workspaceState: GenericWorkspaceState | null
-  setWorkspaceState(value: GenericWorkspaceState | null): void
+  diagnosticsOpen: boolean; setDiagnosticsOpen(value: boolean): void
+  attachController(controller: SupportExperienceController | null): void
+  selectedRequest(id: string | null): void
+  openChat(): void; openRequestForm(): void; showRequests(): void; openRequest(id: string): void
 }
 const Context = createContext<SupportContext | null>(null)
-const defaults: Preferences = { caseId: null, side: 'right', minimized: false }
 function preferences(key: string): Preferences {
   try {
     const value = JSON.parse(sessionStorage.getItem(key) || 'null')
-    return { caseId: typeof value?.caseId === 'string' ? value.caseId : null,
+    return { requestId: typeof value?.requestId === 'string' ? value.requestId : null,
       side: value?.side === 'left' ? 'left' : 'right', minimized: value?.minimized === true }
-  } catch { return defaults }
+  } catch { return { requestId: null, side: 'right', minimized: false } }
 }
 
-/** One host per signed-in customer; route navigation never owns or resets its iframe. */
+/** Presentation preferences only. The reusable pack owns tickets, commands, drafts and chat. */
 export function CustomerSupportProvider({ children }: { children: ReactNode }) {
   const auth = usePlatformAuth()
-  const customerId = auth.session!.customerId!
-  const actorId = auth.session!.actorId!
-  const key = `loomai:console:support:${customerId}:${actorId}:${auth.supabaseSession?.user.id ?? actorId}`
+  if (!isCustomerSession(auth.session) || !auth.session?.customerId || !auth.session.actorId) return null
+  const scope = `${auth.session?.customerId}:${auth.session?.actorId}:${auth.supabaseSession?.user.id ?? ''}`
+  return <ScopedCustomerSupportProvider key={scope} customerId={auth.session.customerId} actorId={auth.session.actorId} subject={auth.supabaseSession?.user.id ?? ''}>{children}</ScopedCustomerSupportProvider>
+}
+
+function ScopedCustomerSupportProvider({ children, customerId, actorId, subject }: { children: ReactNode; customerId: string; actorId: string; subject: string }) {
+  const key = `loomai:console:support-kit:${customerId}:${actorId}:${subject || actorId}`
   const [settings, setSettings] = useState(() => preferences(key))
-  const selectedCase = useRef(settings.caseId)
-  const [requestOpen, setRequestOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [intakeError, setIntakeError] = useState<string | null>(null)
-  const [savedCase, setSavedCase] = useState<SupportCase | null>(null)
-  const [workspaceState, setWorkspaceState] = useState<GenericWorkspaceState | null>(null)
-  const pending = useRef<{ key: string; body: CreateSupportCase; uncertain: boolean } | null>(null)
-  const busy = useRef(false)
-  const active = useRef(true)
-  const cache = useQueryClient()
-  const navigate = useNavigate()
-  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
-  useEffect(() => { try { sessionStorage.setItem(key, JSON.stringify(settings)) } catch { /* Storage is optional; authorization remains server-owned. */ } }, [key, settings])
-  const selectCase = useCallback((id: string | null) => {
-    if (selectedCase.current !== id) setWorkspaceState(null)
-    selectedCase.current = id
-    setSettings(value => value.caseId === id ? value : { ...value, caseId: id })
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const controller = useRef<SupportExperienceController | null>(null)
+  const desiredView = useRef<View>(settings.requestId ? { kind: 'request', id: settings.requestId } : { kind: 'chat' })
+  useEffect(() => { try { sessionStorage.setItem(key, JSON.stringify(settings)) } catch { /* UI preferences are optional. */ } }, [key, settings])
+  const selectedRequest = useCallback((requestId: string | null) => {
+    setSettings(value => value.requestId === requestId ? value : { ...value, requestId })
   }, [])
-  const submitIntake = async (body: CreateSupportCase, navigateToCase: boolean) => {
-    if (busy.current || !body.summary.trim()) return false
-    busy.current = true; setSaving(true); setIntakeError(null)
-    if (!pending.current) pending.current = { key: crypto.randomUUID(), body: structuredClone(body), uncertain: false }
-    let created: SupportCase | null = null
-    let deliveryError: string | null = null
-    try {
-      created = await createSupportCase(pending.current.body, pending.current.key)
-      if (!active.current) return false
-      setSavedCase(created)
-      cache.setQueryData(['support-case', customerId, actorId, created.id], created)
-      const delivery = await startSupportConversation(created.id)
-      if (!active.current) return false
-      cache.setQueryData(['support-case', customerId, actorId, created.id], delivery.supportCase)
-      if (delivery.runtimeStatus >= 400) deliveryError = `The runtime returned ${delivery.runtimeStatus}. Your request is saved; no replacement message was sent.`
-    } catch (error) {
-      if (!active.current) return false
-      if (!created) {
-        // Only an explicit create rejection can unlock editing; uncertain delivery keeps the original body/key.
-        const rejected = error instanceof PlatformApiError && [400, 401, 403, 404, 422].includes(error.status)
-        if (rejected && pending.current && !pending.current.uncertain) pending.current = null
-        else if (pending.current) pending.current.uncertain = true
-        const message = error instanceof PlatformApiError && error.status === 403 && error.message === 'SUPPORT_ACCESS_DENIED'
-          ? pending.current?.uncertain
-            ? 'Access was denied while retrying. The original submission may already exist; check My requests before retrying.'
-            : 'A selected resource is no longer available for this request. Remove it or select a current resource.'
-          : error instanceof Error ? error.message : 'Your request could not be saved.'
-        setIntakeError(message)
-        return false
-      }
-      deliveryError = error instanceof Error ? error.message : 'The initial AI response could not be confirmed.'
-    } finally {
-      busy.current = false
-      if (active.current) {
-        setSaving(false)
-        if (created) {
-          selectCase(created.id)
-          setSettings(value => ({ ...value, minimized: false }))
-          setRequestOpen(false); setSavedCase(null); pending.current = null
-          setIntakeError(deliveryError)
-          void cache.invalidateQueries({ queryKey: ['support-cases', customerId, actorId] })
-          void cache.invalidateQueries({ queryKey: ['support-case', customerId, actorId, created.id] })
-          if (navigateToCase) navigate(`/support/${encodeURIComponent(created.id)}`)
-        }
-      }
-    }
-    return Boolean(created)
-  }
-  return <Context.Provider value={{ customerId, actorId, caseId: settings.caseId, selectCase,
+  const applyView = useCallback((next: View) => {
+    desiredView.current = next
+    const current = controller.current
+    if (!current) return
+    if (next.kind === 'request') void current.openRequest(next.id)
+    else if (next.kind === 'requests') void current.showRequests()
+    else if (next.kind === 'form') current.openRequestForm()
+    else current.openChat()
+  }, [])
+  const attachController = useCallback((value: SupportExperienceController | null) => {
+    controller.current = value
+    if (value) applyView(desiredView.current)
+  }, [applyView])
+  const show = useCallback((view: View) => {
+    setSettings(value => ({ ...value, minimized: false }))
+    applyView(view)
+  }, [applyView])
+  const openChat = useCallback(() => show({ kind: 'chat' }), [show])
+  const showRequests = useCallback(() => show({ kind: 'requests' }), [show])
+  const openRequestForm = useCallback(() => show({ kind: 'form' }), [show])
+  const openRequest = useCallback((id: string) => show({ kind: 'request', id }), [show])
+  const setMinimized = useCallback((minimized: boolean) => setSettings(value => value.minimized === minimized ? value : { ...value, minimized }), [])
+  return <Context.Provider value={{ customerId, actorId, ownerKey: key, requestId: settings.requestId,
     side: settings.side, changeSide: () => setSettings(value => ({ ...value, side: value.side === 'right' ? 'left' : 'right' })),
-    minimized: settings.minimized, setMinimized: minimized => setSettings(value => ({ ...value, minimized })),
-    requestOpen, setRequestOpen, saving, intakeError, savedCase, submitIntake,
-    pendingIntake: Boolean(pending.current), pendingBody: pending.current?.body ?? null, workspaceState, setWorkspaceState }}>{children}</Context.Provider>
+    minimized: settings.minimized, setMinimized,
+    diagnosticsOpen, setDiagnosticsOpen, attachController, selectedRequest, openChat, openRequestForm, showRequests, openRequest }}>{children}</Context.Provider>
 }
 
 export function useCustomerSupport() {

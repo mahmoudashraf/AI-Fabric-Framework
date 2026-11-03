@@ -1,85 +1,134 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, CircularProgress, IconButton, Stack, Tooltip, Typography, useTheme } from '@mui/material'
+import { Alert, Box, CircularProgress, IconButton, Stack, Typography, useTheme } from '@mui/material'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
+import { mountInstallation, SupportApiError } from '../../../../../experience-packs/support-experience/src/index'
+import type { SupportChatApi, SupportExperienceController, SupportHostAdapter, SupportMountContext } from '../../../../../experience-packs/support-experience/src/types'
+import { createIsolatedWorkspaceHost, type IsolatedFrameHost } from '../../../../../max-mode-widget/src/installer/isolatedHost'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { getPlatformApiBaseUrl } from '../../api/platformApi'
-import type { SupportWorkspaceBootstrap } from '../../api/supportApi'
-import type { GenericWorkspaceState } from '../../../../../experience-packs/generic-workspace-experience/src/types'
-import { supportWorkspaceDocument } from './supportWorkspaceDocument'
+import { createConsoleSupportApi, getSupportWorkspace, supportErrorMessage, type ConsoleSupportWorkspaceBootstrap } from '../../api/supportApi'
+import { useCustomerSupport } from './CustomerSupportContext'
 
-export function SupportWorkspace({ caseId, bootstrap, readOnly, onStateChange, fillHeight = false }: {
-  caseId: string; bootstrap: SupportWorkspaceBootstrap; readOnly: boolean; onStateChange(state: GenericWorkspaceState | null): void; fillHeight?: boolean
-}) {
-  const frame = useRef<HTMLIFrameElement>(null)
+function approvedBootstrap(value: ConsoleSupportWorkspaceBootstrap, requestId?: string) {
+  const origin = new URL(getPlatformApiBaseUrl(), document.baseURI).origin
+  const runtime = new URL(value.apiBaseUrl, origin)
+  if (typeof value.conversationId !== 'string' || !value.conversationId.trim()) throw new Error('A support conversation scope is required.')
+  const expected = requestId ? `/api/support/requests/${encodeURIComponent(requestId)}/runtime/api`
+    : `/api/support/conversations/${encodeURIComponent(value.conversationId)}/runtime/api`
+  if (runtime.origin !== origin || runtime.pathname !== expected || runtime.username || runtime.password || runtime.search || runtime.hash)
+    throw new Error('Invalid support runtime target.')
+  for (const [asset, integrity] of [[value.workspaceAssetUrl, value.workspaceIntegrity], [value.experienceModuleUrl, value.experienceIntegrity]]) {
+    const url = new URL(asset, origin)
+    if (url.origin !== origin || !url.pathname.startsWith('/api/public/ai-workspace/') || url.username || url.password || url.search || url.hash || !/^sha384-[A-Za-z0-9+/=]+$/.test(integrity))
+      throw new Error('Invalid support workspace asset.')
+  }
+  if (!value.installationId || !value.assignmentRevision || !value.principalNamespace) throw new Error('Incomplete support installation.')
+  return { ...value, apiBaseUrl: runtime.href, workspaceAssetUrl: new URL(value.workspaceAssetUrl, origin).href }
+}
+
+/** One real pack controller and one isolated chat frame for the signed-in owner, independent of routes. */
+export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: number }) {
+  const container = useRef<HTMLDivElement>(null)
   const auth = usePlatformAuth()
   const latestAuth = useRef(auth); latestAuth.current = auth
-  const onState = useRef(onStateChange); onState.current = onStateChange
+  const support = useCustomerSupport()
+  const { attachController, selectedRequest } = support
   const dark = useTheme().palette.mode === 'dark'
-  const [nonce] = useState(() => crypto.randomUUID())
-  const [error, setError] = useState<string | null>(null)
+  const latestTheme = useRef(dark); latestTheme.current = dark
+  const latestVisibility = useRef(visible); latestVisibility.current = visible
+  const latestLayer = useRef(layer); latestLayer.current = layer
+  const workspaceFrame = useRef<IsolatedFrameHost<SupportChatApi> | null>(null)
+  const current = useRef<SupportExperienceController | null>(null)
   const [ready, setReady] = useState(false)
-  const [reload, setReload] = useState(0)
-  const [document] = useState(supportWorkspaceDocument)
-  const identityKey = `${auth.session?.customerId}:${auth.supabaseSession?.user.id ?? auth.session?.actorId}`
-  const frameScope = JSON.stringify([caseId, bootstrap, dark, readOnly, identityKey, reload])
-  const frameConfiguration = { type: 'loomai:support:configure', nonce, bootstrap, caseId, accountKey: identityKey,
-    platformBaseUrl: getPlatformApiBaseUrl(), dark, readOnly }
+  const [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const identity = `${auth.session?.customerId}:${auth.session?.actorId}:${auth.supabaseSession?.user.id ?? ''}`
   useEffect(() => {
-    setReady(false); setError(null)
-    const origin = window.location.origin
-    const frameWindow = frame.current?.contentWindow
     let active = true
-    const post = (message: Record<string, unknown>) => frameWindow?.postMessage({ nonce, ...message }, origin)
-    const listener = async (event: MessageEvent) => {
-      if (event.source !== frameWindow || event.origin !== origin || !event.data) return
-      const message = event.data
-      if (message.type === 'loomai:support:ready') {
-        post(frameConfiguration)
-        return
-      }
-      if (message.nonce !== nonce) return
-      if (message.type === 'loomai:support:token-request' && typeof message.requestId === 'string') {
-        try {
-          const current = latestAuth.current
-          if (`${current.session?.customerId}:${current.supabaseSession?.user.id ?? current.session?.actorId}` !== identityKey || !current.supabase) throw new Error('Sign in again to continue.')
-          const { data, error: failure } = await current.supabase.auth.getSession()
-          if (failure || !data.session || data.session.user.id !== current.supabaseSession?.user.id) throw new Error('Sign in again to continue.')
-          const latest = latestAuth.current
-          if (`${latest.session?.customerId}:${latest.supabaseSession?.user.id ?? latest.session?.actorId}` !== identityKey
-            || latest.supabaseSession?.user.id !== data.session.user.id) throw new Error('Sign in again to continue.')
-          if (active) post({ type: 'loomai:support:token-response', requestId: message.requestId, token: data.session.access_token })
-        } catch {
-          if (active) { post({ type: 'loomai:support:token-response', requestId: message.requestId }); setError('Your Console session is unavailable. Sign in again to continue.') }
-        }
-      }
-      if (message.type === 'loomai:support:state') {
-        const state = message.state as GenericWorkspaceState
-        if (!state || !['initializing', 'ready', 'loading', 'error', 'destroyed'].includes(state.status)) return
-        setReady(state.ready && state.conversationId === bootstrap.conversationId)
-        if (state.status === 'ready' && state.conversationId) setError(null)
-        if (state.error) setError(state.error.message)
-        onState.current(state)
-      }
-      if (message.type === 'loomai:support:error') setError('The conversation is unavailable. Your saved request is unchanged.')
+    let frame: IsolatedFrameHost<SupportChatApi> | undefined
+    let mounted: SupportExperienceController | undefined
+    let adapter: ReturnType<typeof createConsoleSupportApi> | undefined
+    let releaseState: (() => void) | undefined
+    const abort = new AbortController()
+    const assertOwner = () => {
+      const latest = latestAuth.current
+      if (!active || `${latest.session?.customerId}:${latest.session?.actorId}:${latest.supabaseSession?.user.id ?? ''}` !== identity || !latest.supabaseSession)
+        throw new SupportApiError(401, 'IDENTITY_CHANGED', 'Sign in again before accessing support.')
     }
-    window.addEventListener('message', listener)
+    const token = async () => {
+      assertOwner()
+      const owner = latestAuth.current
+      if (!owner.supabase) throw new SupportApiError(401, 'SIGN_IN_REQUIRED', 'Sign in to continue.')
+      const result = await owner.supabase.auth.getSession()
+      assertOwner()
+      if (result.error || !result.data.session || result.data.session.user.id !== latestAuth.current.supabaseSession?.user.id)
+        throw new SupportApiError(401, 'SIGN_IN_REQUIRED', 'Sign in again to continue.')
+      return result.data.session.access_token
+    }
+    setReady(false); setError(null)
+    const start = async () => {
+      assertOwner()
+      const initial = approvedBootstrap(await getSupportWorkspace(undefined, abort.signal))
+      assertOwner()
+      let first: ConsoleSupportWorkspaceBootstrap | undefined = initial
+      const fetchWorkspace = async (requestId?: string) => {
+        assertOwner()
+        const value = !requestId && first ? first : approvedBootstrap(await getSupportWorkspace(requestId, abort.signal), requestId)
+        if (!requestId) first = undefined
+        assertOwner()
+        if (value.installationId !== initial.installationId || value.assignmentRevision !== initial.assignmentRevision)
+          throw new SupportApiError(409, 'ASSIGNMENT_CHANGED', 'The support assignment changed. Reload support before continuing.')
+        return value
+      }
+      frame = await createIsolatedWorkspaceHost<SupportChatApi>({ url: initial.workspaceAssetUrl, integrity: initial.workspaceIntegrity }, { layer: latestLayer.current })
+      if (!active) { frame.destroy(); return }
+      workspaceFrame.current = frame
+      const host: SupportHostAdapter = { runtimeCredentialMode: 'host-mediated', getIdentityAccessToken: token,
+        fetchWorkspace, onRequestSelected: request => { if (active) selectedRequest(request?.id ?? null) } }
+      const context: SupportMountContext = {
+        installationId: initial.installationId, assignmentRevision: initial.assignmentRevision,
+        deliveryMode: 'embedded', connectionMode: 'backend-mediated-private-runtime',
+        configuration: { ...initial.configuration, theme: { ...(initial.configuration.theme as object), darkMode: latestTheme.current } },
+        widgetConfig: { storageNamespace: `${initial.installationId}:${initial.assignmentRevision}:${identity}`,
+          features: { cart: false, debug: false, conversations: false } },
+        hostSession: { namespace: initial.principalNamespace, accountKey: identity },
+        maxMode: frame.maxMode, workspaceFrame: frame,
+        presentation: { mode: 'page', container: container.current! },
+        credentials: { getIdentityAccessToken: token, getIdentity: () => {
+          try { assertOwner(); return { status: 'authenticated', subjectKey: identity } }
+          catch { return { status: 'anonymous' } }
+        } },
+        supportHost: host,
+        refreshAssignment: async () => { await fetchWorkspace() },
+      }
+      adapter = createConsoleSupportApi(context, host, assertOwner)
+      host.api = adapter.api
+      mounted = await mountInstallation(context)
+      if (!active) { mounted.destroy(); adapter.destroy(); return }
+      current.current = mounted
+      mounted.setVisible(latestVisibility.current)
+      mounted.setTheme(latestTheme.current ? 'dark' : 'light')
+      let attached = false
+      releaseState = mounted.onStateChange(state => {
+        if (active && !state.busy && !attached) { attached = true; attachController(mounted!) }
+      })
+      setReady(true)
+    }
+    void start().catch(cause => {
+      mounted?.destroy(); if (!mounted) frame?.destroy(); adapter?.destroy()
+      if (active) setError(supportErrorMessage(cause))
+    })
     return () => {
-      active = false; post({ type: 'loomai:support:destroy' })
-      window.removeEventListener('message', listener); onState.current(null)
+      active = false; abort.abort(); releaseState?.(); attachController(null)
+      current.current = null; workspaceFrame.current = null; mounted?.destroy(); if (!mounted) frame?.destroy(); adapter?.destroy()
     }
-  }, [frameScope, nonce])
-  const refresh = () => { setError(null); frame.current?.contentWindow?.postMessage({ type: 'loomai:support:refresh', nonce }, window.location.origin) }
-  return <Box sx={{ minWidth: 0, ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 } : {}) }}>
-    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ pb: 1.25 }}>
-      <Typography variant="subtitle2">Conversation</Typography>
-      <Tooltip title="Refresh conversation"><IconButton aria-label="Refresh support conversation" onClick={refresh} disabled={!ready}><RefreshRounded fontSize="small" /></IconButton></Tooltip>
-    </Stack>
-    {error && <Alert severity="warning" sx={{ mb: 1.5 }} action={<IconButton aria-label="Reload support workspace" size="small" onClick={() => setReload(value => value + 1)}><RefreshRounded fontSize="small" /></IconButton>}>{error}</Alert>}
-    {!ready && !error && <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}><CircularProgress size={15} /><Typography color="text.secondary" variant="body2">Opening your conversation...</Typography></Stack>}
-    <Box component="iframe" key={frameScope} ref={frame} title="LoomAI integration support workspace" srcDoc={document}
-      onLoad={() => frame.current?.contentWindow?.postMessage(frameConfiguration, window.location.origin)}
-      sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
-      sx={{ display: 'block', width: '100%', height: fillHeight ? '100%' : 'min(760px, calc(100vh - 245px))', minHeight: fillHeight ? 0 : 460,
-        ...(fillHeight ? { flex: 1 } : {}), border: 1, borderColor: 'divider', borderRadius: 1 }} />
+  }, [identity, retry, attachController, selectedRequest])
+  useEffect(() => { current.current?.setVisible(visible) }, [visible])
+  useEffect(() => { current.current?.setTheme(dark ? 'dark' : 'light') }, [dark])
+  useEffect(() => { workspaceFrame.current?.setLayer(layer) }, [layer])
+  return <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+    {error && <Alert severity="warning" action={<IconButton aria-label="Reload support workspace" size="small" onClick={() => setRetry(value => value + 1)}><RefreshRounded fontSize="small" /></IconButton>}>{error}</Alert>}
+    {!ready && !error && <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 2 }}><CircularProgress size={16} /><Typography variant="body2">Opening support...</Typography></Stack>}
+    <Box id="console-support-experience" ref={container} sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', '& > [data-loomai-support]': { flex: 1, minHeight: 0, minWidth: 0, width: '100%' } }} />
   </Box>
 }

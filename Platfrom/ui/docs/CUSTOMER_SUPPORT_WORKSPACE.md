@@ -1,117 +1,147 @@
-# Customer Support Workspace
+# Customer Support Kit Host
 
-The customer Console provides **Help & requests** at `/support` and the owner-scoped
-case page at `/support/:caseId`. It reuses the generic Engage experience pack; there
-is no separate support chat implementation or browser-held runtime assertion.
+The existing Console customer shell hosts the real
+`experience-packs/support-experience` pack. React owns account authentication,
+page routing, dock position/minimization and resource-check consent only. The
+pack owns the request form, My Requests, detail, provider capabilities, opaque
+ticket versions, command identities and lifecycle behavior. The existing chat
+engine remains the only transcript/composer/handover implementation.
 
-## Intake and Delivery
+## Routes And Persistence
 
-- Submit saves `POST /api/support/cases` with one `Idempotency-Key` and an immutable
-  snapshot of the form. Diagnostic consent is unchecked by default.
-- After save, that explicit submit handler calls `POST /api/support/cases/{id}/start`.
-  The server owns the initial message and its stable delivery key. The browser sends
-  neither a new query nor an alternate initial body.
-- Opening, reloading, refreshing or reopening a case never calls `start` automatically.
-  PENDING/UNKNOWN delivery has an explicit same-delivery action. Failed/uncertain AI
-  delivery never deletes or hides the saved case.
-- Resource changes, versioned consent, resolve/cancel/reopen use the registry routes.
-  Resource IDs are selected from the customer's existing deployment/app/connection
-  APIs, with authorization still enforced by the server. Status-check permission is
-  separate from ordinary documentation help.
+- `/support` shows the current support experience without resetting its view.
+- `/support/requests` delegates to `controller.showRequests()`.
+- `/support/:caseId` delegates the opaque route ID to `controller.openRequest()`;
+  the route parameter name is internal, not an old case API or data reader.
+- `?new=1` opens the pack's request form, not a second Console form.
 
-## Embedded Engage
+One controller and one generic isolated workspace frame live beneath the
+customer shell, independently of route components. Page/dock, left/right,
+minimize, diagnostics dialogs and light/dark changes never replace that frame.
+The pack's `setVisible` and `setTheme` APIs preserve its draft and attachments.
+Only side, minimization and the selected request ID are stored in a new
+customer/actor/Supabase-subject-scoped UI preference key. No old preference or
+ticket-history migration is provided.
 
-`GET /api/support/cases/{id}/workspace` supplies the exact registered conversation,
-principal namespace, **real installed Engage ID**, assignment revision, configuration,
-asset paths/SRI and safe handover summary. `SupportWorkspace` mounts this ordinary
-generic pack in an owned same-origin iframe within the case column. The widget's fixed
-viewport fills that iframe, never the entire Console. No global CSS overlay override
-or copied transcript renderer is used.
+Account changes key/unmount the provider, destroy the prior controller/frame,
+and revoke portrait object URLs. Async bootstrap and token reads verify the
+same customer, actor and Supabase subject before accepting results. Tokens stay
+in memory and are freshly resolved from existing Console authentication. No
+private runtime assertion or service key reaches the browser.
 
-The normal Engage installation uses reviewed connection profile
-`platform-support-case-host@1.0.0`, mode `BACKEND_MEDIATED_PRIVATE_RUNTIME`, with
-empty connection configuration and the generic pack. It is enabled only with
-Platform support, restricted to `platform.support.customer-id`, and intentionally
-absent from the public connection catalogue/script manifests. Console supplies
-the authorized case bootstrap through the generic host API. Do not register a
-Shopify profile as a substitute or seed a special installation row. Create,
-readiness and activation still use the normal installation APIs. This internal
-adapter does not change other customers' one-script or standalone paths.
+## Exact BFF Contract
 
-`apiBaseUrl` is `/api/support/cases/{id}/runtime/api`. Explicit widget route templates
-use `/chat/me/conversations/{conversationId}` with `/messages`, `/control`, `/events`,
-`/handover-requests`, `/handover-requests/{handoverId}/cancel|retry` and
-`/ai-resume-requests`. The adapter independently validates the registered conversation.
-No global conversation listing, new-conversation UI or DELETE route is exposed.
+Prefix: `/api/support`. `SupportRequesterApi` and request DTOs are imported from
+the reusable pack rather than independently defined by Console.
 
-The host calls `openConversation` and `refreshConversation` through the generic
-promise-based APIs. History reads restore optional safe `completedTurns` presentation;
-exact `aiMessageId` associates each receipt with its canonical AI message while
-`userMessageId` retains provenance, including interleaved writes from two tabs.
-Canonical participant text remains authoritative. No query replay recovers cards.
-Closed cases use generic `host.readOnly` while retaining history/control reads.
-When Desk closes the canonical conversation, its authoritative control response
-marks that case episode terminal. **Start new conversation** is then an explicit
-reopen command, not automatic return to AI. For a newly registered episode, the
-adapter first uses the supported runtime control read to initialize the empty
-canonical scope before its history read. No synthetic transcript, query retry or
-intake resubmission creates that empty conversation.
+- `GET /session`: normalized requester `SupportSession` with effective space,
+  provider binding and capability names, without server secrets.
+- `GET /requests?status=OPEN&cursor=...&limit=20`: `{items,nextCursor}`.
+- `POST /requests`: `{subject,details,topic,existingConversationId?}` and
+  `Idempotency-Key`. Console adds no resources or implicit diagnostic consent.
+- `GET /requests/{id}`: provider-neutral ticket (`subject`, opaque string
+  `version`, `conversation`, `episodes`, events and capabilities).
+- `POST /requests/{id}/start|resolve|cancel|reopen`:
+  `{expectedVersion: string}` and `Idempotency-Key`; updated ticket response.
+- `PUT /requests/{id}/seen`: the pack's last-seen observation with
+  `Idempotency-Key`; the returned ticket/version is consumed before later commands.
 
-## Identity and Lifecycle
+The injected API uses the pack's requester transport directly. Only `team()` is
+adapted for Console's existing safe response:
+`{agents:[{agentReference,displayName,photoAvailable}],...availabilityFlags}`.
+It maps `agentReference` to `profileRef` and loads optional JPEG portraits from
+the current authenticated `/team/{reference}/photo` bridge into owned blob URLs.
+There is no external image credential, private Desk avatar URL or invented
+presence. Missing portraits use the pack's initials.
 
-The iframe asks its parent for the current Supabase browser token on every widget
-request and SSE reconnect. The bridge verifies origin, the exact frame window and a
-per-instance nonce. Parent-side token resolution also verifies the current customer
-and Supabase subject before and after the asynchronous session read. Logout/account
-changes reject token requests and dispose of the previous iframe. Tokens are not
-included in URLs, srcDoc, case data, persisted widget state or visible text.
+### Workspace Bootstrap
 
-Only reviewed Platform-origin `/api/public/ai-workspace/` assets with SHA-384 SRI
-are loaded. Bootstrap, theme, namespace/account or read-only changes remount the
-frame. Retired frame responses cannot configure the new frame. Reloading the workspace
-only repeats authorized GETs, not intake delivery.
+`GET /workspace` supplies an owner-scoped conversation-first bootstrap with no
+ticket creation. `GET /requests/{id}/workspace` supplies its authorized linked
+episode. Both return:
+
+```ts
+{
+  apiBaseUrl: string
+  conversationId: string
+  principalNamespace: string
+  installationId: string
+  assignmentRevision: string
+  configuration: Record<string, unknown>
+  workspaceAssetUrl: string
+  workspaceIntegrity: string
+  experienceModuleUrl: string
+  experienceIntegrity: string
+  conversationHandover?: { enabled: boolean }
+}
+```
+
+The real support pack is bundled from its shared source into the Console build.
+The generic chat engine is loaded through the shared
+`createIsolatedWorkspaceHost` helper, with the exact Platform-origin
+`/api/public/ai-workspace/` asset and SHA-384 SRI. The host also validates the
+declared experience asset reference. Runtime targets are exactly
+`/api/support/conversations/{serverGeneratedConversationId}/runtime/api` for chat-first or
+`/api/support/requests/{encodedId}/runtime/api` for a selected request. Canonical
+conversation routes remain `/chat/me/conversations/{conversationId}` plus
+messages/control/events and existing handover operations.
+
+Installation and assignment remain stable during a mounted session. Changes are
+visible failures requiring an explicit reload, not a silent rebind. The server's
+principal namespace changes on explicit ticket/episode selection, resetting
+cross-ticket chat state rather than retaining attachments or current targets.
+Layout-only changes preserve that state. Ticket creation/start happens only through the pack's explicit
+submit/delivery commands. Navigation, detail reads and reload do not replay them.
+
+## Resource Permission
+
+The host-specific **Configure diagnostics** dialog is available on a selected
+request, never as implicit generic intake authority.
+
+- `GET /requests/{id}/context` returns
+  `{ticketId,resources,consent:{granted,version,changedAt,revokedAt},revision}`.
+- `PUT /requests/{id}/context` sends `{resources,expectedRevision}`.
+- `PUT /requests/{id}/context/consent` sends `{granted,expectedVersion}`.
+
+Context/consent revisions are independent numeric values, not ticket versions.
+Resource editing disables consent until the resource write succeeds. Resource
+changes revoke permission; granting permission is a separate explicit action.
+Errors refetch current context but never replay a write or regrant permission.
+The server remains authoritative for owned resource IDs and active membership.
+No ticket subject, business status or transcript is stored in this host context.
 
 ## Local Verification
 
-### Internal Team Intake
-
-The direct staff route is `/support/team-intake`. It deliberately enters before
-Console customer-membership/onboarding gates, like the Desk authorization route.
-A Desk-only agent signs in using the existing Supabase form, without creating a
-Platform customer account. The route uses the current Supabase browser bearer for
-`GET /api/support/staff/intake?page=0&size=25`, with no cookies, API keys or service
-credentials. The API verifies issuer/audience/expiry and the current explicit
-Desk SUPPORT grant; a Platform admin, Desk OWNER or UI role flag is not authority.
-
-Help shows the **Team intake** link only after that API authorizes a read (including
-an empty result). Normal customer 403 responses reveal no staff data or link.
-The page displays saved references, summaries/details, account/resource labels,
-backend-projected consent, delivery/status and update time only. It has no runtime
-probe, transcript, reply editor or case-lifecycle commands. Customer-owned case
-links are intentionally absent: an assigned agent is not the original requester.
-Use the existing LoomAI Desk portal for actual conversations and replies.
-
-Staff data is scoped by Supabase subject, discarded on unmount and hidden while
-authorization refresh is pending or fails. The local `npm run smoke:support-team-intake`
-test exercises the real App early branch, unlinked Desk-agent identity, sign-in,
-refreshed bearer, denial, cached-row removal, admin non-authority and logout. This
-does not replace hosted proof of actual JWT validation/current SUPPORT grants.
-
-### Commands
-
-First build `max-mode-widget` and `experience-packs/generic-workspace-experience`.
-From `Platfrom/ui` run:
+Build the current generic widget asset first, then run from `Platfrom/ui`:
 
 ```sh
 npx tsc -p tsconfig.app.json --noEmit --incremental false
 npx vite build
+node --test scripts/customer-support-pack-host.test.mjs
 npm run smoke:customer-support
+npm run smoke:support-team-intake
 ```
 
-The browser fixture uses the real built widget and pack with mocked authorized APIs.
-It checks save/start separation, unchecked consent, canonical history/cards, contained
-iframe geometry, refreshed bearer use, human handover/message/AI return, consent changes,
-resolve/cancel/reopen, reload without replay and durable intake during runtime outage. Evidence is written to
-`/private/tmp/loomai-support-ui-01054` (override with `SUPPORT_UI_OUTPUT`). This is local
-integration proof, not hosted release verification. Run the widget's host/history/
-backend-bearer smokes for controller and transport regressions.
+The repository-root Railway image build includes the support pack source and
+the complete widget source tree (including the isolated installer helper):
+
+```sh
+docker build -f Platfrom/ui/deploy/railway/Dockerfile -t loomai-console-support-ui:local .
+```
+
+The customer smoke uses the real pack source and built chat engine with explicitly
+synthetic BFF responses/portraits. It covers chat-first without tickets, pack
+creation and opaque versioning, one-frame draft/attachment retention, dock/SPA
+and theme changes, resource ownership choices, independent consent, My Requests,
+deep links, no start replay, current bearer use, uncertain-create identity,
+mobile geometry, logout cleanup and staff-shell isolation. Evidence defaults to
+`/private/tmp/loomai-support-ui-01057`; override with `SUPPORT_UI_OUTPUT`.
+
+The former `/support/team-intake` route now links to the existing trusted Desk
+sign-in destination using the shared identity-navigation policy. There is no
+Console staff ticket list or `/api/support/staff/intake` caller. Desk owns agent
+authentication and ticket authorization; Console membership never grants it.
+
+Local fixtures do not prove hosted token validation, real S3 knowledge,
+provider delivery, Console cutover or AI answer quality. Main owns those checks
+and release/deployment.
