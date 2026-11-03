@@ -44,6 +44,7 @@ export function Status({ value }: { value: string }) {
     "CORRECTED",
     "COMPLETED",
     "ENABLED",
+    "RESOLVED",
   ].includes(value)
     ? "teal"
     : [
@@ -53,6 +54,7 @@ export function Status({ value }: { value: string }) {
           "WAITING_FOR_REVIEW",
           "WAITING_FOR_INFORMATION",
           "DECIDING",
+          "OPEN",
         ].includes(value)
       ? "amber"
       : ["FAILED", "REJECTED", "EXPIRED"].includes(value)

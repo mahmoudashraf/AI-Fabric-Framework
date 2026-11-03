@@ -148,3 +148,59 @@ export interface DecisionResult {
   successorTaskId: string | null;
   failure: ReviewDecisionFailure | null;
 }
+
+export type TicketStatus = "OPEN" | "RESOLVED" | "CANCELLED";
+export type TicketCapability =
+  | "CREATE"
+  | "LIST"
+  | "GET"
+  | "RESOLVE"
+  | "CANCEL"
+  | "REOPEN"
+  | "SEEN"
+  | "LINK_CONVERSATION"
+  | "AGENT_LIST"
+  | "AGENT_GET"
+  | "AGENT_RESOLVE"
+  | "PURGE";
+export interface TicketConversation {
+  episodeId: string;
+  conversationId: string;
+  delivery: string;
+}
+export interface TicketEpisode {
+  episodeId: string;
+  conversationId: string;
+  delivery: string;
+  createdAt: string;
+  number: number;
+  openingMessageRequired: boolean;
+}
+export interface TicketEvent {
+  type: string;
+  actorId: string;
+  createdAt: string;
+}
+export interface Ticket {
+  id: string;
+  reference: string;
+  providerBindingId: string;
+  subject: string;
+  details: string;
+  topic?: string | null;
+  status: TicketStatus;
+  version: string;
+  createdAt: string;
+  updatedAt: string;
+  unread: boolean;
+  openingMessageRequired: boolean;
+  conversation: TicketConversation | null;
+  episodes: TicketEpisode[];
+  events: TicketEvent[];
+  capabilities: TicketCapability[];
+  upstreamStatus?: string | null;
+}
+export interface TicketPage {
+  items: Ticket[];
+  nextCursor: string | null;
+}

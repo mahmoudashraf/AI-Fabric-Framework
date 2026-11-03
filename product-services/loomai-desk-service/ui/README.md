@@ -65,6 +65,18 @@ This portal follows the current service's `../API_CONTRACT.md`:
 - Conversation summaries/details/commands use the existing Basic Inbox
   contracts. Callbacks use `/bindings/{id}/operations/callbacks`, including
   explicitly authorized, idempotent retry of eligible delivery failures.
+- Tickets use the provider-neutral `/bindings/{id}/tickets` facade, paged as
+  `{items,nextCursor}`. Intake, provider status, events and linked episode
+  metadata are safe text. Actual `SUPPORT` is required; only `AGENT_RESOLVE`
+  plus `OPEN` enables resolution. Confirmation freezes the opaque string
+  `expectedVersion`, with session CSRF and an `Idempotency-Key` header.
+  Failed commands never automatically replay; identical manual retries retain
+  their key. Changed versions require a fresh review/confirmation.
+  [Ticket UI contract](TICKETS_UI_CONTRACT.md) records the concrete DTOs.
+- Ticket episodes only open real handovers found in the existing authorized
+  binding conversation queue (latest 100). No AI transcript is fetched and no
+  automatic claim/takeover is performed. Claim/reply/return/close continue to
+  use existing conversation controls; ticket resolution changes none of them.
 - Review lists/details/decisions consume the actual review bridge responses.
   `requestedInformation`, `suppliedInformation`, failures, successor task
   references and returned execution outcomes are rendered as safe text.
@@ -114,7 +126,9 @@ customer's workspace. No template/domain-specific logic is present.
   Modals use native dialogs, icon buttons have labels/tooltips, and reduced
   motion is respected. No third-party fonts or remote visual assets load.
 - Queue and callback reads are bounded to the latest 100 records, with that
-  limit visible. Full history pagination is not claimed by this UI.
+  limit visible. Ticket lists have 50-item pages, server status filters and
+  opaque cursor navigation; text search filters the displayed page. Full
+  conversation/callback history pagination is not claimed by this UI.
 
 ## Verification
 
@@ -133,7 +147,10 @@ Fixtures are never imported
 by application code. Tests cover conversation support, delivery failure/retry,
 review decisions/conflicts, agent assignments/revocation, role separation,
 workspace switching, identity expiry, native OAuth launch, shared account
-links/profile, CSRF logout, safe text rendering, light/dark and mobile. Screenshots are written
+links/profile, CSRF logout, safe text rendering, light/dark and mobile. Focused
+ticket cases cover provider capabilities, version conflicts, idempotent manual
+retry, pagination, role revocation, linked human controls and 320/390/1024/1440px
+light/dark layouts. Screenshots are written
 inside the ignored `test-results/` directory, with HTML report and failure traces.
 
 Browser fixtures prove frontend contract behavior, not hosted Supabase setup,

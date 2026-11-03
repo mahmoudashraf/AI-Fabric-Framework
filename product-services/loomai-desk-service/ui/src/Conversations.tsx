@@ -51,15 +51,17 @@ export function Conversations({
   binding,
   operatorId,
   accessFresh,
+  initialHandoverId = "",
 }: {
   binding: Binding;
   operatorId: string;
   accessFresh: boolean;
+  initialHandoverId?: string;
 }) {
   const client = useQueryClient();
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialHandoverId);
   const [inspector, setInspector] = useState(false);
   const canSupport = binding.roles.includes("SUPPORT");
   const path = `${bindingPath(binding.bindingId)}/conversations`;
@@ -87,11 +89,12 @@ export function Conversations({
   useEffect(() => {
     if (
       selected &&
+      selected !== initialHandoverId &&
       queue.isSuccess &&
       !items.some((item) => item.handoverId === selected)
     )
       setSelected("");
-  }, [queue.data, selected]);
+  }, [queue.data, selected, initialHandoverId]);
   const waiting = items.filter((item) =>
     ["WAITING", "CLAIM_PENDING"].includes(item.status),
   ).length;

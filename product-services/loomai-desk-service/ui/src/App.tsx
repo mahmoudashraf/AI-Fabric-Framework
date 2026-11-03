@@ -12,6 +12,7 @@ import {
   PanelsTopLeft,
   RefreshCw,
   Sun,
+  Ticket as TicketIcon,
   Users,
   UserRound,
   X,
@@ -30,9 +31,10 @@ import {
 import { Conversations } from "./Conversations";
 import { Reviews } from "./Reviews";
 import { Agents } from "./Agents";
+import { Tickets } from "./Tickets";
 import type { Binding, DeskConfig, Session } from "./types";
 
-type View = "conversations" | "reviews" | "agents";
+type View = "conversations" | "tickets" | "reviews" | "agents";
 function initialBinding() {
   return new URLSearchParams(location.search).get("bindingId") ?? "";
 }
@@ -204,6 +206,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
   const operator = session.data.operator;
   const titles = {
     conversations: "Conversations",
+    tickets: "Tickets",
     reviews: "Action reviews",
     agents: "Agents & access",
   };
@@ -257,6 +260,16 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
           >
             <Inbox size={18} />
             <span>Conversations</span>
+          </button>
+          <button
+            className={view === "tickets" ? "nav-link active" : "nav-link"}
+            onClick={() => {
+              setView("tickets");
+              setNavOpen(false);
+            }}
+          >
+            <TicketIcon size={18} />
+            <span>Tickets</span>
           </button>
           <button
             className={view === "reviews" ? "nav-link active" : "nav-link"}
@@ -392,6 +405,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
             view={view}
             operatorId={operator.id}
             accessFresh={!session.isRefetchError}
+            onNavigate={setView}
           />
         )}
       </main>
@@ -428,22 +442,54 @@ function BindingWorkspace({
   view,
   operatorId,
   accessFresh,
+  onNavigate,
 }: {
   binding: Binding;
   view: View;
   operatorId: string;
   accessFresh: boolean;
+  onNavigate: (view: View) => void;
 }) {
+  const [ticketId, setTicketId] = useState("");
+  const [linkedConversation, setLinkedConversation] = useState<{
+    handoverId: string;
+    reference: string;
+  } | null>(null);
+  if (view === "tickets")
+    return (
+      <Tickets
+        binding={binding}
+        accessFresh={accessFresh}
+        selected={ticketId}
+        onSelect={setTicketId}
+        onOpenConversation={(handoverId, reference) => {
+          setLinkedConversation({ handoverId, reference });
+          onNavigate("conversations");
+        }}
+      />
+    );
   if (view === "reviews")
     return <Reviews binding={binding} accessFresh={accessFresh} />;
   if (view === "agents")
     return <Agents binding={binding} accessFresh={accessFresh} />;
   return (
-    <Conversations
-      binding={binding}
-      operatorId={operatorId}
-      accessFresh={accessFresh}
-    />
+    <div className="conversation-workspace">
+      {linkedConversation && (
+        <div className="linked-ticket-bar">
+          <button className="text-button" onClick={() => onNavigate("tickets")}>
+            <TicketIcon size={15} />
+            Back to ticket {linkedConversation.reference}
+          </button>
+        </div>
+      )}
+      <Conversations
+        key={linkedConversation?.handoverId ?? "inbox"}
+        binding={binding}
+        operatorId={operatorId}
+        accessFresh={accessFresh}
+        initialHandoverId={linkedConversation?.handoverId}
+      />
+    </div>
   );
 }
 
