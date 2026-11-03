@@ -56,6 +56,6 @@ export function KitSupportBand() {
   return <section className="ek-support-band" aria-labelledby="ek-support-band-title"><KitMark product="desk" />
     <img src={kitAsset('demo-support-agent.webp')} alt="Illustrative support agent" width="54" height="54" loading="lazy" />
     <div><h2 id="ek-support-band-title">A person when your customers need one</h2><p>Add your own support team with LoomAI Desk, now or later. Customers can continue without repeating their story.</p></div>
-    <span className="ek-badge ek-badge-amber">Optional for either kit</span>
+    <span className="ek-badge ek-badge-amber">Human support is optional</span>
   </section>
 }

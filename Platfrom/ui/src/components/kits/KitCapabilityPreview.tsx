@@ -22,8 +22,10 @@ import ForumOutlined from '@mui/icons-material/ForumOutlined'
 import { KitMark, kitAsset } from './KitIdentity'
 import { kitPreviewContent, kitPreviewFormats, type KitPreviewContent, type KitPreviewContext, type KitPreviewFormat, type KitPreviewKind } from './kitPreviewContent'
 import './KitCapabilityPreview.css'
+import { SupportKitExperiencePreview, SupportKitIllustration } from './SupportKitPreview'
 
 export function KitScope({ kind }: { kind: KitPreviewKind }) {
+  if (kind === 'support') return <><span className="ek-scope-badge">Built for support</span><div className="ek-scope-line"><p>Your guidance. Linked requests. Optional human support.</p></div></>
   const content = kitPreviewContent(kind)
   return <><span className="ek-scope-badge">{content.badge}</span><div className="ek-scope-line"><p>{content.scope}</p>
     <span aria-hidden="true">{content.dealership ? <><DirectionsCarOutlined /><ViewListOutlined /><CalendarMonthOutlined /></>
@@ -71,6 +73,7 @@ function Conversation({ content, select, selected, onContext, onHuman, human = f
 }
 
 export function KitCapabilityIllustration({ kind }: { kind: KitPreviewKind }) {
+  if (kind === 'support') return <SupportKitIllustration />
   const content = kitPreviewContent(kind)
   return <figure className="ek-cap-illustration" role="img" aria-label={`Illustrative ${content.brand}: product discovery, comparisons, ${content.nextAction.toLowerCase()} and optional human support. Fictional example, not live AI or an assigned agent.`}>
     <div aria-hidden="true"><div className="ek-cap-heading"><KitMark product="engage" /><strong>{content.brand}</strong><span>{content.disclosure}</span><MoreHorizRounded /></div>
@@ -127,6 +130,11 @@ function PreviewStage({ content, format }: { content: KitPreviewContent; format:
 }
 
 export function KitExperiencePreview({ kind, name, children }: { kind: KitPreviewKind; name: string; children?: React.ReactNode }) {
+  return kind === 'support' ? <><KitIncludedProducts /><SupportKitExperiencePreview name={name}>{children}</SupportKitExperiencePreview></>
+    : <ShoppingKitExperiencePreview kind={kind} name={name}>{children}</ShoppingKitExperiencePreview>
+}
+
+function ShoppingKitExperiencePreview({ kind, name, children }: { kind: Exclude<KitPreviewKind, 'support'>; name: string; children?: React.ReactNode }) {
   const [format, setFormat] = useState<KitPreviewFormat>('max')
   const [open, setOpen] = useState(false)
   const { palette } = useTheme()

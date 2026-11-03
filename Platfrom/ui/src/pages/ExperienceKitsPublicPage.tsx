@@ -12,24 +12,26 @@ import { experienceKitKeys, fetchPublicExperienceKits, type ExperienceKitDefinit
 import { KitChooser } from '../components/kits/KitChooser'
 import { KitMark, KitProductLine, KitProductLinks, KitPublicHeader, KitSupportBand } from '../components/kits/KitIdentity'
 import { KitCapabilityIllustration, KitExperiencePreview } from '../components/kits/KitCapabilityPreview'
-import { safeKitExternalUrl } from '../components/kits/kitModels'
+import { kitPreviewKind, safeKitExternalUrl } from '../components/kits/kitModels'
 import './ExperienceKits.css'
 
 export type ExperienceKitsPublicPageProps = { code?: string; authenticated?: boolean; consolePath?: string }
 
 function KitPublicDetail({ definition, authenticated }: { definition: ExperienceKitDefinition; authenticated: boolean }) {
   const dealership = definition.code === 'dealership-ai-experience'
+  const support = definition.code === 'ai-support-experience'
+  const kind = kitPreviewKind(definition.code)
   const demo = safeKitExternalUrl(definition.demoUrl)
   return <>
     <Button component={Link} to="/experiences" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
     <section className="ek-public-detail" aria-labelledby="ek-detail-title">
       <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1 id="ek-detail-title">{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} /></div></div>
-      <div className="ek-public-detail-grid"><div><h2>Your customer experience</h2><KitCapabilityIllustration kind={dealership ? 'dealership' : 'adaptive'} />
-        <KitExperiencePreview kind={dealership ? 'dealership' : 'adaptive'} name={definition.name} /></div>
-        <div className="ek-detail-copy"><h2>{dealership ? 'Help buyers move from browsing to an enquiry.' : 'Make it easier to do business with you.'}</h2>
-          <p className="ek-muted">{dealership ? 'For dealerships that want to help buyers choose with confidence.' : 'For businesses that want to help customers understand their services and take the next step.'}</p><p>{definition.description}</p>
+      <div className="ek-public-detail-grid"><div><h2>Your customer experience</h2><KitCapabilityIllustration kind={kind} />
+        <KitExperiencePreview kind={kind} name={definition.name} /></div>
+        <div className="ek-detail-copy"><h2>{support ? 'Help customers solve problems and follow up.' : dealership ? 'Help buyers move from browsing to an enquiry.' : 'Make it easier to do business with you.'}</h2>
+          <p className="ek-muted">{support ? 'Approved guidance, conversation-linked requests and optional human support.' : dealership ? 'For dealerships that want to help buyers choose with confidence.' : 'For businesses that want to help customers understand their services and take the next step.'}</p><p>{definition.description}</p>
           <ul>{definition.features.map(feature => <li key={feature}><CheckRounded />{feature}</li>)}</ul>
-          <div className="ek-detail-desk"><KitMark product="desk" /><div><strong>Keep your team within reach</strong><p>Add your own support agents with LoomAI Desk. They can pick up the conversation when a customer needs a person.</p></div></div>
+          <div className="ek-detail-desk"><KitMark product="desk" /><div><strong>{support ? 'Request tracking and human support are separate choices' : 'Keep your team within reach'}</strong><p>{support ? 'Use Desk-managed tickets without turning on human takeover. Add your own agents separately when needed.' : 'Add your own support agents with LoomAI Desk. They can pick up the conversation when a customer needs a person.'}</p></div></div>
           <Button component={Link} variant="contained" endIcon={<ArrowForwardRounded />} className="ek-primary-button"
             to={authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>Get started</Button>
           {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try demo</Button>}

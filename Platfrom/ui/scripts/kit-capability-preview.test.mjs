@@ -23,13 +23,21 @@ async function load(relative, dependencies = {}) {
   return exports
 }
 const content = await load('../src/components/kits/kitPreviewContent.ts')
+const supportConfig = await load('../../../experience-packs/support-experience/src/config.ts')
+const supportFixtures = await load('../../../experience-packs/support-experience/src/preview-fixtures.ts', { './config': supportConfig })
+const identity = {
+  KitMark: ({ product }) => React.createElement('span', { 'data-product': product }),
+  kitAsset: name => `/products/${name}`,
+}
+const support = await load('../src/components/kits/SupportKitPreview.tsx', {
+  '../../../../../experience-packs/support-experience/src/preview-fixtures': supportFixtures,
+  './KitIdentity': identity, './kitPreviewContent': content,
+})
 const preview = await load('../src/components/kits/KitCapabilityPreview.tsx', {
-  './KitIdentity': {
-    KitMark: ({ product }) => React.createElement('span', { 'data-product': product }),
-    kitAsset: name => `/products/${name}`,
-  },
+  './KitIdentity': identity,
   './kitPreviewContent': content,
   './KitCapabilityPreview.css': {},
+  './SupportKitPreview': support,
 })
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props))
 
@@ -119,4 +127,28 @@ test('public-site and Console illustrations use the same example products and pr
     assert.deepEqual(consoleData.products.map(item => ({ name: item.name, price: item.price })),
       siteData.products.map(item => ({ name: item.name, price: item.price })))
   }
+})
+
+test('Support uses canonical pack fixtures and never shopping products, comparisons or delivery', () => {
+  const html = render(preview.KitCapabilityIllustration, { kind: 'support' })
+  const fixtures = support.supportKitPreviewFixtures()
+  assert.ok(html.includes(fixtures.userMessage))
+  assert.ok(html.includes(fixtures.support.requests[0].subject))
+  assert.match(html, /SAMPLE-001/)
+  assert.match(html, /Synthetic preview/)
+  assert.doesNotMatch(html, /Chair|GBP|Test drive|Compare|Delivery|<button|<input/)
+  assert.match(render(preview.KitScope, { kind: 'support' }), /Built for support/)
+})
+
+test('Support preview honors separate ticket/human flags without forwarding private instance configuration', () => {
+  const options = { ticketingEnabled: false, humanSupportEnabled: true, configuration: {
+    support: { spaceId: 'PRIVATE-SPACE', requesterOrigin: 'https://private.test' }, requestContext: { token: 'PRIVATE-TOKEN' },
+  } }
+  const fixture = support.supportKitPreviewFixtures(options)
+  assert.deepEqual(fixture.support.requests, [])
+  assert.equal(fixture.support.presentation.handover, true)
+  assert.ok(!JSON.stringify(fixture).includes('PRIVATE-'))
+  const html = render(support.SupportKitIllustration, options)
+  assert.doesNotMatch(html, /SAMPLE-001/)
+  assert.match(html, /Optional human support/)
 })

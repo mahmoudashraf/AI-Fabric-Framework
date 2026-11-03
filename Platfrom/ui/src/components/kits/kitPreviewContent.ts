@@ -1,4 +1,4 @@
-export type KitPreviewKind = 'adaptive' | 'dealership'
+export type KitPreviewKind = 'adaptive' | 'dealership' | 'support'
 export type KitPreviewFormat = 'website' | 'max' | 'standalone'
 export type KitPreviewContext = 'details' | 'compare' | 'next-step'
 
@@ -9,7 +9,7 @@ export const kitPreviewFormats: ReadonlyArray<{ id: KitPreviewFormat; label: str
 ]
 
 // Fictional display fixtures only; never used as customer configuration or AI evidence.
-export function kitPreviewContent(kind: KitPreviewKind) {
+export function kitPreviewContent(kind: Exclude<KitPreviewKind, 'support'>) {
   const dealership = kind === 'dealership'
   return {
     kind, dealership,

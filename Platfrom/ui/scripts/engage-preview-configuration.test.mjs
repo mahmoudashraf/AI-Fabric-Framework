@@ -151,3 +151,19 @@ test('page attachment stays in the real companion dock, never an invented MAX to
   assert.match(dock, /<CurrentPageAttachmentControl/)
   assert.equal(max.includes('<CurrentPageAttachmentControl'), false)
 })
+
+test('Support branding and preview use canonical presentation without support authority crossing the frame boundary', () => {
+  const input = { schemaVersion: 'loomai-support-experience-config-v1', app: { assistantLabel: 'Help team', title: 'Customer support' },
+    capabilities: { tickets: true, handover: false, currentPage: false },
+    support: { spaceId: 'PRIVATE-SPACE', ticketProviderBindingId: 'PRIVATE-BINDING', requesterOrigin: 'https://PRIVATE-DESK.test' },
+    copy: { welcomeMessage: 'Approved support guidance', placeholder: 'Ask support' } }
+  const output = build({ configuration: input, packCode: 'support', interactionPolicy: 'login-required', capabilities: capabilities() })
+  assert.equal(resolve(input, 'support').identityKey, 'app')
+  assert.equal(output.assistantLabel, 'Help team')
+  assert.equal(output.copy.placeholder, 'Ask support')
+  assert.equal(output.rendererContext.ticketsEnabled, true)
+  assert.equal(output.currentPage.enabled, false)
+  assert.deepEqual(output.toolGroups.default.tools, [])
+  assert.equal(output.limitations.some(value => value.includes('no bundled preview')), false)
+  assert.equal(JSON.stringify(output).includes('PRIVATE-'), false)
+})

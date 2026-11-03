@@ -5,14 +5,14 @@ import { Link } from 'react-router-dom'
 import type { ExperienceKitDefinition } from '../../api/experienceKitsApi'
 import { KitMark } from './KitIdentity'
 import { KitCapabilityIllustration, KitExperiencePreview, KitScope } from './KitCapabilityPreview'
-import { safeKitExternalUrl } from './kitModels'
+import { kitPreviewKind, safeKitExternalUrl } from './kitModels'
 
 export function KitChooser({ definitions, authenticated = false, detailLinks = true }: {
   definitions: ExperienceKitDefinition[]; authenticated?: boolean; detailLinks?: boolean
 }) {
   return <div className="ek-chooser-grid ek-capability-grid">{definitions.map(definition => {
     const dealership = definition.code === 'dealership-ai-experience'
-    const kind = dealership ? 'dealership' : 'adaptive'
+    const kind = kitPreviewKind(definition.code)
     const demo = safeKitExternalUrl(definition.demoUrl)
     return <article key={definition.code} data-kind={kind} className="ek-capability-choice" aria-labelledby={`ek-choice-${definition.code}`}>
       <div className="ek-capability-identity"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div>
@@ -23,7 +23,7 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
         <Button component={Link} variant="contained" endIcon={<ArrowForwardRounded />}
           to={detailLinks ? `/experiences/${definition.code}` : authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>Get started</Button>
       </KitExperiencePreview>
-      {demo ? <a className="ek-cap-demo-link" href={demo} target="_blank" rel="noopener noreferrer"><PlayCircleOutlineRounded />Try the dealership demo <ArrowForwardRounded /></a>
+      {demo ? <a className="ek-cap-demo-link" href={demo} target="_blank" rel="noopener noreferrer"><PlayCircleOutlineRounded />{dealership ? 'Try the dealership demo' : 'Try demo'} <ArrowForwardRounded /></a>
         : <p className="ek-cap-demo-link ek-muted">Illustrative preview. Make it yours.</p>}
     </article>
   })}</div>

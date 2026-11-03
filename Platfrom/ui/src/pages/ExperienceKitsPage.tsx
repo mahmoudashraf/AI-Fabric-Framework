@@ -41,6 +41,7 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
         <span className={`ek-badge${!active ? ' ek-badge-amber' : ''}`}>{missing ? 'Setup needed' : active ? 'Live' : 'Not live yet'}</span></div>
         <h2>{kit.name}</h2><p>{definition?.name ?? kit.kitCode}</p>
         <div className="ek-saved-kit-facts"><span>{kit.deliveryMode === 'both' ? 'Website embed + standalone' : kit.deliveryMode === 'embedded' ? 'Website embed' : 'Standalone app'}</span>
+          {kit.kitCode === 'ai-support-experience' && <span>{kit.ticketingEnabled ? 'Request tracking requested' : 'Request tracking off'}</span>}
           <span>{kit.humanSupportEnabled ? 'Desk setup requested' : 'Desk optional'}</span></div>
         {missing && <p className="ek-amber">An installation is missing. Open the kit to review its products.</p>}
         <Button component={Link} to={`/kits/${encodeURIComponent(kit.id)}`} endIcon={<ArrowForwardRounded />}>Open kit</Button>

@@ -42,7 +42,7 @@ function AppearancePreview({ config, scenario }: { config: WorkspacePreviewConfi
   const showFeedback = useCallback(() => setFeedback(true), []);
   const fixtures = useMemo(() => getBundledPreviewPack(config.packCode)?.fixtures(config.rendererContext), [config.packCode, config.rendererContext]);
   const attachmentAllowed = config.capabilities.attachments || config.currentPage.enabled;
-  const attachedItems = attachmentAllowed && attachment && fixtures ? [fixtures.attachment] : [];
+  const attachedItems = attachmentAllowed && attachment && fixtures?.attachment ? [fixtures.attachment] : [];
   const contextualAvailable = attachedItems.length > 0 || config.toolGroups.contextual.availableWithoutAttachments;
   const [scope, setScope] = useState<MaxModeToolScope>((scenario.attachment || config.toolGroups.initialScope === 'contextual') && contextualAvailable ? 'contextual' : 'default');
   useEffect(() => { setScope((scenario.attachment || config.toolGroups.initialScope === 'contextual') && contextualAvailable ? 'contextual' : 'default'); }, [config.toolGroups.initialScope]);

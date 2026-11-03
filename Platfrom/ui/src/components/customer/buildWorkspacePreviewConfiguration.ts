@@ -1,11 +1,24 @@
 import { resolveGenericWorkspacePresentation } from '../../../../../experience-packs/generic-workspace-experience/src/presentation'
 import { resolveDealershipPresentation } from '../../../../../experience-packs/dealership-experience/src/presentation'
+import { resolveSupportPresentation } from '../../../../../experience-packs/support-experience/src/config'
+import type { SupportExperienceConfig } from '../../../../../experience-packs/support-experience/src/types'
 import { previewObject, sanitizeWorkspacePreview, type PreviewCapabilities, type PreviewInteractionPolicy } from '../../../../../max-mode-widget/src/preview/configuration'
 import type { WorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
 
 export type { PreviewCapabilities, PreviewInteractionPolicy }
 
-const resolvers = { 'generic-workspace': resolveGenericWorkspacePresentation, dealership: resolveDealershipPresentation }
+function resolveSupportWorkspacePresentation(configuration: Record<string, unknown>) {
+  const app = previewObject(configuration.app)
+  const value = resolveSupportPresentation({ ...configuration, app: { ...app, assistantLabel: app.assistantLabel ?? 'Your support AI' } } as SupportExperienceConfig)
+  return { ...value, identityKey: 'app', limitations: [] as string[],
+    theme: { primaryColor: '#08695c', borderRadius: '6px', fontFamily: 'Inter, system-ui, sans-serif', darkMode: false, ...value.theme },
+    copy: { welcomeMessage: value.welcomeMessage, placeholder: value.placeholder, starterSuggestions: value.starterSuggestions,
+      companionModeLabel: value.title, emptyMessage: previewObject(configuration.copy).emptyMessage ?? '' },
+    toolGroups: configuration.toolGroups, toolRail: configuration.toolRail, contextLabel: 'Support context', launcher: true,
+    rendererIds: [] as string[], rendererContext: { ticketsEnabled: value.tickets, attachmentsEnabled: value.attachments, handoverEnabled: value.handover } }
+}
+
+const resolvers = { 'generic-workspace': resolveGenericWorkspacePresentation, dealership: resolveDealershipPresentation, support: resolveSupportWorkspacePresentation }
 export function resolveWorkspacePackPresentation(configuration: Record<string, unknown>, packCode: string) {
   return Object.prototype.hasOwnProperty.call(resolvers, packCode) ? resolvers[packCode as keyof typeof resolvers](configuration) : undefined
 }

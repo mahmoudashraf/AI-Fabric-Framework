@@ -13,9 +13,16 @@ export default defineConfig({
       return `import { genericWorkspacePreviewFixtures } from ${pack('generic-workspace', 'preview-fixtures.ts')};
 import { dealershipPreviewFixtures } from ${pack('dealership', 'preview-fixtures.ts')};
 import { registerDealershipActionPresentationElements } from ${pack('dealership', 'action-presentations.ts')};
+import { supportExperiencePreviewFixtures } from ${pack('support', 'preview-fixtures.ts')};
 const packs = {
   'generic-workspace': { fixtures: genericWorkspacePreviewFixtures, register() {} },
-  dealership: { fixtures: dealershipPreviewFixtures, register: registerDealershipActionPresentationElements }
+  dealership: { fixtures: dealershipPreviewFixtures, register: registerDealershipActionPresentationElements },
+  support: { fixtures(context) {
+    const sample = supportExperiencePreviewFixtures({ schemaVersion: 'loomai-support-experience-config-v1', app: { assistantLabel: 'Support preview' },
+      capabilities: { tickets: context.ticketsEnabled === true, handover: context.handoverEnabled === true, attachments: context.attachmentsEnabled === true, currentPage: false } });
+    return { userMessage: sample.userMessage, answer: sample.answer, confirmation: sample.confirmation, documents: [],
+      fallback: sample.fallback, presentations: [], ...(sample.receipt ? { receipt: sample.receipt } : {}), ...(sample.attachment ? { attachment: sample.attachment } : {}) };
+  }, register() {} }
 };
 export function getBundledPreviewPack(code) { return Object.hasOwn(packs, code) ? packs[code] : undefined; }`;
     },

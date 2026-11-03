@@ -1,5 +1,5 @@
 import type { AIWorkspaceInstallationSummary, AIWorkspaceReadinessCheck, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
-import type { ExperienceKitDeliveryMode, ExperienceKitSummary, UpdateExperienceKitRequest } from '../../api/experienceKitsApi'
+import type { ExperienceKitCode, ExperienceKitDeliveryMode, ExperienceKitSummary, TicketProviderOption, UpdateExperienceKitRequest } from '../../api/experienceKitsApi'
 import { readWorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
 import { connectableRelease } from '../customer/customerEngageConnection'
 
@@ -12,6 +12,24 @@ export type KitExperienceForm = {
   appSlug: string
   websiteOrigin: string
   humanSupportEnabled: boolean
+  ticketingEnabled: boolean
+  ticketProvider: string | null
+}
+
+export function kitPreviewKind(code: ExperienceKitCode) {
+  switch (code) {
+    case 'ai-support-experience': return 'support'
+    case 'dealership-ai-experience': return 'dealership'
+    case 'ai-customer-experience': return 'adaptive'
+  }
+}
+
+export function kitDisplayName(code: ExperienceKitCode) {
+  switch (code) {
+    case 'ai-support-experience': return 'AI Support Experience'
+    case 'dealership-ai-experience': return 'Dealership AI Experience'
+    case 'ai-customer-experience': return 'AI Customer Experience'
+  }
 }
 
 export const kitBrandColors = ['#28bfa6', '#409aff', '#9bafff', '#efb060'] as const
@@ -25,12 +43,14 @@ export function kitDeliveryMode(form: Pick<KitExperienceForm, 'standalone' | 'em
   return form.standalone && form.embedded ? 'both' : form.standalone ? 'standalone' : form.embedded ? 'embedded' : null
 }
 
-export function kitExperienceErrors(form: KitExperienceForm): string[] {
+export function kitExperienceErrors(form: KitExperienceForm, ticketProviders?: readonly TicketProviderOption[]): string[] {
   const errors: string[] = []
   if (!form.name.trim()) errors.push('Enter a name for your kit.')
   if (!form.workspaceName.trim()) errors.push('Enter a workspace name.')
   if (!/^#[0-9a-f]{6}$/i.test(form.brandColor)) errors.push('Choose a brand color using the color picker.')
   if (!kitDeliveryMode(form)) errors.push('Choose your website, a standalone app, or both.')
+  if ((form.ticketingEnabled || (ticketProviders && form.humanSupportEnabled)) && !form.ticketProvider) errors.push('Choose an available ticket provider.')
+  if (form.ticketProvider && ticketProviders && !ticketProviders.some(provider => provider.code === form.ticketProvider)) errors.push('The selected ticket provider is unavailable. Choose an available provider.')
   if (form.standalone && !kitAppAddressPreview(form.appSlug)) errors.push('Enter only an app name, for example northfield-ai, not a full URL. Use lowercase letters, numbers and single hyphens (up to 63 characters).')
   if (form.embedded) {
     try {
@@ -55,6 +75,8 @@ export function kitFormFromSummary(kit: ExperienceKitSummary): KitExperienceForm
     appSlug: workspace?.appSlug ?? '',
     websiteOrigin: (kit.embeddedWorkspace ?? workspace)?.allowedOrigins[0] ?? '',
     humanSupportEnabled: kit.humanSupportEnabled,
+    ticketingEnabled: kit.ticketingEnabled,
+    ticketProvider: kit.ticketProvider,
   }
 }
 
@@ -66,7 +88,8 @@ export function kitUpdateRequest(form: KitExperienceForm, expectedRevision: numb
     deliveryMode: kitDeliveryMode(form)!,
     ...(form.standalone ? { appSlug: form.appSlug } : {}),
     ...(form.embedded ? { websiteOrigin: new URL(form.websiteOrigin.trim()).origin } : {}),
-    humanSupportEnabled: form.humanSupportEnabled, expectedRevision, expectedWorkspaceRevision, expectedEmbeddedWorkspaceRevision }
+    humanSupportEnabled: form.humanSupportEnabled, ticketingEnabled: form.ticketingEnabled, ticketProvider: form.ticketProvider,
+    expectedRevision, expectedWorkspaceRevision, expectedEmbeddedWorkspaceRevision }
 }
 
 export function kitStagingTargets(offer?: CustomerOfferSummary) {
@@ -108,6 +131,7 @@ export function kitReadinessText(check: AIWorkspaceReadinessCheck): string {
     AUTHENTICATION_PROFILE: ['Your customer sign-in settings are compatible.', 'Review customer sign-in settings before going live.'],
     APP_DOMAIN: ['Your workspace web address is verified.', 'Verify your workspace web address before going live.'],
     APP_DELIVERY: ['Your workspace website is reachable.', 'Your workspace web address is not ready yet.'],
+    SUPPORT_SPACE: ['Your support request service is configured.', 'Configure request tracking and optional human support for this assigned release.'],
   }
   const copy = Object.prototype.hasOwnProperty.call(messages, check.code) ? messages[check.code] : undefined
   return copy && (check.status === 'PASSED' || check.status === 'BLOCKED')

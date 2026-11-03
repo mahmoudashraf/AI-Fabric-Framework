@@ -15,12 +15,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchCustomerDeploymentPortfolio, fetchDeploymentDesk, fetchDeploymentReleases, getPlatformApiBaseUrl,
   PlatformApiError, type AIWorkspaceInstallationSummary, type AIWorkspaceReadinessCheck } from '../../api/platformApi'
-import { experienceKitKeys, fetchExperienceKit, updateExperienceKit, type ExperienceKitSummary } from '../../api/experienceKitsApi'
+import { experienceKitKeys, fetchExperienceKit, fetchExperienceKitCatalogue, updateExperienceKit, type ExperienceKitSummary } from '../../api/experienceKitsApi'
 import { KitExperienceFields } from './KitExperienceFields'
 import { KitMark } from './KitIdentity'
 import { KitWorkspacePreview } from './KitWorkspacePreview'
+import { KitSupportSpaceSetup } from './KitSupportSpaceSetup'
 import { connectableRelease } from '../customer/customerEngageConnection'
-import { kitAppPresentation, kitDeploymentPath, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
+import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
 
 export function ExperienceKitOverview({ customerId, id }: { customerId: string; id: string }) {
   const kit = useQuery({ queryKey: experienceKitKeys.detail(customerId, id), queryFn: ({ signal }) => fetchExperienceKit(id, signal), retry: false })
@@ -55,6 +56,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
     queryFn: () => fetchDeploymentDesk({ deploymentId: kit.deploymentId, targetProfileId: release!.targetProfileId!, releaseId: release!.id }),
     enabled: Boolean(release?.targetProfileId), retry: false })
   const primary = kit.workspace
+  const supportExperience = kit.kitCode === 'ai-support-experience'
   const channels: Array<{ key: string; name: string; app: AIWorkspaceInstallationSummary | null | undefined; embedded: boolean }> =
     kit.deliveryMode === 'both' ? [{ key: 'standalone', name: 'Standalone app', app: primary, embedded: false },
       { key: 'embedded', name: 'Website embed', app: kit.embeddedWorkspace, embedded: true }]
@@ -78,7 +80,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
   return <div className={`ek-overview${selected ? ' ek-overview-inspecting' : ''}`}>
     <div className="ek-overview-main"><Link to="/kits" className="ek-breadcrumb">My kits <span>/</span> {kit.name}</Link>
       <div className="ek-section-heading ek-overview-heading"><div><div className="ek-title-status"><h1>{kit.name}</h1><span className={`ek-badge${allReady ? ' ek-badge-mint' : ' ek-badge-amber'}`}>{missingChannel ? 'Setup needed' : allActive ? 'Live' : allReady ? 'Ready to go live' : 'Not live yet'}</span></div>
-        <p>{kit.kitCode === 'dealership-ai-experience' ? 'Dealership AI Experience' : 'AI Customer Experience'}</p></div>
+        <p>{kitDisplayName(kit.kitCode)}</p></div>
         <div className="ek-overview-commands"><Tooltip title="Refresh kit status"><IconButton aria-label="Refresh kit" onClick={refreshAll} disabled={pending}><RefreshRounded /></IconButton></Tooltip>
           {primary && kit.installationId && <Button component={Link} to={kitEditorPath(kit, true)} variant="outlined" startIcon={<OpenInNewRounded />}>Preview workspace</Button>}
         </div>
@@ -104,10 +106,13 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
             <button type="button" className="ek-text-button" onClick={() => setSelected('engage')}>View details <ArrowForwardRounded /></button></div>
         </article><ArrowForwardRounded className="ek-resource-arrow" />
         <article className={`ek-product-resource${selected === 'desk' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('desk')} aria-label="Inspect human support">
-          <KitMark product="desk" large /><div><h2>Human support</h2><p>LoomAI Desk</p></div></button>
+          <KitMark product="desk" large /><div><h2>{supportExperience ? 'Request tracking & team' : 'Human support'}</h2><p>LoomAI Desk</p></div></button>
           <div className="ek-resource-body"><span className={`ek-inline-status${desk.data?.status === 'ENABLED' ? ' ek-mint' : ' ek-amber'}`}><i />
-            {desk.isError ? 'Status unavailable' : desk.data?.status === 'ENABLED' ? 'Desk connected' : kit.humanSupportEnabled ? 'Setup requested' : 'Optional'}</span>
-            <p>A person when your customers need one</p><Link to={deskPath}>Add your support team <ArrowForwardRounded /></Link></div>
+            {supportExperience ? kit.ticketingEnabled ? 'Request tracking requested' : kit.humanSupportEnabled ? 'Human support requested' : 'Optional'
+              : desk.isError ? 'Status unavailable' : desk.data?.status === 'ENABLED' ? 'Desk connected' : kit.humanSupportEnabled ? 'Setup requested' : 'Optional'}</span>
+            <p>{supportExperience ? `Request tracking ${kit.ticketingEnabled ? 'requested' : 'off'}. Human support is separate.` : 'A person when your customers need one'}</p>
+            {supportExperience ? <button type="button" className="ek-text-button" onClick={() => setSelected('desk')}>Configure support <ArrowForwardRounded /></button>
+              : <Link to={deskPath}>Add your support team <ArrowForwardRounded /></Link>}</div>
         </article>
       </div>
       <div className="ek-resource-bands"><Link to={knowledgePath}><DescriptionOutlined /><span><strong>Your business information</strong><small>The approved documents your assistant can use</small></span><b>Manage documents</b><ArrowForwardRounded /></Link>
@@ -128,7 +133,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       <p className="ek-observed">Last updated {new Date(kit.updatedAt).toLocaleString()}.</p>
     </div>
     {selected && <aside className="ek-inspector" aria-label="Selected product details"><div className="ek-inspector-heading"><KitMark product={selected === 'deployment' ? 'platform' : selected === 'desk' ? 'desk' : 'engage'} />
-      <div><h2>{selected === 'engage' ? primary?.displayName ?? 'Customer workspace' : selected === 'deployment' ? deployment?.name ?? 'AI assistant' : 'Human support'}</h2><small>{selected === 'engage' ? 'LoomAI Engage' : selected === 'deployment' ? 'LoomAI Platform' : 'LoomAI Desk'}</small></div>
+      <div><h2>{selected === 'engage' ? primary?.displayName ?? 'Customer workspace' : selected === 'deployment' ? deployment?.name ?? 'AI assistant' : supportExperience ? 'Support setup' : 'Human support'}</h2><small>{selected === 'engage' ? 'LoomAI Engage' : selected === 'deployment' ? 'LoomAI Platform' : 'LoomAI Desk'}</small></div>
       <Tooltip title="Close details"><IconButton aria-label="Close kit product details" onClick={() => setSelected(null)}><CloseRounded /></IconButton></Tooltip></div>
       {selected === 'engage' ? <>
         {channels.map((channel, index) => <section className="ek-inspector-section" key={channel.key}><h3>{channel.name}</h3>
@@ -144,7 +149,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
         </section>)}
         <section className="ek-inspector-section"><h3>Your AI assistant</h3><Link className="ek-connected-deployment" to={deploymentPath}><KitMark product="platform" /><div><strong>{deployment?.name ?? kit.deploymentId}</strong><small>{release ? 'Connected version' : 'Setup saved, not live yet'}</small></div><ArrowForwardRounded /></Link></section>
         {primary && appearance && <section className="ek-inspector-section"><h3>Customer preview</h3><KitWorkspacePreview compact packCode={primary.experiencePackCode} configuration={primary.configuration}
-          workspaceName={primary.displayName} brandColor={appearance.brandColor} humanSupportEnabled={kit.humanSupportEnabled} />
+          workspaceName={primary.displayName} brandColor={appearance.brandColor} humanSupportEnabled={kit.humanSupportEnabled} ticketingEnabled={kit.ticketingEnabled} />
           <Button component={Link} to={kitEditorPath(kit, true)} endIcon={<OpenInNewRounded />}>See your customer experience</Button></section>}
         {activeUrl && <Button component="a" href={activeUrl} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open active app</Button>}
       </> : selected === 'deployment' ? <>
@@ -155,6 +160,8 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
           {!release && latestAttempt && <><h3>Latest deployment attempt</h3><p>{latestAttempt.status} / {latestAttempt.verificationStatus}</p><p className="ek-muted">Not yet connected to the app.</p>{latestAttempt.errorMessage && <Alert severity="warning">{latestAttempt.errorMessage}</Alert>}</>}
           <Button component={Link} to={revisionPath}>Versions & updates</Button></section>
       </> : <>
+        {supportExperience && channels.map(channel => channel.app && <KitSupportSpaceSetup key={`${channel.app.installationId}:${channel.app.rowVersion}:${channel.app.releaseId}`}
+          customerId={customerId} kit={kit} app={channel.app} releases={releases.data ?? []} onConfigured={() => void refresh()} />)}
         <section className="ek-inspector-section"><h3>Your support team</h3><p>Human support setup is {kit.humanSupportEnabled ? 'requested' : 'not requested'} for this kit.</p>
           {desk.isError && <Alert severity="warning">Desk connection state could not be loaded.<Button onClick={() => void desk.refetch()}>Retry</Button></Alert>}
           {desk.data && <p>Connection: <strong>{desk.data.status}</strong></p>}
@@ -188,6 +195,9 @@ function KitEditForm({ customerId, kit, onClose, onSaved }: { customerId: string
   const [form, setForm] = useState(() => kitFormFromSummary(kit))
   const [error, setError] = useState<Error | null>(null)
   const queryClient = useQueryClient()
+  const supportExperience = kit.kitCode === 'ai-support-experience'
+  const catalogue = useQuery({ queryKey: experienceKitKeys.catalogue(customerId), queryFn: ({ signal }) => fetchExperienceKitCatalogue(signal), enabled: supportExperience, retry: false })
+  const ticketProviders = catalogue.data?.find(entry => entry.definition.code === kit.kitCode)?.ticketProviders ?? []
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const save = useMutation({ mutationFn: () => {
@@ -196,7 +206,7 @@ function KitEditForm({ customerId, kit, onClose, onSaved }: { customerId: string
   } })
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const errors = kitExperienceErrors(form)
+    const errors = kitExperienceErrors(form, supportExperience ? ticketProviders : undefined)
     if (errors.length) { setError(new Error(errors[0])); return }
     setError(null)
     try {
@@ -210,12 +220,14 @@ function KitEditForm({ customerId, kit, onClose, onSaved }: { customerId: string
   }
   const conflict = error instanceof PlatformApiError && error.status === 409
   const active = kit.workspace?.status === 'ACTIVE' || kit.embeddedWorkspace?.status === 'ACTIVE'
-  return <form className="ek-page" data-kit-theme={palette.mode} onSubmit={event => void submit(event)}><DialogTitle>Edit your experience</DialogTitle><DialogContent>
+  return <form className="ek-page" noValidate data-kit-theme={palette.mode} onSubmit={event => void submit(event)}><DialogTitle>Edit your experience</DialogTitle><DialogContent>
     {active && <Alert severity="info" sx={{ mb: 2 }}>Your app is live. Use its editor for appearance and delivery changes.</Alert>}
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error.message}{conflict && <><p>Review the latest app configuration in its editor before saving.</p>
       {kit.installationId && <Button component={Link} to={kitEditorPath(kit)}>Open app editor</Button>}
       {kit.embeddedInstallationId && <Button component={Link} to={kitEditorPath(kit, false, true)}>Open website editor</Button>}</>}</Alert>}
-    <KitExperienceFields includeName value={form} onChange={setForm} disabled={save.isPending} deploymentId={kit.deploymentId} />
-  </DialogContent><DialogActions><Button onClick={onClose} disabled={save.isPending}>Cancel</Button><Button type="submit" variant="contained" disabled={save.isPending || !kit.workspace}>
+    {supportExperience && catalogue.isError && <Alert severity="warning" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>Ticket providers could not be loaded. Your settings have not changed.</Alert>}
+    <KitExperienceFields includeName value={form} onChange={setForm} disabled={save.isPending || (supportExperience && !catalogue.isSuccess)} deploymentId={kit.deploymentId}
+      supportExperience={supportExperience} ticketProviders={ticketProviders} />
+  </DialogContent><DialogActions><Button onClick={onClose} disabled={save.isPending}>Cancel</Button><Button type="submit" variant="contained" disabled={save.isPending || !kit.workspace || (supportExperience && !catalogue.isSuccess)}>
     {save.isPending ? 'Saving...' : 'Save changes'}</Button></DialogActions></form>
 }

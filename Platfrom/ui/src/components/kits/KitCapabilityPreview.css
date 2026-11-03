@@ -10,6 +10,19 @@
   flex-direction: column;
 }
 .ek-capability-choice[data-kind='dealership'] { --ek-cap-accent: var(--ek-amber); }
+.ek-capability-choice[data-kind='support'] { --ek-cap-accent: #409aff; }
+.ek-support-illustration { width:100%; min-width:0; }
+.ek-support-layout-embedded { max-width:440px; margin-left:auto; }
+.ek-support-guidance,.ek-support-sample-request { display:flex; gap:10px; border-block-start:1px solid var(--ek-line); padding:12px 0; min-width:0; }
+.ek-support-guidance > svg,.ek-support-sample-request > svg { flex-shrink:0; color:var(--ek-cap-accent); }
+.ek-support-guidance div,.ek-support-sample-request div { min-width:0; }
+.ek-support-guidance strong,.ek-support-sample-request strong { display:block; font-size:12px; overflow-wrap:anywhere; }
+.ek-support-guidance small,.ek-support-sample-request small,.ek-support-sample-request p { display:block; font-size:11px; color:var(--ek-muted); margin-top:4px; overflow-wrap:anywhere; }
+.ek-support-preview-address,.ek-support-preview-note { padding:8px 14px; font-size:10px; color:var(--ek-muted); overflow-wrap:anywhere; border-block:1px solid var(--ek-line); }
+.ek-support-format { display:flex; align-items:center; justify-content:center; gap:8px; color:var(--ek-mint); }
+.ek-support-format > svg { width:20px; }
+.ek-support-preview-options { display:flex; flex-wrap:wrap; gap:18px; padding:12px 20px; border-bottom:1px solid var(--ek-line); }
+.ek-support-preview-options label { display:flex; align-items:center; gap:6px; font-size:12px; }
 .ek-capability-identity { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
 .ek-capability-identity > .ek-mark { color: var(--ek-cap-accent); margin-top: 12px; }
 .ek-capability-identity > div { display: flex; flex-direction: column; min-width: 0; flex: 1; }

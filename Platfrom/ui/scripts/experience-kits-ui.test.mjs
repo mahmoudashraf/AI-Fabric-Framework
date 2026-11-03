@@ -24,13 +24,13 @@ const models = await loadTypescript('../src/components/kits/kitModels.ts', {
   '../customer/customerEngageConnection': connectionModels,
 })
 const form = (overrides = {}) => ({ name: 'Customer experience', workspaceName: 'Example AI', brandColor: '#28bfa6',
-  standalone: true, embedded: false, appSlug: 'example-ai', websiteOrigin: '', humanSupportEnabled: false, ...overrides })
+  standalone: true, embedded: false, appSlug: 'example-ai', websiteOrigin: '', humanSupportEnabled: false, ticketingEnabled: false, ticketProvider: null, ...overrides })
 const workspace = (overrides = {}) => ({ installationId: 'awi-one', displayName: 'Example AI', configuration: { theme: { primaryColor: '#409aff' }, toolGroups: { default: { tools: [] } } },
   experiencePackCode: 'generic-workspace', deliveryMode: 'standalone', allowedOrigins: ['https://example-ai.apps.loomai.pro'], appSlug: 'example-ai',
   deploymentId: 'dep-one', releaseId: null, rowVersion: 7, ...overrides })
 const kit = (overrides = {}) => ({ id: 'kit-one', kitCode: 'ai-customer-experience', name: 'Example', deploymentId: 'dep-one', targetProfileId: 'stage-one',
   installationId: 'awi-one', embeddedInstallationId: null, workspace: workspace(), embeddedWorkspace: null, deliveryMode: 'standalone', revision: 3,
-  humanSupportEnabled: false, ...overrides })
+  humanSupportEnabled: false, ticketingEnabled: false, ticketProvider: null, ...overrides })
 const release = (id, overrides = {}) => ({ id, deploymentId: 'dep-one', targetProfileId: 'stage-one', createdAt: '2026-11-02T10:00:00Z',
   status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', ...overrides })
 
@@ -130,7 +130,7 @@ test('website configuration accepts only an HTTPS origin, never a URL containing
 test('updates contain presentation and desired support settings only, not pack configuration or lifecycle commands', () => {
   const value = models.kitUpdateRequest(form({ humanSupportEnabled: true }), 3, 7)
   assert.deepEqual(Object.keys(value).sort(), ['name', 'workspaceName', 'brandColor', 'deliveryMode', 'appSlug', 'humanSupportEnabled',
-    'expectedRevision', 'expectedWorkspaceRevision', 'expectedEmbeddedWorkspaceRevision'].sort())
+    'expectedRevision', 'expectedWorkspaceRevision', 'expectedEmbeddedWorkspaceRevision', 'ticketingEnabled', 'ticketProvider'].sort())
   assert.equal(value.expectedEmbeddedWorkspaceRevision, null)
   assert.equal(value.humanSupportEnabled, true)
 })
@@ -157,6 +157,21 @@ test('business status says Live only for a ready app on its exact verified assig
   assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { verificationStatus: 'FAILED' })]).label, 'Not live yet')
   assert.equal(models.kitAppPresentation(app, 'dep-one', [release('assigned', { deploymentId: 'other' })]).label, 'Not live yet')
   assert.equal(models.kitAppPresentation({ ...app, deploymentId: 'other' }, 'dep-one', [release('assigned')]).label, 'Not live yet')
+})
+
+test('template canonical-control and human preferences never override blocked runtime readiness', () => {
+  for (const humanSupportEnabled of [false, true]) {
+    const value = kit({ kitCode: 'ai-support-experience', ticketingEnabled: true, humanSupportEnabled, ticketProvider: 'desk',
+      workspace: workspace({ status: 'ACTIVE', ready: false, releaseId: 'assigned', experiencePackCode: 'support',
+        configuration: { providerConfig: { canonicalConversationsEnabled: true }, capabilities: { tickets: true, handover: humanSupportEnabled } } }) })
+    assert.deepEqual(models.kitAppPresentation(value.workspace, value.deploymentId, [release('assigned')]),
+      { label: 'Setup needed', ready: false, active: false })
+  }
+})
+
+test('new runtime capability readiness blockers remain visible without a frontend artifact guess', () => {
+  const check = { code: 'CANONICAL_CONVERSATIONS', status: 'BLOCKED', message: 'Deploy the current runtime artifact with canonical conversation control before activating support.' }
+  assert.equal(models.kitReadinessText(check), check.message)
 })
 
 test('draft, disabled and missing products have concise truthful business statuses', () => {
@@ -229,4 +244,36 @@ test('setup prepares approved access once, previews nested pack configuration an
   assert.ok(source.includes('sessionStorage.getItem(operationStorageKey)'))
   assert.ok(source.includes('operationKey: operation.current.key'))
   assert.ok(!/enableDeploymentDesk|activateAIWorkspace|publishCustomer|applyCustomer/.test(source))
+})
+
+test('Support is an explicit kit kind, never the adaptive shopping fallback', () => {
+  assert.equal(models.kitPreviewKind('ai-support-experience'), 'support')
+  assert.equal(models.kitDisplayName('ai-support-experience'), 'AI Support Experience')
+})
+
+test('ticket tracking and human support are independent, with explicit catalogue providers', () => {
+  const providers = [{ code: 'desk', name: 'Desk-managed tickets', declaredOperations: ['createRequest'] }]
+  const tracking = form({ ticketingEnabled: true, ticketProvider: 'desk' })
+  assert.deepEqual(models.kitExperienceErrors(tracking, providers), [])
+  assert.equal(models.kitUpdateRequest(tracking, 1, 2).humanSupportEnabled, false)
+  assert.equal(models.kitUpdateRequest(tracking, 1, 2).ticketingEnabled, true)
+  assert.ok(models.kitExperienceErrors(form({ ticketingEnabled: true }), providers).some(error => error.includes('provider')))
+  assert.ok(models.kitExperienceErrors(form({ ticketingEnabled: true, ticketProvider: 'invented' }), providers).some(error => error.includes('unavailable')))
+  assert.ok(models.kitExperienceErrors(tracking, []).length)
+  const humanOnly = form({ humanSupportEnabled: true, ticketingEnabled: false, ticketProvider: 'desk' })
+  assert.deepEqual(models.kitExperienceErrors(humanOnly, providers), [])
+  assert.equal(models.kitUpdateRequest(humanOnly, 1, 2).ticketingEnabled, false)
+})
+
+test('support setup sends exact customer/install/target scope and opaque provider version', async () => {
+  calls.length = 0
+  await api.fetchKitSupportSpace('customer/a', 'installation/a', 'target/a', 'release/a')
+  const body = { installationRevision: 7, assignmentRevision: 'assignment:opaque', expectedVersion: 'W/"opaque"',
+    enabled: true, humanHandoverEnabled: false, ticketProvider: 'desk', closedRetentionDays: null, operationKey: 'same-key', targetProfileId: 'target/a', releaseId: 'release/a' }
+  await api.configureKitSupportSpace('customer/a', 'installation/a', body)
+  assert.equal(calls[0][0], '/api/platform/customers/customer%2Fa/ai-workspace-installations/installation%2Fa/support-space?targetProfileId=target%2Fa&releaseId=release%2Fa')
+  assert.equal(calls[1][0], '/api/platform/customers/customer%2Fa/ai-workspace-installations/installation%2Fa/support-space')
+  assert.equal(calls[1][1].method, 'PUT')
+  assert.deepEqual(JSON.parse(calls[1][1].body), body)
+  assert.notDeepEqual(api.experienceKitKeys.supportSpace('a', 'i', 't', 'r'), api.experienceKitKeys.supportSpace('b', 'i', 't', 'r'))
 })

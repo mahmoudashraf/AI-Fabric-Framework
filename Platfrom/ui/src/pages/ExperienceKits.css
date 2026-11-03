@@ -325,7 +325,7 @@
 .ek-overview-progress { display: flex; align-items: flex-start; margin: 26px 0; gap: 14px; }
 .ek-overview-progress > div { flex: 1; text-align: center; position: relative; min-width: 0; }
 .ek-overview-progress > div > span { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--ek-line); margin-bottom: 8px; background: var(--ek-bg); position: relative; z-index: 1; color: var(--ek-muted); }
-.ek-overview-progress > div > strong { display: block; font-size: 11px; font-weight: 500; color: var(--ek-muted); }
+.ek-overview-progress > div > strong { display: block; font-size: 11px; font-weight: 500; color: var(--ek-muted); overflow-wrap: anywhere; }
 .ek-overview-progress > div::after { content: ''; position: absolute; left: 50%; width: calc(100% + 14px); top: 17px; border-top: 1px solid var(--ek-line); }
 .ek-overview-progress > div:last-child::after { display: none; }
 .ek-overview-progress [data-complete='true'] > span { border-color: var(--ek-blue); color: var(--ek-blue); }
@@ -351,7 +351,7 @@
 .ek-resource-bands > a { display: flex; align-items: center; gap: 16px; padding: 16px; }
 .ek-resource-bands > a + a { border-top: 1px solid var(--ek-line); }
 .ek-resource-bands > a > svg:first-child { color: var(--ek-muted); width: 27px; height: 27px; }
-.ek-resource-bands > a > span { flex: 1; }
+.ek-resource-bands > a > span { flex: 1; min-width: 0; }
 .ek-resource-bands strong { font-size: 14px; color: var(--ek-text); display: block; }
 .ek-resource-bands small { font-size: 11px; display: block; margin-top: 4px; }
 .ek-resource-bands b { font-size: 12px; font-weight: 500; }
@@ -377,7 +377,7 @@
 .ek-inspector-heading > div { flex: 1; min-width: 0; }
 .ek-inspector-heading h2 { font-size: 20px; overflow-wrap: anywhere; }
 .ek-inspector-heading small { font-size: 12px; display: block; margin-top: 4px; }
-.ek-inspector-heading > .MuiIconButton-root { margin: -7px -5px 0 0; }
+.ek-inspector-heading > .MuiIconButton-root { margin: -7px 0 0; flex-shrink: 0; }
 .ek-inspector-section { padding-bottom: 22px; margin-bottom: 18px; border-bottom: 1px solid var(--ek-line); }
 .ek-inspector-section h3 { font-size: 14px; margin-bottom: 12px; }
 .ek-inspector-section > p { font-size: 12px; margin: 10px 0; }
@@ -530,3 +530,4 @@
   .ek-title-status h1 { font-size: 27px; }
   .ek-overview-commands { flex-wrap: wrap; }
 }
+.ek-support-setup-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }

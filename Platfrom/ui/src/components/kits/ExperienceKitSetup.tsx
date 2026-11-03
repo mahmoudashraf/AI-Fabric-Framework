@@ -52,6 +52,7 @@ function storageChoices(offer?: CustomerOfferSummary) {
 
 function KitSetupForm({ customerId, actorId, entry }: { customerId: string; actorId: string; entry: ExperienceKitCatalogueEntry }) {
   const { definition, offers } = entry
+  const supportExperience = definition.code === 'ai-support-experience'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
@@ -71,7 +72,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
   })
   const [form, setForm] = useState<KitExperienceForm>({ name: definition.name, workspaceName: definition.defaultWorkspaceName,
     brandColor: definition.code === 'dealership-ai-experience' ? '#409aff' : '#28bfa6',
-    embedded: false, standalone: true, appSlug: '', websiteOrigin: '', humanSupportEnabled: false })
+    embedded: false, standalone: true, appSlug: '', websiteOrigin: '', humanSupportEnabled: false, ticketingEnabled: false, ticketProvider: null })
   const [previewLayout, setPreviewLayout] = useState<'standalone' | 'embedded'>('standalone')
   const [error, setError] = useState<string | null>(null)
   const operation = useRef<{ signature: string; key: string } | null>(null)
@@ -102,14 +103,14 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
     setError(null)
   }
   const nextStep = () => {
-    const errors = step === 0 ? selectionErrors : kitExperienceErrors(form)
+    const errors = step === 0 ? selectionErrors : kitExperienceErrors(form, supportExperience ? entry.ticketProviders : undefined)
     if (errors.length) { setError(errors[0]); return }
     setError(null); setStep(value => Math.min(2, value + 1))
   }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (step < 2) { nextStep(); return }
-    const errors = [...selectionErrors, ...kitExperienceErrors(form)]
+    const errors = [...selectionErrors, ...kitExperienceErrors(form, supportExperience ? entry.ticketProviders : undefined)]
     if (errors.length) { setError(errors[0]); return }
     const payload: Omit<CreateExperienceKitRequest, 'operationKey'> = {
       kitCode: definition.code, name: form.name.trim(), offerId, targetProfileId, workspaceProfileId,
@@ -117,7 +118,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
       workspaceName: form.workspaceName.trim(), brandColor: form.brandColor, deliveryMode: kitDeliveryMode(form)!,
       ...(form.standalone ? { appSlug: form.appSlug } : {}),
       ...(form.embedded ? { websiteOrigin: new URL(form.websiteOrigin.trim()).origin } : {}),
-      humanSupportEnabled: form.humanSupportEnabled,
+      humanSupportEnabled: form.humanSupportEnabled, ticketingEnabled: form.ticketingEnabled, ticketProvider: form.ticketProvider,
     }
     const signature = JSON.stringify([customerId, payload])
     if (!operation.current) {
@@ -144,7 +145,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
     }
   }
   const dealership = definition.code === 'dealership-ai-experience'
-  return <form className="ek-setup" onSubmit={event => void submit(event)}>
+  return <form className="ek-setup" noValidate onSubmit={event => void submit(event)}>
     <Button component={Link} to="/kits" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
     <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1>{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} support={form.humanSupportEnabled} /></div><span className="ek-badge">Not live yet</span></div>
     <ol className="ek-setup-steps" aria-label="Kit setup progress">{['Choose your starting point', 'Make it yours', 'Review your setup'].map((label, index) => <li key={label} data-step-state={index === step ? 'current' : index < step ? 'done' : 'next'}>
@@ -160,7 +161,8 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
         <KitWorkspacePreview packCode={definition.experiencePackCode} workspaceName={form.workspaceName} brandColor={form.brandColor}
           appUrl={form.standalone ? kitAppAddressPreview(form.appSlug) : null}
           configuration={{ ...(workspaceProfile?.interaction.configuration as Record<string, unknown> | undefined),
-            theme: { ...(workspaceProfile?.theme ?? {}), primaryColor: form.brandColor } }} humanSupportEnabled={form.humanSupportEnabled} layout={previewLayout} />
+            theme: { ...(workspaceProfile?.theme ?? {}), primaryColor: form.brandColor } }} humanSupportEnabled={form.humanSupportEnabled}
+          ticketingEnabled={form.ticketingEnabled} layout={previewLayout} />
         <div className="ek-connected-flow"><div><KitMark product="platform" /><span><strong>Your AI assistant</strong><small>Your information and connected systems</small></span></div><ArrowForwardRounded />
           <div><KitMark product="engage" /><span><strong>Your customer workspace</strong><small>Your brand, on your website or its own address</small></span></div>
           {form.humanSupportEnabled && <><ArrowForwardRounded /><div><KitMark product="desk" /><span><strong>Desk team</strong><small>Your human agents (optional)</small></span></div></>}
@@ -191,13 +193,16 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
           {offer && <div className="ek-configured-parts"><h3>Your information, your business</h3><p>Add your approved documents and connect the systems your customers need before going live.</p>
             <details className="ek-advanced"><summary>Connection details for your team</summary>{offer.bindingSlots.length ? <ul>{offer.bindingSlots.map(slot => <li key={slot.id}>{slot.id}<small>{slot.kind.replace(/_/g, ' ').toLowerCase()}</small></li>)}</ul>
               : <p>No external connection slots are declared by this template.</p>}<p>Technical setup uses the deployment editor after your workspace is created.</p></details></div>}
-        </> : step === 1 ? <><h2>Your experience</h2><KitExperienceFields value={form} onChange={setForm} disabled={create.isPending} /></>
+        </> : step === 1 ? <><h2>Your experience</h2><KitExperienceFields value={form} onChange={setForm} disabled={create.isPending}
+          supportExperience={supportExperience} ticketProviders={entry.ticketProviders} /></>
           : <><h2>Review your kit</h2><dl className="ek-review-facts">
             <div><dt>Kit</dt><dd>{form.name}</dd></div><div><dt>Starting experience</dt><dd>{offer?.name}</dd></div>
             <div><dt>First step</dt><dd>Test before going live</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
             <div><dt>Where customers find you</dt><dd>{form.standalone && form.embedded ? 'Your website + standalone app' : form.embedded ? 'Your website' : 'Standalone app'}</dd></div>
             {form.standalone && <div><dt>App link</dt><dd>{kitAppAddressPreview(form.appSlug)}</dd></div>}
             {form.embedded && <div><dt>Website address</dt><dd>{form.websiteOrigin}</dd></div>}
+            {supportExperience && <><div><dt>Request tracking</dt><dd>{form.ticketingEnabled ? 'Setup requested' : 'Not requested'}</dd></div>
+              {form.ticketProvider && <div><dt>Ticket provider</dt><dd>{entry.ticketProviders.find(provider => provider.code === form.ticketProvider)?.name ?? 'Unavailable provider'}</dd></div>}</>}
             <div><dt>Human support</dt><dd>{form.humanSupportEnabled ? 'Add your team after setup' : 'Optional, not requested'}</dd></div>
           </dl><Alert severity="info">Creates your workspace setup only. Your AI assistant is not live yet, and no paid services are started at this step.</Alert>
             <p className="ek-muted">Next: connect your information, test the experience and choose when to go live. You can get help from our integration team.</p>

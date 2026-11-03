@@ -8,6 +8,7 @@ RUN npm ci
 COPY max-mode-widget ./
 COPY experience-packs/dealership-experience/src /experience-packs/dealership-experience/src
 COPY experience-packs/generic-workspace-experience/src /experience-packs/generic-workspace-experience/src
+COPY experience-packs/support-experience/src /experience-packs/support-experience/src
 RUN npm run build:preview
 
 FROM node:20-alpine AS build
@@ -23,7 +24,8 @@ RUN npm ci
 COPY Platfrom/ui ./
 COPY experience-packs/dealership-experience/src /workspace/experience-packs/dealership-experience/src
 COPY experience-packs/generic-workspace-experience/src /workspace/experience-packs/generic-workspace-experience/src
-COPY max-mode-widget/src/preview/configuration.ts /workspace/max-mode-widget/src/preview/configuration.ts
+COPY experience-packs/support-experience/src /workspace/experience-packs/support-experience/src
+COPY max-mode-widget/src /workspace/max-mode-widget/src
 COPY --from=engage-preview /preview/dist/engage-preview.iife.js ./public/engage-preview.iife.js
 
 RUN npm run build

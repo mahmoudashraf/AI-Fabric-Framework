@@ -10,12 +10,14 @@ import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import { resolveWorkspacePackPresentation } from '../customer/buildWorkspacePreviewConfiguration'
 import { KitMark, kitAsset } from './KitIdentity'
 import type { CSSProperties } from 'react'
+import { SupportKitIllustration } from './SupportKitPreview'
 
 type Props = {
   packCode: string
   workspaceName: string
   brandColor: string
   humanSupportEnabled?: boolean
+  ticketingEnabled?: boolean
   configuration?: Record<string, unknown>
   layout?: 'embedded' | 'standalone'
   compact?: boolean
@@ -24,8 +26,10 @@ type Props = {
 }
 
 /** Presentation only: no runtime connection, visitor state, action handlers or AI requests. */
-export function KitWorkspacePreview({ packCode, workspaceName, brandColor, humanSupportEnabled = false,
+export function KitWorkspacePreview({ packCode, workspaceName, brandColor, humanSupportEnabled = false, ticketingEnabled = false,
   configuration = {}, layout = 'standalone', compact = false, dark = false, appUrl }: Props) {
+  if (packCode === 'support') return <SupportKitIllustration workspaceName={workspaceName} brandColor={brandColor} ticketingEnabled={ticketingEnabled}
+    humanSupportEnabled={humanSupportEnabled} configuration={configuration} compact={compact} appUrl={appUrl} layout={layout} />
   const dealership = packCode === 'dealership'
   const presentation = resolveWorkspacePackPresentation(configuration, packCode)
   const groups = presentation?.toolGroups as { default?: { label?: string; tools?: Array<{ label?: string }> } } | undefined
