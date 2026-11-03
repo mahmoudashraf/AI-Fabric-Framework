@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { customerAuthReturn, consumeCustomerAuthReturn } from './customerAuthReturn'
+import { isSameAuthenticatedSubject } from './customerSession'
 import {
   clearStoredPlatformApiKey, fetchPlatformAuthSession, fetchCustomerAuthConfig, getStoredPlatformApiKey,
   linkCustomerSupabaseIdentity, loginToPlatform, logoutFromPlatform, setStoredPlatformApiKey,
@@ -41,6 +42,7 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
   const [customerAuthError, setCustomerAuthError] = useState<Error | null>(null)
   const transition = useRef(0)
   const authGeneration = useRef(0)
+  const acceptedSupabaseSubject = useRef<string | null>(null)
   const { apiKey, generation } = identity
   const config = useQuery({ queryKey: ['customer-auth-config'], queryFn: fetchCustomerAuthConfig, retry: false, staleTime: Infinity })
   const customerConfig = useRef<CustomerAuthConfig | null>(null)
@@ -74,6 +76,9 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     setSupabase(client)
     const accept = (session: Session | null, initial = false) => {
       if (!active) return
+      const subject = session?.user.id ?? null
+      const sameSubject = isSameAuthenticatedSubject(acceptedSupabaseSubject.current, subject)
+      acceptedSupabaseSubject.current = subject
       setSupabaseSession(session)
       const mode = sessionStorage.getItem(modeKey)
       if (mode !== 'staff' && mode !== 'link') {
@@ -84,7 +89,10 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
           if (!data.session) throw new Error('Customer session expired. Please sign in again.')
           return data.session.access_token
         } : null)
-        if (!initial) replacePrincipal('', null)
+        if (!initial) {
+          if (sameSubject) void queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+          else replacePrincipal('', null)
+        }
       }
       setCustomerAuthLoading(false)
     }
