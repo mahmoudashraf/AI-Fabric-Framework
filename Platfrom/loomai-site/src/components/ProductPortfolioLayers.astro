@@ -1,0 +1,127 @@
+---
+import { ArrowDown, ArrowRight, Blocks, Box, CarFront, Check, Database, FileText, Globe, Headphones, MessageSquare, Plug, SlidersHorizontal, Sparkles } from '@lucide/astro'
+import { catalogueExperiences } from './ExperienceCatalogueContent'
+
+const general = catalogueExperiences.generic
+const dealership = catalogueExperiences.dealership
+---
+
+<div class="portfolio-layers">
+  <section class="portfolio-layer" data-portfolio-layer="kits" aria-labelledby="portfolio-kits">
+    <div class="loom-container portfolio-layer__inner">
+      <header class="portfolio-layer__label"><span class="portfolio-layer__number">01</span><h2 id="portfolio-kits">Experience kits</h2><p>A head start for your business.</p></header>
+      <div class="portfolio-layer__content">
+        <div class="portfolio-pair">
+          <a class="portfolio-kit portfolio-kit--general" href={general.detailUrl}>
+            <div><span class="portfolio-tag">General AI experience kit</span><h3>{general.title}</h3><p>Help customers explore your products, services and knowledge.</p><span class="portfolio-link">Adapts to your business<ArrowRight size={16} aria-hidden="true" /></span></div>
+            <div class="portfolio-kit__visual" aria-hidden="true"><Sparkles size={19} /><img src={general.products[0].image} alt="" width="104" height="88" loading="lazy" /><span>Compare<Check size={12} /></span></div>
+          </a>
+          <a class="portfolio-kit portfolio-kit--industry" href={dealership.detailUrl}>
+            <div><span class="portfolio-tag">Industry kits</span><h3>{dealership.title}</h3><p>Turn stock discovery and buyer questions into dealer enquiries.</p><span class="portfolio-link">Built for dealerships<ArrowRight size={16} aria-hidden="true" /></span></div>
+            <div class="portfolio-kit__visual" aria-hidden="true"><CarFront size={19} /><img src={dealership.products[0].image} alt="" width="104" height="88" loading="lazy" /><span>Test drive<ArrowRight size={12} /></span></div>
+          </a>
+        </div>
+        <p class="portfolio-layer__connection"><ArrowDown size={15} aria-hidden="true" />Preconfigured products, ready to brand and connect. Your settings remain editable.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="portfolio-layer" data-portfolio-layer="products" aria-labelledby="portfolio-products">
+    <div class="loom-container portfolio-layer__inner">
+      <header class="portfolio-layer__label"><span class="portfolio-layer__number">02</span><h2 id="portfolio-products">Customer-facing products</h2><p>The experience your customers and team use.</p></header>
+      <div class="portfolio-layer__content">
+        <div class="portfolio-pair">
+          <a class="portfolio-product portfolio-product--engage" href="https://console.loomai.pro/products/engage">
+            <MessageSquare class="portfolio-product__icon" size={32} stroke-width={1.7} aria-hidden="true" />
+            <div><h3>LoomAI Engage</h3><p>Your branded AI experience, on your website or at its own address.</p><ul aria-label="Engage surfaces"><li>Website chat</li><li>Max workspace</li><li>Standalone app</li></ul><span class="portfolio-link">Explore Engage<ArrowRight size={16} aria-hidden="true" /></span></div>
+          </a>
+          <a class="portfolio-product portfolio-product--desk" href="https://console.loomai.pro/products/desk">
+            <Headphones class="portfolio-product__icon" size={32} stroke-width={1.7} aria-hidden="true" />
+            <div><h3>LoomAI Desk <span class="portfolio-optional">Optional</span></h3><p>Bring your team into AI conversations, with the context to help.</p><ul aria-label="Desk capabilities"><li>Human handover</li><li>Team replies</li><li>Action reviews</li></ul><span class="portfolio-link">Explore Desk<ArrowRight size={16} aria-hidden="true" /></span></div>
+          </a>
+        </div>
+        <p class="portfolio-layer__connection"><ArrowDown size={15} aria-hidden="true" />Connected to your AI deployment through LoomAI Platform.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="portfolio-layer portfolio-layer--platform" data-portfolio-layer="platform" aria-labelledby="portfolio-platform">
+    <div class="loom-container portfolio-layer__inner">
+      <header class="portfolio-layer__label"><span class="portfolio-layer__number">03</span><h2 id="portfolio-platform">Technology layer</h2><p>Connect, configure and run your AI.</p></header>
+      <div class="portfolio-layer__content portfolio-platform">
+        <div class="portfolio-platform__heading"><Box size={34} stroke-width={1.7} aria-hidden="true" /><div><h3>LoomAI Platform</h3><p>Bring your data, knowledge and business tools into a dedicated AI deployment.</p></div></div>
+        <ol class="portfolio-platform__flow" aria-label="Platform connects your systems through templates and plugins to your AI deployment">
+          <li><span class="portfolio-platform__symbols" aria-hidden="true"><Globe size={20} /><Database size={20} /><FileText size={20} /></span><strong>Your systems</strong><span>Website, data and documents</span></li>
+          <li><span class="portfolio-platform__symbols" aria-hidden="true"><Blocks size={20} /><Plug size={20} /><SlidersHorizontal size={20} /></span><strong>Templates &amp; plugins</strong><span>Connections and configuration</span></li>
+          <li><span class="portfolio-platform__symbols" aria-hidden="true"><Box size={23} /></span><strong>Your AI deployment</strong><span>Answers, actions and live data</span></li>
+        </ol>
+        <div class="portfolio-platform__links"><a class="portfolio-link" href="/products/loomai-platform">Explore Platform<ArrowRight size={16} aria-hidden="true" /></a><a class="portfolio-link" href="https://console.loomai.pro/">Open console<ArrowRight size={16} aria-hidden="true" /></a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="portfolio-layer" data-portfolio-layer="foundations" aria-labelledby="portfolio-foundations">
+    <div class="loom-container portfolio-layer__inner">
+      <header class="portfolio-layer__label"><span class="portfolio-layer__number">04</span><h2 id="portfolio-foundations">Open-source foundations</h2><p>Use them directly, or through Platform.</p></header>
+      <div class="portfolio-pair">
+        <a class="portfolio-foundation" href="/products/ai-fabric-framework"><img src="/assets/reference/framework-mark.png" alt="" width="44" height="58" loading="lazy" /><div><span class="portfolio-tag">AI enablement</span><h3>AI Fabric Framework</h3><p>Grounded answers, live data and governed actions for Java and Spring Boot.</p><span class="portfolio-link">Explore framework<ArrowRight size={16} aria-hidden="true" /></span></div></a>
+        <a class="portfolio-foundation" href="/products/ai-fabric-chat-ui"><MessageSquare size={33} stroke-width={1.7} aria-hidden="true" /><div><span class="portfolio-tag">Reusable interface</span><h3>AI Fabric Chat UI</h3><p>The configurable chat and workspace foundation behind Engage.</p><span class="portfolio-link">Explore Chat UI<ArrowRight size={16} aria-hidden="true" /></span></div></a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .portfolio-layers { --portfolio-green: #08715b; --portfolio-amber: #955c12; background: var(--loom-surface); }
+  :global([data-theme='dark']) .portfolio-layers { --portfolio-green: #83e8ca; --portfolio-amber: #f4cb72; }
+  .portfolio-layer { border-top: 1px solid var(--loom-border-default); }
+  .portfolio-layer__inner { display: grid; gap: 2rem; grid-template-columns: 12rem minmax(0, 1fr); padding-block: 2rem; }
+  .portfolio-layer__label { padding-top: 0.15rem; }
+  .portfolio-layer__number { color: var(--loom-text-muted); display: block; font-family: var(--loom-font-mono); font-size: 0.72rem; margin-bottom: 0.6rem; }
+  h2 { font-size: 1.15rem; line-height: 1.3; margin: 0 0 0.55rem; }
+  .portfolio-layer__label p { color: var(--loom-text-muted); font-size: 0.83rem; line-height: 1.6; margin: 0; max-width: 23ch; }
+  .portfolio-layer__content { min-width: 0; }
+  .portfolio-pair { display: grid; gap: 1.1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+  .portfolio-pair > a { border: 1px solid var(--loom-border-default); border-radius: 8px; color: var(--loom-text-primary); min-width: 0; text-decoration: none; transition: border-color 150ms; }
+  .portfolio-pair > a:hover { border-color: var(--loom-text-muted); }
+  .portfolio-pair > .portfolio-kit { align-items: center; border-top: 3px solid var(--portfolio-green); display: grid; gap: 0.8rem; grid-template-columns: minmax(0, 1fr) 6.5rem; padding: 1.1rem; }
+  .portfolio-pair > .portfolio-kit--industry { border-top-color: var(--portfolio-amber); }
+  .portfolio-tag { color: var(--loom-text-muted); display: block; font-size: 0.65rem; font-weight: 750; line-height: 1.4; margin-bottom: 0.45rem; }
+  .portfolio-kit--general .portfolio-tag { color: var(--portfolio-green); }
+  .portfolio-kit--industry .portfolio-tag { color: var(--portfolio-amber); }
+  h3 { font-size: 1.1rem; line-height: 1.35; margin: 0 0 0.45rem; text-wrap: initial; }
+  .portfolio-pair p, .portfolio-platform__heading p { color: var(--loom-text-secondary); font-size: 0.82rem; line-height: 1.6; margin: 0 0 0.8rem; }
+  .portfolio-link { align-items: center; color: var(--loom-blue-600); display: inline-flex; font-size: 0.76rem; font-weight: 700; gap: 0.45rem; line-height: 1.5; text-decoration: none; }
+  .portfolio-link svg { flex-shrink: 0; }
+  a:hover .portfolio-link, a.portfolio-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .portfolio-kit__visual { color: var(--portfolio-green); display: grid; gap: 0.35rem; justify-items: end; }
+  .portfolio-kit--industry .portfolio-kit__visual { color: var(--portfolio-amber); }
+  .portfolio-kit__visual img { border-radius: 4px; height: 5.5rem; object-fit: cover; width: 6.5rem; }
+  .portfolio-kit__visual span { align-items: center; display: flex; font-size: 0.62rem; font-weight: 650; gap: 0.3rem; }
+  .portfolio-layer__connection { align-items: start; color: var(--loom-text-muted); display: flex; font-size: 0.74rem; gap: 0.6rem; line-height: 1.5; margin: 0.9rem 0 0; }
+  .portfolio-layer__connection svg { flex-shrink: 0; margin-top: 0.1rem; }
+  .portfolio-product { align-items: start; display: grid; gap: 0.8rem; grid-template-columns: 2.1rem minmax(0, 1fr); padding: 1.1rem; }
+  .portfolio-product__icon { color: var(--portfolio-green); margin-top: 0.1rem; }
+  .portfolio-product--desk .portfolio-product__icon { color: var(--portfolio-amber); }
+  .portfolio-product ul { color: var(--loom-text-muted); display: flex; flex-wrap: wrap; font-size: 0.69rem; gap: 0.3rem 0.75rem; list-style: none; margin: 0 0 0.8rem; padding: 0; }
+  .portfolio-optional { background: var(--loom-warning-soft); border-radius: 3px; color: var(--portfolio-amber); display: inline-block; font-size: 0.6rem; font-weight: 700; margin-left: 0.2rem; padding: 0.15rem 0.35rem; vertical-align: middle; }
+  .portfolio-layer--platform { background: var(--loom-surface-soft); }
+  .portfolio-platform__heading { align-items: start; display: flex; gap: 0.85rem; }
+  .portfolio-platform__heading > svg { color: var(--loom-blue-600); flex-shrink: 0; }
+  .portfolio-platform__heading h3 { font-size: 1.35rem; }
+  .portfolio-platform__flow { display: grid; gap: 2.1rem; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: 0.5rem 0 1.1rem; padding: 0; }
+  .portfolio-platform__flow li { border-left: 2px solid var(--loom-border-strong); display: flex; flex-direction: column; min-width: 0; padding-left: 0.85rem; position: relative; }
+  .portfolio-platform__flow li + li::before { color: var(--loom-text-muted); content: '\2192'; font-size: 1.1rem; left: -1.6rem; position: absolute; top: 1.5rem; }
+  .portfolio-platform__symbols { align-items: center; color: var(--loom-blue-600); display: flex; gap: 0.55rem; height: 2rem; margin-bottom: 0.25rem; }
+  .portfolio-platform__flow strong { font-size: 0.83rem; line-height: 1.5; }
+  .portfolio-platform__flow li > span:last-child { color: var(--loom-text-muted); font-size: 0.71rem; line-height: 1.5; margin-top: 0.25rem; }
+  .portfolio-platform__links { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
+  .portfolio-foundation { align-items: start; display: grid; gap: 0.9rem; grid-template-columns: 2.75rem minmax(0, 1fr); padding: 1rem; }
+  .portfolio-foundation > img { height: 3.6rem; object-fit: contain; width: 2.75rem; }
+  .portfolio-foundation > svg { color: var(--loom-blue-600); margin-top: 0.4rem; }
+  .portfolio-foundation h3 { font-size: 1rem; }
+  @media (max-width: 72rem) { .portfolio-layer__inner { gap: 1.5rem; grid-template-columns: 10rem minmax(0, 1fr); } .portfolio-pair > .portfolio-kit { grid-template-columns: minmax(0, 1fr) 4.5rem; } .portfolio-kit__visual img { height: 4.5rem; width: 4.5rem; } }
+  @media (max-width: 58rem) { .portfolio-layer__inner { grid-template-columns: minmax(0, 1fr); gap: 1.15rem; } .portfolio-layer__label { align-items: baseline; column-gap: 0.65rem; display: flex; flex-wrap: wrap; } .portfolio-layer__number, h2 { margin: 0; } .portfolio-layer__label p { flex-basis: 100%; margin-top: 0.4rem; max-width: none; } .portfolio-pair > .portfolio-kit { grid-template-columns: minmax(0, 1fr) 5.5rem; } .portfolio-kit__visual img { height: 5rem; width: 5.5rem; } }
+  @media (max-width: 39rem) { .portfolio-pair { grid-template-columns: minmax(0, 1fr); gap: 0.8rem; } .portfolio-layer__inner { padding-block: 1.5rem; } .portfolio-pair > .portfolio-kit { grid-template-columns: minmax(0, 1fr) 5rem; padding: 0.95rem; } .portfolio-kit__visual img { width: 5rem; } .portfolio-platform__flow { gap: 1rem; grid-template-columns: minmax(0, 1fr); margin-top: 0.75rem; } .portfolio-platform__flow li { padding-left: 0.85rem; } .portfolio-platform__flow li + li::before { display: none; } .portfolio-platform__symbols { height: 1.6rem; } .portfolio-product, .portfolio-foundation { padding: 0.95rem; } }
+  @media (prefers-reduced-motion: reduce) { .portfolio-pair > a { transition: none; } }
+</style>

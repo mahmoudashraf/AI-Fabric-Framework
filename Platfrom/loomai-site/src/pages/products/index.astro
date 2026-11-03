@@ -1,265 +1,52 @@
 ---
-import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
-import CallToAction from '../../components/CallToAction.astro'
-import ExperimentCard from '../../components/ExperimentCard.astro'
-import LabProductShowcase from '../../components/LabProductShowcase.astro'
-import PageHero from '../../components/PageHero.astro'
-import SectionHeading from '../../components/SectionHeading.astro'
-import { experiments } from '../../data/content'
+import { ArrowRight, Play } from '@lucide/astro'
+import ProductPortfolioLayers from '../../components/ProductPortfolioLayers.astro'
 import BaseLayout from '../../layouts/BaseLayout.astro'
-
-const platformDemos = experiments.filter((item) =>
-  item.relatedProductSlugs.includes('loomai-platform'),
-)
 ---
 
 <BaseLayout
   title="Products"
-  description="LoomAI Platform and its AI Fabric Framework and Chat UI foundations for dependable AI-enabled applications."
+  description="Start with a business or industry AI experience kit. Bring it to customers with LoomAI Engage and optional Desk, powered by LoomAI Platform and open-source foundations."
   canonicalPath="/products"
 >
-  <PageHero
-    eyebrow="AI enablement portfolio"
-    title="Products"
-    body="Build grounded, governed AI behavior, present it through a reusable application experience and operate it as a verified customer deployment."
-    note="One managed platform · Two open-source foundations · Explicit ownership boundaries"
-  />
+  <header class="portfolio-intro loom-container">
+    <p class="loom-eyebrow">The LoomAI family</p>
+    <h1>Products</h1>
+    <p class="portfolio-intro__lead">Start with an experience. Make it yours.</p>
+    <p>Ready-made kits, connected products and the technology that brings them together.</p>
+  </header>
 
-  <section class="product-showcase" aria-labelledby="product-portfolio">
-    <div class="loom-container">
-      <LabProductShowcase heading="Products from the lab" headingId="product-portfolio" />
+  <ProductPortfolioLayers />
+
+  <section class="portfolio-demo" aria-labelledby="portfolio-demo-title">
+    <div class="loom-container portfolio-demo__inner">
+      <a class="portfolio-demo__image" href="/demos/dealership-ai" aria-label="Try the dealership simulator demo"><img src="/assets/platform/dealership-ai-workspace-video-poster.jpg" alt="Northfield's illustrative dealership AI workspace" width="280" height="157" loading="lazy" /><span><Play size={19} aria-hidden="true" />Try the demo</span></a>
+      <div><p class="loom-eyebrow">See it come together</p><h2 id="portfolio-demo-title">One dealership. A connected AI experience.</h2><p>Explore fictional stock, compare cars and ask for help in a branded workspace.</p><div class="portfolio-demo__links"><a href="/demos/dealership-ai">Try dealership demo<ArrowRight size={16} aria-hidden="true" /></a><a href="/experiences">Explore experience kits<ArrowRight size={16} aria-hidden="true" /></a></div><small>Simulator data, not a live dealership or Auto Trader account.</small></div>
     </div>
   </section>
 
-  <section class="section section--soft">
-    <div class="loom-container">
-      <SectionHeading
-        eyebrow="Responsibility boundaries"
-        title="Adopt the layer you need without relocating application authority."
-        body="The framework and UI solve different parts of the product surface. Neither replaces identity, authorization, domain policy or business execution."
-      />
-      <div class="product-comparison">
-        <div class="product-comparison__heading">
-          <span>Responsibility</span>
-          <strong>LoomAI Platform</strong>
-          <strong>AI Fabric Framework</strong>
-          <strong>AI Fabric Chat UI</strong>
-        </div>
-        <div>
-          <span>Capability composition</span>
-          <strong>Templates, plugins and profiles</strong>
-          <span>Supplies runtime contracts</span>
-          <span>Supplies experience contracts</span>
-        </div>
-        <div>
-          <span>Grounding and retrieval behavior</span>
-          <span>Packages and deploys</span>
-          <strong>Owns</strong>
-          <span>Renders evidence</span>
-        </div>
-        <div>
-          <span>Action lifecycle contracts</span>
-          <span>Packages and verifies</span>
-          <strong>Owns</strong>
-          <span>Renders proposal and confirmation</span>
-        </div>
-        <div>
-          <span>Conversation presentation</span>
-          <span>Distributes reviewed experiences</span>
-          <span>Returns backend state</span>
-          <strong>Owns</strong>
-        </div>
-        <div>
-          <span>Release and deployment lifecycle</span>
-          <strong>Owns</strong>
-          <span>Provides versioned artifacts</span>
-          <span>Provides versioned artifacts</span>
-        </div>
-        <div>
-          <span>Customer identity and business authority</span>
-          <span>Customer application</span>
-          <span>Host application</span>
-          <span>Host application</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--white">
-    <div class="loom-container">
-      <SectionHeading
-        eyebrow="Architecture"
-        title="From application context to user-visible evidence."
-      />
-      <ArchitectureFlow
-        steps={['AI Fabric Framework + Chat UI', 'LoomAI Platform composition', 'Verified customer deployment', 'Customer application']}
-      />
-    </div>
-  </section>
-
-  {platformDemos.length > 0 && (
-    <section class="section platform-demo-band">
-      <div class="loom-container">
-        <SectionHeading
-          eyebrow="Platform live demos"
-          title="See a customer product use its assigned LoomAI deployment."
-          body="These demos exercise Platform-created deployments, deployment-local APIs, reviewed Marketplace packages and reusable customer experience surfaces."
-        />
-        <div class="experiment-grid platform-demo-grid">
-          {platformDemos.map((item) => <ExperimentCard experiment={item} />)}
-        </div>
-      </div>
-    </section>
-  )}
-
-  <section class="section section--soft">
-    <div class="loom-container">
-      <SectionHeading
-        eyebrow="Related proof"
-        title="See the products operating in bounded applications."
-        body="Each experiment links to source and states what its scenario does and does not demonstrate."
-      />
-      <div class="experiment-grid">
-        {experiments.filter((item) => item.featured).slice(0, 3).map((item) => (
-          <ExperimentCard experiment={item} />
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <CallToAction
-    eyebrow="Choose the right layer"
-    title="Use the foundations directly or operate them through LoomAI Platform."
-    body="The Framework and Chat UI remain inspectable open-source products. Platform adds managed composition, deployment lifecycle and verification around them."
-    primaryLabel="Explore LoomAI Platform"
-    primaryHref="/products/loomai-platform"
-    secondaryLabel="Visit Loom AI Labs on GitHub"
-    secondaryHref="https://github.com/Loom-AI-Labs"
-  />
+  <section class="portfolio-start"><div class="loom-container"><div><h2>Your brand. Your business. Your AI experience.</h2><p>Choose a kit, then connect the information and tools your customers need.</p></div><a class="loom-button loom-button--primary" href="https://console.loomai.pro/">Open console<ArrowRight size={17} aria-hidden="true" /></a></div></section>
 </BaseLayout>
 
 <style>
-  .product-showcase {
-    background: var(--loom-canvas);
-    padding-block: 2rem 1.5rem;
-    position: relative;
-  }
-
-  .product-showcase::after {
-    background-image:
-      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
-    background-size: 48px 48px;
-    content: "";
-    inset: 0;
-    mask-image: linear-gradient(90deg, transparent 42%, #000 100%);
-    pointer-events: none;
-    position: absolute;
-  }
-
-  .product-showcase > .loom-container {
-    position: relative;
-    z-index: 1;
-  }
-
-  .product-comparison {
-    background: var(--loom-surface);
-    border: 1px solid var(--loom-border-default);
-    border-radius: var(--loom-radius-md);
-    overflow: hidden;
-  }
-
-  .product-comparison > div {
-    align-items: center;
-    border-bottom: 1px solid var(--loom-border-default);
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
-    min-height: 4.5rem;
-    padding-inline: 1.5rem;
-  }
-
-  .product-comparison > div:last-child {
-    border-bottom: 0;
-  }
-
-  .product-comparison__heading {
-    background: var(--loom-navy-950);
-    color: #fff;
-    font-size: 0.85rem;
-  }
-
-  .product-comparison > div:not(.product-comparison__heading) > span {
-    color: var(--loom-text-secondary);
-  }
-
-  .product-comparison > div:not(.product-comparison__heading) > :not(:first-child) {
-    font-size: 0.9rem;
-  }
-
-  .platform-demo-band {
-    background: #f8fbff;
-    border-block: 1px solid var(--loom-border-subtle);
-  }
-
-  .platform-demo-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .platform-demo-grid :global(.experiment-card) {
-    grid-column: span 2;
-  }
-
-  @media (max-width: 47.99rem) {
-    .product-comparison {
-      background: transparent;
-      border: 0;
-      display: grid;
-      gap: 1rem;
-      overflow: visible;
-    }
-
-    .product-comparison > div {
-      background: var(--loom-surface);
-      border: 1px solid var(--loom-border-default);
-      grid-template-columns: 1fr;
-      padding-block: 1rem;
-    }
-
-    .product-comparison__heading {
-      display: none !important;
-    }
-
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(2)::before,
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(3)::before,
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(4)::before {
-      color: var(--loom-blue-600);
-      display: block;
-      font-size: 0.62rem;
-      font-weight: 750;
-      letter-spacing: 0.06em;
-      margin-bottom: 0.2rem;
-      text-transform: uppercase;
-    }
-
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(2)::before {
-      content: "LoomAI Platform";
-    }
-
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(3)::before {
-      content: "AI Fabric Framework";
-    }
-
-    .product-comparison > div:not(.product-comparison__heading) > :nth-child(4)::before {
-      content: "AI Fabric Chat UI";
-    }
-
-    .platform-demo-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .platform-demo-grid :global(.experiment-card) {
-      grid-column: auto;
-    }
-  }
+  .portfolio-intro { padding-block: 2.5rem 2rem; }
+  h1 { font-size: 2.75rem; line-height: 1.15; margin-bottom: 0.85rem; }
+  .portfolio-intro__lead { color: var(--loom-text-primary); font-size: 1.35rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.4rem; }
+  .portfolio-intro > p:last-child { color: var(--loom-text-muted); font-size: 0.95rem; margin: 0; }
+  .portfolio-demo { background: var(--loom-canvas); border-top: 1px solid var(--loom-border-default); padding-block: 2rem; }
+  .portfolio-demo__inner { align-items: center; display: grid; gap: 2rem; grid-template-columns: 17.5rem minmax(0, 1fr); }
+  .portfolio-demo__image { border: 1px solid var(--loom-border-default); border-radius: 6px; display: block; overflow: hidden; position: relative; text-decoration: none; }
+  .portfolio-demo__image img { aspect-ratio: 16 / 9; display: block; object-fit: cover; width: 100%; }
+  .portfolio-demo__image > span { align-items: center; background: var(--loom-surface); bottom: 0.6rem; color: var(--loom-text-primary); display: flex; font-size: 0.72rem; font-weight: 700; gap: 0.4rem; left: 0.6rem; padding: 0.3rem 0.6rem; }
+  .portfolio-demo h2, .portfolio-start h2 { font-size: 1.3rem; line-height: 1.4; margin: 0 0 0.5rem; }
+  .portfolio-demo p:not(.loom-eyebrow), .portfolio-start p { font-size: 0.85rem; margin: 0 0 0.75rem; }
+  .portfolio-demo .loom-eyebrow { font-size: 0.65rem; margin-bottom: 0.45rem; }
+  .portfolio-demo__links { display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; }
+  .portfolio-demo__links a { align-items: center; color: var(--loom-blue-600); display: inline-flex; font-size: 0.8rem; font-weight: 700; gap: 0.4rem; text-decoration: none; }
+  .portfolio-demo__links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .portfolio-demo small { color: var(--loom-text-muted); display: block; font-size: 0.69rem; margin-top: 0.7rem; }
+  .portfolio-start { border-top: 1px solid var(--loom-border-default); padding-block: 2rem; }
+  .portfolio-start > div { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; }
+  .portfolio-start p { margin-bottom: 0; }
+  @media (max-width: 39rem) { .portfolio-intro { padding-block: 1.75rem 1.5rem; } h1 { font-size: 2.25rem; } .portfolio-intro__lead { font-size: 1.15rem; } .portfolio-demo__inner { grid-template-columns: minmax(0, 1fr); gap: 1.2rem; } .portfolio-demo__image { max-width: 22rem; } }
 </style>

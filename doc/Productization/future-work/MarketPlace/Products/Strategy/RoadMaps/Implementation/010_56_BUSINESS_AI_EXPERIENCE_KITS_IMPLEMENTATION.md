@@ -206,6 +206,20 @@ all preview formats, local example interactions, dismissal/focus and selected-ki
 links; phone/desktop evidence and public-site verification boundaries are in
 `verification-support/experience-kits/2026-11-03-visual-capability-catalogue.md`.
 
+### Compact Public Portfolio (2026-11-03)
+
+The public Products overview presents the portfolio top-down: general and
+industry experience kits, customer-facing Engage and optional Desk, the Platform
+technology layer, then the independent Framework and Chat UI foundations.
+Compact linked summaries replace the large product cards and responsibility
+matrix on this overview only. Existing product, kit, Console and demo routes
+remain the destinations; no catalogue, customer configuration or runtime changes.
+
+The proposed homepage customer-journey visual is review-only. It combines
+discovery, approved knowledge, an enquiry receipt and optional human help into
+one illustrative workspace. It is not installed on the homepage by this change.
+Verification: `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use

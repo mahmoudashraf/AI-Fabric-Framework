@@ -126,6 +126,29 @@ const platformProductHtml = readFileSync(
   path.join(dist, 'products', 'loomai-platform', 'index.html'),
   'utf8',
 )
+const portfolioHtml = readFileSync(path.join(dist, 'products', 'index.html'), 'utf8')
+let previousLayer = -1
+for (const layer of ['kits', 'products', 'platform', 'foundations']) {
+  const position = portfolioHtml.indexOf(`data-portfolio-layer="${layer}"`)
+  if (position <= previousLayer) errors.push(`Products portfolio layer is missing or out of order: ${layer}`)
+  previousLayer = position
+}
+for (const expected of [
+  'General AI experience kit', 'Industry kits', 'LoomAI Engage', 'LoomAI Desk',
+  'Your settings remain editable.', 'Max workspace', 'Standalone app',
+  'href="/experiences/ai-customer-experience"',
+  'href="/experiences/dealership-ai-experience"',
+  'href="https://console.loomai.pro/products/engage"',
+  'href="https://console.loomai.pro/products/desk"',
+  'href="/products/loomai-platform"',
+  'href="/products/ai-fabric-framework"',
+  'href="/products/ai-fabric-chat-ui"',
+]) {
+  if (!portfolioHtml.includes(expected)) errors.push(`Products portfolio is missing ${expected}`)
+}
+if (portfolioHtml.includes('catalogue-dialog') || portfolioHtml.includes('product-comparison__heading')) {
+  errors.push('Products overview must remain compact, without the full experience catalogue or responsibility matrix')
+}
 for (const route of ['', 'products']) {
   const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
   const actionLabel = route === '' ? 'Get started' : 'Open console'
