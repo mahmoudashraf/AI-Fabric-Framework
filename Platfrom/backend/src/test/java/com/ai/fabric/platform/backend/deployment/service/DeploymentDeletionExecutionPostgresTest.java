@@ -5,7 +5,6 @@ import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDe
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDeletionOperationEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.authority.DeploymentAuthorityCleanupService;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
@@ -115,7 +114,7 @@ class DeploymentDeletionExecutionPostgresTest {
             mock(DeploymentTenantScopedVectorRegistryService.class), mock(VectorizationDeploymentCleanupService.class),
             mock(DeploymentProviderSecretOverrideService.class), mock(DeploymentDocumentStorageBindingService.class),
             mock(PlatformAuditService.class), new ObjectMapper().findAndRegisterModules(), new JpaTransactionManager(manager),
-            consumers, associations, new DeploymentAuthorityCleanupService(jdbc));
+            consumers, associations, new DeploymentReleaseEvidenceCleanupService(jdbc));
     }
 
     @AfterEach void close() { if (factory != null) factory.destroy(); }
@@ -146,8 +145,10 @@ class DeploymentDeletionExecutionPostgresTest {
 
     @Test void removesCircularReleaseAuthorityReferencesOnlyForTheDeletedDeployment() {
         insertAuthority(deployment);
+        insertReleaseEvidence(deployment);
         var other = insertDeployment(true);
         insertAuthority(other);
+        insertReleaseEvidence(other);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM platform_deployment_releases WHERE deployment_id=?", deployment.getId()))
             .isInstanceOf(DataIntegrityViolationException.class);
 
@@ -155,14 +156,21 @@ class DeploymentDeletionExecutionPostgresTest {
 
         assertThat(operation.getStatus()).isEqualTo("SUCCEEDED");
         for (String table : List.of("platform_runtime_authority_snapshots", "platform_runtime_target_authorities",
-                "platform_deployment_releases", "platform_deployment_versions", "platform_deployment_drafts")) {
+                "platform_deployment_releases", "platform_deployment_versions", "platform_deployment_drafts",
+                "deployment_external_integration_snapshots", "deployment_external_integration_bindings",
+                "deployment_external_integration_approvals", "deployment_lifecycle_grants", "platform_desk_bindings")) {
             assertThat(count(table, "deployment_id", deployment.getId())).isZero();
             assertThat(count(table, "deployment_id", other.getId())).isEqualTo(1);
         }
+        assertThat(count("deployment_lifecycle_commands", "operation_id", deployment.getId())).isZero();
+        assertThat(count("deployment_lifecycle_commands", "operation_id", other.getId())).isEqualTo(1);
+        assertThat(count("deployment_lifecycle_effects", "effect_id", deployment.getId())).isZero();
+        assertThat(count("deployment_lifecycle_effects", "effect_id", other.getId())).isEqualTo(1);
     }
 
     @Test void aLaterFailureRollsBackBootstrapLinkAndKitDeletionTogether() {
         insertAuthority(deployment);
+        insertReleaseEvidence(deployment);
         doAnswer(invocation -> {
             jdbc.update("DELETE FROM platform_deployments WHERE id=?", deployment.getId());
             throw new IllegalStateException("Simulated later transaction failure");
@@ -173,8 +181,12 @@ class DeploymentDeletionExecutionPostgresTest {
         assertThat(count("platform_customer_offer_deployments", "deployment_id", deployment.getId())).isEqualTo(1);
         assertThat(count("platform_customer_experience_kits", "id", kit)).isEqualTo(1);
         for (String table : List.of("platform_runtime_authority_snapshots", "platform_runtime_target_authorities",
-                "platform_deployment_releases"))
+                "platform_deployment_releases", "deployment_external_integration_snapshots",
+                "deployment_external_integration_bindings", "deployment_external_integration_approvals",
+                "deployment_lifecycle_grants", "platform_desk_bindings"))
             assertThat(count(table, "deployment_id", deployment.getId())).isEqualTo(1);
+        assertThat(count("deployment_lifecycle_commands", "operation_id", deployment.getId())).isEqualTo(1);
+        assertThat(count("deployment_lifecycle_effects", "effect_id", deployment.getId())).isEqualTo(1);
     }
 
     @Test void aBoundConsumerStillPreventsAllMetadataDeletion() {
@@ -238,4 +250,40 @@ class DeploymentDeletionExecutionPostgresTest {
     }
 
     private static String unique(String prefix) { return prefix + "-" + UUID.randomUUID(); }
+
+    private void insertReleaseEvidence(DeploymentEntity owner) {
+        String id = owner.getId(), approval = unique("approval"), grant = unique("grant"), command = unique("command");
+        var release = jdbc.queryForMap("SELECT id,deployment_version_id FROM platform_deployment_releases WHERE deployment_id=?", id);
+        String releaseId = (String) release.get("id"), versionId = (String) release.get("deployment_version_id");
+        jdbc.update("""
+            INSERT INTO deployment_external_integration_approvals(id,deployment_id,version_id,target_profile_id,
+                operation_key,evidence_json,integrity_mac) VALUES (?,?,?,'dtp-coolify-staging-behavior',?,'{}','hash')
+            """, approval, id, versionId, unique("operation"));
+        jdbc.update("""
+            INSERT INTO deployment_external_integration_bindings(id,approval_id,deployment_id,version_id,target_profile_id,
+                slot_id,evidence_json,integrity_mac,status,revision)
+            VALUES (?,?,?,?,'dtp-coolify-staging-behavior','documents','{}','hash','CONFIGURED',1)
+            """, unique("binding"), approval, id, versionId);
+        jdbc.update("""
+            INSERT INTO deployment_external_integration_snapshots(release_id,deployment_id,version_id,target_profile_id,
+                evidence_json,integrity_mac) VALUES (?,?,?,'dtp-coolify-staging-behavior','{}','hash')
+            """, releaseId, id, versionId);
+        jdbc.update("""
+            INSERT INTO platform_desk_bindings(id,customer_id,tenant_id,deployment_id,target_profile_id,source_release_id,
+                operation_key,status,release_id,version_id,provider_key_ref,callback_key_ref,runtime_callback_key_ref,
+                bridge_key_ref,created_at,updated_at)
+            VALUES (?,?,?,?,'dtp-coolify-staging-behavior',?,?,'ENABLED',?,?,'p','c','r','b',now(),now())
+            """, unique("desk"), owner.getCustomerId(), owner.getTenantId(), id, releaseId, unique("operation"), releaseId, versionId);
+        jdbc.update("""
+            INSERT INTO deployment_lifecycle_grants(grant_id,operation_id,deployment_id,target_profile_id,release_id,
+                scope_hash,request_digest,request_json,snapshot_json,actor_id,state,created_at,updated_at)
+            VALUES (?,?,?,'dtp-coolify-staging-behavior',?,'hash','hash','{}','{}','test','COMPLETED',now(),now())
+            """, grant, id, id, releaseId);
+        jdbc.update("""
+            INSERT INTO deployment_lifecycle_commands(command_id,grant_id,operation_id,phase,request_digest,
+                request_json,receipt_json,status,created_at,updated_at)
+            VALUES (?,?,?,'COMPLETE','hash','{}','{}','COMPLETED',now(),now())
+            """, command, grant, id);
+        jdbc.update("INSERT INTO deployment_lifecycle_effects(command_id,effect_id,state,created_at,updated_at) VALUES (?,?,'COMPLETED',now(),now())", command, id);
+    }
 }
