@@ -26,10 +26,13 @@ public class SupportTicketCommandController {
     public record Command(@NotBlank String operation, @Size(max=128) String requestId,
         @Size(max=240) String subject, @Size(max=12000) String details, @Size(max=80) String topic) { }
     @PostMapping public ResponseEntity<JsonNode> command(@Valid @RequestBody Command input,
-        @RequestHeader HttpHeaders headers, @RequestHeader("Idempotency-Key") String key) {
+        @RequestHeader HttpHeaders headers, @RequestHeader(value="Idempotency-Key", required=false) String key) {
         if (!Set.of("CREATE","GET","LIST").contains(input.operation())) throw SupportPolicy.bad("SUPPORT_UNKNOWN_OPERATION");
         var caller = authentication.verify(headers, "X-LoomAI-Ticket-Connector-Key", assertions.connectorKey(),
             input.operation().equals("CREATE") ? "support:tickets:create" : "support:tickets:read");
+        // Only the side-effecting command needs a replay key; GET/LIST remain authorized reads.
+        if (input.operation().equals("CREATE") && (key == null || !key.matches("[A-Za-z0-9._:-]{1,128}")))
+            throw SupportPolicy.bad("SUPPORT_IDEMPOTENCY_KEY_INVALID");
         SupportContracts.Requester owner;
         SupportConversationScopeService.Scope scope;
         var linked = tickets.findContextByPrincipal(caller.principal(), false);

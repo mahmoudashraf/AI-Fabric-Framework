@@ -202,12 +202,23 @@ class SupportDeskSecurityFilterTest {
     mvc.perform(
             post("/api/integrations/support/ticket-commands")
                 .headers(trusted)
-                .header("Idempotency-Key", "lookup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(id))
         .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+    mvc.perform(post("/api/integrations/support/ticket-commands").headers(trusted)
+            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsString(
+                new SupportTicketCommandController.Command("LIST", null, null, null, null))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].id").value(id));
+    trusted.set("X-AIFABRIC-AUTH-SCOPES", "support:tickets:create");
+    mvc.perform(post("/api/integrations/support/ticket-commands").headers(trusted)
+            .contentType(MediaType.APPLICATION_JSON).content(f.json.writeValueAsString(
+                new SupportTicketCommandController.Command("CREATE", null, "Help", "Details", "setup"))))
+        .andExpect(status().isBadRequest());
+    assertThat(f.remoteTickets).hasSize(1);
+    trusted.set("X-AIFABRIC-AUTH-SCOPES", "support:tickets:read");
     trusted.remove("X-LoomAI-Ticket-Connector-Key");
     mvc.perform(
             post("/api/integrations/support/ticket-commands")

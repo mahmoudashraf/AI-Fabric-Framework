@@ -125,7 +125,7 @@ class SupportTicketCommandControllerTest {
                 .command(
                     new SupportTicketCommandController.Command("GET", saved.id(), null, null, null),
                     headers(f, scope, "support:tickets:read"),
-                    "get")
+                    null)
                 .getBody()
                 .path("id")
                 .asText())
@@ -135,7 +135,7 @@ class SupportTicketCommandControllerTest {
                 .command(
                     new SupportTicketCommandController.Command("LIST", null, null, null, null),
                     headers(f, scope, "support:tickets:read"),
-                    "list")
+                    null)
                 .getBody()
                 .path("items"))
         .hasSize(1);
@@ -147,6 +147,23 @@ class SupportTicketCommandControllerTest {
                     headers(f, scope, "support:tickets:read"),
                     "revoked"))
         .hasMessageContaining("SUPPORT_ACCESS_DENIED");
+  }
+
+  @Test
+  void createRequiresAValidReplayKeyBeforeAnyRuntimeOrProviderEffect() {
+    var f = new SupportFixture();
+    var scope = f.conversations.create();
+    var runtime = mock(SupportRuntimeAccessService.class);
+    var controller = controller(f, runtime);
+    SecurityContextHolder.clearContext();
+    for (String key : new String[] { null, "", " ", "not/a/key", "x".repeat(129) }) {
+      assertThatThrownBy(() -> controller.command(
+          new SupportTicketCommandController.Command("CREATE", null, "Help", "Details", "setup"),
+          headers(f, scope, "support:tickets:create"), key))
+          .hasMessageContaining("SUPPORT_IDEMPOTENCY_KEY_INVALID");
+    }
+    assertThat(f.remoteTickets).isEmpty();
+    verifyNoInteractions(runtime);
   }
 
   @Test
