@@ -14,6 +14,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class DeskErrorHandler {
+  @ExceptionHandler(com.loomai.desk.ticket.TicketException.class)
+  ResponseEntity<?> ticket(com.loomai.desk.ticket.TicketException e) {
+    java.util.Map<String,Object> body = new java.util.LinkedHashMap<>();
+    body.put("success",false); body.put("code",e.code()); body.put("message",e.getMessage());
+    if (e.current() != null) body.put("current",e.current());
+    return ResponseEntity.status(e.status()).header("Cache-Control","private, no-store").body(body);
+  }
   @ExceptionHandler(InboxConflictException.class)
   ResponseEntity<?> conflict(InboxConflictException e) {
     return error(409, e.code(), e.getMessage());

@@ -129,3 +129,111 @@ ui/src/styles.css
 ui/tests/conversation-context.spec.ts
 ui/tests/fixture.ts
 ```
+
+## 010.57 Support Tickets Backend Verification
+
+Date: 2026-11-03. Desk backend source/contracts, plus the separately authorized
+Console support tests and unused DTO cleanup described below. No UI,
+provisioning, framework, S3 connection, deployment or commit changes by this task.
+
+Final local `mvn verify` passed **80 tests, zero failures/errors/skips**, including
+jar packaging. PostgreSQL was required, using an isolated PostgreSQL 16.15 Docker
+container; all test schemas were removed and the container was stopped/removed
+after qualification. H2 and real PostgreSQL exercised the same Flyway V4 schema.
+The 36 new cases cover native lifecycle, independent fake-upstream provider
+replacement, current authorization, private/direct HTTP identity and V3 upgrade.
+
+```sh
+mvn -q -Ddesk.test.postgres.url=jdbc:postgresql://127.0.0.1:55457/desk \
+  -Ddesk.test.postgres.password=desk \
+  -Ddesk.test.postgres.required=true verify
+```
+
+Verified: scoped requester ownership and pagination, opaque expectedVersion,
+same-input replay/changed-input conflict, concurrent create, status/seen without
+runtime calls, explicit terminal episode creation, encrypted intake/receipts,
+stable initial-message keys, uncertain delivery, canonical saved-user-message
+observation after an AI failure, linked/action origin with no duplicate send,
+SUPPORT versus OWNER/REVIEWER and revocation, exact closed-ticket purge and
+pending-delivery denial, provider provenance after selection changes, unsupported
+external mutations and no fallback/mirrored native payload during upstream outage.
+
+Private-host action CREATE is qualified with signed runtimePrincipal and
+runtimeConversationId, verified runtime ownership before provider writes,
+independent stable requester identity, immutable/unique private principal mapping,
+same-auth replay and changed-binding rejection. Foreign owners, wrong actual
+runtime subjects, missing proof, connector-key-only and forged trace-only access
+are denied. Form-first retains support-ticket:<id>. Current canonical conversation
+detail uses id and participantMessages; private runtime requests use the private
+assertion header and registered trusted-key header, never public Authorization.
+
+Final additions qualify the explicit five-field SERVER_CONNECTOR profile and
+typed runtime-trace CREATE authority without a control-plane callback. Missing,
+duplicate, expired or wrong key/issuer/audience/mode/caller/subject type/scope/
+binding headers and browser Origin are rejected. Anonymous callers are rejected;
+foreign requester GET cannot read another owner's ticket. Model conversationId
+is ignored, verified trace conversation is adopted, changed trace replay is
+rejected, original Supabase requester ownership is preserved, and these server
+commands make no runtime/AI request. This is a registered trusted-runtime key
+boundary, not cryptographic validation of arbitrary untrusted trace headers.
+
+`continuationInitializesEmptyCanonicalConversationWithoutRepeatingIntake` passes
+four H2/PostgreSQL x direct-Supabase/private-host combinations. The canonical
+fixture returns 404 before control initialization. Tests assert authenticated
+control-before-item order, proper public versus private header selection, empty
+NOT_REQUIRED continuation, retained old episode, and no original intake resend.
+The opening inference deadline test outlasts the short read timeout without
+automatic replay. GET-only private assertions cannot authorize POST activity.
+
+Requester roster/JPEG is authenticated and scoped to the current binding and
+SUPPORT assignment. Tickets disabled + human enabled returns session/team/photo
+with empty ticket capabilities; ticket create/list/get are disabled. Turning
+human off or removing the current roster assignment denies photo access.
+TicketEndpointPolicy permits admin-registered runtime/Supabase projects without
+per-project environment allowlisting, rejects malformed/credential-bearing URLs,
+and retains connection-time private/metadata/mapped-IPv6 DNS denial. The existing
+conversation-context global endpoint policy is unchanged.
+
+Contract: [SUPPORT_TICKETS_API.md](SUPPORT_TICKETS_API.md). Changed backend paths:
+
+- `src/main/java/com/loomai/desk/ticket/`: contracts, provider SPI/native provider,
+  support-space directory, requester identity/security, canonical runtime client,
+  ticket facade and requester/agent/admin/integration controllers.
+- `src/main/java/com/loomai/desk/config/DeskSecurityConfiguration.java`: explicit
+  operator chain order after the independent requester chain.
+- `src/main/java/com/loomai/desk/web/DeskErrorHandler.java`: typed ticket errors.
+- `src/main/resources/db/desk-migration/V4__support_tickets.sql`.
+- `src/test/java/com/loomai/desk/SupportTicketsTest.java`,
+  `SupportTicketHttpTest.java`, `SupportTicketMigrationTest.java`,
+  `TicketProviderContractTest.java`, `TicketEndpointPolicyTest.java`.
+- `API_CONTRACT.md`, `SUPPORT_TICKETS_API.md`, this verification record.
+
+No missing canonical runtime/framework contract was found. Main still owns
+Console's verified-trace-to-requester-assertion bridge, action installation,
+provisioning and hosted customer-journey qualification. Local peers are protocol
+fixtures, not live runtime/provider/SSO proof. Optional notifications are not
+enabled. Native unread/activity is refreshed from explicit verified canonical
+activity observation; it does not claim immediate notification of every turn.
+
+### Console Test Followup
+
+`Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/support/` now uses
+a mocked remote TicketClient and real minimal scoped context/requester/resource
+authority instead of a local ticket store. Obsolete Case CRUD and Desk mutation
+tests were replaced with provider delegation, opaque-version, trusted connector,
+membership/consent/resource, safe read-only Desk context, private-header and
+PostgreSQL mapping/lock/migration-retirement coverage. Diagnostic/document/team
+trust coverage remains. Main's SupportRequesterAssertionServiceTest is unchanged.
+The explicitly requested SupportContracts cleanup removes only unused legacy
+records, keeping OwnedCase, CaseStatus and DeliveryStatus.
+
+Latest complete Console slice: **114 executed, 113 passed, one error, zero skips**.
+All seven SupportSpaceProvisioningServiceTest cases and ten workspace-service
+tests pass, including ordinary chat without Desk session RPC, actual support pack
+validation, safe empty control initialization, foreign-ID rejection, topic/actual
+assignment/key registration, human-only readiness and read-only validation.
+The retained regression `linkedTicketPrincipalUsesCurrentEpisodeInsteadOfOriginalCasualScope`
+reproduces a main-owned production issue: SupportTicketCommandController chooses
+the original casual scope before a linked ticket's current episode and rejects
+the adopted principal after continuation. No Console Maven process remains.
+This is local qualification, not a live rollout or complete main integration.

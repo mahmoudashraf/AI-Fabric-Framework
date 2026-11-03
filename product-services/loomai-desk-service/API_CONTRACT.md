@@ -61,3 +61,9 @@ The reviewed per-binding context provider, browser projection and explicit case
 resolution callback are specified in [External Conversation Context](EXTERNAL_CONVERSATION_CONTEXT.md).
 They use the actual agent's SUPPORT assignment and do not replace the generic
 human channel, action review or runtime conversation-control lifecycle.
+
+## Support Experience Tickets
+
+The additive provider-neutral support-space/requester/agent ticket contracts are
+defined in [SUPPORT_TICKETS_API.md](SUPPORT_TICKETS_API.md). Existing conversation
+handover and action review contracts above remain independent.
