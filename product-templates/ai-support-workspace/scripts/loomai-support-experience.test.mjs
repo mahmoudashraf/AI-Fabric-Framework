@@ -10,8 +10,10 @@ const template = instance.contributions.template
 test('LoomAI instance retains the current complete generic quality and canonical conversation defaults', () => {
   assert.equal(instance.pluginId, 'mkp-template-loomai-support-workspace')
   assert.equal(instance.version, '1.1.0')
-  for (const field of ['providerConfig', 'promptConfig', 'deploymentBehavior'])
+  for (const field of ['providerConfig', 'promptConfig'])
     assert.deepEqual(template[field], generic.contributions.template[field])
+  assert.deepEqual(template.deploymentBehavior, { ...generic.contributions.template.deploymentBehavior,
+    defaultExecutionExtensions: ['CONVERSATION_HANDOVER'] })
   for (const field of ['answerGenerationPrompt', 'retrievalPrompt', 'assistantUiPrompt'])
     assert.ok(template.promptConfig[field]?.length > 0)
   assert.equal(template.providerConfig.canonicalConversationsEnabled, true)
@@ -24,10 +26,18 @@ test('exact instance bootstrap pins use existing primitives with no native ticke
     'mkp-action-loomai-support-diagnostics@1.0.3', 'mkp-integration-loomai-desk@1.0.1',
     'mkp-action-conversation-handover@1.1.0',
   ])
-  assert.equal(template.requiredPluginInstallDefaults, undefined)
-  assert.deepEqual(template.deploymentBehavior.defaultExecutionExtensions, [])
+  assert.equal(template.requiredPluginInstallDefaults['mkp-action-support-tickets@1.0.0'], undefined)
+  assert.equal(template.requiredPluginInstallDefaults['mkp-action-loomai-support-diagnostics@1.0.3'], undefined)
+  assert.deepEqual(template.requiredPluginInstallDefaults['mkp-integration-loomai-desk@1.0.1'], {
+    config: { bindingId: '${MANAGED_DESK_BINDING_ID}', providerBaseUrl: '${MANAGED_DESK_PROVIDER_BASE_URL}',
+      operatorConsoleUrl: '${MANAGED_DESK_OPERATOR_CONSOLE_URL}' },
+    secretRefs: { providerApiKeySecretRef: 'MANAGED_DESK_PROVIDER_API_KEY',
+      runtimeCallbackSigningSecretRef: 'MANAGED_DESK_RUNTIME_CALLBACK_SIGNING_SECRET',
+      providerWebhookSigningSecretRef: 'MANAGED_DESK_PROVIDER_WEBHOOK_SIGNING_SECRET' },
+  })
+  assert.deepEqual(template.deploymentBehavior.defaultExecutionExtensions, ['CONVERSATION_HANDOVER'])
   assert.equal(template.deploymentBehavior.specialistAssistance.enabled, false)
-  assert.doesNotMatch(JSON.stringify(instance), /MANAGED_DESK_TICKET|secretRef|service_role|s3:\/\/|SUPPORT_CASE_HOST|spaceId|publishableKey/)
+  assert.doesNotMatch(JSON.stringify(instance), /MANAGED_DESK_TICKET|service_role|s3:\/\/|SUPPORT_CASE_HOST|spaceId|publishableKey/)
 })
 
 test('internal source candidate neither rewrites public defaults nor changes accepted catalogue entries', () => {

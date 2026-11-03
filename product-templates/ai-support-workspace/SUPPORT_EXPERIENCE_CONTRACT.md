@@ -91,9 +91,11 @@ Existing published template versions remain unchanged.
 ## Internal LoomAI Instance
 
 `manifests/loomai-support-workspace.1.1.0.manifest.json` is a separate, source-only
-instance composition, not a public customer default. Its provider, prompt and
-deployment-behavior defaults match the new generic `1.1.0`, including the canonical
-conversation requirement and ticket confirmation/receipt guidance. It requires
+instance composition, not a public customer default. Its provider and prompt
+defaults match the new generic `1.1.0`, including the canonical conversation
+requirement and ticket confirmation/receipt guidance. This LoomAI instance also
+requests the human extension once its managed channel and action are configured.
+It requires
 exactly:
 
 - `mkp-data-ai-support-documents@1.0.0`
@@ -102,15 +104,17 @@ exactly:
 - `mkp-integration-loomai-desk@1.0.1`
 - `mkp-action-conversation-handover@1.1.0`
 
-There are no `requiredPluginInstallDefaults` in this variant. In particular,
-native Desk ticket aliases must not precede the Console ticket ACTION's reviewed
+Only the Desk channel receives target-independent managed references in
+`requiredPluginInstallDefaults`. No actual URL, credential or binding ID is
+embedded. Native Desk ticket aliases must not precede the Console ticket ACTION's reviewed
 `EXTERNAL_SERVICE` profile aliases. The existing offer/bootstrap initializer
 configures ticket and diagnostics fields through those two profiles. Endpoint
 approval and target-scoped credential binding remain normal API operations;
-neither endpoint values nor keys are template defaults. Empty required install
-inputs use the ordinary deferred-input path. Configure/enable the Desk channel
-through its normal API before enabling the human extension; requiring its pin
-does not activate handover. Customer-owned S3 and identity remain unchanged.
+neither endpoint values nor keys are template defaults. Other empty required
+inputs use the ordinary deferred-input path. The managed channel is registered
+by normal target provisioning; an agent assignment and an explicit conversation
+handover are still required before a human joins. Customer-owned S3 and identity
+remain unchanged.
 
 `V229` adds the internal template family alongside the generic family in the
 existing `ai-support-experience` definition. It creates no offer, installation,

@@ -95,9 +95,11 @@ aliases or copy another customer's S3, secrets, funding or identity settings.
 
 V229 only permits this additional family in the existing support kit definition.
 Required dependencies with missing form fields remain deferred under ordinary
-bootstrap. Configure and enable Desk through its existing API and enable the
-human extension only when ready. No template pin, kit preference or initializer
-performs support-space registration, release apply, staffing or activation.
+bootstrap. The internal Desk defaults contain only the existing target-managed
+references, and the human extension is selected once its channel and action are
+configured. Normal target provisioning resolves and registers that channel.
+No template pin, kit preference or initializer performs requester support-space
+registration, release apply, staffing or app activation.
 
 ## Host Installation And Identity
 

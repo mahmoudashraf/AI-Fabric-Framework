@@ -28,6 +28,20 @@
         "mkp-integration-loomai-desk@1.0.1",
         "mkp-action-conversation-handover@1.1.0"
       ],
+      "requiredPluginInstallDefaults": {
+        "mkp-integration-loomai-desk@1.0.1": {
+          "config": {
+            "bindingId": "${MANAGED_DESK_BINDING_ID}",
+            "providerBaseUrl": "${MANAGED_DESK_PROVIDER_BASE_URL}",
+            "operatorConsoleUrl": "${MANAGED_DESK_OPERATOR_CONSOLE_URL}"
+          },
+          "secretRefs": {
+            "providerApiKeySecretRef": "MANAGED_DESK_PROVIDER_API_KEY",
+            "runtimeCallbackSigningSecretRef": "MANAGED_DESK_RUNTIME_CALLBACK_SIGNING_SECRET",
+            "providerWebhookSigningSecretRef": "MANAGED_DESK_PROVIDER_WEBHOOK_SIGNING_SECRET"
+          }
+        }
+      },
       "recommendedPluginIds": [],
       "deploymentBehavior": {
         "type": "CONVERSATIONAL",
@@ -51,7 +65,7 @@
           "SPECIALIST_ASSISTANCE",
           "CONVERSATION_HANDOVER"
         ],
-        "defaultExecutionExtensions": [],
+        "defaultExecutionExtensions": ["CONVERSATION_HANDOVER"],
         "specialistAssistance": {
           "enabled": false,
           "areas": [

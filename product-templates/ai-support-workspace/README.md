@@ -153,7 +153,8 @@ template.
   above remains independent of LoomAI's case service and diagnostic tools.
 - `manifests/loomai-support-workspace.1.1.0.manifest.json`: source-only internal
   Support Experience composition; exact ticket/diagnostics/Desk/handover pins,
-  no required install defaults, credentials or owned source locations.
+  target-independent managed Desk references, but no native ticket aliases,
+  credential values or owned source locations.
 - `manifests/acme-cloud-support-reads.1.0.1.manifest.json`: a second, fictional
   company's own `ACTION` integration; no LoomAI diagnostic authority.
 - The two unversioned ACTION filenames retain their immutable `1.0.0` contents;

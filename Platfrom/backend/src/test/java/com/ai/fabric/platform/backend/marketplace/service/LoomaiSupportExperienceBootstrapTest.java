@@ -46,7 +46,7 @@ import static org.mockito.Mockito.*;
 class LoomaiSupportExperienceBootstrapTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Test void normalConfigurationBootstrapRequestsTheExactReviewedDependenciesWithoutBindingDefaults() throws Exception {
+    @Test void normalConfigurationBootstrapUsesManagedDeskDefaultsAndLeavesExternalActionBindingsUnbound() throws Exception {
         JsonNode manifest = manifest();
         JsonNode contribution = manifest.at("/contributions/template");
         var plugin = new MarketplacePluginEntity();
@@ -92,8 +92,14 @@ class LoomaiSupportExperienceBootstrapTest {
             .containsExactlyElementsOf(mapper.convertValue(contribution.path("requiredPluginRefs"),
                 new com.fasterxml.jackson.core.type.TypeReference<List<String>>() { }));
         assertThat(requests.getAllValues()).allSatisfy(request -> {
-            assertThat(request.config()).isEmpty();
-            assertThat(request.secretRefs()).isEmpty();
+            if ("mkp-integration-loomai-desk".equals(request.pluginId())) {
+                var defaults = contribution.path("requiredPluginInstallDefaults").path("mkp-integration-loomai-desk@1.0.1");
+                assertThat(request.config()).isEqualTo(defaults.path("config"));
+                assertThat(request.secretRefs()).isEqualTo(defaults.path("secretRefs"));
+            } else {
+                assertThat(request.config()).isEmpty();
+                assertThat(request.secretRefs()).isEmpty();
+            }
         });
         var update = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
         verify(deployments).updateDraft(eq("owned-draft"), update.capture());
