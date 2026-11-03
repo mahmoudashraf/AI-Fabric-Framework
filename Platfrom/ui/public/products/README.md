@@ -26,3 +26,17 @@ soft daylight, blurred warm cream office background, realistic skin texture.
 No text, logos, watermark, headset, border, collage or UI.
 
 The existing vehicle photographs and fictional stock labels remain demo assets.
+
+## Experience Catalogue Product Photos
+
+`example-forma-chair.webp` and `example-studio-chair.webp` were generated with the
+built-in image-generation tool on 2026-11-03. They illustrate fictional furniture
+products, not a customer catalogue or live offer. WebP encoding preserves the
+generated composition while reducing download size. The same files are copied to
+the public site's `public/assets/experiences/` directory.
+
+Prompts: realistic, fully visible product photographs in a bright neutral home
+office, landscape 4:3, no people, logos or text. Forma is a light-grey upholstered
+ergonomic chair with headrest and black wheeled base; Studio is an oak chair with
+curved back, integrated arms and light upholstered seat. These example products
+demonstrate a configurable experience; they are not generic chat defaults.

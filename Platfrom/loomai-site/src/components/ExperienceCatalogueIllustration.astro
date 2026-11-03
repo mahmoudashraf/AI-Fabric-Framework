@@ -1,0 +1,164 @@
+---
+import {
+  ArrowRight, Bot, CalendarDays, Check, Ellipsis, FileText, GitCompareArrows,
+  Headphones, MessageSquare, Paperclip, Send, Truck, UserRound,
+} from '@lucide/astro'
+import { catalogueExperiences, type CatalogueVariant } from './ExperienceCatalogueContent'
+
+interface Props {
+  variant: CatalogueVariant
+  expanded?: boolean
+}
+const { variant, expanded = false } = Astro.props
+const experience = catalogueExperiences[variant]
+const dealership = variant === 'dealership'
+const NextStepIcon = dealership ? CalendarDays : Truck
+---
+
+<figure
+  class:list={['catalogue-workspace', { 'catalogue-workspace--expanded': expanded }]}
+  aria-label={`${experience.assistant}: illustrative customer conversation, two ${dealership ? 'fictional vehicles' : 'example chairs'} and optional team support`}
+>
+  <div class="catalogue-workspace__header">
+    <MessageSquare size={20} aria-hidden="true" />
+    <strong>{experience.assistant}</strong>
+    <span class="catalogue-workspace__badge">{dealership ? 'Simulator demo' : 'Example experience'}</span>
+    <Ellipsis size={18} aria-hidden="true" />
+  </div>
+  <div class="catalogue-workspace__layout">
+    <div class="catalogue-workspace__conversation">
+      <div class="catalogue-message catalogue-message--customer">
+        <UserRound size={17} aria-hidden="true" /><p>{experience.question}</p>
+      </div>
+      <div class="catalogue-message catalogue-message--assistant">
+        <Bot size={17} aria-hidden="true" /><p>{experience.answer}</p>
+      </div>
+      <p class="catalogue-workspace__stock-note">{dealership ? 'Fictional simulator stock, not live availability.' : 'Example products, not a live catalogue.'}</p>
+      <div class="catalogue-workspace__products">
+        {experience.products.map(product => (
+          <div class="catalogue-product">
+            <img src={product.image} alt={product.alt} width="640" height="420" loading="lazy" />
+            <div><strong>{product.name}</strong><ArrowRight size={15} aria-hidden="true" /></div>
+            {expanded && <p>{product.type}<span>{product.price}</span></p>}
+          </div>
+        ))}
+      </div>
+      <div class="catalogue-workspace__tools" aria-label="Illustrative customer tools">
+        <span><GitCompareArrows size={17} aria-hidden="true" />{dealership ? 'Compare cars' : 'Compare'}</span>
+        <span><NextStepIcon size={17} aria-hidden="true" />{experience.nextStep}</span>
+      </div>
+      <div class="catalogue-workspace__handover">
+        <img src="/assets/experiences/demo-support-agent.webp" alt="Fictional support agent" width="40" height="40" loading="lazy" />
+        <div><strong>{experience.handover}</strong><span>Optional with LoomAI Desk</span></div>
+        <Headphones size={18} aria-hidden="true" />
+      </div>
+      {expanded && <p class="catalogue-workspace__handover-example">{experience.handoverCopy}</p>}
+    </div>
+    {expanded && (
+      <aside class="catalogue-workspace__details" aria-label="Illustrative product details">
+        <span class="catalogue-workspace__detail-label"><FileText size={15} aria-hidden="true" />{dealership ? 'Vehicle details' : 'Product details'}</span>
+        <img src={experience.products[0].image} alt={experience.products[0].alt} width="640" height="420" loading="lazy" />
+        <h4>{experience.products[0].name}</h4>
+        <p>{experience.products[0].detail}</p>
+        <dl><div><dt>Example price</dt><dd>{experience.products[0].price}</dd></div><div><dt>Category</dt><dd>{experience.products[0].type}</dd></div></dl>
+        <p class="catalogue-workspace__context"><Check size={16} aria-hidden="true" />{experience.toolCopy}</p>
+        <p class="catalogue-workspace__detail-note">{dealership ? 'Fictional vehicles and prices for this illustration.' : 'Example products and prices for this illustration.'}</p>
+      </aside>
+    )}
+  </div>
+  <div class="catalogue-workspace__input" aria-hidden="true">
+    <Paperclip size={17} /><span>{experience.prompt}</span><Send size={18} />
+  </div>
+</figure>
+
+<style>
+  .catalogue-workspace {
+    background: var(--loom-surface);
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 8px;
+    color: var(--loom-text-primary);
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+  }
+  .catalogue-workspace__header {
+    align-items: center;
+    border-bottom: 1px solid var(--loom-border-subtle);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    min-height: 2.8rem;
+    padding: 0.65rem 0.8rem;
+  }
+  .catalogue-workspace__header > svg:first-child { color: var(--catalogue-ink); flex-shrink: 0; }
+  .catalogue-workspace__header > svg:last-child { margin-left: auto; flex-shrink: 0; }
+  .catalogue-workspace__header strong { font-size: 0.9rem; line-height: 1.3; }
+  .catalogue-workspace__badge {
+    background: var(--catalogue-soft);
+    border: 1px solid var(--catalogue-border);
+    border-radius: 4px;
+    color: var(--catalogue-ink);
+    font-size: 0.59rem;
+    line-height: 1.4;
+    padding: 0.16rem 0.35rem;
+  }
+  .catalogue-workspace__conversation { min-width: 0; padding: 0.7rem 0.8rem 0; }
+  .catalogue-message { align-items: start; display: grid; gap: 0.5rem; grid-template-columns: 1.3rem minmax(0, 1fr); margin-bottom: 0.45rem; }
+  .catalogue-message > svg { margin-top: 0.4rem; color: var(--catalogue-ink); }
+  .catalogue-message p { border-radius: 4px; color: var(--loom-text-primary); font-size: 0.73rem; line-height: 1.45; margin: 0; padding: 0.4rem 0.55rem; }
+  .catalogue-message--customer p { background: var(--catalogue-soft); }
+  .catalogue-message--assistant p { background: var(--loom-surface-soft); }
+  .catalogue-workspace__stock-note { color: var(--loom-text-muted); font-size: 0.61rem; line-height: 1.4; margin: 0 0 0.5rem 1.8rem; }
+  .catalogue-workspace__products { display: grid; gap: 0.6rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .catalogue-product { border: 1px solid var(--loom-border-default); border-radius: 5px; min-width: 0; overflow: hidden; }
+  .catalogue-product > img { aspect-ratio: 1.85; height: auto; object-fit: cover; object-position: center 48%; width: 100%; }
+  .catalogue-product > div { align-items: center; display: flex; gap: 0.3rem; justify-content: space-between; padding: 0.35rem 0.5rem; }
+  .catalogue-product strong { font-size: 0.73rem; line-height: 1.35; }
+  .catalogue-product svg { flex-shrink: 0; }
+  .catalogue-product > p { color: var(--loom-text-muted); display: grid; font-size: 0.72rem; gap: 0.2rem; line-height: 1.4; margin: 0; padding: 0 0.5rem 0.5rem; }
+  .catalogue-product > p span { color: var(--loom-text-primary); font-weight: 650; }
+  .catalogue-workspace__tools { display: grid; gap: 0.6rem; grid-template-columns: repeat(2, minmax(0, 1fr)); padding-block: 0.6rem; }
+  .catalogue-workspace__tools > span { align-items: center; background: var(--loom-surface-soft); border: 1px solid var(--loom-border-default); border-radius: 4px; display: flex; font-size: 0.7rem; gap: 0.4rem; justify-content: center; line-height: 1.3; min-height: 1.9rem; padding: 0.3rem; }
+  .catalogue-workspace__tools svg { color: var(--catalogue-ink); flex-shrink: 0; }
+  .catalogue-workspace__handover { align-items: center; border-top: 1px solid var(--loom-border-subtle); display: flex; gap: 0.6rem; padding-block: 0.5rem; }
+  .catalogue-workspace__handover img { border-radius: 50%; flex: 0 0 2.1rem; height: 2.1rem; object-fit: cover; width: 2.1rem; }
+  .catalogue-workspace__handover > div { display: grid; gap: 0.1rem; min-width: 0; }
+  .catalogue-workspace__handover strong { font-size: 0.72rem; line-height: 1.4; }
+  .catalogue-workspace__handover span { color: var(--loom-text-muted); font-size: 0.65rem; line-height: 1.4; }
+  .catalogue-workspace__handover > svg { color: var(--loom-warning); flex-shrink: 0; margin-left: auto; }
+  .catalogue-workspace__input { align-items: center; background: var(--loom-surface-soft); border: 1px solid var(--loom-border-default); border-radius: 4px; color: var(--loom-text-muted); display: flex; font-size: 0.72rem; gap: 0.6rem; margin: 0.2rem 0.8rem 0.7rem; min-height: 2.2rem; padding: 0.4rem 0.6rem; }
+  .catalogue-workspace__input svg { flex-shrink: 0; }
+  .catalogue-workspace__input > svg:last-child { color: var(--catalogue-ink); margin-left: auto; }
+  .catalogue-workspace__handover-example { border-left: 2px solid var(--catalogue-border); font-size: 0.73rem; line-height: 1.5; margin: 0.2rem 0 0.7rem; padding-left: 0.6rem; }
+  .catalogue-workspace--expanded .catalogue-workspace__layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(12rem, 1fr); }
+  .catalogue-workspace--expanded .catalogue-workspace__header strong { font-size: 1rem; }
+  .catalogue-workspace--expanded .catalogue-message p { font-size: 0.82rem; }
+  .catalogue-workspace__details { background: var(--loom-surface-soft); border-left: 1px solid var(--loom-border-default); min-width: 0; padding: 0.9rem; }
+  .catalogue-workspace__detail-label { align-items: center; color: var(--loom-text-muted); display: flex; font-size: 0.72rem; gap: 0.4rem; margin-bottom: 0.7rem; }
+  .catalogue-workspace__details > img { aspect-ratio: 1.5; border-radius: 4px; height: auto; object-fit: cover; object-position: center 48%; width: 100%; }
+  .catalogue-workspace__details h4 { font-size: 1rem; margin: 0.7rem 0 0.4rem; }
+  .catalogue-workspace__details p { font-size: 0.76rem; line-height: 1.5; margin: 0 0 0.8rem; }
+  .catalogue-workspace__details dl { font-size: 0.71rem; margin: 0 0 0.8rem; }
+  .catalogue-workspace__details dl > div { border-bottom: 1px solid var(--loom-border-default); display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; justify-content: space-between; padding-block: 0.4rem; }
+  .catalogue-workspace__details dt { color: var(--loom-text-muted); }
+  .catalogue-workspace__details dd { margin: 0; }
+  .catalogue-workspace__details .catalogue-workspace__context { align-items: start; display: flex; gap: 0.35rem; }
+  .catalogue-workspace__context svg { color: var(--catalogue-ink); flex-shrink: 0; margin-top: 0.15rem; }
+  .catalogue-workspace__details .catalogue-workspace__detail-note { color: var(--loom-text-muted); font-size: 0.67rem; margin-bottom: 0; }
+  @media (max-width: 48rem) {
+    .catalogue-workspace--expanded .catalogue-workspace__layout { grid-template-columns: minmax(0, 1fr); }
+    .catalogue-workspace__details { border-left: 0; border-top: 1px solid var(--loom-border-default); }
+    .catalogue-workspace__details > img { aspect-ratio: 2.5; }
+  }
+  @media (max-width: 26rem) {
+    .catalogue-workspace__header { gap: 0.35rem; padding-inline: 0.55rem; }
+    .catalogue-workspace__header strong { font-size: 0.8rem; }
+    .catalogue-workspace__header > svg:last-child { display: none; }
+    .catalogue-workspace__badge { font-size: 0.56rem; }
+    .catalogue-workspace__conversation { padding-inline: 0.55rem; }
+    .catalogue-workspace__input { margin-inline: 0.55rem; }
+    .catalogue-workspace__products, .catalogue-workspace__tools { gap: 0.4rem; }
+    .catalogue-product strong { font-size: 0.67rem; }
+  }
+</style>

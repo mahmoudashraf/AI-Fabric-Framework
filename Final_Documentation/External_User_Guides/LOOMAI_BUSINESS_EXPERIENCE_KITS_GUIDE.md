@@ -10,6 +10,22 @@ not an approved production AutoTrader integration.
 Both kits combine Platform and Engage. LoomAI Desk is optional; your own assigned
 agents provide human support. You can request Desk during setup or add it later.
 
+The experience cards distinguish **Adapts to your business** from **Built for
+dealerships**, and show product discovery, actions and optional human support.
+Their **Powered by** row identifies Platform, Engage and optional Desk.
+
+Select a miniature screen or **Preview experience** to see **Website AI chat**,
+**Max AI workspace** or **Standalone AI space**. The preview is dismissible with
+the close control, Escape or the backdrop. These are illustrative examples, not
+live AI or a connected support agent. Console's preview can show sample product
+selection, comparisons, delivery/enquiry information and human handover without
+sending a message or request. Close it to return to the same page.
+
+Max mode is an expanded workspace layout, not another deployment or delivery
+record. Website embed and standalone remain the two installable channels; you
+may choose either or both during setup. Furniture and vehicle examples are
+fictional marketing content, never default customer data or AI knowledge.
+
 ## Set Up The Kit
 
 1. Sign in or create your Console workspace. Your selected kit is retained.

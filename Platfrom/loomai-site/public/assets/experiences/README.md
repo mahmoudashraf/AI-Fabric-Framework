@@ -11,3 +11,8 @@ a real dealership, inventory offer or Auto Trader partnership.
 
 Workspace illustrations are semantic HTML and Lucide icons, not screenshots of
 a configured customer account. They contain no guaranteed delivery terms.
+
+`example-forma-chair.webp` and `example-studio-chair.webp` reuse the generated,
+fictional Console product photos. Their provenance and prompt descriptions are
+in `Platfrom/ui/public/products/README.md`. These are example products only,
+not a customer catalogue or live offer.

@@ -1,271 +1,186 @@
 ---
-import {
-  ArrowRight,
-  CarFront,
-  MessageSquare,
-  Play,
-  Plus,
-  Box,
-} from '@lucide/astro'
-import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
-import BusinessExperienceSupport from './BusinessExperienceSupport.astro'
+import { ArrowRight, Box, CarFront, Headphones, Maximize2, MessageSquare, Play } from '@lucide/astro'
+import ExperienceCatalogueDialog from './ExperienceCatalogueDialog.astro'
+import ExperienceCatalogueIllustration from './ExperienceCatalogueIllustration.astro'
+import ExperienceCatalogueMiniature from './ExperienceCatalogueMiniature.astro'
+import { catalogueExperiences, catalogueFormats, type CatalogueVariant } from './ExperienceCatalogueContent'
+
+const variants: CatalogueVariant[] = ['generic', 'dealership']
 ---
 
-<section
-  class="business-experiences"
-  id="experiences"
-  aria-labelledby="experiences-title"
->
-  <div class="loom-container">
-    <h2 id="experiences-title">Choose your starting point</h2>
-    <div class="business-experiences__grid">
-      <article
-        class="business-kit business-kit--generic"
-        aria-labelledby="generic-kit-title"
-      >
-        <div class="business-kit__copy">
-          <h3 id="generic-kit-title">AI Customer Experience</h3><p>
-            Give customers clear answers and useful next steps.
-          </p><div class="business-kit__products">
-            <span>Platform</span><Plus size={13} aria-hidden="true" /><span
-              >Engage</span
-            >
-          </div><div class="business-kit__icons" aria-hidden="true">
-            <Box size={35} stroke-width={1.6} /><Plus size={17} /><MessageSquare
-              size={35}
-              stroke-width={1.6}
-            />
-          </div><a
-            class="business-kit__link"
-            href="/experiences/ai-customer-experience"
-            >Explore experience<ArrowRight size={17} aria-hidden="true" /></a
-          >
-        </div>
-        <BusinessExperiencePreview />
-      </article>
-      <article
-        class="business-kit business-kit--dealership"
-        aria-labelledby="dealership-kit-title"
-      >
-        <div class="business-kit__copy">
-          <h3 id="dealership-kit-title">Dealership AI Experience</h3><p>
-            Turn your website into a helpful buying experience.
-          </p><div class="business-kit__products">
-            <span>Platform + Engage<br />+ dealership experience</span>
-          </div><div class="business-kit__icons" aria-hidden="true">
-            <Box size={32} stroke-width={1.6} /><Plus size={15} /><MessageSquare
-              size={32}
-              stroke-width={1.6}
-            /><Plus size={15} /><CarFront size={32} stroke-width={1.6} />
-          </div><div class="business-kit__links">
-            <a
-              class="business-kit__link"
-              href="/experiences/dealership-ai-experience"
-              >Explore dealership experience<ArrowRight
-                size={17}
-                aria-hidden="true"
-              /></a
-            ><a class="business-kit__demo" href="/demos/dealership-ai"
-              ><Play size={15} aria-hidden="true" />Try demo</a
-            >
-          </div>
-        </div>
-        <div class="business-kit__vehicle">
-          <span class="business-kit__badge"
-            ><CarFront size={13} aria-hidden="true" />Simulator demo</span
-          ><BusinessExperiencePreview variant="dealership" />
-        </div>
-      </article>
+<experience-catalogue>
+  <section class="business-experiences" id="experiences" aria-labelledby="experiences-title">
+    <div class="loom-container">
+      <header class="business-experiences__heading"><h2 id="experiences-title">Choose your customer AI experience</h2><p>One connected experience. On your website, in a workspace, or at its own address.</p></header>
+      <div class="business-experiences__grid">
+        {variants.map(variant => {
+          const experience = catalogueExperiences[variant]
+          const Icon = variant === 'dealership' ? CarFront : MessageSquare
+          return (
+            <article class:list={['business-kit', 'experience-catalogue-theme', `business-kit--${variant}`, `experience-catalogue-theme--${variant}`]} aria-labelledby={`${variant}-kit-title`}>
+              <header class="business-kit__heading">
+                <Icon size={39} stroke-width={1.7} aria-hidden="true" />
+                <div><span class="business-kit__badge">{experience.badge}</span><h3 id={`${variant}-kit-title`}>{experience.title}</h3><p>{experience.description}</p></div>
+              </header>
+              <ExperienceCatalogueIllustration variant={variant} />
+              <div class="business-kit__formats">
+                <div class="business-kit__formats-heading"><h4>Three ways customers can use it</h4><span>Choose one or combine them.</span></div>
+                <div class="business-kit__miniatures">
+                  {catalogueFormats.map(format => (
+                    <button type="button" data-catalogue-preview={variant} data-catalogue-initial-format={format.id} aria-haspopup="dialog" aria-controls={`catalogue-preview-${variant}`} aria-label={`Preview ${experience.title}: ${format.label}`}>
+                      <ExperienceCatalogueMiniature variant={variant} format={format.id} />
+                      <span class="business-kit__format-label">{format.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div class="business-kit__powered">
+                <h4>Powered by</h4>
+                <ul>
+                  <li><Box size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Platform</strong><span>Connect your business</span></div></li>
+                  <li><MessageSquare size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Engage</strong><span>Brand the experience</span></div></li>
+                  <li><Headphones size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Desk <b>Optional</b></strong><span>Bring your team</span></div></li>
+                </ul>
+              </div>
+              <div class="business-kit__actions">
+                <a class="business-kit__start" href={experience.detailUrl}>Get started<ArrowRight size={19} aria-hidden="true" /></a>
+                <button type="button" class="business-kit__preview" data-catalogue-preview={variant} data-catalogue-initial-format="workspace" aria-haspopup="dialog" aria-controls={`catalogue-preview-${variant}`}><Maximize2 size={17} aria-hidden="true" />Preview experience</button>
+              </div>
+              <div class="business-kit__footnote">{variant === 'dealership' ? <a href="/demos/dealership-ai"><Play size={12} aria-hidden="true" />Try the dealership simulator demo<ArrowRight size={13} aria-hidden="true" /></a> : <span>Make it yours with your information, branding and connections.</span>}</div>
+            </article>
+          )
+        })}
+      </div>
+      <p class="business-experiences__note">Illustrative previews. Platform + Engage are included in both experiences. Add your own support team with optional LoomAI Desk.</p>
     </div>
-    <BusinessExperienceSupport />
-    <p class="business-experiences__note">
-      Make it yours with your information, your brand and the systems your business
-      already uses. Add your own support team when you need a human touch.
-    </p>
-  </div>
-</section>
+  </section>
+  {variants.map(variant => <ExperienceCatalogueDialog variant={variant} />)}
+</experience-catalogue>
+
+<script>
+  import type { CatalogueFormat } from './ExperienceCatalogueContent'
+
+  class ExperienceCatalogue extends HTMLElement {
+    private controller?: AbortController
+
+    connectedCallback() {
+      this.controller?.abort()
+      this.controller = new AbortController()
+      const { signal } = this.controller
+      for (const trigger of this.querySelectorAll<HTMLButtonElement>('[data-catalogue-preview]')) {
+        trigger.addEventListener('click', () => {
+          const dialog = this.querySelector<HTMLDialogElement>(`#${trigger.getAttribute('aria-controls')}`)
+          if (!dialog || dialog.open) return
+          this.setFormat(dialog, trigger.dataset.catalogueInitialFormat as CatalogueFormat)
+          dialog.showModal()
+          dialog.scrollTop = 0
+        }, { signal })
+      }
+      for (const dialog of this.querySelectorAll<HTMLDialogElement>('.catalogue-dialog')) {
+        dialog.querySelector('[data-catalogue-close]')?.addEventListener('click', () => dialog.close(), { signal })
+        let startedOnBackdrop = false
+        const outside = (event: PointerEvent | MouseEvent) => {
+          const rect = dialog.getBoundingClientRect()
+          return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+        }
+        dialog.addEventListener('pointerdown', event => { startedOnBackdrop = event.target === dialog && outside(event) }, { signal })
+        dialog.addEventListener('click', event => {
+          if (startedOnBackdrop && event.target === dialog && outside(event)) dialog.close()
+          startedOnBackdrop = false
+        }, { signal })
+        for (const toggle of dialog.querySelectorAll<HTMLButtonElement>('[data-catalogue-format]')) {
+          toggle.addEventListener('click', () => this.setFormat(dialog, toggle.dataset.catalogueFormat as CatalogueFormat), { signal })
+        }
+      }
+    }
+
+    disconnectedCallback() { this.controller?.abort() }
+
+    private setFormat(dialog: HTMLDialogElement, format: CatalogueFormat) {
+      dialog.dataset.format = format
+      for (const toggle of dialog.querySelectorAll<HTMLButtonElement>('[data-catalogue-format]')) toggle.setAttribute('aria-pressed', String(toggle.dataset.catalogueFormat === format))
+      const address = dialog.querySelector<HTMLElement>('[data-catalogue-address]')
+      if (address) address.textContent = format === 'website' ? address.dataset.websiteAddress ?? '' : address.dataset.standaloneAddress ?? ''
+    }
+  }
+
+  if (!customElements.get('experience-catalogue')) customElements.define('experience-catalogue', ExperienceCatalogue)
+</script>
+
 <style>
-  .business-experiences {
-    padding-block: 1.4rem 0;
-    scroll-margin-top: 6.5rem;
+  experience-catalogue { display: block; }
+  :global(.experience-catalogue-theme) { --catalogue-accent: #79e9c7; --catalogue-ink: #086858; --catalogue-soft: #eaf9f3; --catalogue-border: #9cd9c8; }
+  :global(.experience-catalogue-theme--dealership) { --catalogue-accent: #ffd06a; --catalogue-ink: #805407; --catalogue-soft: #fff7e5; --catalogue-border: #e8c77f; }
+  :global([data-theme='dark'] .experience-catalogue-theme) { --catalogue-ink: #83e8ca; --catalogue-soft: #203a34; --catalogue-border: #467769; }
+  :global([data-theme='dark'] .experience-catalogue-theme--dealership) { --catalogue-ink: #f4cb72; --catalogue-soft: #3b3323; --catalogue-border: #786643; }
+  .business-experiences { padding-block: 1.4rem 0; scroll-margin-top: 6.5rem; }
+  .business-experiences__heading { margin-bottom: 1.3rem; }
+  h2 { font-size: 2rem; line-height: 1.2; margin-bottom: 0.5rem; }
+  .business-experiences__heading > p { font-size: 1rem; margin: 0; }
+  .business-experiences__grid { display: grid; gap: 1.2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .business-kit { background: var(--loom-surface); border: 1px solid var(--catalogue-border); border-top: 5px solid var(--catalogue-accent); border-radius: 8px; display: flex; flex-direction: column; gap: 1rem; min-width: 0; padding: 1.15rem; }
+  .business-kit__heading { align-items: center; display: grid; gap: 0.85rem; grid-template-columns: 2.8rem minmax(0, 1fr); min-height: 6.5rem; }
+  .business-kit__heading > svg { color: var(--catalogue-ink); }
+  .business-kit__heading > div { border-left: 1px solid var(--loom-border-default); padding-left: 0.85rem; }
+  .business-kit__badge { background: var(--catalogue-accent); border-radius: 4px; color: #142d2a; display: inline-block; font-size: 0.61rem; font-weight: 800; line-height: 1.3; padding: 0.25rem 0.5rem; text-transform: uppercase; }
+  h3 { font-size: 1.4rem; line-height: 1.2; margin: 0.45rem 0 0.35rem; text-wrap: initial; }
+  .business-kit__heading p { font-size: 0.78rem; line-height: 1.5; margin: 0; }
+  .business-kit > :global(.catalogue-workspace) { display: flex; flex: 1; flex-direction: column; }
+  .business-kit > :global(.catalogue-workspace .catalogue-workspace__input) { margin-top: auto; }
+  .business-kit > :global(.catalogue-workspace .catalogue-workspace__conversation) { padding-bottom: 0.25rem; }
+  .business-kit__formats-heading { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; justify-content: space-between; margin-bottom: 0.75rem; }
+  .business-kit h4 { font-size: 0.92rem; line-height: 1.3; margin: 0; text-wrap: initial; }
+  .business-kit__formats-heading > span { color: var(--loom-text-muted); font-size: 0.65rem; }
+  .business-kit__miniatures { display: grid; gap: 0.8rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .business-kit__miniatures button { align-items: start; background: none; border: 0; border-radius: 6px; cursor: pointer; display: grid; gap: 0.55rem; grid-template-rows: auto 2.3em; min-width: 0; padding: 0; text-align: center; }
+  .business-kit__miniatures button:hover { color: var(--catalogue-ink); }
+  .business-kit__miniatures button:hover :global(.catalogue-miniature) { outline: 2px solid var(--catalogue-ink); outline-offset: 2px; }
+  .business-kit__format-label { font-size: 0.7rem; font-weight: 700; line-height: 1.3; }
+  .business-kit__powered { border-block: 1px solid var(--loom-border-default); padding-block: 0.8rem; }
+  .business-kit__powered h4 { margin-bottom: 0.65rem; }
+  .business-kit__powered ul { display: grid; gap: 0.6rem; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
+  .business-kit__powered li { align-items: start; display: flex; gap: 0.45rem; min-width: 0; }
+  .business-kit__powered li > svg { color: var(--loom-blue-600); flex: 0 0 1.6rem; }
+  .business-kit__powered li:nth-child(2) > svg { color: var(--catalogue-ink); }
+  .business-kit__powered li:nth-child(3) > svg { color: var(--loom-warning); }
+  .business-kit__powered li > div { min-width: 0; }
+  .business-kit__powered strong { display: block; font-size: 0.73rem; line-height: 1.3; }
+  .business-kit__powered b { background: var(--loom-warning-soft); border-radius: 3px; color: var(--loom-text-primary); display: inline-block; font-size: 0.58rem; line-height: 1.4; margin-top: 0.2rem; padding: 0.05rem 0.25rem; }
+  .business-kit__powered li span { color: var(--loom-text-muted); display: block; font-size: 0.61rem; line-height: 1.4; margin-top: 0.3rem; }
+  .business-kit__actions { display: grid; gap: 0.7rem; grid-template-columns: 1fr 1fr; }
+  .business-kit__actions > * { align-items: center; border: 1px solid var(--loom-border-strong); border-radius: 5px; cursor: pointer; display: flex; font-size: 0.85rem; font-weight: 750; gap: 0.6rem; justify-content: center; line-height: 1.3; min-height: 2.7rem; padding: 0.55rem 0.65rem; text-decoration: none; }
+  .business-kit__actions svg { flex-shrink: 0; }
+  .business-kit__start { background: var(--catalogue-accent); border-color: var(--catalogue-accent); color: #142d2a; }
+  .business-kit__preview { background: var(--loom-surface); }
+  .business-kit__actions > *:hover { border-color: var(--catalogue-ink); }
+  .business-kit__footnote { color: var(--loom-text-muted); font-size: 0.66rem; line-height: 1.5; min-height: 1.5em; }
+  .business-kit__footnote a { align-items: center; color: var(--catalogue-ink); display: inline-flex; flex-wrap: wrap; gap: 0.35rem; text-decoration: none; }
+  .business-kit__footnote a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .business-experiences__note { color: var(--loom-text-muted); font-size: 0.74rem; line-height: 1.5; margin: 0.9rem 0 0; text-align: center; }
+  @media (min-width: 56rem) and (max-width: 78rem) {
+    .business-kit { padding: 0.85rem; }
+    .business-kit__heading { gap: 0.6rem; grid-template-columns: 2rem minmax(0, 1fr); min-height: 7.4rem; }
+    .business-kit__heading > div { padding-left: 0.6rem; }
+    h3 { font-size: 1.15rem; }
+    .business-kit__miniatures { gap: 0.55rem; }
+    .business-kit__powered li { flex-wrap: wrap; }
+    .business-kit__actions > * { font-size: 0.76rem; gap: 0.35rem; padding-inline: 0.4rem; }
   }
-  h2 {
-    font-size: 2rem;
-    margin-bottom: 1rem;
-  }
-  .business-experiences__grid {
-    display: grid;
-    gap: 1.2rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-bottom: 0.8rem;
-  }
-  .business-kit {
-    align-items: center;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    display: grid;
-    gap: 1.4rem;
-    grid-template-columns: 1fr 0.95fr;
-    min-width: 0;
-    padding: 1.4rem;
-  }
-  .business-kit--generic {
-    background: #eaf9f5;
-    border-color: #def1eb;
-  }
-  .business-kit--dealership {
-    background: #edf5ff;
-    border-color: #dfebfb;
-  }
-  .business-kit__copy {
-    align-items: start;
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  h3 {
-    font-size: 1.4rem;
-    line-height: 1.2;
-    margin-bottom: 0.65rem;
-    text-wrap: initial;
-  }
-  .business-kit__copy > p {
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin: 0 0 1.5rem;
-  }
-  .business-kit__products {
-    align-items: center;
-    display: flex;
-    font-size: 0.8rem;
-    font-weight: 600;
-    gap: 0.4rem;
-    line-height: 1.4;
-    margin-top: auto;
-  }
-  .business-kit--generic .business-kit__products > span:last-child {
-    color: #00766d;
-  }
-  .business-kit__icons {
-    align-items: center;
-    color: var(--loom-blue-600);
-    display: flex;
-    gap: 0.8rem;
-    margin-block: 0.8rem 1.4rem;
-  }
-  .business-kit__icons > svg:nth-child(3) {
-    color: #009d92;
-  }
-  .business-kit__icons > svg:nth-child(5) {
-    color: #b4780b;
-  }
-  .business-kit__link,
-  .business-kit__demo {
-    align-items: center;
-    color: var(--loom-blue-600);
-    display: inline-flex;
-    font-size: 0.85rem;
-    font-weight: 650;
-    gap: 0.4rem;
-    line-height: 1.4;
-    text-decoration: none;
-  }
-  .business-kit__link:hover {
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-  .business-kit__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-  .business-kit__demo {
-    font-size: 0.75rem;
-  }
-  .business-kit__vehicle {
-    min-width: 0;
-    position: relative;
-  }
-  .business-kit__badge {
-    align-items: center;
-    background: #ffe1a7;
-    border-radius: 4px;
-    color: #61400e;
-    display: inline-flex;
-    font-size: 0.65rem;
-    font-weight: 600;
-    gap: 0.35rem;
-    padding: 0.3rem 0.6rem;
-    position: absolute;
-    right: -0.4rem;
-    top: -0.9rem;
-    z-index: 1;
-  }
-  .business-experiences__note {
-    color: var(--loom-text-muted);
-    font-size: 0.72rem;
-    line-height: 1.5;
-    margin: 0.7rem 0 0;
-  }
-  :global([data-theme='dark']) .business-kit--generic {
-    background: #152d2b;
-    border-color: #254a45;
-  }
-  :global([data-theme='dark']) .business-kit--dealership {
-    background: #1a293d;
-    border-color: #2f4461;
-  }
-  :global([data-theme='dark'])
-    .business-kit--generic
-    .business-kit__products
-    > span:last-child,
-  :global([data-theme='dark']) .business-kit__icons > svg:nth-child(3) {
-    color: #59dbcb;
-  }
-  :global([data-theme='dark']) .business-kit__icons > svg:nth-child(5) {
-    color: #f0c578;
-  }
-  @media (max-width: 78rem) {
-    .business-kit {
-      gap: 1rem;
-      grid-template-columns: 1fr;
-    }
-    .business-kit__copy {
-      display: block;
-    }
-    .business-kit__copy > p {
-      margin-bottom: 0.8rem;
-    }
-    .business-kit__icons {
-      display: none;
-    }
-    .business-kit__products {
-      margin-bottom: 0.9rem;
-    }
-    .business-kit__vehicle {
-      margin-top: 0.4rem;
-    }
-  }
-  @media (max-width: 42rem) {
-    .business-experiences__grid {
-      gap: 1.2rem;
-      grid-template-columns: 1fr;
-    }
-    .business-kit {
-      padding: 1.2rem;
-    }
-    h2 {
-      font-size: 1.6rem;
-    }
-    h3 {
-      font-size: 1.4rem;
-    }
-    .business-kit__copy > p {
-      font-size: 0.9rem;
-    }
-    .business-kit__copy {
-      padding-bottom: 0.25rem;
-    }
+  @media (max-width: 56rem) { .business-experiences__grid { grid-template-columns: minmax(0, 1fr); } .business-kit { padding: 1rem; } .business-kit__heading { min-height: 0; } }
+  @media (max-width: 30rem) {
+    h2 { font-size: 1.6rem; }
+    .business-experiences__heading > p { font-size: 0.88rem; }
+    .business-kit { gap: 0.85rem; padding: 0.8rem; }
+    .business-kit__heading { gap: 0.5rem; grid-template-columns: 1.9rem minmax(0, 1fr); }
+    .business-kit__heading > div { padding-left: 0.6rem; }
+    h3 { font-size: 1.15rem; }
+    .business-kit__heading p { font-size: 0.72rem; }
+    .business-kit__badge { font-size: 0.56rem; }
+    .business-kit__miniatures { gap: 0.55rem; }
+    .business-kit__format-label { font-size: 0.63rem; }
+    .business-kit__powered ul { gap: 0.5rem; }
+    .business-kit__powered li { flex-direction: column; }
+    .business-kit__actions { gap: 0.5rem; }
+    .business-kit__actions > * { font-size: 0.73rem; gap: 0.35rem; padding-inline: 0.4rem; }
   }
 </style>

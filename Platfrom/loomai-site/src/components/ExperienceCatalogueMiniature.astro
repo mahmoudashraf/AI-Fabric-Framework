@@ -1,0 +1,65 @@
+---
+import { ArrowUp, LockKeyhole, Menu, MessageSquare } from '@lucide/astro'
+import { catalogueExperiences, type CatalogueFormat, type CatalogueVariant } from './ExperienceCatalogueContent'
+
+interface Props { variant: CatalogueVariant; format: CatalogueFormat }
+const { variant, format } = Astro.props
+const experience = catalogueExperiences[variant]
+---
+
+<span class:list={['catalogue-miniature', `catalogue-miniature--${format}`]} aria-hidden="true">
+  <span class="catalogue-miniature__chrome">
+    <span class="catalogue-miniature__dots"><i></i><i></i><i></i></span>
+    {format === 'standalone' && <span class="catalogue-miniature__address"><LockKeyhole size={7} />{experience.address}</span>}
+  </span>
+  {format === 'website' ? (
+    <span class="catalogue-miniature__website">
+      <span class="catalogue-miniature__nav"><Menu size={10} /><b>{experience.business}</b></span>
+      <img src={experience.products[0].image} alt="" width="240" height="150" loading="lazy" />
+      <span class="catalogue-miniature__site-copy">{variant === 'dealership' ? 'Explore our range' : 'Made for your home'}</span>
+      <span class="catalogue-miniature__widget"><MessageSquare size={17} /></span>
+    </span>
+  ) : (
+    <span class="catalogue-miniature__app">
+      <span class="catalogue-miniature__app-name"><MessageSquare size={10} /><b>{experience.assistant}</b></span>
+      <span class="catalogue-miniature__app-body">
+        {format === 'workspace' && <span class="catalogue-miniature__rail"><i></i><i></i><i></i></span>}
+        <span class="catalogue-miniature__conversation">
+          <span class="catalogue-miniature__line"></span><span class="catalogue-miniature__line catalogue-miniature__line--short"></span>
+          <span class="catalogue-miniature__products">{experience.products.map(product => <img src={product.image} alt="" width="100" height="65" loading="lazy" />)}</span>
+          <span class="catalogue-miniature__input"><ArrowUp size={8} /></span>
+        </span>
+      </span>
+    </span>
+  )}
+</span>
+
+<style>
+  .catalogue-miniature { background: var(--loom-surface); border: 1px solid var(--loom-border-strong); border-radius: 6px; display: flex; flex-direction: column; height: 7.4rem; overflow: hidden; text-align: left; width: 100%; }
+  .catalogue-miniature--workspace { border-color: var(--catalogue-ink); box-shadow: 0 0 0 1px var(--catalogue-border); }
+  .catalogue-miniature__chrome { align-items: center; background: var(--loom-surface-soft); border-bottom: 1px solid var(--loom-border-default); display: flex; gap: 0.3rem; height: 0.9rem; padding-inline: 0.35rem; flex-shrink: 0; }
+  .catalogue-miniature__dots { display: flex; gap: 0.16rem; }
+  .catalogue-miniature__dots i { background: var(--catalogue-ink); border-radius: 50%; height: 0.18rem; width: 0.18rem; }
+  .catalogue-miniature__address { align-items: center; background: var(--loom-surface); border: 1px solid var(--loom-border-default); border-radius: 3px; color: var(--loom-text-muted); display: flex; font-size: 0.35rem; gap: 0.15rem; justify-content: center; line-height: 1; min-width: 0; overflow: hidden; padding: 0.07rem; white-space: nowrap; width: 100%; }
+  .catalogue-miniature__address svg { flex-shrink: 0; }
+  .catalogue-miniature__website { display: block; flex: 1; min-height: 0; position: relative; }
+  .catalogue-miniature__nav { align-items: center; background: var(--loom-surface); display: flex; font-size: 0.42rem; gap: 0.2rem; height: 1.1rem; line-height: 1; padding: 0.2rem 0.35rem; }
+  .catalogue-miniature__website > img { height: calc(100% - 1.1rem); object-fit: cover; object-position: center 47%; width: 100%; }
+  .catalogue-miniature__site-copy { background: rgb(255 255 255 / 92%); border-radius: 2px; color: #162b3a; font-size: 0.55rem; font-weight: 700; left: 0.3rem; line-height: 1.2; max-width: 60%; padding: 0.25rem; position: absolute; top: 1.45rem; }
+  .catalogue-miniature__widget { align-items: center; background: var(--catalogue-accent); border: 1px solid var(--catalogue-ink); border-radius: 6px; bottom: 0.35rem; color: #132b2a; display: flex; height: 1.8rem; justify-content: center; position: absolute; right: 0.35rem; width: 1.8rem; }
+  .catalogue-miniature__app { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+  .catalogue-miniature__app-name { align-items: center; border-bottom: 1px solid var(--loom-border-subtle); display: flex; font-size: 0.41rem; gap: 0.2rem; height: 1.25rem; line-height: 1.1; padding: 0.25rem 0.35rem; }
+  .catalogue-miniature__app-name > svg { color: var(--catalogue-ink); flex-shrink: 0; }
+  .catalogue-miniature__app-body { display: flex; flex: 1; min-height: 0; }
+  .catalogue-miniature__rail { align-items: center; background: var(--loom-surface-soft); border-right: 1px solid var(--loom-border-default); display: flex; flex: 0 0 0.9rem; flex-direction: column; gap: 0.35rem; padding-top: 0.4rem; }
+  .catalogue-miniature__rail i { background: var(--catalogue-border); border-radius: 1px; height: 0.2rem; width: 0.4rem; }
+  .catalogue-miniature__rail i:first-child { background: var(--catalogue-ink); }
+  .catalogue-miniature__conversation { display: flex; flex: 1; flex-direction: column; gap: 0.25rem; min-width: 0; padding: 0.35rem; }
+  .catalogue-miniature__line { background: var(--catalogue-soft); border: 1px solid var(--catalogue-border); border-radius: 2px; height: 0.35rem; width: 100%; }
+  .catalogue-miniature__line--short { background: var(--loom-surface-soft); border-color: var(--loom-border-default); width: 73%; }
+  .catalogue-miniature__products { display: grid; flex: 1; gap: 0.2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; }
+  .catalogue-miniature__products img { border: 1px solid var(--loom-border-default); border-radius: 2px; height: 100%; min-height: 0; object-fit: cover; object-position: center 48%; width: 100%; }
+  .catalogue-miniature__input { align-items: center; border: 1px solid var(--catalogue-border); border-radius: 2px; color: var(--catalogue-ink); display: flex; height: 0.6rem; justify-content: end; margin-top: auto; padding-right: 0.2rem; flex-shrink: 0; }
+  .catalogue-miniature--standalone .catalogue-miniature__products { align-self: end; flex: 0 0 1.8rem; width: 52%; }
+  @media (max-width: 26rem) { .catalogue-miniature { height: 6.4rem; } .catalogue-miniature__address { font-size: 0.28rem; } .catalogue-miniature__app-name { font-size: 0.35rem; } }
+</style>

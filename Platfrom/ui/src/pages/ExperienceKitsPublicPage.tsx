@@ -11,7 +11,7 @@ import { CustomerConsoleTheme } from '../theme/CustomerConsoleTheme'
 import { experienceKitKeys, fetchPublicExperienceKits, type ExperienceKitDefinition } from '../api/experienceKitsApi'
 import { KitChooser } from '../components/kits/KitChooser'
 import { KitMark, KitProductLine, KitProductLinks, KitPublicHeader, KitSupportBand } from '../components/kits/KitIdentity'
-import { KitWorkspacePreview } from '../components/kits/KitWorkspacePreview'
+import { KitCapabilityIllustration, KitExperiencePreview } from '../components/kits/KitCapabilityPreview'
 import { safeKitExternalUrl } from '../components/kits/kitModels'
 import './ExperienceKits.css'
 
@@ -24,8 +24,8 @@ function KitPublicDetail({ definition, authenticated }: { definition: Experience
     <Button component={Link} to="/experiences" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
     <section className="ek-public-detail" aria-labelledby="ek-detail-title">
       <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1 id="ek-detail-title">{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} /></div></div>
-      <div className="ek-public-detail-grid"><div><h2>Your customer experience</h2><KitWorkspacePreview packCode={definition.experiencePackCode}
-        workspaceName={definition.defaultWorkspaceName} brandColor={dealership ? '#409aff' : '#28bfa6'} /></div>
+      <div className="ek-public-detail-grid"><div><h2>Your customer experience</h2><KitCapabilityIllustration kind={dealership ? 'dealership' : 'adaptive'} />
+        <KitExperiencePreview kind={dealership ? 'dealership' : 'adaptive'} name={definition.name} /></div>
         <div className="ek-detail-copy"><h2>{dealership ? 'Help buyers move from browsing to an enquiry.' : 'Make it easier to do business with you.'}</h2>
           <p className="ek-muted">{dealership ? 'For dealerships that want to help buyers choose with confidence.' : 'For businesses that want to help customers understand their services and take the next step.'}</p><p>{definition.description}</p>
           <ul>{definition.features.map(feature => <li key={feature}><CheckRounded />{feature}</li>)}</ul>
@@ -50,7 +50,7 @@ function ExperienceKitsPublicContent({ code: selectedCode, authenticated: authen
   return <div className="ek-page ek-public-page" data-kit-theme={palette.mode}>
     <div className="ek-public-container"><KitPublicHeader authenticated={authenticated} selectedCode={selectedCode} consolePath={consolePath} />
       <main>
-        {!selectedCode && <section className="ek-public-intro"><h1>AI experiences for your customers</h1><p>Help people find answers, choose confidently and take the next step with your business.</p></section>}
+        {!selectedCode && <section className="ek-public-intro"><h1>Choose your customer AI experience</h1><p>One connected experience. On your website, in a workspace, or at its own address.</p></section>}
         {catalogue.isPending && <div className="ek-query-state" role="status"><CircularProgress size={26} /><span>Loading experiences...</span></div>}
         {catalogue.isError && <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Experiences could not be loaded.'}</Alert>}
         {catalogue.isSuccess && (selectedCode ? definition ? <KitPublicDetail definition={definition} authenticated={authenticated} />

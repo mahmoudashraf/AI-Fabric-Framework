@@ -1,0 +1,93 @@
+---
+import { LockKeyhole, Menu, MessageSquare, X } from '@lucide/astro'
+import ExperienceCatalogueIllustration from './ExperienceCatalogueIllustration.astro'
+import { catalogueExperiences, catalogueFormats, type CatalogueVariant } from './ExperienceCatalogueContent'
+
+interface Props { variant: CatalogueVariant }
+const { variant } = Astro.props
+const experience = catalogueExperiences[variant]
+const id = `catalogue-preview-${variant}`
+---
+
+<dialog id={id} class:list={['catalogue-dialog', 'experience-catalogue-theme', `experience-catalogue-theme--${variant}`]} aria-labelledby={`${id}-title`} aria-describedby={`${id}-disclosure`} data-format="workspace">
+  <div class="catalogue-dialog__header">
+    <div><span class="catalogue-dialog__eyebrow">Illustrative preview</span><h3 id={`${id}-title`}>{experience.title}</h3></div>
+    <button class="catalogue-dialog__close" type="button" data-catalogue-close aria-label="Close experience preview" title="Close experience preview"><X size={21} aria-hidden="true" /></button>
+  </div>
+  <p class="catalogue-dialog__disclosure" id={`${id}-disclosure`}>Example content only. No messages are sent, enquiries submitted or bookings made.</p>
+  <div class="catalogue-dialog__formats" role="group" aria-label="Preview format">
+    {catalogueFormats.map(format => <button type="button" data-catalogue-format={format.id} aria-pressed={format.id === 'workspace'} aria-controls={`${id}-stage`}>{format.label}</button>)}
+  </div>
+  <p class="catalogue-dialog__format-note">One connected experience. Max is a workspace layout, not a separate deployment.</p>
+  <div class="catalogue-dialog__stage" id={`${id}-stage`}>
+    <div class="catalogue-dialog__browser-bar" aria-hidden="true"><span class="catalogue-dialog__dots"><i></i><i></i><i></i></span><span class="catalogue-dialog__address"><LockKeyhole size={12} /><span data-catalogue-address data-website-address={`${variant === 'dealership' ? 'www.northfieldmotors' : 'www.oakandco'}.example`} data-standalone-address={experience.address}>{experience.address}</span></span></div>
+    <div class="catalogue-dialog__website" aria-hidden="true">
+      <div class="catalogue-dialog__website-nav"><Menu size={17} /><strong>{experience.business}</strong><span>{variant === 'dealership' ? 'Our vehicles' : 'Our collection'}</span></div>
+      <img src={experience.products[0].image} alt="" width="640" height="420" loading="lazy" />
+      <div class="catalogue-dialog__website-copy"><strong>{experience.websiteHeading}</strong><span>{variant === 'dealership' ? 'Fictional dealership website' : 'Illustrative business website'}</span></div>
+      <span class="catalogue-dialog__launcher"><MessageSquare size={23} /></span>
+    </div>
+    <div class="catalogue-dialog__app" tabindex="0" role="region" aria-label="Illustrative customer workspace">
+      <div class="catalogue-dialog__rail" aria-hidden="true"><MessageSquare size={21} /><span></span><span></span><span></span></div>
+      <ExperienceCatalogueIllustration variant={variant} expanded />
+    </div>
+  </div>
+  <div class="catalogue-dialog__footer"><p>{variant === 'dealership' ? 'Fictional simulator stock and example prices. Not live availability.' : 'Illustrative products and example prices. Your business supplies its own information.'} Human support is optional with LoomAI Desk.</p></div>
+</dialog>
+
+<style>
+  .catalogue-dialog { background: var(--loom-surface); border: 1px solid var(--catalogue-border); border-radius: 8px; color: var(--loom-text-primary); margin: auto; max-height: calc(100dvh - 2rem); max-width: 68rem; overflow: auto; overscroll-behavior: contain; padding: 1.25rem; width: calc(100% - 2rem); }
+  .catalogue-dialog::backdrop { background: rgb(7 15 21 / 65%); }
+  .catalogue-dialog__header { align-items: start; background: var(--loom-surface); display: flex; gap: 1rem; justify-content: space-between; padding-bottom: 0.6rem; position: sticky; top: 0; z-index: 2; }
+  .catalogue-dialog__eyebrow { color: var(--catalogue-ink); font-size: 0.68rem; font-weight: 750; text-transform: uppercase; }
+  .catalogue-dialog h3 { font-size: 1.4rem; line-height: 1.25; margin: 0.3rem 0 0; text-wrap: initial; }
+  .catalogue-dialog__close { align-items: center; background: var(--loom-surface-soft); border: 1px solid var(--loom-border-default); border-radius: 4px; cursor: pointer; display: flex; flex: 0 0 2.5rem; height: 2.5rem; justify-content: center; padding: 0; }
+  .catalogue-dialog__close:hover { border-color: var(--catalogue-ink); }
+  .catalogue-dialog__disclosure { color: var(--loom-text-muted); font-size: 0.78rem; line-height: 1.5; margin: 0.7rem 0 1rem; }
+  .catalogue-dialog__formats { background: var(--loom-surface-soft); border: 1px solid var(--loom-border-default); border-radius: 6px; display: grid; gap: 0.25rem; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0.25rem; }
+  .catalogue-dialog__formats button { background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 0.78rem; font-weight: 650; line-height: 1.35; min-height: 2.6rem; padding: 0.5rem; }
+  .catalogue-dialog__formats button[aria-pressed='true'] { background: var(--loom-surface); border-color: var(--catalogue-border); color: var(--catalogue-ink); }
+  .catalogue-dialog__formats button:hover { color: var(--catalogue-ink); }
+  .catalogue-dialog__format-note { color: var(--loom-text-muted); font-size: 0.7rem; line-height: 1.45; margin: 0.6rem 0 1rem; }
+  .catalogue-dialog__stage { background: var(--loom-surface-soft); border: 1px solid var(--loom-border-strong); border-radius: 6px; overflow: hidden; position: relative; }
+  .catalogue-dialog__browser-bar { align-items: center; border-bottom: 1px solid var(--loom-border-default); display: none; gap: 1rem; min-height: 2rem; padding: 0.35rem 0.7rem; }
+  .catalogue-dialog__dots { display: flex; gap: 0.3rem; }
+  .catalogue-dialog__dots i { background: var(--catalogue-ink); border-radius: 50%; height: 0.3rem; width: 0.3rem; }
+  .catalogue-dialog__address { align-items: center; background: var(--loom-surface); border: 1px solid var(--loom-border-default); border-radius: 4px; color: var(--loom-text-muted); display: flex; font-size: 0.66rem; gap: 0.4rem; justify-content: center; min-width: 0; overflow-wrap: anywhere; padding: 0.15rem 0.5rem; width: min(75%, 30rem); }
+  .catalogue-dialog__address > svg { flex-shrink: 0; }
+  .catalogue-dialog__app { align-items: stretch; display: grid; grid-template-columns: 2.8rem minmax(0, 1fr); }
+  .catalogue-dialog__app > :global(.catalogue-workspace) { border: 0; border-radius: 0; }
+  .catalogue-dialog__rail { align-items: center; background: var(--loom-surface-soft); border-right: 1px solid var(--loom-border-default); color: var(--catalogue-ink); display: flex; flex-direction: column; gap: 1.3rem; padding-top: 1rem; }
+  .catalogue-dialog__rail > span { background: var(--loom-border-strong); border-radius: 2px; height: 0.3rem; width: 1rem; }
+  .catalogue-dialog__website { display: none; }
+  .catalogue-dialog[data-format='standalone'] .catalogue-dialog__browser-bar, .catalogue-dialog[data-format='website'] .catalogue-dialog__browser-bar { display: flex; }
+  .catalogue-dialog[data-format='standalone'] .catalogue-dialog__rail, .catalogue-dialog[data-format='website'] .catalogue-dialog__rail { display: none; }
+  .catalogue-dialog[data-format='standalone'] .catalogue-dialog__app { grid-template-columns: minmax(0, 1fr); margin-inline: auto; max-width: 56rem; }
+  .catalogue-dialog[data-format='website'] .catalogue-dialog__website { display: block; height: 30rem; position: relative; }
+  .catalogue-dialog__website-nav { align-items: center; background: var(--loom-surface); border-bottom: 1px solid var(--loom-border-default); display: flex; font-size: 0.85rem; gap: 0.6rem; min-height: 2.8rem; padding: 0.7rem 1rem; }
+  .catalogue-dialog__website-nav span { color: var(--loom-text-muted); font-size: 0.72rem; margin-left: auto; }
+  .catalogue-dialog__website > img { height: calc(100% - 2.8rem); object-fit: cover; object-position: center 48%; width: 100%; }
+  .catalogue-dialog__website-copy { background: rgb(255 255 255 / 94%); color: #162b3a; display: grid; gap: 0.5rem; left: 1.3rem; max-width: 16rem; padding: 1rem; position: absolute; top: 4.4rem; }
+  .catalogue-dialog__website-copy strong { font-size: 1.4rem; line-height: 1.2; }
+  .catalogue-dialog__website-copy span { font-size: 0.7rem; }
+  .catalogue-dialog__launcher { align-items: center; background: var(--catalogue-accent); border: 1px solid var(--catalogue-ink); border-radius: 6px; bottom: 0.8rem; color: #132b2a; display: flex; height: 2.8rem; justify-content: center; position: absolute; right: 1rem; width: 2.8rem; }
+  .catalogue-dialog[data-format='website'] .catalogue-dialog__app { border: 1px solid var(--loom-border-strong); border-radius: 6px; bottom: 4.2rem; box-shadow: 0 8px 32px rgb(0 0 0 / 15%); display: block; max-height: 25rem; overflow: auto; position: absolute; right: 1rem; width: min(24rem, 52%); }
+  .catalogue-dialog[data-format='website'] :global(.catalogue-workspace__layout) { grid-template-columns: minmax(0, 1fr); }
+  .catalogue-dialog[data-format='website'] :global(.catalogue-workspace__details), .catalogue-dialog[data-format='website'] :global(.catalogue-workspace__handover-example), .catalogue-dialog[data-format='website'] :global(.catalogue-product > p) { display: none; }
+  .catalogue-dialog__footer { padding-top: 0.9rem; }
+  .catalogue-dialog__footer p { color: var(--loom-text-muted); font-size: 0.7rem; line-height: 1.5; margin: 0; max-width: 75ch; }
+  :global(html:has(.catalogue-dialog[open])) { overflow: hidden; }
+  @media (max-width: 48rem) {
+    .catalogue-dialog { max-height: calc(100dvh - 1rem); padding: 0.85rem; width: calc(100% - 1rem); }
+    .catalogue-dialog h3 { font-size: 1.1rem; }
+    .catalogue-dialog__formats button { font-size: 0.68rem; padding: 0.4rem 0.2rem; }
+    .catalogue-dialog__app { grid-template-columns: 1.8rem minmax(0, 1fr); }
+    .catalogue-dialog__rail > svg { width: 16px; }
+    .catalogue-dialog__website-copy { left: 0.6rem; max-width: 11rem; padding: 0.65rem; top: 3.7rem; }
+    .catalogue-dialog__website-copy strong { font-size: 1rem; }
+    .catalogue-dialog[data-format='website'] .catalogue-dialog__website { height: 41rem; }
+    .catalogue-dialog[data-format='website'] .catalogue-dialog__app { max-height: 30rem; right: 0.6rem; width: calc(100% - 1.2rem); }
+    .catalogue-dialog__website-nav { font-size: 0.75rem; padding-inline: 0.6rem; }
+    .catalogue-dialog__website-nav span { display: none; }
+  }
+</style>

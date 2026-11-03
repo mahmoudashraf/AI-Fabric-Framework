@@ -174,6 +174,31 @@ created. Full details are in
 `verification-support/experience-kits/2026-11-02-business-first-wording.md`.
 The administrative/operator views remain unchanged.
 
+### Visual Capability Catalogue (2026-11-03)
+
+The approved card design makes the experience scope, customer surfaces and
+product composition visible rather than relying only on feature text:
+
+- Adaptive business experience versus industry-specific dealership experience.
+- Photograph-led examples of discovery, comparisons, useful actions and optional
+  human handover, with fictional/simulator disclosures.
+- Three miniature customer views: website chat, expanded Max workspace and
+  standalone space. Miniatures and Preview experience open a dismissible view.
+- Platform + Engage are included; Desk is optional and requires the customer's
+  own assigned team. Merely showing a portrait does not make an agent available.
+
+This is a frontend presentation change on Console and the public site. It reuses
+the canonical catalogue and existing selection/setup links. Preview state is
+browser-local only: no configuration updates, messages, requests, assignments,
+provider calls or authentication changes. Max is a layout, never a third backend
+delivery mode. Actual configuration-aware previews in Engage and kit setup are
+preserved separately from these illustrative marketing fixtures.
+
+Generated fictional furniture photos are stored as small WebP assets with
+provenance in the product-media README. Console and site samples have a focused
+parity regression. Focused tests/builds and desktop/phone live UI evidence are
+recorded in the visual-catalogue verification record.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use
