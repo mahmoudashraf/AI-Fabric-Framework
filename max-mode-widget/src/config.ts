@@ -147,6 +147,8 @@ export type MaxModeIntegrationMode =
   | "public-runtime-anonymous";
 
 export interface MaxModeFeatures {
+  /** Allow attaching context to chat. Disabling does not remove existing canonical history. */
+  attachments?: boolean;
   /** Show shopping cart panel (default: true) */
   cart?: boolean;
   /** Show debug inspector (default: false) */

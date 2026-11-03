@@ -6,12 +6,14 @@ import type { Document } from "@/types";
 type ToastFn = (opts: any) => void;
 
 export function useAttachmentsController({
+  enabled = true,
   attachedItems,
   setAttachedItems,
   setCollectingItem,
   chatInputRef,
   toast,
 }: {
+  enabled?: boolean;
   attachedItems: Array<{ type: string; data: any }>;
   setAttachedItems: (updater: any) => void;
   setCollectingItem: (value: { title: string; type: string } | null) => void;
@@ -27,6 +29,7 @@ export function useAttachmentsController({
 
   const handleReattachItem = useCallback(
     (item: { type: string; data: any }) => {
+      if (!enabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
       setAttachedItems((prev: Array<{ type: string; data: any }>) => {
         const exists = prev.some(
           (existing) => existing.type === item.type && (existing.data.id === item.data.id || existing.data.sku === item.data.sku),
@@ -35,11 +38,12 @@ export function useAttachmentsController({
         return [...prev, item];
       });
     },
-    [setAttachedItems],
+    [enabled, setAttachedItems, toast],
   );
 
   const handleAttachActionResultItem = useCallback(
     (item: any) => {
+      if (!enabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
       const normalizedItem: any = {};
 
       const hasProductFields = item.sku || item.Sku || item.price !== undefined || item.Price !== undefined;
@@ -103,11 +107,12 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [attachedItems, chatInputRef, setAttachedItems, toast],
+    [enabled, attachedItems, chatInputRef, setAttachedItems, toast],
   );
 
   const handleAttachDocument = useCallback(
     (doc: Document) => {
+      if (!enabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
       if (attachedItems.some((item) => item.type === "document" && item.data.id === doc.id)) {
         toast({
           title: "Already Attached",
@@ -131,7 +136,7 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [attachedItems, chatInputRef, setAttachedItems, setCollectingItem, toast],
+    [enabled, attachedItems, chatInputRef, setAttachedItems, setCollectingItem, toast],
   );
 
   const removeNonAiAttachmentByIndex = useCallback(

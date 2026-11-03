@@ -37,6 +37,9 @@ export function useConversationHandover({
   toast: ToastFn;
 }) {
   const enabled = conversationHandoverEnabled();
+  const scopeKey = getWidgetConfig().hostSession?.namespace ?? '';
+  const activeScope = useRef(scopeKey);
+  activeScope.current = scopeKey;
   const [control, setControl] = useState<ConversationControlView | null>(null);
   const [intakeSchema, setIntakeSchema] = useState<HandoverIntakeSchema | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -49,6 +52,7 @@ export function useConversationHandover({
   activeConversation.current = currentConversationId;
 
   const applyControl = useCallback((view: ConversationControlView | null | undefined) => {
+    if (scopeKey !== activeScope.current) return;
     if (!view?.conversationId || !view.controlState) return;
     if (view.conversationId !== activeConversation.current) return;
     if (acceptedControl.current?.conversationId === view.conversationId
@@ -67,7 +71,7 @@ export function useConversationHandover({
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [setChatMessages, setShowSuggestions, setSuggestions]);
+  }, [scopeKey, setChatMessages, setShowSuggestions, setSuggestions]);
 
   const ensureConversationId = useCallback(() => {
     if (currentConversationId) return currentConversationId;

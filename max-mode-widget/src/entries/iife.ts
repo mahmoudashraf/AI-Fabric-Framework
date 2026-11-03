@@ -20,7 +20,7 @@ import type { MaxModeWidgetConfig } from "@/config";
 import { getWidgetConfig, getWidgetStorageKey } from "@/config";
 import type { SharedAttachment } from "@/context";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
-import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget, isWidgetMounted } from "@/mount";
+import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget, isWidgetMounted, setWidgetConnection, setWidgetTheme, setWidgetReadOnly } from "@/mount";
 import { createWorkspaceHost, destroyWorkspaceHost, WorkspaceHostError, type WorkspaceHostApi } from "../workspaceHost";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
@@ -47,6 +47,10 @@ export interface MaxModeQueuedPrompt {
 export interface MaxModeAPI extends WorkspaceHostApi {
   /** Initialize and mount the widget */
   init: (config: Partial<MaxModeWidgetConfig> & { apiConfig: MaxModeWidgetConfig["apiConfig"] }) => void;
+  /** Trusted host connection bootstrap. Never accepts identity claims from public configuration. */
+  setConnection: typeof setWidgetConnection;
+  setTheme: typeof setWidgetTheme;
+  setReadOnly: typeof setWidgetReadOnly;
   /** Open the widget */
   open: () => void;
   /** Close the widget */
@@ -97,6 +101,9 @@ const MaxModeInstance: MaxModeAPI = {
     return workspaceHost.openConversation(id, options);
   },
   refreshConversation: () => workspaceHost.refreshConversation(),
+  setConnection: setWidgetConnection,
+  setTheme: setWidgetTheme,
+  setReadOnly: setWidgetReadOnly,
 
   open() {
     openWidget();
@@ -111,6 +118,9 @@ const MaxModeInstance: MaxModeAPI = {
   },
 
   attachItem(item) {
+    if (getWidgetConfig().features?.attachments === false) {
+      throw new WorkspaceHostError('ATTACHMENTS_DISABLED', 'Attachments are disabled for this workspace.');
+    }
     if (!item?.type || !item?.data || typeof item.data !== "object") {
       console.warn("[MaxMode] attachItem() requires an item with a type and object data payload");
       return;
@@ -126,6 +136,9 @@ const MaxModeInstance: MaxModeAPI = {
   },
 
   attachCurrentPage() {
+    if (getWidgetConfig().features?.attachments === false) {
+      throw new WorkspaceHostError('ATTACHMENTS_DISABLED', 'Attachments are disabled for this workspace.');
+    }
     try {
       window.dispatchEvent(new CustomEvent("maxmode:attach-current-page"));
     } catch {}

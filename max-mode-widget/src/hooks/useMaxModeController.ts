@@ -60,6 +60,7 @@ import type {
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
+import { updateWorkspaceHost } from "../workspaceHost";
 import { useConversationHandover } from "./useConversationHandover";
 import { useClarificationFlow } from "./useClarificationFlow";
 import { useConfirmationFlow } from "./useConfirmationFlow";
@@ -671,6 +672,7 @@ export function useMaxModeController({
   const widgetConfig = providedWidgetConfig ?? getWidgetConfig();
   const hostConfig = widgetConfig.host;
   const debugEnabled = widgetConfig.features?.debug === true;
+  const attachmentsEnabled = widgetConfig.features?.attachments !== false;
   const conversationsEnabled = !widgetConfig.hostSession && (widgetConfig.features?.conversations ?? true);
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
@@ -1007,13 +1009,22 @@ export function useMaxModeController({
     api: widgetConfig.workspaceHost,
     hydrated: isPersistenceHydrated,
     isOpen: isWorkspaceVisible ?? isOpen,
-    busy: isLoading,
+    busy: isLoading || handoverController.isHandoverBusy,
     conversationId: currentConversationId,
     loadedConversation,
     control: handoverController.conversationControl,
     loadConversation,
     clearTransientState: clearHostTransientState,
+    resetConversation,
   });
+
+  const acceptCanonicalResponse = useCallback((response: any) => {
+    handoverController.syncConversationControlFromResponse(response);
+    const host = widgetConfig.workspaceHost;
+    if (host && response?.success !== false && response?.conversationId === host.getState().conversationId) {
+      updateWorkspaceHost(host, { canonicalRevision: (host.getState().canonicalRevision ?? 0) + 1 });
+    }
+  }, [handoverController.syncConversationControlFromResponse, widgetConfig.workspaceHost]);
 
   const { handleChatQuery } = useChatFlow({
     chatQuery,
@@ -1034,7 +1045,7 @@ export function useMaxModeController({
     currentMode,
     requestContext: hostRequestContext,
     requestContextProvider: hostConfig?.requestContextProvider,
-    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
+    onRuntimeResponse: acceptCanonicalResponse,
   });
 
   const handleProgrammaticPrompt = useCallback(
@@ -1067,7 +1078,7 @@ export function useMaxModeController({
     setCurrentConversationId,
     setIsLoading,
     toast,
-    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
+    onRuntimeResponse: acceptCanonicalResponse,
   });
 
   useEffect(() => {
@@ -1135,7 +1146,7 @@ export function useMaxModeController({
     setCurrentConversationId,
     setIsLoading,
     toast,
-    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
+    onRuntimeResponse: acceptCanonicalResponse,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1334,6 +1345,7 @@ export function useMaxModeController({
     removeNonAiAttachmentByIndex,
     removeAiSearchAttachment,
   } = useAttachmentsController({
+    enabled: attachmentsEnabled,
     attachedItems,
     setAttachedItems,
     setCollectingItem,
@@ -1351,6 +1363,7 @@ export function useMaxModeController({
 
   const handleAttachPresentationResult = useCallback(
     (reference: MaxModePresentationResultReference) => {
+      if (!attachmentsEnabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
       const item = toActionResultAttachedItem(reference);
       setAttachedItems((previous) => {
         if (previous.some((existing) => existing.type === item.type && existing.data?.id === item.data.id)) {
@@ -1364,7 +1377,7 @@ export function useMaxModeController({
       });
       setTimeout(() => chatInputRef.current?.focus(), 100);
     },
-    [chatInputRef, setAttachedItems, toast],
+    [attachmentsEnabled, chatInputRef, setAttachedItems, toast],
   );
 
   const handleDetachPresentationResult = useCallback(
@@ -1379,6 +1392,7 @@ export function useMaxModeController({
 
   const handleActionPresentationAsk = useCallback(
     async (query: string, references: readonly MaxModePresentationResultReference[]) => {
+      if (!attachmentsEnabled && references.length) { toast({ title: 'Attachments unavailable', description: 'Selected result context is disabled for this workspace.' }); return; }
       const safeReferences = references.slice(0, 4);
       const ephemeralAttachments = safeReferences.map(toActionResultAttachedItem);
       await handleChatQuery(
@@ -1399,7 +1413,7 @@ export function useMaxModeController({
         ephemeralAttachments,
       );
     },
-    [handleChatQuery],
+    [attachmentsEnabled, handleChatQuery, toast],
   );
 
   useEffect(() => {
@@ -1686,6 +1700,7 @@ export function useMaxModeController({
     aiSearchCategories,
     browseProductCategories,
     // helpers/handlers
+    attachmentsEnabled,
     getResultStyles,
     isItemAttached,
     handleReattachItem,

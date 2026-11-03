@@ -8,14 +8,16 @@ const result = await build({ configFile: false, logLevel: 'error', publicDir: fa
   } },
 })
 const code = (Array.isArray(result) ? result[0] : result).output.find(item => item.type === 'chunk').code
-const { createWorkspaceHost, bindWorkspaceHost, updateWorkspaceHost, destroyWorkspaceHost } =
+const { createWorkspaceHost, bindWorkspaceHost, updateWorkspaceHost, destroyWorkspaceHost, resetWorkspaceHostScope } =
   await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 const api = createWorkspaceHost()
 const observations = []
 const unsubscribe = api.onStateChange(state => observations.push(state))
 const ready = api.whenReady()
 const waiting = new Map()
+let scopeResets = 0
 const unbind = bindWorkspaceHost(api, {
+  resetScope() { scopeResets++ },
   openConversation: id => new Promise(resolve => waiting.set(id, resolve)),
   refreshConversation: async () => ({ conversationId: 'one' }),
 })
@@ -29,9 +31,20 @@ await Promise.resolve()
 await assert.rejects(api.openConversation('two'), error => error.code === 'WORKSPACE_BUSY')
 waiting.get('one')({ conversationId: 'one', controlState: 'AI_ACTIVE', controlVersion: 1 })
 assert.equal((await first).conversationId, 'one')
+assert.equal(api.getState().canonicalRevision, 0)
+updateWorkspaceHost(api, { canonicalRevision: 1 })
+assert.equal(api.getState().canonicalRevision, 1)
 updateWorkspaceHost(api, { controlState: 'HUMAN_ACTIVE', controlVersion: 3 })
 updateWorkspaceHost(api, { controlState: 'AI_ACTIVE', controlVersion: 2 })
 assert.equal(api.getState().controlState, 'HUMAN_ACTIVE', 'Older control reads cannot regress the observed state')
+updateWorkspaceHost(api, { busy: true })
+assert.throws(() => resetWorkspaceHostScope(api), error => error.code === 'WORKSPACE_BUSY')
+updateWorkspaceHost(api, { busy: false })
+resetWorkspaceHostScope(api)
+assert.equal(scopeResets, 1)
+assert.equal(api.getState().conversationId, null)
+assert.equal(api.getState().controlState, null)
+assert.equal(api.getState().canonicalRevision, 0, 'A new episode cannot inherit a prior canonical update signal')
 const oldCount = observations.length
 unsubscribe()
 updateWorkspaceHost(api, { isOpen: true })

@@ -11,7 +11,7 @@ import { setWidgetConfig, getWidgetConfig, type MaxModeWidgetConfig } from "./co
 import { bindWidgetColorScheme, buildThemeCSS } from "./theme";
 import { WidgetShell } from "./entries/WidgetShell";
 import { bindWidgetViewport } from "./viewport";
-import { updateWorkspaceHost } from "./workspaceHost";
+import { updateWorkspaceHost, resetWorkspaceHostScope } from "./workspaceHost";
 import { resetRuntimeCredentialCache } from "./api/client";
 
 const WIDGET_CONTAINER_ID = "max-mode-widget-container";
@@ -54,6 +54,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   const themeCSS = buildThemeCSS(config.theme);
   if (themeCSS) {
     const themeStyle = document.createElement("style");
+    themeStyle.dataset.maxModeTheme = 'true';
     themeStyle.textContent = themeCSS;
     _shadowRoot.appendChild(themeStyle);
   }
@@ -114,6 +115,62 @@ export function closeWidget(): void {
 export function toggleWidget(): void {
   _isOpen = !_isOpen;
   if (_currentConfig?.workspaceHost) updateWorkspaceHost(_currentConfig.workspaceHost, { isOpen: _isOpen });
+  renderWidget();
+}
+
+/** Trusted host rebinding of an idle engine; layout, drafts and subscriptions stay mounted. */
+export function setWidgetConnection(config: {
+  apiConfig: MaxModeWidgetConfig['apiConfig'];
+  integrationMode?: MaxModeWidgetConfig['integrationMode'];
+  hostSession?: MaxModeWidgetConfig['hostSession'];
+  readOnly?: boolean;
+}): void {
+  if (!_currentConfig || !_currentConfig.workspaceHost) throw new Error('The workspace is not mounted.');
+  if (_currentConfig.workspaceHost.getState().busy) throw new Error('Wait for the current conversation operation to finish.');
+  if (!config.apiConfig?.chatBaseUrl) throw new Error('A trusted chat API connection is required.');
+  const previous = _currentConfig.hostSession;
+  const next = config.hostSession ?? previous;
+  if (!previous && next) throw new Error('Changing the host identity requires a fresh workspace.');
+  if (previous && next?.accountKey !== previous.accountKey) {
+    throw new Error('Changing the host identity requires a fresh workspace.');
+  }
+  if (previous && next?.namespace !== previous.namespace) resetWorkspaceHostScope(_currentConfig.workspaceHost);
+  _currentConfig = {
+    ..._currentConfig,
+    apiConfig: config.apiConfig,
+    integrationMode: config.integrationMode ?? _currentConfig.integrationMode,
+    hostSession: next,
+    host: { ..._currentConfig.host, readOnly: config.readOnly ?? _currentConfig.host?.readOnly },
+  };
+  setWidgetConfig(_currentConfig);
+  resetRuntimeCredentialCache();
+  renderWidget();
+}
+
+export function setWidgetTheme(theme: MaxModeWidgetConfig['theme']): void {
+  if (!_currentConfig || !_shadowRoot) throw new Error('The workspace is not mounted.');
+  _currentConfig = { ..._currentConfig, theme: { ..._currentConfig.theme, ...theme } };
+  setWidgetConfig(_currentConfig);
+  let style = _shadowRoot.querySelector<HTMLStyleElement>('style[data-max-mode-theme]');
+  if (!style) {
+    style = document.createElement('style');
+    style.dataset.maxModeTheme = 'true';
+    _shadowRoot.prepend(style);
+  }
+  style.textContent = buildThemeCSS(_currentConfig.theme) || '';
+  const container = _shadowRoot.getElementById(WIDGET_CONTAINER_ID);
+  if (container) {
+    _releaseColorScheme?.();
+    _releaseColorScheme = bindWidgetColorScheme(container, _currentConfig.theme?.darkMode);
+  }
+  renderWidget();
+}
+
+export function setWidgetReadOnly(readOnly: boolean): void {
+  if (!_currentConfig) throw new Error('The workspace is not mounted.');
+  if (Boolean(_currentConfig.host?.readOnly) === readOnly) return;
+  _currentConfig = { ..._currentConfig, host: { ..._currentConfig.host, readOnly } };
+  setWidgetConfig(_currentConfig);
   renderWidget();
 }
 

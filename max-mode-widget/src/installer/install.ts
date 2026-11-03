@@ -8,6 +8,8 @@ import type {
   WorkspaceRuntimeRoutes,
 } from "./types";
 import { credentialBrokerTokenSupplier } from "./credentialBroker";
+import { resolveInstallationPresentation } from "./presentation";
+import { createIsolatedWorkspaceHost } from "./isolatedHost";
 
 const INSTALLER_VERSION = "1.0.0";
 const MANIFEST_SCHEMA = "loomai-ai-workspace-installation-v2";
@@ -92,12 +94,18 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
   const bootstrap = async () => {
     emit("loading", { installationId });
     const manifest = await fetchManifest(manifestUrl, installationId, platformBaseUrl);
-    await loadScript(manifest.workspace.asset);
-    if (!window.MaxMode?.init) throw new Error("The generic AI Workspace asset did not register MaxMode.");
+    const presentation = resolveInstallationPresentation(script, manifest.delivery.mode, document);
     await loadScript(manifest.workspace.experiencePack);
     const key = packKey(manifest.workspace.experiencePack.code, manifest.workspace.experiencePack.version);
     const registration = state.registrations.get(key);
     if (!registration) throw new Error(`Experience pack ${key} did not register itself.`);
+    if (presentation.mode === 'page' && registration.isolation !== 'frame') {
+      throw new Error('This experience pack does not support contained page presentation.');
+    }
+    if (registration.isolation !== 'frame') {
+      await loadScript(manifest.workspace.asset);
+      if (!window.MaxMode?.init) throw new Error("The generic AI Workspace asset did not register MaxMode.");
+    }
     const hostCapabilities = validateHostCapabilities(window.LoomAIWorkspaceHost);
     const identityKey = hostCapabilities?.identity?.status === "authenticated"
       ? `authenticated:${hostCapabilities.identity.subjectKey}`
@@ -126,7 +134,9 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
     if (currentIdentityKey !== identityKey) {
       throw new Error("Workspace identity changed during initialization; start a new conversation.");
     }
-    state.activeController = await registration.mount({
+    const workspaceFrame = registration.isolation === 'frame'
+      ? await createIsolatedWorkspaceHost<import('../entries/iife').MaxModeAPI>(manifest.workspace.asset, hostCapabilities?.presentation) : undefined;
+    try { state.activeController = await registration.mount({
       installationId,
       manifestRevision: manifest.manifestRevision,
       assignmentRevision: manifest.assignmentRevision,
@@ -135,10 +145,30 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
       interactionPolicy: manifest.authentication.interactionPolicy,
       configuration: manifest.workspace.configuration,
       widgetConfig,
-      maxMode: window.MaxMode,
+      maxMode: workspaceFrame?.maxMode ?? window.MaxMode,
+      workspaceFrame,
+      presentation,
+      credentials: {
+        getIdentityAccessToken: async () => {
+          const host = validateHostCapabilities(window.LoomAIWorkspaceHost);
+          const before = host?.identity;
+          const token = await host?.getIdentityAccessToken?.();
+          const after = validateHostCapabilities(window.LoomAIWorkspaceHost)?.identity;
+          if (before?.status !== after?.status || before?.subjectKey !== after?.subjectKey) throw new Error('Workspace identity changed.');
+          return token ?? null;
+        },
+        getRuntimeAccessToken: async () => {
+          const auth = widgetConfig.apiConfig.runtimeAuth as import('../config').MaxModeRuntimeAuthConfig;
+          return await auth?.getBearerToken?.() ?? null;
+        },
+        getIdentity: () => validateHostCapabilities(window.LoomAIWorkspaceHost)?.identity,
+        requestSignIn: hostCapabilities?.requestSignIn,
+      },
+      hostExtensions: hostCapabilities?.extensions,
       refreshAssignment,
-    });
+    }); } catch (error) { workspaceFrame?.destroy(); throw error; }
     mountedManifest = manifest;
+    state.activeBootstrap = refreshAssignment;
     emit("ready", {
       installationId,
       manifestRevision: manifest.manifestRevision,

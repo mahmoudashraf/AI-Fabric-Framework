@@ -2,6 +2,7 @@ import type { ConversationControlState } from "./types";
 
 /** Opaque host-provided partitions, not authentication or authorization claims. */
 export interface WorkspaceHostSession {
+  /** Episode scope. An explicit same-account change resets current targets and transient input. */
   namespace: string;
   accountKey: string;
 }
@@ -14,6 +15,8 @@ export interface WorkspaceState {
   conversationId: string | null;
   controlState: ConversationControlState | null;
   controlVersion: number | null;
+  /** Advances only after canonical reads or accepted runtime message/control updates. */
+  canonicalRevision?: number;
   error: { code: string; message: string } | null;
 }
 
@@ -41,6 +44,7 @@ export class WorkspaceHostError extends Error {
 type Handlers = {
   openConversation(id: string): Promise<Partial<WorkspaceState>>;
   refreshConversation(): Promise<Partial<WorkspaceState>>;
+  resetScope?(): void;
 };
 type HostRecord = {
   state: WorkspaceState;
@@ -55,7 +59,7 @@ export function createWorkspaceHost(): WorkspaceHostApi {
   const record: HostRecord = {
     state: {
       status: "initializing", ready: false, isOpen: false, busy: false,
-      conversationId: null, controlState: null, controlVersion: null, error: null,
+      conversationId: null, controlState: null, controlVersion: null, canonicalRevision: 0, error: null,
     },
     listeners: new Set(),
     generation: 0,
@@ -113,10 +117,22 @@ export function destroyWorkspaceHost(api: WorkspaceHostApi): void {
   record.commandRunning = false;
   record.state = {
     status: "destroyed", ready: false, busy: false, isOpen: false,
-    conversationId: null, controlState: null, controlVersion: null, error: null,
+    conversationId: null, controlState: null, controlVersion: null, canonicalRevision: 0, error: null,
   };
   for (const listener of record.listeners) notify(listener, record);
   record.listeners.clear();
+}
+
+/** Internal same-account scope switch; reuse the engine's canonical reset handlers. */
+export function resetWorkspaceHostScope(api: WorkspaceHostApi): void {
+  const record = requireRecord(api);
+  if (!record.handlers?.resetScope) throw new WorkspaceHostError('WORKSPACE_RESET_UNAVAILABLE', 'The workspace cannot switch its current scope.');
+  if (record.commandRunning || record.state.busy) throw new WorkspaceHostError('WORKSPACE_BUSY', 'Wait for the current workspace operation to finish.');
+  record.generation++;
+  record.handlers.resetScope();
+  record.state = { ...record.state, status: 'ready', ready: true, busy: false,
+    conversationId: null, controlState: null, controlVersion: null, canonicalRevision: 0, error: null };
+  for (const listener of record.listeners) notify(listener, record);
 }
 
 async function invoke(record: HostRecord, operation: () => Promise<Partial<WorkspaceState>>) {

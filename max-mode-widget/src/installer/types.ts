@@ -128,12 +128,34 @@ export interface AIWorkspacePackMountContext {
   configuration: Record<string, unknown>;
   widgetConfig: Record<string, unknown> & { apiConfig: Record<string, unknown> };
   maxMode: MaxModeAPI;
+  presentation?: WorkspacePresentation;
+  workspaceFrame?: IsolatedWorkspaceHost;
+  credentials?: {
+    getIdentityAccessToken?: AIWorkspaceHostCapabilities["getIdentityAccessToken"];
+    getRuntimeAccessToken?: () => Promise<string | null> | string | null;
+    getIdentity?: () => AIWorkspaceHostCapabilities["identity"];
+    requestSignIn?: AIWorkspaceHostCapabilities["requestSignIn"];
+  };
+  hostExtensions?: Record<string, unknown>;
   refreshAssignment: () => Promise<void>;
+}
+
+export interface WorkspacePresentation {
+  mode: "widget" | "page" | "standalone";
+  container?: HTMLElement;
+  containerSelector?: string;
+}
+
+export interface IsolatedWorkspaceHost {
+  maxMode: MaxModeAPI;
+  setTarget(element: HTMLElement | null): void;
+  destroy(): void;
 }
 
 export interface AIWorkspaceExperiencePackRegistration {
   code: string;
   version: string;
+  isolation?: "frame";
   mount(context: AIWorkspacePackMountContext): Promise<unknown> | unknown;
 }
 
@@ -147,6 +169,8 @@ export interface AIWorkspaceBrowserApi {
 export interface AIWorkspaceHostCapabilities {
   version: "1.0.0";
   standalone?: boolean;
+  /** Optional trusted host layering, for example below an application's modal layer. */
+  presentation?: { layer?: number };
   identity?: {
     status: "anonymous" | "authenticated";
     subjectKey?: string;
@@ -155,4 +179,6 @@ export interface AIWorkspaceHostCapabilities {
   getIdentityAccessToken?: () => Promise<string | null> | string | null;
   requestSignIn?: () => Promise<void> | void;
   signOut?: () => Promise<void> | void;
+  /** Trusted application-code adapters, never populated from public configuration. */
+  extensions?: Record<string, unknown>;
 }
