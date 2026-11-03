@@ -87,7 +87,8 @@ public class SupportSpaces {
           || !"PUBLIC_RUNTIME_AUTHENTICATED".equals(connector.authMode())
           || !"PUBLIC_BROWSER".equals(connector.callerType()))
         throw TicketException.invalid("serverConnector profile");
-      endpoints.requireEndpoint(connector.issuer());
+      // The issuer is exact-matched identity metadata, not an outbound destination.
+      text(connector.issuer(), 256, "serverConnector issuer");
       text(connector.audience(), 240, "serverConnector audience");
       if (connector.requiredScopes() == null
           || connector.requiredScopes().size() > 16

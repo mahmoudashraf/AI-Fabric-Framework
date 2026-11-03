@@ -367,6 +367,37 @@ class SupportTicketHttpTest {
     }
   }
 
+  @org.junit.jupiter.api.Test
+  void registeredUrnIssuerRequiresTheSameExactVerifiedTraceIssuer() throws Exception {
+    try (var h = new Harness("h2")) {
+      String issuer = "urn:loomai:runtime:deployment-b:1";
+      var body =
+          (com.fasterxml.jackson.databind.node.ObjectNode)
+              DeskIsolationTest.JSON.valueToTree(h.input("direct", IdentityMode.SUPABASE));
+      body.put("expectedVersion", "0");
+      ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("serverConnector"))
+          .put("issuer", issuer);
+      var registered =
+          h.raw(
+              "PUT",
+              "/api/desk/admin/v1/bindings/b/support-space",
+              null,
+              body,
+              null,
+              Map.of("X-LoomAI-Desk-Service-Key", DeskHttpSecurityTest.ADMIN));
+      assertThat(registered.statusCode()).withFailMessage(registered.body()).isEqualTo(200);
+      String path = "/api/desk/integrations/v1/spaces/direct/server-ticket-commands";
+      var list = new CommandInput("LIST", null, null, null, null, null, null);
+      var headers = h.connectorHeaders("user", "persisted-chat");
+      assertThat(h.raw("POST", path, null, list, "wrong-issuer", headers).statusCode())
+          .isEqualTo(401);
+      headers.put("X-AIFABRIC-AUTH-ISSUER", issuer);
+      var own = h.raw("POST", path, null, list, "registered-urn", headers);
+      assertThat(own.statusCode()).withFailMessage(own.body()).isEqualTo(200);
+      assertThat(DeskIsolationTest.JSON.readTree(own.body()).path("items")).isEmpty();
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"h2", "postgres"})
   void registeredServerConnectorUsesOnlyVerifiedTraceAndOriginalSupabaseOwner(String engine)

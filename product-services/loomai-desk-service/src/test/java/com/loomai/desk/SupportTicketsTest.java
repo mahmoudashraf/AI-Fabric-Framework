@@ -118,6 +118,61 @@ class SupportTicketsTest {
             TicketException.class, e -> assertThat(e.status()).isEqualTo(status));
   }
 
+  @org.junit.jupiter.api.Test
+  void serverConnectorIssuerAcceptsOpaqueIdentifiersUpTo256Characters() throws Exception {
+    try (var f = new Fixture("h2")) {
+      for (String issuer :
+          List.of("urn:loomai:runtime:deployment-a", "runtime-public:deployment-a:1", "i".repeat(256))) {
+        String version = f.spaces.get("space-a").view().version();
+        var input =
+            (com.fasterxml.jackson.databind.node.ObjectNode)
+                JSON.valueToTree(f.input("space-a", version, "desk", true));
+        input.set(
+            "serverConnector",
+            JSON.valueToTree(
+                new ServerConnectorInput(
+                    "PUBLIC_RUNTIME_AUTHENTICATED",
+                    "PUBLIC_BROWSER",
+                    issuer,
+                    "public-runtime",
+                    List.of("chat:conversations"))));
+        var configured = JSON.treeToValue(input, SupportSpaceInput.class);
+        f.tx.execute(ignored -> f.spaces.put("a", configured));
+        assertThat(f.spaces.get("space-a").serverConnector().issuer()).isEqualTo(issuer);
+      }
+    }
+  }
+
+  @org.junit.jupiter.api.Test
+  void serverConnectorIssuerRejectsMissingBlankAndOversizedIdentifiers() throws Exception {
+    try (var f = new Fixture("h2")) {
+      for (String issuer : java.util.Arrays.asList(null, "", " \t", "i".repeat(257))) {
+        var input =
+            (com.fasterxml.jackson.databind.node.ObjectNode)
+                JSON.valueToTree(f.input("space-a", "0", "desk", true));
+        input.set(
+            "serverConnector",
+            JSON.valueToTree(
+                new ServerConnectorInput(
+                    "PUBLIC_RUNTIME_AUTHENTICATED",
+                    "PUBLIC_BROWSER",
+                    issuer,
+                    "public-runtime",
+                    List.of("chat:conversations"))));
+        var configured = JSON.treeToValue(input, SupportSpaceInput.class);
+        assertThatThrownBy(() -> f.tx.execute(ignored -> f.spaces.put("a", configured)))
+            .isInstanceOfSatisfying(
+                TicketException.class,
+                error -> {
+                  assertThat(error.status()).isEqualTo(400);
+                  assertThat(error.getMessage()).isEqualTo("Invalid serverConnector issuer.");
+                });
+        assertThat(f.spaces.get("space-a").view().version()).isEqualTo("0");
+        assertThat(f.spaces.get("space-a").serverConnector()).isNull();
+      }
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"h2", "postgres"})
   void conversationSettingsPersistAndUpdateWithoutChangingTickets(String engine) throws Exception {
