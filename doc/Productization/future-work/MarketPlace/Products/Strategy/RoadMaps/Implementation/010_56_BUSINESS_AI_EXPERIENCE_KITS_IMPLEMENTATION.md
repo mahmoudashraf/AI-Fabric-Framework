@@ -165,8 +165,14 @@ readiness text uses exact known codes/statuses; original codes and diagnostics
 remain under **Technical details**, while unknown statuses/messages are retained.
 No AI prompt, routing, action, runtime or framework behavior changes are included.
 
-Qualification and hosted rollout evidence are recorded in the dated wording
-verification record. The administrative/operator views remain unchanged.
+Qualification passed: 33 backend tests (including real PostgreSQL migration
+checks), 36 Console/auth tests, both production builds and site content/static
+checks. Source `9b2522105` is healthy on both control planes and UIs and the
+production public site. Live catalogue/detail, setup review and overview checks
+passed; original readiness diagnostics remain available. No new test kit was
+created. Full details are in
+`verification-support/experience-kits/2026-11-02-business-first-wording.md`.
+The administrative/operator views remain unchanged.
 
 ### Follow-Up Boundaries
 

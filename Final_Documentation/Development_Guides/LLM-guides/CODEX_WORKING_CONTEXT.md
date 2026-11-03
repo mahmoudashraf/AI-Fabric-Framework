@@ -12001,3 +12001,23 @@ test is being called hosted acceptance. UI extraction remains last.
   do not repeat consumed applies/retries. Production newkit still needs normal
   customer connections, verified runtime release and explicit app activation;
   configuration-layer completion is not a claim of new liveAI rollout.
+
+## 2026-11-03 Business-First Kit Wording Closed
+
+- Source `9b25221059fbb4c3e8d5dbe023607acb7b06e74d` is pushed on
+  `Platform-V11`; core workflow `41548926792` succeeded. Both Platform backends
+  and UIs have exact-source healthy native containers. Production public-site
+  job `u1366dnsm2s5b941nh5sw3np` finished at that source and is healthy.
+- V223 changes only canonical catalogue summaries/descriptions/features. Kit
+  identities, versions, template bindings, customer settings, permissions,
+  activation and publishing remain unchanged. There are no framework/runtime,
+  AI prompt/routing/action or admin/operator UI changes.
+- Marketing and customer kit pages now lead with business outcomes. Advanced
+  configuration remains accessible. Known readiness codes have plain-language
+  display text; original statuses/codes/messages remain under Technical details.
+- Verification: 33 backend tests including real PostgreSQL, 36 Console/auth
+  tests, Console/site builds and site check/smoke passed. Production browser
+  checked homepage/catalogue/detail/setup review/overview. No new kit or paid
+  resource was created. The existing Northfield review kit/session is retained.
+- Exact jobs, viewport limits and screenshots:
+  `verification-support/experience-kits/2026-11-02-business-first-wording.md`.
