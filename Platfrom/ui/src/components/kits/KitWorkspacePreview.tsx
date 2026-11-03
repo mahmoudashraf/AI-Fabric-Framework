@@ -6,6 +6,7 @@ import PersonRounded from '@mui/icons-material/PersonRounded'
 import SendRounded from '@mui/icons-material/SendRounded'
 import SmartToyOutlined from '@mui/icons-material/SmartToyOutlined'
 import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined'
+import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import { resolveWorkspacePackPresentation } from '../customer/buildWorkspacePreviewConfiguration'
 import { KitMark, kitAsset } from './KitIdentity'
 import type { CSSProperties } from 'react'
@@ -19,11 +20,12 @@ type Props = {
   layout?: 'embedded' | 'standalone'
   compact?: boolean
   dark?: boolean
+  appUrl?: string | null
 }
 
 /** Presentation only: no runtime connection, visitor state, action handlers or AI requests. */
 export function KitWorkspacePreview({ packCode, workspaceName, brandColor, humanSupportEnabled = false,
-  configuration = {}, layout = 'standalone', compact = false, dark = false }: Props) {
+  configuration = {}, layout = 'standalone', compact = false, dark = false, appUrl }: Props) {
   const dealership = packCode === 'dealership'
   const presentation = resolveWorkspacePackPresentation(configuration, packCode)
   const groups = presentation?.toolGroups as { default?: { label?: string; tools?: Array<{ label?: string }> } } | undefined
@@ -35,6 +37,7 @@ export function KitWorkspacePreview({ packCode, workspaceName, brandColor, human
       <div aria-hidden="true" className="ek-workspace-interior">
         {layout === 'embedded' && <div className="ek-example-site"><span>Your website</span><div /><div /></div>}
         <div className="ek-preview-window">
+          {layout === 'standalone' && appUrl && <div className="ek-preview-address"><LanguageRounded /><span>{appUrl}</span></div>}
           <div className="ek-preview-header"><KitMark product="engage" /><div><strong>{workspaceName.trim() || 'Your company AI'}</strong><small>{dealership ? 'Your dealership workspace' : 'Your company assistant'}</small></div><MoreHorizRounded /></div>
           {!compact && tools.length > 0 && <div className="ek-preview-tools">{tools.map((tool, index) => <span key={`${tool.label}:${index}`}>{tool.label}</span>)}</div>}
           <div className="ek-preview-messages">

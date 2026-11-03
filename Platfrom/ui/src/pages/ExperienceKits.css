@@ -154,6 +154,9 @@
 .ek-workspace-preview.ek-preview-dark { --ek-preview-paper: #12191e; --ek-preview-ink: #edf3fa; --ek-preview-shade: #232e37; --ek-preview-outline: #34414c; --ek-preview-subtle: #adbdcc; }
 .ek-workspace-interior { padding: 0; position: relative; }
 .ek-preview-window { display: flex; flex-direction: column; min-height: 460px; }
+.ek-preview-address { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-bottom: 1px solid var(--ek-preview-outline); color: var(--ek-preview-subtle); font-size: 11px; }
+.ek-preview-address svg { font-size: 15px; flex-shrink: 0; }
+.ek-preview-address span { min-width: 0; overflow-wrap: anywhere; }
 .ek-preview-header { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--ek-preview-outline); padding: 13px 18px; }
 .ek-preview-header > .ek-mark { color: var(--ek-preview-brand); }
 .ek-preview-header > div { flex: 1; min-width: 0; }
@@ -252,6 +255,13 @@
 .ek-setup-controls { border-left: 1px solid var(--ek-line); padding-left: 28px; display: grid; gap: 20px; }
 .ek-setup-controls h2 { font-size: 23px; }
 .ek-experience-fields { display: grid; gap: 22px; }
+.ek-app-address-field { display: grid; gap: 10px; min-width: 0; }
+.ek-app-link-preview { display: flex; align-items: flex-start; gap: 9px; border-left: 2px solid var(--ek-blue); background: var(--ek-raised); padding: 10px 12px; min-width: 0; }
+.ek-app-link-preview > svg { color: var(--ek-muted); flex-shrink: 0; font-size: 19px; margin-top: 2px; }
+.ek-app-link-preview > span { display: grid; gap: 4px; min-width: 0; }
+.ek-app-link-preview small { color: var(--ek-muted); font-size: 11px; }
+.ek-app-link-preview > span > span { font-size: 12px; overflow-wrap: anywhere; line-height: 1.5; }
+.ek-app-link-note { color: var(--ek-muted); font-size: 11px; line-height: 1.5; }
 .ek-color-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
 .ek-color-field > div { display: flex; gap: 10px; align-items: center; }
 .ek-page .ek-color-swatch { width: 32px; height: 32px; border-radius: 6px; color: #092d33; padding: 6px; border: 2px solid transparent; }

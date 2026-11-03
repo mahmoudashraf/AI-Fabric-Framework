@@ -16,6 +16,11 @@ export type KitExperienceForm = {
 
 export const kitBrandColors = ['#28bfa6', '#409aff', '#9bafff', '#efb060'] as const
 
+export function kitAppAddressPreview(appSlug: string): string | null {
+  return appSlug.length <= 63 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appSlug)
+    ? `https://${appSlug}.apps.loomai.pro` : null
+}
+
 export function kitDeliveryMode(form: Pick<KitExperienceForm, 'standalone' | 'embedded'>): ExperienceKitDeliveryMode | null {
   return form.standalone && form.embedded ? 'both' : form.standalone ? 'standalone' : form.embedded ? 'embedded' : null
 }
@@ -26,7 +31,7 @@ export function kitExperienceErrors(form: KitExperienceForm): string[] {
   if (!form.workspaceName.trim()) errors.push('Enter a workspace name.')
   if (!/^#[0-9a-f]{6}$/i.test(form.brandColor)) errors.push('Choose a brand color using the color picker.')
   if (!kitDeliveryMode(form)) errors.push('Choose your website, a standalone app, or both.')
-  if (form.standalone && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.appSlug)) errors.push('Use lowercase letters, numbers and single hyphens for the app address.')
+  if (form.standalone && !kitAppAddressPreview(form.appSlug)) errors.push('Enter only an app name, for example northfield-ai, not a full URL. Use lowercase letters, numbers and single hyphens (up to 63 characters).')
   if (form.embedded) {
     try {
       const value = form.websiteOrigin.trim()

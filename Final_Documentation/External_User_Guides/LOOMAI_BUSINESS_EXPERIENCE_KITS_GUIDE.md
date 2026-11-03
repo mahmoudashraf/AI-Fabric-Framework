@@ -39,6 +39,12 @@ fictional marketing content, never default customer data or AI knowledge.
    your assistant is **Not live yet**. This does not deploy infrastructure,
    activate a public app, spend AI credits or assign an agent.
 
+For **App address name**, enter only a name such as `northfield-ai`, not a full
+URL. The full link updates while you type: `https://northfield-ai.apps.loomai.pro`.
+Use lowercase letters, numbers and single hyphens, up to 63 characters. The link
+also appears in the standalone preview and review step. It is a preview, not a
+live app until setup, address verification and activation are complete.
+
 ## Connect, Verify And Launch
 
 In **My kits**, inspect each product and use its existing configuration editor:

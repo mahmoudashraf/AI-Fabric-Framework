@@ -13,7 +13,7 @@ import { aiStateStorageLabels, aiStateStorageModes } from '../customer/customerA
 import { KitExperienceFields } from './KitExperienceFields'
 import { KitMark, KitProductLine } from './KitIdentity'
 import { KitWorkspacePreview } from './KitWorkspacePreview'
-import { kitDeliveryMode, kitExperienceErrors, kitStagingTargets, type KitExperienceForm } from './kitModels'
+import { kitAppAddressPreview, kitDeliveryMode, kitExperienceErrors, kitStagingTargets, type KitExperienceForm } from './kitModels'
 
 export function ExperienceKitSetup({ customerId, actorId, code }: { customerId: string; actorId: string; code: string }) {
   const [prepared, setPrepared] = useState(false)
@@ -158,6 +158,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
           <ToggleButton value="embedded"><LanguageRounded />Website widget</ToggleButton><ToggleButton value="standalone"><WebOutlined />Standalone app</ToggleButton>
         </ToggleButtonGroup></div>
         <KitWorkspacePreview packCode={definition.experiencePackCode} workspaceName={form.workspaceName} brandColor={form.brandColor}
+          appUrl={form.standalone ? kitAppAddressPreview(form.appSlug) : null}
           configuration={{ ...(workspaceProfile?.interaction.configuration as Record<string, unknown> | undefined),
             theme: { ...(workspaceProfile?.theme ?? {}), primaryColor: form.brandColor } }} humanSupportEnabled={form.humanSupportEnabled} layout={previewLayout} />
         <div className="ek-connected-flow"><div><KitMark product="platform" /><span><strong>Your AI assistant</strong><small>Your information and connected systems</small></span></div><ArrowForwardRounded />
@@ -195,7 +196,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
             <div><dt>Kit</dt><dd>{form.name}</dd></div><div><dt>Starting experience</dt><dd>{offer?.name}</dd></div>
             <div><dt>First step</dt><dd>Test before going live</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
             <div><dt>Where customers find you</dt><dd>{form.standalone && form.embedded ? 'Your website + standalone app' : form.embedded ? 'Your website' : 'Standalone app'}</dd></div>
-            {form.standalone && <div><dt>App address name</dt><dd>{form.appSlug}</dd></div>}
+            {form.standalone && <div><dt>App link</dt><dd>{kitAppAddressPreview(form.appSlug)}</dd></div>}
             {form.embedded && <div><dt>Website address</dt><dd>{form.websiteOrigin}</dd></div>}
             <div><dt>Human support</dt><dd>{form.humanSupportEnabled ? 'Add your team after setup' : 'Optional, not requested'}</dd></div>
           </dl><Alert severity="info">Creates your workspace setup only. Your AI assistant is not live yet, and no paid services are started at this step.</Alert>

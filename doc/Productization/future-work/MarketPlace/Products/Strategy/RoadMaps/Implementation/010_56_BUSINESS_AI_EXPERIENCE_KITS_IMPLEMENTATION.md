@@ -235,6 +235,16 @@ external-system icons. The reused logos illustrate source systems, not certified
 partnerships or already-connected customer services. Product and kit navigation
 and all backend behavior stay unchanged.
 
+### Kit App Address Preview (2026-11-03)
+
+The name-only field shows the complete standalone app URL as the user types,
+with the same URL in the canvas and review step. Invalid input receives inline
+name-format guidance; a preview is never a clickable/live claim or an address
+availability check. DNS label validation remains a necessary URL contract,
+not an AI semantic validator. Creation and installation payloads are unchanged.
+Live kit creation and focused UI qualification are tracked in
+`verification-support/experience-kits/2026-11-03-kit-address-preview-and-setup.md`.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use

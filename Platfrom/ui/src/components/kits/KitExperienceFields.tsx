@@ -3,13 +3,15 @@ import CheckRounded from '@mui/icons-material/CheckRounded'
 import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
+import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import { Link } from 'react-router-dom'
-import { kitBrandColors, type KitExperienceForm } from './kitModels'
+import { kitAppAddressPreview, kitBrandColors, type KitExperienceForm } from './kitModels'
 
 export function KitExperienceFields({ value, onChange, disabled = false, deploymentId, includeName = false }: {
   value: KitExperienceForm; onChange: (value: KitExperienceForm) => void; disabled?: boolean; deploymentId?: string; includeName?: boolean
 }) {
   const set = <K extends keyof KitExperienceForm>(key: K, next: KitExperienceForm[K]) => onChange({ ...value, [key]: next })
+  const appUrl = kitAppAddressPreview(value.appSlug)
   return <div className="ek-experience-fields">
     {includeName && <TextField fullWidth size="small" label="Kit name" value={value.name} disabled={disabled}
       onChange={event => set('name', event.target.value)} required inputProps={{ maxLength: 120 }} />}
@@ -26,9 +28,13 @@ export function KitExperienceFields({ value, onChange, disabled = false, deploym
       <FormControlLabel control={<Checkbox disabled={disabled} checked={value.embedded} onChange={(_, checked) => set('embedded', checked)} />} label="Embed on my website" />
       <FormControlLabel control={<Checkbox disabled={disabled} checked={value.standalone} onChange={(_, checked) => set('standalone', checked)} />} label="Standalone app" />
     </div><small>Use one or both.</small></fieldset>
-    {value.standalone && <TextField size="small" label="App address" value={value.appSlug} disabled={disabled}
+    {value.standalone && <div className="ek-app-address-field"><TextField size="small" label="App address name" value={value.appSlug} disabled={disabled}
       onChange={event => set('appSlug', event.target.value)} placeholder="your-company-ai" fullWidth required
-      inputProps={{ maxLength: 63, autoCapitalize: 'none', spellCheck: false }} helperText="Choose the name before .apps.loomai.pro" />}
+      error={Boolean(value.appSlug && !appUrl)} inputProps={{ maxLength: 63, autoCapitalize: 'none', spellCheck: false }}
+      helperText={value.appSlug && !appUrl ? 'Name only: lowercase letters, numbers and single hyphens. For example northfield-ai, without https:// or a domain.' : 'Enter the name only, for example northfield-ai.'} />
+      <output className="ek-app-link-preview" aria-label="App link preview" aria-live="polite"><LanguageRounded aria-hidden="true" /><span><small>{appUrl ? 'Your app link' : 'Example app link'}</small><span>{appUrl ?? 'https://your-company-ai.apps.loomai.pro'}</span></span></output>
+      <small className="ek-app-link-note">Available after setup, address verification and activation.</small>
+    </div>}
     {value.embedded && <TextField size="small" label="Website address" value={value.websiteOrigin} disabled={disabled}
       onChange={event => set('websiteOrigin', event.target.value)} placeholder="https://www.example.com" type="url" fullWidth required
       inputProps={{ autoCapitalize: 'none', maxLength: 255 }} helperText="The website where you will add your AI workspace, without a page path." />}
