@@ -61,6 +61,12 @@ public class RuntimeRetirementTopology {
                     issues.add("TOPOLOGY_ABSENCE_NOT_VERIFIED:" + feature);
                     absent = false;
                 }
+                // The existing local conversation feature includes canonical control without a human inbox.
+                if (absent && feature == Feature.CONVERSATION_HANDOVER
+                    && environment.getProperty("loomai.conversation-control.enabled", Boolean.class, false)) {
+                    issues.add("TOPOLOGY_ABSENCE_NOT_VERIFIED:" + feature);
+                    absent = false;
+                }
                 verifiedAbsent.put(feature, absent);
             }
             blockers = List.copyOf(issues);

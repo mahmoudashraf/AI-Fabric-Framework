@@ -182,6 +182,9 @@ public class ChatRuntimeController {
     @Value("${loomai.conversation-handover.enabled:false}")
     private boolean conversationHandoverEnabled;
 
+    @Value("${loomai.conversation-control.enabled:false}")
+    private boolean conversationControlEnabled;
+
     @PostMapping("/me/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
@@ -381,10 +384,10 @@ public class ChatRuntimeController {
     }
 
     private void rejectLegacyQueryWhenConversationControlEnabled() {
-        if (conversationHandoverEnabled) {
+        if (canonicalConversationsAvailable()) {
             throw new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.GONE,
-                "Use the canonical conversation message endpoint when conversation handover is enabled."
+                "Use the canonical conversation message endpoint when conversation control is enabled."
             );
         }
     }
@@ -983,7 +986,7 @@ public class ChatRuntimeController {
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
         }
-        if (conversationHandoverEnabled) {
+        if (canonicalConversationsAvailable()) {
             RuntimeConversationHandoverService handoverService = requiredConversationHandoverService();
             CanonicalConversationSummary summary = handoverService.conversationSummary(identity, conversationId);
             ConversationView conversation = handoverService.history(identity, conversationId);
@@ -1013,7 +1016,7 @@ public class ChatRuntimeController {
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
         }
-        if (conversationHandoverEnabled) {
+        if (canonicalConversationsAvailable()) {
             return okWithAuthHeaders(requiredConversationHandoverService().listConversations(identity).stream()
                 .map(summary -> toCanonicalConversationSummaryResponse(summary, identity))
                 .toList(), identity, requestPath);
@@ -1043,7 +1046,7 @@ public class ChatRuntimeController {
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
         }
-        if (conversationHandoverEnabled) {
+        if (canonicalConversationsAvailable()) {
             requiredConversationHandoverService().closeConversation(identity, conversationId, idempotencyKey);
             return noContentWithAuthHeaders(identity, requestPath);
         }
@@ -1967,12 +1970,17 @@ public class ChatRuntimeController {
         return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);
     }
 
+    private boolean canonicalConversationsAvailable() {
+        return conversationControlEnabled || conversationHandoverEnabled
+            || conversationHandoverServiceProvider.getIfAvailable() != null;
+    }
+
     private RuntimeConversationHandoverService requiredConversationHandoverService() {
         RuntimeConversationHandoverService service = conversationHandoverServiceProvider.getIfAvailable();
         if (service == null) {
             throw new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "Conversation handover is enabled but its runtime service is unavailable."
+                "Conversation control is enabled but its runtime service is unavailable."
             );
         }
         return service;

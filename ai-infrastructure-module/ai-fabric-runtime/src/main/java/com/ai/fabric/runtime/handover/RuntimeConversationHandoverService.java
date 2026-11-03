@@ -51,7 +51,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -59,7 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Service
-@ConditionalOnProperty(prefix = "loomai.conversation-handover", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${loomai.conversation-control.enabled:false} or ${loomai.conversation-handover.enabled:false}")
 public class RuntimeConversationHandoverService {
     @Autowired
     private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
@@ -105,12 +105,18 @@ public class RuntimeConversationHandoverService {
         this.security = security;
         this.objectMapper = objectMapper;
         this.clock = clock;
-        if (!StringUtils.hasText(properties.getChannelBindingId())) {
+        if (properties.isEnabled() && !StringUtils.hasText(properties.getChannelBindingId())) {
             throw new IllegalStateException("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID is required when handover is enabled.");
         }
         requirePositive(properties.getQueueTimeout(), "Conversation handover queue timeout");
         requirePositive(properties.getRetention(), "Conversation handover retention");
         requirePositive(properties.getIntakeRetention(), "Conversation handover intake retention");
+    }
+
+    public void requireHandoverEnabled() {
+        if (!properties.isEnabled()) {
+            throw forbidden("CONVERSATION_HANDOVER_DISABLED", "Human handover is disabled for this runtime.");
+        }
     }
 
     public RuntimeConversationTurn beginAiTurn(
@@ -376,6 +382,7 @@ public class RuntimeConversationHandoverService {
         String content,
         List<String> attachmentRefs
     ) {
+        requireHandoverEnabled();
         ConversationScope scope = scope(identity, conversationId);
         return repository.transactional(() -> {
             ConversationControlSnapshot snapshot = controlGateway.status(scope);
@@ -456,6 +463,7 @@ public class RuntimeConversationHandoverService {
         HandoverRequest rawRequest,
         String actor
     ) {
+        requireHandoverEnabled();
         String key = requireIdempotency(idempotencyKey);
         HandoverRequest request = rawRequest == null
             ? new HandoverRequest(null, false, Map.of(), List.of())
@@ -557,6 +565,7 @@ public class RuntimeConversationHandoverService {
         String handoverId,
         String idempotencyKey
     ) {
+        requireHandoverEnabled();
         ConversationScope scope = scope(identity, conversationId);
         return repository.transactional(() -> {
             RuntimeConversationHandoverRepository.HandoverRecord handover = requireHandover(scope, handoverId);
@@ -585,6 +594,7 @@ public class RuntimeConversationHandoverService {
         String handoverId,
         String idempotencyKey
     ) {
+        requireHandoverEnabled();
         ConversationScope scope = scope(identity, conversationId);
         String key = requireIdempotency(idempotencyKey);
         return repository.transactional(() -> {
@@ -628,6 +638,7 @@ public class RuntimeConversationHandoverService {
         String conversationId,
         String idempotencyKey
     ) {
+        requireHandoverEnabled();
         ConversationScope scope = scope(identity, conversationId);
         String key = requireIdempotency(idempotencyKey);
         return repository.transactional(() -> {
@@ -676,6 +687,7 @@ public class RuntimeConversationHandoverService {
         String nonce,
         String rawBody
     ) {
+        requireHandoverEnabled();
         return repository.transactional(() -> {
             RuntimeConversationHandoverRepository.HandoverRecord handover = repository
                 .findForBinding(bindingId, event.handoverId())
@@ -851,7 +863,7 @@ public class RuntimeConversationHandoverService {
                 channelBindingId
             ));
             requireApplied(closed);
-            if (StringUtils.hasText(activeHandoverId) && StringUtils.hasText(channelBindingId)) {
+            if (properties.isEnabled() && StringUtils.hasText(activeHandoverId) && StringUtils.hasText(channelBindingId)) {
                 repository.updateHandover(activeHandoverId, "CLOSED", null, null, null, true);
                 addControlDispatch(
                     scope,
@@ -887,6 +899,7 @@ public class RuntimeConversationHandoverService {
     }
 
     public DispatchClaim claimDispatch(String workerId, Duration lease) {
+        requireHandoverEnabled();
         String normalizedWorker = required(workerId, "workerId is required.");
         Duration normalizedLease = boundedLease(lease);
         for (int skipped = 0; skipped < 10; skipped++) {
@@ -943,6 +956,7 @@ public class RuntimeConversationHandoverService {
     }
 
     public void completeDispatch(String dispatchId, DispatchOutcome outcome, int attempt) {
+        requireHandoverEnabled();
         DispatchOutcome safe = outcome == null
             ? new DispatchOutcome(false, null, null, "EMPTY_OUTCOME", "Connector returned no outcome.", true)
             : outcome;
@@ -1006,6 +1020,7 @@ public class RuntimeConversationHandoverService {
     }
 
     public HandoverOperationsOverview operationsOverview() {
+        requireHandoverEnabled();
         List<DispatchOperationView> recent = repository.recentDispatches(50).stream()
             .map(dispatch -> new DispatchOperationView(
                 dispatch.dispatchId(),
@@ -1030,6 +1045,7 @@ public class RuntimeConversationHandoverService {
     }
 
     public HandoverOperationsOverview retryDispatch(String deploymentId, String dispatchId) {
+        requireHandoverEnabled();
         String normalizedDeployment = required(deploymentId, "Verified deployment is required.");
         String normalizedDispatch = required(dispatchId, "dispatchId is required.");
         return repository.transactional(() -> {
@@ -1062,6 +1078,7 @@ public class RuntimeConversationHandoverService {
     }
 
     public HandoverOperationsOverview expirePendingHandover(String deploymentId, String handoverId) {
+        requireHandoverEnabled();
         String normalizedDeployment = required(deploymentId, "Verified deployment is required.");
         String normalizedHandover = required(handoverId, "handoverId is required.");
         return repository.transactional(() -> {
@@ -1098,6 +1115,10 @@ public class RuntimeConversationHandoverService {
     }
 
     public HandoverMaintenanceResult runMaintenance() {
+        if (!properties.isEnabled()) {
+            return new HandoverMaintenanceResult(0, 0, 0,
+                repository.purgeReplayRecordsBefore(clock.instant().minus(properties.getRetention())));
+        }
         int staleDispatchesSkipped = repository.skipDeadLifecycleStaleDispatches();
         if (staleDispatchesSkipped > 0) {
             log.info(

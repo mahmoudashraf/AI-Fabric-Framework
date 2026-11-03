@@ -29,6 +29,7 @@ class RuntimeCapabilityManifestServiceTest {
             "jdbc-review-state",
             "durable-conversation-handover",
             "conversation-control",
+            "standalone-conversation-control",
             "canonical-conversation-orchestration-state",
             "conversation-channel-outbox",
             "conversation-event-stream"

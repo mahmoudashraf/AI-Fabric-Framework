@@ -30,6 +30,7 @@
     "ai-fabric-core",
     "ai-fabric-execution",
     "conversation-control",
+    "standalone-conversation-control",
     "participant-messages",
     "conversation-turn-leases",
     "canonical-conversation-orchestration-state",

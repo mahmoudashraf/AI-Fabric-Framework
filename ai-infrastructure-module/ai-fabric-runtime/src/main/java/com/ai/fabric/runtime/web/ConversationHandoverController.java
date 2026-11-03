@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
@@ -40,7 +40,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/chat/me/conversations")
-@ConditionalOnProperty(prefix = "loomai.conversation-handover", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${loomai.conversation-control.enabled:false} or ${loomai.conversation-handover.enabled:false}")
 public class ConversationHandoverController {
 
     private static final long SSE_TIMEOUT_MS = Duration.ofMinutes(10).toMillis();
@@ -350,6 +350,10 @@ public class ConversationHandoverController {
     private RuntimeResolvedIdentity authorize(HttpServletRequest request, String scope, String surface) {
         RuntimeResolvedIdentity identity = authResolver.resolveVerifiedForChat(request);
         authResolver.requireScope(identity, scope, surface);
+        if (RuntimeScopeCatalog.CHAT_HANDOVER_REQUEST.equals(scope)
+            || RuntimeScopeCatalog.CHAT_HANDOVER_CONTROL.equals(scope)) {
+            handoverService.requireHandoverEnabled();
+        }
         return identity;
     }
 

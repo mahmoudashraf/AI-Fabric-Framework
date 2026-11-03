@@ -124,7 +124,7 @@ ai:
     max-context-chars: 8000
     auto-create-sessions: true
     control:
-      enabled: ${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}
+      enabled: ${LOOMAI_CONVERSATION_CONTROL_ENABLED:${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}}
       initialize-schema: false
 
   # Default OFF for privacy/noise in dev. Enable if you want analytics/auditing.
@@ -361,11 +361,13 @@ app:
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
 
 loomai:
+  conversation-control:
+    enabled: ${LOOMAI_CONVERSATION_CONTROL_ENABLED:${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}}
   conversation-handover:
     enabled: ${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}
     channel-binding-id: ${LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID:}
-    encryption-secret: ${LOOMAI_CONVERSATION_HANDOVER_ENCRYPTION_SECRET:}
-    callback-signing-secret: ${LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET:}
+    encryption-secret: ${LOOMAI_CONVERSATION_HANDOVER_ENCRYPTION_SECRET:${LOOMAI_CONVERSATION_CONTROL_ENCRYPTION_SECRET:}}
+    callback-signing-secret: ${LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET:${LOOMAI_CONVERSATION_CONTROL_FINGERPRINT_SECRET:}}
     retention: ${LOOMAI_CONVERSATION_HANDOVER_RETENTION:P30D}
     intake-retention: ${LOOMAI_CONVERSATION_HANDOVER_INTAKE_RETENTION:P7D}
     queue-timeout: ${LOOMAI_CONVERSATION_HANDOVER_QUEUE_TIMEOUT:PT15M}

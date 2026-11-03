@@ -3,7 +3,7 @@ package com.ai.fabric.runtime.web;
 import com.ai.fabric.runtime.handover.ConversationHandoverException;
 import com.ai.fabric.runtime.web.admin.ConversationHandoverAdminController;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
     ConversationChannelPrivateController.class,
     ConversationHandoverAdminController.class
 })
-@ConditionalOnProperty(prefix = "loomai.conversation-handover", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${loomai.conversation-control.enabled:false} or ${loomai.conversation-handover.enabled:false}")
 public class ConversationHandoverErrorHandler {
 
     @ExceptionHandler(ConversationHandoverException.class)

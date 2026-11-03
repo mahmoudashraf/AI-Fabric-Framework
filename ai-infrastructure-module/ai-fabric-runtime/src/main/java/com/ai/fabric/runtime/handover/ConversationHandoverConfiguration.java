@@ -4,7 +4,7 @@ import ai.fabric.chat.control.ConversationControlGateway;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import javax.sql.DataSource;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +13,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ConversationHandoverProperties.class)
-@ConditionalOnProperty(prefix = "loomai.conversation-handover", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${loomai.conversation-control.enabled:false} or ${loomai.conversation-handover.enabled:false}")
 public class ConversationHandoverConfiguration {
 
     @Bean(name = "conversationHandoverSseExecutor")
