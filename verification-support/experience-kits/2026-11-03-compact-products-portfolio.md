@@ -42,3 +42,19 @@ not a new paid-kit creation or AI/provider quality run.
 Screenshots: `compact-products-live-2026-11-03/`. The homepage proposal was
 generated with the built-in image tool as a review-only image; it is not a new
 runtime, live workspace, or promise of a preconnected customer catalogue.
+
+## Follow-Up: Homepage Removal And Product Visuals
+
+Owner requested removal of the old homepage montage, not installation of the
+proposed replacement. Homepage headline/actions and both rich experience cards
+remain. Shared montage usage on experience detail pages remains unchanged.
+
+Products adds compact, non-interactive illustrative conversation scenes for
+Engage/Desk, a fictional support-agent portrait, document examples, and reused
+Google Drive/Slack source icons with provenance/license. Optional human support
+is labelled explicitly. No new backend, configured integration or AI behavior.
+
+Local qualification: Astro check (79 files), production build and 28-route/content
+smoke passed. Both themes at desktop/390px phone fit without main-content
+horizontal overflow. Homepage has zero montage figures and two experience cards.
+Hosted follow-up verification is pending publication.

@@ -225,6 +225,16 @@ Completed at source `ac6896350`: public-site deployment
 production build, static/content smoke and live desktop/phone theme/navigation
 checks passed. The homepage customer-journey proposal remains review-only.
 
+Owner follow-up: remove the old document/consultation montage from the homepage
+rather than replace it. The headline, actions and full experience catalogue stay;
+the shared preview on the experience detail pages is unchanged.
+
+The compact Products summaries also show illustrative Engage conversations,
+fictional agent portraits with optional Desk labels, document samples and
+external-system icons. The reused logos illustrate source systems, not certified
+partnerships or already-connected customer services. Product and kit navigation
+and all backend behavior stay unchanged.
+
 ### Follow-Up Boundaries
 
 This release does not include a kit-definition authoring UI. Additional kits use

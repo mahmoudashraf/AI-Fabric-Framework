@@ -16,3 +16,9 @@ a configured customer account. They contain no guaranteed delivery terms.
 fictional Console product photos. Their provenance and prompt descriptions are
 in `Platfrom/ui/public/products/README.md`. These are example products only,
 not a customer catalogue or live offer.
+
+`google-drive.png` and `slack.svg` reuse the Console's existing product-preview
+assets. Google Drive's logo comes from Google's product branding; Slack's logo
+comes from Devicon v2.17.0 under the adjacent `devicon-LICENSE.txt`. Original
+source URLs and trademark notes are in the Console asset README. These illustrate
+external systems, not certified partnerships or preinstalled integrations.

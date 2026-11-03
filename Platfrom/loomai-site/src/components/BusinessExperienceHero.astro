@@ -1,6 +1,5 @@
 ---
 import { ArrowRight, Play } from '@lucide/astro'
-import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
 ---
 
 <section class="business-hero" aria-labelledby="business-title">
@@ -26,13 +25,12 @@ import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
         >
       </div>
     </div>
-    <BusinessExperiencePreview variant="montage" />
   </div>
 </section>
 <style>
   .business-hero {
     border-bottom: 1px solid var(--loom-border-subtle);
-    padding-top: 1.6rem;
+    padding-block: 1.6rem 0.3rem;
   }
   .business-hero__eyebrow {
     align-items: center;

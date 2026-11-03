@@ -78,6 +78,8 @@ for (const required of [
   'assets/experiences/example-forma-chair.webp',
   'assets/experiences/example-studio-chair.webp',
   'assets/experiences/demo-support-agent.webp',
+  'assets/experiences/google-drive.png',
+  'assets/experiences/slack.svg',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
@@ -86,6 +88,9 @@ for (const required of [
 
 for (const route of ['', 'experiences']) {
   const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
+  if (route === '' && html.includes('class="experience-montage"')) {
+    errors.push('Homepage still contains the removed document/consultation montage')
+  }
   for (const expected of [
     'Adapts to your business',
     'Built for dealerships',
@@ -136,6 +141,9 @@ for (const layer of ['kits', 'products', 'platform', 'foundations']) {
 for (const expected of [
   'General AI experience kit', 'Industry kits', 'LoomAI Engage', 'LoomAI Desk',
   'Your settings remain editable.', 'Max workspace', 'Standalone app',
+  'With optional LoomAI Desk', 'Policies.pdf', 'Product guide',
+  '/assets/experiences/google-drive.png', '/assets/experiences/slack.svg',
+  '/assets/experiences/demo-support-agent.webp',
   'href="/experiences/ai-customer-experience"',
   'href="/experiences/dealership-ai-experience"',
   'href="https://console.loomai.pro/products/engage"',

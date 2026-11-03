@@ -1,5 +1,5 @@
 ---
-import { ArrowDown, ArrowRight, Blocks, Box, CarFront, Check, Database, FileText, Globe, Headphones, MessageSquare, Plug, SlidersHorizontal, Sparkles } from '@lucide/astro'
+import { ArrowDown, ArrowRight, Blocks, Bot, Box, CarFront, Check, Database, FileText, Globe, Headphones, MessageSquare, Plug, SlidersHorizontal, Sparkles, UserRound } from '@lucide/astro'
 import { catalogueExperiences } from './ExperienceCatalogueContent'
 
 const general = catalogueExperiences.generic
@@ -33,11 +33,25 @@ const dealership = catalogueExperiences.dealership
         <div class="portfolio-pair">
           <a class="portfolio-product portfolio-product--engage" href="https://console.loomai.pro/products/engage">
             <MessageSquare class="portfolio-product__icon" size={32} stroke-width={1.7} aria-hidden="true" />
-            <div><h3>LoomAI Engage</h3><p>Your branded AI experience, on your website or at its own address.</p><ul aria-label="Engage surfaces"><li>Website chat</li><li>Max workspace</li><li>Standalone app</li></ul><span class="portfolio-link">Explore Engage<ArrowRight size={16} aria-hidden="true" /></span></div>
+            <div><h3>LoomAI Engage</h3><p>Your branded AI experience, on your website or at its own address.</p>
+              <div class="portfolio-scene portfolio-scene--engage" aria-hidden="true">
+                <span class="portfolio-scene__label">Your branded workspace <span>Example</span></span>
+                <span class="portfolio-scene__message"><UserRound size={16} /><span>Can you help me choose?</span></span>
+                <span class="portfolio-scene__message portfolio-scene__message--ai"><Bot size={16} /><span>Let's compare your options.</span></span>
+                <span class="portfolio-scene__handover"><img src="/assets/experiences/demo-support-agent.webp" alt="" width="28" height="28" loading="lazy" /><span>Your team can join<small>With optional LoomAI Desk</small></span><Headphones size={16} /></span>
+              </div>
+              <ul aria-label="Engage surfaces"><li>Website chat</li><li>Max workspace</li><li>Standalone app</li></ul><span class="portfolio-link">Explore Engage<ArrowRight size={16} aria-hidden="true" /></span></div>
           </a>
           <a class="portfolio-product portfolio-product--desk" href="https://console.loomai.pro/products/desk">
             <Headphones class="portfolio-product__icon" size={32} stroke-width={1.7} aria-hidden="true" />
-            <div><h3>LoomAI Desk <span class="portfolio-optional">Optional</span></h3><p>Bring your team into AI conversations, with the context to help.</p><ul aria-label="Desk capabilities"><li>Human handover</li><li>Team replies</li><li>Action reviews</li></ul><span class="portfolio-link">Explore Desk<ArrowRight size={16} aria-hidden="true" /></span></div>
+            <div><h3>LoomAI Desk <span class="portfolio-optional">Optional</span></h3><p>Bring your team into AI conversations, with the context to help.</p>
+              <div class="portfolio-scene portfolio-scene--desk" aria-hidden="true">
+                <span class="portfolio-scene__label">A person, with the context <span>Example</span></span>
+                <span class="portfolio-scene__agent"><img src="/assets/experiences/demo-support-agent.webp" alt="" width="48" height="48" loading="lazy" /><span><strong>Alex</strong><small>Your support team</small></span></span>
+                <span class="portfolio-scene__reply">Hi, I can help with the next step.</span>
+                <span class="portfolio-scene__continuity"><Bot size={14} />AI conversation<ArrowRight size={13} /><Headphones size={14} />Your team</span>
+              </div>
+              <ul aria-label="Desk capabilities"><li>Human handover</li><li>Team replies</li><li>Action reviews</li></ul><span class="portfolio-link">Explore Desk<ArrowRight size={16} aria-hidden="true" /></span></div>
           </a>
         </div>
         <p class="portfolio-layer__connection"><ArrowDown size={15} aria-hidden="true" />Connected to your AI deployment through LoomAI Platform.</p>
@@ -51,10 +65,11 @@ const dealership = catalogueExperiences.dealership
       <div class="portfolio-layer__content portfolio-platform">
         <div class="portfolio-platform__heading"><Box size={34} stroke-width={1.7} aria-hidden="true" /><div><h3>LoomAI Platform</h3><p>Bring your data, knowledge and business tools into a dedicated AI deployment.</p></div></div>
         <ol class="portfolio-platform__flow" aria-label="Platform connects your systems through templates and plugins to your AI deployment">
-          <li><span class="portfolio-platform__symbols" aria-hidden="true"><Globe size={20} /><Database size={20} /><FileText size={20} /></span><strong>Your systems</strong><span>Website, data and documents</span></li>
+          <li><span class="portfolio-platform__symbols portfolio-platform__symbols--sources"><span title="Your website"><Globe size={22} aria-hidden="true" /></span><span title="Your database"><Database size={22} aria-hidden="true" /></span><img src="/assets/experiences/google-drive.png" alt="Google Drive" width="28" height="28" loading="lazy" /><img src="/assets/experiences/slack.svg" alt="Slack" width="28" height="28" loading="lazy" /></span><strong>Your systems &amp; knowledge</strong><span class="portfolio-documents"><span><FileText size={17} aria-hidden="true" />Policies.pdf</span><span><FileText size={17} aria-hidden="true" />Product guide</span></span></li>
           <li><span class="portfolio-platform__symbols" aria-hidden="true"><Blocks size={20} /><Plug size={20} /><SlidersHorizontal size={20} /></span><strong>Templates &amp; plugins</strong><span>Connections and configuration</span></li>
           <li><span class="portfolio-platform__symbols" aria-hidden="true"><Box size={23} /></span><strong>Your AI deployment</strong><span>Answers, actions and live data</span></li>
         </ol>
+        <p class="portfolio-platform__examples">Illustrative sources. Connect your own services through configured plugins.</p>
         <div class="portfolio-platform__links"><a class="portfolio-link" href="/products/loomai-platform">Explore Platform<ArrowRight size={16} aria-hidden="true" /></a><a class="portfolio-link" href="https://console.loomai.pro/">Open console<ArrowRight size={16} aria-hidden="true" /></a></div>
       </div>
     </div>
@@ -103,6 +118,25 @@ const dealership = catalogueExperiences.dealership
   .portfolio-product { align-items: start; display: grid; gap: 0.8rem; grid-template-columns: 2.1rem minmax(0, 1fr); padding: 1.1rem; }
   .portfolio-product__icon { color: var(--portfolio-green); margin-top: 0.1rem; }
   .portfolio-product--desk .portfolio-product__icon { color: var(--portfolio-amber); }
+  .portfolio-product > div { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+  .portfolio-product > div > .portfolio-link { margin-top: auto; }
+  .portfolio-scene { background: var(--loom-surface-soft); display: grid; gap: 0.5rem; margin-bottom: 0.85rem; min-height: 10.2rem; padding: 0.7rem; }
+  .portfolio-scene__label { align-items: center; color: var(--loom-text-muted); display: flex; flex-wrap: wrap; font-size: 0.61rem; font-weight: 650; gap: 0.3rem; justify-content: space-between; line-height: 1.5; }
+  .portfolio-scene__label > span { font-size: 0.55rem; font-weight: 400; }
+  .portfolio-scene__message { align-items: center; display: grid; font-size: 0.7rem; gap: 0.4rem; grid-template-columns: 1rem minmax(0, 1fr); line-height: 1.45; }
+  .portfolio-scene__message > span { background: var(--loom-surface); border-radius: 4px; padding: 0.3rem 0.45rem; }
+  .portfolio-scene__message--ai > svg { color: var(--portfolio-green); }
+  .portfolio-scene__handover { align-items: center; border-top: 1px solid var(--loom-border-default); display: flex; font-size: 0.66rem; gap: 0.45rem; padding-top: 0.5rem; }
+  .portfolio-scene__handover img, .portfolio-scene__agent img { border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+  .portfolio-scene__handover img { height: 1.75rem; width: 1.75rem; }
+  .portfolio-scene__handover > svg { color: var(--portfolio-amber); flex-shrink: 0; margin-left: auto; }
+  .portfolio-scene small { color: var(--loom-text-muted); display: block; font-size: 0.6rem; line-height: 1.5; margin-top: 0.1rem; }
+  .portfolio-scene__agent { align-items: center; display: flex; gap: 0.65rem; }
+  .portfolio-scene__agent img { height: 3rem; width: 3rem; }
+  .portfolio-scene__agent strong { font-size: 0.8rem; }
+  .portfolio-scene__reply { background: var(--loom-warning-soft); border-left: 2px solid var(--portfolio-amber); font-size: 0.7rem; line-height: 1.5; padding: 0.35rem 0.55rem; }
+  .portfolio-scene__continuity { align-items: center; color: var(--loom-text-muted); display: flex; flex-wrap: wrap; font-size: 0.57rem; gap: 0.3rem; line-height: 1.5; }
+  .portfolio-scene__continuity svg { flex-shrink: 0; }
   .portfolio-product ul { color: var(--loom-text-muted); display: flex; flex-wrap: wrap; font-size: 0.69rem; gap: 0.3rem 0.75rem; list-style: none; margin: 0 0 0.8rem; padding: 0; }
   .portfolio-optional { background: var(--loom-warning-soft); border-radius: 3px; color: var(--portfolio-amber); display: inline-block; font-size: 0.6rem; font-weight: 700; margin-left: 0.2rem; padding: 0.15rem 0.35rem; vertical-align: middle; }
   .portfolio-layer--platform { background: var(--loom-surface-soft); }
@@ -113,6 +147,13 @@ const dealership = catalogueExperiences.dealership
   .portfolio-platform__flow li { border-left: 2px solid var(--loom-border-strong); display: flex; flex-direction: column; min-width: 0; padding-left: 0.85rem; position: relative; }
   .portfolio-platform__flow li + li::before { color: var(--loom-text-muted); content: '\2192'; font-size: 1.1rem; left: -1.6rem; position: absolute; top: 1.5rem; }
   .portfolio-platform__symbols { align-items: center; color: var(--loom-blue-600); display: flex; gap: 0.55rem; height: 2rem; margin-bottom: 0.25rem; }
+  .portfolio-platform__symbols--sources { gap: 0.7rem; height: 2.4rem; margin-bottom: 0.45rem; }
+  .portfolio-platform__symbols--sources > span { align-items: center; display: inline-flex; }
+  .portfolio-platform__symbols--sources img { height: 1.75rem; object-fit: contain; width: 1.75rem; }
+  .portfolio-documents { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; margin-top: 0.45rem; }
+  .portfolio-documents > span { align-items: center; color: var(--loom-text-secondary); display: inline-flex; font-size: 0.65rem; gap: 0.25rem; line-height: 1.5; }
+  .portfolio-documents svg { color: var(--loom-blue-600); flex-shrink: 0; }
+  .portfolio-platform__examples { color: var(--loom-text-muted); font-size: 0.67rem; line-height: 1.5; margin: 0 0 0.8rem; }
   .portfolio-platform__flow strong { font-size: 0.83rem; line-height: 1.5; }
   .portfolio-platform__flow li > span:last-child { color: var(--loom-text-muted); font-size: 0.71rem; line-height: 1.5; margin-top: 0.25rem; }
   .portfolio-platform__links { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
