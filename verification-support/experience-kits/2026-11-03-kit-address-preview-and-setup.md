@@ -37,4 +37,27 @@ cover formatted labels, full URLs, spaces, uppercase, consecutive/boundary
 hyphens, length bounds, empty/invalid presentation and embedded-only behavior.
 Production UI build passes with existing runtime-config/chunk-size warnings.
 
-Hosted UI rollout and post-change typing/review verification are pending.
+Source `8e3de34c95bb06298b15160b2002c39def256b98` is pushed. Image workflow
+`41633161039` passed with UI published and backend correctly skipped. Staging
+job `up5h525irzamm0g2nizhvh58` and production job `hplamd97xu69uf67lbsqw9fz`
+finished. Native UI containers are healthy with exact source OCI labels:
+`/u67gepsowf7oo90dwjdx018r-121226247772` and
+`/a6fz2ncuzzulg6lrzzwrjshu-121516740021`.
+
+Production browser checks after the UI rollout:
+
+- Empty name shows a labelled example. Typing `northfield` then adding `-ai`
+  updates both field and canvas immediately, without submit.
+- A full URL is invalid inline; the actual canvas address disappears and the
+  field shows a labelled example, not a stale or malformed link.
+- A 63-character name fits at actual 390px width without horizontal overflow.
+- Light/dark surfaces are readable. Embedded-only hides both standalone field
+  and preview; switching to both restores them.
+- Review for both channels displays the complete app URL and website origin.
+  No second kit was submitted during this post-change preview check.
+- The saved draft kit still loads after reload. No deployment or activation
+  was attempted; this is not an end-to-end live runtime qualification.
+
+Screenshots: `kit-address-live-2026-11-03/`. Original theme restored, temporary
+preview tab closed and browser viewport reset. The draft kit is retained for
+owner review in the Northfield canary account.

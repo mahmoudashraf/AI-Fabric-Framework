@@ -12077,3 +12077,24 @@ test is being called hosted acceptance. UI extraction remains last.
   `verification-support/experience-kits/2026-11-03-compact-products-portfolio.md`.
   Local Astro server stopped and browser viewport reset. Unrelated dirty files
   are preserved.
+
+## 2026-11-03 Kit Setup And App Link Preview Closed
+
+- Live customer setup reproduced the generic error when a full URL is pasted
+  into the name-only field. A valid name passed review and created one draft
+  kit `kit-7689758a-88a2-4335-b83b-db746b5c7159` in the Northfield canary
+  account. Draft deployment `dep-4466d153`; no services provisioned, no paid
+  work, no runtime release or activation. Kit remains clearly Not live yet.
+- UI now labels App address name, gives inline format guidance and updates a
+  non-clickable full URL while typing, in the canvas and review. No backend,
+  template, auth or AI behavior changes. No automatic name rewriting.
+- Source `8e3de34c95bb06298b15160b2002c39def256b98`, workflow `41633161039`
+  successful (UI only; backend skipped). Staging `up5h525irzamm0g2nizhvh58`
+  and production `hplamd97xu69uf67lbsqw9fz` finished; native healthy exact
+  OCI revision labels verified. 51 focused tests and production UI build pass.
+- Live incremental typing, invalid URL handling, canvas/review, both delivery
+  channels, embedded-only, both themes and 390px long-name fit verified. No
+  second kit submitted post-change. Original theme restored and viewport reset.
+- Evidence: `verification-support/experience-kits/2026-11-03-kit-address-preview-and-setup.md`.
+  The retained configuration-only test kit can be removed in a later cleanup;
+  it does not prove the resulting app is live or its integrations configured.
