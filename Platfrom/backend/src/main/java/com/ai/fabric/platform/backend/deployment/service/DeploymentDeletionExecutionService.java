@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDeletionOperat
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentAuthorityCleanupService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
@@ -58,6 +59,7 @@ public class DeploymentDeletionExecutionService {
     private final TransactionTemplate transactionTemplate;
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
+    private final DeploymentAuthorityCleanupService authorityCleanup;
 
     public DeploymentDeletionExecutionService(DeploymentDeletionOperationRepository deletionOperationRepository,
                                               DeploymentRepository deploymentRepository,
@@ -78,7 +80,8 @@ public class DeploymentDeletionExecutionService {
                                               ObjectMapper objectMapper,
                                               PlatformTransactionManager transactionManager,
                                               PlatformCustomerConsumerService platformCustomerConsumerService,
-                                              CustomerOfferDeploymentRepository customerOfferDeploymentRepository) {
+                                              CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
+                                              DeploymentAuthorityCleanupService authorityCleanup) {
         this.deletionOperationRepository = deletionOperationRepository;
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
@@ -99,6 +102,7 @@ public class DeploymentDeletionExecutionService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
+        this.authorityCleanup = authorityCleanup;
     }
 
     @Async("deploymentDeletionExecutor")
@@ -188,6 +192,7 @@ public class DeploymentDeletionExecutionService {
         resultDetails.put("providerSecretOverrideCleanup", summarizeOverrideCleanup(overrideCleanupSummary));
 
         verificationRunRepository.deleteByDeploymentId(deployment.getId());
+        authorityCleanup.deleteForDeployment(deployment.getId());
         releaseRepository.deleteByDeploymentId(deployment.getId());
         versionRepository.deleteByDeploymentId(deployment.getId());
         draftRepository.deleteByDeploymentId(deployment.getId());

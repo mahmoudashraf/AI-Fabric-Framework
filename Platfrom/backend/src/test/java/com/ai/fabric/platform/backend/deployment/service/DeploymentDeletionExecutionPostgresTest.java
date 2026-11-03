@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDe
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDeletionOperationEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentAuthorityCleanupService;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
@@ -54,6 +55,9 @@ class DeploymentDeletionExecutionPostgresTest {
     private String customer;
     private String offer;
     private String kit;
+    private DeploymentReleaseRepository releases;
+    private DeploymentVersionRepository versions;
+    private DeploymentDraftRepository drafts;
 
     @BeforeAll static void migrate() {
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
@@ -95,14 +99,23 @@ class DeploymentDeletionExecutionPostgresTest {
             .when(deployments).delete(deployment);
         var resources = mock(DeploymentManagedVectorResourceRepository.class);
         when(resources.findByDeploymentIdOrderByUpdatedAtDesc(anyString())).thenReturn(List.of());
-        service = new DeploymentDeletionExecutionService(operations, deployments, mock(DeploymentReleaseRepository.class),
-            mock(DeploymentVersionRepository.class), mock(DeploymentDraftRepository.class), mock(DeploymentVerificationRunRepository.class),
+        releases = mock(DeploymentReleaseRepository.class);
+        versions = mock(DeploymentVersionRepository.class);
+        drafts = mock(DeploymentDraftRepository.class);
+        doAnswer(i -> (long) jdbc.update("DELETE FROM platform_deployment_releases WHERE deployment_id=?", i.getArgument(0, String.class)))
+            .when(releases).deleteByDeploymentId(anyString());
+        doAnswer(i -> (long) jdbc.update("DELETE FROM platform_deployment_versions WHERE deployment_id=?", i.getArgument(0, String.class)))
+            .when(versions).deleteByDeploymentId(anyString());
+        doAnswer(i -> (long) jdbc.update("DELETE FROM platform_deployment_drafts WHERE deployment_id=?", i.getArgument(0, String.class)))
+            .when(drafts).deleteByDeploymentId(anyString());
+        service = new DeploymentDeletionExecutionService(operations, deployments, releases,
+            versions, drafts, mock(DeploymentVerificationRunRepository.class),
             resources, mock(PublicApiDeploymentRepository.class), mock(DeploymentPromptRevisionRepository.class),
             mock(DeploymentAssignmentService.class), mock(DeploymentInfrastructureCleanupService.class),
             mock(DeploymentTenantScopedVectorRegistryService.class), mock(VectorizationDeploymentCleanupService.class),
             mock(DeploymentProviderSecretOverrideService.class), mock(DeploymentDocumentStorageBindingService.class),
             mock(PlatformAuditService.class), new ObjectMapper().findAndRegisterModules(), new JpaTransactionManager(manager),
-            consumers, associations);
+            consumers, associations, new DeploymentAuthorityCleanupService(jdbc));
     }
 
     @AfterEach void close() { if (factory != null) factory.destroy(); }
@@ -131,7 +144,25 @@ class DeploymentDeletionExecutionPostgresTest {
         assertThat(count("platform_deployments", "id", deployment.getId())).isZero();
     }
 
+    @Test void removesCircularReleaseAuthorityReferencesOnlyForTheDeletedDeployment() {
+        insertAuthority(deployment);
+        var other = insertDeployment(true);
+        insertAuthority(other);
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM platform_deployment_releases WHERE deployment_id=?", deployment.getId()))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        service.executeDeletion(operation.getId());
+
+        assertThat(operation.getStatus()).isEqualTo("SUCCEEDED");
+        for (String table : List.of("platform_runtime_authority_snapshots", "platform_runtime_target_authorities",
+                "platform_deployment_releases", "platform_deployment_versions", "platform_deployment_drafts")) {
+            assertThat(count(table, "deployment_id", deployment.getId())).isZero();
+            assertThat(count(table, "deployment_id", other.getId())).isEqualTo(1);
+        }
+    }
+
     @Test void aLaterFailureRollsBackBootstrapLinkAndKitDeletionTogether() {
+        insertAuthority(deployment);
         doAnswer(invocation -> {
             jdbc.update("DELETE FROM platform_deployments WHERE id=?", deployment.getId());
             throw new IllegalStateException("Simulated later transaction failure");
@@ -141,6 +172,9 @@ class DeploymentDeletionExecutionPostgresTest {
         assertThat(count("platform_deployments", "id", deployment.getId())).isEqualTo(1);
         assertThat(count("platform_customer_offer_deployments", "deployment_id", deployment.getId())).isEqualTo(1);
         assertThat(count("platform_customer_experience_kits", "id", kit)).isEqualTo(1);
+        for (String table : List.of("platform_runtime_authority_snapshots", "platform_runtime_target_authorities",
+                "platform_deployment_releases"))
+            assertThat(count(table, "deployment_id", deployment.getId())).isEqualTo(1);
     }
 
     @Test void aBoundConsumerStillPreventsAllMetadataDeletion() {
@@ -171,6 +205,36 @@ class DeploymentDeletionExecutionPostgresTest {
 
     private long count(String table, String column, String id) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE " + column + "=?", Long.class, id);
+    }
+
+    private void insertAuthority(DeploymentEntity owner) {
+        String draft = unique("draft"), version = unique("ver"), release = unique("rel"), snapshot = unique("snap");
+        jdbc.update("""
+            INSERT INTO platform_deployment_drafts(id,deployment_id,revision_number,status,actions_config_json,
+                entity_config_json,routing_config_json,provider_config_json,security_config_json,created_at,updated_at)
+            VALUES (?,?,1,'DRAFT','{}','{}','{}','{}','{}',now(),now())
+            """, draft, owner.getId());
+        jdbc.update("""
+            INSERT INTO platform_deployment_versions(id,deployment_id,source_draft_id,version_label,status,config_hash,
+                reindex_required,actions_config_json,entity_config_json,routing_config_json,provider_config_json,
+                security_config_json,actions_artifact_yaml,entity_artifact_yaml,routing_artifact_yaml,manifest_json,published_at)
+            VALUES (?,?,?,'v1','PUBLISHED','hash',false,'{}','{}','{}','{}','{}','','','','{}',now())
+            """, version, owner.getId(), draft);
+        jdbc.update("""
+            INSERT INTO platform_deployment_releases(id,deployment_id,deployment_version_id,status,verification_status,
+                provisioning_status,provisioning_target,provisioning_details_json,created_at,applied_at,updated_at)
+            VALUES (?,?,?,'APPLIED_VERIFIED','PASSED','ACTIVE','COOLIFY','{}',now(),now(),now())
+            """, release, owner.getId(), version);
+        jdbc.update("""
+            INSERT INTO platform_runtime_authority_snapshots(id,deployment_id,target_profile_id,version_id,release_id,
+                fingerprint,binding_json,created_at) VALUES (?,?,'dtp-coolify-staging-behavior',?,?,'hash','{}',now())
+            """, snapshot, owner.getId(), version, release);
+        jdbc.update("UPDATE platform_deployment_releases SET runtime_authority_snapshot_id=?,runtime_authority_fingerprint='hash' WHERE id=?", snapshot, release);
+        jdbc.update("""
+            INSERT INTO platform_runtime_target_authorities(id,deployment_id,target_profile_id,customer_id,tenant_id,
+                generation,state,secret_revisions_json,secret_integrity_json,created_at,updated_at)
+            VALUES (?,?,'dtp-coolify-staging-behavior',?,?,1,'ACTIVE','{}','{}',now(),now())
+            """, unique("auth"), owner.getId(), owner.getCustomerId(), owner.getTenantId());
     }
 
     private static String unique(String prefix) { return prefix + "-" + UUID.randomUUID(); }
