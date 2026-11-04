@@ -127,3 +127,44 @@ not AI semantics. Abandoned provider preparation/upload and uncertain IAM key
 issuance require operator readback/reconciliation, not a new recovery engine.
 Shared source retirement/export and reader-key lifecycle assistance remain
 operator responsibilities; no source-delete authority is granted to runtimes.
+
+## Production Qualification: 4 November 2026, 22:10 UTC
+
+This checkpoint supersedes the production-pending status above, not the retained
+evidence of the earlier failed attempt.
+
+- Existing Support deployment dep-79af290c promoted version ver-51e6c811 and
+  artifact dsa-d3f03019 through the normal release/promotion APIs. Production
+  rel-8822aff7 is APPLIED_VERIFIED/PASSED; vrf-e449aa2e has30 passed, four skipped,
+  zero failed. Runtime/connector keep source83fd17427 and AI Fabric0.8.45.
+- All13 selected support guides are ACTIVE, activeVersion1, independently indexed
+  from approved original files in the same customer-owned hosted connection.
+  Target reader identities remain separate. No vectors or business data copied.
+- Original live consumer kit-ca617a82-bfb6-411e-89fe-94ccabf8713e moved directly
+  production rel-09c92f90 -> rel-8822aff7, revision4 ->5. Existing Engage
+  awi_pub_fc4f82f55cb6b83355cd807f0a21adfa retained identity, branding and URL.
+  Temporary qualification consumer is unbound, owns zero apps/infrastructure and
+  is DISABLED; audit foreign-key references retained rather than force-purged.
+- Both Platform backends now095f6071, both Console UIs0bf44e602, both shared
+  Engage shells c2cc54384; native source/image/health verified. Desk b2fb6a74 is
+  unchanged. Narrow UI/readiness corrections retain ownership, exact candidate,
+  target, configuration, artifact and verification checks.
+- Final owning-customer readiness activationReady=true,
+  postActivationComplete=true, blockers=[]. Actual production Console refresh
+  showed Production active and all mandatory checks passed. No assignment was
+  changed by refresh. Actual Support AI answer used the new upload/indexing guide
+  and correctly distinguished upload from ACTIVE indexing and independent
+  production indexing from vector copying. One observed answer, not a broad
+  semantic quality claim.
+- Verified Desk bindings required the normal owner status API read to reconcile
+  APPLYING -> ENABLED; team endpoint then200 with two agents and no UI warning.
+  Automatic post-verification reconciliation remains a recorded follow-up.
+- Public enrollment defaults public-dealership-simulator-v3 and
+  public-knowledge-workspace-v2 were NOT switched by this work. Fresh customer
+  onboarding with those defaults is still a separate unqualified journey.
+
+Evidence: [logout and production promotion qualification](../../../../../../../../verification-support/customer-journey-audit/2026-11-04/logout-correction.md).
+Canonical private operation journal:
+`loomai-document-storage-01059/receipts/promotion-qualified-20261104.private.json`;
+final readback `promotion-final-readiness.private.json`. Older production-journey
+receipts/helpers are historical; do not blindly repeat their apply sequence.

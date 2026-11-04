@@ -474,3 +474,25 @@ enforce typed confirmation server-side, and define exact owned-resource removal
 scope. Correct the retained-ledger relation separately. A blanket "ignore all
 guards" flag or disabled SQL trigger is not the proposed solution. This owner
 request was verification, so no destructive action or new force API was added.
+
+## Subsequent Implementation: Logout And Support Promotion
+
+The owner then authorized the logout correction and meaningful promotion work.
+The earlier NOT IMPLEMENTED and production-pending notes above are historical,
+not the current result. See [logout correction and promotion evidence](logout-correction.md).
+
+- Logout correction is live on both shared Engage hosts;32 local browser tests
+  passed. Real Supabase expired-session refresh/local logout/reuse rejection and
+  actual staging/production browser sign-out were verified separately.
+- Support production `rel-8822aff7` is APPLIED_VERIFIED/PASSED with all13 selected
+  guides ACTIVE. Existing app identity/URL remained and its original assignment
+  moved production-to-production, never through staging. No vector copying.
+- Exact staging-assignment UI guidance and a narrow already-owned production
+  assignment readiness correction are live on both Console/backend hosts.
+  Final readiness has no blockers; actual Console shows Production active.
+- The temporary unbound assignment is DISABLED, retaining immutable promotion
+  audit references; it owns no app or infrastructure. A normal authorized Desk
+  status read reconciled verified bindings to ENABLED. Automatic reconciliation
+  is still an explicitly recorded follow-up, not claimed as implemented.
+- Two infrastructure environments per customer workspace is a documented
+  recommendation only, not an implemented quota or a replacement for removal.

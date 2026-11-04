@@ -12362,3 +12362,49 @@ test is being called hosted acceptance. UI extraction remains last.
   recommendations are in audit Owner Review And Follow-Up section.
 - This follow-up changes documentation only. No auth/runtime/framework release,
   permission expansion or direct SQL mutation. Private provider logs stay0600.
+
+## 2026-11-04 Logout Fixed And Support Production Promotion Verified
+
+- Owner authorized logout fix and promotion follow-up. Both shared Engage shells
+  c2cc543845bea8f432d722cd420ceeb2fcf8cdfe, both Console UIs
+  0bf44e602440f12096d4a89e79e369cfba039425, both Platform backends
+  095f6071b8be27f8d8aaa538268bdd439acc3734 are native source/image/health
+  verified. Desk remains b2fb6a74. No framework dependency/runtime release.
+- Logout clears local authority immediately, obtains same-subject refresh only
+  for local revocation when needed, never reinstalls identity and handles refresh
+  races with bounded calls.32 full local browser tests passed. Real expired
+  provider session refresh200 -> logout204 -> refresh reuse400 denied. Actual
+  Acme staging/Northfield production UI sign-out also provider204, errors0.
+  Instant invalidation of existing stateless JWTs is not claimed.
+- Support dep-79af290c, version ver-51e6c811/artifact dsa-d3f03019, production
+  rel-8822aff7 APPLIED_VERIFIED/PASSED:30 checks passed, four skipped, zero failed;
+  all13 selected guides ACTIVE. Runtime/connector remain source83fd17427 and
+  AI Fabric0.8.45. Shared approved originals independently indexed in production,
+  no vector copy, extra database, simulator account or duplicate infrastructure.
+- Original consumer kit-ca617a82-bfb6-411e-89fe-94ccabf8713e moved production
+  rel-09c92f90 -> rel-8822aff7, revision4 ->5, no staging detour. Existing Engage
+  identity/URL preserved. Temporary support-hosted-01059-20261104-qualification
+  consumer is unbound, no apps/infrastructure, DISABLED through normal customer
+  API. Two promotion audit rows prevent deletion; no force purge/SQL bypass.
+- Console blocks invalid promotion review without the exact staging assignment.
+  Backend readiness permits a different owned consumer ONLY when already bound
+  to this exact verified production deployment/release/target. Frozen candidate
+  checks remain;43 focused backend tests pass. Final readiness activationReady
+  and postActivationComplete true, blockers empty; actual Console passed.
+- Normal authorized Desk status reads reconciled verified bindings APPLYING ->
+  ENABLED and restored two-agent roster. Automatic post-verification status
+  reconciliation is NOT newly implemented; keep that bounded follow-up visible.
+  Actual Support UI cited the revised upload/indexing guide and correctly said
+  not to copy staging vectors. No universal answer-quality claim.
+- Canonical private journal now loomai-document-storage-01059/receipts/
+  promotion-qualified-20261104.private.json; final readiness in
+  promotion-final-readiness.private.json. Older production-journey receipts and
+  qualification helpers are historical: do not rerun their stale apply sequence.
+  Public starter defaults v3/v2 NOT switched; fresh Kit onboarding not claimed.
+- Owner proposed two infrastructure slots. Recommendation only, NOT implemented:
+  per customer workspace, one slot per provisioned deployment environment;
+  staging+production normally2, atomic start reservation, upgrades reuse slot,
+  resource-free Engage apps/drafts excluded, stopped resources count until
+  released, audit-only metadata does not. No capacity/draining redesign.
+- Evidence verification-support/customer-journey-audit/2026-11-04/
+  logout-correction.md. Fixture sessions signed out; temporary tabs closed.
