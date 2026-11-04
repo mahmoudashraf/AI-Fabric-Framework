@@ -58,8 +58,11 @@ public class SupportSpaceProvisioningService implements AIWorkspaceSupportReadin
         body.set("identity", mapper.valueToTree(Map.of("mode", "TRUSTED_PRIVATE_HOST", "issuer", assertions.issuer(),
             "jwksUri", assertions.jwksUri(), "audience", assertions.audience(settings.deskBindingId()),
             "requesterNamespace", "loomai-console:" + settings.deskBindingId(), "privateServerKey", assertions.serverKey())));
-        body.set("allowedOrigins", mapper.valueToTree(List.of()));
         try {
+            // These are the installation's approved navigation origins. Private-host bearer
+            // routes still reject browser Origin headers independently in Desk.
+            body.set("allowedOrigins", mapper.readTree(installation.getAllowedOriginsJson() == null
+                ? "[]" : installation.getAllowedOriginsJson()));
             var topics = new java.util.ArrayList<String>();
             for (var topic : mapper.readTree(installation.getConfigurationJson()).path("support").path("topics"))
                 topics.add(topic.path("code").asText());

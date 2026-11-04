@@ -158,6 +158,17 @@ class SupportSpaceProvisioningServiceTest {
   }
 
   @Test
+  void registersOnlyTheInstallationsApprovedReturnOriginsWithoutChangingPrivateIdentity() {
+    installation.setAllowedOriginsJson("[\"https://console.example.test\"]");
+    service.prepare();
+    var body = ArgumentCaptor.forClass(JsonNode.class);
+    verify(desk).put(eq(connection), eq(path), body.capture());
+    assertThat(json.convertValue(body.getValue().path("allowedOrigins"), List.class))
+        .containsExactly("https://console.example.test");
+    assertThat(body.getValue().at("/identity/mode").asText()).isEqualTo("TRUSTED_PRIVATE_HOST");
+  }
+
+  @Test
   void updatingSpaceUsesRemoteOpaqueConfigurationVersionAndNotLocalRevision() {
     when(desk.getOptional(connection, path)).thenReturn(Optional.of(space));
     service.prepare();
