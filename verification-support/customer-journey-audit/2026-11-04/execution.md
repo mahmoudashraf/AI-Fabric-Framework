@@ -1,6 +1,8 @@
 # Platform Cleanup And Live Customer Journey Audit
 
-Started: 4 November 2026. Status: IN PROGRESS.
+Started: 4 November 2026. Final checkpoint: 19:50 UTC.
+Status: CLEANUP AND BOUNDED FIXES RELEASED; FULL CUSTOMER-JOURNEY QUALIFICATION
+NOT CLOSED. The final acceptance section supersedes earlier interim checkpoints.
 
 ## Owner Request
 
@@ -24,17 +26,18 @@ customer journeys through the live UI and resolve reproducible defects.
 ## Checklist
 
 - [x] Current staging/production inventory and reference map.
-- [ ] Confirmed disposable drafts/test resources removed and terminally verified.
-- [ ] Public products, Kit catalogue and authentication entry/recovery navigation.
-- [ ] Kit creation, address validation/preview, setup and edit/reset navigation.
-- [ ] Deployment configuration, integrations and document upload/indexing.
-- [ ] Staging publication, launch/readiness and Engage connection.
-- [ ] Engage branding/capability preview, embed/standalone and domain controls.
+- [x] Confirmed disposable drafts/test resources removed and terminally verified.
+- [x] Public products, Kit catalogue and authentication entry/recovery navigation.
+- [ ] Complete fresh Kit setup through applied runtime (creation/publication passed).
+- [ ] Deployment configuration and new document upload/indexing end to end.
+- [ ] Fresh staging launch/readiness (existing Engage connection passed).
+- [ ] Complete Engage domain flow (branding/preview/embed/standalone passed).
 - [ ] Production promotion, activation and assignment continuity.
-- [ ] End-user inventory/knowledge, follow-up, attachment and action journeys.
-- [ ] Desk handover/reply/return and support request/My Requests journeys.
-- [ ] Account/theme/sign-out, basic phone navigation and empty/error states.
-- [ ] Fixes retested, final inventory/evidence recorded, task-only changes committed.
+- [x] Northfield inventory/knowledge, follow-up, attachment and confirmed callback.
+- [x] Desk handover/reply/return and support request/My Requests lifecycle.
+- [x] Account/theme, Northfield sign-out and basic phone navigation.
+- [x] Bounded fixes retested and live source/health verified on both hosts.
+- [x] Final inventory/evidence recorded and task-only changes committed.
 
 ## Results
 
@@ -170,9 +173,155 @@ Live screenshots and final terminal inventory will be added after retesting.
   ACTIVE/verification from approved guidance and identified missing live checks.
   Resolve reached RESOLVED; reopen is being verified. A different signed-in
   identity did not see another requester's requests in the same customer scope.
-- Phone-width qualification is not claimed: the browser viewport capability
-  acknowledged the override but the actual DOM stayed 1280x720, including in a
-  temporary tab. Override reset and temporary tab closed. This is a tooling
-  limitation, not evidence of a website responsive-layout defect.
+- At this intermediate checkpoint the viewport override appeared ineffective
+  on the inspected tab. Later testing found it applied to the active Desk tab;
+  actual 390x844 Console and Desk checks are recorded below. Full physical-phone
+  qualification is still not claimed.
 
-Fixes are pending immutable-image publication and live retest at this checkpoint.
+The fixes were pending publication at this intermediate checkpoint. Publication
+and final live retest are complete as follows.
+
+## Final Acceptance
+
+### Released Sources And Verification
+
+- Platform backend and Console on BOTH hosts: immutable source
+  `d3be8a1ce576ae47415f0478a039001f0c28bc42`. Core CI `41889523508` passed.
+- Shared Desk backend/UI on BOTH hosts: immutable source
+  `b2fb6a74f78ecd78bc6c5dc1693b072803aa1f3d`. Full Desk CI `41895938461`
+  passed, including PostgreSQL and browser tests. OCI/native revision and
+  healthy running container were checked separately from pipeline success.
+- Native Coolify receipts: staging Console `bzmce9f6phys0insngaii35i`, backend
+  `kwgyrnxdp522aac73eszt5ju`, Desk `okezsaqyhvszq1h746m9fxg5`; production
+  Console `izb212cxh0bvtcb0ms6pfdgz`, backend `ceswphb8h3iqi3u91cc6e7vv`,
+  Desk `j11i7ynlvan7ybgz84lbrpmx`.
+- Focused backend: clean 103 installation/route/review-service tests and 45
+  review-controller tests passed. UI productization/API15 and production build
+  passed. Widget typed/state10, browser submission/cancel/history/replay,
+  typecheck and full library/embed/installer builds passed.
+- Desk ticket-capability UI8 and service2 passed. An initial full Desk build
+  failed because an old-schema migration fixture used today's binding helper.
+  The fixture now seeds the exact historical schema, with no production SQL
+  fallback. Final focused migration/capability6 passed on H2 AND PostgreSQL;
+  full Desk CI then passed. No failed run is represented as successful.
+- No framework release, runtime upgrade, secret rotation, semantic keyword
+  matcher, hidden retrieval fallback or weakened authorization was introduced.
+
+### Final Cleanup Inventory
+
+- Removed 22 deployment configuration records through the normal lifecycle;
+  every successful removal has a terminal SUCCEEDED receipt. Removed 29 apps:
+  five original unused drafts, 22 disabled test apps and two audit-created apps.
+- Additional removed deployments after cycle1: `dep-a0a6ac0a` (audit Kit,
+  `del-0155d5a5`), `dep-8d062ef3` (`del-d79be204`) and `dep-8192b6ca`
+  (`del-71de6f28`). The latter two had no runtime release/native handle/app
+  reference; their obsolete consumer links were removed through normal APIs.
+- All 22 disabled app records were eventually removed. The final correction
+  uses administrative cleanup for disabled legacy consumer records; normal
+  customer ownership checks remain. Disabled installations are already absent
+  from origin projection, so deletion no longer requires rewriting a draft.
+- Four staging fixtures are archived with evidence retained: `dep-6e29bab9`,
+  `dep-70b3d2c1`, `dep-7dba73bf`, `dep-81452b83`. The first normal deletion
+  (`del-2610df6a`) failed on the database invariant "Released external vector
+  binding is permanently fenced". No trigger bypass or direct deletion.
+- Final staging: 29 deployment records, eight nonarchived; three ACTIVE apps,
+  one intentional Shopify DRAFT, zero DISABLED apps. Production: 42 deployment
+  records, 14 nonarchived; five ACTIVE apps, one concurrent customer DRAFT,
+  zero DISABLED apps. Archived records are included in these totals.
+- Every original ACTIVE app remained ACTIVE. A new customer draft created at
+  18:59:58 UTC during the audit (`dep-0fbedfb9`,
+  `kit-ef964cb5-4022-4b1f-bac7-7528409bb601`) was detected and preserved,
+  rather than mistaken for an audit fixture.
+- Preserved the external pilot setup, Support references, productized templates,
+  current assignments, shared/native dependencies, approved S3 sources, Shopify,
+  ProdUS and framework demos. This is Platform configuration cleanup, NOT an
+  assertion that every stopped Coolify service or database is safe to destroy.
+- Two old deletion jobs remain unchanged: production `del-cbeee9b3` /
+  `dep-772416fd` QUEUED since 21 April; staging `del-ca59d4fe` / `dep-b67174e8`
+  RUNNING since 5 May. They were not blindly replayed.
+
+### Final Live UI Results
+
+- **Northfield standalone:** anonymous search, same-car follow-up with approved
+  delivery policy, protected-action sign-in/cancel, normal fixture sign-in,
+  trusted result attachment, Browse/context switching and rich vehicle detail
+  passed. No knowledge-domain clarification or conversation-access loop.
+- **Typed callback:** the actual Name/Phone/boolean Consent form submitted,
+  final confirmation executed one fictional demo write and rendered structured
+  receipt `NFM-2DD5730F` at 19:03:35 UTC, status NEW, 2025 Aster E1. Phone
+  `07700900900` was synthetic. Reload retained the receipt with zero editable
+  old forms and zero confirmation buttons. A prior cancelled draft also stayed
+  retired. No action text was used to infer terminal state.
+- **History/isolation:** five owned conversations loaded. Northfield sign-out
+  cleared the authenticated conversation, attachments and receipt and returned
+  to fresh anonymous Browse. Console/Desk test identities were signed out before
+  ending the audit; temporary tabs were closed.
+- **Handover:** conversation `chat-89caf677-0d95-496f-ab04-c40984830e25`
+  completed AI-requested transfer, assigned-agent claim, human-to-visitor reply,
+  visitor-to-agent reply and explicit return to AI. AI answered the policy
+  follow-up afterward. Delivery was real, not a fabricated callback receipt.
+- **Action Reviews:** both selected Staging and Production now show Inbox clear,
+  not Unauthorized. Calls use the selected target's verified release and scoped
+  runtime assertion, not global credentials. No review decision was fabricated
+  merely to populate an empty inbox.
+- **Support:** `SUP-5587AE64-879` saved, opened its real AI conversation and
+  answered the approved document-update procedure accurately. Resolve ->
+  RESOLVED -> reopen OPEN -> cancel CANCELLED passed. Cancelled conversation
+  became read-only. Required Subject validation and requester isolation passed.
+  Email notifications remained off. Earlier `SUP-FD651503-A23` answered domain
+  guidance but omitted part of embedding; retain PARTIAL semantic coverage.
+- **Embedded dealership:** inventory and Aster detail pages loaded with photos.
+  Attach-page did not open MAX. Two bounded page attachments survived navigation
+  and MAX expansion. Anonymous compound stock/delivery answer was correct.
+  Docked input had no MAX tools; MAX had no attach-current-page icon. Browse
+  remained usable with context. Selecting two actual result cards submitted
+  the comparison; answer was correct text/RAG, not the custom comparison view.
+  Removing the last attachment automatically returned to Browse.
+- **Configuration:** address validation/full-link preview, temporary Kit
+  creation/publication, connected assignment, branding/capability preview,
+  account/theme and configuration open/close passed. Production source status
+  showed CURRENT/COMPLETED, six source/six indexed stock records, zero failures;
+  three approved policies ACTIVE. Viewing did not change live assignments.
+- **Desk:** Northfield Tickets is correctly disabled with its not-configured
+  explanation, rather than polling a missing ticket space. Owner-only support
+  access remained denied. Configured ticketing passed service/browser tests;
+  a configured live ticket inbox was not newly qualified under a support agent.
+- **Phone-sized UI:** actual DOM 390x844 verified. Console Home, navigation,
+  My kits, Engage list and app detail inspector passed without horizontal
+  overflow. Desk navigation and capability state checked at that size. Viewport
+  reset requested and temporary phone tab closed. Physical iPhone/Safari and
+  exhaustive keyboard/accessibility qualification are not claimed.
+
+### Still Open / Not Qualified By This Audit
+
+1. Fresh simulator Kit apply and full staging -> production -> app activation
+   remain blocked by the attended isolated simulator account/receiver supply
+   workflow described above. UI creation/publication is not full self-service.
+2. Custom-domain activation and Shopify private-adapter regression were not
+   rerun end to end. Password/magic-link/recovery entry points were checked,
+   not email delivery or replacement of a real account credential.
+3. Acme's older idle standalone session cleared its local identity on sign-out,
+   but reported that provider logout could not be confirmed and tokens remain
+   valid until expiry. Cause was not proven in this run; no revocation or
+   successful provider logout claim. Northfield and Console/Desk sign-out passed.
+4. Historical Northfield delivery warning is an old Oct26 closed-conversation
+   USER_MESSAGE/PROVIDER_HTTP_404, not the successful audit conversation. It was
+   retained rather than erased to make the dashboard appear green.
+5. Four archived evidence-owning fixtures and two historical queued/running
+   deletion jobs remain. Their cleanup is not silently reported successful.
+6. Separate 010.59 storage qualification: all 13 selected Support guides indexed
+   ACTIVE and staging verification passed, but production promotion was not
+   completed because the consumer is bound to a different exact release. The
+   bucket/uploads/readers were preserved. No vector transfer or live assignment
+   override was performed.
+
+### Evidence
+
+Screenshots in this directory: `ai-after-handover.png`,
+`embedded-dealership-after-navigation.png`, `production-review-inbox.png`,
+`support-request-lifecycle.png`, `desk-ticket-capability.png`,
+`phone-customer-kits.png`, `phone-workspace-details.png`.
+`callback-history-retired-forms.png` shows retired historical forms after reload,
+not the final receipt itself; the receipt result is recorded above. Private
+full inventories and terminal receipts stay in ignored private storage and are
+not published with credentials or customer source contents.

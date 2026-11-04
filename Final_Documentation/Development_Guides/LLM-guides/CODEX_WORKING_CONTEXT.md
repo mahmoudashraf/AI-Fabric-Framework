@@ -12293,3 +12293,44 @@ test is being called hosted acceptance. UI extraction remains last.
   to published successors only after qualification. Temporary Vite5189 stopped.
 - Canonical status010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md; live
   verification-support/hosted-document-storage-01059/2026-11-04/acceptance.md.
+
+## 2026-11-04 Platform Cleanup And Live Journey Audit: Released, Not All Green
+
+- This checkpoint supersedes earlier source/version statements only for the
+  shared services named here. Both hosts now run healthy immutable Platform
+  backend + Console d3be8a1ce576ae47415f0478a039001f0c28bc42 and Desk
+  b2fb6a74f78ecd78bc6c5dc1693b072803aa1f3d. Core CI41889523508 and full Desk
+  CI41895938461 passed. Northfield runtime remains ce9025736 / AI Fabric0.8.45,
+  production rel-d587186a. No framework/runtime release in this audit.
+- Normal lifecycle removed22 deployment configuration records and29 inactive/
+  test apps. All original ACTIVE apps preserved. Four evidence-owning staging
+  fixtures archived, not purged. Two historical deletion jobs remain unchanged.
+  New customer draft dep-0fbedfb9 created during testing was deliberately kept.
+  No native/shared database or S3 bucket was blindly removed for being stopped.
+- Fixed disabled/unbound app cleanup, typed widget action values and terminal
+  form retirement, release/target-scoped customer Action Reviews, obsolete
+  customer Activity navigation, and Desk ticket-capability navigation. Existing
+  ownership/trusted-ID/confirmation boundaries preserved; no semantic matcher,
+  hidden fallback or automatic grant. Desk migration-fixture correction passed
+  real PostgreSQL and H2; no runtime schema-error fallback.
+- Live Northfield search/compound policy follow-up/detail/typed callback/final
+  confirmation/receipt/history/sign-out passed. Synthetic callback receipt
+  NFM-2DD5730F. Actual AI->human->visitor reply->explicit AI return passed.
+  Support SUP-5587AE64-879 resolved/reopened/cancelled; final CANCELLED. Both
+  customer review targets now load Inbox clear. Embedded page/chat attachments
+  survived navigation; scope switching and comparison text passed. Actual390x844
+  Console navigation, Kit list, Engage list/detail and Desk checks passed.
+- NOT full zero-error qualification: fresh simulator Kit launch still needs
+  isolated external account/receiver supply, so new staging->production journey
+  not passed; domain/Shopify-private/email-recovery delivery not rerun. Acme
+  idle sign-out cleared local identity but provider logout remained unconfirmed.
+  Earlier compound Support answer partial; custom comparison renderer not newly
+  demonstrated. Full evidence and exact remaining tasks are in the dated audit.
+- Separate010.59 progressed: approved reader boundary/credentials qualified,
+  selected13 Support guides ACTIVE and staging verification passed. Production
+  promotion remains NOT DONE: exact consumer staging-release binding mismatch.
+  Preserve source bucket/readers/uploads; never substitute broad AWS provisioner
+  credentials on runtime or copy staging vectors during promotion.
+- Audit: verification-support/customer-journey-audit/2026-11-04/execution.md.
+  Test Console/Desk sessions signed out and temporary tabs closed. Private
+  inventories/receipts remain ignored; no credential publication.
