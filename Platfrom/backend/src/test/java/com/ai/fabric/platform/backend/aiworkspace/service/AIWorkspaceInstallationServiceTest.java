@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.aiworkspace.service;
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessSummary;
 import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.model.UpdateAIWorkspaceInstallationRequest;
@@ -513,6 +515,64 @@ class AIWorkspaceInstallationServiceTest {
         when(repository.findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId()))
             .thenReturn(Optional.of(installation));
         return installation;
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DRAFT,true", "DRAFT,false", "DISABLED,true", "DISABLED,false"})
+    void administratorCanRemoveInactiveAppWithoutReactivatingDisabledConsumer(AIWorkspaceInstallationStatus status, boolean bound) {
+        var consumer = consumer();
+        consumer.setStatus("DISABLED");
+        if (!bound) consumer.setBoundDeploymentId(null);
+        var installation = deletionInstallation(status);
+        setDeletionPrincipal(PlatformRole.PLATFORM_ADMIN);
+        try {
+            service().deleteDraft("customer-1", installation.getInstallationId(), "admin-cleanup");
+            verify(repository).delete(installation);
+            verify(repository).flush();
+            verify(audit).record(eq("AI_WORKSPACE_INSTALLATION_DELETED"), any(), any(), any());
+            assertThat(consumer.getStatus()).isEqualTo("DISABLED");
+            verify(offerBoundary, never()).requireConsumer(any(), any(), any(), any());
+            if (bound) {
+                verify(deploymentSecurityProjection).lockDeploymentsForConsumers(List.of(consumer));
+                verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+            } else verifyNoInteractions(deploymentSecurityProjection);
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PlatformRole.class, mode = EnumSource.Mode.EXCLUDE, names = "PLATFORM_ADMIN")
+    void disabledConsumerCleanupDoesNotGrantOtherRolesAdministratorAuthority(PlatformRole role) {
+        consumer().setStatus("DISABLED");
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DISABLED);
+        setDeletionPrincipal(role);
+        try {
+            assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Consumer must be active");
+            verify(repository, never()).delete(any());
+            verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    @Test
+    void administratorCleanupStillRejectsForeignConsumerAndActiveApp() {
+        var consumer = consumer(); consumer.setStatus("DISABLED"); consumer.setCustomerId("customer-2");
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DISABLED);
+        setDeletionPrincipal(PlatformRole.PLATFORM_ADMIN);
+        try {
+            assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Installation consumer is missing");
+            consumer.setCustomerId("customer-1"); installation.setStatus(AIWorkspaceInstallationStatus.ACTIVE);
+            assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+                .isInstanceOf(ResponseStatusException.class);
+            verify(repository, never()).delete(any());
+            verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    private void setDeletionPrincipal(PlatformRole role) {
+        var principal = new PlatformPrincipal("cleanup-user", role, "Cleanup user", "SESSION");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal, null, List.of()));
     }
 
     private AIWorkspaceInstallationService service() {

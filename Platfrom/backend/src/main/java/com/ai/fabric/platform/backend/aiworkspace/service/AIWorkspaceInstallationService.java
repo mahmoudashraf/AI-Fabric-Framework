@@ -16,6 +16,8 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfSe
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
@@ -290,10 +292,23 @@ public class AIWorkspaceInstallationService {
             .get(entity.getConsumerEntityId());
         boolean allowUnboundDeletion = entity.getStatus() == AIWorkspaceInstallationStatus.DISABLED
             || (entity.getStatus() == AIWorkspaceInstallationStatus.DRAFT && entity.getActivatedAt() == null);
-        requireUsableConsumer(customerId, consumer, allowUnboundDeletion);
+        boolean administratorCleanup = allowUnboundDeletion && consumer != null
+            && "DISABLED".equalsIgnoreCase(consumer.getStatus())
+            && PlatformSecurityContext.currentPrincipal() != null
+            && PlatformSecurityContext.currentPrincipal().role() == PlatformRole.PLATFORM_ADMIN;
+        if (administratorCleanup) {
+            if (!customerId.equals(consumer.getCustomerId())) {
+                throw new ResponseStatusException(NOT_FOUND, "Installation consumer is missing.");
+            }
+            if (consumer.getBoundDeploymentId() == null
+                && (consumer.getBoundReleaseId() != null || consumer.getBoundTargetProfileId() != null)) {
+                throw new ResponseStatusException(CONFLICT, "Installation consumer binding is incomplete.");
+            }
+        } else requireUsableConsumer(customerId, consumer, allowUnboundDeletion);
         boolean deploymentBound = StringUtils.hasText(consumer.getBoundDeploymentId());
         if (deploymentBound) deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
-        authorizeMutation(entity, consumer, operationKey);
+        // Administrators may remove revoked app configuration without reactivating its connection.
+        if (!administratorCleanup) authorizeMutation(entity, consumer, operationKey);
         if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT
             && entity.getStatus() != AIWorkspaceInstallationStatus.DISABLED) {
             throw new ResponseStatusException(CONFLICT, "Only draft or disabled AI Workspace installations can be deleted.");
