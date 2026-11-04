@@ -266,7 +266,8 @@ function StorageSetupScope({ deploymentId, targetProfiles, initialTargetProfileI
                 const indexingStatus = receipt ? receipt.message ? `${receipt.status}; attention needed`
                   : receipt.status === 'ACTIVE' ? `Active on ${target?.name ?? targetId}` : receipt.status
                   : liveSelection && selections.isError ? 'Indexing status unavailable'
-                    : liveSelection && selections.isPending ? 'Checking target indexing' : 'Uploaded; no indexing receipt'
+                    : liveSelection && selections.isPending ? 'Checking target indexing'
+                      : liveSelection ? 'Uploaded; no indexing receipt' : 'Uploaded; view target indexing status'
                 return <Box component="li" key={upload.id} sx={{ borderBottom: 1, borderColor: 'divider', pb: 1, minWidth: 0 }}>
                 <FormControlLabel sx={{ m: 0, alignItems: 'flex-start', '& .MuiFormControlLabel-label': { minWidth: 0, overflowWrap: 'anywhere' } }}
                   control={<Checkbox size="small" checked={eligibleIds.includes(upload.id)} disabled={!canManage || busy || !liveSelection || upload.status !== 'UPLOADED' || upload.prefix !== purposePrefix}

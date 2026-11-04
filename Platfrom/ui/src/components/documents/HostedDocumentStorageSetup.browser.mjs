@@ -191,6 +191,7 @@ try {
     t.fail('POST', '/connection-a/uploads')
     for (let attempt = 0; attempt < 2; attempt++) { await t.page.getByRole('button', { name: 'Upload file', exact: true }).click(); await t.settled() }
     await t.page.getByText('policy & prices.txt', { exact: true }).waitFor()
+    assert.ok(await t.page.getByText('Uploaded; view target indexing status', { exact: false }).count() > 0)
     const uploads = t.requests.filter(item => item.method === 'POST' && item.path.endsWith('/uploads'))
     assert.deepEqual(uploads[0].query, uploads[1].query)
     assert.equal(uploads[0].headers['content-type'], 'application/octet-stream')
@@ -233,6 +234,7 @@ try {
 
   await run('real Kit overview exposes storage before a runtime exists and uses actual allowed target choices', async t => {
     await t.select()
+    assert.equal(await t.page.getByText('Uploaded; no indexing receipt', { exact: false }).count(), 0)
     await t.choose('Storage target', 'Customer production')
     assert.equal(await t.page.getByRole('button', { name: 'Bind storage', exact: true }).isEnabled(), true)
     assert.equal(await t.page.getByRole('button', { name: 'Index selected files', exact: true }).count(), 0)
