@@ -12408,3 +12408,56 @@ test is being called hosted acceptance. UI extraction remains last.
   released, audit-only metadata does not. No capacity/draining redesign.
 - Evidence verification-support/customer-journey-audit/2026-11-04/
   logout-correction.md. Fixture sessions signed out; temporary tabs closed.
+
+## 2026-11-04 Environment Allowance Enforced And Desk Auto-Reconciled
+
+- Owner explicitly requested implementation of the prior two-environment quota
+  recommendation and automatic Desk status reconciliation. Both are implemented
+  and live-qualified, not planning-only. No framework/runtime dependency release,
+  capacity/draining redesign, slot ledger or durable outbox was added.
+- Final shared backend source BOTH hosts38bc6f99129ecb39ba1c22a3fe0f4ba30ed1db9b;
+  Console UI BOTH hosts8d18c87740f117f86905f683a6967858b62faaf7, all native
+  source/image/health verified. Engage c2cc54384 and Desk service b2fb6a74 unchanged.
+  V233 adds default-two customer allowance on both Platform databases.
+- Allowance is per customer workspace and deployment/target environment, not per
+  login or container. Owned runtime/database/dependencies count together. Queue
+  submission and direct dependency worker claim lock the customer row; committed
+  release/worker state reserves capacity. One SQL snapshot avoids missing the
+  queue-to-provisioned transition. Upgrades reuse the existing target slot.
+- Drafts/shared Engage apps/external storage bindings/audit-only records excluded.
+  Stopped/failed/archived owned infrastructure counts until removed. No eviction
+  for over-limit existing customers. Staff-only explicit audited limit changes;
+  customer cannot self-increase. Optional operations DISABLED does not disable
+  this separate product infrastructure-allocation boundary.
+- Record-only deletion now refuses retained infrastructure before queueing AND
+  before purging metadata, preventing orphaned native resources freeing slots.
+  Native teardown still uses its normal staff authorization and cleanup checks.
+  A live negative DELETE on archived unbound developer fixture dep-88586a46
+  returned409 OWNED_INFRASTRUCTURE_REMAINS, no job queued/records removed.
+- Real owner was2/2. New draft/version allowed; third apply denied409 before any
+  release/provider effect. Temporary dep-17b01622 removed normally,
+  del-39c66cd4 SUCCEEDED. Extra Engage draft at2/2 created/deleted normally,
+  usage stayed2. Owner quota PUT403, anonymous GET401, spoofed customerId ignored.
+- Existing Support staging upgraded normally at2/2: rel-16849364 now
+  APPLIED_VERIFIED/PASSED, verification vrf-ae2b0b57, same version ver-51e6c811 /
+  artifact dsa-d3f03019. Runtime/connector source83fd17427 and AI Fabric0.8.45
+  unchanged. Exact runtime and final connector Coolify jobs finished; healthy.
+- Read-only Desk observations saw rel-16849364 APPLYING then ENABLED automatically
+  after committed verification, without owner status-GET repair. Reconciler checks
+  exact release/run/version/target/customer/tenant, preserves failures and ignores
+  stale events. Status GET remains a repair after a process interruption, not a
+  substitute for normal automatic completion. Production app stays ACTIVE/ready
+  on rel-8822aff7 with production Desk ENABLED; Support team200. No app switch.
+- 223 focused tests passed, zero failures/errors/skips, incl real PostgreSQL
+  concurrency/migration/metadata rollback;34 UI/API tests and allowance browser
+  fixture passed. Final core CI41934538890 and quota/Desk41934538868 SUCCESS.
+  Deletion CI old expected-count5 check failed after new sixth test passed;
+  CI-only76621b3a1 corrects count,41934970797 SUCCESS (16 tests, zero skips).
+- Current staging journal: loomai-document-storage-01059/receipts/
+  environment-quota-qualification.private.json. Old promotion journal remains
+  production rel-8822aff7 evidence; do not rerun its stale staging apply.
+  Public starter-default/fresh-onboarding qualification was not expanded here.
+- Evidence verification-support/customer-environment-quota/2026-11-04/execution.md.
+  Actual desktop/mobile customer UI passed,2/2 target links, no errors/overflow.
+  Fixture session signed out, temporary tab closed, viewport reset. Unrelated
+  dirty worktree changes preserved; private credentials/receipts remain ignored.

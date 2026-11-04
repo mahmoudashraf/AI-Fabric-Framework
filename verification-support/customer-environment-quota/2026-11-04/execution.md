@@ -1,6 +1,6 @@
 # Customer Environment Allowance And Desk Completion
 
-Status: QUOTA AND DESK LIVE-QUALIFIED; RECORD-DELETION GUARD ROLLOUT NEXT.
+Status: IMPLEMENTED, COMMITTED, DEPLOYED AND LIVE-QUALIFIED ON BOTH HOSTS.
 
 ## Contract
 
@@ -64,7 +64,7 @@ Status: QUOTA AND DESK LIVE-QUALIFIED; RECORD-DELETION GUARD ROLLOUT NEXT.
   reconciliation cases and seven H2 commit/rollback/repair transaction cases.
 - Focused API transport suite:34 passed, zero failed/skipped. A persistent CI
   workflow runs the bounded quota/Desk tests and allowance browser fixture.
-- Hosted proof is pending below. No new framework/runtime release is required.
+- Hosted proof follows below. No new framework/runtime release was required.
 
 ## Hosted Qualification
 
@@ -102,7 +102,35 @@ Status: QUOTA AND DESK LIVE-QUALIFIED; RECORD-DELETION GUARD ROLLOUT NEXT.
   rel-8822aff7/ENABLED. No status rewrite, SQL mutation or failed-check bypass.
 - Final record-deletion bypass correction:223 focused tests passed, zero
   failures/errors/skips, including real PostgreSQL metadata-purge rollback and
-  H2/PostgreSQL retained-resource guards. Its backend rollout is pending.
+  H2/PostgreSQL retained-resource guards.
+
+## Final Deletion Guard And Closure
+
+- Both shared Platform backends are native source/image/health verified at
+  38bc6f99129ecb39ba1c22a3fe0f4ba30ed1db9b. Exact Coolify jobs staging
+  miox05hfg359yk64m1iv1gp0 and production qt4o0uu4mi59tqfdco3jk26s finished.
+  Both Console UIs remain8d18c8774; no UI/runtime/framework rebuild for this
+  backend-only follow-up.
+- Image CI41934538890 and quota/Desk CI41934538868 SUCCESS. Separate deletion
+  CI41934538870 initially rejected its old exact expected count5 after the new
+  sixth PostgreSQL test passed. CI-only source76621b3a1 corrects that count;
+  rerun41934970797 SUCCESS,16 tests and zero skips/errors/failures. The original
+  failed qualification remains visible; the zero-skip check was not weakened.
+- Negative live deletion on an already-archived, unbound developer fixture
+  dep-88586a46 returned409 OWNED_INFRASTRUCTURE_REMAINS. Before/after snapshots
+  confirm resource records preserved and no deletion queued. It was not a
+  destructive probe against the live customer deployment or a forced purge.
+- Final real owner readback on the final production backend: used2/limit2;
+  original app ACTIVE/ready on production rel-8822aff7; staging Desk
+  rel-16849364 ENABLED and production Desk rel-8822aff7 ENABLED; Support team200.
+  The new staging verification is vrf-ae2b0b57. No production assignment changed.
+- Final actual customer UI refresh still showed2/2 and exact target links with
+  zero browser errors. Phone390x844 had no horizontal overflow. Verification
+  session signed out, temporary tab closed and viewport override reset.
+- Default allowance changes no existing native resources. Workspaces already
+  above their allowance are not evicted; they can update their retained targets
+  but must remove infrastructure or receive an explicit audited allowance change
+  before starting a different environment.
 
 Private canonical journal: loomai-document-storage-01059/receipts/
 environment-quota-qualification.private.json. It is the current staging-release
