@@ -132,6 +132,18 @@ function releaseReady(release: DeploymentReleaseSummary | null | undefined): boo
     && release.provisioningStatus === 'ACTIVE'
 }
 
+function hasExactStagingAssignment(
+  deploymentId: string,
+  targetProfileId: string,
+  release: DeploymentReleaseSummary | null | undefined,
+  consumer: PlatformConsumerSummary | null | undefined,
+): boolean {
+  return Boolean(deploymentId && targetProfileId && release?.id && releaseReady(release)
+    && release.deploymentId === deploymentId && release.targetProfileId === targetProfileId
+    && consumer?.status === 'ACTIVE' && consumer.boundDeploymentId === deploymentId
+    && consumer.boundReleaseId === release.id && consumer.boundTargetProfileId === targetProfileId)
+}
+
 function targetSelectable(readiness: string): boolean {
   return ['READY', 'REVIEWED_TARGET_READY', 'PLACEMENT_VERIFIED_ADMISSION_REQUIRED', 'PLACEMENT_RECHECK_REQUIRED'].includes(readiness)
 }
@@ -391,6 +403,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const selectedConsumer = creatingNewAssignment ? null : deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
     ?? deploymentConsumers[0]
     ?? null
+  const stagingAssignmentReady = hasExactStagingAssignment(
+    selectedDeploymentId, stagingTargetProfileId, stagingRelease, selectedConsumer,
+  )
   const productionTargetScope = JSON.stringify([session.actorId, session.authenticationMode, customerId, selectedDeploymentId, selectedConsumer?.consumerId])
   const chosenProductionTarget = productionTargetChoice?.scope === productionTargetScope
     ? productionTargets.find((target) => target.id === productionTargetChoice.targetProfileId) : undefined
@@ -699,6 +714,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const planPromotion = useMutation({
     mutationFn: async () => {
+      if (!stagingAssignmentReady) {
+        throw new Error('Select or create a staging assignment connected to this deployment\'s verified staging release. No assignment is changed automatically.')
+      }
       const identity = { deploymentId: selectedDeploymentId, consumerId: selectedConsumer!.consumerId,
         bindingRevision: selectedConsumer!.bindingRevision, stagingReleaseId: stagingRelease!.id,
         productionTargetProfileId: selectedProductionTargetProfileId }
@@ -1361,9 +1379,14 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   </Tooltip>
                 ) : null}
               </Stack>
+              {releaseReady(stagingRelease) && !stagingAssignmentReady ? <Alert severity="info"
+                action={guided ? <Button color="inherit" size="small" onClick={() => selectStep('configure')}>Choose assignment</Button> : undefined}>
+                Select or create a staging assignment connected to this deployment's verified staging release in the Engage assignment section.
+                No assignment is changed automatically.
+              </Alert> : null}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                 <Button variant="outlined" startIcon={<CheckCircleRoundedIcon />}
-                  disabled={!operationsReady || !releaseReady(stagingRelease) || !selectedConsumer || !selectedProductionTargetProfileId || planPromotion.isPending}
+                  disabled={!operationsReady || !stagingAssignmentReady || !selectedProductionTargetProfileId || planPromotion.isPending}
                   onClick={() => planPromotion.mutate()}>
                   Review production candidate
                 </Button>

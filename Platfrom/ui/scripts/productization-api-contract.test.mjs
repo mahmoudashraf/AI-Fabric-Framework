@@ -264,3 +264,98 @@ test('customer console keeps mutation keys stable and activation evidence-bound'
   assert.match(customerConsoleSource, /!goLiveReadiness\?\.activationReady/)
   assert.match(customerConsoleSource, /fetchCustomerDeploymentGoLiveReadiness/)
 })
+
+test('promotion review requires the exact active assignment and verified staging release', async (suite) => {
+  const ast = ts.createSourceFile('Console.tsx', customerConsoleSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const functions = ['releaseReady', 'hasExactStagingAssignment'].map(name => {
+    const node = ast.statements.find(item => ts.isFunctionDeclaration(item) && item.name?.text === name)
+    assert.ok(node, `${name} must be the actual console guard`)
+    return node.getText(ast)
+  }).join('\n')
+  const { hasExactStagingAssignment } = new Function(ts.transpileModule(
+    `${functions}\nreturn { hasExactStagingAssignment }`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+  ).outputText)()
+  const release = { id: 'stage-release', deploymentId: 'deployment', targetProfileId: 'staging',
+    status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', provisioningStatus: 'ACTIVE' }
+  const consumer = { consumerId: 'staging-app', status: 'ACTIVE', boundDeploymentId: 'deployment',
+    boundReleaseId: release.id, boundTargetProfileId: release.targetProfileId }
+  const cases = [
+    ['exact verified staging assignment', 'deployment', 'staging', release, consumer, true],
+    ['missing deployment', '', 'staging', release, consumer, false],
+    ['missing staging target', 'deployment', '', release, consumer, false],
+    ['missing release', 'deployment', 'staging', null, consumer, false],
+    ['missing release ID', 'deployment', 'staging', { ...release, id: '' }, consumer, false],
+    ['unverified release', 'deployment', 'staging', { ...release, status: 'APPLIED_VERIFICATION_FAILED' }, consumer, false],
+    ['failed verification', 'deployment', 'staging', { ...release, verificationStatus: 'FAILED' }, consumer, false],
+    ['inactive runtime', 'deployment', 'staging', { ...release, provisioningStatus: 'QUEUED' }, consumer, false],
+    ['foreign release deployment', 'deployment', 'staging', { ...release, deploymentId: 'other' }, consumer, false],
+    ['wrong release target', 'deployment', 'staging', { ...release, targetProfileId: 'production' }, consumer, false],
+    ['missing assignment', 'deployment', 'staging', release, null, false],
+    ['disabled assignment', 'deployment', 'staging', release, { ...consumer, status: 'DISABLED' }, false],
+    ['unbound assignment', 'deployment', 'staging', release,
+      { ...consumer, boundDeploymentId: null, boundReleaseId: null, boundTargetProfileId: null }, false],
+    ['foreign assignment deployment', 'deployment', 'staging', release, { ...consumer, boundDeploymentId: 'other' }, false],
+    ['older staging release', 'deployment', 'staging', release, { ...consumer, boundReleaseId: 'old-stage' }, false],
+    ['wrong assignment target', 'deployment', 'staging', release, { ...consumer, boundTargetProfileId: 'other-stage' }, false],
+    ['production assignment', 'deployment', 'staging', release,
+      { ...consumer, boundReleaseId: 'production-release', boundTargetProfileId: 'production' }, false],
+  ]
+  for (const [name, deploymentId, targetProfileId, selectedRelease, selectedConsumer, expected] of cases) {
+    await suite.test(name, () => {
+      const before = JSON.stringify([selectedRelease, selectedConsumer])
+      assert.equal(hasExactStagingAssignment(deploymentId, targetProfileId, selectedRelease, selectedConsumer), expected)
+      assert.equal(JSON.stringify([selectedRelease, selectedConsumer]), before, 'The guard must never rebind or mutate an assignment')
+    })
+  }
+})
+
+test('promotion button and submit handler block mismatched assignments without a request or rebind', async () => {
+  const ast = ts.createSourceFile('Console.tsx', customerConsoleSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let mutation, reviewButton, guidance, eligibility
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'stagingAssignmentReady') eligibility = node.initializer
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'planPromotion') {
+      mutation = node.initializer.arguments[0].properties.find(property => property.name?.getText(ast) === 'mutationFn').initializer
+    }
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'Button'
+      && node.children.some(child => ts.isJsxText(child) && child.text.includes('Review production candidate'))) reviewButton = node
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'Alert'
+      && node.children.some(child => ts.isJsxText(child) && child.text.includes('Select or create a staging assignment'))) guidance = node
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(mutation); assert.ok(reviewButton); assert.ok(guidance); assert.ok(eligibility)
+  assert.equal(eligibility.expression.getText(ast), 'hasExactStagingAssignment')
+  assert.deepEqual(eligibility.arguments.map(argument => argument.getText(ast)),
+    ['selectedDeploymentId', 'stagingTargetProfileId', 'stagingRelease', 'selectedConsumer'])
+  const disabled = reviewButton.openingElement.attributes.properties.find(property => property.name?.text === 'disabled')
+  assert.match(disabled.initializer.expression.getText(ast), /!stagingAssignmentReady/)
+  assert.match(guidance.getText(ast), /No assignment is changed automatically/)
+  assert.match(guidance.getText(ast), /selectStep\('configure'\)/)
+  assert.doesNotMatch(guidance.getText(ast), /bindConsumerToStaging|activateCustomerDeploymentStagingConsumer/)
+  for (const stagingAssignmentReady of [false, true]) {
+    const calls = []
+    const consumer = { consumerId: 'staging-app', bindingRevision: 4, boundReleaseId: 'stage-release' }
+    const before = structuredClone(consumer)
+    const result = { candidateFingerprint: 'reviewed-candidate' }
+    const scope = { stagingAssignmentReady, selectedDeploymentId: 'deployment', selectedConsumer: consumer,
+      stagingRelease: { id: 'stage-release', deploymentVersionId: 'version' }, selectedProductionTargetProfileId: 'production',
+      selectedOffer: { id: 'offer' }, candidateScope: 'current-scope',
+      operationKey: (...args) => { calls.push(['key', ...args]); return 'review-key' },
+      admissionCommands: { current: { authorize: async (...args) => { calls.push(['authorize', ...args]) } } },
+      planDeploymentPracticalPromotion: async (...args) => { calls.push(['plan', ...args]); return result } }
+    const invoke = new Function(...Object.keys(scope), ts.transpileModule(`return (${mutation.getText(ast)})`,
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText)(...Object.values(scope))
+    if (!stagingAssignmentReady) {
+      await assert.rejects(invoke(), /Select or create a staging assignment/)
+      assert.deepEqual(calls, [], 'Ineligible selection must not even authorize or prepare a promotion command')
+    } else {
+      assert.deepEqual(await invoke(), { result, candidateScope: 'current-scope' })
+      assert.deepEqual(calls.map(call => call[0]), ['key', 'authorize', 'plan'])
+      assert.deepEqual(calls.at(-1), ['plan', 'deployment', { consumerId: 'staging-app', expectedBindingRevision: 4,
+        stagingReleaseId: 'stage-release', productionTargetProfileId: 'production', operationKey: 'review-key' }])
+    }
+    assert.deepEqual(consumer, before, 'Review never changes the assignment')
+  }
+})
