@@ -96,6 +96,31 @@ test('direct linking and start require the runtime callback but list and detail 
   assert.deepEqual(JSON.parse(calls[1].options.body), { expectedVersion: ticket.version })
   assert.equal(calls[0].url, 'https://desk.example.test/api/desk/requester/v1/spaces/space-1/requests/request-1')
 })
+test('email preference uses original identity only and never sends an arbitrary address or runtime token', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ available: true, enabled: true, deliveryStatus: 'NONE' })) }
+  const client = createRequesterApi({ configuration: config, credentials: { getIdentityAccessToken: () => 'original-identity', getRuntimeAccessToken: () => { throw new Error('not a runtime operation') } } })
+  await client.setNotifications(true, 'https://website.example.test/support')
+  assert.deepEqual(JSON.parse(calls[0].options.body), { enabled: true, returnUrl: 'https://website.example.test/support' })
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer original-identity')
+  assert.equal(calls[0].options.headers['X-LoomAI-Runtime-Authorization'], undefined)
+  assert.match(calls[0].url, /\/spaces\/space-1\/notifications$/)
+})
+test('email opt-in is explicit and strips location query and fragments from protected return link', async () => {
+  globalThis.location = { origin: 'https://website.example.test', pathname: '/support', href: 'https://website.example.test/support?token=private#conversation' }
+  const calls = []
+  const preference = { available: true, enabled: false, deliveryStatus: 'NONE' }
+  const store = new SupportStore(config, api({ notifications: async () => preference,
+    setNotifications: async (enabled, returnUrl) => { calls.push({ enabled, returnUrl }); return { ...preference, enabled } } }))
+  await store.list()
+  assert.deepEqual(calls, [])
+  assert.equal(store.getState().notifications.enabled, false)
+  await store.setNotifications(true)
+  assert.deepEqual(calls, [{ enabled: true, returnUrl: 'https://website.example.test/support' }])
+  assert.equal(store.getState().notifications.enabled, true)
+  await store.setNotifications(false)
+  assert.equal(store.getState().notifications.enabled, false)
+})
 test('seen sends its retained idempotency key, bounded marker and returns the new opaque version', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ ...ticket, version: 'seen-etag-next', unread: false })) }

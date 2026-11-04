@@ -15,7 +15,7 @@ export async function startPreview(port = 0, { initializeEpisodes = true } = {})
   const requests = [], tickets = new Map(), receipts = new Map(), conversations = new Map()
   const directPrefix = '/api/desk/requester/v1/spaces/preview-space'
   conversations.set('preview-chat', { controlState: 'AI_ACTIVE', controlVersion: 1, lastInteractionAt: '2026-01-01T10:00:01Z' })
-  let sequence = 1
+  let sequence = 1, notificationEnabled = false
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture.invalid')
     if (['/engine.js', '/pack.js', '/host.js'].includes(url.pathname)) {
@@ -58,6 +58,10 @@ export async function startPreview(port = 0, { initializeEpisodes = true } = {})
     }
     const caps = url.searchParams.get('readonly') === 'true' ? ['LIST', 'GET', 'SEEN'] : ['CREATE', 'LIST', 'GET', 'RESOLVE', 'CANCEL', 'REOPEN', 'SEEN', 'LINK_CONVERSATION', 'OBSERVE_ACTIVITY']
     if (url.pathname === '/api/support/session') { send({ authenticated: true, requesterId: 'preview-requester', space: { spaceId: 'preview-space', providerBindingId: 'preview-provider', humanHandoverEnabled: false, capabilities: caps }, capabilities: caps }); return }
+    if (url.pathname === '/api/support/notifications') {
+      if (req.method === 'PUT') notificationEnabled = !!body.enabled
+      send({ available: true, enabled: notificationEnabled, deliveryStatus: 'NONE' }); return
+    }
     if (url.pathname === '/api/support/team') { send([{ profileRef: 'preview-agent', displayName: 'Sample assigned agent', photoAvailable: false }]); return }
     if (url.pathname === '/api/support/requests' && req.method === 'GET') { send({ items: [...tickets.values()].filter(ticket => !url.searchParams.get('status') || ticket.status === url.searchParams.get('status')), nextCursor: null }); return }
     const key = req.headers['idempotency-key']

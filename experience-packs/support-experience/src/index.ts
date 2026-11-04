@@ -173,6 +173,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
       await openEpisode(request, undefined, true)
     }) },
     signIn: () => { void Promise.resolve((host.requestSignIn ?? context.credentials?.requestSignIn)?.()).catch(() => store.update({ error: 'Sign-in could not be completed.' })) },
+    notifications: enabled => { void store.run(() => store.setNotifications(enabled)) },
     currentConversation: () => {
       const id = initialized ? currentChat().conversationId : null
       return id && !linkedConversations.has(id) ? id : null

@@ -57,6 +57,14 @@ export class SupportStore {
     const page = await this.api.list({ status: this.status, cursor: append ? this.state.nextCursor ?? undefined : undefined, limit: 20 })
     const rows = append ? [...this.state.requests, ...page.items] : page.items
     this.update({ requests: [...new Map(rows.map(row => [row.id, row])).values()], nextCursor: page.nextCursor ?? null })
+    if (this.api.notifications) this.update({ notifications: await this.api.notifications() })
+  }
+  async setNotifications(enabled: boolean) {
+    if (!this.state.session?.authenticated || !this.api.setNotifications) return
+    // No query string, fragment or identity token belongs in an email link.
+    const returnUrl = new URL(location.pathname, location.origin).href
+    const notifications = await this.api.setNotifications(enabled, returnUrl)
+    this.update({ notifications, notice: enabled ? 'Email updates enabled for future request updates.' : 'Email updates disabled. Updates remain in My Requests.' })
   }
   async detail(id: string) {
     if (!this.state.session) await this.loadSession()

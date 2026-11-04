@@ -14,6 +14,7 @@ export interface SupportShellCallbacks {
   canContinue(): boolean
   continueConversation(): void
   signIn(): void
+  notifications(enabled: boolean): void
   currentConversation(): string | null
   layout(): void
 }
@@ -147,6 +148,18 @@ export class SupportShell {
     filter.addEventListener('change', () => { this.store.status = filter.value as RequestStatus || undefined; this.callbacks.list() })
     this.panel.replaceChildren(node('div', { class: 'panel-header' }, node('h2', {}, resolveSupportPresentation(this.config).requestLabel),
       filter, button('Refresh', () => this.callbacks.list(), { disabled: state.busy })))
+    if (state.session?.authenticated && state.notifications) {
+      const preference = state.notifications
+      const toggle = node('input', { type: 'checkbox', 'aria-label': 'Email request updates', style: 'width:auto' }) as HTMLInputElement
+      toggle.checked = preference.enabled
+      toggle.disabled = state.busy || !preference.available
+      toggle.addEventListener('change', () => this.callbacks.notifications(toggle.checked))
+      this.panel.append(node('div', { class: 'detail' },
+        node('label', {}, toggle, ' Email request updates'),
+        node('p', { class: 'muted', role: 'status' }, !preference.available ? 'Email is not available. Updates remain in My Requests.'
+          : preference.lastFailureCode ? 'An email update could not be delivered. Your request is saved; check My Requests.'
+          : preference.enabled ? 'Status changes and human replies. No conversation text is sent by email.' : 'Optional. Send updates to your verified sign-in email.')))
+    }
     if (!state.session?.authenticated) this.panel.append(node('div', { class: 'empty' }, node('p', {}, this.signInAvailable ? 'Sign in to view your requests.' : 'Sign in through the host application to view your requests.'),
       ...(this.signInAvailable ? [button('Sign in', this.callbacks.signIn)] : [])))
     else if (!state.requests.length) this.panel.append(node('p', { class: 'empty' }, state.busy ? 'Loading requests...' : 'No requests in this view.'))

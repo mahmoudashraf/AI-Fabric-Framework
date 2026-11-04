@@ -116,6 +116,8 @@ export function createRequesterApi(context: SupportMountContext, host: SupportHo
     seen: async (value, key) => validateRequest(await request(`${item(value.id)}/seen`, 'PUT', { ...version(value), seenThrough: value.updatedAt }, key)),
     newEpisode: async (value, key) => validateRequest(await request(`${item(value.id)}/episodes`, 'POST', version(value), key, true)),
     activity: async (value, key) => validateRequest(await request(`${item(value.id)}/activity`, 'POST', version(value), key, true)),
+    notifications: () => request('/notifications'),
+    setNotifications: (enabled, returnUrl) => request('/notifications', 'PUT', { enabled, returnUrl }),
     destroy,
   }
 }

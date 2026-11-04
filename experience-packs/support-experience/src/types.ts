@@ -57,6 +57,13 @@ export interface SupportRequest {
   capabilities?: TicketCapability[]
 }
 export interface SupportRequestPage { items: SupportRequest[]; nextCursor?: string | null }
+export interface SupportNotificationPreference {
+  available: boolean
+  enabled: boolean
+  deliveryStatus: string
+  lastFailureCode?: string | null
+  updatedAt?: string | null
+}
 export interface SupportCreateRequest {
   subject: string
   details: string
@@ -76,6 +83,8 @@ export interface SupportRequesterApi {
   seen(request: SupportRequest, idempotencyKey: string): Promise<SupportRequest>
   newEpisode?(request: SupportRequest, idempotencyKey: string): Promise<SupportRequest>
   activity?(request: SupportRequest, idempotencyKey: string): Promise<SupportRequest>
+  notifications?(): Promise<SupportNotificationPreference>
+  setNotifications?(enabled: boolean, returnUrl: string): Promise<SupportNotificationPreference>
   destroy?(): void
 }
 
@@ -174,6 +183,7 @@ export interface SupportExperienceState {
   busy: boolean
   error: string | null
   notice: string | null
+  notifications?: SupportNotificationPreference | null
 }
 export interface SupportExperienceController {
   installationId: string

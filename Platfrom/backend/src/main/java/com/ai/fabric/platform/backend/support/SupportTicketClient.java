@@ -47,13 +47,22 @@ public class SupportTicketClient {
     }
     public JsonNode request(Requester owner, String method, String path, Object body, String key,
         Map<String, String> runtimeHeaders, String runtimePrincipal, String runtimeConversationId) {
+        return request(owner, method, path, body, key, runtimeHeaders, runtimePrincipal, runtimeConversationId, null);
+    }
+    public JsonNode notificationPreference(Requester owner, Object body, String verifiedEmail) {
+        return request(owner, "PUT", "/notifications", body, null, Map.of(), null, null, verifiedEmail);
+    }
+    private JsonNode request(Requester owner, String method, String path, Object body, String key,
+        Map<String, String> runtimeHeaders, String runtimePrincipal, String runtimeConversationId, String verifiedEmail) {
         if (!path.matches("/[A-Za-z0-9/_?=&.%-]+") || path.contains("..")
             || !java.util.Set.of("GET", "POST", "PUT").contains(method)) throw new IllegalArgumentException("Bounded support requester operation required");
         try {
             var connection = connection();
             var request = HttpRequest.newBuilder(URI.create(connection.baseUrl() + "/api/desk/requester/v1/spaces/" + spaceId() + path))
                 .timeout(Duration.ofSeconds(path.endsWith("/start") ? 120 : 20))
-                .header("Authorization", "Bearer " + assertions.issue(owner, spaceId(), runtimePrincipal, runtimeConversationId))
+                .header("Authorization", "Bearer " + (verifiedEmail == null
+                    ? assertions.issue(owner, spaceId(), runtimePrincipal, runtimeConversationId)
+                    : assertions.issueNotificationConsent(owner, spaceId(), verifiedEmail)))
                 .header("X-LoomAI-Requester-Server-Key", assertions.serverKey()).header("Accept", "application/json");
             if (key != null) {
                 if (!key.matches("[A-Za-z0-9._:-]{1,128}")) throw SupportPolicy.bad("SUPPORT_IDEMPOTENCY_KEY_INVALID");

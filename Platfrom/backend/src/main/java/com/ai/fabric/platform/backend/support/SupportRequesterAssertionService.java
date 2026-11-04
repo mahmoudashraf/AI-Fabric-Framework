@@ -59,14 +59,25 @@ public class SupportRequesterAssertionService {
         return issue(requester, spaceId, null, null);
     }
     public String issue(Requester requester, String spaceId, String runtimePrincipal, String runtimeConversationId) {
+        return issue(requester, spaceId, runtimePrincipal, runtimeConversationId, null);
+    }
+    public String issueNotificationConsent(Requester requester, String spaceId, String verifiedEmail) {
+        return issue(requester, spaceId, null, null, verifiedEmail);
+    }
+    private String issue(Requester requester, String spaceId, String runtimePrincipal, String runtimeConversationId, String verifiedEmail) {
         try {
             Instant now = Instant.now();
             var builder = new JWTClaimsSet.Builder().issuer(issuer()).audience(audience(spaceId))
                 .subject(subject(requester)).issueTime(Date.from(now)).expirationTime(Date.from(now.plusSeconds(120)))
                 .jwtID(UUID.randomUUID().toString()).claim("spaceId", spaceId)
                 .claim("operations", List.of("SESSION", "TEAM", "CREATE", "LIST", "GET", "START", "RESOLVE",
-                    "CANCEL", "REOPEN", "SEEN", "LINK_CONVERSATION", "ACTIVITY", "TICKET_COMMAND"))
+                    "CANCEL", "REOPEN", "SEEN", "LINK_CONVERSATION", "ACTIVITY", "TICKET_COMMAND", "NOTIFICATIONS"))
                 ;
+            if (verifiedEmail != null) {
+                SupportPolicy.required(verifiedEmail, 255, "VERIFIED_NOTIFICATION_EMAIL");
+                if (verifiedEmail.contains("\r") || verifiedEmail.contains("\n")) throw SupportPolicy.denied();
+                builder.claim("email", verifiedEmail).claim("email_verified", true);
+            }
             if (runtimePrincipal != null) builder.claim("runtimePrincipal", runtimePrincipal)
                 .claim("runtimeConversationId", runtimeConversationId);
             var claims = builder.build();

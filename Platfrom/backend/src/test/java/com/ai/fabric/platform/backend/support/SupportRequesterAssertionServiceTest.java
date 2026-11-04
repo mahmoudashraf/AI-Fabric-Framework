@@ -47,6 +47,12 @@ class SupportRequesterAssertionServiceTest {
         assertThat(claims.getStringClaim("runtimeConversationId")).isEqualTo("chat-opaque");
         assertThat(claims.getExpirationTime().toInstant()).isBetween(Instant.now().plusSeconds(100), Instant.now().plusSeconds(121));
         assertThat(SignedJWT.parse(service.issue(owner,"desk-space")).getJWTClaimsSet().getClaim("runtimePrincipal")).isNull();
+        assertThat(claims.getClaim("email")).isNull();
+        var consent = SignedJWT.parse(service.issueNotificationConsent(owner, "desk-space", "verified@example.test")).getJWTClaimsSet();
+        assertThat(consent.getStringClaim("email")).isEqualTo("verified@example.test");
+        assertThat(consent.getBooleanClaim("email_verified")).isTrue();
+        assertThat(consent.getStringListClaim("operations")).contains("NOTIFICATIONS");
+        assertThat(consent.getClaim("runtimePrincipal")).isNull();
         var other = new Requester("customer-b","alice",owner.issuer(),owner.subject());
         assertThat(SupportRequesterAssertionService.subject(other)).isNotEqualTo(claims.getSubject());
         assertThat(service.publicKeys().toString()).doesNotContain(service.serverKey(), service.connectorKey());

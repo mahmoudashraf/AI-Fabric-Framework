@@ -4,6 +4,39 @@ import { mkdir } from 'node:fs/promises'
 import { chromium } from '../../../max-mode-widget/node_modules/playwright/index.mjs'
 import { startPreview } from '../scripts/preview-server.mjs'
 
+test('email updates are opt-in, reversible and visibly fail without hiding saved requests on desktop/mobile', { timeout: 45000 }, async () => {
+  const fixture = await startPreview()
+  const browser = await chromium.launch({ headless: true })
+  try {
+    for (const width of [1360, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 844 } })
+      await page.goto(fixture.url)
+      await page.waitForFunction(() => window.fixtureReady && !window.controller.getState().busy)
+      await page.evaluate(() => window.controller.showRequests())
+      const toggle = page.getByRole('checkbox', { name: 'Email request updates', exact: true })
+      await toggle.waitFor()
+      assert.equal(await toggle.isChecked(), false)
+      await toggle.check()
+      await page.waitForFunction(() => window.controller.getState().notifications?.enabled && !window.controller.getState().busy)
+      assert.equal(await toggle.isChecked(), true)
+      const enabled = fixture.requests.filter(row => row.path.endsWith('/notifications') && row.method === 'PUT').at(-1)
+      assert.equal(enabled.body.enabled, true)
+      assert.equal(enabled.body.email, undefined)
+      assert.equal(enabled.body.returnUrl, fixture.url.replace(/\/$/, '') + '/')
+      await toggle.uncheck()
+      await page.waitForFunction(() => window.controller.getState().notifications?.enabled === false && !window.controller.getState().busy)
+      await page.route('**/api/support/notifications', route => route.fulfill({ json: {
+        available: true, enabled: true, deliveryStatus: 'FAILED', lastFailureCode: 'SMTP_UNAVAILABLE',
+      } }))
+      await page.getByRole('button', { name: 'Refresh', exact: true }).click()
+      await page.getByText('An email update could not be delivered. Your request is saved; check My Requests.', { exact: true }).waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Return to chat', exact: true }).isVisible(), true)
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+      await page.close()
+    }
+  } finally { await browser.close(); await fixture.close() }
+})
+
 test('handover-only mount loads the authenticated roster with no ticket controls or requests', { timeout: 45000 }, async () => {
   const fixture = await startPreview()
   const browser = await chromium.launch({ headless: true })
