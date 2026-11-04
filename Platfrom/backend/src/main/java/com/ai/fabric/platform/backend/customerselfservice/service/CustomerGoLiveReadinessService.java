@@ -226,7 +226,13 @@ public class CustomerGoLiveReadinessService {
             }
             exact(node, "deploymentId", deployment.getId(), failures);
             exact(node, "customerId", deployment.getCustomerId(), failures);
-            exact(node, "consumerId", consumer.getConsumerId(), failures);
+            boolean promotionConsumer = consumer.getConsumerId().equals(node.path("consumerId").asText());
+            boolean assignedToProduction = deployment.getId().equals(consumer.getBoundDeploymentId())
+                && release.getId().equals(consumer.getBoundReleaseId())
+                && target.getId().equals(consumer.getBoundTargetProfileId());
+            // The originating assignment scopes promotion, not later owned production connections.
+            if (!promotionConsumer && !assignedToProduction) exact(node, "consumerId", consumer.getConsumerId(), failures);
+            if (!StringUtils.hasText(node.path("consumerId").asText())) failures.add("Frozen promotion consumer is missing.");
             exact(node, "versionId", version.getId(), failures);
             exact(node, "configHash", version.getConfigHash(), failures);
             exact(node, "sourceArtifactId", release.getSourceArtifactId(), failures);
@@ -237,11 +243,12 @@ public class CustomerGoLiveReadinessService {
                 failures.add("Approved promotion evidence policy changed after candidate review.");
             }
             if (expectedRevision < 0) failures.add("Frozen consumer binding revision is missing.");
-            boolean beforeActivation = expectedRevision == consumer.getBindingRevision()
+            boolean beforeActivation = promotionConsumer && expectedRevision == consumer.getBindingRevision()
                 && node.path("stagingReleaseId").asText().equals(consumer.getBoundReleaseId());
-            boolean afterActivation = release.getId().equals(consumer.getBoundReleaseId())
-                && consumer.getBindingRevision() > expectedRevision;
+            boolean afterActivation = assignedToProduction
+                && (!promotionConsumer || consumer.getBindingRevision() > expectedRevision);
             if (!beforeActivation && !afterActivation) failures.add("Consumer binding changed after the candidate was reviewed.");
+            if (!promotionConsumer && assignedToProduction) expectedRevision = consumer.getBindingRevision();
         } catch (Exception error) {
             failures.add("Frozen promotion candidate is missing or invalid.");
         }

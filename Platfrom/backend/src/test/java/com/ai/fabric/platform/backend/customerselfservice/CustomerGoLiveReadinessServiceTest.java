@@ -370,6 +370,74 @@ class CustomerGoLiveReadinessServiceTest {
         assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
     }
 
+    @Test
+    void ownedAppAlreadyAssignedToVerifiedProductionIsNotPinnedToThePromotionConsumer() {
+        String frozenCandidate = release.getPromotionCandidateJson();
+        assignAnotherAppToProduction();
+
+        var summary = service.project("offer", "deployment", "production-release", "live-app");
+
+        assertThat(summary.activationReady()).isTrue();
+        assertThat(summary.expectedBindingRevision()).isEqualTo(1);
+        service.requireActivationReady(deployment, release, consumer);
+        assertThat(release.getPromotionCandidateJson()).isEqualTo(frozenCandidate);
+        assertThat(consumer.getBoundReleaseId()).isEqualTo("production-release");
+        verify(candidates, times(2)).requireFreshVerification(eq(deployment), eq(version), eq(release), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"deployment", "release", "target"})
+    void anotherAppNeedsTheExactExistingProductionAssignment(String changedField) {
+        assignAnotherAppToProduction();
+        switch (changedField) {
+            case "deployment" -> consumer.setBoundDeploymentId("other-deployment");
+            case "release" -> consumer.setBoundReleaseId("staging-release");
+            case "target" -> consumer.setBoundTargetProfileId("staging");
+        }
+
+        var summary = service.project("offer", "deployment", "production-release", "live-app");
+
+        assertThat(summary.activationReady()).isFalse();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
+            .singleElement().satisfies(item -> assertThat(item.blocker()).contains("Frozen candidate consumerId changed"));
+    }
+
+    @Test
+    void anotherProductionAssignmentCannotBypassCustomerOwnershipOrFrozenEvidence() {
+        assignAnotherAppToProduction();
+        consumer.setCustomerId("foreign-customer");
+        assertThat(service.project("offer", "deployment", "production-release", "live-app").activationReady()).isFalse();
+
+        consumer.setCustomerId("customer");
+        when(candidates.fingerprint(any())).thenReturn("changed-fingerprint");
+        assertThat(service.project("offer", "deployment", "production-release", "live-app").activationReady()).isFalse();
+
+        when(candidates.fingerprint(any())).thenReturn("candidate-fp");
+        doThrow(new IllegalStateException("Verification is stale"))
+            .when(candidates).requireFreshVerification(eq(deployment), eq(version), eq(release), any());
+        assertThat(service.project("offer", "deployment", "production-release", "live-app").activationReady()).isFalse();
+    }
+
+    @Test
+    void originalPromotionConsumerStillRequiresItsActivationRevision() {
+        consumer.setBoundReleaseId("production-release");
+        consumer.setBoundTargetProfileId("production");
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isFalse();
+
+        consumer.setBindingRevision(4);
+        assertThat(service.project("offer", "deployment", "production-release", "workspace").activationReady()).isTrue();
+    }
+
+    private void assignAnotherAppToProduction() {
+        consumer.setConsumerId("live-app");
+        consumer.setBindingRevision(1);
+        consumer.setBoundDeploymentId("deployment");
+        consumer.setBoundReleaseId("production-release");
+        consumer.setBoundTargetProfileId("production");
+        when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer", "live-app"))
+            .thenReturn(Optional.of(consumer));
+    }
+
     private Definition definition() {
         Set<Prerequisite> prerequisites = EnumSet.allOf(Prerequisite.class);
         return new Definition("1", "Dealership", "dealership",
