@@ -151,7 +151,7 @@ template.
   template, with the reviewed diagnostics dependency. It is not a public
   customer default and supplies no credentials. The reusable customer starter
   above remains independent of LoomAI's case service and diagnostic tools.
-- `manifests/loomai-support-workspace.1.1.0.manifest.json`: source-only internal
+- `manifests/loomai-support-workspace.1.1.0.manifest.json`: separately published internal
   Support Experience composition; exact ticket/diagnostics/Desk/handover pins,
   target-independent managed Desk references, but no native ticket aliases,
   credential values or owned source locations.

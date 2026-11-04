@@ -90,7 +90,7 @@ Existing published template versions remain unchanged.
 
 ## Internal LoomAI Instance
 
-`manifests/loomai-support-workspace.1.1.0.manifest.json` is a separate, source-only
+`manifests/loomai-support-workspace.1.1.0.manifest.json` is a separate internal
 instance composition, not a public customer default. Its provider and prompt
 defaults match the new generic `1.1.0`, including the canonical conversation
 requirement and ticket confirmation/receipt guidance. This LoomAI instance also

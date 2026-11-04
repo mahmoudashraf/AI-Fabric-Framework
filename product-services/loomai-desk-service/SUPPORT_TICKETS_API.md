@@ -1,7 +1,9 @@
 # Support Tickets Backend Contract
 
 Source contract: `src/main/java/com/loomai/desk/ticket/TicketContracts.java`.
-This is local implementation, not deployed qualification. No history import,
+The native contract is deployed and its core journeys are qualified; see
+[the dated acceptance](../../verification-support/support-kit-01057/2026-11-04-production-acceptance.md)
+for exact sources and limits. No history import,
 compatibility writer, transcript copy, or AI engine is introduced.
 
 ## Provisioning
@@ -119,8 +121,9 @@ must match; audiences/scopes are comma-separated, expiry is a future UTC instant
 cannot select owner, principal, issuer, URL or credentials.
 
 `POST /api/desk/integrations/v1/spaces/{spaceId}/server-ticket-commands`
-accepts the existing `CommandInput` plus `Idempotency-Key`, supporting CREATE,
-LIST and GET. These use the registered original Supabase subject/namespace,
+accepts the existing `CommandInput`, supporting CREATE, LIST and GET.
+CREATE requires a valid `Idempotency-Key`; GET/LIST are read-only and do not.
+These use the registered original Supabase subject/namespace,
 without any control-plane callback, original JWT forwarding, or runtime token
 minting. CREATE ignores body `conversationId` and takes only the authenticated
 runtime-generated conversation header. A package-private `VerifiedRuntimeTrace`
@@ -313,7 +316,8 @@ conversation, shared binding, operator, knowledge source or S3 object is deleted
 
 POST `/api/desk/integrations/v1/spaces/{spaceId}/ticket-commands`, with distinct
 `X-LoomAI-Ticket-Connector-Key`, original requester bearer authentication (plus
-private server key for that profile), and Idempotency-Key. A key or arbitrary
+private server key for that profile). CREATE/LINK_CONVERSATION require a valid
+Idempotency-Key; read-only GET/LIST do not. A key or arbitrary
 trace header alone is never caller identity. Signed private assertions require
 both `TICKET_COMMAND` and the requested operation in operations.
 

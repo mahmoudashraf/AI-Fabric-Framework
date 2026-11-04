@@ -1,172 +1,143 @@
-# Platform's Desk Support Context Integration
+# Console's Read-Only Desk Context Adapter (010.57)
 
-Implements the service-provider side of
-`product-services/loomai-desk-service/EXTERNAL_CONVERSATION_CONTEXT.md`.
-Only Platform's internal support cases use this registry. This is not a
-requirement that third-party support deployments adopt a LoomAI ticket database.
+This is optional Console resource/consent enrichment beside Desk's native Ticket
+and canonical conversation views. It is **not ticket storage, a ticket resolver,
+an operator inbox or a chat transport**. This document describes source behavior;
+provider registration and hosted qualification are separate work.
 
-## Endpoints And Root Security Registration
+The broader
+[external-context protocol](../../../../../../../../../../../product-services/loomai-desk-service/EXTERNAL_CONVERSATION_CONTEXT.md)
+can support other providers' resolve operations. **This Console adapter supports
+only `LOOKUP`**, with `command:null`. Do not advertise its resolve capability.
+`SupportDeskContextService` rejects RESOLVE before provider mutation, always
+returns `resolveAction:null`, and has no local ticket-resolution receipt store.
 
-Exact callback: **POST `/api/integrations/support/desk/context`**. Both LOOKUP
-and RESOLVE use this single endpoint and the official schemaVersion=1 envelope.
-No GET lookup alias, generic action executor or customer-chosen callback URL.
+## Exact Callback And Authentication
 
-Minimal staff registry view: **GET `/api/support/staff/intake?page=0&size=25`**,
-maximum 50 entries per page. It shows OPEN requests whose first AI response has
-not completed: PENDING/UNKNOWN/USER_MESSAGE_PERSISTED/FAILED. These are intake
-records, not a second human messenger or a promise of staff notification.
+```http
+POST /api/integrations/support/desk/context
+Authorization: Bearer <actual-agent-Supabase-access-token>
+X-LoomAI-Desk-Service-Key: <dedicated-context-credential>
+X-LoomAI-Desk-Binding-Id: <configured-support-binding>
+Content-Type: application/json
+```
 
-For the main integration stream, register only these exact method/path pairs:
+The body is the existing schema-version-1 context envelope: `operation:"LOOKUP"`,
+the Desk-generated `scope`, verified `actor`, and `command:null`.
+There is no GET callback alias or current Platform staff-intake route. Agents
+use Desk's own authorized ticket list/detail and conversation UI instead.
 
-- Let POST `/api/integrations/support/desk/context` reach its own service-key
-  **and actual Supabase agent JWT** checks. Exempt only that server callback
-  from browser CSRF; never exempt `/api/support/**` wholesale.
-- Let GET `/api/support/staff/intake` reach its own actual Supabase agent JWT
-  and current SUPPORT checks. It is a read and needs no CSRF exemption.
-- The ordinary Console customer bearer filter must not first require a Desk
-  agent to have a linked CUSTOMER_ADMIN Console account on these two routes.
-  Do not disable JWT validation: `SupportDeskAuthorization` explicitly uses
-  `CustomerSupabaseIdentityService.verifyIdentity`, not Console membership
-  authentication, and verifies expected issuer/audience/expiry/actor.
-- These handlers must not rely on a Platform admin key, customer cookie,
-  arbitrary `PlatformPrincipal`, Desk OWNER or REVIEWER role. Their independent
-  authorization runs even if global auth already accepted a request.
-- Existing customer `/api/support/cases` and private `support.runtime` routes
-  retain their existing customer/requester authentication and mutation rules.
+The root security chain lets this exact callback reach its own authentication.
+The ordinary customer Supabase filter does not first require an agent to have a
+Console customer account. This exception does **not** open neighboring internal
+or customer routes. Preserve the existing host/CSRF policy; do not exempt all
+support routes or accept an admin session as callback identity.
 
-Success projections have `Cache-Control: no-store`. Main registered these exact
-route/filter exceptions in the shared security configuration. This package's
-`SupportDeskSecurityFilterTest` verifies them with the real filter chain; it does
-not modify shared security or introduce an all-internal-path exemption. Existing
-global CSRF policy was not changed by this package.
+`SupportDeskAuthorization.callback` requires all of the following:
 
-## Fixed Source Authority And Settings
+- One matching context credential and binding header. The context key must be
+  32-4096 characters and distinct in reference and value from the diagnostic
+  credential, and cannot be the selected Desk service's administration key.
+- A fixed configured support binding whose customer/tenant/deployment/target
+  match the callback scope. Its local state must be ENABLED or APPLYING and its
+  target active; the target selects the server-side Desk connection.
+- The actual agent JWT verified through `CustomerSupabaseIdentityService`, with
+  expected issuer/audience, unexpired lifetime and immutable subject matching the
+  asserted actor. `agentId` is authenticated correlation metadata, not a role or
+  permission claim.
+- A fresh existing Desk administration-side authorization lookup:
+  `GET /api/desk/admin/v1/bindings/{bindingId}/authorizations?issuer=...&subject=...&permission=SUPPORT`.
+  Only `authorized:true` grants access. OWNER/REVIEWER, agent registration,
+  service keys alone and customer/admin cookies do not substitute for SUPPORT.
 
-Existing `platform.support` customer/tenant/deployment/target/assertion settings
-remain the source of authority. They must match the canonical deployment row;
-the target must exist. Unresolved placeholders, a customer-selected tenant or
-foreign deployment ownership are not usable support configuration. None of this
-adds a live runtime-health requirement to case intake.
+Desk's administration credential stays server-side. No model field, browser URL
+or request environment selects the Desk service or support runtime.
 
-Additional server settings:
+## Correlation And Data Ownership
+
+`SupportIntegrationContextStore` maps the exact configured space and verified
+runtime principal (`scope.ownerRef`) to a provider ticket and original Console
+requester. It stores resource authority/consent only. It does not keep ticket
+subject/details/status, conversation episodes or a transcript.
+
+For each authorized lookup, the service:
+
+1. Finds that principal's unique integration context in the configured space.
+2. Fetches the actual Ticket through `SupportTicketService`/the configured
+   provider, rechecking the original requester's active membership.
+3. Requires the callback conversation to equal the Ticket's **current** linked
+   conversation. No principal mapping or a different conversation returns
+   `NOT_LINKED` with null context and the unchanged scope, never another ticket.
+4. Rechecks ownership of all selected resource references.
+5. Returns safe context based on the current provider Ticket and local consent.
+   Only OPEN tickets with current consent receive recorded resource observations.
+
+The returned context contains provider reference/subject/status, account label,
+selected-resource labels, consent state/timestamp, coarse observations and
+`resolveAction:null`. Its numeric `version` is the **integration-context revision**,
+not the TicketProvider's opaque Ticket version and not a resolution token.
+No raw logs, configuration, credentials or runtime assertion is included.
+
+Declined/revoked consent still permits basic ticket context to an authorized
+SUPPORT agent; it does not permit resource diagnostic observations. Authorized
+observations explicitly state that they are recorded status and that upstream
+services have not been probed. LOOKUP does not change ticket status, consent,
+runtime AI/human control or the customer's infrastructure. Responses are no-store.
+
+## Resolution, Roster And Conversation Control Are Separate
+
+Native ticket resolution uses Desk's existing
+`POST /api/desk/v1/bindings/{bindingId}/tickets/{id}/resolve`, with the actual
+agent session/current SUPPORT, `Idempotency-Key` and opaque `{expectedVersion}`.
+Requester resolve/cancel/reopen uses the provider-neutral requester routes
+described in [README.md](README.md). There is no Console context RESOLVE path or
+second local resolution transaction.
+
+Ticket resolution does not return a conversation to AI, end a human session or
+close canonical history. Those remain explicit authorized runtime/channel
+operations. Ticket history and state come from Desk's selected TicketProvider;
+messages/control come from the assigned deployment runtime.
+
+The requester-facing assigned-agent roster is independently served by
+`GET /api/support/team` and its authenticated photo route. It uses current
+target-scoped SUPPORT assignments, not context LOOKUP or ticket consent. A name
+or photo denotes an assigned agent, not online availability or response time.
+
+## Configuration And Retirement
+
+Use the fixed owner/tenant/deployment/target/assertion/installation settings in
+[README.md](README.md), plus:
 
 ```properties
-platform.support.desk.binding-id=<exact-internal-support-desk-binding>
-platform.support.desk.context-service-key-secret-name=<dedicated-server-secret-reference>
-platform.support.desk.resolve-enabled=true
+platform.support.desk.binding-id=<exact-support-binding>
+platform.support.desk.context-service-key-secret-name=<dedicated-context-key-reference>
 ```
 
-Resolve defaults to false. Register the provider in Desk with the same reviewed
-resolve setting and exact callback URL. The context credential must be 32-4096
-characters and distinct in reference **and value** from the diagnostic credential.
-It also cannot be Desk's global administration credential. Resolve it through
-the existing Platform secret service, never through a browser or case field.
+Register the optional context provider in Desk through its existing service-admin
+API using the exact callback URL and **`resolveEnabled:false`**. Its origin must
+pass Desk's existing context-origin policy. This is distinct from preparing the
+native Support space, which uses `POST /api/platform/support/prepare` and its own
+requester identity/server/connector credentials. Do not place any of these keys
+in agent or requester browser configuration.
 
-The configured `DeskBindingEntity` must match that fixed internal support
-customer, tenant, deployment and target. Local binding state must be ENABLED or
-APPLYING; the remote current-role introspection additionally requires Desk's
-actual enabled binding and registered SUPPORT assignment. Target environment
-selects the existing staging/production `DeskServiceClient` connection. No
-request URL/environment or browser secret selects the upstream Desk service.
+V227 removes the old Console ticket/episode/event/Desk-operation tables without
+migrating their disposable test records. V226 retains only resource-consent and
+pre-ticket conversation authority mappings. The callback has no compatibility
+ticket reader or local status writer after this cutover.
 
-## Callback Authentication And Correlation
+## Source Coverage
 
-Required headers:
+- `SupportDeskContextServiceTest`: actual provider lookup, missing/foreign
+  correlation, current requester/resource ownership and consent; rejects RESOLVE
+  without mutating the provider or local consent.
+- `SupportDeskSecurityFilterTest`: real root-filter boundaries, Desk-only agent
+  identity without Console membership, dedicated credential/current SUPPORT,
+  expired/invalid tokens and no admin-cookie/API-key substitution.
+- `SupportContextPostgresTest`: minimal authority/consent serialization and
+  removal of disposable legacy tables without deleting knowledge or AI state.
+- `SupportTeamSecurityTest` and `SupportTeamControllerTest`: independently
+  protected assigned-agent/portrait projection.
 
-```http
-Authorization: Bearer <actual Desk agent Supabase access token>
-X-LoomAI-Desk-Service-Key: <dedicated context credential>
-X-LoomAI-Desk-Binding-Id: <fixed configured binding>
-```
-
-Missing, duplicate or mismatched credentials are rejected. Validate the actual
-token through the existing identity verifier and match JWT issuer/subject to
-the envelope's `actor`. Check the configured audience and current expiry.
-`agentId` is bounded, Desk-service-authenticated correlation metadata, not an
-authorization claim. Current existing introspection returns only a boolean,
-so the provider's authoritative staff audit identity is verified issuer/subject;
-it does not pretend to independently resolve `agentId` from that boolean.
-
-For every request, using existing server-only administration trust:
-
-```http
-GET /api/desk/admin/v1/bindings/{fixedBindingId}/authorizations?issuer=...&subject=...&permission=SUPPORT
-```
-
-Only boolean `authorized:true` grants access. This implementation uses the
-existing class named `DeskServiceClient` (there is no separate DeskAdminClient
-in current Platform source). No global Desk administration key is returned to
-Desk agents, customer providers, the workspace or the callback response.
-
-The callback scope's binding/customer/tenant/deployment/target must all equal
-fixed source authority. Resolve `ownerRef` using the registered opaque case
-principal and require the exact registered `conversationId` episode/binding.
-The handover/external reference are trusted Desk correlation fields, not case
-selection, requester identity or runtime-control authority. An unlinked
-principal/conversation returns NOT_LINKED with null context and the **same exact
-scope**, never another case. No parsing of intake/contact fields or message text.
-
-Recheck the original immutable requester's active membership and current
-selected-resource ownership. With declined/revoked consent, basic case context
-remains available to the authorized staff member, but no resource diagnostic
-observations run. When consent is active, only the existing safe projections
-are used. No raw logs/configuration/provider payload or runtime assertions enter
-the projection. Oversized or unrepresentable context fails visibly rather than
-being silently truncated.
-
-Staff intake uses the same current SUPPORT gate and original requester/resource
-checks, but requires **only the actual agent Bearer token**, not a browser-held
-context secret. It never returns the case's runtime principal or initial-message
-idempotency key. An authorization failure is explicit, not a silently omitted
-request or a downgraded public support session.
-
-## Resolve Is A Case Mutation Only
-
-RESOLVE requires `command.idempotencyKey` and `command.expectedVersion`, an
-enabled provider setting, current SUPPORT, exact scope and an OPEN case. Version
-is the same revision supplied in the context projection. The case row is locked;
-version check, consent revocation, RESOLVED status, lifecycle audit and receipt
-are committed atomically. A failed projection or receipt write rolls all changes
-back. It does not call Desk close, return-to-AI, runtime conversation control or
-any customer infrastructure write.
-
-Receipt identity is SHA-256 over the binding/conversation/verified actor/
-operation/idempotency-key tuple. The full schema/scope/actor/command payload is
-fingerprinted separately. An exact authorized retry returns its original typed
-response; changed payload under the same key is CONFLICT. A changed actor cannot
-reuse another actor's receipt. Live SUPPORT and original membership/resource
-checks also run for a retry. Previously referenced resources are rechecked
-before replay, so the receipt does not bypass later ownership revocation.
-
-Migration `V219__support_desk_context_receipts.sql` adds
-`platform_support_desk_operations` to existing Platform PostgreSQL. LOOKUP audits
-contain only correlated case/binding/conversation/handover and actual staff
-identity metadata, with no context payload. RESOLVE additionally stores the safe
-typed response and resource references for idempotent replay. It stores neither
-JWT/service credentials nor chat history. The existing lifecycle event uses no
-fake Platform requester ID for a Desk agent; the new audit has its actual
-verified issuer/subject and Desk-supplied agent reference.
-
-## Verification
-
-The explicit package test command in [README.md](README.md) passed **58 tests**,
-no failures/errors/skips (37 registry/diagnostic tests plus 16 Desk tests and 5
-real-filter security tests). Includes PostgreSQL 16
-concurrent resolve: one receipt, one case transition, identical response for
-both requests and no runtime conversation change. Other coverage includes
-missing/duplicate credentials, JWT issuer/subject/audience/expiry mismatch,
-revoked SUPPORT on receipt replay, foreign scope/binding, consent-aware reads,
-placeholder configuration, stale-version/payload conflicts, full transaction
-rollback and actual-Bearer staff intake. This is local verification, not hosted
-Desk provider registration or end-to-end UI proof.
-
-The five real-filter tests use the actual `PlatformSecurityConfiguration` and
-`CustomerSupabaseAuthenticationFilter`, real support authorization/controller and
-real Supabase identity-verification service. A Desk-only JWT works without a
-Console identity link; invalid/expired JWTs, service keys/admin credentials alone
-and revoked SUPPORT do not. Adjacent internal/customer routes remain protected.
-
-The broad `Support*Test` selector also includes main-owned private runtime tests.
-The final bounded rerun on 2026-10-30 passed all 58 tests listed above. Broader
-integrated-suite verification and runtime fixes remain coordinated by main;
-this package proof does not claim that every support/runtime release gate passed.
+These source tests do not prove live provider registration, staffed handover or
+hosted response quality. No previous test count or rollout status is carried
+forward as current qualification evidence.

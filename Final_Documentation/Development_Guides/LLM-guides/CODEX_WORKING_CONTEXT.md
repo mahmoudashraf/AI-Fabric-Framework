@@ -12098,3 +12098,119 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence: `verification-support/experience-kits/2026-11-03-kit-address-preview-and-setup.md`.
   The retained configuration-only test kit can be removed in a later cleanup;
   it does not prove the resulting app is live or its integrations configured.
+
+## 2026-11-03 Support Experience Kit Proposal
+
+- Owner requested a full implementation-ready proposal, not implementation.
+  Created 010.57_AI_SUPPORT_EXPERIENCE_KIT_SOLUTION_AND_IMPLEMENTATION_PLAN.md
+  in the canonical implementation-plan directory; linked it from 010.56.
+- Design: existing support template + reusable Engage support pack, contained
+  page/widget/standalone views and opt-in shared Desk tickets. No new chat
+  engine, per-deployment ticket database, plugin type or assumed framework fix.
+- Generic requester security/tickets are NEW planned Desk work, not current
+  Console APIs repackaged as external capabilities. Separate ticket status,
+  message delivery and runtime AI/human authority. Keep current Console case
+  storage/migration separate; no dual writer or forced data move.
+- All S0-S6 phases remain pending. Source inspection and bounded independent
+  read-only review completed; link/JSON/structure/whitespace checks passed.
+  No code, deployment, configuration, provider call or live service changed.
+  Preserve unrelated existing working-context edits when staging later.
+
+### Owner Clarification: Mandatory Console Adoption
+
+- 010.57 now requires LoomAI Console to install/use the real support kit and
+  TicketProvider contract, retaining its actual approved S3 source connections,
+  per-environment prefixes/identities, real guides and verified optimized settings.
+  This supersedes the earlier optional/internal-case-migration scope above.
+- S6 must cut over Console page/dock/My Requests/diagnostics and retire legacy
+  ticket writers, code/routes and unreferenced schema after backup, explicit
+  record disposition and production acceptance. Keep minimal Console resource/
+  consent integration; no duplicate case store or blanket support-directory delete.
+- Fresh baseline versus kit quality, historical follow-up/compound failures,
+  18-question library and multi-turn/paraphrase suites are explicit acceptance.
+  Qualified generic settings become versioned template defaults; internal tools,
+  docs and secrets stay instance-only. No implementation/deployment performed.
+
+## 2026-11-03 Support Kit Implementation In Progress
+
+- Owner authorized full 010.57 implementation. Current Console tickets are
+  disposable; no customer history migration or backward compatibility is needed.
+  Preserve approved S3 knowledge and unrelated product resources.
+- Tracking: 010.57_SUPPORT_EXPERIENCE_KIT_EXECUTION_RECORD.md. Plan/tracking
+  checkpoint committed as `476f8e48d`; implementation source is still uncommitted.
+- Main: Console provider adapter, minimal resource/consent context and private
+  conversation authority, requester assertions, diagnostics integration, eventual
+  rollout and fresh hosted kit/quality proof. Gauss: Desk backend + Console tests;
+  Faraday: support pack/installer + integration review/continuation; Kepler:
+  catalogue/template + generic support-space activation; Parfit: Desk/Console UI
+  and then customer kit setup UI. Agents must not deploy independently.
+- Local backend compiles. Catalogue slice 141 Java + 22 Node tests; Desk UI
+  87 tests; initial pack 16 tests; initial Console host 11 integration groups.
+  These are local slice results, not full integration or live completion.
+- Actual current support fleet remains unchanged: staging `dep-a2706601` /
+  `rel-abaecf27`, production `dep-757bc5bc` / `rel-b25e08d3`, AI Fabric 0.8.44,
+  13 active sources each. Fresh nine-turn production baseline reproduced the
+  existing wrong-subject follow-up. Never mark that answer correct by assumption.
+- Legacy Console case storage code removed locally; forward V227 retires its
+  four tables at rollout. Old production still uses old code/schema until the
+  controlled deployment. New contexts store no ticket text/status/transcript.
+- Private evidence and configuration snapshots:
+  `~/.codex/private/loomai-support-kit-01057/`.
+- Outstanding: finish contract/security/endpoint qualification, normal fresh kit
+  installation in both environments using existing scoped S3 sources, actual
+  Console/Desk cutover, UI/API/AI-quality proof, cleanup and guides. No new
+  framework change or release has been made for this implementation.
+
+## 2026-11-04 Support Kit Native Implementation Live
+
+- This supersedes the 3 November in-progress checkpoint above. Native 010.57
+  code is committed/pushed and deployed. Exact acceptance:
+  `verification-support/support-kit-01057/2026-11-04-production-acceptance.md`;
+  phase tracking: `010_57_SUPPORT_EXPERIENCE_KIT_EXECUTION_RECORD.md`.
+- Production Console uses the fresh normal LoomAI kit, not the old custom ticket
+  store: deployment `dep-79af290c`, version `ver-35b051a2`, customer-staging release
+  `rel-2f6b9f87`, production release `rel-09c92f90`. Both verified; production
+  consumer/support space/readiness/explicit app activation passed. Its 13 approved
+  S3 guides and scoped readers remain; no vector/ticket/conversation transfer.
+- Developer canary `dep-a9d6d646` / `rel-c1158395` retains the isolated 32k context
+  candidate. It is not the production/global default. Neutral Acme kit
+  `dep-b9a09c0a` / `rel-6f17b45e` has separate 3-guide knowledge, own vector fixture,
+  direct Supabase identity, both Engage presentations and human support OFF.
+- All four target runtime/connector pairs are healthy at exact source
+  `83fd17427b28814fb737093571f46615a598e2c0`, image digest
+  `sha256:0ad2e34df4d9b5b9f218e96cbaa4e0b5b89196a5ca74c60e0f46ab28e5aaad08`.
+  AI Fabric remains 0.8.45; no framework patch/release for this task.
+- Backends: `021a17472`, staging job `qt0k4oa16z4fzpab5krruhxg`, production
+  `fosu55v9awmk81ub00ynp11j`; Desk: `28c8625c3`, staging
+  `qle4j7hx6i2wss8k0bdeb25v`, production `tdwiwms40bekre5huieum77p`.
+  All exact native sources/health verified. Console stays `d990b202b` both envs.
+- Confirmed CREATE and fresh own READ passed for private Console and neutral
+  Acme, with actual receipts, unchanged READ status/version and no intake,
+  confirmation or failed-operation replay. Ordinary REST key forwarding is
+  fixed; replay keys remain mandatory for mutations, not read-only GET/LIST.
+  Focused passes: 51 connector, 12 Platform HTTP/security, 47 Desk including PG,
+  15 deletion/kit PG regressions and 8 qualification-runner tests. Exact runtime,
+  core, Desk and deletion CI passed. Historical failures remain retained.
+- Live staging full ticket/close/new-episode/human journey and production real
+  agent claim, asynchronous bidirectional messages and explicit return to AI
+  passed. Public installer page/widget and standalone worked without a Console
+  backend dependency. Embedded protected requests use the website's identity
+  callbacks; standalone supplies sign-in. Temporary public test assets removed.
+  Live browser evidence is desktop; the bridge ignored 390px, so do not claim a
+  live phone pass. Local browser responsive fixtures remain separate evidence.
+- Old deployments `dep-a2706601`/`dep-757bc5bc` and their six dedicated native
+  runtime/connector/AI-state resources are gone. Normal deletion receipts
+  `del-65cd24a4`/`del-84c79f2e` succeeded after explicit owned-volume vendor cleanup
+  and proper release-evidence deletion ordering. V227 retired four Console case
+  tables; minimal consent/resource context remains. S3/shared services preserved.
+- Known limits: production primary quality 6 PASS/2 PARTIAL/1 FAIL; wrong-subject
+  compound follow-up and incomplete synthesis remain. Acme primary 4 PASS/
+  1 PARTIAL/0 FAIL; its corrected READ data is accurate but text omits reference.
+  No text-matching/hidden fanout/semantic fallback or relaxed trust boundary.
+  Email delivery and specific external-helpdesk adapters are not qualified;
+  native in-app updates are released. Wider expiry/outage/live-phone matrix is
+  not silently marked green. No extra quality candidate becomes a default.
+- Guides: `experience-packs/support-experience/docs/INSTALLATION_AND_OPERATIONS.md`
+  and `CONSOLE_HOST_ADAPTER.md`; backend adapter guides updated. Private journals,
+  first responses, snapshots and receipts remain under
+  `~/.codex/private/loomai-support-kit-01057/`; never publish their credentials.

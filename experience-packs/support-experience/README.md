@@ -5,6 +5,11 @@ Provider-neutral support shell, configuration schema
 current Max Mode engine in one persistent, integrity-checked isolated frame.
 There is no support-specific chat client, transcript store or agent routing.
 
+Start with [Installation and operations](docs/INSTALLATION_AND_OPERATIONS.md)
+for the customer, host, agent, storage and outage workflows, or the
+[private host adapter contract](docs/CONSOLE_HOST_ADAPTER.md) for Console-style
+integrations.
+
 ## Assets And Exports
 
 Run `npm ci && npm test` after building the sibling widget with

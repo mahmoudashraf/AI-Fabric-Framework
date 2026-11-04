@@ -2,10 +2,13 @@
 
 ## Status And Ownership
 
-These are source-only 010.57 contributions. They have not been published or
-qualified live. Local schema/contract tests do not establish answer quality,
-real requester authorization, staffing, provider connectivity or release readiness.
-Use normal verified releases and the final customer-journey suite before enabling.
+The native 010.57 kit is published and deployed for LoomAI Console and a separate
+Acme qualification customer. See [dated acceptance](../../verification-support/support-kit-01057/2026-11-04-production-acceptance.md)
+for exact releases, real authorization/lifecycle proof and answer-quality limits.
+This does not activate another customer's installation or qualify arbitrary
+external providers. Use normal verified releases and customer-journey checks
+before enabling. The [installation and operations guide](../../experience-packs/support-experience/docs/INSTALLATION_AND_OPERATIONS.md)
+covers page/widget authentication, agent workflow and outage handling.
 
 The reusable kit owns no customer S3 documents, credential values or diagnostics.
 Keep the existing customer-owned document DATA connection and scoped identity.
@@ -48,7 +51,7 @@ Templates remain editable bootstrap defaults. Normal upgrade/reset/publish/apply
 flows retain the deployment/app identity and customer-owned bindings. Do not
 republish or replace the customer's app to change models or prompts.
 
-### Source-Only Offer Builder
+### Offline Offer Builder
 
 `scripts/build-support-offer.mjs` exports `buildSupportWorkspaceProfile` and
 `buildSupportOffer`. The CLI accepts a reviewed input JSON file and prints a
