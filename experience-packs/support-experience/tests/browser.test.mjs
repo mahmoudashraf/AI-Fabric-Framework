@@ -4,6 +4,38 @@ import { mkdir } from 'node:fs/promises'
 import { chromium } from '../../../max-mode-widget/node_modules/playwright/index.mjs'
 import { startPreview } from '../scripts/preview-server.mjs'
 
+test('standalone stays full-screen above an existing startup shell and keeps mobile composer reachable', { timeout: 45000 }, async () => {
+  const fixture = await startPreview()
+  const browser = await chromium.launch({ headless: true })
+  try {
+    for (const viewport of [{ width: 1360, height: 900 }, { width: 390, height: 844 }, { width: 360, height: 640 }]) {
+      const page = await browser.newPage({ viewport })
+      await page.goto(fixture.url)
+      await page.waitForFunction(() => window.fixtureReady && !window.controller.getState().busy)
+      await page.evaluate(() => {
+        const startup = document.createElement('main'); startup.style.height = '100dvh'; document.body.prepend(startup)
+        window.controller.setPresentation('standalone')
+      })
+      const bounds = await page.locator('[data-loomai-support]').boundingBox()
+      assert.equal(bounds.x, 0); assert.equal(bounds.y, 0)
+      assert.equal(bounds.width, viewport.width); assert.equal(bounds.height, viewport.height)
+      const composer = page.frameLocator('iframe[data-loomai-workspace-frame]').locator('textarea')
+      await composer.fill('An unsent mobile draft')
+      const input = await composer.boundingBox()
+      assert.ok(input.y >= 0 && input.y + input.height <= viewport.height, 'Composer must fit the actual standalone viewport')
+      await page.getByRole('button', { name: 'Request help', exact: true }).click()
+      await page.getByLabel('Subject', { exact: true }).fill('Phone form')
+      await page.getByLabel('Details', { exact: true }).fill('An editable unsaved request')
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+      assert.equal(await composer.inputValue(), 'An unsent mobile draft')
+      await page.evaluate(() => window.controller.showRequests())
+      await page.getByRole('checkbox', { name: 'Email request updates', exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+      await page.close()
+    }
+  } finally { await browser.close(); await fixture.close() }
+})
+
 test('email updates are opt-in, reversible and visibly fail without hiding saved requests on desktop/mobile', { timeout: 45000 }, async () => {
   const fixture = await startPreview()
   const browser = await chromium.launch({ headless: true })

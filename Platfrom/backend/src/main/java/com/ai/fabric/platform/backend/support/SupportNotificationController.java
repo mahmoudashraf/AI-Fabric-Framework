@@ -14,10 +14,11 @@ public class SupportNotificationController {
     private final SupportRequesterService requesters;
     private final SupportTicketClient client;
     private final CustomerSupabaseUserVerifier verifier;
+    private final SupportSettings settings;
 
     public SupportNotificationController(SupportRequesterService requesters, SupportTicketClient client,
-                                         CustomerSupabaseUserVerifier verifier) {
-        this.requesters = requesters; this.client = client; this.verifier = verifier;
+                                         CustomerSupabaseUserVerifier verifier, SupportSettings settings) {
+        this.requesters = requesters; this.client = client; this.verifier = verifier; this.settings = settings;
     }
 
     public record Preference(boolean enabled, String returnUrl) { }
@@ -27,11 +28,13 @@ public class SupportNotificationController {
     }
 
     @GetMapping public JsonNode get() {
+        settings.requireEnabled();
         return client.request(requesters.current(), "GET", "/notifications", null, null);
     }
 
     @PutMapping public JsonNode update(@RequestBody Preference input,
                                       @RequestHeader(value="Authorization", required=false) String authorization) {
+        settings.requireEnabled();
         var owner = requesters.current();
         String email = null;
         if (input.enabled()) {

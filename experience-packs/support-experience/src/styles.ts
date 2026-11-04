@@ -16,4 +16,12 @@ export const supportStyles = `
 :host(.page) .panel{height:100%;min-height:0;max-height:none;overflow:auto}
 :host(.page) .intake{max-height:48%;flex-shrink:0;overflow:auto}
 :host(.widget) .chat{min-height:0}
+:host(.standalone){position:fixed;inset:0;display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden;z-index:1000}
+:host(.standalone) .shell{flex:1;height:100%;min-height:0}
+:host(.standalone) .columns{min-height:0;overflow:hidden}
+:host(.standalone) .chat{min-height:0}
+:host(.standalone) .panel{height:100%;min-height:0;max-height:none;overflow:auto}
+:host(.standalone) .intake{max-height:48%;flex-shrink:0;overflow:auto}
+:host(.standalone) .header,:host(.standalone) .team,:host(.standalone) .footer{flex-shrink:0}
+:host(.standalone) .footer{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
 `

@@ -13,7 +13,8 @@ class SupportNotificationControllerTest {
     private final SupportRequesterService requesters = mock(SupportRequesterService.class);
     private final SupportTicketClient client = mock(SupportTicketClient.class);
     private final CustomerSupabaseUserVerifier verifier = mock(CustomerSupabaseUserVerifier.class);
-    private final SupportNotificationController controller = new SupportNotificationController(requesters, client, verifier);
+    private final SupportSettings settings = mock(SupportSettings.class);
+    private final SupportNotificationController controller = new SupportNotificationController(requesters, client, verifier, settings);
     private final SupportContracts.Requester owner = new SupportContracts.Requester("customer", "user", "https://id.test", "provider-subject");
 
     @Test void optInUsesProviderVerifiedEmailNotAccountOrFormText() {
@@ -52,5 +53,12 @@ class SupportNotificationControllerTest {
             assertThatThrownBy(() -> controller.update(new SupportNotificationController.Preference(true, "https://console.test/support"), "Bearer token")).isInstanceOf(IllegalStateException.class);
             verifyNoInteractions(client);
         }
+    }
+
+    @Test void disabledSupportStopsBeforeIdentityOrProviderCalls() {
+        doThrow(new IllegalStateException("Support disabled")).when(settings).requireEnabled();
+        assertThatThrownBy(controller::get).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> controller.update(new SupportNotificationController.Preference(false, null), null)).isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(requesters, client, verifier);
     }
 }
