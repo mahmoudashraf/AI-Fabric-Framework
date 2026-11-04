@@ -69,6 +69,9 @@ public class DeploymentReleaseExecutionService {
     private DeploymentDocumentBindingResolver documentBindingResolver;
 
     @Autowired
+    private org.springframework.context.ApplicationEventPublisher releaseEvents;
+
+    @Autowired
     private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
 
     @Autowired(required = false)
@@ -589,6 +592,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        releaseEvents.publishEvent(new DeploymentReleaseVerificationCompleted(releaseId, verificationRun.getId()));
         reportOperationsOutcomeAfterCommit(releaseId);
     }
 

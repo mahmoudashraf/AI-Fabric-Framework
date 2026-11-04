@@ -37,6 +37,9 @@ public class NativeLifecycleEffects implements LifecycleEffects {
     private final PlatformConsumerRepository consumers;
     private final ObjectMapper mapper;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher releaseEvents;
+
     public NativeLifecycleEffects(NativeLifecycleAdapter nativeAdapter, RuntimeLifecycleGateway runtime,
         LifecycleCommandStore store, DeploymentRepository deployments, DeploymentReleaseRepository releases,
         DeploymentVersionRepository versions, DeploymentVerificationRunRepository verificationRuns,
@@ -206,6 +209,8 @@ public class NativeLifecycleEffects implements LifecycleEffects {
                 release.setVerificationRunId(runId); release.setVerificationStatus(run.getStatus());
             }
             releases.saveAndFlush(release);
+            if (runId != null) releaseEvents.publishEvent(
+                new com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseVerificationCompleted(release.getId(), runId));
             // A stopped staging target must not overwrite the production deployment's projection.
             if (releases.findTopByDeploymentIdOrderByCreatedAtDesc(job.deploymentId()).map(value -> job.releaseId().equals(value.getId())).orElse(false)) {
                 var deployment = deployments.findById(job.deploymentId()).orElseThrow();

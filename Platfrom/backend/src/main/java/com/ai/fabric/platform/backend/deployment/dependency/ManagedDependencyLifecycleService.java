@@ -31,6 +31,8 @@ import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDepend
 
 @Service
 public class ManagedDependencyLifecycleService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.service.CustomerEnvironmentQuotaService environmentQuota;
     private final ManagedDependencyGraphStore store;
     private final ManagedDependencySpecRepository specs;
     private final ManagedDependencySpecValidator validator;
@@ -244,6 +246,7 @@ public class ManagedDependencyLifecycleService {
             var current = repository.lockById(graph.getId()).orElseThrow();
             if (current.getWorkerToken() != null) return false;
             if ("RETIRING".equals(current.getStatus()) || "RETIRED".equals(current.getStatus())) fail("DEPENDENCY_RETIREMENT_IN_PROGRESS");
+            environmentQuota.requireAvailable(deployments.findById(current.getDeploymentId()).orElseThrow(), current.getTargetProfileId());
             current.setWorkerToken(token); current.setStatus("RUNNING"); current.setStep("ADMISSION");
             current.setFailureCode(null); current.setAttempt(current.getAttempt() + 1);
             current.setUpdatedAt(Instant.now()); current.setRevision(current.getRevision() + 1);

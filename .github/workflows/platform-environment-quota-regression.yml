@@ -1,0 +1,53 @@
+name: Platform Environment Quota And Desk Regression
+
+on:
+  push:
+    branches: [Platform-V11]
+    paths:
+      - ".github/workflows/platform-environment-quota-regression.yml"
+      - "Platfrom/backend/src/**/CustomerEnvironmentQuota*"
+      - "Platfrom/backend/src/**/V233__customer_environment_quota.sql"
+      - "Platfrom/backend/src/**/Desk*"
+      - "Platfrom/backend/src/**/DeploymentService*"
+      - "Platfrom/backend/src/**/DeploymentReleaseExecutionService*"
+      - "Platfrom/backend/src/**/NativeLifecycleEffects*"
+      - "Platfrom/backend/src/**/ManagedDependencyLifecycleService*"
+      - "Platfrom/ui/src/components/customer/CustomerEnvironmentQuota*"
+      - "Platfrom/ui/src/api/platformApi.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: Platfrom/ui/package-lock.json
+      - name: Verify quota concurrency, migration, authorization and release reconciliation
+        run: >-
+          mvn -B -f Platfrom/backend/pom.xml
+          -Dtest=CustomerEnvironmentQuota*,DeskBindingReconciliationServiceTest,DeskReleaseVerificationTransactionTest,DeskActivationServiceTest,DeploymentServiceApplyGuardTest,DeploymentServiceRuntimeAuthorityFreezeTest,DeploymentReleaseExecutionServiceTest,DeploymentServiceVerificationRecheckTest,NativeLifecycleEffectsTest,ManagedDependencyLifecycleServiceTest test
+      - name: Verify customer allowance UI and API transport
+        working-directory: Platfrom/ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          node --test scripts/productization-api-contract.test.mjs
+          node src/components/customer/CustomerEnvironmentQuota.browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: environment-quota-and-desk-test-results
+          path: Platfrom/backend/target/surefire-reports

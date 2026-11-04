@@ -27,6 +27,7 @@ import static org.mockito.Mockito.*;
 
 class NativeLifecycleEffectsTest {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    private final org.springframework.context.ApplicationEventPublisher events = mock(org.springframework.context.ApplicationEventPublisher.class);
     private final NativeLifecycleAdapter nativeAdapter = mock(NativeLifecycleAdapter.class);
     private final RuntimeLifecycleGateway runtime = mock(RuntimeLifecycleGateway.class);
     private final LifecycleCommandStore store = mock(LifecycleCommandStore.class);
@@ -40,6 +41,7 @@ class NativeLifecycleEffectsTest {
         runs, verification, mock(DeploymentReleaseEndpointService.class), mock(PlatformConsumerRepository.class), mapper);
 
     @BeforeEach void intents() {
+        org.springframework.test.util.ReflectionTestUtils.setField(effects, "releaseEvents", events);
         when(store.beforeEffect(any(), anyString())).thenReturn(true);
         when(store.recoveryVerificationEffect(any())).thenReturn("actual-release-verification");
     }
@@ -81,6 +83,7 @@ class NativeLifecycleEffectsTest {
         verify(verification, times(1)).verify(any(), any(), any(), eq("OPERATIONS_RECOVERY"));
         verify(store, times(1)).beforeEffect(work, effect);
         verify(store).dispatched(work, effect, "fresh-run");
+        verify(events, times(1)).publishEvent(new com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseVerificationCompleted("release", "fresh-run"));
         verify(store, never()).providerOperation(work, "actual-release-verification");
         verify(runs, never()).findById("old-failed-run");
         assertThat(recorded.get("actual-release-verification")).isEqualTo("old-failed-run");
@@ -101,6 +104,20 @@ class NativeLifecycleEffectsTest {
         verify(store, never()).dispatched(any(), anyString(), anyString());
         verify(nativeAdapter, never()).stop(any(), any());
         verify(nativeAdapter, never()).restart(any(), any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"PASSED", "FAILED"})
+    void actualRecoveryVerificationPublishesTheExactPersistedOutcome(String outcome) {
+        var work = work(Goal.RECOVER, Mode.COLD, Phase.VERIFY);
+        actualVerificationFixture();
+        runs.findById("fresh-run").orElseThrow().setStatus(outcome);
+        var result = effects.execute(work);
+        assertThat(result.status()).isEqualTo("PASSED".equals(outcome) ? Status.SUCCEEDED : Status.BLOCKED);
+        var order = inOrder(runs, releases, events);
+        order.verify(runs).saveAndFlush(any());
+        order.verify(releases).saveAndFlush(any());
+        order.verify(events).publishEvent(new com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseVerificationCompleted("release", "fresh-run"));
     }
 
     @Test void lostVerificationOutcomeRemainsUnknownWithinItsRevision() {

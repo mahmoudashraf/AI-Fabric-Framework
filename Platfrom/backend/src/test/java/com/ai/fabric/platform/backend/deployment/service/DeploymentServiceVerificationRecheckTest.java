@@ -68,6 +68,7 @@ class DeploymentServiceVerificationRecheckTest {
     private final DeploymentReleaseExecutionService execution = mock(DeploymentReleaseExecutionService.class);
     private final CustomerSelfServiceOperationBoundary boundary = mock(CustomerSelfServiceOperationBoundary.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
+    private final org.springframework.context.ApplicationEventPublisher events = mock(org.springframework.context.ApplicationEventPublisher.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private DeploymentService service;
     private DeploymentEntity deployment;
@@ -115,6 +116,7 @@ class DeploymentServiceVerificationRecheckTest {
             access, new DeploymentReleaseEndpointService(mapper), mapper, mock(DeploymentDocumentBindingResolver.class));
         ReflectionTestUtils.setField(service, "deploymentTargetContexts", contexts);
         ReflectionTestUtils.setField(service, "offerBoundary", boundary);
+        ReflectionTestUtils.setField(service, "releaseEvents", events);
 
         deployment = new DeploymentEntity();
         deployment.setId("dep-1");
@@ -229,6 +231,7 @@ class DeploymentServiceVerificationRecheckTest {
         assertThat(deployment.getUpdatedAt()).isEqualTo(Instant.parse("2026-10-22T21:54:00Z"));
         verify(runs).save(run);
         verify(releases).save(staging);
+        verify(events).publishEvent(new DeploymentReleaseVerificationCompleted("rel-staging", run.getId()));
         verify(releases, never()).save(production);
         verify(deployments, never()).save(any());
         verify(verification).verify(deployment, version, staging, "MANUAL_RERUN");

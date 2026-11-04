@@ -52,6 +52,7 @@ test('customer productization API contracts preserve command scope and transport
       await expectRequest(() => api.fetchCustomerSelfServiceOffer(offer), offerPath)
       await expectRequest(() => api.fetchCustomerSelfServiceInvitations(), '/api/customer-self-service/invitations')
       await expectRequest(() => api.fetchCustomerDeploymentPortfolio(), '/api/customer-self-service/deployments')
+      await expectRequest(() => api.fetchCustomerEnvironmentQuota(), '/api/customer-self-service/infrastructure-quota')
       const command = { expectedRevision: 2, operationKey: 'accept-key', reason: 'Accept invitation' }
       await expectRequest(() => api.acceptCustomerSelfServiceInvitation('invitation/one', command),
         '/api/customer-self-service/invitations/invitation%2Fone/accept', 'POST', command)

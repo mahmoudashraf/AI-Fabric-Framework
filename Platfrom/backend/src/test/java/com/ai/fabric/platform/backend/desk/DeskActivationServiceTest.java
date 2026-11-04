@@ -45,13 +45,47 @@ class DeskActivationServiceTest {
     final PlatformSecretService secrets = mock(PlatformSecretService.class);
     final DeskServiceClient desk = mock(DeskServiceClient.class);
     final PlatformAuditService audit = mock(PlatformAuditService.class);
+    final DeskBindingReconciliationService reconciliation = mock(DeskBindingReconciliationService.class);
     final ObjectMapper mapper = new ObjectMapper();
     final DeskBindingProvisioner bindingProvisioner = new DeskBindingProvisioner(bindings, secrets, desk, users, identities,
         new MockEnvironment().withProperty("LOOMAI_DESK_REVIEW_BRIDGE_BASE_URL", "https://console.example"), mapper);
     final DeskActivationService service = new DeskActivationService(bindings, targets, deployments, releases, versions, drafts,
-        deploymentService, access, profiles, installs, compiler, pluginVersions, identities, secrets, desk, audit, mapper, bindingProvisioner);
+        deploymentService, access, profiles, installs, compiler, pluginVersions, identities, secrets, desk, audit, mapper, bindingProvisioner, reconciliation);
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
+
+    @Test void ownerStatusUsesTheSharedReconcilerAsARepairWithoutRepublishing() {
+        authenticate(new PlatformPrincipal("owner@example.com", PlatformRole.CUSTOMER_ADMIN, "Owner", "SUPABASE", "owner-id"));
+        when(deployments.findById("dep-a")).thenReturn(Optional.of(deployment()));
+        var binding = binding(); binding.setStatus("APPLYING");
+        when(bindings.findByDeploymentIdAndTargetProfileId("dep-a", "target-a")).thenReturn(Optional.of(binding));
+        var profile = new DeploymentTargetProfileEntity(); profile.setId("target-a"); profile.setActive(true);
+        profile.setEnvironmentName("production");
+        when(profiles.findById("target-a")).thenReturn(Optional.of(profile));
+        when(releases.findById("rel-original")).thenReturn(Optional.of(release("rel-original", "ver-original")));
+        doAnswer(call -> { binding.setStatus("ENABLED"); return binding; })
+            .when(reconciliation).reconcile("rel-original", null);
+        assertThat(service.status("dep-a", "target-a", "rel-original").status()).isEqualTo("ENABLED");
+        verify(access).requireDeploymentAccess(any());
+        verify(reconciliation).reconcile("rel-original", null);
+        verifyNoInteractions(deploymentService, installs, compiler);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"deployment", "target"})
+    void statusRepairCannotFollowACorruptedReleaseReferenceIntoAnotherScope(String scope) {
+        authenticate(new PlatformPrincipal("owner@example.com", PlatformRole.CUSTOMER_ADMIN, "Owner", "SUPABASE", "owner-id"));
+        when(deployments.findById("dep-a")).thenReturn(Optional.of(deployment()));
+        when(bindings.findByDeploymentIdAndTargetProfileId("dep-a", "target-a")).thenReturn(Optional.of(binding()));
+        var profile = new DeploymentTargetProfileEntity(); profile.setId("target-a"); profile.setActive(true);
+        when(profiles.findById("target-a")).thenReturn(Optional.of(profile));
+        var foreign = release("rel-original", "ver-original");
+        if ("deployment".equals(scope)) foreign.setDeploymentId("other-deployment");
+        else foreign.setTargetProfileId("other-target");
+        when(releases.findById("rel-original")).thenReturn(Optional.of(foreign));
+        assertThatThrownBy(() -> service.status("dep-a", "target-a", "rel-original"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("does not match");
+        verifyNoInteractions(reconciliation);
+    }
 
     @Test void enableRequiresASupabaseCustomerNotStaffOrAnApiKey() {
         for (var principal : List.of(new PlatformPrincipal("staff", PlatformRole.PLATFORM_ADMIN, "Staff", "SESSION", "staff-id"),

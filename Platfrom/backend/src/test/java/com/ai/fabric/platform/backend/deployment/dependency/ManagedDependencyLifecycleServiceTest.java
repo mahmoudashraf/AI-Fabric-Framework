@@ -109,6 +109,8 @@ class ManagedDependencyLifecycleServiceTest {
         lifecycle = new ManagedDependencyLifecycleService(store, specRepository, validator, deployments, versions, targets,
             access, provider, products, productRepository, secrets, mock(PlatformAuditService.class), gates, Runnable::run,
             customerOfferGuard);
+        org.springframework.test.util.ReflectionTestUtils.setField(lifecycle, "environmentQuota",
+            mock(com.ai.fabric.platform.backend.deployment.service.CustomerEnvironmentQuotaService.class));
 
         login(PlatformRole.CUSTOMER_ADMIN);
     }

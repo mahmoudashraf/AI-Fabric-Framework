@@ -104,6 +104,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentService {
+    @Autowired
+    private CustomerEnvironmentQuotaService environmentQuota;
     @Autowired(required = false)
     private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
     @Autowired(required = false)
@@ -153,6 +155,9 @@ public class DeploymentService {
 
     @Autowired
     private DeploymentTargetContextService deploymentTargetContexts;
+
+    @Autowired
+    private org.springframework.context.ApplicationEventPublisher releaseEvents;
 
     @Autowired
     private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
@@ -1753,6 +1758,7 @@ public class DeploymentService {
                     "Deployment already has an apply in progress: " + release.getId()
                 );
             });
+        environmentQuota.requireAvailable(deployment, targetProfile.getId());
         deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         if (targetMutations == null) throw new IllegalStateException("Core target mutation lock is required.");
         targetMutations.requireAvailableForMutation(deploymentId, targetProfile.getId());
@@ -2596,6 +2602,7 @@ public class DeploymentService {
             deployment.setUpdatedAt(Instant.now());
             deploymentRepository.save(deployment);
         }
+        releaseEvents.publishEvent(new DeploymentReleaseVerificationCompleted(release.getId(), verificationRun.getId()));
         return verificationRun;
     }
 

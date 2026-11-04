@@ -42,6 +42,7 @@ public class DeskActivationService {
     private final PlatformAuditService audit;
     private final ObjectMapper mapper;
     private final DeskBindingProvisioner bindingProvisioner;
+    private final DeskBindingReconciliationService reconciliation;
 
     public DeskActivationService(DeskBindingRepository bindings, DeploymentTargetContextService targets,
         DeploymentRepository deployments, DeploymentReleaseRepository releases, DeploymentVersionRepository versions,
@@ -50,12 +51,14 @@ public class DeskActivationService {
         DeploymentMarketplaceInstallService installs,
         DeploymentMarketplaceDraftCompilerService compiler, MarketplacePluginVersionRepository pluginVersions,
         PlatformCustomerIdentityLinkRepository identities, PlatformSecretService secrets, DeskServiceClient desk,
-        PlatformAuditService audit, ObjectMapper mapper, DeskBindingProvisioner bindingProvisioner) {
+        PlatformAuditService audit, ObjectMapper mapper, DeskBindingProvisioner bindingProvisioner,
+        DeskBindingReconciliationService reconciliation) {
         this.bindings = bindings; this.targets = targets; this.deployments = deployments; this.releases = releases;
         this.versions = versions; this.drafts = drafts; this.deploymentService = deploymentService; this.access = access;
         this.profiles = profiles; this.installs = installs;
         this.compiler = compiler; this.pluginVersions = pluginVersions; this.identities = identities;
         this.secrets = secrets; this.desk = desk; this.audit = audit; this.mapper = mapper; this.bindingProvisioner = bindingProvisioner;
+        this.reconciliation = reconciliation;
     }
 
     @Transactional
@@ -73,13 +76,14 @@ public class DeskActivationService {
         var connection = configured(target.getEnvironmentName());
         requireBindingOwner(binding, deployment);
         if (binding.getReleaseId() != null) {
-            var applied = releases.findById(binding.getReleaseId()).orElseThrow();
-            if ("APPLIED_VERIFIED".equals(applied.getStatus()) && "PASSED".equals(applied.getVerificationStatus())) {
-                binding.setStatus("ENABLED"); binding.setErrorMessage(null);
-            } else if (Set.of("FAILED", "APPLIED_VERIFICATION_FAILED").contains(applied.getStatus())) {
-                binding.setStatus("FAILED"); binding.setErrorMessage("The Desk configuration did not pass deployment verification. Open Versions & updates for details.");
+            releases.findById(binding.getReleaseId())
+                .filter(release -> deploymentId.equals(release.getDeploymentId()) && targetId.equals(release.getTargetProfileId()))
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Desk release does not match the deployment target."));
+            var reconciled = reconciliation.reconcile(binding.getReleaseId(), null);
+            if (reconciled != null) {
+                requireBindingOwner(reconciled, deployment);
+                binding = reconciled;
             }
-            bindings.save(binding);
         }
         return summary(binding, connection);
     }

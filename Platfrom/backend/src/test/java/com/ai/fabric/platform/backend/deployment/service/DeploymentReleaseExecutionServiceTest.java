@@ -47,6 +47,19 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @ParameterizedTest
+    @ValueSource(strings = {"PASSED", "FAILED"})
+    void completionPublishesOnlyAfterSavingTheFinalVerificationProjection(String result) {
+        var fixture = new BindingApplyFixture();
+        var run = new DeploymentVerificationRunEntity(); run.setId("run-final"); run.setStatus(result);
+        var order = inOrder(fixture.verifications, fixture.releases, fixture.events);
+        fixture.service.completeVerification("dep-123", "rel-123", run);
+        order.verify(fixture.verifications).save(run);
+        order.verify(fixture.releases).save(fixture.release);
+        order.verify(fixture.events).publishEvent(new DeploymentReleaseVerificationCompleted("rel-123", "run-final"));
+        assertThat(fixture.release.getStatus()).isEqualTo("PASSED".equals(result) ? "APPLIED_VERIFIED" : "APPLIED_VERIFICATION_FAILED");
+    }
+
     @Test void coreAuthorizedApplyProvisionsAndVerifiesWithoutCallingLegacyAdmission() {
         var fixture = new BindingApplyFixture(); fixture.prepareApply();
         fixture.release.setProvisioningDetailsJson("{}");
@@ -732,6 +745,7 @@ class DeploymentReleaseExecutionServiceTest {
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()
         );
+        ReflectionTestUtils.setField(service, "releaseEvents", mock(org.springframework.context.ApplicationEventPublisher.class));
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
@@ -889,6 +903,7 @@ class DeploymentReleaseExecutionServiceTest {
         final DeploymentExistingVectorBindingService bindings = mock(DeploymentExistingVectorBindingService.class);
         final DeploymentOperationsService operations = mock(DeploymentOperationsService.class);
         final ProviderUsageReleaseCoordinator budget = mock(ProviderUsageReleaseCoordinator.class);
+        final org.springframework.context.ApplicationEventPublisher events = mock(org.springframework.context.ApplicationEventPublisher.class);
         final ManagedDependencyReleaseCoordinator dependencies = mock(ManagedDependencyReleaseCoordinator.class);
         final DeploymentEntity deployment = new DeploymentEntity();
         final DeploymentVersionEntity version = new DeploymentVersionEntity();
@@ -903,6 +918,7 @@ class DeploymentReleaseExecutionServiceTest {
             datasets, handles, providers, Runnable::run, TransactionOperations.withoutTransaction(), mapper);
 
         BindingApplyFixture() {
+            ReflectionTestUtils.setField(service, "releaseEvents", events);
             deployment.setId("dep-123"); deployment.setCustomerId("customer-123"); deployment.setTenantId("tenant-123");
             deployment.setEnvironmentName("deployment-default"); deployment.setStatus("APPLY_REQUESTED");
             version.setId("ver-123"); version.setDeploymentId(deployment.getId()); version.setStatus("PUBLISHED");

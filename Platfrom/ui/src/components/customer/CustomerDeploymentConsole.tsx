@@ -111,6 +111,7 @@ import { aiStateStorageLabels, aiStateStorageModes, customerStorageBootstrapRequ
   storedAiStateStorageMode } from './customerAiStateStorage'
 import { CustomerAdvancedSection, useCustomerEditorSection } from './CustomerDetailSections'
 import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
+import { CustomerEnvironmentQuota } from './CustomerEnvironmentQuota'
 
 type Notice = { severity: 'success' | 'info' | 'warning' | 'error'; message: string }
 type ConfigureAssignmentInput = { scope: CustomerAssignmentConfigurationScope
@@ -497,6 +498,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       queryClient.invalidateQueries({ queryKey: ['customer-self-service-catalogue', customerId] }),
       queryClient.invalidateQueries({ queryKey: ['customer-self-service-invitations', customerId] }),
       queryClient.invalidateQueries({ queryKey: ['customer-deployment-portfolio', customerId] }),
+      queryClient.invalidateQueries({ queryKey: ['customer-environment-quota', customerId] }),
       queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
@@ -883,6 +885,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         </Typography>
       </Box>
 
+      <CustomerEnvironmentQuota />
       <Box component="section" aria-label="Operations policy" sx={{ py: 1.5, borderTop: 1, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <Typography variant="subtitle2">Operations policy</Typography>

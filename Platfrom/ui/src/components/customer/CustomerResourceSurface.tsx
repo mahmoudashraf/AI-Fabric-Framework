@@ -18,6 +18,7 @@ import { CustomerProductHome } from './CustomerProductHome'
 import { CustomerProductTasks } from './CustomerProductTasks'
 import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 import { CustomerDeskLink } from './CustomerDeskLink'
+import { CustomerEnvironmentQuota } from './CustomerEnvironmentQuota'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -160,6 +161,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Your deployment configurations and verified target releases.'}</Typography></Box>
         {props.mode !== 'home' ? <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : 'Create deployment'}</Button> : null}
       </Stack>
+      {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
       {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>

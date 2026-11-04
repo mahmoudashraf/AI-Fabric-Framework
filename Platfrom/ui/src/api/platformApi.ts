@@ -8192,6 +8192,24 @@ export function fetchCustomerDeploymentPortfolio() {
   return request<CustomerDeploymentSummary[]>('/api/customer-self-service/deployments')
 }
 
+export type CustomerEnvironmentQuotaSummary = {
+  customerId: string
+  limit: number
+  used: number
+  available: number
+  environments: Array<{
+    deploymentId: string
+    deploymentName: string
+    targetProfileId: string
+    environment: string | null
+    ownedResourcesPresent: boolean
+  }>
+}
+
+export function fetchCustomerEnvironmentQuota() {
+  return request<CustomerEnvironmentQuotaSummary>('/api/customer-self-service/infrastructure-quota')
+}
+
 export function bootstrapCustomerDeployment(offerId: string, payload: CustomerDeploymentBootstrapRequest) {
   return request<CustomerDeploymentBootstrapResult>(`${customerOfferPath(offerId)}/deployments`, {
     method: 'POST', body: JSON.stringify(payload),

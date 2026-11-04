@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,6 +110,19 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         ReflectionTestUtils.setField(service, "targetMutations", targetMutations);
         ReflectionTestUtils.setField(service, "deploymentOperations", operations);
         ReflectionTestUtils.setField(service, "offerBoundary", offerBoundary);
+        ReflectionTestUtils.setField(service, "environmentQuota", mock(CustomerEnvironmentQuotaService.class));
+    }
+
+    @Test
+    void exhaustedWorkspaceCannotQueueAReleaseOrFreezeRuntimeAuthority() {
+        var quota = mock(CustomerEnvironmentQuotaService.class);
+        ReflectionTestUtils.setField(service, "environmentQuota", quota);
+        doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            "CUSTOMER_ENVIRONMENT_LIMIT_REACHED")).when(quota).requireAvailable(deployment, target.getId());
+        assertThatThrownBy(() -> service.applyVersion(deployment.getId(), version.getId(), null, target.getId(), null))
+            .hasMessageContaining("CUSTOMER_ENVIRONMENT_LIMIT_REACHED");
+        verify(releases, never()).saveAndFlush(any());
+        verifyNoInteractions(authorities, operations);
     }
 
     @Test

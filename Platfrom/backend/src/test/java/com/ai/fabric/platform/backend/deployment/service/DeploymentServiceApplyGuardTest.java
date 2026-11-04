@@ -131,6 +131,7 @@ class DeploymentServiceApplyGuardTest {
             objectMapper
         );
         ReflectionTestUtils.setField(service, "offerBoundary", mock(CustomerSelfServiceOperationBoundary.class));
+        ReflectionTestUtils.setField(service, "environmentQuota", mock(CustomerEnvironmentQuotaService.class));
 
         deployment = new DeploymentEntity();
         deployment.setId("dep-123");
