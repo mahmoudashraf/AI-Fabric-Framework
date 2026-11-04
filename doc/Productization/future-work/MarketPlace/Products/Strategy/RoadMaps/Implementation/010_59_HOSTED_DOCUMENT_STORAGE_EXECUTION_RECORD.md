@@ -1,6 +1,7 @@
 # 010.59 Hosted Document Storage Execution Record
 
-Started: 4 November 2026. Status: IMPLEMENTING, not deployed or qualified.
+Started: 4 November 2026. Status: SOURCE DEPLOYED; live staging storage/upload
+qualified. Reader permissions, indexing and production promotion NOT CLOSED.
 
 ## Scope
 
@@ -21,7 +22,9 @@ per-deployment business database, vector copy or new storage service.
 - [x] P3 source: explicit production file selection, same-bucket target binding,
   production-local indexing and normal release verification.
 - [x] Focused local backend/UI tests, real PostgreSQL migration and full UI build.
-- [ ] Final exact-source CI, hosted service rollout and enabled provider configuration.
+- [x] Final exact-source CI and shared backend/Console rollout to both hosts.
+- [x] Staging provider configuration and actual private bucket/upload/isolation proof.
+- [ ] Production provider enablement after scoped reader access is qualified.
 - [ ] Obtain scoped IAM reader permissions and approved read-only boundary ARN.
 - [ ] Hosted staging/production upload-to-answer and isolation proof.
 
@@ -75,12 +78,45 @@ become a general IAM administrator. The reader boundary is being made an explici
 backend setting and checked before issuing keys. The owner-facing prerequisite
 was sent to Required for production; main continues all independent work.
 
-No S3/IAM mutation, new bucket, secret installation in hosted Platform, or hosted
-feature activation has occurred at this checkpoint. Candidate live qualification
-can reuse an existing two-target customer deployment rather than creating an
-unnecessary deployment/database. New public starter offer IDs also need the
-explicit operator default configuration after migration; new rows alone do not
-make an old enrollment allowlist select them.
+The initial no-mutation checkpoint above is superseded by the dated hosted proof
+below. The two-target production qualification can reuse Northfield rather than
+creating an unnecessary deployment/database. New public starter offer IDs also
+need explicit operator default configuration after the provider is qualified;
+new rows alone do not make an old enrollment allowlist select them.
+
+## Hosted Checkpoint: 4 November 2026
+
+- Source `353cccce8bceb5dc703713aebe768af1ce6a4672` committed/pushed. Focused CI
+  `41827861594` and immutable core-image CI `41827861503` both SUCCESS.
+- Shared backend and Console on BOTH hosts have native immutable source/image
+  verification and healthy containers. Exact Coolify jobs: staging backend
+  `k1378cl5d8iieetgph1c7c2n`, staging Console `q6l38ot0tkgg5b033if7ok1u`,
+  production backend `ewu3ga8kholibgambo9wgerd`, production Console
+  `oifugt5cmr6va4l7h4kye741`. Migrations 230/231/232 succeeded on both databases.
+- Backend-only supplied credentials installed with exact STS identity check.
+  Runtime-only flags were read back; automatically mirrored PR-preview settings
+  were removed. No provisioner credential was installed on a customer runtime.
+  Hosting is enabled on developer staging only. Production hosting is DISABLED;
+  its existing BYO bindings and customer release identities remain unchanged.
+- Actual Acme CUSTOMER_ADMIN used the Kit page to create/prepare a connection
+  and upload `01-project-and-connector-setup.txt`. Native S3 checks confirmed all
+  four public-access blocks, BucketOwnerEnforced, SSE-S3, TLS-only policy,
+  versioning, exact ownership tags and uploaded size/checksum/version.
+- Real anonymous API access 401, other-customer deployment access 404, foreign
+  connection under that caller's own deployment 404, unsigned S3 object read 403.
+- Live desktop and 390x844 screenshots recorded; no mobile horizontal overflow.
+  UI truth is "Uploaded; no indexing receipt", not a fabricated indexing pass.
+- No reader key created, no uploaded source indexed, no AI answer or production
+  promotion claimed. The owner must apply the bounded reader delegation and
+  approved boundary (including GetObjectVersion); Required for production has
+  the exact account-scoped files and asks for the actual boundary ARN.
+- Remaining sequence: configure confirmed boundary; bind/read-only denial
+  canary; publish/apply mode-neutral DATA through the normal draft/version path;
+  preview/approve/index/reconcile; answer proof; same connection production
+  selection/indexing/activation/isolation. Then select new public bootstrap
+  defaults `public-dealership-simulator-v3` and `public-knowledge-workspace-v2`.
+
+Evidence: [dated live acceptance](../../../../../../../../verification-support/hosted-document-storage-01059/2026-11-04/acceptance.md).
 
 ## Explicit Bounded Limits
 

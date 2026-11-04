@@ -12262,3 +12262,34 @@ test is being called hosted acceptance. UI extraction remains last.
   BYO S3-compatible option and existing indexing. Plan/policy recorded, NOT YET
   IMPLEMENTED. Asked Required for production for read-only provider-authority
   inventory, not permission expansion or bucket provisioning. No S3 mutation.
+
+## 2026-11-04 Optional Hosted Documents 010.59: Source Live, Reader Gate Pending
+
+- Source353cccce8bceb5dc703713aebe768af1ce6a4672 committed/pushed. Exact backend
+  and Console native source/image/health verified on BOTH hosts. Focused CI
+  41827861594 and core-image CI41827861503 SUCCESS; migrations230/231/232 passed.
+  Framework0.8.45/runtime83fd17427 unchanged. Local focused package301 tests,
+  zero failures/errors/skips; UI15 unit/API,11 mocked browser,production build pass.
+- Optional customer/tenant storage connections above existing target bindings;
+  one shared bucket, scoped read-only target readers, bounded TXT/JSON uploads,
+  exact file approval/index/reconcile receipts and source-based promotion.
+  New neutral DATA/template/bootstrap revisions, historical releases unchanged.
+- Supplied AWS pair stored only in ignored600 auth and shared backend runtime
+  configuration, exact STS verified. Developer staging hosting ON; production
+  hosting OFF pending scoped reader qualification. No provisioner key on any
+  runtime/browser. Mirrored PR-preview settings removed; build-time flags false.
+- Real Acme customer Kit UI prepared private/versioned Stockholm bucket and
+  uploaded meaningful setup guide. Native S3 private ownership/SSE/TLS/version/
+  checksum/size proof passed. Actual401/404/404 customer isolation and anonymous
+  S3 read403. Desktop+390x844 no-horizontal-overflow captures recorded.
+- NOT complete: no IAM reader/key created, no uploaded source indexed, no new
+  AI answer or production promotion proof. Required for production has exact
+  namespaced reader-delegation + boundary files; owner actual ARN pending.
+  Boundary needs GetObjectVersion. Do not substitute the broad provisioner key.
+- Resume: confirmed boundary/delegation -> normal target bind and read/write-
+  denial proof -> neutral DATA draft/publish/apply -> existing indexing/answer
+  -> same source production qualification. Can reuse Northfield two-target
+  deployment; no new business DB/vector copy. Switch public starter allowlist
+  to published successors only after qualification. Temporary Vite5189 stopped.
+- Canonical status010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md; live
+  verification-support/hosted-document-storage-01059/2026-11-04/acceptance.md.

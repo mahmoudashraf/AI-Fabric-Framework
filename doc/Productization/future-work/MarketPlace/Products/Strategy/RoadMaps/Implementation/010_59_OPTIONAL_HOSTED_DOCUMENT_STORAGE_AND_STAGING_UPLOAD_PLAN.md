@@ -2,7 +2,8 @@
 
 Date: 4 November 2026
 
-Status: IMPLEMENTING; not yet deployed or qualified. See the
+Status: SOURCE DEPLOYED; staging hosting/upload/isolation qualified. Scoped IAM
+reader access and the complete indexing/promotion journey remain pending. See the
 [execution record](010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md).
 
 Inspected source: `Platform-V11`, HEAD `22af1393b0dc60e1fabd3cf3cf604c4f7f8e5d37`
