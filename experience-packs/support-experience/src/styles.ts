@@ -24,4 +24,6 @@ export const supportStyles = `
 :host(.standalone) .intake{max-height:48%;flex-shrink:0;overflow:auto}
 :host(.standalone) .header,:host(.standalone) .team,:host(.standalone) .footer{flex-shrink:0}
 :host(.standalone) .footer{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.notification-toggle{flex-direction:row;align-items:center;gap:8px;min-height:32px}
+.notification-toggle input{flex:0 0 16px;width:16px;height:16px;padding:0;margin:0;accent-color:var(--support-accent)}
 `

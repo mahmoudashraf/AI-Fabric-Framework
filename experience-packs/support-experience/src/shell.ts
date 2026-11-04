@@ -155,7 +155,7 @@ export class SupportShell {
       toggle.disabled = state.busy || !preference.available
       toggle.addEventListener('change', () => this.callbacks.notifications(toggle.checked))
       this.panel.append(node('div', { class: 'detail' },
-        node('label', {}, toggle, ' Email request updates'),
+        node('label', { class: 'notification-toggle' }, toggle, 'Email request updates'),
         node('p', { class: 'muted', role: 'status' }, !preference.available ? 'Email is not available. Updates remain in My Requests.'
           : preference.lastFailureCode ? 'An email update could not be delivered. Your request is saved; check My Requests.'
           : preference.enabled ? 'Status changes and human replies. No conversation text is sent by email.' : 'Optional. Send updates to your verified sign-in email.')))
