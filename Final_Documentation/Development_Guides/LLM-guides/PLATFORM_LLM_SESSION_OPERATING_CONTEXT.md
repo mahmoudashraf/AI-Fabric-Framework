@@ -19,6 +19,19 @@ funding/accounting remain enforced. This owner decision supersedes older
 reviewed-offer lifecycle restrictions in 010.36 and historical handoff entries.
 Track implementation and evidence in 010.47, not by rewriting historical proof.
 
+## Optional Hosted Knowledge Storage (Owner Decision, 2026-11-04)
+
+Document-source storage may now be optionally provided by LoomAI; customer-owned
+S3-compatible storage remains supported. This supersedes the earlier
+customer-owned-storage-only restriction. The intended customer setup uses one
+bucket shared by customer staging and production, with configurable purpose
+prefixes and scoped read-only runtime bindings. Staging Console uploads are a
+separate authenticated storage operation, not an AI action or indexing success.
+Reuse existing source discovery, approval, indexing and reconciliation. Do not
+copy vectors during promotion, expose upload credentials to runtimes, or create
+per-deployment customer business databases. See 010.59 for the implementation
+delta; this policy decision is not evidence that hosting/upload is already live.
+
 Use it together with:
 
 - `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md`

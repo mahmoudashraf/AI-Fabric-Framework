@@ -368,3 +368,54 @@ an exhaustive live expiry/outage/phone matrix, or interrupted-promotion recovery
 Measured wrong-subject follow-up and incomplete synthesis remain explicit quality
 follow-ups; the32k candidate is not a global recommended default. These are not
 hidden by a successful health probe, receipt or repeated question.
+
+## 4 November Follow-Up: Email And Live Mobile Qualification
+
+Owner accepts the recorded complex AI follow-up limitation; do not reopen prompt
+or framework optimization as part of this work. Requested completion is optional
+ticket-update email and live phone-size verification, followed by a Shopify Kit
+readiness analysis (010.58).
+
+Implementation and qualification:
+
+- Add an opt-in Email request updates control to the generic Support pack's My
+  Requests view, including opt-out and a visible delivery-failure state. Original
+  identity authorizes preferences; no model/form-selected recipient is accepted.
+- Console verifies the original Supabase user before issuing a short-lived signed
+  delivery-email claim. Ordinary ticket assertions do not carry an email.
+- Desk owns encrypted preferences and a bounded notification outbox in its shared
+  database. Notify status transitions and acknowledged human replies using only
+  a safe reference and registered HTTPS sign-in link, not transcript content.
+- Existing SMTP credentials passed certificate-validated STARTTLS and SMTP AUTH
+  on both servers. This is transport authentication, not yet an email receipt.
+- The live browser now actually reports 390x844; Console support chat, My Requests,
+  detail and request-form navigation were inspected without horizontal overflow.
+  Final post-deployment checks passed; the standalone framing defect found by
+  this check was corrected in the generic pack.
+- Focused Platform tests: 14 pass; pack unit tests: 21 pass; browser/installer
+  groups including email and standalone framing: 10 pass. Console build passes.
+- Desk source `781b23b40` is healthy in both environments; exact Desk CI
+  `41753677220` succeeded. The affected local regression passed 72 tests; the final
+  notification package passed 20 with real PostgreSQL and real local SMTP capture.
+- Final backends `535bde111` and Consoles `fb687c24f` are native-source verified
+  and healthy on staging/production. Initial Console email opt-in failed because
+  private Support had no approved return origins. Normal preparation now derives
+  those origins from the actual installation; browser private-host authentication
+  remains denied. No arbitrary return destination or recipient is accepted.
+- Actual status-update mail arrived in Gmail for external Acme and private
+  Console. A production assigned-agent reply reached the phone visitor, then its
+  acknowledged, exactly correlated callback generated a separate actual inbox
+  email. All four qualified emails were SENT on attempt1. Opt-out and status/
+  conversation independence passed. Test subscriptions returned to opt-out.
+- Exact sources/jobs, negative first attempts, SMTP scope and live phone-sized
+  screenshots: `verification-support/support-kit-01057/2026-11-04-email-and-mobile-acceptance.md`.
+  Physical phone hardware, branded mail-domain delivery and reply-by-email are
+  not claimed. Complex AI follow-up quality remains accepted, not silently fixed.
+
+Separate owner direction received during execution: introduce optional
+LoomAI-provided document storage/upload while retaining BYO S3-compatible sources.
+One bucket is shared by staging/production with configurable purpose prefixes;
+the existing indexing flow remains authoritative. This supersedes the earlier
+customer-owned-storage-only product decision, but is not implemented or deployed
+by the email work. The implementation delta is tracked in
+[010.59](010_59_OPTIONAL_HOSTED_DOCUMENT_STORAGE_AND_STAGING_UPLOAD_PLAN.md).

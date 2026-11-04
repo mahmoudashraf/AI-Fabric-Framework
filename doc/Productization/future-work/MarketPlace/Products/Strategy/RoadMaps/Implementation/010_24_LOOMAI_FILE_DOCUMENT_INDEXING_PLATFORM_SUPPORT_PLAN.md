@@ -4,6 +4,16 @@ Status: `IMPLEMENTED_HOSTED_PROVEN`; document-specific staging and controlled-pr
 
 Created: 2026-09-22
 
+**4 November 2026 policy update:** the owner has approved an optional
+LoomAI-provided S3 bucket and customer-staging uploads, while retaining BYO
+S3-compatible sources. One bucket is reused across customer staging and
+production with configurable purpose prefixes. The original storage-only
+restriction below records the earlier release scope; it is superseded by
+[010.59](010_59_OPTIONAL_HOSTED_DOCUMENT_STORAGE_AND_STAGING_UPLOAD_PLAN.md).
+The existing indexing engine remains the execution path. Optional hosting and
+upload are a new implementation delta, not part of this plan's historical green
+hosted evidence.
+
 Current supported baseline:
 
 - AI Fabric `0.8.10` only

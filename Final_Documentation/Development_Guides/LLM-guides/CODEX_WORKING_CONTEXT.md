@@ -12214,3 +12214,51 @@ test is being called hosted acceptance. UI extraction remains last.
   and `CONSOLE_HOST_ADAPTER.md`; backend adapter guides updated. Private journals,
   first responses, snapshots and receipts remain under
   `~/.codex/private/loomai-support-kit-01057/`; never publish their credentials.
+
+## 2026-11-04 Support Email And Live Mobile Follow-Up Closed
+
+- Owner accepts the complex AI follow-up limitation. No further prompt, model,
+  framework or runtime change was made; runtime/connector source83 and AI Fabric
+  0.8.45 remain unchanged. This entry supersedes only the email/mobile caveats
+  in the preceding native-implementation checkpoint.
+- Ticket email is optional and off by default. My Requests exposes opt-in/out;
+  Desk stores encrypted, requester-scoped verified-email consent and a durable
+  bounded outbox in its existing shared database. Human replies notify only
+  after the normal runtime callback is acknowledged. Mail contains only a safe
+  reference and protected sign-in link, not ticket/transcript text or tokens.
+- Actual Gmail INBOX receipts passed: Acme `SUP-794BDC0B-F8A` status update;
+  Console `SUP-4D634B38-A15` resolve, reopen and human reply. All four native
+  events SENT on attempt1. Opt-out prevented additional staging notification;
+  both test subscriptions restored off, tickets OPEN, production conversation
+  explicitly returned to AI after real bidirectional human messages.
+- Fresh handover `handover-e52e3c1638d904b381cba0362558f8f9`, callback
+  `callback-message-405cc2efbca027b16630a8c2d8a8e63a` COMPLETED, exact owner and
+  deployment binding confirmed. Personal agent used normal Desk SSO, claim,
+  reply and explicit return. No extra AI query or synthetic delivery receipt.
+- Final healthy native shared services in both environments: backend
+  `535bde111da74786213873bf6524e2e7c7a97a2d`, Console
+  `fb687c24fac78d16643459ad86da5f4f07ce59ac`, Desk
+  `781b23b40e243762f24ce98e26302ce0923a96c7`. CI41755915805,
+  CI41755225756 and CI41753677220 passed. Exact Coolify jobs in dated acceptance.
+- Production's first email attempt exposed empty approved return origins in
+  private Support registration. Normal prepare now uses the installation's
+  approved origins; private browser authentication remains denied. No arbitrary
+  recipient/return-URL fallback. Existing SMTP/sender reused, TLS/auth checked.
+- Live 390x844 Console and external standalone checks passed. The standalone
+  host originally sat below the startup shell and clipped its composer; the
+  generic pack now occupies the viewport. Local 360x640/390x844/desktop regression
+  passed. Physical iPhone/Safari hardware testing is not claimed.
+- Focused Platform14, pack unit21, browser/installer10 passed; Desk affected72
+  and final notification20 passed, including real PostgreSQL/local SMTP. Full
+  Desk CI passed. SMTP is bounded at-least-once, not exactly-once delivery.
+- Evidence: `verification-support/support-kit-01057/2026-11-04-email-and-mobile-acceptance.md`
+  and `live-ui-2026-11-04/`. Existing sender branding and reply-by-email are not
+  newly qualified. Complex AI follow-ups and unrelated broad matrices remain.
+- New analysis010.58: Shopify has useful existing Bridge/actions/index/UI code,
+  but not a launch-ready customer-selectable Kit. Identifies registration,
+  ownership, publication/privacy, webhook/indexing and current-journey gaps.
+- New owner direction010.59: optional LoomAI-provided document storage/uploads,
+  one bucket shared by customer staging/production, purpose prefixes, retained
+  BYO S3-compatible option and existing indexing. Plan/policy recorded, NOT YET
+  IMPLEMENTED. Asked Required for production for read-only provider-authority
+  inventory, not permission expansion or bucket provisioning. No S3 mutation.

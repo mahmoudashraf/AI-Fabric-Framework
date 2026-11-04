@@ -8,8 +8,10 @@ Implementation evidence, 4 November 2026:
 [execution record](010_57_SUPPORT_EXPERIENCE_KIT_EXECUTION_RECORD.md) and
 [dated production acceptance](../../../../../../../../verification-support/support-kit-01057/2026-11-04-production-acceptance.md).
 The native release is live, including Console adoption and legacy retirement.
-This does not turn the wider acceptance matrix, optional email delivery or known
-AI follow-up failures below into all-green results. The execution ledger is the
+The owner-requested [email and live mobile follow-up](../../../../../../../../verification-support/support-kit-01057/2026-11-04-email-and-mobile-acceptance.md)
+also qualifies native opt-in ticket email and actual hosted phone-size browser
+journeys. It does not turn the wider acceptance matrix, physical-device testing
+or known AI follow-up failures below into all-green results. The execution ledger is the
 current phase/status source; the detailed checklists retain the full design scope.
 
 ## 1. Product Decision

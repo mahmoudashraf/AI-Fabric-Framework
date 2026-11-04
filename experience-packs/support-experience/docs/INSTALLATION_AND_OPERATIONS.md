@@ -167,9 +167,27 @@ providers, repeat confirmation or replay intake automatically. A saved ticket
 with failed AI delivery stays saved and displays the separate delivery state.
 Provider errors remain visible; no private Console fallback is used.
 
-In-app updates are the qualified notification channel. Email delivery requires
-an implemented and separately configured delivery integration; it is not
-enabled or claimed by this release.
+In-app updates remain available regardless of email preference. In My Requests,
+the optional **Email request updates** control enables future status-change and
+human-reply notifications to the requester's verified sign-in email. Opt-out
+cancels pending deliveries. No recipient address is taken from intake or AI
+parameters. Private hosts must attest a provider-verified address; direct
+Supabase email verification currently supports the Desk-configured project.
+Other identity providers need an explicitly configured verification adapter.
+
+Messages contain only a safe request reference and registered HTTPS return link.
+The link still requires sign-in; it is not a magic login link or bearer grant.
+No ticket subject, details, transcript or authentication token is emailed.
+This is outbound notification only; replying to an email does not append a
+ticket message. Continue the conversation in the signed-in workspace.
+Human-reply notifications wait for the ordinary runtime callback acknowledgement.
+Delivery failures are visible in My Requests and do not roll back saved work.
+SMTP delivery is bounded and at-least-once, not an exactly-once mailbox guarantee.
+
+The service operator must configure SMTP and the fixed From address before this
+control becomes available. See Desk's `SUPPORT_TICKETS_API.md` for configuration,
+durable outbox states and scoped preference endpoints. Hosted qualification is
+recorded separately from source implementation in the dated acceptance evidence.
 
 Before opening a new installation, verify: exact assignment and active source
 evidence; real sign-in/sign-out; own/foreign ticket isolation; request receipt
