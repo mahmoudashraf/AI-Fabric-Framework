@@ -11,7 +11,6 @@ import WidgetsOutlined from '@mui/icons-material/WidgetsOutlined'
 import DatasetOutlined from '@mui/icons-material/DatasetOutlined'
 import CableOutlined from '@mui/icons-material/CableOutlined'
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
-import HistoryOutlined from '@mui/icons-material/HistoryOutlined'
 import PeopleOutline from '@mui/icons-material/PeopleOutline'
 import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
@@ -40,7 +39,6 @@ const navigation = [
   { path: '/integrations', label: 'Connections', icon: CableOutlined },
   { path: '/human-support', label: 'Human support', icon: SupportAgentOutlined },
   { path: '/human-review', label: 'Action reviews', icon: FactCheckOutlined },
-  { path: '/notifications', label: 'Activity & alerts', icon: HistoryOutlined },
   { path: '/users', label: 'Account & team', icon: PeopleOutline },
   { path: '/support', label: 'Help & requests', icon: HelpOutlineRounded },
 ] as const

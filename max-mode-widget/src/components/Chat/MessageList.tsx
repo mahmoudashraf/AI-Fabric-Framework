@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import type { ChatMessage, CustomerAccountConnectAction, ResultType } from "@/types";
 import type { MaxModePresentationResultReference } from "@/actionPresentation";
+import { clarificationStates } from "@/clarificationState";
 import type { AiStyles } from "./MessageBubble";
 import { MessageBubble } from "./MessageBubble";
 import { AIThinkingAnimation } from "./AIThinkingAnimation";
@@ -69,6 +70,7 @@ export function MessageList({
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
   contentClassName?: string;
 }) {
+  const clarificationStatus = clarificationStates(messages);
   return (
     <div className={containerClassName} style={containerStyle}>
       <div className={`${contentClassName} mx-auto space-y-4`}>
@@ -82,6 +84,8 @@ export function MessageList({
                 key={message.id}
                 message={message}
                 isLatest={isLatest}
+                clarificationState={clarificationStatus.get(message.id)}
+                clarificationBusy={isLoading}
                 latestMessageRef={latestMessageRef}
                 aiStyles={aiStyles}
                 isPanelVisible={isPanelVisible}

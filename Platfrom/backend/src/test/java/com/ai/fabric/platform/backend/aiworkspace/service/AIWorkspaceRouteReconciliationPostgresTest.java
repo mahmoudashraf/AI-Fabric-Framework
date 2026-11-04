@@ -503,9 +503,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
             .containsEntry("customer_id", "customer-1").containsEntry("deployment_id", "deployment-1");
         assertThat(count("platform_consumers")).isEqualTo(1);
         assertThat(count("platform_deployments")).isEqualTo(1);
-        verify(securityProjection).synchronizeForConsumer(argThat(consumer ->
-            consumer.getId().equals("consumer-1") && consumer.getCustomerId().equals("customer-1")
-                && consumer.getBoundDeploymentId().equals("deployment-1")));
+        verify(securityProjection, never()).synchronizeForConsumer(any());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED'", Long.class)).isEqualTo(1);
         var deletionAudit = mapper.readTree(jdbc.queryForObject(
             "SELECT details_json FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED' AND target_id=?",
@@ -522,9 +520,8 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         verifyNoInteractions(verifier);
     }
 
-    @Test void disabledDeletionProjectionFailureRollsBackInstallationDomainsAndAudit() {
+    @Test void draftDeletionProjectionFailureRollsBackInstallationDomainsAndAudit() {
         var created = create("first");
-        installationService.disable("customer-1", created.installationId());
         doThrow(new IllegalStateException("projection failure")).when(securityProjection).synchronizeForConsumer(any());
 
         assertThatThrownBy(() -> installationService.deleteDraft("customer-1", created.installationId()))

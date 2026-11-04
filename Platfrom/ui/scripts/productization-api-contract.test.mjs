@@ -90,7 +90,17 @@ test('customer productization API contracts preserve command scope and transport
         `${deploymentPath}/admission-reservations?targetProfileId=target%2Fone`)
       const extend = { targetProfileId: target, allocationId: 'allocation', expectedRevision: 3, operationKey: 'extend-key', reason: 'Continue testing', keepAfterPromotion: true }
       await expectRequest(() => api.extendCustomerDeploymentStaging(offer, deployment, extend), `${deploymentPath}/staging-lifecycle/extensions`, 'POST', extend)
-      await expectRequest(() => api.fetchCustomerAdmissionNotices(25), '/api/customer-self-service/admission/notices?limit=25')
+      assert.equal('fetchCustomerAdmissionNotices' in api, false, 'The retired admission-notices API must not be polled.')
+    })
+
+    await suite.test('review reads and decisions carry the explicitly selected target', async () => {
+      await expectRequest(() => api.fetchDeploymentHumanReviewInbox(deployment, target, 25),
+        `/api/deployments/${encodeURIComponent(deployment)}/human-reviews?targetProfileId=target%2Fone&limit=25`)
+      await expectRequest(() => api.fetchDeploymentHumanReviewDetail(deployment, target, 'task/one'),
+        `/api/deployments/${encodeURIComponent(deployment)}/human-reviews/task%2Fone?targetProfileId=target%2Fone`)
+      const decision = { decision: 'APPROVE', expectedVersion: 2, decisionId: 'explicit-review' }
+      await expectRequest(() => api.decideDeploymentHumanReview(deployment, target, 'task/one', decision),
+        `/api/deployments/${encodeURIComponent(deployment)}/human-reviews/task%2Fone/decisions?targetProfileId=target%2Fone`, 'POST', decision)
     })
 
     await suite.test('creation sends the explicit AI-state hosting choice without database credentials', async () => {

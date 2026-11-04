@@ -54,7 +54,7 @@ function statusColor(status: string): 'success' | 'warning' | 'error' | 'info' |
   }
 }
 
-export function HumanReviewPage({ title = 'Human Review' }: { title?: string } = {}) {
+export function HumanReviewPage({ title = 'Human Review', targetProfileId = '' }: { title?: string; targetProfileId?: string } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId } = useDeploymentWorkspace()
@@ -63,9 +63,9 @@ export function HumanReviewPage({ title = 'Human Review' }: { title?: string } =
   const customerReviewer = isCustomerSession(auth.session)
 
   const inboxQuery = useQuery({
-    queryKey: ['deployment-human-reviews', selectedDeploymentId],
-    queryFn: () => fetchDeploymentHumanReviewInbox(selectedDeploymentId),
-    enabled: customerReviewer && selectedDeploymentId.length > 0,
+    queryKey: ['deployment-human-reviews', selectedDeploymentId, targetProfileId],
+    queryFn: () => fetchDeploymentHumanReviewInbox(selectedDeploymentId, targetProfileId),
+    enabled: customerReviewer && selectedDeploymentId.length > 0 && targetProfileId.length > 0,
     refetchInterval: 15_000,
   })
   const tasks = inboxQuery.data ?? []
@@ -74,22 +74,22 @@ export function HumanReviewPage({ title = 'Human Review' }: { title?: string } =
     [selectedTaskId, tasks],
   )
   const detailQuery = useQuery({
-    queryKey: ['deployment-human-review-detail', selectedDeploymentId, selectedTask?.taskId],
-    queryFn: () => fetchDeploymentHumanReviewDetail(selectedDeploymentId, selectedTask?.taskId ?? ''),
-    enabled: customerReviewer && selectedDeploymentId.length > 0 && selectedTask != null,
+    queryKey: ['deployment-human-review-detail', selectedDeploymentId, targetProfileId, selectedTask?.taskId],
+    queryFn: () => fetchDeploymentHumanReviewDetail(selectedDeploymentId, targetProfileId, selectedTask?.taskId ?? ''),
+    enabled: customerReviewer && selectedDeploymentId.length > 0 && targetProfileId.length > 0 && selectedTask != null,
   })
   const decisionMutation = useMutation({
     mutationFn: (input: { task: DeploymentHumanReviewTask; decision: 'APPROVE' | 'REJECT' }) =>
-      decideDeploymentHumanReview(selectedDeploymentId, input.task.taskId, {
+      decideDeploymentHumanReview(selectedDeploymentId, targetProfileId, input.task.taskId, {
         decision: input.decision,
         expectedVersion: input.task.version,
         decisionId: `platform-review-${globalThis.crypto.randomUUID()}`,
       }),
     onSuccess: async () => {
       setPendingDecision(null)
-      await queryClient.invalidateQueries({ queryKey: ['deployment-human-reviews', selectedDeploymentId] })
+      await queryClient.invalidateQueries({ queryKey: ['deployment-human-reviews', selectedDeploymentId, targetProfileId] })
       await queryClient.invalidateQueries({
-        queryKey: ['deployment-human-review-detail', selectedDeploymentId, selectedTask?.taskId],
+        queryKey: ['deployment-human-review-detail', selectedDeploymentId, targetProfileId, selectedTask?.taskId],
       })
     },
   })
@@ -118,7 +118,7 @@ export function HumanReviewPage({ title = 'Human Review' }: { title?: string } =
         <Button
           variant="outlined"
           startIcon={<RefreshRoundedIcon />}
-          disabled={!selectedDeploymentId || inboxQuery.isFetching}
+          disabled={!selectedDeploymentId || !targetProfileId || inboxQuery.isFetching}
           onClick={() => void inboxQuery.refetch()}
           sx={{ alignSelf: { xs: 'stretch', md: 'center' } }}
         >
@@ -127,6 +127,7 @@ export function HumanReviewPage({ title = 'Human Review' }: { title?: string } =
       </Stack>
 
       {!selectedDeploymentId ? <Alert severity="info">Select a deployment first.</Alert> : null}
+      {selectedDeploymentId && !targetProfileId ? <Alert severity="info">Select an environment to view its review inbox.</Alert> : null}
       {inboxQuery.error instanceof Error ? <Alert severity="error">{inboxQuery.error.message}</Alert> : null}
       {detailQuery.error instanceof Error ? <Alert severity="error">{detailQuery.error.message}</Alert> : null}
       {decisionMutation.error instanceof Error ? <Alert severity="error">{decisionMutation.error.message}</Alert> : null}

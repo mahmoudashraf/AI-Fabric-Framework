@@ -1,17 +1,16 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.SubmitDeploymentHumanReviewDecisionRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
-import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,8 +27,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +34,7 @@ import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -49,10 +47,11 @@ public class DeploymentHumanReviewService {
     private static final String SCOPE_REVIEW_TASK_DECIDE = "review:tasks:decide";
 
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final PlatformCustomerAccessService platformCustomerAccessService;
-    private final PlatformSecretService platformSecretService;
-    private final RuntimePrivateAssertionSigningService assertionSigningService;
+    private final DeploymentRuntimeAuthorityService runtimeAuthorityService;
+    private final DeploymentReleaseEndpointService endpointService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -60,19 +59,21 @@ public class DeploymentHumanReviewService {
     @Autowired
     public DeploymentHumanReviewService(
         DeploymentRepository deploymentRepository,
+        DeploymentReleaseRepository releaseRepository,
         DeploymentVersionRepository deploymentVersionRepository,
         PlatformCustomerAccessService platformCustomerAccessService,
-        PlatformSecretService platformSecretService,
-        RuntimePrivateAssertionSigningService assertionSigningService,
+        DeploymentRuntimeAuthorityService runtimeAuthorityService,
+        DeploymentReleaseEndpointService endpointService,
         PlatformAuditService platformAuditService,
         ObjectMapper objectMapper
     ) {
         this(
             deploymentRepository,
+            releaseRepository,
             deploymentVersionRepository,
             platformCustomerAccessService,
-            platformSecretService,
-            assertionSigningService,
+            runtimeAuthorityService,
+            endpointService,
             platformAuditService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(RUNTIME_TIMEOUT).build()
@@ -81,54 +82,55 @@ public class DeploymentHumanReviewService {
 
     DeploymentHumanReviewService(
         DeploymentRepository deploymentRepository,
+        DeploymentReleaseRepository releaseRepository,
         DeploymentVersionRepository deploymentVersionRepository,
         PlatformCustomerAccessService platformCustomerAccessService,
-        PlatformSecretService platformSecretService,
-        RuntimePrivateAssertionSigningService assertionSigningService,
+        DeploymentRuntimeAuthorityService runtimeAuthorityService,
+        DeploymentReleaseEndpointService endpointService,
         PlatformAuditService platformAuditService,
         ObjectMapper objectMapper,
         HttpClient httpClient
     ) {
         this.deploymentRepository = deploymentRepository;
+        this.releaseRepository = releaseRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.platformCustomerAccessService = platformCustomerAccessService;
-        this.platformSecretService = platformSecretService;
-        this.assertionSigningService = assertionSigningService;
+        this.runtimeAuthorityService = runtimeAuthorityService;
+        this.endpointService = endpointService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
     }
 
-    public RuntimeReviewResponse inbox(String deploymentId, int limit) {
-        ReviewAccess access = requireReviewAccess(deploymentId, false);
+    public RuntimeReviewResponse inbox(String deploymentId, String targetProfileId, int limit) {
+        ReviewAccess access = requireReviewAccess(deploymentId, targetProfileId, false);
         return sendRuntimeJson(
-            access.deployment(),
+            access,
             "GET",
             "/api/reviews/v1/tasks?limit=" + Math.max(1, Math.min(limit, 200)),
             null,
-            access.principal(),
             List.of(SCOPE_REVIEW_TASK_VIEW)
         );
     }
 
-    public RuntimeReviewResponse detail(String deploymentId, String taskId) {
-        ReviewAccess access = requireReviewAccess(deploymentId, false);
+    public RuntimeReviewResponse detail(String deploymentId, String targetProfileId, String taskId) {
+        ReviewAccess access = requireReviewAccess(deploymentId, targetProfileId, false);
         return sendRuntimeJson(
-            access.deployment(),
+            access,
             "GET",
             "/api/reviews/v1/tasks/" + encodePathSegment(requireText(taskId, "taskId", 120)),
             null,
-            access.principal(),
             List.of(SCOPE_REVIEW_TASK_VIEW)
         );
     }
 
     public RuntimeReviewResponse decide(
         String deploymentId,
+        String targetProfileId,
         String taskId,
         SubmitDeploymentHumanReviewDecisionRequest request
     ) {
-        ReviewAccess access = requireReviewAccess(deploymentId, true);
+        ReviewAccess access = requireReviewAccess(deploymentId, targetProfileId, true);
         if (request == null || request.expectedVersion() < 0) {
             throw new ResponseStatusException(BAD_REQUEST, "A non-negative expectedVersion is required.");
         }
@@ -145,11 +147,10 @@ public class DeploymentHumanReviewService {
         body.put("expectedVersion", request.expectedVersion());
 
         RuntimeReviewResponse response = sendRuntimeJson(
-            access.deployment(),
+            access,
             "POST",
             "/api/reviews/v1/tasks/" + encodePathSegment(requireText(taskId, "taskId", 120)) + "/decisions",
             body,
-            access.principal(),
             List.of(SCOPE_REVIEW_TASK_VIEW, SCOPE_REVIEW_TASK_DECIDE)
         );
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -161,14 +162,16 @@ public class DeploymentHumanReviewService {
                     "taskId", taskId,
                     "decision", decision,
                     "decisionId", decisionId,
-                    "reviewer", access.principal().actorId()
+                    "reviewer", access.principal().actorId(),
+                    "targetProfileId", access.release().getTargetProfileId(),
+                    "releaseId", access.release().getId()
                 )
             );
         }
         return response;
     }
 
-    private ReviewAccess requireReviewAccess(String deploymentId, boolean decision) {
+    private ReviewAccess requireReviewAccess(String deploymentId, String targetProfileId, boolean decision) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
@@ -181,53 +184,49 @@ public class DeploymentHumanReviewService {
             );
         }
         platformCustomerAccessService.requireDeploymentCustomerAccess(deployment.getCustomerId());
-        requireHumanReviewEnabled(deployment);
-        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "Deployment runtime URL is not available. Apply the deployment before opening its review inbox."
-            );
+        String target = requireText(targetProfileId, "targetProfileId", 120);
+        // The selected target's serving release owns both the endpoint and reviewer authority.
+        DeploymentReleaseEntity release = releaseRepository
+            .findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deploymentId, target).stream()
+            .filter(candidate -> "ACTIVE".equals(candidate.getProvisioningStatus()))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "The selected target has no active release."));
+        if (!deploymentId.equals(release.getDeploymentId()) || !target.equals(release.getTargetProfileId())
+            || !"APPLIED_VERIFIED".equals(release.getStatus()) || !"PASSED".equals(release.getVerificationStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Human Review requires the selected target's current verified release.");
         }
-        if (!StringUtils.hasText(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
-            || !assertionSigningService.isConfigured()) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "Secure private-runtime reviewer access is not configured."
-            );
-        }
-        return new ReviewAccess(deployment, principal);
+        DeploymentVersionEntity version = deploymentVersionRepository.findById(release.getDeploymentVersionId())
+            .filter(candidate -> deploymentId.equals(candidate.getDeploymentId()))
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "The selected target's release version is unavailable."));
+        requireHumanReviewEnabled(version);
+        return new ReviewAccess(deployment, version, release, principal);
     }
 
-    private void requireHumanReviewEnabled(DeploymentEntity deployment) {
-        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Human Review requires an applied deployment version.");
-        }
-        DeploymentVersionEntity version = deploymentVersionRepository.findById(deployment.getActiveVersionId())
-            .filter(candidate -> deployment.getId().equals(candidate.getDeploymentId()))
-            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "The active deployment version is unavailable."));
+    private void requireHumanReviewEnabled(DeploymentVersionEntity version) {
         JsonNode extensions = readJson(version.getBehaviorConfigJson()).path("executionExtensions");
         boolean enabled = extensions.isArray()
             && java.util.stream.StreamSupport.stream(extensions.spliterator(), false)
                 .anyMatch(value -> REVIEW_EXTENSION.equalsIgnoreCase(value.asText("")));
         if (!enabled) {
-            throw new ResponseStatusException(BAD_REQUEST, "Human Review is not enabled on the active deployment version.");
+            throw new ResponseStatusException(BAD_REQUEST, "Human Review is not enabled on the selected target's release version.");
         }
     }
 
     private RuntimeReviewResponse sendRuntimeJson(
-        DeploymentEntity deployment,
+        ReviewAccess access,
         String method,
         String pathWithQuery,
         JsonNode body,
-        PlatformPrincipal principal,
         List<String> scopes
     ) {
-        URI target = runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery);
+        URI target = runtimeUri(endpointService.runtimeBaseUrl(access.release()), pathWithQuery);
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(target)
                 .timeout(RUNTIME_TIMEOUT)
                 .header("Accept", "application/json");
-            reviewerHeaders(deployment, principal, scopes).forEach(builder::header);
+            runtimeAuthorityService.issueReviewedIntegrationSessionHeaders(
+                access.deployment(), access.version(), access.release(), access.principal().actorId(), scopes
+            ).forEach(builder::header);
             if ("GET".equalsIgnoreCase(method)) {
                 builder.GET();
             } else {
@@ -246,36 +245,6 @@ public class DeploymentHumanReviewService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment review runtime: " + ex.getMessage(), ex);
         }
-    }
-
-    private Map<String, String> reviewerHeaders(
-        DeploymentEntity deployment,
-        PlatformPrincipal principal,
-        List<String> scopes
-    ) {
-        String trustedBackendApiKey = platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME);
-        RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims claims =
-            new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
-                principal.actorId(),
-                "END_USER",
-                "PRIVATE_RUNTIME_BACKEND_MEDIATED",
-                "TRUSTED_BACKEND",
-                "customer-review-" + deployment.getId() + "-" + shortHash(principal.actorId()),
-                deployment.getId(),
-                deployment.getCustomerId(),
-                deployment.getTenantId(),
-                "platform-runtime:" + principal.authenticationMode().trim().toUpperCase(Locale.ROOT),
-                Instant.now().plus(Duration.ofMinutes(5)),
-                List.of(deployment.getId()),
-                scopes
-            );
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER, trustedBackendApiKey.trim());
-        headers.put(
-            RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER,
-            assertionSigningService.toAuthorizationHeaderValue(claims)
-        );
-        return Map.copyOf(headers);
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String pathWithQuery) {
@@ -318,17 +287,8 @@ public class DeploymentHumanReviewService {
         return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    private String shortHash(String value) {
-        try {
-            byte[] hash = java.security.MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash, 0, 12);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to derive reviewer session id.", ex);
-        }
-    }
-
-    private record ReviewAccess(DeploymentEntity deployment, PlatformPrincipal principal) {
+    private record ReviewAccess(DeploymentEntity deployment, DeploymentVersionEntity version,
+                                DeploymentReleaseEntity release, PlatformPrincipal principal) {
     }
 
     public record RuntimeReviewResponse(int statusCode, JsonNode body) {

@@ -27,26 +27,29 @@ public class DeploymentHumanReviewController {
     @GetMapping
     public ResponseEntity<JsonNode> inbox(
         @PathVariable String deploymentId,
+        @RequestParam String targetProfileId,
         @RequestParam(defaultValue = "50") int limit
     ) {
-        return response(reviewService.inbox(deploymentId, limit));
+        return response(reviewService.inbox(deploymentId, targetProfileId, limit));
     }
 
     @GetMapping("/{taskId}")
     public ResponseEntity<JsonNode> detail(
         @PathVariable String deploymentId,
+        @RequestParam String targetProfileId,
         @PathVariable String taskId
     ) {
-        return response(reviewService.detail(deploymentId, taskId));
+        return response(reviewService.detail(deploymentId, targetProfileId, taskId));
     }
 
     @PostMapping("/{taskId}/decisions")
     public ResponseEntity<JsonNode> decide(
         @PathVariable String deploymentId,
+        @RequestParam String targetProfileId,
         @PathVariable String taskId,
         @RequestBody SubmitDeploymentHumanReviewDecisionRequest request
     ) {
-        return response(reviewService.decide(deploymentId, taskId, request));
+        return response(reviewService.decide(deploymentId, targetProfileId, taskId, request));
     }
 
     private ResponseEntity<JsonNode> response(DeploymentHumanReviewService.RuntimeReviewResponse response) {

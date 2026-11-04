@@ -4968,25 +4968,26 @@ export function retryDeploymentWebhookDelivery(deploymentId: string, deliveryId:
   )
 }
 
-export function fetchDeploymentHumanReviewInbox(deploymentId: string, limit = 100) {
+export function fetchDeploymentHumanReviewInbox(deploymentId: string, targetProfileId: string, limit = 100) {
   return request<DeploymentHumanReviewTask[]>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews?limit=${limit}`,
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews?targetProfileId=${encodeURIComponent(targetProfileId)}&limit=${limit}`,
   )
 }
 
-export function fetchDeploymentHumanReviewDetail(deploymentId: string, taskId: string) {
+export function fetchDeploymentHumanReviewDetail(deploymentId: string, targetProfileId: string, taskId: string) {
   return request<DeploymentHumanReviewTaskDetail>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}`,
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}?targetProfileId=${encodeURIComponent(targetProfileId)}`,
   )
 }
 
 export function decideDeploymentHumanReview(
   deploymentId: string,
+  targetProfileId: string,
   taskId: string,
   payload: { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; decisionId: string },
 ) {
   return request<DeploymentHumanReviewDecisionResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}/decisions`,
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}/decisions?targetProfileId=${encodeURIComponent(targetProfileId)}`,
     {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -8029,21 +8030,6 @@ export type CustomerTargetRetirementSummary = {
   updatedAt: string
 }
 
-export type CustomerAdmissionNotice = {
-  deliveryKey: string
-  reservationId: string
-  noticeCycle: string
-  payload: {
-    deploymentId: string
-    targetProfileId: string
-    noticeCycle: string
-    channel: 'CONSOLE' | 'OWNER_EMAIL'
-    expiresAt: string
-  }
-  publishedAt: string
-  deliveredAt: string | null
-}
-
 export type TargetRetirementState =
   | 'PLANNED' | 'QUEUED' | 'RUNNING' | 'WAITING' | 'RETAINED' | 'BLOCKED'
   | 'RETRYABLE_FAILURE' | 'CANCEL_REQUESTED' | 'CANCELLED' | 'COMPLETE'
@@ -8368,10 +8354,6 @@ export function extendCustomerDeploymentStaging(
     `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-lifecycle/extensions`,
     { method: 'POST', body: JSON.stringify(payload) },
   )
-}
-
-export function fetchCustomerAdmissionNotices(limit = 50) {
-  return request<CustomerAdmissionNotice[]>(`/api/customer-self-service/admission/notices?limit=${encodeURIComponent(String(limit))}`)
 }
 
 function customerRetirementPath(offerId: string, deploymentId: string) {

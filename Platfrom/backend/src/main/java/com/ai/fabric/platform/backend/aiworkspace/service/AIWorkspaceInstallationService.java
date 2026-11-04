@@ -293,7 +293,7 @@ public class AIWorkspaceInstallationService {
         boolean allowUnboundDeletion = entity.getStatus() == AIWorkspaceInstallationStatus.DISABLED
             || (entity.getStatus() == AIWorkspaceInstallationStatus.DRAFT && entity.getActivatedAt() == null);
         boolean administratorCleanup = allowUnboundDeletion && consumer != null
-            && "DISABLED".equalsIgnoreCase(consumer.getStatus())
+            && ("ACTIVE".equalsIgnoreCase(consumer.getStatus()) || "DISABLED".equalsIgnoreCase(consumer.getStatus()))
             && PlatformSecurityContext.currentPrincipal() != null
             && PlatformSecurityContext.currentPrincipal().role() == PlatformRole.PLATFORM_ADMIN;
         if (administratorCleanup) {
@@ -307,7 +307,7 @@ public class AIWorkspaceInstallationService {
         } else requireUsableConsumer(customerId, consumer, allowUnboundDeletion);
         boolean deploymentBound = StringUtils.hasText(consumer.getBoundDeploymentId());
         if (deploymentBound) deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
-        // Administrators may remove revoked app configuration without reactivating its connection.
+        // Removing inactive app configuration does not grant access through its legacy connection.
         if (!administratorCleanup) authorizeMutation(entity, consumer, operationKey);
         if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT
             && entity.getStatus() != AIWorkspaceInstallationStatus.DISABLED) {
@@ -315,7 +315,10 @@ public class AIWorkspaceInstallationService {
         }
         repository.delete(entity);
         repository.flush();
-        if (deploymentBound) deploymentSecurityProjection.synchronizeForConsumer(consumer);
+        // Disabled installations are already excluded from the deployment-origin projection.
+        if (deploymentBound && entity.getStatus() != AIWorkspaceInstallationStatus.DISABLED) {
+            deploymentSecurityProjection.synchronizeForConsumer(consumer);
+        }
         audit("AI_WORKSPACE_INSTALLATION_DELETED", entity, Map.of());
     }
 

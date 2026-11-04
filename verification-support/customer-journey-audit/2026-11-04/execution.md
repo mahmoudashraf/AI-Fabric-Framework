@@ -62,7 +62,8 @@ protection and owned domain/route cleanup. Backend focused tests: 114 passed,
 zero failures/errors/skips. Console deletion guard now allows cleanly unbound
 cleanup only for explicit deletion; creation/activation still need connections.
 Its confirmation explains permanent app/address removal, not document or
-conversation deletion. Source is pending commit/rollout at this checkpoint.
+conversation deletion. Commits 7fdb9ba135 and 3c1fa8e523 were published;
+backend 3c1fa8e523 was native-source/health verified on both servers.
 
 ### Live UI Observations
 
@@ -101,3 +102,77 @@ requires isolated account/scoped receiver provisioning in shared external
 services, then the existing generic integration contracts. The UI now offers
 integration help instead of an unexplained administrator dead end. Full fresh
 staging/promotion acceptance remains NOT PASSED.
+
+### Cleanup Cycle 2
+
+The two staging unbound drafts and 17 of 22 disabled test apps were deleted by
+the normal owned-installation API. Every original ACTIVE app remained ACTIVE.
+Five disabled legacy records were retained after explicit 403/409 responses:
+two refer to inconsistent legacy customer scope; three require an editable
+draft even though disabled installations are excluded from origin projection.
+A focused correction is in qualification, not an authorization override.
+
+The two disposable apps created during this audit, the never-deployed Kit,
+dep-a0a6ac0a and its sole test version ver-45fedc31 were also removed. The
+deletion receipt del-0155d5a5 reached SUCCEEDED. No runtime, customer source
+bucket or business-system database was created or removed for this fixture.
+
+### Handover And Operational UI
+
+Northfield production runtime remains source ce9025736, framework 0.8.45,
+release rel-d587186a. Support/Acme runtime provenance is separate; the newer
+Platform control-plane image does not silently upgrade customer runtimes.
+
+- Normal Desk SSO as the existing assigned support/reviewer fixture succeeded.
+  A separate owner-only identity correctly could not read the support queue;
+  no role grant was added to bypass this boundary.
+- Conversation chat-89caf677-0d95-496f-ab04-c40984830e25 transferred through an
+  AI action, appeared in Desk, was claimed, received a human reply in Engage,
+  sent a visitor reply back to Desk, and returned through explicit agent
+  confirmation. AI then answered the delivery follow-up from approved policy.
+- Callback form bug reproduced: boolean consent was converted to a string by
+  MessageBubble; structured submission was rejected for its JSON type. The
+  framework correctly preserved the incomplete draft. No framework fix needed.
+- Cancellation succeeded in the runtime, but the old form stayed editable.
+  Generic widget corrections use typed parameters and structured cancellation
+  markers, not answer-text matching. Focused tests/live retest pending.
+- Connection status for the current production release showed COMPLETED,
+  CURRENT, six source/six indexed stock records, zero failed work and preflight
+  READY. Viewing/closing its configuration did not save or publish changes.
+- Fresh owner authentication, account directory and password/magic-link entry
+  navigation passed. Email delivery/password replacement were not exercised.
+- Action Reviews exposed an actual legacy global-credential mismatch; the
+  current release-scoped reviewer contract returned 200 with an empty inbox.
+  Repair is limited to the existing authority/endpoint services.
+- Customer Activity & alerts called an endpoint removed by earlier separation
+  work. Its obsolete customer entry/API is being retired; administrator cleanup
+  notifications are preserved. This is not a reason to restore admission code.
+- Desk's Northfield Tickets view returned its unavailable-workspace message;
+  clean empty review state and conversation support do not prove tickets pass.
+
+Live screenshots and final terminal inventory will be added after retesting.
+
+### Fix Qualification Checkpoint
+
+- Widget: ten typed-value/state unit regressions; browser callback submission,
+  cancellation, confirmation/execution history reload, existing submission and
+  confirmation-replay smokes; typecheck and library/embed/installer build passed.
+- Backend clean focused run: 52 installation-service, 34 PostgreSQL route
+  reconciliation and 17 release-scoped review-service tests passed, zero
+  failures/errors/skips. An earlier concurrent-build run had missing generated
+  inner classes; that run is not counted as a pass. The clean serialized build
+  resolved the build-output collision without weakening assertions.
+- UI: 15 productization/API contract tests passed, including selected-target
+  review reads/decisions and removal of the retired notices API. Production
+  build passed; existing bundle-size/runtime-config warnings remain.
+- Fresh fixture-owner support request SUP-5587AE64-879 was saved and its opening
+  message delivered; AI accurately explained revision/preview/index/reconcile/
+  ACTIVE/verification from approved guidance and identified missing live checks.
+  Resolve reached RESOLVED; reopen is being verified. A different signed-in
+  identity did not see another requester's requests in the same customer scope.
+- Phone-width qualification is not claimed: the browser viewport capability
+  acknowledged the override but the actual DOM stayed 1280x720, including in a
+  temporary tab. Override reset and temporary tab closed. This is a tooling
+  limitation, not evidence of a website responsive-layout defect.
+
+Fixes are pending immutable-image publication and live retest at this checkpoint.

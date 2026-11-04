@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
@@ -45,6 +45,9 @@ import { ActionResultRenderer } from "../ActionResultRenderer";
 import { SourceEvidenceContent } from "../SourceEvidenceContent";
 import { sourceContentPreview } from "@/sourcePresentation";
 import { isConfirmationActionable } from "@/confirmationState";
+import { clarificationDisplayValue, clarificationParameters, clarificationValuePresent,
+  type ClarificationEdits } from "@/clarificationForm";
+import type { ClarificationState } from "@/clarificationState";
 
 export type AiStyles = {
   icon: LucideIcon;
@@ -59,6 +62,8 @@ export type AiStyles = {
 export function MessageBubble({
   message,
   isLatest,
+  clarificationState,
+  clarificationBusy,
   latestMessageRef,
   aiStyles,
   isPanelVisible,
@@ -85,6 +90,8 @@ export function MessageBubble({
 }: {
   message: ChatMessage;
   isLatest: boolean;
+  clarificationState?: ClarificationState;
+  clarificationBusy: boolean;
   latestMessageRef: RefObject<HTMLDivElement>;
   aiStyles?: AiStyles | null;
   isPanelVisible: boolean;
@@ -111,7 +118,8 @@ export function MessageBubble({
 }) {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isSuggestionExpanded, setIsSuggestionExpanded] = useState(false);
-  const [clarificationValues, setClarificationValues] = useState<Record<string, string>>({});
+  const clarificationFormId = useId();
+  const [clarificationValues, setClarificationValues] = useState<ClarificationEdits>({});
   const [clarificationEditingField, setClarificationEditingField] = useState<string | null>(null);
   const [clarificationSubmitted, setClarificationSubmitted] = useState(false);
   const Icon = message.type === "ai" ? aiStyles?.icon : undefined;
@@ -513,53 +521,30 @@ export function MessageBubble({
             const actionName: string = cData?.action || "";
             const hasForm = missingParams.length > 0 || Object.keys(providedParams).length > 0;
 
-            const getFormValues = () => {
-              const vals: Record<string, string> = { ...clarificationValues };
-              for (const key of Object.keys(providedParams)) {
-                if (!(key in vals)) {
-                  vals[key] = providedParams[key] != null && providedParams[key] !== "" ? String(providedParams[key]) : "";
-                }
-              }
-              for (const key of missingParams) {
-                if (!(key in vals)) {
-                  vals[key] = providedParams[key] != null && providedParams[key] !== "" ? String(providedParams[key]) : "";
-                }
-              }
-              return vals;
-            };
-            const formValues = getFormValues();
-
             const isMissing = (key: string) => missingParams.includes(key);
             const hasProvidedValue = (key: string) => providedParams[key] != null && providedParams[key] !== "" && !isMissing(key);
 
-            const allKeys = [
+            const allKeys = [...new Set([
               ...missingParams,
               ...Object.keys(providedParams).filter((k) => !missingParams.includes(k)),
-            ];
+            ])];
+            let parameters: Record<string, unknown> = {};
+            let fieldError: string | undefined;
+            try { parameters = clarificationParameters(allKeys, providedParams, clarificationValues); }
+            catch (error) { fieldError = error instanceof Error ? error.message : "Invalid field value."; }
 
-            const canSubmit = missingParams.every((key) => {
-              const val = clarificationValues[key] ?? formValues[key];
-              return val && val.trim() !== "";
-            });
+            const active = clarificationState === "active";
+            const canSubmit = active && !clarificationBusy && !fieldError
+              && missingParams.every((key) => clarificationValuePresent(parameters[key]));
 
-            const handleFieldChange = (key: string, value: string) => {
+            const handleFieldChange = (key: string, value: string | boolean) => {
               setClarificationValues((prev) => ({ ...prev, [key]: value }));
             };
 
             const handleSubmit = () => {
               if (!canSubmit || clarificationSubmitted || !onClarificationSubmit) return;
-              const finalValues: Record<string, any> = {};
-              for (const key of allKeys) {
-                const val = clarificationValues[key] ?? formValues[key];
-                if (typeof providedParams[key] === "number") {
-                  const num = Number(val);
-                  finalValues[key] = isNaN(num) ? val : num;
-                } else {
-                  finalValues[key] = val;
-                }
-              }
               setClarificationSubmitted(true);
-              onClarificationSubmit(actionName, finalValues);
+              onClarificationSubmit(actionName, parameters);
             };
 
             return (
@@ -590,18 +575,20 @@ export function MessageBubble({
                     </ul>
                   )}
 
-                  {hasForm && !clarificationSubmitted && (
+                  {hasForm && active && !clarificationSubmitted && (
                     <>
-                      {allKeys.map((key) => {
+                      {allKeys.map((key, index) => {
                         const missing = isMissing(key);
                         const hasValue = hasProvidedValue(key);
                         const isEditing = clarificationEditingField === key || missing || !hasValue;
-                        const currentValue = clarificationValues[key] ?? formValues[key];
+                        const currentValue = clarificationValues[key] ?? clarificationDisplayValue(providedParams[key]);
+                        const booleanField = typeof providedParams[key] === "boolean";
+                        const fieldId = `${clarificationFormId}-${index}`;
 
                         return (
                           <div key={key} className="space-y-1">
                             <div className="flex items-center gap-1.5">
-                              <label className="text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                              <label htmlFor={fieldId} className="text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                                 {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim()}
                               </label>
                               {missing && (
@@ -609,8 +596,9 @@ export function MessageBubble({
                                   Required
                                 </span>
                               )}
-                              {hasValue && !isEditing && (
+                              {hasValue && !isEditing && !booleanField && (
                                 <button
+                                  disabled={clarificationBusy}
                                   onClick={() => setClarificationEditingField(key)}
                                   className="ml-auto flex items-center gap-0.5 text-[9px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
                                 >
@@ -620,17 +608,23 @@ export function MessageBubble({
                               )}
                             </div>
 
-                            {isEditing ? (
+                            {booleanField ? (
+                              <input id={fieldId} type="checkbox" checked={currentValue === true}
+                                disabled={clarificationBusy} onChange={(e) => handleFieldChange(key, e.target.checked)}
+                                className="h-4 w-4 accent-orange-600" />
+                            ) : isEditing ? (
                               <input
+                                id={fieldId}
                                 type="text"
-                                value={currentValue}
+                                disabled={clarificationBusy}
+                                value={String(currentValue)}
                                 onChange={(e) => handleFieldChange(key, e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" && canSubmit) handleSubmit();
                                 }}
                                 placeholder={`Enter ${key.replace(/([A-Z])/g, " $1").toLowerCase().trim()}...`}
                                 className={`w-full px-3 py-2 text-sm rounded-lg border-2 bg-white dark:bg-gray-800 transition-all focus:outline-none focus:ring-2 ${
-                                  missing && (!currentValue || !currentValue.trim())
+                                  missing && !clarificationValuePresent(currentValue)
                                     ? "border-red-300 dark:border-red-600 focus:ring-red-500/30 focus:border-red-400"
                                     : "border-orange-200 dark:border-orange-700 focus:ring-orange-500/30 focus:border-orange-400"
                                 }`}
@@ -640,10 +634,10 @@ export function MessageBubble({
                               />
                             ) : (
                               <div
-                                onClick={() => setClarificationEditingField(key)}
+                                onClick={() => { if (!clarificationBusy) setClarificationEditingField(key); }}
                                 className="w-full px-3 py-2 text-sm rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 transition-all flex items-center justify-between group"
                               >
-                                <span className="text-gray-800 dark:text-gray-200 font-medium">{currentValue}</span>
+                                <span className="text-gray-800 dark:text-gray-200 font-medium">{String(currentValue)}</span>
                                 <Edit3 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                             )}
@@ -651,6 +645,7 @@ export function MessageBubble({
                         );
                       })}
 
+                      {fieldError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{fieldError}</p>}
                       <div className="pt-2">
                         <Button
                           onClick={handleSubmit}
@@ -665,7 +660,13 @@ export function MessageBubble({
                     </>
                   )}
 
-                  {hasForm && clarificationSubmitted && (
+                  {hasForm && !active && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {clarificationState === "cancelled" ? "Request cancelled." : "Clarification no longer active."}
+                    </p>
+                  )}
+
+                  {hasForm && active && clarificationSubmitted && (
                     <div className="p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-700 rounded-lg">
                       <p className="text-sm text-green-800 dark:text-green-200 font-semibold flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4" />

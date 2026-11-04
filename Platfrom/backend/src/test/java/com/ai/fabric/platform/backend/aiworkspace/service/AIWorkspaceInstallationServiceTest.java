@@ -335,7 +335,9 @@ class AIWorkspaceInstallationServiceTest {
         order.verify(offerBoundary).requireConsumer(consumer, Operation.APP_CONFIGURE, "workspace-delete", Map.of());
         order.verify(repository).delete(installation);
         order.verify(repository).flush();
-        order.verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+        if (status == AIWorkspaceInstallationStatus.DRAFT) {
+            order.verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+        } else verify(deploymentSecurityProjection, never()).synchronizeForConsumer(any());
         order.verify(audit).record("AI_WORKSPACE_INSTALLATION_DELETED", "AI_WORKSPACE_INSTALLATION",
             installation.getInstallationId(), Map.of("customerId", "customer-1",
                 "installationId", installation.getInstallationId(), "status", status.name()));
@@ -518,10 +520,11 @@ class AIWorkspaceInstallationServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"DRAFT,true", "DRAFT,false", "DISABLED,true", "DISABLED,false"})
-    void administratorCanRemoveInactiveAppWithoutReactivatingDisabledConsumer(AIWorkspaceInstallationStatus status, boolean bound) {
+    @CsvSource({"DRAFT,true,ACTIVE", "DRAFT,false,ACTIVE", "DISABLED,true,ACTIVE", "DISABLED,false,ACTIVE",
+        "DRAFT,true,DISABLED", "DRAFT,false,DISABLED", "DISABLED,true,DISABLED", "DISABLED,false,DISABLED"})
+    void administratorCanRemoveInactiveAppWithoutChangingConsumer(AIWorkspaceInstallationStatus status, boolean bound, String consumerStatus) {
         var consumer = consumer();
-        consumer.setStatus("DISABLED");
+        consumer.setStatus(consumerStatus);
         if (!bound) consumer.setBoundDeploymentId(null);
         var installation = deletionInstallation(status);
         setDeletionPrincipal(PlatformRole.PLATFORM_ADMIN);
@@ -530,11 +533,12 @@ class AIWorkspaceInstallationServiceTest {
             verify(repository).delete(installation);
             verify(repository).flush();
             verify(audit).record(eq("AI_WORKSPACE_INSTALLATION_DELETED"), any(), any(), any());
-            assertThat(consumer.getStatus()).isEqualTo("DISABLED");
+            assertThat(consumer.getStatus()).isEqualTo(consumerStatus);
             verify(offerBoundary, never()).requireConsumer(any(), any(), any(), any());
             if (bound) {
                 verify(deploymentSecurityProjection).lockDeploymentsForConsumers(List.of(consumer));
-                verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+                if (status == AIWorkspaceInstallationStatus.DRAFT) verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+                else verify(deploymentSecurityProjection, never()).synchronizeForConsumer(any());
             } else verifyNoInteractions(deploymentSecurityProjection);
         } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
     }
