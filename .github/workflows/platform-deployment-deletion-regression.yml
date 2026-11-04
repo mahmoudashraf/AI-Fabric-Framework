@@ -47,7 +47,7 @@ jobs:
           import pathlib
           import xml.etree.ElementTree as ET
           expected = {
-              'DeploymentDeletionExecutionPostgresTest': 5,
+              'DeploymentDeletionExecutionPostgresTest': 6,
               'DeploymentDeletionServiceTest': 4,
               'ExperienceKitMigrationPostgresTest': 6,
           }
