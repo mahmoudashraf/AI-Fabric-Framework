@@ -51,6 +51,16 @@ public class CustomerEnvironmentQuotaService {
         }
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void requireNoRetainedInfrastructure(DeploymentEntity deployment) {
+        if (!StringUtils.hasText(deployment.getCustomerId())) return;
+        var current = summarize(deployment.getCustomerId(), limit(deployment.getCustomerId(), true));
+        if (current.environments().stream().anyMatch(item -> deployment.getId().equals(item.deploymentId()))) {
+            throw new ResponseStatusException(CONFLICT, "OWNED_INFRASTRUCTURE_REMAINS: Remove this deployment's owned"
+                + " infrastructure before deleting its configuration. Archiving or deleting records does not free an environment slot.");
+        }
+    }
+
     @Transactional
     public Summary updateLimit(String customerId, int requested, String reason) {
         if (requested < 0 || requested > 1000 || reason == null || reason.isBlank() || reason.length() > 1000) {

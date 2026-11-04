@@ -19,6 +19,25 @@ funding/accounting remain enforced. This owner decision supersedes older
 reviewed-offer lifecycle restrictions in 010.36 and historical handoff entries.
 Track implementation and evidence in 010.47, not by rewriting historical proof.
 
+## Customer Infrastructure Allowance (Owner Decision, 2026-11-04)
+
+Default to two provisioned deployment environments per customer workspace, not
+per login. Staging and production normally occupy one each; a runtime and its
+owned supporting services share that slot. Drafts, shared Engage apps and
+resource-free audit metadata do not count. Stopped/failed/archived infrastructure
+does count until its owned resources are removed. Upgrades of the same existing
+deployment/target reuse its slot, including when existing usage exceeds a limit.
+Never automatically evict existing resources to satisfy a lower allowance.
+
+Enforcement belongs to the shared core apply transaction and direct dependency
+worker claim, with a customer database lock and one consistent occupancy query.
+It protects an infrastructure-allocation boundary, not an LLM semantic decision.
+Queued releases are reservations; reuse current owned-resource/lifecycle records,
+not a second slot/capacity/recovery engine. The product allowance remains active
+when optional server-capacity operations are disabled. Staff changes require an
+explicit admin-only audited allowance update, not a hidden role-based bypass.
+See verification-support/customer-environment-quota/2026-11-04/execution.md.
+
 ## Optional Hosted Knowledge Storage (Owner Decision, 2026-11-04)
 
 Document-source storage may now be optionally provided by LoomAI; customer-owned

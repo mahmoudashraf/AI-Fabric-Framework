@@ -150,6 +150,16 @@ class CustomerEnvironmentQuotaTest {
         assertThatThrownBy(() -> service.summary("missing")).isInstanceOf(ResponseStatusException.class);
     }
 
+    @Test void deletingOnlyMetadataCannotFreeRetainedInfrastructure() {
+        resource("app", "a", "stage", "APPLICATION", "STOPPED");
+        assertThatThrownBy(() -> transactions.executeWithoutResult(tx -> service.requireNoRetainedInfrastructure(deployment("a"))))
+            .hasMessageContaining("OWNED_INFRASTRUCTURE_REMAINS");
+        assertThat(service.summary("owner").used()).isEqualTo(1);
+        jdbc.update("UPDATE deployment_provider_resource_handles SET status='DELETED'");
+        transactions.executeWithoutResult(tx -> service.requireNoRetainedInfrastructure(deployment("a")));
+        assertThat(service.summary("owner").used()).isZero();
+    }
+
     private void reserve(String id, String target) { transactions.executeWithoutResult(tx -> service.requireAvailable(deployment(id), target)); }
     private DeploymentEntity deployment(String id) { var d=new DeploymentEntity(); d.setId(id); d.setCustomerId(id.equals("d") ? "other":"owner"); return d; }
     protected void resource(String id,String dep,String target,String kind,String status) { jdbc.update("INSERT INTO deployment_provider_resource_handles VALUES (?,?,?,?,?)",id,dep,target,kind,status); }

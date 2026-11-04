@@ -35,6 +35,8 @@ import java.util.Map;
 
 @Service
 public class DeploymentDeletionExecutionService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private CustomerEnvironmentQuotaService environmentQuota;
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentDeletionExecutionService.class);
 
@@ -178,6 +180,7 @@ public class DeploymentDeletionExecutionService {
         if (platformCustomerConsumerService.hasBoundConsumer(deployment.getId())) {
             throw new IllegalStateException("Deployment cannot be deleted while a consumer is bound to it.");
         }
+        if (!context.operation().isHardDelete()) environmentQuota.requireNoRetainedInfrastructure(deployment);
 
         deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, context.operation().getRequestReason());
         vectorizationDeploymentCleanupService.deleteForDeployment(deployment);

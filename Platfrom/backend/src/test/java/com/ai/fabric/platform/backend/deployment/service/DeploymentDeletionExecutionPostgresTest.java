@@ -57,6 +57,7 @@ class DeploymentDeletionExecutionPostgresTest {
     private DeploymentReleaseRepository releases;
     private DeploymentVersionRepository versions;
     private DeploymentDraftRepository drafts;
+    private CustomerEnvironmentQuotaService environmentQuota;
 
     @BeforeAll static void migrate() {
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
@@ -115,6 +116,8 @@ class DeploymentDeletionExecutionPostgresTest {
             mock(DeploymentProviderSecretOverrideService.class), mock(DeploymentDocumentStorageBindingService.class),
             mock(PlatformAuditService.class), new ObjectMapper().findAndRegisterModules(), new JpaTransactionManager(manager),
             consumers, associations, new DeploymentReleaseEvidenceCleanupService(jdbc));
+        environmentQuota = mock(CustomerEnvironmentQuotaService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "environmentQuota", environmentQuota);
     }
 
     @AfterEach void close() { if (factory != null) factory.destroy(); }
@@ -194,6 +197,18 @@ class DeploymentDeletionExecutionPostgresTest {
         service.executeDeletion(operation.getId());
         assertThat(operation.getStatus()).isEqualTo("FAILED");
         verify(deployments, never()).delete(any());
+        assertThat(count("platform_customer_offer_deployments", "deployment_id", deployment.getId())).isEqualTo(1);
+        assertThat(count("platform_customer_experience_kits", "id", kit)).isEqualTo(1);
+    }
+
+    @Test void retainedInfrastructurePreventsQueuedMetadataPurgeAndPreservesEvidence() {
+        doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            "OWNED_INFRASTRUCTURE_REMAINS")).when(environmentQuota).requireNoRetainedInfrastructure(deployment);
+        service.executeDeletion(operation.getId());
+        assertThat(operation.getStatus()).isEqualTo("FAILED");
+        assertThat(operation.getErrorMessage()).contains("OWNED_INFRASTRUCTURE_REMAINS");
+        verify(deployments, never()).delete(any());
+        assertThat(count("platform_deployments", "id", deployment.getId())).isEqualTo(1);
         assertThat(count("platform_customer_offer_deployments", "deployment_id", deployment.getId())).isEqualTo(1);
         assertThat(count("platform_customer_experience_kits", "id", kit)).isEqualTo(1);
     }

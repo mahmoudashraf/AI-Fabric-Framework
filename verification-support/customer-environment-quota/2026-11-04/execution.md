@@ -1,6 +1,6 @@
 # Customer Environment Allowance And Desk Completion
 
-Status: LOCAL VERIFICATION PASSED; PUBLICATION / HOSTED QUALIFICATION NEXT.
+Status: QUOTA AND DESK LIVE-QUALIFIED; RECORD-DELETION GUARD ROLLOUT NEXT.
 
 ## Contract
 
@@ -21,6 +21,11 @@ Status: LOCAL VERIFICATION PASSED; PUBLICATION / HOSTED QUALIFICATION NEXT.
 - Stopped, failed, archived or superseded owned resources still count until
   removed. Deleted handles and retired dependency graphs do not. External
   storage bindings and audit-only records are not dedicated infrastructure.
+- Record-only deletion is checked both before queueing and again before purging
+  metadata. Otherwise deleting a configuration could discard resource handles
+  while leaving paid infrastructure running and bypass the allowance. Explicit
+  staff-owned infrastructure teardown keeps its existing authorization/cleanup
+  contract; the quota guard is not a new force-delete bypass.
 - Staff can explicitly change a workspace allowance through an admin-only API
   with an audit reason. A limit of zero prevents new environments, not upgrades.
   No automatic eviction or deletion when a default/limit is lower than usage.
@@ -60,6 +65,48 @@ Status: LOCAL VERIFICATION PASSED; PUBLICATION / HOSTED QUALIFICATION NEXT.
 - Focused API transport suite:34 passed, zero failed/skipped. A persistent CI
   workflow runs the bounded quota/Desk tests and allowance browser fixture.
 - Hosted proof is pending below. No new framework/runtime release is required.
+
+## Hosted Qualification
+
+- Source8d18c87740f117f86905f683a6967858b62faaf7 published and both Platform
+  backends/Consoles native source/image/health verified. CI core41930322227,
+  focused quota/Desk41930322404 and storage41930322188 all SUCCESS.
+- Exact Coolify jobs: staging backend l1375xpp8zjly77yogsaiyof, Console
+  p4n21bjtcdyvzxdfq5w4trgd; production backend d5skh4ab67zo5dp3riqbcovq,
+  Console pivcvrl8wsbvchp6f0gznl20. V233 applied on both databases.
+- Actual Support owner GET returned used2/limit2: one deployment's staging and
+  production, not its individual runtime/database/connector containers. Actual
+  Console displayed the two exact environment links. Desktop and390x844 checks
+  passed; mobile scrollWidth390, no browser errors. Screenshots alongside this
+  record. Owner override PUT denied403, anonymous GET401, spoofed customerId
+  parameter did not change the authenticated customer scope.
+- New test configuration dep-17b01622 was created and published at full usage,
+  but applying it returned409 CUSTOMER_ENVIRONMENT_LIMIT_REACHED. No release or
+  provider resource was created. It was archived then removed by normal deletion
+  del-39c66cd4 SUCCEEDED. No native infrastructure or source file was deleted.
+  Early helper attempts used an unsupported GET path and an already-bound
+  tenant; both were corrected before the successful bounded proof, not counted
+  as product/quota passes.
+- Actual customer created an additional DRAFT Engage installation while usage
+  was2/2. Usage stayed2; the draft was deleted through the normal installation
+  API. No app activation, route creation or production assignment change.
+- Actual owner upgraded existing Support staging at2/2 through normal customer
+  apply. Release rel-16849364, same version ver-51e6c811/artifact dsa-d3f03019,
+  APPLIED_VERIFIED/PASSED. Usage remained2. Runtime job cly6hgn6fag7qiypbzssalfu
+  and final connector job drd0cv64sz3lk6yj5ubh1wdk both finished. Both native
+  containers are healthy and retain source83fd17427 / AI Fabric0.8.45.
+- Read-only observations captured Desk staging binding changing from
+  rel-2ab687cf/ENABLED to rel-16849364/APPLYING during apply, then automatically
+  rel-16849364/ENABLED after verification. The harness never called the owner
+  Desk status endpoint to repair it. Production binding/app remained on
+  rel-8822aff7/ENABLED. No status rewrite, SQL mutation or failed-check bypass.
+- Final record-deletion bypass correction:223 focused tests passed, zero
+  failures/errors/skips, including real PostgreSQL metadata-purge rollback and
+  H2/PostgreSQL retained-resource guards. Its backend rollout is pending.
+
+Private canonical journal: loomai-document-storage-01059/receipts/
+environment-quota-qualification.private.json. It is the current staging-release
+record; the prior promotion journal remains production rel-8822aff7 evidence.
 
 ## Bounded Limits
 

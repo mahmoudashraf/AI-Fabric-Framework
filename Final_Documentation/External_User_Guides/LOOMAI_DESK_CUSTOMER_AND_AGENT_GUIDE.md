@@ -63,6 +63,11 @@ not automatically change an Engage app's pinned assignment: use the Console's
 existing verified-release assignment control when a switch is needed. Each app
 uses the support team belonging to its assigned deployment target.
 
+Desk status updates automatically after the exact target release's verification
+commits. A failed verification does not enable support. If a process interruption
+leaves an older status visible, refreshing Human support rechecks the saved
+verification evidence; it does not deploy again or override a failed result.
+
 ### Recovering An Existing Console Account
 
 If sign-in says an existing Console account needs connecting, select **Recover

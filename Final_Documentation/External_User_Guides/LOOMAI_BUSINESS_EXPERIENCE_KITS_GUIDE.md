@@ -71,6 +71,23 @@ Promote the tested configuration through the existing staging-to-production
 workflow, then connect the apps to the verified production assignment. Kit
 metadata does not introduce another publishing or promotion mechanism.
 
+## Infrastructure Allowance
+
+The default workspace allowance is two infrastructure environments, usually one
+staging and one production. A runtime and its owned supporting services count as
+one environment, not as separate containers. See **Infrastructure environments**
+on Home or Deployments for current usage and links to the counted targets.
+
+You can create Kit/configuration drafts and additional Engage apps using the
+shared frontend without using another infrastructure slot. Upgrading an existing
+target reuses its slot, including when the workspace has reached its allowance.
+
+Stopped or failed infrastructure still counts while its resources remain.
+Archiving a configuration does not remove infrastructure. Complete normal owned
+resource removal to free a slot; contact integration support when assistance is
+needed. Retained audit-only records with no infrastructure do not use slots.
+The integration team can set an explicitly agreed allowance for larger projects.
+
 ## Continue Adapting
 
 Open **Edit your experience** for draft appearance and delivery changes. Live

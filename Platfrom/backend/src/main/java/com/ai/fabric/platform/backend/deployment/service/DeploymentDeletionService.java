@@ -40,6 +40,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DeploymentDeletionService {
     @org.springframework.beans.factory.annotation.Autowired
+    private CustomerEnvironmentQuotaService environmentQuota;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
 
     private final DeploymentRepository deploymentRepository;
@@ -111,6 +113,7 @@ public class DeploymentDeletionService {
         if ("QUEUED".equalsIgnoreCase(deployment.getDeletionStatus()) || "RUNNING".equalsIgnoreCase(deployment.getDeletionStatus())) {
             throw new ResponseStatusException(CONFLICT, "Deployment deletion is already in progress.");
         }
+        if (!hardDelete) environmentQuota.requireNoRetainedInfrastructure(deployment);
 
         Instant now = Instant.now();
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();

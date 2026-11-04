@@ -12,6 +12,8 @@ on:
       - "Platfrom/backend/src/**/DeploymentReleaseExecutionService*"
       - "Platfrom/backend/src/**/NativeLifecycleEffects*"
       - "Platfrom/backend/src/**/ManagedDependencyLifecycleService*"
+      - "Platfrom/backend/src/**/DeploymentDeletion*"
+      - "Platfrom/backend/src/**/CustomerEnvironmentDeletionGuardTest.java"
       - "Platfrom/ui/src/components/customer/CustomerEnvironmentQuota*"
       - "Platfrom/ui/src/api/platformApi.ts"
   workflow_dispatch:
@@ -38,7 +40,7 @@ jobs:
       - name: Verify quota concurrency, migration, authorization and release reconciliation
         run: >-
           mvn -B -f Platfrom/backend/pom.xml
-          -Dtest=CustomerEnvironmentQuota*,DeskBindingReconciliationServiceTest,DeskReleaseVerificationTransactionTest,DeskActivationServiceTest,DeploymentServiceApplyGuardTest,DeploymentServiceRuntimeAuthorityFreezeTest,DeploymentReleaseExecutionServiceTest,DeploymentServiceVerificationRecheckTest,NativeLifecycleEffectsTest,ManagedDependencyLifecycleServiceTest test
+          -Dtest=CustomerEnvironmentQuota*,CustomerEnvironmentDeletionGuardTest,DeploymentDeletionServiceTest,DeploymentDeletionExecutionPostgresTest,DeskBindingReconciliationServiceTest,DeskReleaseVerificationTransactionTest,DeskActivationServiceTest,DeploymentServiceApplyGuardTest,DeploymentServiceRuntimeAuthorityFreezeTest,DeploymentReleaseExecutionServiceTest,DeploymentServiceVerificationRecheckTest,NativeLifecycleEffectsTest,ManagedDependencyLifecycleServiceTest test
       - name: Verify customer allowance UI and API transport
         working-directory: Platfrom/ui
         run: |
