@@ -4,23 +4,30 @@
   "documents": [
     {
       "id": "loomai-support-07",
+      "reviewedAt": "2026-11-04",
       "path": "documents/loomai-support/07-document-knowledge-and-indexing.txt",
       "sourceFiles": [
         "Platfrom/ui/src/pages/DocumentKnowledgePage.tsx",
+        "Platfrom/ui/src/components/documents/HostedDocumentStorageSetup.tsx",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/documentstorage/service/CustomerDocumentStorageService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/documentstorage/service/DocumentStorageSelectionService.java",
+        "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/documentstorage/service/DocumentStoragePromotionSelectionService.java",
         "Platfrom/ui/src/components/customer/customerDocumentStorageScope.ts",
         "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDocumentKnowledgeOperationsService.java",
         "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/DocumentKnowledgeController.java",
         "ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/documents/DocumentKnowledgeService.java",
-        "product-templates/ai-support-workspace/manifests/support-documents.manifest.json",
+        "product-templates/ai-support-workspace/manifests/support-documents.1.1.0.manifest.json",
         "product-templates/ai-support-workspace/API_RUNBOOK.md"
       ],
       "claims": [
         "DocumentKnowledgePage exposes an explicit target release, source binding, connector status, discovery, approval-backed registration, bounded preview, index, refresh, reconcile, removal and retrieval-proof controls.",
-        "The support DATA manifest declares customer-managed S3-compatible storage, deployment-only derived evidence, LIST/READ/HEAD authority, deleteSourceOnRemoval=false, .txt/configured .json input and explicit initial indexing approval.",
+        "The current support DATA revision permits a customer-scoped bound connection, hosted by LoomAI or supplied by the customer, with deployment-only derived evidence, LIST/READ/HEAD authority, deleteSourceOnRemoval=false, TXT/configured JSON input and explicit initial indexing approval.",
+        "Optional hosted connections keep original bytes in one customer-owned connection bucket shared by target profiles. Console uploads are separate from target-local registration/indexing; scoped readers cannot upload or delete source files.",
+        "Promotion freezes reviewed source IDs and checksums and requires production-local active sources. It does not copy vectors or automatically register unselected uploads.",
         "Source approval occurs at registration in the current UI. Preview operates on a registered source; the guide does not invent pre-registration extracted preview or claim preview activates evidence.",
         "DocumentKnowledgeController returns ACCEPTED for index and removal; DocumentKnowledgeService reconciles recorded indexing/deletion work rather than treating submission as completion.",
         "DocumentKnowledgeService.refresh observes provider revision changes without indexing them; activate switches to a successful candidate before superseding and deleting old derived chunks.",
-        "The API runbook separates mounted non-production mechanics from customer-owned production source-storage qualification."
+        "The API runbook separates mounted non-production mechanics, BYO storage and operator-enabled hosted S3 qualification."
       ],
       "limitations": [
         "Only applies where the module, installed document policy, customer permissions and provisioned target are available. It does not claim every template supports arbitrary file formats.",

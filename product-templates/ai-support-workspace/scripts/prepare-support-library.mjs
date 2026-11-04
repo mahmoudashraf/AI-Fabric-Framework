@@ -49,7 +49,7 @@ const documents = library.documents.map(document => {
   const text = bytes.toString('utf8')
   assert.ok(text.length > 1500 && !text.includes('\uFFFD'), 'Guide must be substantive UTF-8 text')
   assert.ok(text.startsWith('Title: ') && text.includes(`Document ID: ${document.id}\n`))
-  assert.ok(text.includes('Reviewed: ' + library.reviewedAt))
+  assert.ok(text.includes('Reviewed: ' + (document.reviewedAt ?? library.reviewedAt)))
   const title = text.slice('Title: '.length, text.indexOf('\n')).trim()
   const objectKey = 'guides/' + relative(resolve(root, 'documents/loomai-support'), source).split(sep).join('/')
   if (output) {

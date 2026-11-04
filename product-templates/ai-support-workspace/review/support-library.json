@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "libraryId": "loomai-customer-support",
-  "contentVersion": "2026-10-31.1",
+  "contentVersion": "2026-11-04.1",
   "reviewedAt": "2026-10-31",
   "contentStatus": "CUSTOMER_SAFE_SOURCE_REVIEWED",
   "deploymentStatus": "NOT_INDEXED_BY_THIS_PACKAGE",
@@ -25,12 +25,12 @@
     {"id": "loomai-support-04", "path": "documents/loomai-support/04-plugins-and-connections.txt", "sourceCategory": "integration-setup"},
     {"id": "loomai-support-05", "path": "documents/loomai-support/05-engage-website-and-standalone.txt", "sourceCategory": "workspace-installation"},
     {"id": "loomai-support-06", "path": "documents/loomai-support/06-engage-custom-domains.txt", "sourceCategory": "workspace-domains"},
-    {"id": "loomai-support-07", "path": "documents/loomai-support/07-document-knowledge-and-indexing.txt", "sourceCategory": "document-indexing"},
+    {"id": "loomai-support-07", "path": "documents/loomai-support/07-document-knowledge-and-indexing.txt", "sourceCategory": "document-indexing", "reviewedAt": "2026-11-04"},
     {"id": "loomai-support-08", "path": "documents/loomai-support/08-knowledge-freshness-and-answer-quality.txt", "sourceCategory": "knowledge-troubleshooting"},
     {"id": "loomai-support-09", "path": "documents/loomai-support/09-actions-and-confirmation.txt", "sourceCategory": "governed-actions"},
     {"id": "loomai-support-10", "path": "documents/loomai-support/10-specialists-and-resolution-checks.txt", "sourceCategory": "specialist-assistance"},
     {"id": "loomai-support-11", "path": "documents/loomai-support/11-desk-and-human-handover.txt", "sourceCategory": "human-support"},
-    {"id": "loomai-support-12", "path": "documents/loomai-support/12-requesting-integration-support-and-diagnostics.txt", "sourceCategory": "support-diagnostics"},
+    {"id": "loomai-support-12", "path": "documents/loomai-support/12-requesting-integration-support-and-diagnostics.txt", "sourceCategory": "support-diagnostics", "reviewedAt": "2026-11-03"},
     {"id": "loomai-support-13", "path": "documents/loomai-support/13-dealership-workspace-stock-policies-and-requests.txt", "sourceCategory": "dealership-workspace"}
   ]
 }

@@ -2,7 +2,7 @@ Title: Connect approved documents and verify indexing
 Document ID: loomai-support-07
 Product: LoomAI Platform - Document Knowledge
 Audience: Customer administrators responsible for deployment knowledge
-Reviewed: 2026-10-31
+Reviewed: 2026-11-04
 
 Purpose and availability
 
@@ -11,12 +11,16 @@ available as answer evidence. Follow these steps only when your workspace expose
 the module and your account can operate it. A missing module is not a request to
 paste storage credentials into chat; ask the integration team about enablement.
 
-Your source files remain in your own S3-compatible storage. The deployment keeps
-derived chunks, vector evidence, source registrations and indexing state. The
-document connector lists and reads the approved bucket prefix; it does not need
-permission to upload, overwrite or delete your source files. Use separate scoped
-connections for staging and production. A mounted folder is a small-data/demo
-option, not a promise of managed customer object storage.
+Source files remain in S3-compatible storage, either provided by you or optionally
+hosted by LoomAI when your operator enables that choice. The deployment keeps
+derived chunks, vector evidence, source registrations and indexing state. Its
+connector receives only scoped read access, not upload or source-delete rights.
+The upload/provisioning key stays in the trusted Platform backend.
+
+Customer staging and production can share one owned storage connection and bucket,
+with purpose folders and separate read-only target bindings. Each target still
+has its own indexing and verification. A mounted folder is a small-data/demo
+option, separate from the optional hosted S3 service.
 
 Prepare and connect
 
@@ -24,9 +28,13 @@ Prepare and connect
    customer records and content unsuitable for the intended answer audience.
    The support document package accepts plain-text files and configured JSON
    content fields; do not assume PDF, scans or arbitrary file formats work.
-2. Have your storage administrator supply the endpoint, region, bucket, allowed
-   prefix and read-only credentials through the storage connection form. Never
-   put access keys in a support request, a document or an Engage installation.
+2. In Kit Document storage or deployment Document Knowledge, choose Use LoomAI
+   storage or Connect my storage. For hosted storage, create a named connection,
+   prepare its private bucket, choose a purpose prefix and bind it to customer
+   staging. Upload UTF-8 TXT or supported JSON files of at most 1 MiB each.
+   Upload success means stored, not indexed or published. For BYO storage, have
+   your administrator supply endpoint, region, bucket, prefix and read-only
+   credentials through the connection form. Never put keys in chat or documents.
 3. Open Document Knowledge for the deployment. Select the explicitly provisioned
    Target release and its storage binding. Check Connector ready before discovery.
    If configuration is pending release, complete the normal deployment update
@@ -51,12 +59,31 @@ Discover, review, approve and index
    actual Engage app: retrieval proof and a useful final AI answer are different
    checks, and the app may be assigned to another target release.
 
+For hosted uploads, the selected-file indexing control uses these same runtime
+registration, preview and reconciliation operations. Approve anonymous public
+answers only for suitable files. The Kit view can store files before a runtime
+exists; use the selected live target in Document Knowledge for indexing status.
+
+Production promotion
+
+Bind the same hosted connection to production with a folder scope containing the
+reviewed files. Review the candidate filenames, apply the normal production
+release, index the selected original files locally in production and verify them
+before explicit activation. Vectors are not copied. An uploaded file that is not
+selected for indexing is not automatically registered or published by promotion.
+Completely disjoint folders are different source sets, not an automatic file copy.
+
 Updates, removal and common issues
 
 After editing a file in your storage, use Refresh revision, review the candidate,
 then Index, Reconcile and Verify again. Refresh alone does not index the update.
 Replacement activates the successful new version before retiring the old one;
 a failed candidate must not be mistaken for the serving version.
+
+Hosted uploads use new immutable object keys. Upload the revised file, review and
+index it as the intended replacement; uploading alone does not overwrite a
+production-used source. Contact the integration team for source-storage retirement
+or export. Hosted storage has provider costs and bounded upload/connection limits.
 
 Remove index removes the registration and derived indexed chunks through tracked
 work. It does not delete the original object. Confirm deletion completion rather
