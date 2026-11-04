@@ -63,8 +63,7 @@ class SupportTicketMigrationTest {
       var directory =
           new com.loomai.desk.service.DeskDirectory(jdbc, DeskIsolationTest.properties());
       DeskIsolationTest.workspace(directory, "preserved", "owner");
-      directory.putBinding(
-          "preserved", DeskIsolationTest.binding("preserved", "https://runtime.example/callback"));
+      seedV3Binding(jdbc);
       var before = directory.binding("preserved");
       Flyway.configure()
           .dataSource(db.dataSource)
@@ -89,5 +88,23 @@ class SupportTicketMigrationTest {
                           + " VALUES('missing-space','requester')"))
           .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
+  }
+
+  private void seedV3Binding(JdbcTemplate jdbc) {
+    // Seed the historical schema without running the current ticket-capability projection.
+    var input = DeskIsolationTest.binding("preserved", "https://runtime.example/callback");
+    var properties = new com.loomai.desk.channel.config.BasicInboxProperties();
+    properties.setDataEncryptionSecret(DeskIsolationTest.properties().getDataEncryptionSecret());
+    var secrets = new com.loomai.desk.channel.service.InboxSecurityService(properties);
+    jdbc.update("""
+        INSERT INTO desk_binding(binding_id,customer_id,tenant_id,deployment_id,target_profile_id,
+          deployment_name,environment,callback_url,provider_key_hash,protected_provider_key,
+          protected_signing_secret,review_bridge_url,protected_review_bridge_key,enabled)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, "preserved", input.customerId(), input.tenantId(), input.deploymentId(),
+        input.targetProfileId(), input.deploymentName(), input.environment(), input.callbackUrl(),
+        secrets.sha256(input.providerApiKey()), secrets.encrypt(input.providerApiKey()),
+        secrets.encrypt(input.callbackSigningSecret()), input.reviewBridgeUrl(),
+        secrets.encrypt(input.reviewBridgeKey()), input.enabled());
   }
 }
