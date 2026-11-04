@@ -19,7 +19,9 @@ class DeploymentPromotionCandidateServiceTest {
     private final DeploymentSourceArtifactService artifacts = mock(DeploymentSourceArtifactService.class);
     private final DeploymentVerificationRunRepository runs = mock(DeploymentVerificationRunRepository.class);
     private final DeploymentDocumentBindingResolver bindings = mock(DeploymentDocumentBindingResolver.class);
-    private final DeploymentPromotionCandidateService service = new DeploymentPromotionCandidateService(artifacts, runs, bindings, mapper);
+    private final com.ai.fabric.platform.backend.documentstorage.service.DocumentStoragePromotionSelectionService documents =
+        mock(com.ai.fabric.platform.backend.documentstorage.service.DocumentStoragePromotionSelectionService.class);
+    private final DeploymentPromotionCandidateService service = new DeploymentPromotionCandidateService(artifacts, runs, bindings, mapper, documents);
     private final DeploymentEntity deployment = new DeploymentEntity();
     private final DeploymentVersionEntity version = new DeploymentVersionEntity();
     private final DeploymentReleaseEntity staging = new DeploymentReleaseEntity();

@@ -111,6 +111,49 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void modeNeutralDocumentDraftAcceptsBindingOwnedStorageWithoutChangingItsContract() throws Exception {
+        var mapper = new ObjectMapper();
+        var config = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(documentDatasetConfig("S3_COMPATIBLE_OBJECT_STORAGE"));
+        var dataset = (com.fasterxml.jackson.databind.node.ObjectNode) config.at("/datasets/0");
+        dataset.put("storageScope", "CUSTOMER_SCOPED");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) dataset.path("sourceConnector"))
+            .put("storageOwnership", "BOUND_CONNECTION");
+        var draft = marketplaceDatasetDraft();
+        draft.setMarketplaceDatasetConfigJson(config.toString());
+
+        assertThat(service.validate(draft).issues()).extracting("code")
+            .doesNotContain("MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", "DOCUMENT_DATASET_BOUNDARY_INVALID",
+                "DOCUMENT_SOURCE_OWNERSHIP_INVALID", "DOCUMENT_SOURCE_OPERATIONS_INVALID", "DOCUMENT_SOURCE_DELETE_FORBIDDEN")
+            .contains("DOCUMENT_DURABLE_VECTOR_REQUIRED");
+        assertThat(mapper.readTree(draft.getMarketplaceDatasetConfigJson())).isEqualTo(config);
+    }
+
+    @Test
+    void documentDraftRejectsOwnershipMismatchAndSourceWriteAuthorityInBothContracts() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String scope : java.util.List.of("CUSTOMER_MANAGED", "CUSTOMER_SCOPED")) {
+            for (String violation : java.util.List.of("ownership", "write", "missingOperations", "delete", "missingDelete")) {
+                var config = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(documentDatasetConfig("S3_COMPATIBLE_OBJECT_STORAGE"));
+                var dataset = (com.fasterxml.jackson.databind.node.ObjectNode) config.at("/datasets/0");
+                dataset.put("storageScope", scope);
+                var connector = (com.fasterxml.jackson.databind.node.ObjectNode) dataset.path("sourceConnector");
+                connector.put("storageOwnership", "CUSTOMER_SCOPED".equals(scope) ? "BOUND_CONNECTION" : "CUSTOMER_MANAGED");
+                String expected;
+                switch (violation) {
+                    case "ownership" -> { connector.put("storageOwnership", "LOOMAI_MANAGED"); expected = "DOCUMENT_SOURCE_OWNERSHIP_INVALID"; }
+                    case "write" -> { connector.withArray("allowedOperations").add("DELETE"); expected = "DOCUMENT_SOURCE_OPERATIONS_INVALID"; }
+                    case "missingOperations" -> { connector.remove("allowedOperations"); expected = "DOCUMENT_SOURCE_OPERATIONS_INVALID"; }
+                    case "delete" -> { connector.put("deleteSourceOnRemoval", true); expected = "DOCUMENT_SOURCE_DELETE_FORBIDDEN"; }
+                    default -> { connector.remove("deleteSourceOnRemoval"); expected = "DOCUMENT_SOURCE_DELETE_FORBIDDEN"; }
+                }
+                var draft = marketplaceDatasetDraft();
+                draft.setMarketplaceDatasetConfigJson(config.toString());
+                assertThat(service.validate(draft).issues()).as(scope + ": " + violation).extracting("code").contains(expected);
+            }
+        }
+    }
+
+    @Test
     void validateKeepsLocalVectorAvailableForMountedDocumentDemo() {
         DeploymentDraftEntity draft = draft(
             "{\"actions\":[]}",
@@ -4688,7 +4731,9 @@ class DeploymentDraftValidationServiceTest {
                 "datasetHash": "test-document-dataset",
                 "sourceConnector": {
                   "connectorType": "%s",
+                  "storageOwnership": "CUSTOMER_MANAGED",
                   "bindingRef": "dsh-test",
+                  "allowedOperations": ["LIST", "READ", "HEAD"],
                   "deleteSourceOnRemoval": false
                 },
                 "documentPolicy": {

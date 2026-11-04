@@ -13,13 +13,15 @@ import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { fetchCustomerDeploymentPortfolio, fetchDeploymentDesk, fetchDeploymentReleases, getPlatformApiBaseUrl,
+import { fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceOffer, fetchDocumentStorageBindings, fetchDeploymentDesk, fetchDeploymentReleases, getPlatformApiBaseUrl,
   PlatformApiError, type AIWorkspaceInstallationSummary, type AIWorkspaceReadinessCheck } from '../../api/platformApi'
 import { experienceKitKeys, fetchExperienceKit, fetchExperienceKitCatalogue, updateExperienceKit, type ExperienceKitSummary } from '../../api/experienceKitsApi'
 import { KitExperienceFields } from './KitExperienceFields'
 import { KitMark } from './KitIdentity'
 import { KitWorkspacePreview } from './KitWorkspacePreview'
 import { KitSupportSpaceSetup } from './KitSupportSpaceSetup'
+import { HostedDocumentStorageSetup } from '../documents/HostedDocumentStorageSetup'
+import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { connectableRelease } from '../customer/customerEngageConnection'
 import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
 
@@ -117,6 +119,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       </div>
       <div className="ek-resource-bands"><Link to={knowledgePath}><DescriptionOutlined /><span><strong>Your business information</strong><small>The approved documents your assistant can use</small></span><b>Manage documents</b><ArrowForwardRounded /></Link>
         <Link to={integrationPath}><ExtensionOutlined /><span><strong>Your connected systems</strong><small>Keep answers and next steps connected to your business</small></span><b>Manage connections</b><ArrowForwardRounded /></Link></div>
+      <KitDocumentStorageSetup customerId={customerId} kit={kit} knowledgePath={knowledgePath} />
       <section className="ek-before-launch" aria-labelledby="ek-before-launch-title"><h2 id="ek-before-launch-title">Before you launch</h2>
         <div className="ek-readiness-list">{channels.map(channel => <div className="ek-readiness-channel" key={channel.key}><h3>{channel.name}</h3>
           {!channel.app ? <p className="ek-amber"><WarningAmberRounded />Installation unavailable</p>
@@ -177,6 +180,26 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       <KitEditForm key={`${kit.id}:${kit.revision}`} customerId={customerId} kit={kit} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void refresh() }} />
     </Dialog>
   </div>
+}
+
+function KitDocumentStorageSetup({ customerId, kit, knowledgePath }: { customerId: string; kit: ExperienceKitSummary; knowledgePath: string }) {
+  const { session } = usePlatformAuth()
+  const scope = [customerId, session?.actorId, session?.authenticationMode, kit.deploymentId]
+  const enabled = Boolean(session?.authenticated && session.customerId === customerId)
+  const offer = useQuery({ queryKey: ['hosted-document-storage-targets', ...scope, kit.offerId],
+    queryFn: () => fetchCustomerSelfServiceOffer(kit.offerId), enabled, retry: false })
+  const bindings = useQuery({ queryKey: ['document-storage-bindings', kit.deploymentId, ...scope],
+    queryFn: () => fetchDocumentStorageBindings(kit.deploymentId), enabled, retry: false })
+  const targetProfiles = (offer.data?.targets ?? []).filter(target => target.capabilities.includes('BINDING_REPLACE'))
+    .map(target => ({ id: target.id, name: target.intent === 'CUSTOMER_STAGING' ? 'Customer staging' : 'Customer production' }))
+  return <section className="ek-before-launch" aria-label="Your business document setup">
+    {offer.isError && <Alert severity="error" action={<Button onClick={() => void offer.refetch()}>Retry</Button>}>Allowed document-storage targets could not be loaded.</Alert>}
+    {bindings.isError && <Alert severity="warning" action={<Button onClick={() => void bindings.refetch()}>Retry</Button>}>Current target bindings could not be loaded.</Alert>}
+    <HostedDocumentStorageSetup customerId={customerId} deploymentId={kit.deploymentId} targetProfiles={targetProfiles}
+      initialTargetProfileId={kit.targetProfileId} bindings={bindings.data ?? []} indexingHref={knowledgePath}
+      canManage={enabled && session?.role === 'CUSTOMER_ADMIN'}
+      byoStorage={<Button component={Link} to={knowledgePath} variant="outlined" startIcon={<DescriptionOutlined />}>Connect S3-compatible storage</Button>} />
+  </section>
 }
 
 function KitInstallSnippet({ installationId }: { installationId: string }) {

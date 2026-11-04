@@ -87,10 +87,12 @@ import { CustomerAdvancedSection, useCustomerEditorSection } from '../components
 import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope, hasReviewedDocumentStorageInstall,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
 import { hasApprovedAnonymousDocumentSource } from './documentKnowledgeAudience'
+import { HostedDocumentStorageSetup } from '../components/documents/HostedDocumentStorageSetup'
 
 const DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-document-knowledge-s3',
   'mkp-data-document-knowledge-mounted-demo',
+  'mkp-data-ai-support-documents',
   'mkp-data-dealership-knowledge-v1',
   'mkp-data-dealership-knowledge-mounted-demo-v1',
 ])
@@ -146,7 +148,11 @@ function documentInstall(
   dataset: Record<string, unknown> | null,
 ): DeploymentMarketplaceInstallSummary | null {
   const installId = typeof dataset?.marketplaceInstallId === 'string' ? dataset.marketplaceInstallId : ''
+  const pluginId = typeof dataset?.marketplacePluginId === 'string' ? dataset.marketplacePluginId : ''
   return installs.find((install) => install.id === installId)
+    ?? installs.find((install) => install.pluginId === pluginId)
+    ?? installs.find((install) => install.pluginType === 'DATA'
+      && typeof asRecord(install.config).documentStorageBindingRef === 'string')
     ?? installs.find((install) => DOCUMENT_PLUGIN_IDS.has(install.pluginId))
     ?? null
 }
@@ -332,7 +338,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     return (profilesQuery.data ?? []).filter((profile) => profile.active)
   }, [customerOffer?.targets, customerSelfService, profilesQuery.data])
 
-  const documentConfigured = (workspace?.documentKnowledgeConfigured ?? dataset != null)
+  const documentConfigured = dataset != null || workspace?.documentKnowledgeConfigured === true
     || (customerSelfService && hasReviewedDocumentStorageInstall(customerOffer, installsQuery.data ?? []))
   const documentLive = !!selectedRelease && !!targetQuery.data?.documentDatasetIds.length
   const canAdmin = workspace?.access.canAdmin ?? false
@@ -628,7 +634,11 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
         </Alert>
       ) : null}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <HostedDocumentStorageSetup deploymentId={selectedDeploymentId} targetProfiles={matchingProfiles}
+        initialTargetProfileId={bindingForm.targetProfileId || targetReference.targetProfileId} canManage={canAdmin} defaultMode="byo"
+        bindings={bindingsQuery.data ?? []}
+        runtime={documentLive ? { ...targetReference, datasetId } : undefined}
+        byoStorage={<Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
             <Box>
@@ -780,7 +790,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </Stack>
           ))}
         </Stack>
-      </Paper>
+      </Paper>} />
 
       <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>

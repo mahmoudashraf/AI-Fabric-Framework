@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
+import com.ai.fabric.platform.backend.documentstorage.service.DocumentStoragePromotionSelectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,13 +21,16 @@ public class DeploymentPromotionCandidateService {
     private final DeploymentVerificationRunRepository verifications;
     private final DeploymentDocumentBindingResolver documentBindings;
     private final ObjectMapper mapper;
+    private final DocumentStoragePromotionSelectionService documentSelections;
     @Value("${platform.delivery.promotion-evidence-max-age-seconds:0}")
     private long approvedPromotionEvidenceMaxAgeSeconds;
 
     public DeploymentPromotionCandidateService(DeploymentSourceArtifactService artifacts,
                                                DeploymentVerificationRunRepository verifications,
-                                               DeploymentDocumentBindingResolver documentBindings, ObjectMapper mapper) {
+                                               DeploymentDocumentBindingResolver documentBindings, ObjectMapper mapper,
+                                               DocumentStoragePromotionSelectionService documentSelections) {
         this.artifacts = artifacts; this.verifications = verifications; this.documentBindings = documentBindings; this.mapper = mapper;
+        this.documentSelections = documentSelections;
     }
 
     public ObjectNode resolve(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity staging,
@@ -55,7 +59,12 @@ public class DeploymentPromotionCandidateService {
         result.put("productionTargetProfileId", production.getId());
         result.put("productionTargetFingerprint", DeploymentEvidenceFingerprint.hash(mapper, mapper.valueToTree(production)));
         result.set("productionDocumentBinding", documentBindings.snapshot(deployment, version, production.getId()));
+        result.set("hostedDocumentSelection", documentSelections.snapshot(deployment, staging, production.getId()));
         return result;
+    }
+
+    public void requireProductionDocuments(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        documentSelections.requireProductionEvidence(deployment, release);
     }
 
     public void requireFreshVerification(DeploymentEntity deployment, DeploymentVersionEntity version,

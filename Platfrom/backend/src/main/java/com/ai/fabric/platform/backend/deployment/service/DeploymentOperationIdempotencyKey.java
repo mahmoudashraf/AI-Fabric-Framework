@@ -4,10 +4,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
-final class DeploymentOperationIdempotencyKey {
+public final class DeploymentOperationIdempotencyKey {
     private DeploymentOperationIdempotencyKey() { }
 
-    static String require(String value) {
+    public static String require(String value) {
         if (value == null || value.isEmpty() || value.length() > 128
             || value.chars().anyMatch(character -> character < 33 || character > 126)) {
             throw new ResponseStatusException(BAD_REQUEST,

@@ -1386,6 +1386,15 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                     Roll back assignment
                   </Button>
               </Stack>
+              {reviewedPromotion?.hostedDocumentSelection?.length ? <Stack spacing={1}>
+                <Typography variant="subtitle2">Documents selected for production</Typography>
+                {reviewedPromotion.hostedDocumentSelection.map(document => <Typography variant="body2" key={document.uploadId}>
+                  {document.filename} · {document.publicApproved ? 'Approved for customer answers' : 'Private knowledge'}
+                </Typography>)}
+                <Button component={RouterLink} to={`/document-knowledge?deploymentId=${encodeURIComponent(selectedDeploymentId)}`} variant="outlined">
+                  Prepare production documents
+                </Button>
+              </Stack> : null}
               {selectedOffer && selectedDeploymentId ? <CustomerReleaseVerificationButton session={session} offer={selectedOffer}
                 deploymentId={selectedDeploymentId} release={productionRelease}
                 label="Verify production release" onVerified={invalidateCustomerState} /> : null}

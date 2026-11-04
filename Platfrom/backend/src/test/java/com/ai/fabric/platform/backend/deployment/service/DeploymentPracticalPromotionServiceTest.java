@@ -280,7 +280,8 @@ class DeploymentPracticalPromotionServiceTest {
         var artifacts = mock(DeploymentSourceArtifactService.class);
         var verifications = mock(DeploymentVerificationRunRepository.class);
         var documentBindings = mock(DeploymentDocumentBindingResolver.class);
-        var candidates = new DeploymentPromotionCandidateService(artifacts, verifications, documentBindings, mapper);
+        var candidates = new DeploymentPromotionCandidateService(artifacts, verifications, documentBindings, mapper,
+            mock(com.ai.fabric.platform.backend.documentstorage.service.DocumentStoragePromotionSelectionService.class));
         TestFixture fixture = fixture(candidates);
         DeploymentEntity deployment = deployment();
         DeploymentVersionEntity version = version("ver-1", deployment.getId());

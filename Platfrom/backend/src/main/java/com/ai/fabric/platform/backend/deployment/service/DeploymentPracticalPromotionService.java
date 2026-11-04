@@ -209,6 +209,7 @@ public class DeploymentPracticalPromotionService {
         String productionReleaseId = requireText(request == null ? null : request.productionReleaseId(), "productionReleaseId");
         String consumerId = requireText(request == null ? null : request.consumerId(), "consumerId");
         DeploymentReleaseEntity productionRelease = requireVerifiedReleaseForDeployment(deployment.getId(), productionReleaseId);
+        candidates.requireProductionDocuments(deployment, productionRelease);
         customerBoundary.require(deployment, productionRelease.getTargetProfileId(), productionReleaseId,
             productionRelease.getSourceArtifactId(),
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ACTIVATE, request.operationKey());
@@ -291,7 +292,8 @@ public class DeploymentPracticalPromotionService {
             productionRelease.getStatus(),
             updatedConsumer,
             lifecycleChanges,
-            productionRelease.getPromotionCandidateFingerprint()
+            productionRelease.getPromotionCandidateFingerprint(),
+            selectedDocuments(readJson(productionRelease.getPromotionCandidateJson()))
         );
     }
 
@@ -370,7 +372,8 @@ public class DeploymentPracticalPromotionService {
             rollbackRelease.getStatus(),
             updatedConsumer,
             lifecycleChanges,
-            rollbackRelease.getPromotionCandidateFingerprint()
+            rollbackRelease.getPromotionCandidateFingerprint(),
+            selectedDocuments(readJson(rollbackRelease.getPromotionCandidateJson()))
         );
     }
 
@@ -634,8 +637,14 @@ public class DeploymentPracticalPromotionService {
             productionReleaseStatus,
             null,
             resources,
-            context.candidateFingerprint()
+            context.candidateFingerprint(),
+            selectedDocuments(context.candidate())
         );
+    }
+
+    private JsonNode selectedDocuments(JsonNode candidate) {
+        JsonNode selected = candidate.path("hostedDocumentSelection");
+        return selected.isArray() ? selected.deepCopy() : objectMapper.createArrayNode();
     }
 
     private JsonNode readJson(String json) {

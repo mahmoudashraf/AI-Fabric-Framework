@@ -18,7 +18,9 @@
     "smoke:customer-layout": "node scripts/customer-layout-parity-smoke.mjs",
     "smoke:customer-scope": "node scripts/customer-ui-scope-regressions.mjs",
     "smoke:customer-support": "node scripts/customer-support-ui-smoke.mjs",
-    "smoke:support-team-intake": "node scripts/support-team-intake-ui-smoke.mjs"
+    "smoke:support-team-intake": "node scripts/support-team-intake-ui-smoke.mjs",
+    "test:document-storage": "node --test src/components/documents/HostedDocumentStorageSetup.test.mjs scripts/customer-document-storage-scope.test.mjs",
+    "smoke:document-storage": "node src/components/documents/HostedDocumentStorageSetup.browser.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

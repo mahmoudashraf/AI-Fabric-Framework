@@ -85,6 +85,41 @@ public class DeploymentDocumentStorageBindingService {
         return upsert(deploymentId, request, null, null, null);
     }
 
+    /** Only the owned hosted-storage service calls this; browser binding payloads cannot set ownership. */
+    @Transactional
+    public DocumentStorageBindingSummary upsertHostedConnection(String deploymentId,
+        UpsertDocumentStorageBindingRequest request, String connectionId, String operationKey) {
+        DeploymentEntity deployment = requireDeployment(deploymentId, true);
+        String connection = required(connectionId, "storageConnectionId");
+        String key = secretKey(deploymentId, request.targetProfileId());
+        var existing = handleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            deploymentId, request.targetProfileId(), RESOURCE_KIND);
+        if (existing.isPresent()) {
+            var handle = existing.get();
+            var metadata = readJson(handle.getMetadataJson());
+            if ("CONFIGURED".equals(handle.getStatus()) && "LOOMAI_MANAGED".equals(metadata.path("storageOwnership").asText())
+                && connection.equals(metadata.path("storageConnectionId").asText())
+                && java.util.Objects.equals(request.prefix(), secretService.resolveSecretForDeployment(key + "_PREFIX", deploymentId, request.targetProfileId()))
+                && java.util.Objects.equals(request.bucket(), secretService.resolveSecretForDeployment(key + "_BUCKET", deploymentId, request.targetProfileId()))
+                && java.util.Objects.equals(request.endpoint(), secretService.resolveSecretForDeployment(key + "_ENDPOINT", deploymentId, request.targetProfileId()))
+                && java.util.Objects.equals(request.accessKey(), secretService.resolveSecretForDeployment(key + "_ACCESS_KEY", deploymentId, request.targetProfileId()))
+                && java.util.Objects.equals(request.secretKey(), secretService.resolveSecretForDeployment(key + "_SECRET_KEY", deploymentId, request.targetProfileId()))) {
+                retirementGates.requireAvailableForMutation(deploymentId, request.targetProfileId());
+                offerBoundary.require(deployment, request.targetProfileId(), null, Operation.BINDING_REPLACE,
+                    operationKey, Map.of(), "document-storage", null, null);
+                return summary(handle);
+            }
+        }
+        var result = upsert(deploymentId, request, operationKey, "document-storage", null);
+        var handle = handleRepository.findById(result.bindingRef()).orElseThrow();
+        var metadata = (ObjectNode) readJson(handle.getMetadataJson());
+        metadata.put("storageOwnership", "LOOMAI_MANAGED");
+        metadata.put("storageConnectionId", connection);
+        handle.setMetadataJson(writeJson(metadata));
+        handleRepository.save(handle);
+        return summary(handle);
+    }
+
     @Transactional
     public DocumentStorageBindingSummary upsert(String deploymentId, UpsertDocumentStorageBindingRequest request,
                                                String operationKey, String bindingSlotId, String selectedProfileId) {
@@ -139,13 +174,13 @@ public class DeploymentDocumentStorageBindingService {
             String accessKey = required(request.accessKey(), "accessKey");
             String secretKey = required(request.secretKey(), "secretKey");
 
-            putManagedSecret(key, "ENDPOINT", endpoint.toString(), deployment);
-            putManagedSecret(key, "REGION", region, deployment);
-            putManagedSecret(key, "BUCKET", bucket, deployment);
-            putManagedSecret(key, "PREFIX", prefix, deployment);
-            putManagedSecret(key, "ACCESS_KEY", accessKey, deployment);
-            putManagedSecret(key, "SECRET_KEY", secretKey, deployment);
-            putManagedSecret(key, "SESSION_TOKEN", request.sessionToken(), deployment);
+            putManagedSecret(key, "ENDPOINT", endpoint.toString(), deployment, profile.getId());
+            putManagedSecret(key, "REGION", region, deployment, profile.getId());
+            putManagedSecret(key, "BUCKET", bucket, deployment, profile.getId());
+            putManagedSecret(key, "PREFIX", prefix, deployment, profile.getId());
+            putManagedSecret(key, "ACCESS_KEY", accessKey, deployment, profile.getId());
+            putManagedSecret(key, "SECRET_KEY", secretKey, deployment, profile.getId());
+            putManagedSecret(key, "SESSION_TOKEN", request.sessionToken(), deployment, profile.getId());
             clearManagedSecret(key, "MOUNTED_ROOT", deployment);
 
             safe.put("endpointHost", endpoint.getHost());
@@ -161,7 +196,7 @@ public class DeploymentDocumentStorageBindingService {
             if (!MOUNTED_ROOT.equals(mountedRoot)) {
                 throw badRequest("Mounted document storage must use the target-profile path " + MOUNTED_ROOT + ".");
             }
-            putManagedSecret(key, "MOUNTED_ROOT", mountedRoot, deployment);
+            putManagedSecret(key, "MOUNTED_ROOT", mountedRoot, deployment, profile.getId());
             clearManagedSecret(key, "ENDPOINT", deployment);
             clearManagedSecret(key, "REGION", deployment);
             clearManagedSecret(key, "BUCKET", deployment);
@@ -392,9 +427,9 @@ public class DeploymentDocumentStorageBindingService {
         return normalized.isEmpty() || normalized.endsWith("/") ? normalized : normalized + "/";
     }
 
-    private void putManagedSecret(String key, String suffix, String value, DeploymentEntity deployment) {
+    private void putManagedSecret(String key, String suffix, String value, DeploymentEntity deployment, String targetProfileId) {
         if (StringUtils.hasText(value)) {
-            secretService.upsertManagedSecret(key + "_" + suffix, value, Map.of(
+            secretService.upsertTargetManagedSecret(key + "_" + suffix, value, deployment.getId(), targetProfileId, Map.of(
                 "deploymentId", deployment.getId(),
                 "purpose", "DOCUMENT_STORAGE_BINDING"
             ));

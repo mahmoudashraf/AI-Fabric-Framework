@@ -62,6 +62,11 @@ public class DeploymentDocumentBindingResolver {
             String reference = dataset.path("sourceConnector").path("bindingRef").asText();
             var handle = resolve(deployment.getId(), targetProfileId, reference);
             JsonNode metadata = read(handle.getMetadataJson());
+            if ("LOOMAI_MANAGED".equals(metadata.path("storageOwnership").asText())
+                && (!"CUSTOMER_SCOPED".equals(dataset.path("storageScope").asText())
+                    || !"BOUND_CONNECTION".equals(dataset.path("sourceConnector").path("storageOwnership").asText()))) {
+                throw conflict("Hosted document storage requires a mode-neutral document DATA revision; publish the updated plugin before applying.");
+            }
             String connector = dataset.path("sourceConnector").path("connectorType").asText();
             if (!connector.equals(metadata.path("connectorType").asText())) throw conflict("Document connector differs from the reviewed composition.");
             if (!snapshot.isEmpty() && !handle.getId().equals(snapshot.path("resourceHandleId").asText())) {

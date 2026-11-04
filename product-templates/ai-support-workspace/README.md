@@ -135,6 +135,17 @@ template.
 
 ## Contents
 
+> Current revision, 2026-11-04: new Support bootstrap publications use
+> `mkp-data-ai-support-documents@1.1.0`
+> ([manifest](manifests/support-documents.1.1.0.manifest.json)).
+> [V231](../../Platfrom/backend/src/main/java/db/migration/V231__customer_scoped_document_contract_revisions.java)
+> and [V232](../../Platfrom/backend/src/main/java/db/migration/V232__mode_neutral_document_bootstrap_offers.java)
+> append mode-neutral DATA/template/offer snapshots. The unversioned DATA file and
+> `1.0.0` pins below are historical baselines, not current bootstrap defaults.
+> Customers use migration-backed current offers with explicit operator selection.
+> See [010.59](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md)
+> for current execution and rollout status; source publication is not hosted qualification.
+
 - `manifests/ai-support-workspace.1.0.1.manifest.json`: current production `TEMPLATE`; two
   editable documentation areas and one bounded resolution, initially without
   parallel checks. READ slots start

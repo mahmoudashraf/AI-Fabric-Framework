@@ -43,6 +43,17 @@ platform:
   name: AI Enablement Platform
   stage: bootstrap
   current-phase: phase-21-public-provisioning-api
+  document-storage:
+    hosted:
+      enabled: ${LOOMAI_DOCUMENT_STORAGE_ENABLED:false}
+      region: ${LOOMAI_DOCUMENT_STORAGE_REGION:eu-north-1}
+      account-id: ${LOOMAI_DOCUMENT_STORAGE_ACCOUNT_ID:316658062476}
+      control-plane-id: ${LOOMAI_DOCUMENT_STORAGE_CONTROL_PLANE_ID:platform}
+      bucket-namespace: ${LOOMAI_DOCUMENT_STORAGE_BUCKET_NAMESPACE:loomai-customer-docs}
+      access-key: ${LOOMAI_DOCUMENT_STORAGE_AWS_ACCESS_KEY_ID:}
+      secret-key: ${LOOMAI_DOCUMENT_STORAGE_AWS_SECRET_ACCESS_KEY:}
+      reader-permissions-boundary-arn: ${LOOMAI_DOCUMENT_STORAGE_READER_PERMISSIONS_BOUNDARY_ARN:}
+      max-object-bytes: 1048576
   ai-fabric:
     framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.45}
     executor-rag-similarity-threshold: ${PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD:0.5}

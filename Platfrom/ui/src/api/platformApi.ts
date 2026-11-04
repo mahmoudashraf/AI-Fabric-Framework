@@ -2843,6 +2843,7 @@ export type DeploymentPracticalPromotionSummary = {
   consumer: PlatformConsumerSummary | null
   resources: DeploymentProviderResourceLifecycleSummary[]
   candidateFingerprint: string | null
+  hostedDocumentSelection: Array<{ uploadId: string; connectionId: string; filename: string; sha256: string; datasetId: string; publicApproved: boolean }>
 }
 
 export type DeploymentSecretUsageItemSummary = {

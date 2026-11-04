@@ -137,6 +137,18 @@ resolve missing fields rather than replacing generated action routing. The
 approved adapter must authenticate service calls and independently enforce the
 verified caller's current ownership/scope; no model parameter selects authority.
 
+> Current revision, 2026-11-04: the version pins in the following example are
+> historical. New Support bootstrap publications use
+> `mkp-data-ai-support-documents@1.1.0`
+> ([manifest](manifests/support-documents.1.1.0.manifest.json)) through the new
+> DATA/template/offer snapshots appended by
+> [V231](../../Platfrom/backend/src/main/java/db/migration/V231__customer_scoped_document_contract_revisions.java)
+> and [V232](../../Platfrom/backend/src/main/java/db/migration/V232__mode_neutral_document_bootstrap_offers.java).
+> The customer path uses migration-backed current offers and explicit operator
+> selection, not the unversioned baseline manifest. See
+> [010.59](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md)
+> for current execution and rollout status; these revisions are not hosted qualification.
+
 For a production internal LoomAI installation, use the S3-backed
 `mkp-template-loomai-support-workspace@1.0.0`, not a mounted mechanics template.
 It depends on `mkp-data-ai-support-documents@1.0.0` and the corrected internal

@@ -36,6 +36,28 @@ class DeploymentDocumentStorageBindingServiceTest {
         mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
 
     @Test
+    void unchangedHostedBindingDoesNotRotateSecretsOrInvalidateFrozenReleaseEvidence() {
+        var fixture=fixture("staging","staging");
+        var request=s3Request("profile-staging");
+        var handle=new DeploymentProviderResourceHandleEntity();handle.setId("hosted-binding");
+        handle.setDeploymentId("dep-docs");handle.setTargetProfileId("profile-staging");
+        handle.setStatus("CONFIGURED");handle.setMetadataJson("{\"connectorType\":\"S3_COMPATIBLE_OBJECT_STORAGE\",\"storageOwnership\":\"LOOMAI_MANAGED\",\"storageConnectionId\":\"connection\",\"bindingRevision\":3}");
+        var frozenTime=java.time.Instant.parse("2026-11-04T10:00:00Z");handle.setUpdatedAt(frozenTime);
+        when(fixture.handleRepository().findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc("dep-docs","profile-staging",DeploymentDocumentStorageBindingService.RESOURCE_KIND)).thenReturn(Optional.of(handle));
+        String key=DeploymentDocumentStorageBindingService.secretKey("dep-docs","profile-staging");
+        when(fixture.secretService().resolveSecretForDeployment(any(),eq("dep-docs"),eq("profile-staging"))).thenAnswer(call->{
+            String name=call.getArgument(0);return java.util.Map.of(key+"_PREFIX",request.prefix(),key+"_BUCKET",request.bucket(),key+"_ENDPOINT",request.endpoint(),key+"_ACCESS_KEY",request.accessKey(),key+"_SECRET_KEY",request.secretKey()).get(name);
+        });
+        var result=fixture.service().upsertHostedConnection("dep-docs",request,"connection","bind-replay");
+        assertThat(result.bindingRef()).isEqualTo("hosted-binding");
+        assertThat(result.updatedAt()).isEqualTo(frozenTime);
+        assertThat(result.safeMetadata().path("bindingRevision").asInt()).isEqualTo(3);
+        verify(fixture.secretService(),never()).upsertTargetManagedSecret(any(),any(),any(),any(),anyMap());
+        verify(fixture.secretService(),never()).upsertManagedSecret(any(),any(),anyMap());
+        verify(fixture.handleRepository(),never()).save(any());
+    }
+
+    @Test
     void genericBindingRouteCannotWriteSecretsWhenTheOfferRejectsItsTargetOrSlot() {
         Fixture fixture = fixture("staging", "staging");
         org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException
@@ -78,12 +100,12 @@ class DeploymentDocumentStorageBindingServiceTest {
             .doesNotContain("approved/manuals", "access-value", "secret-value", "session-value");
 
         String key = DeploymentDocumentStorageBindingService.secretKey("dep-docs", "profile-staging");
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_ENDPOINT"), eq("https://objects.example.test"), anyMap());
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_BUCKET"), eq("customer-private-bucket"), anyMap());
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_PREFIX"), eq("approved/manuals/"), anyMap());
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_ACCESS_KEY"), eq("access-value"), anyMap());
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_SECRET_KEY"), eq("secret-value"), anyMap());
-        verify(fixture.secretService()).upsertManagedSecret(eq(key + "_SESSION_TOKEN"), eq("session-value"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_ENDPOINT"), eq("https://objects.example.test"), eq("dep-docs"), eq("profile-staging"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_BUCKET"), eq("customer-private-bucket"), eq("dep-docs"), eq("profile-staging"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_PREFIX"), eq("approved/manuals/"), eq("dep-docs"), eq("profile-staging"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_ACCESS_KEY"), eq("access-value"), eq("dep-docs"), eq("profile-staging"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_SECRET_KEY"), eq("secret-value"), eq("dep-docs"), eq("profile-staging"), anyMap());
+        verify(fixture.secretService()).upsertTargetManagedSecret(eq(key + "_SESSION_TOKEN"), eq("session-value"), eq("dep-docs"), eq("profile-staging"), anyMap());
 
         ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
             ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);

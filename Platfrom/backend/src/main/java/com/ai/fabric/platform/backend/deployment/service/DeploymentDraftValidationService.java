@@ -715,8 +715,8 @@ public class DeploymentDraftValidationService {
             String storageScope = dataset.path("storageScope").asText("").trim();
             if (storageScope.isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_REQUIRED", basePath + ".storageScope", "marketplaceDatasetConfig.datasets[].storageScope is required."));
-            } else if (!Set.of("PLUGIN_SCOPED", "CUSTOMER_MANAGED").contains(storageScope.toUpperCase(Locale.ROOT))) {
-                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED, CUSTOMER_MANAGED."));
+            } else if (!Set.of("PLUGIN_SCOPED", "CUSTOMER_MANAGED", "CUSTOMER_SCOPED").contains(storageScope.toUpperCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED, CUSTOMER_MANAGED, CUSTOMER_SCOPED."));
             }
 
             String sharingScope = dataset.path("sharingScope").asText("").trim();
@@ -830,14 +830,14 @@ public class DeploymentDraftValidationService {
             }
             if ("EXTERNAL_DOCUMENT_STORAGE".equalsIgnoreCase(ingestionMode)) {
                 if (!"document".equals(entityType)
-                    || !"CUSTOMER_MANAGED".equalsIgnoreCase(storageScope)
+                    || !Set.of("CUSTOMER_MANAGED", "CUSTOMER_SCOPED").contains(storageScope.toUpperCase(Locale.ROOT))
                     || !"DEPLOYMENT_ONLY".equalsIgnoreCase(sharingScope)
                     || !"VERSIONED_REPLACE".equalsIgnoreCase(updateStrategy)) {
                     issues.add(error(
                         "marketplaceDatasets",
                         "DOCUMENT_DATASET_BOUNDARY_INVALID",
                         basePath,
-                        "EXTERNAL_DOCUMENT_STORAGE requires entityType=document, CUSTOMER_MANAGED storage, DEPLOYMENT_ONLY sharing, and VERSIONED_REPLACE updates."
+                        "EXTERNAL_DOCUMENT_STORAGE requires entityType=document, CUSTOMER_MANAGED or CUSTOMER_SCOPED storage, DEPLOYMENT_ONLY sharing, and VERSIONED_REPLACE updates."
                     ));
                 }
                 JsonNode sourceConnector = dataset.path("sourceConnector");
@@ -851,8 +851,22 @@ public class DeploymentDraftValidationService {
                     if (sourceConnector.path("bindingRef").asText("").trim().isEmpty()) {
                         issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_BINDING_REQUIRED", basePath + ".sourceConnector.bindingRef", "Document source connector bindingRef is required."));
                     }
-                    if (sourceConnector.path("deleteSourceOnRemoval").asBoolean(false)) {
-                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_DELETE_FORBIDDEN", basePath + ".sourceConnector.deleteSourceOnRemoval", "LoomAI document removal may not delete customer source objects."));
+                    // Preserve the ownership assertion and read-only source boundary independently of storage provider mode.
+                    String requiredOwnership = "CUSTOMER_SCOPED".equalsIgnoreCase(storageScope) ? "BOUND_CONNECTION" : "CUSTOMER_MANAGED";
+                    if (!requiredOwnership.equalsIgnoreCase(sourceConnector.path("storageOwnership").asText("").trim())) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_OWNERSHIP_INVALID", basePath + ".sourceConnector.storageOwnership", "Document source connector storageOwnership must be " + requiredOwnership + " for the declared storageScope."));
+                    }
+                    JsonNode allowedOperations = sourceConnector.path("allowedOperations");
+                    Set<String> operations = new HashSet<>();
+                    if (allowedOperations.isArray()) {
+                        allowedOperations.forEach(operation -> operations.add(operation.asText("").trim().toUpperCase(Locale.ROOT)));
+                    }
+                    if (!allowedOperations.isArray() || !operations.equals(Set.of("LIST", "READ", "HEAD"))) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_OPERATIONS_INVALID", basePath + ".sourceConnector.allowedOperations", "Document source connectors require exactly LIST, READ, and HEAD; upload and delete authority are not runtime capabilities."));
+                    }
+                    if (!sourceConnector.path("deleteSourceOnRemoval").isBoolean()
+                        || sourceConnector.path("deleteSourceOnRemoval").asBoolean()) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_DELETE_FORBIDDEN", basePath + ".sourceConnector.deleteSourceOnRemoval", "Document removal requires deleteSourceOnRemoval=false and may not delete source objects."));
                     }
                     String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
                     if ("S3_COMPATIBLE_OBJECT_STORAGE".equals(connectorType)
@@ -861,7 +875,7 @@ public class DeploymentDraftValidationService {
                             "marketplaceDatasets",
                             "DOCUMENT_DURABLE_VECTOR_REQUIRED",
                             "$.providerConfig.vectorStrategy",
-                            "Customer-storage Document Knowledge requires a durable external vector provider. Local memory and unmounted Lucene do not survive runtime replacement."
+                            "S3-compatible Document Knowledge requires a durable external vector provider. Local memory and unmounted Lucene do not survive runtime replacement."
                         ));
                     }
                 }

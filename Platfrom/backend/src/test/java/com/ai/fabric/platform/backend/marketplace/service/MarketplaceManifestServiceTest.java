@@ -1202,6 +1202,61 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void documentDataManifestAcceptsModeNeutralBoundConnectionWithoutRelabellingLegacy() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+        ObjectNode dataset = (ObjectNode) manifest.at("/contributions/datasets/0");
+        dataset.put("storageScope", "CUSTOMER_SCOPED");
+        ((ObjectNode) dataset.path("sourceConnector")).put("storageOwnership", "BOUND_CONNECTION");
+
+        var parsed = service.parseAndValidate(dataPlugin(), dataVersion(manifest.toString()));
+
+        assertThat(parsed.datasets()).singleElement().satisfies(value -> {
+            assertThat(value.storageScope()).isEqualTo("CUSTOMER_SCOPED");
+            assertThat(value.sourceConnector().path("storageOwnership").asText()).isEqualTo("BOUND_CONNECTION");
+        });
+        assertThat(service.parseAndValidate(dataPlugin(), dataVersion(validDocumentDataManifest())).datasets())
+            .singleElement().satisfies(value -> {
+                assertThat(value.storageScope()).isEqualTo("CUSTOMER_MANAGED");
+                assertThat(value.sourceConnector().path("storageOwnership").asText()).isEqualTo("CUSTOMER_MANAGED");
+            });
+    }
+
+    @Test
+    void documentDataManifestRejectsMismatchedOrConcreteHostedOwnership() throws Exception {
+        for (String scope : java.util.List.of("CUSTOMER_MANAGED", "CUSTOMER_SCOPED")) {
+            for (String ownership : java.util.List.of("CUSTOMER_MANAGED", "BOUND_CONNECTION", "LOOMAI_MANAGED", "")) {
+                if (("CUSTOMER_MANAGED".equals(scope) && "CUSTOMER_MANAGED".equals(ownership))
+                    || ("CUSTOMER_SCOPED".equals(scope) && "BOUND_CONNECTION".equals(ownership))) continue;
+                ObjectNode manifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+                ObjectNode dataset = (ObjectNode) manifest.at("/contributions/datasets/0");
+                dataset.put("storageScope", scope);
+                ((ObjectNode) dataset.path("sourceConnector")).put("storageOwnership", ownership);
+                assertThatThrownBy(() -> service.parseAndValidate(dataPlugin(), dataVersion(manifest.toString())))
+                    .isInstanceOf(ResponseStatusException.class).hasMessageContaining("storageOwnership=");
+            }
+        }
+    }
+
+    @Test
+    void modeNeutralDocumentManifestRetainsSourceAndDeploymentBoundaries() throws Exception {
+        for (String field : java.util.List.of("sharingScope", "updateStrategy", "deleteSourceOnRemoval", "allowedOperations")) {
+            ObjectNode manifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+            ObjectNode dataset = (ObjectNode) manifest.at("/contributions/datasets/0");
+            dataset.put("storageScope", "CUSTOMER_SCOPED");
+            ObjectNode connector = (ObjectNode) dataset.path("sourceConnector");
+            connector.put("storageOwnership", "BOUND_CONNECTION");
+            switch (field) {
+                case "sharingScope" -> dataset.put(field, "TENANT_SHARED");
+                case "updateStrategy" -> dataset.put(field, "UPSERT_BY_ID");
+                case "deleteSourceOnRemoval" -> connector.put(field, true);
+                case "allowedOperations" -> connector.withArray(field).add("PUT");
+            }
+            assertThatThrownBy(() -> service.parseAndValidate(dataPlugin(), dataVersion(manifest.toString())))
+                .as(field).isInstanceOf(ResponseStatusException.class);
+        }
+    }
+
+    @Test
     void documentDataManifestRejectsWriteAuthorityAndStaticConnectorEndpoint() throws Exception {
         ObjectNode writeManifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
         ObjectNode connector = (ObjectNode) writeManifest.path("contributions").path("datasets").get(0)

@@ -2,7 +2,8 @@
 
 Date: 4 November 2026
 
-Status: implementation-ready delta for owner/main-session review; NOT IMPLEMENTED
+Status: IMPLEMENTING; not yet deployed or qualified. See the
+[execution record](010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md).
 
 Inspected source: `Platform-V11`, HEAD `22af1393b0dc60e1fabd3cf3cf604c4f7f8e5d37`
 
@@ -314,11 +315,14 @@ Affected validation/compiler points:
 [source connector compilation](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/marketplace/service/DeploymentMarketplaceDraftCompilerService.java:2606),
 [customer binding authorization](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/customerselfservice/service/CustomerSelfServiceOperationBoundary.java:126).
 
-The existing binding kind `CUSTOMER_S3` currently gates the slot. Introduce a
-mode-neutral document-storage binding option/profile for hosted-or-BYO, preserving
-ownership and exact slot checks. Do not let an old offer's BYO wording become
-a permanent product restriction, and do not bypass authorization with a staff
-key. Update backend and customer scope/UI checks together.
+Implementation inspection correction: `CUSTOMER_S3` identifies the existing
+bootstrap/BYO slot; current ownership authorization does not make it a lifetime
+restriction on later bindings. The new owned connection API and UI provide the
+mode-neutral hosted-or-BYO choice and project into the same logical slot, without
+inventing a second plugin/binding authorization system. Existing BYO slot
+configuration remains supported. Actual DATA declarations and frozen binding
+metadata identify storage ownership accurately. Do not use a staff credential to
+bypass customer ownership or treat an old offer's wording as a permanent limit.
 
 ## 6. Promotion: Same Bucket, Fresh Target Evidence
 
@@ -416,7 +420,8 @@ Conditional object creation is documented by
 
 ## 8. Minimal Next Code Patch And Phases
 
-Each phase is NOT STARTED. Keep changes scoped and sequential through one real
+Implementation is in progress; use the execution record for phase evidence.
+Keep changes scoped and sequential through one real
 customer journey. No broad framework matrix, database-per-deployment expansion,
 capacity/drain redesign or new object-storage microservice.
 

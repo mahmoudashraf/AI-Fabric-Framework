@@ -177,7 +177,8 @@ public class MarketplaceManifestService {
     );
     private static final Set<String> SUPPORTED_DATASET_STORAGE_SCOPES = Set.of(
         "PLUGIN_SCOPED",
-        "CUSTOMER_MANAGED"
+        "CUSTOMER_MANAGED",
+        "CUSTOMER_SCOPED"
     );
     private static final Set<String> SUPPORTED_DATASET_SHARING_SCOPES = Set.of(
         "TENANT_SHARED",
@@ -3901,11 +3902,11 @@ public class MarketplaceManifestService {
         if (!"document".equals(entityType)) {
             throw invalid(plugin, version, prefix + "must declare entityType=document.");
         }
-        if (!"CUSTOMER_MANAGED".equals(storageScope)
+        if (!Set.of("CUSTOMER_MANAGED", "CUSTOMER_SCOPED").contains(storageScope)
             || !"DEPLOYMENT_ONLY".equals(sharingScope)
             || !"VERSIONED_REPLACE".equals(updateStrategy)) {
             throw invalid(plugin, version, prefix
-                + "must use storageScope=CUSTOMER_MANAGED, sharingScope=DEPLOYMENT_ONLY, and updateStrategy=VERSIONED_REPLACE.");
+                + "must use storageScope=CUSTOMER_MANAGED or CUSTOMER_SCOPED, sharingScope=DEPLOYMENT_ONLY, and updateStrategy=VERSIONED_REPLACE.");
         }
         if (StringUtils.hasText(seedDatasetRef) || syncConnector.isObject()) {
             throw invalid(plugin, version, prefix + "must not declare seedDatasetRef or syncConnector.");
@@ -3924,10 +3925,12 @@ public class MarketplaceManifestService {
         if (!SUPPORTED_DOCUMENT_CONNECTOR_TYPES.contains(connectorType)) {
             throw invalid(plugin, version, prefix + "declares unsupported sourceConnector.connectorType.");
         }
-        if (!"CUSTOMER_MANAGED".equals(normalizeUppercaseValue(
+        // Historical ownership assertions remain BYO-only; neutral contracts defer ownership to the scoped binding.
+        String requiredOwnership = "CUSTOMER_SCOPED".equals(storageScope) ? "BOUND_CONNECTION" : "CUSTOMER_MANAGED";
+        if (!requiredOwnership.equals(normalizeUppercaseValue(
             sourceConnector.path("storageOwnership").asText("")
         ))) {
-            throw invalid(plugin, version, prefix + "must declare sourceConnector.storageOwnership=CUSTOMER_MANAGED.");
+            throw invalid(plugin, version, prefix + "must declare sourceConnector.storageOwnership=" + requiredOwnership + ".");
         }
         String bindingRefField = blankToNull(sourceConnector.path("bindingRefField").asText(""));
         if (!StringUtils.hasText(bindingRefField) || bindingRefField.length() > 128) {

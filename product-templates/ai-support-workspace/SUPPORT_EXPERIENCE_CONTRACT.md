@@ -90,6 +90,17 @@ Existing published template versions remain unchanged.
 
 ## Internal LoomAI Instance
 
+> Current revision, 2026-11-04: the immutable template snapshot below retains
+> its historical DATA `1.0.0` pin. New Support bootstrap publications use
+> `mkp-data-ai-support-documents@1.1.0`
+> ([manifest](manifests/support-documents.1.1.0.manifest.json));
+> [V231](../../Platfrom/backend/src/main/java/db/migration/V231__customer_scoped_document_contract_revisions.java)
+> and [V232](../../Platfrom/backend/src/main/java/db/migration/V232__mode_neutral_document_bootstrap_offers.java)
+> append mode-neutral DATA/template/offer snapshots without rewriting this baseline.
+> The customer path uses migration-backed current offers with explicit operator
+> selection. See [010.59](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_59_HOSTED_DOCUMENT_STORAGE_EXECUTION_RECORD.md)
+> for current execution and rollout status, not a hosted qualification claim.
+
 `manifests/loomai-support-workspace.1.1.0.manifest.json` is a separate internal
 instance composition, not a public customer default. Its provider and prompt
 defaults match the new generic `1.1.0`, including the canonical conversation

@@ -104,6 +104,6 @@ class DeploymentPromotionCommandIntegrationTest {
     private DeploymentPracticalPromotionSummary result(String releaseId) {
         return new DeploymentPracticalPromotionSummary("TEST_COMMAND_ACCEPTED", "Command primitive verification", "dep-test",
             "version-test", "target-staging", "target-production", "release-staging", "APPLIED_VERIFIED",
-            releaseId, "APPLIED_VERIFIED", null, List.of(), "test-candidate");
+            releaseId, "APPLIED_VERIFIED", null, List.of(), "test-candidate", com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode());
     }
 }

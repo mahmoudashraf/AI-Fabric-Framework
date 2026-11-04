@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.model;
 
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ public record DeploymentPracticalPromotionSummary(
     String productionReleaseStatus,
     PlatformConsumerSummary consumer,
     List<DeploymentProviderResourceLifecycleSummary> resources,
-    String candidateFingerprint
+    String candidateFingerprint,
+    JsonNode hostedDocumentSelection
 ) {
 }

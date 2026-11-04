@@ -60,6 +60,20 @@ class DeploymentDocumentBindingResolverTest {
     }
 
     @Test
+    void hostedBindingRequiresTruthfulModeNeutralDocumentDeclaration() throws Exception {
+        var handle=handle("hosted","stage");
+        handle.setMetadataJson("{\"connectorType\":\"S3_COMPATIBLE_OBJECT_STORAGE\",\"storageOwnership\":\"LOOMAI_MANAGED\",\"storageConnectionId\":\"connection\"}");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("dep-a","stage")).thenReturn(List.of(handle));
+        assertThatThrownBy(()->resolver.snapshot(deployment(),version(),"stage")).hasMessageContaining("mode-neutral document DATA revision");
+        credentials("stage");
+        var version=version();var datasets=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(version.getMarketplaceDatasetConfigJson());
+        var dataset=(com.fasterxml.jackson.databind.node.ObjectNode)datasets.path("datasets").get(0);
+        dataset.put("storageScope","CUSTOMER_SCOPED");((com.fasterxml.jackson.databind.node.ObjectNode)dataset.path("sourceConnector")).put("storageOwnership","BOUND_CONNECTION");
+        version.setMarketplaceDatasetConfigJson(datasets.toString());
+        assertThat(resolver.snapshot(deployment(),version,"stage").path("safeMetadata").path("storageOwnership").asText()).isEqualTo("LOOMAI_MANAGED");
+    }
+
+    @Test
     void releaseFreezesSafeEvidenceAndRejectsStorageOrSecretRevisionDrift() throws Exception {
         var deployment = deployment();
         var version = version();
