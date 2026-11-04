@@ -2,11 +2,16 @@ package com.loomai.desk.ticket;
 
 import static com.loomai.desk.ticket.TicketContracts.*;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.desk.channel.service.InboxSecurityService;
+import com.loomai.desk.config.DeskProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Set;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -20,11 +25,91 @@ import org.springframework.stereotype.Service;
 public class RequesterIdentityService {
   private final SupportSpaces spaces;
   private final TicketRuntimeClient runtime;
+  private final DeskProperties properties;
   private final LinkedHashMap<String, JwtDecoder> decoders = new LinkedHashMap<>(16, .75f, true);
 
-  public RequesterIdentityService(SupportSpaces spaces, TicketRuntimeClient runtime) {
+  public RequesterIdentityService(
+      SupportSpaces spaces, TicketRuntimeClient runtime, DeskProperties properties) {
     this.spaces = spaces;
     this.runtime = runtime;
+    this.properties = properties;
+  }
+
+  public boolean emailVerificationAvailable(Space space) {
+    return space.identity().mode() == IdentityMode.TRUSTED_PRIVATE_HOST
+        || space.identity().issuer().equals(properties.getIssuer())
+            && properties.getSupabasePublishableKey() != null
+            && !properties.getSupabasePublishableKey().isBlank()
+            && (properties.getSupabaseUrl() + "/auth/v1").equals(properties.getIssuer());
+  }
+
+  // Called only after the requester filter admits this JWT and its NOTIFICATIONS operation.
+  public String verifiedEmail(Space space, String authorization) {
+    if (!emailVerificationAvailable(space))
+      throw new TicketException(
+          422,
+          "NOTIFICATION_IDENTITY_UNSUPPORTED",
+          "Email verification is not configured for this identity provider.");
+    try {
+      var jwt = decoder(space).decode(authorization.substring(7));
+      String email;
+      if (space.identity().mode() == IdentityMode.TRUSTED_PRIVATE_HOST) {
+        if (!Boolean.TRUE.equals(jwt.getClaim("email_verified"))) throw emailUnverified();
+        email = jwt.getClaimAsString("email");
+      } else {
+        String endpoint = properties.getSupabaseUrl() + "/auth/v1/user";
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(jwt.getTokenValue());
+        headers.set("apikey", properties.getSupabasePublishableKey());
+        String payload =
+            runtime
+                .jwks(endpoint)
+                .exchange(endpoint, HttpMethod.GET, new HttpEntity<>(headers), String.class)
+                .getBody();
+        JsonNode user;
+        try {
+          // Desk uses its existing Jackson 2 mapper, independently of Boot's HTTP converters.
+          user = spaces.readJson(payload, JsonNode.class);
+        } catch (RuntimeException invalid) {
+          throw new TicketException(
+              503,
+              "NOTIFICATION_IDENTITY_UNAVAILABLE",
+              "Email verification is temporarily unavailable.");
+        }
+        if (user == null
+            || !jwt.getSubject().equals(user.path("id").asText())
+            || !user.path("email_confirmed_at").isTextual()
+            || user.path("email_confirmed_at").asText().isBlank()
+            || !user.path("is_anonymous").isBoolean()
+            || user.path("is_anonymous").asBoolean()) throw emailUnverified();
+        email = user.path("email").asText(null);
+      }
+      // This is mailbox/header safety, not a semantic validator of user content.
+      if (email == null || email.length() > 320 || email.contains("\r") || email.contains("\n"))
+        throw emailUnverified();
+      var address = new jakarta.mail.internet.InternetAddress(email, true);
+      address.validate();
+      if (!email.equals(address.getAddress())
+          || address.getPersonal() != null
+          || !email.contains("@")) throw emailUnverified();
+      return email;
+    } catch (TicketException e) {
+      throw e;
+    } catch (org.springframework.web.client.RestClientException e) {
+      throw new TicketException(
+          503,
+          "NOTIFICATION_IDENTITY_UNAVAILABLE",
+          "Email verification is temporarily unavailable.");
+    } catch (Exception e) {
+      throw emailUnverified();
+    }
+  }
+
+  private TicketException emailUnverified() {
+    return new TicketException(
+        403,
+        "NOTIFICATION_EMAIL_UNVERIFIED",
+        "Verify your account email before enabling notifications.");
   }
 
   public Requester authenticate(

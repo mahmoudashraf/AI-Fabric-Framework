@@ -13,6 +13,11 @@ server:
 spring:
   application:
     name: loomai-desk
+  mail:
+    properties:
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
   datasource:
     url: ${DESK_JDBC_URL}
     username: ${DESK_JDBC_USERNAME}
@@ -55,6 +60,9 @@ loomai:
     max-callback-attempts: 8
     callback-retry-delay: 5s
     retention: 30d
+    email:
+      enabled: ${DESK_EMAIL_ENABLED:false}
+      from: ${DESK_EMAIL_FROM:}
     conversation-context-allowed-origins: ${DESK_CONTEXT_ALLOWED_ORIGINS:}
 ai:
   enabled: false

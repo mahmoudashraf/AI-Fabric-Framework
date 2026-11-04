@@ -1,5 +1,71 @@
 # 010.48 Backend Foundation Verification
 
+## 010.57 Bounded Ticket Email Notifications (2026-11-04)
+
+Desk-owned source, contracts, configuration and tests only. No commit, push,
+deployment, framework change, external SMTP change or Console/pack/UI edit was
+made by this task. Main owns hosted rollout and personal-agent qualification.
+
+Final local verification passed **20 tests, zero failures/errors/skips**, with
+executable Spring Boot JAR packaging. The database cases used H2 and a dedicated
+PostgreSQL **16.15** container, not an H2-only PostgreSQL compatibility claim.
+The preceding affected regression run passed **72 tests, zero failures/errors/
+skips**, covering existing requester HTTP, ticket lifecycle, migrations, endpoint
+policy and channel HTTP flows. That regression preceded the final isolated SMTP
+scheduling adjustment; the final 20-test run verifies the final notification tree
+including its new scheduler check and visible-failure precedence.
+
+```sh
+mvn -q \
+  -Ddesk.test.postgres.url=jdbc:postgresql://127.0.0.1:<test-port>/desk \
+  -Ddesk.test.postgres.required=true \
+  -Dtest=SupportTicketNotificationsTest,SupportTicketNotificationHttpTest,SupportTicketNotificationSmtpTest \
+  verify
+```
+
+- `SupportTicketNotificationsTest`: 15 cases. Future-only explicit consent,
+  encrypted recipient, idempotent preference replay, requester/space isolation,
+  disable cancellation, all four status transitions, exact native ticket and
+  binding/conversation/principal correlation, bounded batch/backlog, atomic
+  overlapping workers, four-attempt retry/dead-lease handling, current binding/
+  space/origin checks, exact ticket purge and retained ticket state on failure.
+  A real local HTTP callback peer returns 503 then a normal acknowledged
+  `controlVersion`; no human email is queued before normal worker completion.
+  The H2 scheduling case blocks SMTP while 100 poll invocations return promptly,
+  proving one isolated mail job and no shared callback-scheduler blockage.
+- `SupportTicketNotificationHttpTest`: four H2/PostgreSQL cases using signed
+  JWTs and real HTTP. Private NOTIFICATIONS permission and signed top-level email
+  proof; forged user metadata, arbitrary recipient fields and unverified email
+  rejected. Direct Supabase notifications use the exact configured project and
+  original token at `/auth/v1/user`; mismatched subject/anonymous/unverified user
+  denied. Unsupported email issuers retain normal ticket-session access.
+- `SupportTicketNotificationSmtpTest`: a real local SMTP capture returns 451 on
+  the first DATA and 250 on retry. Both attempts have the same explicit
+  `<desk-ticket-<durable-id>@loomai.pro>` Message-ID, fixed sender, exact verified
+  recipient, `Support request update: <actual receipt reference>` subject and
+  protected page link. No intake, transcript or auth token is present. A further
+  poll sends nothing after SENT.
+
+The first SMTP test correctly exposed Spring's preservation of a pre-existing
+generated Message-ID; setting the intended stable ID explicitly before send
+fixed it and the real transport test passed. Initial direct-identity HTTP tests
+also exposed the Boot HTTP-converter/Jackson-node mismatch; identity response
+parsing now uses Desk's existing Jackson mapper over a String body. Neither was
+hidden behind a permissive recipient fallback.
+
+Migration V6 adds subscription/outbox FKs in the existing shared Desk database.
+The API/response, safe failure codes, SMTP settings and limits are documented in
+[SUPPORT_TICKETS_API.md](SUPPORT_TICKETS_API.md#optional-requester-email-notifications)
+and [README.md](README.md#optional-support-ticket-email). No additional per-space
+notification configuration is required beyond registered allowed origins and
+explicit requester opt-in. SMTP delivery remains at least once across a process
+crash after mail acceptance; a stable Message-ID is not an exactly-once promise.
+
+Hosted SMTP acceptance, actual inbox arrival and the live runtime's callback
+`owner_ref` to ticket `runtime_principal` mapping are **not** claimed by these
+local protocol tests. Main will qualify those after its deployment. The temporary
+PostgreSQL container and random test schemas are removed after verification.
+
 ## 010.57 Opening Mode Consistency Fix (2026-11-03)
 
 Local-only bounded fix: support spaces carry typed `conversation` settings with

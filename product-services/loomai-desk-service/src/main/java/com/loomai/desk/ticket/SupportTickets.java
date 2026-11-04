@@ -613,6 +613,7 @@ public class SupportTickets {
               s.view().closedRetentionDays());
           for (String table :
               List.of(
+                  "desk_support_notification_outbox",
                   "desk_support_ticket_operation",
                   "desk_support_ticket_event",
                   "desk_support_ticket_episode",
@@ -623,6 +624,16 @@ public class SupportTickets {
                     "DELETE FROM " + table + " WHERE space_id=? AND request_id=?",
                     s.view().spaceId(),
                     id);
+          spaces
+              .jdbc()
+              .update(
+                  "DELETE FROM desk_support_notification_subscription WHERE space_id=? AND"
+                      + " requester_id=? AND NOT EXISTS(SELECT 1 FROM desk_support_request WHERE"
+                      + " space_id=? AND requester_id=?)",
+                  s.view().spaceId(),
+                  m.requester(),
+                  s.view().spaceId(),
+                  m.requester());
           spaces
               .jdbc()
               .update(

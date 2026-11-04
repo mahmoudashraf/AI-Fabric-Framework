@@ -56,6 +56,36 @@ The browser receives a host-only `__Host-LOOMAI_DESK_SESSION` Secure/HttpOnly/Sa
 
 No customer/deployment permission is inferred from email. Platform provisions owner links using trusted issuer/subject. A new agent must register using a verified Supabase identity before assignment. Assignment lookup accepts a unique exact verified registered email or the agent reference; there is no global user directory. Owner, SUPPORT and REVIEWER are distinct. Owners can explicitly assign themselves; owning a customer does not implicitly authorize conversation reads or action approval. Permissions are checked on every operation and revoked assignments stop subsequent access.
 
+## Optional Support Ticket Email
+
+Email notifications are off by default and never automatically subscribe a
+requester. Enable the existing shared Desk service's standard Spring Boot SMTP
+transport, not a per-deployment mail service:
+
+```text
+DESK_EMAIL_ENABLED=true
+DESK_EMAIL_FROM=<fixed verified sender>
+SPRING_MAIL_HOST=<SMTP host>
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=<server-only username>
+SPRING_MAIL_PASSWORD=<server-only password>
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED=true
+DESK_EMAIL_POLL_MS=5000
+```
+
+`spring.mail.*` is the standard SMTP configuration; SMTPS may be used instead if
+the provider requires it. Connection/read/write deadlines default to 10 seconds.
+Do not enable mail debug logging in hosted environments. Enabling without a
+sender bean or valid fixed From address fails startup with a sanitized message.
+GET/PUT preferences, verification, safe links, bounded retries and visible
+failure are specified in [SUPPORT_TICKETS_API.md](SUPPORT_TICKETS_API.md#optional-requester-email-notifications).
+No SMTP secret or transcript is sent to the browser or stored in an email body.
+V6 adds preferences/outbox to the existing shared Desk database. SMTP acceptance
+does not prove inbox delivery; hosted transport and live callback mapping need
+separate rollout qualification.
+
 ## Build And Verify
 
 From this directory:

@@ -145,8 +145,10 @@ exists. Old callback/credentialUrl/credentialKey contracts are not supported.
 `SUPABASE`: original provider JWT, exact registered issuer/audience/JWKS,
 RS256/ES256, valid issued-at/expiry, non-anonymous subject. Ownership uses
 space + registered namespace + verified issuer + immutable subject, not email.
-Contact email is neither retained nor claimed verified. The existing direct
-runtime broker maps that exact provider subject to runtime subject.
+Ordinary ticket identity neither retains contact email nor claims it verified.
+Explicit notification opt-in separately verifies the account address and stores
+it encrypted for delivery only; it never becomes ticket ownership identity.
+The existing direct runtime broker maps that exact provider subject to runtime subject.
 
 `TRUSTED_PRIVATE_HOST`: host verifies its own session/CSRF and sends these
 server-to-server headers; never expose either credential to the browser:
@@ -340,3 +342,92 @@ native tables. External adapters must namespace IDs within a space across
 provider bindings. Existing request mappings retain provider provenance after
 selection changes. Only native Desk stores encrypted intake/status in Desk.
 Vendor adapters and vendor live qualification remain deferred.
+
+## Optional Requester Email Notifications
+
+GET/PUT `/api/desk/requester/v1/spaces/{spaceId}/notifications` use the same
+requester authentication and origin gates as ticket routes. Private assertions
+must explicitly allow `NOTIFICATIONS`; they do not need CREATE or runtime
+conversation credentials. The API accepts only:
+
+```json
+{"enabled":true,"returnUrl":"https://customer.example/support"}
+```
+
+There is no recipient input. Unknown fields, including `recipient`, are rejected.
+Disabling accepts `{"enabled":false}` and needs no email-verification claim.
+The response has exactly the shared pack/Console contract:
+
+```json
+{"available":true,"enabled":true,"deliveryStatus":"IDLE","updatedAt":"2026-11-04T00:00:00Z"}
+```
+
+`lastFailureCode` and `updatedAt` are omitted when absent. Delivery states are
+`UNAVAILABLE`, `OFF`, `IDLE`, `PENDING`, `LEASED`, `RETRY`, `SENT`, `FAILED`,
+`CANCELLED`. Current failures/retries take precedence over newer successful
+deliveries so a later success cannot hide an undelivered update. Codes are bounded
+safe identifiers: `EMAIL_DELIVERY_FAILED`, `EMAIL_DELIVERY_UNCERTAIN`, and
+`NOTIFICATION_BACKLOG_LIMIT`. No recipient, identity claim, SMTP exception or
+configuration secret is returned.
+
+Enable requires a verified address from the already-admitted account identity:
+
+- TRUSTED_PRIVATE_HOST: signed **top-level** `email_verified:true` and `email`.
+  The host must verify its original user identity before issuing those claims.
+  Normal ticket assertions do not need these claims.
+- SUPABASE: the space issuer must exactly match Desk's configured global
+  Supabase issuer (`SUPABASE_URL/auth/v1`), with a configured publishable key.
+  Desk calls that fixed project's `/auth/v1/user` with the original bearer token,
+  using the existing connection-time public-DNS/SSRF-checked transport and no
+  redirects. The returned `id` must match the JWT subject, `email_confirmed_at`
+  must be present, and `is_anonymous` must be explicitly false. Even a top-level
+  JWT email claim does not replace this lookup for Supabase notifications.
+  User-editable `user_metadata` never proves verification.
+
+Other issuers return `NOTIFICATION_IDENTITY_UNSUPPORTED` on opt-in; their normal
+ticket authentication is unchanged. Failed verification cannot replace an
+existing subscription. GET never verifies/exports the address or auto-enables
+notifications. There is no additional per-space email switch: service SMTP
+availability, registered origins and explicit owner consent govern admission.
+
+The return link must be HTTPS on an exact registered support-space origin,
+without credentials, query, fragment, control characters or dot-path traversal.
+It points to an ordinary protected support page, not a magic sign-in URL. A host
+should pass only its current origin and pathname. The mail contains only fixed
+update wording, a safe ticket reference and that protected link; never intake,
+transcript, agent/customer details, attachments or auth tokens.
+
+V6 stores encrypted recipient, consent time/revision, registered return URL and
+recipient hash under the existing `(spaceId,requesterId)` ownership FK. The
+durable outbox references the exact ticket and subscription and deduplicates
+`space/ticket/event/recipient`. Only events created after consent qualify;
+identical PUT replay retains the consent boundary. Recipient/link changes or
+re-enabling create a fresh boundary and cancel prior pending work. Disabling
+cancels pending/leased/retry work and removes the saved address/link. An email
+already accepted by SMTP cannot be recalled.
+
+Native Desk ticket events `RESOLVE`, `CANCEL`, `REOPEN`, `AGENT_RESOLVE` qualify.
+Human messages qualify only from normal callback rows with `HUMAN_MESSAGE`,
+`COMPLETED` and a completion timestamp, joined through exact binding, runtime
+conversation, tenant, deployment and requester-principal mapping. A queued,
+failed, stale or unacknowledged callback is not user-delivery proof. No transcript
+or callback payload is copied into this outbox. Vendor adapter notification
+delivery is not qualified by this native implementation.
+
+The worker collects at most 25 status and 25 human events per poll, sends at most
+5 messages per poll, permits at most 50 queued/retry/leased notifications per
+requester, and records excess events as visible failures without SMTP effects.
+Each event gets at most four attempts, with 30/60/90-second retry delays, atomic
+claims and a two-minute reclaimable lease. A crashed fourth attempt becomes
+`EMAIL_DELIVERY_UNCERTAIN`, not an unbounded retry. Current subscription, space,
+binding and registered origin are checked under locks before sending. Disabling
+returns only after an already-started locked send completes. Configuration and
+send use the existing binding-before-space lock order.
+
+SMTP is **at least once** at the crash-after-acceptance boundary: stable
+`Message-ID` and durable event deduplication prevent scheduler-overlap duplicates,
+but cannot guarantee recipient-server deduplication after an uncertain SMTP
+acceptance. Failures do not roll back ticket/status/message work. Exact closed
+ticket purge deletes its notification outbox first and removes the subscription
+only when no requests remain for that requester; other requesters/tickets and
+their preferences remain intact.

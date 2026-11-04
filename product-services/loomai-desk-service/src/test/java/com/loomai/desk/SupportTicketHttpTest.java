@@ -1018,6 +1018,10 @@ class SupportTicketHttpTest {
     final Map<String, String> canonicalOpenings = new java.util.concurrent.ConcurrentHashMap<>();
 
     Harness(String engine) throws Exception {
+      this(engine, Map.of());
+    }
+
+    Harness(String engine, Map<String, String> extraProperties) throws Exception {
       db = new DeskTestDatabase(engine);
       rsa = new RSAKeyGenerator(2048).keyID("requester-test").generate();
       upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -1126,21 +1130,26 @@ class SupportTicketHttpTest {
       app =
           new SpringApplicationBuilder(LoomAiDeskApplication.class)
               .run(
-                  "--server.port=0",
-                  "--spring.datasource.url=" + db.url,
-                  "--spring.datasource.username=" + db.username,
-                  "--spring.datasource.password=" + db.password,
-                  "--loomai.desk.service-key=" + DeskHttpSecurityTest.ADMIN,
-                  "--loomai.desk.data-encryption-secret=data-secret-separate-12345678901234567890",
-                  "--loomai.desk.supabase-url=" + origin,
-                  "--loomai.desk.issuer=" + DeskIsolationTest.ISSUER,
-                  "--loomai.desk.jwks-uri=" + origin + "/jwks",
-                  "--loomai.desk.conversation-context-allowed-origins=" + origin,
-                  "--loomai.desk.conversation-context-allow-insecure-loopback=true",
-                  "--loomai.desk.request-timeout=PT2S",
-                  "--DESK_CALLBACK_POLL_MS=3600000",
-                  "--spring.main.banner-mode=off",
-                  "--logging.level.root=WARN");
+                  java.util.stream.Stream.concat(
+                          java.util.stream.Stream.of(
+                              "--server.port=0",
+                              "--spring.datasource.url=" + db.url,
+                              "--spring.datasource.username=" + db.username,
+                              "--spring.datasource.password=" + db.password,
+                              "--loomai.desk.service-key=" + DeskHttpSecurityTest.ADMIN,
+                              "--loomai.desk.data-encryption-secret=data-secret-separate-12345678901234567890",
+                              "--loomai.desk.supabase-url=" + origin,
+                              "--loomai.desk.issuer=" + DeskIsolationTest.ISSUER,
+                              "--loomai.desk.jwks-uri=" + origin + "/jwks",
+                              "--loomai.desk.conversation-context-allowed-origins=" + origin,
+                              "--loomai.desk.conversation-context-allow-insecure-loopback=true",
+                              "--loomai.desk.request-timeout=PT2S",
+                              "--DESK_CALLBACK_POLL_MS=3600000",
+                              "--spring.main.banner-mode=off",
+                              "--logging.level.root=WARN"),
+                          extraProperties.entrySet().stream()
+                              .map(e -> "--" + e.getKey() + "=" + e.getValue()))
+                      .toArray(String[]::new));
       base = "http://127.0.0.1:" + app.getEnvironment().getProperty("local.server.port");
       var directory = app.getBean(DeskDirectory.class);
       DeskIsolationTest.workspace(directory, "a", "owner-a");

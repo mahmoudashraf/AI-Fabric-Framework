@@ -145,6 +145,7 @@ public class RequesterSecurityConfiguration {
       case "reopen" -> "REOPEN";
       case "seen" -> "SEEN";
       case "activity" -> "ACTIVITY";
+      case "notifications" -> "NOTIFICATIONS";
       case "link", "episodes" -> "LINK_CONVERSATION";
       case "requests" -> "GET".equals(r.getMethod()) ? "LIST" : "CREATE";
       default -> "GET";
