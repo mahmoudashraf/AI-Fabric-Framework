@@ -89,3 +89,29 @@ test('revoked, foreign or non-customer authenticated sessions cannot authorize a
     await assert.rejects(prepareCustomerEngageCommand(fixture, 'chosen', async () => ({ ...account(), ...changes })), /account changed/)
   }
 })
+test('deleting an inactive app can recheck an owned unbound connection without requiring a deployment', async () => {
+  const state = fixture()
+  state.consumers[0].boundDeploymentId = null
+  state.consumers[0].boundTargetProfileId = null
+  state.consumers[0].boundReleaseId = null
+  state.deployments = []
+  await prepareCustomerEngageCommand(() => state, 'chosen', async () => account(), { allowUnbound: true })
+  await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read')))
+  await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => account(),
+    { allowUnbound: true, requireRelease: true }), /verified runtime release/)
+})
+test('inactive app cleanup still rejects foreign connections and changed account or binding', async () => {
+  for (const change of [state => { state.consumers[0].customerId = 'foreign' },
+    state => { state.consumers[0].boundDeploymentId = 'foreign' }]) {
+    const state = fixture(); change(state)
+    await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => assert.fail('Unexpected account read'),
+      { allowUnbound: true }))
+  }
+  const state = fixture()
+  await assert.rejects(prepareCustomerEngageCommand(() => state, 'chosen', async () => {
+    state.consumers[0].bindingRevision++
+    return account()
+  }, { allowUnbound: true }), /changed/)
+  await assert.rejects(prepareCustomerEngageCommand(fixture, 'chosen', async () => ({ ...account(), customerId: 'foreign' }),
+    { allowUnbound: true }), /account changed/)
+})

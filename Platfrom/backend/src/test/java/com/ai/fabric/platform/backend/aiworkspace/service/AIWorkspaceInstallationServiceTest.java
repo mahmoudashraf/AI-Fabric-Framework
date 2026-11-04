@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,6 +45,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AIWorkspaceInstallationServiceTest {
@@ -309,6 +311,208 @@ class AIWorkspaceInstallationServiceTest {
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AIWorkspaceInstallationStatus.class, names = {"DRAFT", "DISABLED"})
+    void deletesInactiveInstallationAfterOwnershipLocksAndAuthorization(AIWorkspaceInstallationStatus status) {
+        var consumer = consumer();
+        var installation = deletionInstallation(status);
+        if (status == AIWorkspaceInstallationStatus.DISABLED) {
+            installation.setActivatedAt(Instant.now().minusSeconds(60));
+            installation.setDisabledAt(Instant.now());
+        }
+
+        service().deleteDraft("customer-1", installation.getInstallationId(), "workspace-delete");
+
+        var order = inOrder(access, repository, consumers, deploymentSecurityProjection, offerBoundary, audit);
+        order.verify(access).requireCustomerManagementAccess("customer-1");
+        order.verify(repository).findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId());
+        order.verify(consumers).findAllByIdForUpdate(List.of(consumer.getId()));
+        order.verify(deploymentSecurityProjection).lockDeploymentsForConsumers(List.of(consumer));
+        order.verify(offerBoundary).requireConsumer(consumer, Operation.APP_CONFIGURE, "workspace-delete", Map.of());
+        order.verify(repository).delete(installation);
+        order.verify(repository).flush();
+        order.verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+        order.verify(audit).record("AI_WORKSPACE_INSTALLATION_DELETED", "AI_WORKSPACE_INSTALLATION",
+            installation.getInstallationId(), Map.of("customerId", "customer-1",
+                "installationId", installation.getInstallationId(), "status", status.name()));
+        verify(consumers, never()).delete(any());
+        verifyNoInteractions(domains);
+    }
+
+    @Test
+    void activeInstallationCannotBeDeleted() {
+        consumer();
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.ACTIVE);
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("409")
+            .hasMessageContaining("draft or disabled");
+
+        verify(repository, never()).delete(any());
+        verify(repository, never()).flush();
+        verify(deploymentSecurityProjection, never()).synchronizeForConsumer(any());
+        verifyNoInteractions(audit, domains);
+    }
+
+    @Test
+    void disabledInstallationDeletionStillRequiresCustomerManagementAccess() {
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DISABLED);
+        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Customer access denied"))
+            .when(access).requireCustomerManagementAccess("customer-1");
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+
+        verifyNoInteractions(repository, consumers, deploymentSecurityProjection, audit, domains);
+    }
+
+    @Test
+    void disabledInstallationCannotBeDeletedThroughAnotherCustomerScope() {
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DISABLED);
+        when(customers.existsById("customer-2")).thenReturn(true);
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-2", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+
+        verify(repository).findByCustomerIdAndInstallationId("customer-2", installation.getInstallationId());
+        verify(repository, never()).delete(any());
+        verifyNoInteractions(consumers, deploymentSecurityProjection, audit, domains);
+    }
+
+    @Test
+    void disabledInstallationDeletionRejectsForeignLockedConsumer() {
+        consumer().setCustomerId("customer-2");
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DISABLED);
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Installation consumer is missing");
+
+        verify(repository, never()).delete(any());
+        verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AIWorkspaceInstallationStatus.class, names = {"DRAFT", "DISABLED"})
+    void deletionAuthorizationDenialPreventsMutation(AIWorkspaceInstallationStatus status) {
+        var consumer = consumer();
+        var installation = deletionInstallation(status);
+        doThrow(CustomerSelfServiceException.deny(CustomerSelfServiceException.Code.OPERATION_FORBIDDEN))
+            .when(offerBoundary).requireConsumer(consumer, Operation.APP_CONFIGURE, "workspace-delete", Map.of());
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId(), "workspace-delete"))
+            .hasMessageContaining("OPERATION_FORBIDDEN");
+
+        verify(deploymentSecurityProjection).lockDeploymentsForConsumers(List.of(consumer));
+        verify(repository, never()).delete(any());
+        verify(repository, never()).flush();
+        verify(deploymentSecurityProjection, never()).synchronizeForConsumer(any());
+        verifyNoInteractions(audit, domains);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AIWorkspaceInstallationStatus.class, names = {"DRAFT", "DISABLED"})
+    void deletesUnboundInactiveAppWithConsumerLockAndNormalAuthorization(AIWorkspaceInstallationStatus status) {
+        var consumer = consumer();
+        consumer.setBoundDeploymentId(null);
+        var installation = deletionInstallation(status);
+        if (status == AIWorkspaceInstallationStatus.DISABLED) {
+            installation.setActivatedAt(Instant.now().minusSeconds(60));
+            installation.setDisabledAt(Instant.now());
+        }
+
+        service().deleteDraft("customer-1", installation.getInstallationId(), "unbound-app-delete");
+
+        var order = inOrder(access, repository, consumers, offerBoundary, audit);
+        order.verify(access).requireCustomerManagementAccess("customer-1");
+        order.verify(repository).findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId());
+        order.verify(consumers).findAllByIdForUpdate(List.of(consumer.getId()));
+        order.verify(offerBoundary).requireConsumer(consumer, Operation.APP_CONFIGURE, "unbound-app-delete", Map.of());
+        order.verify(repository).delete(installation);
+        order.verify(repository).flush();
+        order.verify(audit).record("AI_WORKSPACE_INSTALLATION_DELETED", "AI_WORKSPACE_INSTALLATION",
+            installation.getInstallationId(), Map.of("customerId", "customer-1",
+                "installationId", installation.getInstallationId(), "status", status.name()));
+        assertThat(consumer.getStatus()).isEqualTo("ACTIVE");
+        assertThat(consumer.getBoundDeploymentId()).isNull();
+        verify(consumers, never()).delete(any());
+        verifyNoInteractions(deploymentSecurityProjection, domains);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AIWorkspaceInstallationStatus.class, names = {"DRAFT", "DISABLED"})
+    void unboundInactiveAppDeletionCannotBypassOwnershipOrAuthorization(AIWorkspaceInstallationStatus status) {
+        var consumer = consumer();
+        consumer.setBoundDeploymentId(null);
+        consumer.setCustomerId("customer-2");
+        var installation = deletionInstallation(status);
+        if (status == AIWorkspaceInstallationStatus.DISABLED) installation.setActivatedAt(Instant.now().minusSeconds(60));
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId(), "unbound-delete"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+        verify(offerBoundary, never()).requireConsumer(any(), any(), any(), any());
+
+        consumer.setCustomerId("customer-1");
+        doThrow(CustomerSelfServiceException.deny(CustomerSelfServiceException.Code.OPERATION_FORBIDDEN))
+            .when(offerBoundary).requireConsumer(consumer, Operation.APP_CONFIGURE, "unbound-delete", Map.of());
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId(), "unbound-delete"))
+            .hasMessageContaining("OPERATION_FORBIDDEN");
+
+        verify(repository, never()).delete(any());
+        verify(repository, never()).flush();
+        verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DRAFT,inactive-consumer", "DISABLED,inactive-consumer",
+        "DRAFT,partial-target", "DISABLED,partial-target", "DRAFT,partial-release", "DISABLED,partial-release",
+        "DRAFT,blank-deployment", "DISABLED,blank-deployment", "DRAFT,previously-activated", "ACTIVE,unbound"})
+    void unboundDeletionRequiresEligibleAppAndFullyUnboundActiveConsumer(AIWorkspaceInstallationStatus status, String invalid) {
+        var consumer = consumer();
+        consumer.setBoundDeploymentId(null);
+        var installation = deletionInstallation(status);
+        if (status == AIWorkspaceInstallationStatus.DISABLED) installation.setActivatedAt(Instant.now().minusSeconds(60));
+        switch (invalid) {
+            case "inactive-consumer" -> consumer.setStatus("DISABLED");
+            case "partial-target" -> consumer.setBoundTargetProfileId("foreign-tenant-target");
+            case "partial-release" -> consumer.setBoundReleaseId("foreign-tenant-release");
+            case "blank-deployment" -> consumer.setBoundDeploymentId("");
+            case "previously-activated" -> installation.setActivatedAt(Instant.now().minusSeconds(60));
+            case "unbound" -> { }
+            default -> throw new IllegalArgumentException(invalid);
+        }
+
+        assertThatThrownBy(() -> service().deleteDraft("customer-1", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class);
+
+        verify(offerBoundary, never()).requireConsumer(any(), any(), any(), any());
+        verify(repository, never()).delete(any());
+        verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+    }
+
+    @Test
+    void unboundDraftCleanupDoesNotAllowUnboundCreateOrActivation() throws Exception {
+        consumer().setBoundDeploymentId(null);
+        var installation = deletionInstallation(AIWorkspaceInstallationStatus.DRAFT);
+
+        assertThatThrownBy(() -> service().create("customer-1", createRequest()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("deployment-bound consumer");
+        assertThatThrownBy(() -> service().activate("customer-1", installation.getInstallationId()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("deployment-bound consumer");
+
+        verify(repository, never()).saveAndFlush(any());
+        verify(offerBoundary, never()).requireConsumer(any(), any(), any(), any());
+        verifyNoInteractions(deploymentSecurityProjection, audit, domains);
+    }
+
+    private AIWorkspaceInstallationEntity deletionInstallation(AIWorkspaceInstallationStatus status) {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        var installation = installation();
+        installation.setStatus(status);
+        when(repository.findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId()))
+            .thenReturn(Optional.of(installation));
+        return installation;
     }
 
     private AIWorkspaceInstallationService service() {

@@ -100,6 +100,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
     private CoolifyConnection connection;
     private PlatformAuditService audit;
     private AIWorkspaceDeploymentSecurityProjectionService securityProjection;
+    private PlatformConsumerEntity consumer;
     private AtomicReference<String> providerDomains;
     private WebServer server;
     private AnnotationConfigWebApplicationContext webContext;
@@ -165,7 +166,7 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         worker = newWorker(); verifier = mock(AIWorkspaceDomainVerifier.class);
         domains = proxy(new AIWorkspaceDomainService(domainRepository, properties, verifier, worker));
         var consumers = mock(PlatformConsumerRepository.class);
-        var consumer = new PlatformConsumerEntity(); consumer.setId("consumer-1"); consumer.setCustomerId("customer-1");
+        consumer = new PlatformConsumerEntity(); consumer.setId("consumer-1"); consumer.setCustomerId("customer-1");
         consumer.setConsumerId("web"); consumer.setStatus("ACTIVE"); consumer.setBoundDeploymentId("deployment-1");
         when(consumers.findBindingForUpdate("customer-1", "web")).thenReturn(Optional.of(consumer));
         when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "web")).thenReturn(Optional.of(consumer));
@@ -462,6 +463,131 @@ class AIWorkspaceRouteReconciliationPostgresTest {
         tick(); assertThat(providerDomains.get()).isEqualTo("https://shell.test");
     }
 
+    @ParameterizedTest @ValueSource(strings = {"installation_entity_id", "embedded_installation_entity_id"})
+    void disabledPreviouslyActivatedAppDeletesDomainsAndRoutesWithoutDeletingKitOrSibling(String kitColumn) throws Exception {
+        var created = create("first");
+        var sibling = create("second");
+        attachKit(created.id(), sibling.id(), kitColumn);
+        tx.executeWithoutResult(status -> {
+            var entity = installations.findById(created.id()).orElseThrow();
+            entity.setStatus(AIWorkspaceInstallationStatus.ACTIVE);
+            entity.setActivatedAt(Instant.now().minusSeconds(60));
+            installations.saveAndFlush(entity);
+        });
+        providerDomains.set("https://shell.test,http://unmanaged.apps.test");
+        worker.runNext(); worker.runNext(); tick();
+        assertThat(worker.isApplied("first.apps.test")).isTrue();
+        startHttp();
+
+        assertThat(http("DELETE", "/" + created.installationId(), null, "reject-active-delete").statusCode()).isEqualTo(409);
+        assertThat(installations.findById(created.id())).isPresent();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(created.id())).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED'", Long.class)).isZero();
+
+        installationService.disable("customer-1", created.installationId(), "disable-app");
+        var disabled = installations.findById(created.id()).orElseThrow();
+        assertThat(disabled.getStatus()).isEqualTo(AIWorkspaceInstallationStatus.DISABLED);
+        assertThat(disabled.getActivatedAt()).isNotNull();
+        assertThat(disabled.getDisabledAt()).isNotNull();
+        clearInvocations(coolify, securityProjection);
+
+        assertThat(http("DELETE", "/" + created.installationId(), null, "delete-disabled-app").statusCode()).isEqualTo(204);
+
+        assertThat(installations.findById(created.id())).isEmpty();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(created.id())).isEmpty();
+        assertThat(installations.findById(sibling.id())).isPresent();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(sibling.id())).hasSize(1);
+        String siblingColumn = kitColumn.equals("installation_entity_id") ? "embedded_installation_entity_id" : "installation_entity_id";
+        assertThat(jdbc.queryForMap("SELECT * FROM platform_customer_experience_kits WHERE id='kit-1'"))
+            .containsEntry(kitColumn, null).containsEntry(siblingColumn, sibling.id())
+            .containsEntry("customer_id", "customer-1").containsEntry("deployment_id", "deployment-1");
+        assertThat(count("platform_consumers")).isEqualTo(1);
+        assertThat(count("platform_deployments")).isEqualTo(1);
+        verify(securityProjection).synchronizeForConsumer(argThat(consumer ->
+            consumer.getId().equals("consumer-1") && consumer.getCustomerId().equals("customer-1")
+                && consumer.getBoundDeploymentId().equals("deployment-1")));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED'", Long.class)).isEqualTo(1);
+        var deletionAudit = mapper.readTree(jdbc.queryForObject(
+            "SELECT details_json FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED' AND target_id=?",
+            String.class, created.installationId()));
+        assertThat(deletionAudit.path("customerId").asText()).isEqualTo("customer-1");
+        assertThat(deletionAudit.path("status").asText()).isEqualTo("DISABLED");
+        assertThat(worker.isApplied("first.apps.test")).isFalse();
+        verifyNoInteractions(coolify);
+
+        tick(); worker.runNext(); tick();
+        assertThat(providerDomains.get()).isEqualTo("https://shell.test,http://unmanaged.apps.test,https://second.apps.test");
+        assertThat(worker.isApplied("first.apps.test")).isFalse();
+        assertThat(worker.isApplied("second.apps.test")).isTrue();
+        verifyNoInteractions(verifier);
+    }
+
+    @Test void disabledDeletionProjectionFailureRollsBackInstallationDomainsAndAudit() {
+        var created = create("first");
+        installationService.disable("customer-1", created.installationId());
+        doThrow(new IllegalStateException("projection failure")).when(securityProjection).synchronizeForConsumer(any());
+
+        assertThatThrownBy(() -> installationService.deleteDraft("customer-1", created.installationId()))
+            .hasMessageContaining("projection failure");
+
+        assertThat(installations.findById(created.id())).isPresent();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(created.id())).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED'", Long.class)).isZero();
+        verifyNoInteractions(coolify);
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void unboundInactiveAppDeletionCascadesDomainsAndReconcilesOnlyItsRoutes(boolean previouslyActivated) throws Exception {
+        var created = create("unused");
+        var sibling = create("second");
+        providerDomains.set("https://shell.test,http://unmanaged.apps.test");
+        worker.runNext(); worker.runNext(); tick();
+        assertThat(worker.isApplied("unused.apps.test")).isTrue();
+        if (previouslyActivated) {
+            tx.executeWithoutResult(status -> {
+                var entity = installations.findById(created.id()).orElseThrow();
+                entity.setStatus(AIWorkspaceInstallationStatus.ACTIVE);
+                entity.setActivatedAt(Instant.now().minusSeconds(60));
+                installations.saveAndFlush(entity);
+            });
+            installationService.disable("customer-1", created.installationId(), "disable-before-unbinding");
+        }
+        var inactive = installations.findById(created.id()).orElseThrow();
+        assertThat(inactive.getStatus()).isEqualTo(previouslyActivated
+            ? AIWorkspaceInstallationStatus.DISABLED : AIWorkspaceInstallationStatus.DRAFT);
+        assertThat(inactive.getActivatedAt() != null).isEqualTo(previouslyActivated);
+        consumer.setBoundDeploymentId(null);
+        clearInvocations(coolify, securityProjection);
+        startHttp();
+
+        assertThat(http("DELETE", "/" + created.installationId(), null, "delete-unbound-app").statusCode()).isEqualTo(204);
+
+        assertThat(installations.findById(created.id())).isEmpty();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(created.id())).isEmpty();
+        assertThat(installations.findById(sibling.id())).isPresent();
+        assertThat(domainRepository.findByInstallationEntityIdOrderByHostname(sibling.id())).hasSize(1);
+        assertThat(count("platform_consumers")).isEqualTo(1);
+        assertThat(consumer.getCustomerId()).isEqualTo("customer-1");
+        assertThat(consumer.getStatus()).isEqualTo("ACTIVE");
+        assertThat(consumer.getBoundDeploymentId()).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED' AND target_id=?", Long.class,
+            created.installationId())).isEqualTo(1);
+        var deletionAudit = mapper.readTree(jdbc.queryForObject(
+            "SELECT details_json FROM platform_audit_events WHERE action='AI_WORKSPACE_INSTALLATION_DELETED' AND target_id=?",
+            String.class, created.installationId()));
+        assertThat(deletionAudit.path("customerId").asText()).isEqualTo("customer-1");
+        assertThat(deletionAudit.path("status").asText()).isEqualTo(previouslyActivated ? "DISABLED" : "DRAFT");
+        assertThat(worker.isApplied("unused.apps.test")).isFalse();
+        assertThat(providerDomains.get()).contains("https://unused.apps.test");
+        verifyNoInteractions(securityProjection, coolify);
+
+        tick(); worker.runNext(); tick();
+        assertThat(providerDomains.get()).isEqualTo("https://shell.test,http://unmanaged.apps.test,https://second.apps.test");
+        assertThat(worker.isApplied("unused.apps.test")).isFalse();
+        assertThat(worker.isApplied("second.apps.test")).isTrue();
+        verifyNoInteractions(verifier);
+    }
+
     @ParameterizedTest @ValueSource(strings = {"failed", "finished-but-not-a-status", "queued"})
     void onlyExactFinishedNativeJobCanAdvanceAppliedGeneration(String status) {
         create("first"); worker.runNext(); worker.runNext();
@@ -490,6 +616,23 @@ class AIWorkspaceRouteReconciliationPostgresTest {
 
     private AIWorkspaceInstallationSummary create(String slug) {
         return installationService.create("customer-1", request(slug), "create-" + slug + "-" + UUID.randomUUID());
+    }
+    private void attachKit(String installationId, String siblingId, String installationColumn) {
+        jdbc.execute("CREATE TABLE platform_deployments (id varchar(64) PRIMARY KEY)");
+        jdbc.execute("CREATE TABLE platform_customer_offers (id varchar(64) PRIMARY KEY)");
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V222__business_experience_kits.sql"))
+            .execute(Objects.requireNonNull(jdbc.getDataSource()));
+        jdbc.update("INSERT INTO platform_deployments VALUES ('deployment-1')");
+        jdbc.update("INSERT INTO platform_customer_offers VALUES ('offer-1')");
+        jdbc.update("""
+            INSERT INTO platform_customer_experience_kits
+                (id,customer_id,kit_code,kit_version,name,deployment_id,consumer_id,installation_entity_id,
+                 embedded_installation_entity_id,delivery_mode,offer_id,target_profile_id,human_support_enabled,
+                 operation_key,request_fingerprint,created_at,updated_at,revision)
+            VALUES ('kit-1','customer-1','ai-customer-experience','1.0.0','Kit','deployment-1','web',?,?,'both',
+                    'offer-1','profile-1',false,'kit-create','fingerprint',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,0)
+            """, installationColumn.equals("installation_entity_id") ? installationId : siblingId,
+            installationColumn.equals("embedded_installation_entity_id") ? installationId : siblingId);
     }
     private CreateAIWorkspaceInstallationRequest request(String slug) { return request(slug, List.of()); }
     private CreateAIWorkspaceInstallationRequest request(String slug, List<String> custom) {

@@ -206,9 +206,9 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     && customersQuery.isSuccess && !portfolioQuery.isFetching && !customersQuery.isFetching
     ? { actorId: auth.session?.actorId, customerId, consumers: customer?.consumers ?? [],
       deployments: portfolioQuery.data } : null
-  const prepareCommand = async (consumerIds: string | string[], requireRelease = false) => {
+  const prepareCommand = async (consumerIds: string | string[], requireRelease = false, allowUnbound = false) => {
     if (customerScopeLocked) await prepareCustomerEngageCommand(
-      () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession, { requireRelease },
+      () => mounted.current ? commandContext.current : null, consumerIds, fetchPlatformAuthSession, { requireRelease, allowUnbound },
     )
   }
   const installations = installationsQuery.data ?? []
@@ -348,11 +348,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
 
   const deleteMutation = useMutation({
     mutationFn: async ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) => {
-      await prepareCommand(installation.consumerId ?? '')
+      await prepareCommand(installation.consumerId ?? '', false, true)
       return deleteAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey)
     },
     onSuccess: async () => {
-      setNotice('Draft AI Workspace deleted.')
+      setNotice('AI Workspace app deleted.')
       setSelected(null)
       await invalidate()
     },
@@ -598,7 +598,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     {installation.status === 'ACTIVE' ? (
       detailSection !== 'configuration' ? <Tooltip title="Disable"><span><IconButton aria-label="Disable app" size="small" disabled={appCommandPending} onClick={() => requestDestructive('disable', installation)}><PauseCircleOutlineRoundedIcon /></IconButton></span></Tooltip> : null
     ) : <Tooltip title="Activate"><span><IconButton aria-label="Activate app" size="small" disabled={appCommandPending || !installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>}
-    {installation.status === 'DRAFT' && detailSection !== 'configuration' ? <Tooltip title="Delete draft"><span><IconButton aria-label="Delete draft app" size="small" color="error" disabled={appCommandPending} onClick={() => requestDestructive('delete', installation)}><DeleteOutlineRoundedIcon /></IconButton></span></Tooltip> : null}
+    {installation.status !== 'ACTIVE' && detailSection !== 'configuration' ? <Tooltip title={installation.status === 'DRAFT' ? 'Delete draft' : 'Delete app'}><span><IconButton aria-label={installation.status === 'DRAFT' ? 'Delete draft app' : 'Delete app'} size="small" color="error" disabled={appCommandPending} onClick={() => requestDestructive('delete', installation)}><DeleteOutlineRoundedIcon /></IconButton></span></Tooltip> : null}
   </>
 
   return (
@@ -935,8 +935,8 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
           setConfigurationError(null); setConnectionPanel(null)
         }} /> : null}
       {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>{pendingDestructive?.command === 'delete' ? 'Delete draft app?' : 'Disable app?'}</DialogTitle>
-        <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? 'This removes the selected draft installation. It does not delete its deployment or customer data.' : 'This disables the selected app installation. It does not stop or delete its deployment.'}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
+        <DialogTitle>{pendingDestructive?.command === 'delete' ? (pendingDestructive.installation.status === 'DRAFT' ? 'Delete draft app?' : 'Delete app?') : 'Disable app?'}</DialogTitle>
+        <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? 'This permanently removes this inactive app and its web addresses. It does not delete its deployment, documents or conversations.' : 'This disables the selected app installation. It does not stop or delete its deployment.'}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
         <DialogActions><Button onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={!pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
           if (!pendingCurrent || !pendingInstallation || !pendingDestructive) return
           if (pendingDestructive.command === 'delete') deleteMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })

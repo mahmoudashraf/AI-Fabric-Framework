@@ -4,6 +4,7 @@ import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded'
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { bindCustomerExternalIntegration, fetchCustomerDeploymentPortfolio, fetchCustomerExternalIntegration,
   fetchCustomerExternalIntegrationApprovals, fetchCustomerSelfServiceOffer, fetchDeploymentVersions,
   fetchPlatformAuthSession, PlatformApiError, revokeCustomerExternalIntegration,
@@ -118,7 +119,10 @@ function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority 
     }}>Review approved connection</Button></Box>
     {[review.error, bind.error, revoke.error].filter(Boolean).map((error, index) => <Alert key={index} severity="error">{errorText(error)}</Alert>)}
     {result?.binding ? <Alert severity={bound ? 'success' : 'info'}>Connection {result.binding.status.toLowerCase()} / {result.binding.id}</Alert> : null}
-    {result && !result.options.length ? <Alert severity="warning">No approved connection is available for this version and target. Contact your Platform administrator.</Alert> : null}
+    {result && !result.options.length ? <Alert severity="info" action={<Button component={Link}
+      to={`/support?new=1&deploymentId=${encodeURIComponent(deployment.deploymentId)}`}>Get connection help</Button>}>
+      This connection needs setup by the integration team before it can be used. Your workspace configuration is saved.
+    </Alert> : null}
     {result?.binding && !bound ? <Alert severity="warning">This version already has an immutable binding record. Publish a new version to configure a replacement.</Alert> : null}
     {result && result.options.length > 0 && !result.binding ? <>
       <TextField select label="Approved connection" value={approvalId} disabled={busy} onChange={e => { setApprovalId(e.target.value); setCredentials({}); operationKey.current = null; bind.reset() }}>

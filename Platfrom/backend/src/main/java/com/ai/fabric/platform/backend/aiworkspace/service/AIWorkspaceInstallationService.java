@@ -286,15 +286,21 @@ public class AIWorkspaceInstallationService {
     public void deleteDraft(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
-        PlatformConsumerEntity consumer = requireConsumerForUpdate(customerId, entity.getConsumerEntityId(), true);
-        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
+        PlatformConsumerEntity consumer = lockConsumersForUpdate(List.of(entity.getConsumerEntityId()))
+            .get(entity.getConsumerEntityId());
+        boolean allowUnboundDeletion = entity.getStatus() == AIWorkspaceInstallationStatus.DISABLED
+            || (entity.getStatus() == AIWorkspaceInstallationStatus.DRAFT && entity.getActivatedAt() == null);
+        requireUsableConsumer(customerId, consumer, allowUnboundDeletion);
+        boolean deploymentBound = StringUtils.hasText(consumer.getBoundDeploymentId());
+        if (deploymentBound) deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
         authorizeMutation(entity, consumer, operationKey);
-        if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT) {
-            throw new ResponseStatusException(CONFLICT, "Only unused draft AI Workspace installations can be deleted.");
+        if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT
+            && entity.getStatus() != AIWorkspaceInstallationStatus.DISABLED) {
+            throw new ResponseStatusException(CONFLICT, "Only draft or disabled AI Workspace installations can be deleted.");
         }
         repository.delete(entity);
         repository.flush();
-        deploymentSecurityProjection.synchronizeForConsumer(consumer);
+        if (deploymentBound) deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_DELETED", entity, Map.of());
     }
 
@@ -640,13 +646,19 @@ public class AIWorkspaceInstallationService {
     }
 
     private void requireUsableConsumer(String customerId, PlatformConsumerEntity consumer) {
+        requireUsableConsumer(customerId, consumer, false);
+    }
+
+    private void requireUsableConsumer(String customerId, PlatformConsumerEntity consumer, boolean allowUnbound) {
         if (consumer == null || !customerId.equals(consumer.getCustomerId())) {
             throw new ResponseStatusException(NOT_FOUND, "Installation consumer is missing.");
         }
         if (!"ACTIVE".equalsIgnoreCase(consumer.getStatus())) {
             throw new ResponseStatusException(BAD_REQUEST, "Consumer must be active.");
         }
-        if (!StringUtils.hasText(consumer.getBoundDeploymentId())) {
+        boolean unbound = consumer.getBoundDeploymentId() == null && consumer.getBoundReleaseId() == null
+            && consumer.getBoundTargetProfileId() == null;
+        if (!StringUtils.hasText(consumer.getBoundDeploymentId()) && !(allowUnbound && unbound)) {
             throw new ResponseStatusException(CONFLICT,
                 "AI Workspace installation requires a deployment-bound consumer.");
         }
