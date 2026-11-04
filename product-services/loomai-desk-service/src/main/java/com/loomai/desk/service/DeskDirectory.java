@@ -313,7 +313,7 @@ public class DeskDirectory {
           input.enabled());
     }
     audit(id, input.customerId(), "PLATFORM", "BINDING_SYNC", id);
-    return binding(id).view(List.of());
+    return view(binding(id), List.of());
   }
 
   private long outstanding(String binding) {
@@ -369,8 +369,15 @@ public class DeskDirectory {
             operator.id(),
             operator.id())
         .stream()
-        .map(b -> b.view(roles(b, operator.id())))
+        .map(b -> view(b, roles(b, operator.id())))
         .toList();
+  }
+
+  public BindingView view(Binding binding, List<Role> roles) {
+    boolean ticketingConfigured = Boolean.TRUE.equals(jdbc.queryForObject(
+        "SELECT EXISTS(SELECT 1 FROM desk_support_space WHERE binding_id=?)",
+        Boolean.class, binding.bindingId()));
+    return binding.view(roles, ticketingConfigured);
   }
 
   public Binding authorize(String id, Operator operator, Role role) {

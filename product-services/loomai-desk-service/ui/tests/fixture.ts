@@ -63,6 +63,7 @@ export function fixtureState() {
           deploymentName: "Juniper Studio",
           environment: "production",
           roles: ["OWNER", "SUPPORT", "REVIEWER"],
+          ticketingConfigured: true,
         },
         {
           bindingId: "support-stage",
@@ -72,6 +73,7 @@ export function fixtureState() {
           deploymentName: "Cedar Support",
           environment: "staging",
           roles: ["SUPPORT"],
+          ticketingConfigured: true,
         },
       ],
     },

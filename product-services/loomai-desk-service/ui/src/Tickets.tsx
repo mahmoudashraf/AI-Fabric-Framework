@@ -35,13 +35,15 @@ import type {
 } from "./types";
 
 // Dependency internals are not an operator-facing error contract.
-function ticketError(error: unknown) {
+function ticketError(error: unknown, scope: "list" | "ticket" = "ticket") {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Your session has expired. Sign in again.";
     if (error.status === 403)
       return "Support access is no longer available for this workspace.";
     if (error.status === 404)
-      return "This ticket is unavailable in the selected workspace. Refresh the ticket list.";
+      return scope === "list"
+        ? "The ticket list is unavailable for this workspace. Refresh the workspace and try again."
+        : "This ticket is unavailable in the selected workspace. Refresh the ticket list.";
     if (error.status === 409)
       return "The ticket changed or this command conflicts with an earlier request. Review the latest ticket before trying again.";
     if (error.status === 405 || error.status === 422)
@@ -68,6 +70,7 @@ export function Tickets({
   const [cursors, setCursors] = useState([""]);
   const cursor = cursors[cursors.length - 1]!;
   const canSupport = binding.roles.includes("SUPPORT");
+  const configured = binding.ticketingConfigured === true;
   const queue = useQuery({
     queryKey: ["binding", binding.bindingId, "tickets", filter, cursor],
     queryFn: ({ signal }) => {
@@ -79,7 +82,7 @@ export function Tickets({
         { signal },
       );
     },
-    enabled: canSupport && accessFresh,
+    enabled: configured && canSupport && accessFresh,
     refetchInterval: 5000,
   });
   const items = queue.data?.items ?? [];
@@ -94,6 +97,14 @@ export function Tickets({
     setCursors([""]);
     setFilter(value);
   }
+  if (!configured)
+    return (
+      <Empty
+        icon={TicketIcon}
+        title="Ticketing not configured"
+        text="Ticketing has not been configured for this workspace."
+      />
+    );
   if (!canSupport)
     return (
       <Empty
@@ -161,7 +172,7 @@ export function Tickets({
         <div className="queue-list">
           {queue.isError ? (
             <ErrorNotice
-              message={ticketError(queue.error)}
+              message={ticketError(queue.error, "list")}
               retry={() => void queue.refetch()}
             />
           ) : queue.isPending ? (

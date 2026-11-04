@@ -75,7 +75,8 @@ public final class DeskContracts {
       String targetProfileId,
       String deploymentName,
       String environment,
-      List<Role> roles) {}
+      List<Role> roles,
+      boolean ticketingConfigured) {}
 
   public record Binding(
       String bindingId,
@@ -96,9 +97,10 @@ public final class DeskContracts {
       return "Binding[bindingId=" + bindingId + ",customerId=" + customerId + "]";
     }
 
-    public BindingView view(List<Role> roles) {
+    public BindingView view(List<Role> roles, boolean ticketingConfigured) {
       return new BindingView(
-          bindingId, customerId, deploymentId, targetProfileId, deploymentName, environment, roles);
+          bindingId, customerId, deploymentId, targetProfileId, deploymentName, environment, roles,
+          ticketingConfigured);
     }
   }
 

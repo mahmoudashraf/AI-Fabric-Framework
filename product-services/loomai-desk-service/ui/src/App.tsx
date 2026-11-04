@@ -263,6 +263,8 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
           </button>
           <button
             className={view === "tickets" ? "nav-link active" : "nav-link"}
+            disabled={binding?.ticketingConfigured !== true}
+            title={binding?.ticketingConfigured === true ? undefined : "Ticketing is not configured for this workspace."}
             onClick={() => {
               setView("tickets");
               setNavOpen(false);
@@ -400,7 +402,7 @@ export function App({ emailReturn = false }: { emailReturn?: boolean }) {
           />
         ) : (
           <BindingWorkspace
-            key={`${binding.bindingId}:${binding.roles.join(",")}`}
+            key={`${binding.bindingId}:${binding.roles.join(",")}:${binding.ticketingConfigured === true}`}
             binding={binding}
             view={view}
             operatorId={operator.id}

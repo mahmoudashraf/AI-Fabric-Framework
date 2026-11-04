@@ -35,7 +35,7 @@ public class DeskAdminController {
     Binding b = directory.binding(bindingId);
     return Map.of(
         "binding",
-        b.view(List.of()),
+        directory.view(b, List.of()),
         "enabled",
         b.enabled(),
         "reviewEnabled",

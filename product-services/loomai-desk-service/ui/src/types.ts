@@ -7,6 +7,7 @@ export interface Binding {
   deploymentName: string;
   environment: string;
   roles: Role[];
+  ticketingConfigured: boolean;
 }
 export interface Session {
   authenticated: boolean;

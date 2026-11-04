@@ -51,10 +51,12 @@ function ticketFixture(overrides: Partial<Ticket> = {}): Ticket {
 
 async function setup(
   page: Page,
-  options: { roles?: string[]; tickets?: Ticket[] } = {},
+  options: { roles?: string[]; tickets?: Ticket[]; ticketingConfigured?: boolean } = {},
 ) {
   const desk = fixtureState();
   if (options.roles) desk.session.bindings[0]!.roles = options.roles;
+  if (options.ticketingConfigured !== undefined)
+    desk.session.bindings[0]!.ticketingConfigured = options.ticketingConfigured;
   await mockDesk(page, desk);
   const state = {
     desk,
@@ -155,6 +157,59 @@ async function openFirstTicket(page: Page) {
     page.getByRole("region", { name: "Ticket detail" }),
   ).toBeVisible();
 }
+
+test("ticketing capability disables navigation without requesting an unconfigured ticket list", async ({ page }) => {
+  const state = await setup(page, { ticketingConfigured: false });
+  await page.goto("/?bindingId=studio-prod");
+  await expect(page.locator(".desk-shell")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tickets", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Tickets", exact: true }))
+    .toHaveAttribute("title", "Ticketing is not configured for this workspace.");
+  expect(state.calls).toHaveLength(0);
+});
+
+test("ticketing capability refresh retires ticket detail and stops polling after configuration becomes unavailable", async ({ page }) => {
+  await page.clock.install();
+  const state = await setup(page);
+  await openFirstTicket(page);
+  state.desk.session.bindings[0]!.ticketingConfigured = false;
+  await page.getByRole("button", { name: "Refresh workspace" }).click();
+  await expect(page.getByText("Ticketing not configured", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ticket detail" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tickets", exact: true })).toBeDisabled();
+  const count = state.calls.length;
+  await page.clock.fastForward(6000);
+  expect(state.calls).toHaveLength(count);
+  state.desk.session.bindings[0]!.ticketingConfigured = true;
+  await page.getByRole("button", { name: "Refresh workspace" }).click();
+  await expect(page.getByRole("region", { name: "Ticket queue" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ticket detail" })).toHaveCount(0);
+});
+
+test("ticketing capability guards a retained Tickets view on browser workspace changes", async ({ page }) => {
+  const state = await setup(page);
+  state.desk.session.bindings[1]!.ticketingConfigured = false;
+  await openFirstTicket(page);
+  await page.evaluate(() => {
+    history.pushState({}, "", "/?bindingId=support-stage");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByText("Ticketing not configured", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ticket detail" })).toHaveCount(0);
+  expect(state.calls.some(call => call.path.includes("/support-stage/tickets"))).toBe(false);
+  await page.goBack();
+  await expect(page.getByRole("region", { name: "Ticket queue" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ticket detail" })).toHaveCount(0);
+});
+
+test("ticketing capability does not turn a configured list 404 into an empty list or missing ticket", async ({ page }) => {
+  const state = await setup(page);
+  state.listError = 404;
+  await openTickets(page);
+  await expect(page.getByRole("alert")).toContainText("The ticket list is unavailable for this workspace.");
+  await expect(page.getByText("This ticket is unavailable in the selected workspace.", { exact: false })).toHaveCount(0);
+  expect(state.calls.some(call => call.path.endsWith("/tickets"))).toBe(true);
+});
 
 test("ticket list, provider status, intake and lifecycle events use normalized data without fetching AI transcripts", async ({
   page,
