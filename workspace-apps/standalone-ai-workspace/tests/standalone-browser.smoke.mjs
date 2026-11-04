@@ -747,6 +747,162 @@ test('an explicit account switch clears previous-owner state and does not replay
   await page.close()
 })
 
+test('idle logout refreshes the same provider session before local revocation', async () => {
+  const page = await browser.newPage()
+  const logoutCredentials = []
+  let refreshes = 0
+  page.on('request', request => {
+    if (request.method() === 'POST' && request.url().endsWith('/auth/v1/token?grant_type=refresh_token')) refreshes++
+    if (request.method() === 'POST' && request.url().endsWith('/auth/v1/logout?scope=local')) {
+      logoutCredentials.push(request.headers().authorization)
+    }
+  })
+  try {
+    await signInForLogout(page)
+    await expireIdleAccessToken(page)
+    await page.evaluate(() => {
+      sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'private-state')
+      window.__logoutFailure = null
+      window.LoomAIWorkspaceHost.signOut().catch(error => { window.__logoutFailure = error.message })
+    })
+    await page.locator('#auth-dialog[open]').waitFor()
+    assert.equal(refreshes, 1)
+    assert.deepEqual(logoutCredentials, ['Bearer refreshed-access-token'])
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+    assert.equal(await page.locator('#installed-workspace').count(), 0)
+  } finally {
+    await page.close()
+  }
+})
+
+for (const variant of ['rejected', 'other-owner', 'unavailable']) {
+  test(`idle logout with ${variant} refresh clears local state without claiming revocation`, async () => {
+    const page = await browser.newPage()
+    let logoutRequests = 0
+    page.on('request', request => {
+      if (request.method() === 'POST' && request.url().includes('/auth/v1/logout')) logoutRequests++
+    })
+    try {
+      await signInForLogout(page)
+      await expireIdleAccessToken(page)
+      await page.route('**/auth/v1/token?grant_type=refresh_token', route => {
+        if (route.request().method() === 'OPTIONS') return route.continue()
+        return route.fulfill({
+          status: variant === 'rejected' ? 401 : variant === 'unavailable' ? 503 : 200,
+          headers: identityCorsHeaders(),
+          body: JSON.stringify(variant === 'other-owner'
+            ? { access_token: 'other-access-token', refresh_token: 'other-refresh-token', expires_in: 300, user: { id: 'user-other' } }
+            : { message: 'Refresh unavailable' }),
+        })
+      })
+      const result = await page.evaluate(async () => {
+        sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'private-state')
+        try { await window.LoomAIWorkspaceHost.signOut(); return null } catch (error) { return error.message }
+      })
+      assert.match(result, /provider logout could not be confirmed/)
+      assert.match(result, /provider session may still be active/)
+      assert.equal(logoutRequests, 0)
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+      assert.equal(await page.evaluate(() => typeof window.LoomAIWorkspaceHost), 'undefined')
+    } finally {
+      await page.close()
+    }
+  })
+}
+
+test('logout joins an in-flight refresh without restoring identity or reloading before revocation', async () => {
+  const page = await browser.newPage()
+  let releaseRefresh
+  let releaseLogout
+  let markRefreshStarted
+  let markLogoutStarted
+  const refreshGate = new Promise(resolve => { releaseRefresh = resolve })
+  const logoutGate = new Promise(resolve => { releaseLogout = resolve })
+  const refreshStarted = new Promise(resolve => { markRefreshStarted = resolve })
+  const logoutStarted = new Promise(resolve => { markLogoutStarted = resolve })
+  let refreshes = 0
+  let logoutRequests = 0
+  let logoutCredential = null
+  try {
+    await signInForLogout(page)
+    await expireIdleAccessToken(page)
+    await page.route('**/auth/v1/token?grant_type=refresh_token', async route => {
+      if (route.request().method() === 'OPTIONS') return route.continue()
+      refreshes++
+      markRefreshStarted()
+      await refreshGate
+      await route.continue()
+    })
+    await page.route('**/auth/v1/logout?scope=local', async route => {
+      if (route.request().method() === 'OPTIONS') return route.continue()
+      logoutRequests++
+      logoutCredential = route.request().headers().authorization
+      markLogoutStarted()
+      await logoutGate
+      await route.continue()
+    })
+    await page.evaluate(() => {
+      window.__pendingIdentityResult = 'pending'
+      window.LoomAIWorkspaceHost.getIdentityAccessToken().then(value => { window.__pendingIdentityResult = value })
+    })
+    await refreshStarted
+    await page.evaluate(() => {
+      window.__logoutFailure = null
+      window.LoomAIWorkspaceHost.signOut().catch(error => { window.__logoutFailure = error.message })
+    })
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+    releaseRefresh()
+    await logoutStarted
+    await page.waitForFunction(() => window.__pendingIdentityResult === null)
+    assert.equal(await page.evaluate(() => typeof window.LoomAIWorkspaceHost), 'undefined')
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+    assert.equal(refreshes, 1)
+    assert.equal(logoutRequests, 1)
+    assert.equal(logoutCredential, 'Bearer refreshed-access-token')
+    assert.equal(await page.locator('#auth-dialog[open]').count(), 0)
+    releaseLogout()
+    await page.locator('#auth-dialog[open]').waitFor()
+  } finally {
+    releaseRefresh()
+    releaseLogout()
+    await page.close()
+  }
+})
+
+test('repeated logout joins one provider revocation request', async () => {
+  const page = await browser.newPage()
+  let releaseLogout
+  let markLogoutStarted
+  const logoutGate = new Promise(resolve => { releaseLogout = resolve })
+  const logoutStarted = new Promise(resolve => { markLogoutStarted = resolve })
+  let logoutRequests = 0
+  try {
+    await signInForLogout(page)
+    await page.route('**/auth/v1/logout?scope=local', async route => {
+      if (route.request().method() === 'OPTIONS') return route.continue()
+      logoutRequests++
+      markLogoutStarted()
+      await logoutGate
+      await route.continue()
+    })
+    await page.evaluate(() => {
+      const signOut = window.LoomAIWorkspaceHost.signOut
+      window.__logoutResults = Promise.all([signOut(), signOut()])
+    })
+    await logoutStarted
+    assert.equal(logoutRequests, 1)
+    assert.equal(await page.evaluate(() => typeof window.LoomAIWorkspaceHost), 'undefined')
+    releaseLogout()
+    await page.locator('#auth-dialog[open]').waitFor()
+    assert.equal(logoutRequests, 1)
+  } finally {
+    releaseLogout()
+    await page.close()
+  }
+})
+
 test('failed provider logout clears local authority but reports revocation as unconfirmed', async () => {
   const page = await browser.newPage()
   await page.goto(appUrl('secure.localhost'))
@@ -830,6 +986,30 @@ async function assertAuthControlReachable(page, selector) {
       && field.top >= bounds.top - 1 && field.bottom <= bounds.bottom + 1
       && field.left >= bounds.left - 1 && field.right <= bounds.right + 1
   }, selector)
+}
+
+async function signInForLogout(page) {
+  await page.goto(appUrl('secure.localhost'))
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+}
+
+async function expireIdleAccessToken(page) {
+  await page.evaluate(() => {
+    const expiredTime = Date.now() + 600_000
+    Date.now = () => expiredTime
+  })
+}
+
+function identityCorsHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, apikey, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
 function app(installationId, displayName, interactionPolicy, profileCode, methods = ['email-password']) {

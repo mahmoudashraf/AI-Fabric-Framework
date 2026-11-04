@@ -64,6 +64,7 @@ let authenticationCallbackError: string | null = null
 let authenticationGeneration = 0
 let loginAttempt: AbortController | null = null
 let refreshInFlight: { token: string; promise: Promise<AuthSession | null> } | null = null
+let signOutInFlight: Promise<void> | null = null
 const PROVIDER_REQUEST_TIMEOUT_MS = 5_000
 const MAGIC_LINK_ATTEMPT_TTL_MS = 15 * 60 * 1_000
 const AUTHENTICATION_REQUIREMENT_SCHEMA = 'loomai-workspace-authentication-requirement-v1'
@@ -157,7 +158,10 @@ function installHostCapabilities(app: AppBootstrap) {
       : { status: 'anonymous' },
     async getIdentityAccessToken() {
       if (!session) return null
-      session = await ensureFreshSession(app, session)
+      const generation = authenticationGeneration
+      const refreshed = await ensureFreshSession(app, session)
+      if (generation !== authenticationGeneration) return null
+      session = refreshed
       if (!session) {
         window.MaxMode?.destroy?.()
         window.location.reload()
@@ -311,6 +315,14 @@ async function completeLogin(app: AppBootstrap, nextSession: AuthSession) {
 
 async function signOut(app: AppBootstrap) {
   if (app.authentication.profileCode === 'none') return
+  if (signOutInFlight) return signOutInFlight
+  const pending = completeSignOut(app)
+  signOutInFlight = pending
+  try { await pending }
+  finally { if (signOutInFlight === pending) signOutInFlight = null }
+}
+
+async function completeSignOut(app: AppBootstrap) {
   const current = session
   authenticationGeneration++
   loginAttempt?.abort()
@@ -327,21 +339,32 @@ async function signOut(app: AppBootstrap) {
     failure = new Error('Signed out locally; workspace teardown could not be confirmed.')
   }
   delete window.LoomAIWorkspaceHost
-  const request = new AbortController()
-  const timeout = window.setTimeout(() => request.abort(), PROVIDER_REQUEST_TIMEOUT_MS)
   try {
     if (current?.access_token) {
-      const response = await fetch(`${auth.projectUrl}/auth/v1/logout?scope=local`, {
-        method: 'POST',
-        headers: { apikey: auth.publishableKey, Authorization: `Bearer ${current.access_token}` },
-        signal: request.signal,
-      })
-      if (!response.ok) throw new Error('Provider logout could not be confirmed.')
+      let credential = current
+      // Refresh only for revocation; never restore local identity during logout.
+      if (refreshInFlight?.token === current.access_token
+        || !Number.isFinite(current.expires_at)
+        || current.expires_at! <= Math.floor(Date.now() / 1000) + 30) {
+        const refreshed = await refreshProviderSession(app, current)
+        if (!refreshed) throw new Error('Provider logout could not be confirmed.')
+        credential = refreshed
+      }
+      const request = new AbortController()
+      const timeout = window.setTimeout(() => request.abort(), PROVIDER_REQUEST_TIMEOUT_MS)
+      try {
+        const response = await fetch(`${auth.projectUrl}/auth/v1/logout?scope=local`, {
+          method: 'POST',
+          headers: { apikey: auth.publishableKey, Authorization: `Bearer ${credential.access_token}` },
+          signal: request.signal,
+        })
+        if (!response.ok) throw new Error('Provider logout could not be confirmed.')
+      } finally {
+        window.clearTimeout(timeout)
+      }
     }
   } catch {
-    failure = new Error('Signed out locally; provider logout could not be confirmed. Issued tokens remain valid until expiry.')
-  } finally {
-    window.clearTimeout(timeout)
+    failure = new Error('Signed out locally; provider logout could not be confirmed. The provider session may still be active.')
   }
   if (failure) { showFailure(failure.message); throw failure }
   window.location.reload()
@@ -400,8 +423,22 @@ async function ensureFreshSession(app: AppBootstrap, value: AuthSession | null):
   if (!value.user?.id || !Number.isFinite(value.expires_at)) return invalidate()
   if (value.expires_at! > Math.floor(Date.now() / 1000) + 30) return value
   if (!value.refresh_token) return invalidate()
-  if (refreshInFlight?.token === value.access_token) return refreshInFlight.promise
   const generation = authenticationGeneration
+  try {
+    const refreshed = await refreshProviderSession(app, value)
+    if (generation !== authenticationGeneration) return null
+    if (!refreshed) return invalidate()
+    storeSession(app, refreshed)
+    return refreshed
+  } catch (error) {
+    if (generation !== authenticationGeneration) return null
+    throw error
+  }
+}
+
+async function refreshProviderSession(app: AppBootstrap, value: AuthSession): Promise<AuthSession | null> {
+  if (!value.refresh_token || !value.user?.id) return null
+  if (refreshInFlight?.token === value.access_token) return refreshInFlight.promise
   const promise = (async () => {
     const auth = supabaseConfig(app)
     const request = new AbortController()
@@ -413,21 +450,17 @@ async function ensureFreshSession(app: AppBootstrap, value: AuthSession | null):
         body: JSON.stringify({ refresh_token: value.refresh_token }),
         signal: request.signal,
       })
-      if (generation !== authenticationGeneration) return null
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403 || response.status === 400) return invalidate()
+        if (response.status === 401 || response.status === 403 || response.status === 400) return null
         throw new Error('Identity refresh could not be confirmed.')
       }
       const refreshed = await response.json() as AuthSession
       if (!refreshed.user?.id) refreshed.user = await fetchSupabaseUser(app, refreshed.access_token, request.signal)
-      if (generation !== authenticationGeneration) return null
-      if (refreshed.user?.id !== value.user?.id) return invalidate()
-      try { validateSession(refreshed) } catch { return invalidate() }
-      storeSession(app, refreshed)
+      if (refreshed.user?.id !== value.user?.id) return null
+      try { validateSession(refreshed) } catch { return null }
       return refreshed
     } catch (error) {
-      if (generation !== authenticationGeneration) return null
-      if (request.signal.aborted) return invalidate()
+      if (request.signal.aborted) return null
       throw error
     } finally {
       window.clearTimeout(timeout)

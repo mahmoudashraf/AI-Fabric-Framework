@@ -39,6 +39,12 @@ is not claimed here. See [Supabase sign-out](https://supabase.com/docs/guides/au
 
 Logout explicitly requests provider `scope=local`. A failed provider request
 still destroys local authority/state but reports revocation as unconfirmed.
+An expired or expiring access token is refreshed only to authenticate that local
+revocation request. The same verified subject is required; the refreshed identity
+is never persisted or reinstalled during logout. Concurrent identity refresh and
+repeated sign-out share their provider work without restoring the workspace or
+reloading before revocation finishes. Each provider step has a five-second
+deadline, so a refresh followed by logout is bounded to ten seconds.
 Expiry or rejected refresh never downgrades an in-flight authenticated request
 to anonymous authority or replays it under a new account. Hosted acceptance must
 measure these behaviors against the reviewed provider; fixture tests are not
