@@ -367,6 +367,108 @@ class SupportTicketHttpTest {
     }
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "h2,server", "postgres,server", "h2,direct", "postgres,direct", "h2,private", "postgres,private"
+  })
+  void ticketCommandReadsDoNotRequireMutationKeysAndWritesStillDo(String engine, String profile)
+      throws Exception {
+    try (var h = new Harness(engine)) {
+      boolean server = profile.equals("server");
+      boolean privateHost = profile.equals("private");
+      String conversation = "existing-command-conversation";
+      String principal = privateHost ? "private-command-principal" : "user";
+      String space = privateHost ? "private" : "direct";
+      String endpoint =
+          "/api/desk/integrations/v1/spaces/"
+              + space
+              + (server ? "/server-ticket-commands" : "/ticket-commands");
+      String token =
+          server
+              ? null
+              : privateHost
+                  ? h.boundToken("user", principal, conversation)
+                  : h.token("user", space, false, OPS, 300, "requesters");
+      var headers = new java.util.HashMap<String, String>();
+      if (server) headers.putAll(h.connectorHeaders("user", conversation));
+      else {
+        headers.put("X-LoomAI-Ticket-Connector-Key", CONNECTOR);
+        if (privateHost) headers.putAll(h.runtimeHeaders());
+        else headers.put("X-LoomAI-Runtime-Authorization", "Bearer direct-runtime-test");
+      }
+      h.runtimeSubject = principal;
+      h.runtimeBinding = privateHost ? "a" : "b";
+      var jdbc = new JdbcTemplate(h.db.dataSource);
+      var input =
+          new CommandInput(
+              "CREATE", null, null, "Command key boundary", "Existing chat", null, conversation);
+      for (String key : new String[] {null, "", "   ", "k".repeat(181)}) {
+        var rejected = h.raw("POST", endpoint, token, input, key, headers);
+        assertThat(rejected.statusCode()).withFailMessage(rejected.body()).isEqualTo(400);
+      }
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM desk_support_request", Long.class))
+          .isZero();
+      assertThat(
+              jdbc.queryForObject("SELECT COUNT(*) FROM desk_support_ticket_operation", Long.class))
+          .isZero();
+      assertThat(h.runtimePaths).isEmpty();
+      var created = h.raw("POST", endpoint, token, input, "valid-create-key", headers);
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(200);
+      var ticket = DeskIsolationTest.JSON.readTree(created.body());
+      String id = ticket.path("id").asText();
+      var pathsAfterCreate = List.copyOf(h.runtimePaths);
+      var get = new CommandInput("GET", id, null, null, null, null, null);
+      var own = h.raw("POST", endpoint, token, get, null, headers);
+      assertThat(own.statusCode()).withFailMessage(own.body()).isEqualTo(200);
+      assertThat(DeskIsolationTest.JSON.readTree(own.body())).isEqualTo(ticket);
+      var list =
+          h.raw(
+              "POST",
+              endpoint,
+              token,
+              new CommandInput("LIST", null, null, null, null, null, null),
+              null,
+              headers);
+      assertThat(list.statusCode()).withFailMessage(list.body()).isEqualTo(200);
+      assertThat(DeskIsolationTest.JSON.readTree(list.body()).path("items")).hasSize(1);
+      assertThat(DeskIsolationTest.JSON.readTree(list.body()).path("items").get(0).path("id").asText())
+          .isEqualTo(id);
+      String foreignToken =
+          server
+              ? null
+              : privateHost
+                  ? h.boundToken("other", principal, conversation)
+                  : h.token("other", space, false, OPS, 300, "requesters");
+      var foreignHeaders = server ? h.connectorHeaders("other", conversation) : headers;
+      var denied = h.raw("POST", endpoint, foreignToken, get, null, foreignHeaders);
+      assertThat(denied.statusCode()).withFailMessage(denied.body()).isEqualTo(404);
+      var unauthenticated = h.raw("POST", endpoint, null, get, null, null);
+      assertThat(unauthenticated.statusCode()).isEqualTo(401);
+      if (!server) {
+        var link =
+            new CommandInput(
+                "LINK_CONVERSATION",
+                id,
+                ticket.path("version").asText(),
+                null,
+                null,
+                null,
+                conversation);
+        for (String key : new String[] {null, "", "   ", "k".repeat(181)}) {
+          var rejected = h.raw("POST", endpoint, token, link, key, headers);
+          assertThat(rejected.statusCode()).withFailMessage(rejected.body()).isEqualTo(400);
+        }
+      }
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM desk_support_request", Long.class))
+          .isEqualTo(1);
+      assertThat(
+              jdbc.queryForObject("SELECT COUNT(*) FROM desk_support_ticket_operation", Long.class))
+          .isEqualTo(1);
+      assertThat(h.runtimePaths).isEqualTo(pathsAfterCreate);
+      assertThat(h.messageKeys).isEmpty();
+    }
+  }
+
   @org.junit.jupiter.api.Test
   void registeredUrnIssuerRequiresTheSameExactVerifiedTraceIssuer() throws Exception {
     try (var h = new Harness("h2")) {

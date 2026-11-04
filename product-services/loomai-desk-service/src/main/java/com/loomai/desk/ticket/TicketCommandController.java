@@ -19,7 +19,7 @@ public class TicketCommandController {
   public Object command(
       HttpServletRequest r,
       @RequestBody CommandInput in,
-      @RequestHeader("Idempotency-Key") String key) {
+      @RequestHeader(value = "Idempotency-Key", required = false) String key) {
     return execute(r, in, key, credential(r));
   }
 
@@ -27,7 +27,7 @@ public class TicketCommandController {
   public Object serverCommand(
       HttpServletRequest r,
       @RequestBody CommandInput in,
-      @RequestHeader("Idempotency-Key") String key) {
+      @RequestHeader(value = "Idempotency-Key", required = false) String key) {
     Space s = space(r);
     Requester owner = requester(r);
     if (in.operation() == null) throw TicketException.invalid("operation");
