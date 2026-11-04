@@ -159,6 +159,34 @@ assigned deployment are resolved for that hostname. This is not a separate AI
 runtime or customer database. In direct-runtime mode the browser talks to the
 assigned AI deployment, not through the shared frontend server.
 
+### Customer / Integrator Checklist
+
+1. In **Engage apps**, open the standalone app and its domain configuration.
+   If it is active, use the explicit disable/edit flow before changing it.
+   Enter the exact hostname, for example `ai.example.com`, without a URL path.
+2. Copy the TXT ownership name/value and CNAME name/target shown by Console.
+   Add them at the DNS provider for your domain. Use Console's actual values,
+   not the illustrative hostname in this guide. Some DNS providers append the
+   zone name automatically; avoid entering that zone twice.
+3. Select **Verify and prepare**. Wait for ownership, routing and HTTPS to pass.
+   Pending DNS or a pending certificate is not a completed verification.
+   A missing routing target is for LoomAI to fix; customers do not need Coolify.
+4. If Console offers **Apply required deployment update**, inspect the changes,
+   confirm the intended draft and wait for the normal release verification.
+   Then select **Use verified update** for the app connection. If no update is
+   required, do not publish an unrelated deployment draft for this step.
+5. If using email-link or OAuth sign-in, allow the exact new return address in
+   your identity provider. LoomAI does not edit an external provider's redirect
+   settings. Anonymous-only apps do not need this identity-provider step.
+6. Pass the app's readiness checks, select **Activate app**, and open the custom
+   URL. Check the branding, one chat request and sign-in/return if enabled.
+   Keep the existing working address until the new address is verified.
+
+Adding or editing a custom domain does not select an environment or promote a
+deployment. The app keeps its assigned deployment until an explicit connection
+change. Customer website embedding on an existing domain needs the installation
+script and approved website origin, not a new standalone CNAME.
+
 ## Configuration And Access
 
 - Templates supply startup defaults, not permanent delivery restrictions.

@@ -41,6 +41,18 @@ Use it together with:
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
 
+## Dealership Simulator Scope (Owner Decision, 2026-11-04)
+
+One shared simulator service and synthetic advertiser account are sufficient for
+the dealership demo/template qualification. Do not make a new simulator account
+per Kit/customer a release prerequisite or build an account-provisioning service
+for this purpose. Real integrations will use the actual customer's AutoTrader or
+dealership-system API credentials through the existing plugin/binding contracts.
+Shared fictional stock does not imply shared customer conversations, documents,
+Desk permissions or unrestricted cross-tenant runtime access. Normal target
+bindings and correctly scoped callback routing still apply; do not redirect a
+working deployment's callback merely to make another test pass.
+
 ## Mandatory AI Validation Rule
 
 Hard trust boundaries; minimal execution contracts; guided LLM decisions and

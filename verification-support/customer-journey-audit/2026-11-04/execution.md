@@ -325,3 +325,152 @@ Screenshots in this directory: `ai-after-handover.png`,
 not the final receipt itself; the receipt result is recorded above. Private
 full inventories and terminal receipts stay in ignored private storage and are
 not published with credentials or customer source contents.
+
+## Owner Review And Follow-Up, 4 November 2026
+
+This section supersedes the earlier requirement for a simulator account per
+fresh Kit and the earlier release-blocker classification of domains/Shopify.
+
+### 1. Shared Simulator Accepted
+
+- One existing shared simulator service and synthetic advertiser account are
+  enough. No per-customer simulator account factory is needed for this demo.
+- Real deployments will replace that external endpoint/credentials with the
+  customer's actual AutoTrader or dealership API through the existing plugins.
+- Correct deployment bindings and webhook/callback routing still need to be
+  configured and verified; sharing the account does not prove that all new
+  Kit routes are already configured. Do not share customer conversations,
+  documents, Desk assignments or write authority across unrelated customers.
+- This is a scope correction, not evidence of a new successful fresh Kit apply.
+
+### 2. Promotion Was Not Proven Broken
+
+Two different incomplete checks were previously described too broadly:
+
+1. The cleanup audit's new Kit never reached an applied staging runtime. It
+   therefore could not complete a fresh staging-to-production UI journey.
+   There was no failed production promotion operation for that Kit.
+2. The separate 010.59 Support storage canary did have a verified staging
+   release (`rel-2ab687cf`), but its selected consumer/app connection was still
+   assigned to the old production release (`rel-09c92f90`). The promotion-plan
+   API returned 409 because the supplied staging candidate was not the
+   connection's exact bound release.
+
+The check is in `DeploymentPromotionCandidateService.resolve`: it compares
+deployment, release and target against the selected consumer binding. It is
+not a missing worker-fencing capability, capacity check, vector transfer,
+framework problem or inability to deploy to production.
+
+For a new staging-first journey, use the connection that is actually assigned
+to the verified staging release, promote it, verify production and explicitly
+switch the app connection. Do not send a staging candidate with a connection
+already assigned to a different production release. Existing production
+deployments can instead use the normal publish/apply production-upgrade path;
+staging promotion is not mandatory. No live app was rebound to staging merely
+to make this test pass. The outstanding item is correct-sequence qualification,
+not a demonstrated need for a promotion redesign.
+
+### 3. Custom Domains Accepted; Customer Steps Documented
+
+Owner accepts the previously qualified domain capability. A new full domain
+rehearsal is not a release blocker for this task. This is owner acceptance of
+prior verification, not a fabricated fresh pass. The external Engage setup
+guide now has an explicit customer/integrator checklist: exact hostname ->
+Console-provided TXT/CNAME -> Verify and prepare -> inspect/apply a required
+deployment update if offered -> configure external auth redirects if needed ->
+Use verified update -> readiness -> explicit activation -> customer URL check.
+Customers do not need Coolify or a manually selected Engage environment.
+
+### 4. Shopify Deferred
+
+Owner explicitly defers Shopify private-adapter regression. It is not a blocker
+for dealership/Support work and is not newly qualified by this decision.
+
+### 5. Acme Logout: Confirmed Root Cause, Fix Not Yet Applied
+
+Read-only Supabase Management API auth logs establish the actual event, not an
+inference from the generic browser warning:
+
+- At `2026-11-04T19:43:59Z`, `/logout` returned 403, `error_code=bad_jwt`,
+  error `token has invalid claims: token is expired`.
+- Auth event ID `015d4c31-193d-4c8c-bc57-c23f54765031`, request ID
+  `01a1a816-f4fb-7755-a497-748b63ed39ba` match the exact browser error time.
+- Another logout at 19:44:15 returned 204. The provider was not generally down;
+  do not treat that other request as proof that the failed Acme session ended.
+- Private full logs remain in ignored mode-0600 storage. No JWT, refresh token,
+  service key, IP address or private transcript is copied into this report.
+
+Source cause: `workspace-apps/standalone-ai-workspace/src/main.ts` captures the
+current session in `signOut`, immediately clears local identity/private state,
+then calls `/auth/v1/logout?scope=local` with `current.access_token`. It does not
+call the expiry/refresh logic used by normal authenticated requests. After an
+idle token expiry, Supabase therefore rejects the logout before revoking the
+provider session. Current regression tests cover 503/network timeout, but not
+this expired-access-token logout path.
+
+Security impact has two distinct parts:
+
+1. Local sign-out did occur: the workspace, stored credential and private
+   conversation state were removed. A subsequent local visitor does not simply
+   inherit that signed-in chat. No cross-user transcript leak was observed.
+2. Provider revocation did NOT complete. The provider session's refresh token
+   might still be usable; an expired access JWT does not itself prove that the
+   long-lived refresh capability ended. This is a real logout implementation
+   defect, not merely an inconvenient error message.
+
+Separately, even successful Supabase logout does not immediately revoke an
+already-issued, unexpired access JWT. That is the documented stateless-token
+contract. Existing runtime tokens are capped at 300 seconds and cannot outlive
+the provider token; the broker currently checks signature/issuer/audience/expiry,
+not an online session-revocation ledger. Do not claim instant JWT revocation or
+expand this focused defect into an unreviewed runtime/session-ledger redesign.
+
+Proposed bounded correction, not implemented or deployed in this follow-up:
+clear local authority immediately; if necessary obtain a fresh access token
+using the SAME retained provider session only for local revocation; verify the
+same subject, never persist/reinstall that refreshed identity; then request
+`scope=local`. Keep provider calls bounded, handle an in-flight refresh without
+restoring authentication, and still report genuine network/provider failure.
+Do not use global logout, privileged browser credentials, anonymous fallback or
+silently classify any 401/403 as successful revocation. Add expired-token,
+refresh-failure, refresh/logout-race and fresh-session regression coverage, then
+prove refresh is refused after real provider logout. No framework change needed.
+
+Sources: [Supabase sign-out](https://supabase.com/docs/guides/auth/signout),
+[session and JWT revocation contract](https://supabase.com/docs/guides/auth/sessions).
+
+### 6. Force / Hard Deletion: Existing Contract And Gaps
+
+- Record deletion exists at `DELETE /api/deployments/{id}` for authorized
+  deployment administrators, including an owning CUSTOMER_ADMIN. It requires
+  archived state, no bound consumer, no active apply and no queued/running
+  deletion operation.
+- `hardDelete: true` additionally removes tracked owned provider infrastructure
+  before deleting Platform records. It is restricted to PLATFORM_ADMIN and is
+  NOT an override of those guards, customer ownership or database constraints.
+  External customer services are not automatically deleted.
+- The staff UI already shows a red irreversible-deletion warning, bold deployment
+  name, exact-name typing, an optional infrastructure-deletion checkbox and a
+  hard-delete reason. However, typed-name/reason-length confirmation checks are
+  UI-only. The backend request has no typed-name confirmation field.
+- The customer resource console does not currently expose deployment archive,
+  permanent delete or infrastructure hard-delete controls. Therefore "customer/
+  integrator force deletion with a strong confirmation" is NOT fully available.
+- The fenced fixture cannot be fixed by ticking hard delete: an immutable
+  RELEASED_UNUSED_TRANSFER vector binding and its transfer ledger still hold
+  references to deployment resource handles. Preserve that audit/fence evidence;
+  a future narrow schema/lifecycle fix should allow record removal without
+  reviving/reassigning released capacity or deleting external vector storage.
+- Read-only live readback confirms production `del-cbeee9b3` is still QUEUED,
+  `hard_delete=false`; staging `del-ca59d4fe` is RUNNING, `hard_delete=true`;
+  staging `del-2610df6a` is FAILED, `hard_delete=false`. Staging also contains a
+  historical copy of the queued record. No delete/retry/retrigger was performed.
+- Existing failed-operation retry and running-hard-delete retrigger are admin
+  operations; they replay cleanup, not force past a fence. The queued historical
+  row is not made retriggerable just because its age is large.
+
+Recommended follow-up: reuse the existing lifecycle in customer/integrator UI,
+enforce typed confirmation server-side, and define exact owned-resource removal
+scope. Correct the retained-ledger relation separately. A blanket "ignore all
+guards" flag or disabled SQL trigger is not the proposed solution. This owner
+request was verification, so no destructive action or new force API was added.

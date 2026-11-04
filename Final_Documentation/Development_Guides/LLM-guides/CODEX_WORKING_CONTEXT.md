@@ -12334,3 +12334,31 @@ test is being called hosted acceptance. UI extraction remains last.
 - Audit: verification-support/customer-journey-audit/2026-11-04/execution.md.
   Test Console/Desk sessions signed out and temporary tabs closed. Private
   inventories/receipts remain ignored; no credential publication.
+
+## 2026-11-04 Audit Owner Review: Scope Corrected, Logout Cause Confirmed
+
+- Owner accepts one shared simulator/account; no per-Kit simulator account
+  factory. Real customer APIs remain external plugin integrations. Normal
+  runtime tenant isolation/bindings/callback routing still apply. Recorded in
+  operating context. No new simulator service or business database created.
+- Promotion was not demonstrated broken: new audit Kit never applied; separate
+  010.59 plan sent staging rel-2ab687cf with consumer still bound to production
+  rel-09c92f90, correctly rejected409. Use exact bound staging connection for a
+  promotion proof or normal direct production apply for an existing upgrade.
+  No worker-fencing/capacity/vector-transfer redesign or live rebind performed.
+- Owner accepts prior custom-domain qualification; explicit six-step customer/
+  integrator checklist added to external Engage setup guide. Shopify deferred.
+- Actual Supabase auth log19:43:59Z proves Acme logout403 bad_jwt: token expired,
+  request01a1a816-f4fb-7755-a497-748b63ed39ba. Standalone signOut clears local
+  identity but sends stale access token without refresh, so provider refresh
+  revocation was not completed. No transcript leak observed; provider JWT and
+  runtime-token expiry remain distinct. Bounded same-session refresh+local
+  revocation correction and focused tests proposed, NOT IMPLEMENTED/DEPLOYED.
+- Force verification: staff has red warning/exact-name UI confirmation and
+  PLATFORM_ADMIN-only hardDelete infrastructure teardown, not a guard bypass.
+  Customer console lacks deployment deletion controls; typed confirmation is
+  not in backend request. Fenced vector ledger still blocks fixture purge.
+  Historical jobs read-only rechecked; no retry/retrigger/delete. Scope and
+  recommendations are in audit Owner Review And Follow-Up section.
+- This follow-up changes documentation only. No auth/runtime/framework release,
+  permission expansion or direct SQL mutation. Private provider logs stay0600.
