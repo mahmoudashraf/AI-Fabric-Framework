@@ -60,3 +60,21 @@ office, landscape 4:3, no people, logos or text. Forma is a light-grey upholster
 ergonomic chair with headrest and black wheeled base; Studio is an oak chair with
 curved back, integrated arms and light upholstered seat. These example products
 demonstrate a configurable experience; they are not generic chat defaults.
+
+## Kit Detail Hero Photography
+
+Generated with the built-in image tool on 2026-11-05 and encoded as local
+1920px WebP images. These are fictional marketing scenes, not customers,
+employees, inventory feeds or evidence. All workspace text is real HTML.
+
+- `kit-dealership-showroom.webp`: panoramic glass dealership with a full blue
+  unbranded SUV and a white estate car; dark negative space on the left.
+- `kit-customer-showroom.webp`: panoramic furniture/home-office showroom with
+  oak and grey ergonomic chairs, a desk and a teal wall; left negative space.
+- `kit-support-team.webp`: panoramic contemporary support office with a fictional
+  headset-wearing woman on the right and charcoal negative space on the left.
+
+Prompt set: photorealistic commercial architectural/workplace photography,
+2.5:1 horizontal composition, clearly visible subject on the right, natural
+lighting, space for HTML copy on the left; no logos, writing, watermark, UI or
+laptop in the photograph. Existing preview photos and customer data are unchanged.

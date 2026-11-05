@@ -136,7 +136,7 @@ try {
   await page.getByRole('button', { name: 'Close preview', exact: true }).click()
   passed('Support catalogue and fixture preview are explicit, non-shopping and network-read-only')
   await page.goto(base + 'experiences/ai-support-experience')
-  await page.getByRole('heading', { name: 'Help customers solve problems and follow up.', exact: true }).waitFor()
+  await page.getByText('Turn your support page into an AI-enabled help workspace.', { exact: true }).waitFor()
   await page.screenshot({ path: `${output}/01-support-public-light.png`, fullPage: true })
   await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).click()
   await page.setViewportSize({ width: 390, height: 844 })

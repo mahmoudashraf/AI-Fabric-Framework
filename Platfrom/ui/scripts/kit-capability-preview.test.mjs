@@ -30,15 +30,20 @@ const identity = {
   KitDeskMark: () => React.createElement('span', { 'data-product': 'desk' }),
   kitAsset: name => `/products/${name}`,
 }
+const detailContent = await load('../src/components/kits/kitDetailContent.ts')
+const detailScenes = await load('../src/components/kits/KitDetailScenes.tsx', {
+  './KitIdentity': identity, './kitDetailContent': detailContent, './kitPreviewContent': content,
+})
 const support = await load('../src/components/kits/SupportKitPreview.tsx', {
   '../../../../../experience-packs/support-experience/src/preview-fixtures': supportFixtures,
-  './KitIdentity': identity, './kitPreviewContent': content,
+  './KitIdentity': identity, './kitPreviewContent': content, './KitDetailScenes': detailScenes,
 })
 const preview = await load('../src/components/kits/KitCapabilityPreview.tsx', {
   './KitIdentity': identity,
   './kitPreviewContent': content,
   './KitCapabilityPreview.css': {},
   './SupportKitPreview': support,
+  './KitDetailScenes': detailScenes,
 })
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props))
 
@@ -97,6 +102,22 @@ test('every format has its own accessible preview command and a miniature screen
 test('marketing preview imports no backend, auth, widget, runtime or AI client', () => {
   assert.ok(imports.length > 5)
   assert.ok(imports.every(name => !/platformApi|experienceKitsApi|auth\/|max-mode-widget|supabase/.test(name)))
+})
+
+test('detail formats show domain-specific scenes while retaining the three real preview commands', () => {
+  for (const kind of ['adaptive', 'dealership', 'support']) {
+    const html = render(preview.KitExperiencePreview, { kind, name: 'Example kit', detail: true })
+    for (const format of content.kitPreviewFormats) {
+      assert.ok(html.includes(`aria-label="Preview ${format.label} for Example kit"`))
+      assert.ok(html.includes(`ek-delivery-${format.id}`))
+    }
+    assert.ok(html.includes('Preview experience'))
+    assert.doesNotMatch(html, /<input|<form|role="dialog"/)
+    if (kind === 'support') {
+      assert.match(html, /Connection guide|My requests/)
+      assert.doesNotMatch(html, /Chair|GBP|£|Test drive|Compare/)
+    }
+  }
 })
 
 test('dismissal, format switching and product interactions are explicit local state only', async () => {

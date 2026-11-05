@@ -44,7 +44,7 @@ const integrationContent = {
   introduction: string; systemsTitle: string; systems: string; knowledge: string; team: string; test: string; costs: string
 }>
 
-export function KitIntegrationJourney({ kind, getStartedPath }: { kind: KitPreviewKind; getStartedPath: string }) {
+export function KitIntegrationJourney({ kind, getStartedPath, compact = false }: { kind: KitPreviewKind; getStartedPath: string; compact?: boolean }) {
   const content = integrationContent[kind]
   const steps = [
     { title: 'Share requirements and access', Icon: AssignmentOutlined,
@@ -56,8 +56,7 @@ export function KitIntegrationJourney({ kind, getStartedPath }: { kind: KitPrevi
       description: 'Review the experience together, then bring it to your customers through your chosen channels.' },
   ]
 
-  return <div className="ek-integration-journey" data-kind={kind}>
-    <section className="ek-integration-band" aria-labelledby="ek-integration-title">
+  const scope = <section className="ek-integration-band" aria-labelledby="ek-integration-title">
       <div className="ek-integration-heading"><span className="ek-integration-label"><CableRounded aria-hidden="true" />Integration by LoomAI</span>
         <h2 id="ek-integration-title">Your business. Connected by our team.</h2><p>{content.introduction}</p>
       </div>
@@ -69,6 +68,9 @@ export function KitIntegrationJourney({ kind, getStartedPath }: { kind: KitPrevi
       <p className="ek-integration-disclosure">Connections depend on approved access and the agreed scope. References to external systems do not imply an official partnership or endorsement.</p>
     </section>
 
+  return <div className={`ek-integration-journey${compact ? ' ek-integration-journey-compact' : ''}`} data-kind={kind}>
+    {!compact && scope}
+
     <section className="ek-integration-band" aria-labelledby="ek-integration-steps-title">
       <div className="ek-integration-heading"><span className="ek-integration-label"><GroupsOutlined aria-hidden="true" />From requirements to launch</span>
         <h2 id="ek-integration-steps-title">You know your business. We handle the integration.</h2>
@@ -78,10 +80,11 @@ export function KitIntegrationJourney({ kind, getStartedPath }: { kind: KitPrevi
         <div className="ek-integration-step-marker"><span>{String(index + 1).padStart(2, '0')}</span><Icon aria-hidden="true" /></div>
         <h3>{title}</h3><p>{description}</p>
       </li>)}</ol>
-      <div className="ek-integration-next"><div><h3>Talk through your integration</h3><p>{content.costs}</p></div>
+      {!compact && <div className="ek-integration-next"><div><h3>Talk through your integration</h3><p>{content.costs}</p></div>
         <div className="ek-integration-actions"><Button component={Link} to="/support" variant="outlined" startIcon={<SupportAgentRounded />}>Discuss integration</Button>
           <Button component={Link} to={getStartedPath} endIcon={<ArrowForwardRounded />}>Get started</Button></div>
-      </div>
+      </div>}
     </section>
+    {compact && <details className="ek-detail-integration-scope"><summary>What we connect, and what you control</summary>{scope}<p>{content.costs}</p></details>}
   </div>
 }

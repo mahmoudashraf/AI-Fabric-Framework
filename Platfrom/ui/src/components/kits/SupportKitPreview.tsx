@@ -12,6 +12,11 @@ import SendRounded from '@mui/icons-material/SendRounded'
 import { supportExperiencePreviewFixtures } from '../../../../../experience-packs/support-experience/src/preview-fixtures'
 import { KitMark, kitAsset } from './KitIdentity'
 import { kitPreviewFormats, type KitPreviewFormat } from './kitPreviewContent'
+import { KitDeliveryScene } from './KitDetailScenes'
+import WebAssetOutlined from '@mui/icons-material/WebAssetOutlined'
+import DesktopWindowsOutlined from '@mui/icons-material/DesktopWindowsOutlined'
+import OpenInBrowserOutlined from '@mui/icons-material/OpenInBrowserOutlined'
+import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 
 export function supportKitPreviewFixtures({ workspaceName = 'Your support AI', brandColor = '#08695c', ticketingEnabled = true,
   humanSupportEnabled = false, configuration = {} }: { workspaceName?: string; brandColor?: string; ticketingEnabled?: boolean;
@@ -54,7 +59,7 @@ export function SupportKitIllustration({ compact = false, appUrl, layout = 'stan
   </figure>
 }
 
-export function SupportKitExperiencePreview({ name, children, compact = false }: { name: string; children?: ReactNode; compact?: boolean }) {
+export function SupportKitExperiencePreview({ name, children, compact = false, detail = false }: { name: string; children?: ReactNode; compact?: boolean; detail?: boolean }) {
   const [format, setFormat] = useState<KitPreviewFormat>('max')
   const [open, setOpen] = useState(false)
   const [tickets, setTickets] = useState(true)
@@ -64,9 +69,12 @@ export function SupportKitExperiencePreview({ name, children, compact = false }:
   const titleId = useId()
   const show = (next: KitPreviewFormat) => { setFormat(next); setOpen(true) }
   return <>
-    {!compact && <section className="ek-experience-formats" aria-label={`Ways to use ${name}`}><h3>Support on your website or in its own workspace</h3>
+    {!compact && <section className={`ek-experience-formats${detail ? ' ek-detail-formats' : ''}`} aria-label={`Ways to use ${name}`}>
+      {!detail && <h3>Support on your website or in its own workspace</h3>}
       <div className="ek-format-grid">{kitPreviewFormats.map(item => <button type="button" key={item.id} onClick={() => show(item.id)} aria-label={`Preview ${item.label} for ${name}`}>
-        <span className={`ek-format-screen ek-support-format ek-format-${item.id}`} aria-hidden="true"><KitMark product="engage" /><DescriptionOutlined /><ConfirmationNumberOutlined /></span><strong>{item.label}</strong>
+        {detail ? <><span className="ek-detail-format-label">{item.id === 'website' ? <WebAssetOutlined /> : item.id === 'max' ? <DesktopWindowsOutlined /> : <OpenInBrowserOutlined />}{item.label}</span>
+          <KitDeliveryScene kind="support" format={item.id} /><strong>{item.id === 'website' ? 'Help where questions happen' : item.id === 'max' ? 'Work through the details together' : 'A dedicated place for support'}</strong><small>{item.description}<ArrowForwardRounded /></small></>
+          : <><span className={`ek-format-screen ek-support-format ek-format-${item.id}`} aria-hidden="true"><KitMark product="engage" /><DescriptionOutlined /><ConfirmationNumberOutlined /></span><strong>{item.label}</strong></>}
       </button>)}</div>
     </section>}
     <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={compact ? <VisibilityOutlined /> : <OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview support' : 'Preview experience'}</Button></div>

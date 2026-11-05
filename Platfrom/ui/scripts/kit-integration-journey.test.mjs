@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import React from 'react'
@@ -106,7 +106,7 @@ test('real detail pages retain offers, preview, demo, links and responsive light
   t.after(() => browser.close())
   const page = await browser.newPage()
   page.setDefaultTimeout(15_000)
-  const errors = [], calls = []
+  const errors = [], calls = [], observations = []
   page.on('pageerror', error => { errors.push(error.message); console.error(error.message) })
   page.on('response', response => { if (response.status() >= 400) console.error(`${response.status()} ${response.url()}`) })
   await page.route('**/api/**', route => {
@@ -124,7 +124,20 @@ test('real detail pages retain offers, preview, demo, links and responsive light
     await page.getByText(definition.description, { exact: true }).waitFor()
     for (const feature of definition.features) await page.getByText(feature, { exact: true }).waitFor()
     assert.equal(await page.locator('.ek-integration-steps > li').count(), 4)
-    assert.equal(await page.getByRole('link', { name: 'Discuss integration', exact: true }).getAttribute('href'), '/support')
+    const discussionName = definition.code === 'dealership-ai-experience' ? 'Discuss free integration' : 'Discuss integration'
+    assert.equal(await page.getByRole('link', { name: discussionName, exact: true }).first().getAttribute('href'), '/support')
+    assert.equal(await page.locator('.ek-detail-outcome').count(), 3)
+    assert.equal(await page.locator('.ek-detail-products > a').count(), 3)
+    await page.getByText('What we connect, and what you control', { exact: true }).click()
+    await page.getByRole('heading', { name: 'Your business. Connected by our team.', exact: true }).waitFor()
+    await page.getByText('What we connect, and what you control', { exact: true }).click()
+    for (const format of ['Website AI chat', 'Max AI workspace', 'Standalone AI space']) {
+      await page.getByRole('button', { name: `Preview ${format} for ${definition.name}`, exact: true }).click()
+      await page.getByRole('dialog').waitFor()
+      assert.equal(await page.getByRole('dialog').getByRole('button', { name: format, exact: true }).getAttribute('aria-pressed'), 'true')
+      await page.getByRole('button', { name: 'Close preview', exact: true }).click()
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
+    }
     for (const link of await page.getByRole('link', { name: 'Get started', exact: true }).all()) {
       assert.equal(await link.getAttribute('href'), `/sign-up?kit=${definition.code}`)
     }
@@ -132,13 +145,13 @@ test('real detail pages retain offers, preview, demo, links and responsive light
     if (definition.code === 'dealership-ai-experience') {
       for (const copy of ['£500 / month', 'Only pay when value starts', 'First 3 months free', 'Free integration']) assert.ok(detailText.includes(copy), copy)
       assert.match(detailText, /fictional inventory and a simulated AutoTrader integration/)
-      const demo = page.getByRole('link', { name: 'Try demo', exact: true })
+      const demo = page.getByRole('link', { name: 'Try the live demo', exact: true }).first()
       assert.equal(await demo.getAttribute('href'), definition.demoUrl)
       assert.equal(await demo.getAttribute('target'), '_blank')
       assert.equal(await demo.getAttribute('rel'), 'noopener noreferrer')
     } else {
       assert.doesNotMatch(detailText, /£500|Only pay when value starts|First 3 months free|Free integration/)
-      assert.equal(await page.getByRole('link', { name: 'Try demo', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('link', { name: 'Try the live demo', exact: true }).count(), 0)
     }
     await page.getByRole('button', { name: 'Preview experience', exact: true }).click()
     await page.getByRole('dialog').waitFor()
@@ -151,12 +164,30 @@ test('real detail pages retain offers, preview, demo, links and responsive light
       for (const width of [1440, 768, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 })
         const bounds = await page.evaluate(async () => {
+          await document.fonts.ready
+          await Promise.all([...document.images].map(async image => { image.loading = 'eager'; await image.decode().catch(() => {}) }))
+          window.scrollTo(0, 0)
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
           return { viewport: innerWidth, scroll: document.documentElement.scrollWidth,
+            broken: [...document.images].filter(image => !image.complete || !image.naturalWidth).map(image => image.getAttribute('src')),
+            heroBottom: document.querySelector('.ek-detail-hero').getBoundingClientRect().bottom,
+            formats: [...document.querySelectorAll('.ek-detail-formats .ek-format-grid > button')].map(element => {
+              const visual = element.querySelector('.ek-delivery-visual').getBoundingClientRect()
+              const input = element.querySelector('.ek-screen-composer').getBoundingClientRect()
+              return { width: element.getBoundingClientRect().width, y: visual.y, bottom: visual.bottom, inputBottom: input.bottom }
+            }),
             overflowing: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth + 1)
               .map(element => ({ tag: element.tagName, className: element.className, width: element.getBoundingClientRect().width })).slice(0, 12) }
         })
         assert.ok(bounds.scroll <= bounds.viewport, `${definition.code} ${mode} ${width}: ${JSON.stringify(bounds)}`)
+        assert.deepEqual(bounds.broken, [])
+        if (width === 1440) {
+          assert.ok(bounds.heroBottom < 700, JSON.stringify(bounds))
+          assert.ok(Math.max(...bounds.formats.map(format => format.width)) - Math.min(...bounds.formats.map(format => format.width)) < 2, JSON.stringify(bounds))
+          assert.ok(Math.max(...bounds.formats.map(format => format.y)) - Math.min(...bounds.formats.map(format => format.y)) < 2, JSON.stringify(bounds))
+        }
+        assert.ok(bounds.formats.every(format => format.inputBottom <= format.bottom + 1), JSON.stringify(bounds))
+        observations.push({ code: definition.code, mode, width, ...bounds })
         if (width === 1440 || width === 390) await page.screenshot({ path: `${output}/${definition.code}-${mode}-${width}.png`, fullPage: true })
       }
     }
@@ -169,5 +200,7 @@ test('real detail pages retain offers, preview, demo, links and responsive light
   assert.deepEqual(errors, [])
   assert.ok(calls.length >= 6)
   assert.ok(calls.every(call => call.method === 'GET' && call.path === '/api/public/experience-kits'))
+  await writeFile(`${output}/verification.json`, JSON.stringify({ observations, errors, calls,
+    note: 'Actual detail components, synthetic public catalogue and auth flags. No live AI, customer write or deployment qualification.' }, null, 2))
   console.log(`Kit detail screenshots: ${output}`)
 })

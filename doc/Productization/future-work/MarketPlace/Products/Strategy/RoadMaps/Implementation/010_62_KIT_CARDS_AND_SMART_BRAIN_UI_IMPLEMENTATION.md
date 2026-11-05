@@ -166,3 +166,37 @@ Safe evidence: `verification-support/kit-cards-01062/background-colours/`.
 
 The separate request for an improved kit detail page is a visual proposal only;
 no detail-page layout or commercial terms have been changed in this correction.
+
+## Three Kit Detail Pages
+
+The owner approved full implementation of the detail-page proposal for all three
+kits. This follow-up changes presentation only, not kit definitions, runtime
+features, customer configuration, storage, billing or backend contracts.
+
+- A full-width photographic hero for each kit, with a real HTML workspace sample.
+- Business-first value copy: AI-enabled buying for dealerships, an adaptable
+  customer experience for general businesses, and connected guidance/requests
+  for support. No invented performance metrics or partnership assertions.
+- The dealership alone shows three free months, free integration handled by
+  LoomAI's team, GBP500/month and Only pay when value starts. Other kits gain
+  no unapproved commercial terms.
+- Three rich, clickable format examples open their matching existing previews:
+  website chat, Max workspace and standalone space. Preview interactions remain
+  illustrative and cannot submit requests or execute business actions.
+- Kit-specific three-step outcome journeys, optional human support, linked
+  Platform/Engage/Desk product composition and the existing integration process.
+- Original catalogue descriptions/features remain visible. Detailed integration
+  scope and customer choices are retained in an expandable section, not removed.
+- Existing demo URLs, authenticated setup routes, public signup routes, return
+  navigation, theme switching and human/ticket sample controls are preserved.
+
+Three generated fictional photographs are optimized and bundled locally; their
+provenance/prompts are in the product asset README. No customer inventory,
+knowledge, branding or agent profile was changed. The approved image is archived
+with the visual evidence for comparison.
+
+Local production build and focused tests pass, including all three detail pages,
+both themes, four viewport widths, exact-format dialog opening, setup/demo links,
+offer isolation, image/font loading, equal preview geometry and uncropped input
+areas. Catalogue and Support kit setup regressions also pass. Hosted verification
+is pending for this follow-up.
