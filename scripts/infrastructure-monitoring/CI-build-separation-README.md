@@ -125,6 +125,14 @@ Disable the old source-push deployment trigger only when the image updater is
 installed as its replacement; otherwise each push can deploy the previous image
 before CI publishes the new one. The updater never performs this conversion.
 
+File-backed H2/Lucene demos must use single-instance cold replacement. Enable
+Coolify's consistent container-name setting; on the **first** conversion, stop
+the old timestamp-named container explicitly by its exact owned application
+label before starting the new one. Otherwise two JVMs can contend for the same
+database/index file. Keep the original volume and image for rollback. Never
+delete a database or disable file locking to make this work. Verify native
+container health separately after a cold deployment finishes.
+
 The fixed config path is `/etc/loomai/serving-images.json`, root-owned `0600`,
 regular file, not a symlink. Its complete schema is:
 
@@ -156,6 +164,12 @@ The updater performs these bounded actions, sequentially:
 1. Require the existing UUID to be a running `dockerimage` application already
    configured for the exact approved image repository. Source builds, stopped
    apps, other repositories and unknown queue schemas are refused.
+   Installed API responses can redact numeric `id`: after validating the app
+   UUID and image binding, resolve it from that exact app's authenticated
+   `GET /deployments/applications/<uuid>?skip=0&take=1` response. Exactly one
+   latest job with a positive `application_id` is required; empty/invalid history
+   fails closed. Identity must remain consistent across mutation readbacks.
+   This adds no config field, command fallback or mutation permission.
 2. Read the active Coolify deployment queue and skip a busy app. Queue reads,
    not truncated historical pages, establish whether that app is idle.
 3. Fresh-pull its current channel using existing Docker login. Validate OCI
@@ -174,7 +188,8 @@ The updater performs these bounded actions, sequentially:
 
 Only these loopback API paths exist in the client:
 `GET /applications/<uuid>`, `GET /deployments`, bounded
-`GET /deployments/applications/<uuid>?skip=0&take=20`,
+`GET /deployments/applications/<uuid>?skip=0&take=1` for redacted identity,
+`GET /deployments/applications/<uuid>?skip=0&take=20` for uncertain-deploy review,
 `GET /deployments/<uuid>`, image-only `PATCH /applications/<uuid>` and
 `GET /deploy?uuid=<uuid>&force=false` (all under `/api/v1`). Redirects, proxies,
 arbitrary URLs/paths, env/domain/settings writes, create/delete, force builds

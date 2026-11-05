@@ -121,7 +121,7 @@ class Coolify:
         read = method == 'GET' and (
             re.fullmatch('/applications/' + UUID, path)
             or re.fullmatch('/deployments/' + UUID, path)
-            or re.fullmatch('/deployments/applications/' + UUID + r'\?skip=0&take=20', path)
+            or re.fullmatch('/deployments/applications/' + UUID + r'\?skip=0&take=(1|20)', path)
             or path == '/deployments'
             or re.fullmatch('/deploy' + r'\?uuid=' + UUID + '&force=false', path)
         )
@@ -158,10 +158,12 @@ class Coolify:
     def queue(self):
         return self._request('GET', '/deployments')
 
-    def history(self, uuid):
-        result = self._request('GET', '/deployments/applications/' + uuid + '?skip=0&take=20')
+    def history(self, uuid, take=20):
+        if type(take) is not int or take not in (1, 20):
+            raise UpdateError('api-operation-denied')
+        result = self._request('GET', '/deployments/applications/' + uuid + '?skip=0&take=' + str(take))
         if (not isinstance(result, dict) or not isinstance(result.get('count'), int)
-                or not isinstance(result.get('deployments'), list) or len(result['deployments']) > 20
+                or not isinstance(result.get('deployments'), list) or len(result['deployments']) > take
                 or result['count'] < len(result['deployments'])):
             raise UpdateError('deployment-history-unavailable')
         return result['deployments']
@@ -273,10 +275,30 @@ class State:
 def check_app(value, app):
     if (not isinstance(value, dict) or value.get('uuid') != app['appUuid']
             or value.get('build_pack') != 'dockerimage' or value.get('docker_registry_image_name') != app['image']
-            or not isinstance(value.get('docker_registry_image_tag'), str) or not str(value.get('id', '')).isdigit()
+            or not isinstance(value.get('docker_registry_image_tag'), str)
             or value.get('status') not in {'running', 'running:healthy', 'running:unhealthy', 'running:unknown'}):
         raise UpdateError('existing-running-image-app-required')
     return value['docker_registry_image_tag']
+
+
+def read_app(app, api, expected_id=None):
+    value = api.app(app['appUuid'])
+    check_app(value, app)
+    identity = value.get('id')
+    if identity is None:
+        # The authenticated own-app history binds the redacted numeric queue identity.
+        jobs = api.history(app['appUuid'], take=1)
+        if (not isinstance(jobs, list) or len(jobs) != 1 or not isinstance(jobs[0], dict)
+                or jobs[0].get('application_uuid', app['appUuid']) != app['appUuid']):
+            raise UpdateError('application-identity-unavailable')
+        identity = jobs[0].get('application_id')
+    if (isinstance(identity, bool) or not isinstance(identity, (int, str))
+            or not re.fullmatch(r'[1-9][0-9]*', str(identity))):
+        raise UpdateError('application-identity-unavailable')
+    identity = int(identity)
+    if expected_id is not None and identity != expected_id:
+        raise UpdateError('application-identity-mismatch')
+    return dict(value, id=identity)
 
 
 def is_busy(queue, value):
@@ -292,10 +314,10 @@ def is_busy(queue, value):
     return False
 
 
-def trigger(app, receipt, api, state, apply):
+def trigger(app, receipt, api, state, apply, application_id):
     if not apply:
         return 'pending-deploy-check-only'
-    fresh = api.app(app['appUuid'])
+    fresh = read_app(app, api, application_id)
     if check_app(fresh, app) != receipt['tag']:
         raise UpdateError('pending-image-readback-mismatch')
     if is_busy(api.queue(), fresh):
@@ -336,7 +358,7 @@ def reconcile(app, value, receipt, api, docker, state, apply):
         candidate = docker.candidate(app)
         if any(candidate[key] != receipt[key] for key in ('image', 'tag', 'digest')):
             return 'pending-channel-changed-needs-review'
-        return trigger(app, receipt, api, state, apply)
+        return trigger(app, receipt, api, state, apply, value['id'])
     if phase != 'deploy':
         raise UpdateError('invalid-mutation-phase')
     deployment = receipt.get('deployment')
@@ -356,7 +378,7 @@ def reconcile(app, value, receipt, api, docker, state, apply):
 
 
 def update_one(app, api, docker, state, apply):
-    value = api.app(app['appUuid'])
+    value = read_app(app, api)
     tag = check_app(value, app)
     receipt = state.get(app['appUuid'])
     if receipt and receipt.get('phase') != 'done':
@@ -368,7 +390,7 @@ def update_one(app, api, docker, state, apply):
         return 'already-current'
     if not apply:
         return 'update-available-check-only'
-    fresh = api.app(app['appUuid'])
+    fresh = read_app(app, api, value['id'])
     if check_app(fresh, app) != tag:
         return 'app-changed-during-pull'
     if is_busy(api.queue(), fresh):
@@ -377,13 +399,13 @@ def update_one(app, api, docker, state, apply):
     state.put(app['appUuid'], receipt)
     try:
         api.patch_image(app['appUuid'], candidate['image'], candidate['tag'])
-        if check_app(api.app(app['appUuid']), app) != candidate['tag']:
+        if check_app(read_app(app, api, value['id']), app) != candidate['tag']:
             raise UpdateError('patch-readback-mismatch')
         receipt = dict(receipt, phase='ready')
         state.put(app['appUuid'], receipt)
     except Exception:
         raise UpdateError('uncertain-patch-readback-next-tick') from None
-    return trigger(app, receipt, api, state, apply)
+    return trigger(app, receipt, api, state, apply, value['id'])
 
 
 def tick(config, api, docker, state, budget, apply=False, log=print):

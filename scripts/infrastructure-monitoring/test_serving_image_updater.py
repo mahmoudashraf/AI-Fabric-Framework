@@ -58,6 +58,7 @@ class FakeAPI:
         self.state = state
         self.calls = []
         self.jobs = []
+        self.history_jobs = [{'application_id': 123}]
         self.status = 'finished'
         self.patch_failure = False
         self.deploy_failure = False
@@ -73,9 +74,9 @@ class FakeAPI:
         self.calls.append(('queue',))
         return copy.deepcopy(self.jobs)
 
-    def history(self, uuid):
-        self.calls.append(('history', uuid))
-        return []
+    def history(self, uuid, take=20):
+        self.calls.append(('history', uuid, take))
+        return copy.deepcopy(self.history_jobs) if take == 1 else []
 
     def patch_image(self, uuid, image, tag):
         assert self.state.get(uuid)['phase'] == 'patch', 'mutation before durable patch intent'
@@ -242,6 +243,20 @@ class PortTests(unittest.TestCase):
         with self.assertRaises(updater.UpdateError):
             api.history('demo-1')
 
+    def test_identity_history_uses_only_fixed_authenticated_take_one_path(self):
+        api, calls = self.connection({'count': 42, 'deployments': [{'application_id': 123}]})
+        self.assertEqual(api.history(BINDING['appUuid'], take=1), [{'application_id': 123}])
+        self.assertEqual(calls[1][1][:2], (
+            'GET', '/api/v1/deployments/applications/' + BINDING['appUuid'] + '?skip=0&take=1'))
+        self.assertEqual(calls[1][2]['headers']['Authorization'], 'Bearer private-test-token')
+        before = len(calls)
+        with self.assertRaises(updater.UpdateError):
+            api.history(BINDING['appUuid'], take=2)
+        self.assertEqual(len(calls), before)
+        api, _ = self.connection({'count': 2, 'deployments': [{'application_id': 123}] * 2})
+        with self.assertRaises(updater.UpdateError):
+            api.history(BINDING['appUuid'], take=1)
+
     def test_docker_only_pulls_and_inspects_sequentially_and_uses_existing_login(self):
         fake = FakeDocker(updater.Budget())
         self.assertEqual(fake.port.candidate(BINDING), {'image': BINDING['image'], 'tag': TAG, 'digest': DIGEST})
@@ -309,6 +324,68 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(self.tick(apply=False), 0)
         self.assertEqual(self.mutations(), [])
         self.assertEqual(self.state.writes, [])
+
+    def test_redacted_app_get_resolves_own_identity_then_current_is_noop(self):
+        self.api.value.pop('id')
+        self.api.value['docker_registry_image_tag'] = TAG
+        self.assertEqual(self.tick(), 0)
+        self.assertEqual(self.api.calls[:3], [
+            ('app', BINDING['appUuid']), ('history', BINDING['appUuid'], 1), ('queue',)])
+        self.assertNotIn('id', self.api.value)
+        self.assertEqual(self.mutations(), [])
+        self.assertIn('already-current', self.logs[-1])
+
+    def test_redacted_app_get_uses_resolved_id_to_skip_busy_app(self):
+        self.api.value.pop('id')
+        self.api.jobs = [{'application_id': '123', 'status': 'in_progress'}]
+        self.assertEqual(self.tick(), 0)
+        self.assertEqual(self.docker.calls, [])
+        self.assertEqual(self.mutations(), [])
+        self.assertIn('busy', self.logs[-1])
+
+    def test_redacted_app_get_supports_image_patch_deploy_and_job_readback(self):
+        self.api.value.pop('id')
+        self.assertEqual(self.tick(), 0)
+        self.assertEqual(len(self.mutations()), 2)
+        self.assertEqual(sum(call == ('history', BINDING['appUuid'], 1) for call in self.api.calls), 4)
+        self.assertEqual(self.tick(), 0)
+        self.assertEqual(self.state.get(BINDING['appUuid'])['phase'], 'done')
+        self.assertEqual(self.tick(), 0)
+        self.assertEqual(len(self.mutations()), 2)
+
+    def test_identity_resolution_validates_uuid_before_any_history_read(self):
+        self.api.value.pop('id')
+        self.api.value['uuid'] = 'another-app'
+        self.assertEqual(self.tick(), 1)
+        self.assertEqual(self.api.calls, [('app', BINDING['appUuid'])])
+        self.assertEqual(self.mutations(), [])
+
+    def test_redacted_identity_requires_one_positive_own_app_history_job(self):
+        self.api.value.pop('id')
+        for jobs in [[], [{'application_id': 0}], [{'application_id': -1}], [{}],
+                     [{'application_id': True}], [{'application_id': 123}, {'application_id': 123}],
+                     [{'application_id': 123, 'application_uuid': 'another-app'}]]:
+            self.api.history_jobs = jobs
+            with self.subTest(jobs=jobs):
+                self.assertEqual(self.tick(), 1)
+        self.assertEqual(self.mutations(), [])
+        self.assertEqual(self.docker.calls, [])
+        self.assertFalse(any(call[0] == 'queue' for call in self.api.calls))
+
+    def test_resolved_identity_mismatch_on_readback_prevents_patch(self):
+        self.api.value.pop('id')
+        self.docker.after_pull = lambda: setattr(self.api, 'history_jobs', [{'application_id': 999}])
+        self.assertEqual(self.tick(), 1)
+        self.assertEqual(self.mutations(), [])
+        self.assertIn('application-identity-mismatch', self.logs[-1])
+
+    def test_redacted_identity_keeps_take_twenty_review_without_deploy_replay(self):
+        self.api.value.pop('id')
+        self.api.deploy_failure = True
+        self.assertEqual(self.tick(), 1)
+        self.assertEqual(self.tick(), 1)
+        self.assertIn(('history', BINDING['appUuid'], 20), self.api.calls)
+        self.assertEqual(len(self.mutations()), 2)
 
     def test_busy_queue_skips_without_pulling_or_mutating(self):
         self.api.jobs = [{'application_id': 123, 'status': 'in_progress'}]

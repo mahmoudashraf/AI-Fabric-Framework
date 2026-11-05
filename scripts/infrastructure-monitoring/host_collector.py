@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import re
+import resource
 import shutil
 import stat
 import subprocess
@@ -182,6 +183,8 @@ def resource_snapshot(inspected, stats, previous, now):
     quota = inspected["nanoCpus"] / 1_000_000_000 if inspected["nanoCpus"] > 0 else None
     if quota is None and inspected["cpuQuota"] > 0 and inspected["cpuPeriod"] > 0:
         quota = inspected["cpuQuota"] / inspected["cpuPeriod"]
+    if quota is None:
+        quota = 0  # The inspected Docker configuration explicitly has no CPU quota.
     row = {"resourceId": identifier, "name": name[:180], "image": inspected["image"][:300],
            "providerResourceId": provider_id, "providerKind": provider_type,
            "role": role(name, inspected["image"]), "startedAt": inspected["startedAt"],
@@ -280,8 +283,14 @@ def main():
             os.replace(name, state_path)
         finally:
             if os.path.exists(name): os.unlink(name)
+        own = resource.getrusage(resource.RUSAGE_SELF)
+        children = resource.getrusage(resource.RUSAGE_CHILDREN)
         print(json.dumps({"status": "DELIVERED", "serverId": sample["serverId"], "observedAt": sample["observedAt"],
-                          "resources": len(sample["resources"]), "complete": sample["complete"]}))
+                          "resources": len(sample["resources"]), "complete": sample["complete"],
+                          "collectorPeakRssBytes": own.ru_maxrss * 1024,
+                          "childPeakRssBytes": children.ru_maxrss * 1024,
+                          "processCpuSeconds": own.ru_utime + own.ru_stime,
+                          "childCpuSeconds": children.ru_utime + children.ru_stime}))
         return 0
     except Exception as error:
         # Do not print request objects, provider output or configuration containing credentials.
