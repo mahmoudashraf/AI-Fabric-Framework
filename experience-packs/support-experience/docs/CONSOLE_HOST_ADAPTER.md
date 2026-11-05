@@ -22,6 +22,34 @@ the [Desk requester contract](../../../product-services/loomai-desk-service/SUPP
 defines the server wire API. Generated bundles are build outputs, not evidence
 that an installation is active.
 
+## Docked Input And Max View
+
+Trusted hosts can opt into the existing companion input, rather than embedding
+an always-open Max view inside a small floating support page:
+
+```ts
+widgetConfig: { host: { companionDock: true } },
+presentation: { mode: 'docked', container: viewportContainer },
+```
+
+`viewportContainer` is a connected, host-owned layout region covering the space
+available to the workspace. The integrity-checked frame host must support
+`setContentClipping`: it clips the collapsed/expanded input dock so transparent
+iframe space does not intercept clicks on the host page. Max view and handover
+dialogs use the full region. This is presentation isolation, not a new auth path.
+
+Switch with `controller.setPresentation('page', pageContainer)` for the dedicated
+support page, and back to `docked` for ordinary pages. Reuse one controller and
+frame; do not remount on navigation or theme changes. The engine retains the
+conversation, attachments and unsent chat draft. Default page/widget/standalone
+mounts do not opt into companion input automatically.
+
+Console uses the Clarity preset with a teal accent and the current Console color
+scheme. Its dedicated Support page retains the assigned roster, request form,
+My Requests, diagnostics and ticket lifecycle. Ordinary Console pages show only
+the native input dock plus small support-page/move/minimize controls. Forms and
+request navigation return to the Support page; they do not create a second chat.
+
 ## Choose An Explicit Identity/Transport Mode
 
 For supported direct Supabase installations, the standard installer consumes

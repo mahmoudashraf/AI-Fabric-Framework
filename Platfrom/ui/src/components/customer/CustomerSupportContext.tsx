@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../../auth/customerSession'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { SupportExperienceController } from '../../../../../experience-packs/support-experience/src/types'
 
 type Preferences = { requestId: string | null; side: 'left' | 'right'; minimized: boolean }
@@ -31,6 +32,8 @@ export function CustomerSupportProvider({ children }: { children: ReactNode }) {
 }
 
 function ScopedCustomerSupportProvider({ children, customerId, actorId, subject }: { children: ReactNode; customerId: string; actorId: string; subject: string }) {
+  const location = useLocation()
+  const navigate = useNavigate()
   const key = `loomai:console:support-kit:${customerId}:${actorId}:${subject || actorId}`
   const [settings, setSettings] = useState(() => preferences(key))
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
@@ -56,7 +59,10 @@ function ScopedCustomerSupportProvider({ children, customerId, actorId, subject 
   const show = useCallback((view: View) => {
     setSettings(value => ({ ...value, minimized: false }))
     applyView(view)
-  }, [applyView])
+    if (view.kind !== 'chat' && !location.pathname.startsWith('/support')) {
+      navigate(view.kind === 'request' ? `/support/${encodeURIComponent(view.id)}` : view.kind === 'form' ? '/support?new=1' : '/support/requests')
+    }
+  }, [applyView, location.pathname, navigate])
   const openChat = useCallback(() => show({ kind: 'chat' }), [show])
   const showRequests = useCallback(() => show({ kind: 'requests' }), [show])
   const openRequestForm = useCallback(() => show({ kind: 'form' }), [show])

@@ -79,8 +79,8 @@ export function CompanionDock({
       className="max-mode-companion-dock fixed z-[2147483645] -translate-x-1/2 pointer-events-auto text-gray-950 dark:text-gray-100"
     >
       {expanded && (
-        <div data-mxw-dock-conversation className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)] bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
-          <div className="flex items-center justify-between gap-4 border-b border-gray-200/80 bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.05)] px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
+        <div data-mxw-dock-conversation className="mb-0 flex min-h-0 flex-col overflow-hidden rounded-t-[1.35rem] border border-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)] bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
+          <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-gray-200/80 bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.05)] px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.1)] text-primary ring-1 ring-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)]">
                 <AssistantBrandMark
@@ -122,9 +122,9 @@ export function CompanionDock({
             </div>
           </div>
 
-          <div className="max-h-[min(46vh,28rem)] min-h-[18rem] overflow-hidden bg-white dark:bg-gray-950">
+          <div className="h-[min(46vh,28rem)] min-h-0 overflow-hidden bg-white dark:bg-gray-950">
             {controller.chatMessages.length === 0 && !controller.isLoading ? (
-              <div className="flex h-full min-h-[18rem] flex-col items-center justify-center px-6 text-center">
+              <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
                 <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-200 text-gray-400 shadow-sm dark:border-gray-800">
                   <MessageCircle className="h-7 w-7" />
                 </div>
@@ -135,7 +135,7 @@ export function CompanionDock({
               </div>
             ) : (
               <MessageList
-                containerClassName="h-[min(46vh,28rem)] overflow-y-auto px-4 py-5"
+                containerClassName="h-full overflow-y-auto px-4 py-5"
                 messages={controller.chatMessages}
                 latestMessageRef={controller.latestMessageRef}
                 messagesEndRef={controller.messagesEndRef}
@@ -196,7 +196,7 @@ export function CompanionDock({
       )}
 
       <div
-        className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950"
+        className="flex-shrink-0 rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950"
         data-max-mode-companion-input-shell
       >
         {controller.handoverEnabled && (
@@ -222,7 +222,7 @@ export function CompanionDock({
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
               Assist
             </span>
-            <span className="rounded-full bg-green-700 px-3 py-1 text-xs font-bold text-white">
+            <span data-mxw-position-label className="rounded-full bg-green-700 px-3 py-1 text-xs font-bold text-white">
               {positionLabel(controller.currentPosition)}
             </span>
           </div>
@@ -264,7 +264,7 @@ export function CompanionDock({
                 submit();
               }
             }}
-            className="min-h-14 flex-1 resize-none rounded-[1.15rem] border border-gray-200 bg-white px-4 py-4 text-base leading-relaxed text-gray-800 shadow-inner outline-none placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+            className="min-h-14 min-w-0 flex-1 resize-none rounded-[1.15rem] border border-gray-200 bg-white px-4 py-4 text-base leading-relaxed text-gray-800 shadow-inner outline-none placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
             style={{
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',

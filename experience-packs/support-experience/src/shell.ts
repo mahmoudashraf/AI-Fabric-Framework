@@ -117,6 +117,7 @@ export class SupportShell {
     if (state.view === 'detail' && state.request) this.renderDetail(state)
   }
   render(state: SupportExperienceState) {
+    ;(this.shadow.querySelector('.shell') as HTMLElement).dataset.view = state.view
     this.form.hidden = state.view !== 'form'
     const hasPanel = state.view === 'requests' || state.view === 'detail'
     this.panel.hidden = !hasPanel

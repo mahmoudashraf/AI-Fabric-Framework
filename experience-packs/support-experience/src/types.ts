@@ -1,4 +1,4 @@
-export type SupportPresentationMode = 'widget' | 'page' | 'standalone'
+export type SupportPresentationMode = 'widget' | 'page' | 'standalone' | 'docked'
 export type RequestStatus = 'OPEN' | 'RESOLVED' | 'CANCELLED'
 export type RequestTransition = 'resolve' | 'cancel' | 'reopen'
 export type DeliveryObservation = 'PENDING' | 'IN_FLIGHT' | 'DELIVERED' | 'UNKNOWN' | 'NOT_REQUIRED'
@@ -114,7 +114,7 @@ export interface SupportChatApi {
   setTheme?(theme: SupportExperienceConfig['theme']): void
   setReadOnly?(readOnly: boolean): void
 }
-export interface SupportWorkspaceFrame { setTarget(element: HTMLElement | null): void; destroy(): void }
+export interface SupportWorkspaceFrame { setTarget(element: HTMLElement | null): void; setContentClipping?(enabled: boolean): void; destroy(): void }
 export interface SupportRuntimeBootstrap {
   widgetConfig: Record<string, any>
   hostSession?: { namespace: string; accountKey: string }

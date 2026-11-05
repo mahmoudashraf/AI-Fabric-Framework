@@ -33,12 +33,15 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
   let container = context.presentation?.container
   let selector = context.presentation?.containerSelector
   let mode: SupportPresentationMode = context.presentation?.mode ?? (context.deliveryMode === 'standalone' ? 'standalone' : 'widget')
-  if (mode === 'page' && (!container?.isConnected || container === document.body || container === document.documentElement)) {
+  const dockEnabled = mode === 'docked' || context.widgetConfig.host?.companionDock === true
+  if (mode === 'docked' && !context.workspaceFrame.setContentClipping) throw new Error('Docked support requires a content-clipped workspace frame.')
+  if (['page', 'docked'].includes(mode) && (!container?.isConnected || container === document.body || container === document.documentElement)) {
     throw new Error('Page presentation requires a connected local container.')
   }
   const ensureActive = () => { if (destroyed) throw new Error('This support experience has been destroyed.') }
   const layout = () => {
     if (destroyed) return
+    context.workspaceFrame.setContentClipping?.(mode === 'docked' && store.getState().view === 'chat')
     context.workspaceFrame.setTarget(shell.chatVisible() ? shell.chatSlot : null)
   }
   const initializeChat = (bootstrap: SupportRuntimeBootstrap) => {
@@ -55,7 +58,8 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
         starterSuggestions: p.starterSuggestions, companionPlaceholder: p.placeholder,
         companionEmptyMessage: config.copy?.emptyMessage, toolGroups: config.toolGroups, toolRail: config.toolRail,
         defaultConversationMode: 'executor', effectiveConversationMode: 'executor', allowedConversationModes: ['executor'],
-        showUtilityPanel: false, showCloseButton: false, companionDock: false,
+        showUtilityPanel: false, showCloseButton: dockEnabled, companionDock: dockEnabled,
+        companionContextLabel: p.assistantLabel, companionModeLabel: 'Support assistant',
         requestContext: { ...config.requestContext, workspaceInstallationId: context.installationId, assignmentRevision: context.assignmentRevision },
         currentPageAttachment: p.currentPage && p.attachments ? { enabled: true, invalidateOnNavigation: false, contentProvider: () => ({
           title: document.title, url: location.href,
@@ -77,7 +81,8 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
         hostSession: widgetConfig.hostSession, readOnly: widgetConfig.host.readOnly })
     }
     runtimeConfig = widgetConfig
-    context.maxMode.open()
+    if (mode === 'docked') context.maxMode.close()
+    else context.maxMode.open()
     layout()
   }
   function fromWorkspace(bootstrap: SupportWorkspaceBootstrap): SupportRuntimeBootstrap {
@@ -144,7 +149,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     if (['DELIVERED', 'NOT_REQUIRED'].includes(request.conversation?.delivery ?? '')) await openEpisode(request, undefined, true)
   }
   const shell = new SupportShell(config, store, {
-    chat: () => { ensureActive(); shell.setExpanded(true); store.update({ view: 'chat' }); if (initialized) context.maxMode.open() },
+    chat: () => { ensureActive(); shell.setExpanded(true); store.update({ view: 'chat' }); if (initialized) { if (mode === 'docked') context.maxMode.close(); else context.maxMode.open() } },
     submit: input => { void store.run(async () => {
       const request = await store.create(input)
       ensureActive(); shell.clearForm(); host.onRequestSelected?.(request)
@@ -182,7 +187,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
   }, { ...host, requestSignIn: host.requestSignIn ?? context.credentials?.requestSignIn })
   const place = () => {
     if (destroyed) return
-    if (mode === 'page') {
+    if (mode === 'page' || mode === 'docked') {
       const current = selector ? document.getElementById(selector.slice(1)) : container
       if (current?.isConnected) {
         container = current
@@ -226,12 +231,15 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     installationId: context.installationId,
     setPresentation(next, nextContainer) {
       ensureActive()
-      if (!['widget', 'page', 'standalone'].includes(next)) throw new Error('Unsupported support presentation.')
-      if (next === 'page' && (!nextContainer || !nextContainer.isConnected || nextContainer === document.body || nextContainer === document.documentElement)) {
+      if (!['widget', 'page', 'standalone', 'docked'].includes(next)) throw new Error('Unsupported support presentation.')
+      if (next === 'docked' && !dockEnabled) throw new Error('Enable host.companionDock when mounting a dock-capable support workspace.')
+      if (next === 'docked' && !context.workspaceFrame.setContentClipping) throw new Error('Docked support requires a content-clipped workspace frame.')
+      if (['page', 'docked'].includes(next) && (!nextContainer || !nextContainer.isConnected || nextContainer === document.body || nextContainer === document.documentElement)) {
         throw new Error('Page presentation requires a connected local container.')
       }
       mode = next; container = nextContainer; selector = nextContainer?.id ? `#${nextContainer.id}` : undefined
       shell.setMode(mode); store.update({ presentation: mode }); place()
+      if (initialized) { if (mode === 'docked') context.maxMode.close(); else context.maxMode.open() }
     },
     setVisible(visible) { ensureActive(); hostVisible = visible; place() },
     setTheme(mode) {
@@ -244,7 +252,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
         context.maxMode.setTheme(theme)
       }
     },
-    openChat() { ensureActive(); hostVisible = true; shell.setExpanded(true); store.update({ view: 'chat' }); place(); if (initialized) context.maxMode.open() },
+    openChat() { ensureActive(); hostVisible = true; shell.setExpanded(true); store.update({ view: 'chat' }); place(); if (initialized) { if (mode === 'docked') context.maxMode.close(); else context.maxMode.open() } },
     openRequestForm() { ensureActive(); if (p.tickets) shell.showForm() },
     async showRequests() { ensureActive(); if (!p.tickets) return; shell.setExpanded(true); store.update({ view: 'requests' }); await store.run(() => store.list()) },
     async openRequest(id) { ensureActive(); if (!p.tickets) return; shell.setExpanded(true); await store.run(() => selectRequest(id)) },
@@ -278,7 +286,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
       if (host.fetchWorkspace) {
         const bootstrap = fromWorkspace(await host.fetchWorkspace())
         ensureActive(); initializeChat(bootstrap)
-        if (bootstrap.conversationId) await context.maxMode.openConversation(bootstrap.conversationId)
+        if (bootstrap.conversationId) await context.maxMode.openConversation(bootstrap.conversationId, { open: mode !== 'docked' })
         host.onRequestSelected?.(null)
       } else if (context.widgetConfig.apiConfig?.chatBaseUrl) initializeChat({ widgetConfig: context.widgetConfig, hostSession: context.hostSession })
     } catch (error) {

@@ -4,6 +4,54 @@ import { mkdir } from 'node:fs/promises'
 import { chromium } from '../../../max-mode-widget/node_modules/playwright/index.mjs'
 import { startPreview } from '../scripts/preview-server.mjs'
 
+test('docked support uses the real companion input, leaves the host clickable and retains its frame across Max/page changes', { timeout: 90000 }, async () => {
+  const fixture = await startPreview()
+  const browser = await chromium.launch({ headless: true })
+  try {
+    for (const viewport of [{ width: 1360, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
+      const page = await browser.newPage({ viewport })
+      await page.goto(fixture.url + '?docked=true&handover=true&intake=true')
+      await page.waitForFunction(() => window.fixtureReady && !window.controller.getState().busy)
+      const frameElement = page.locator('iframe[data-loomai-workspace-frame]')
+      const frame = page.frameLocator('iframe[data-loomai-workspace-frame]')
+      const dock = frame.locator('.max-mode-companion-dock')
+      await dock.waitFor()
+      assert.equal(await frame.locator('[data-max-mode-view]').count(), 0)
+      const original = await frameElement.elementHandle()
+      await page.evaluate(() => {
+        const button = document.createElement('button'); button.textContent = 'Host page action'; button.style.cssText = 'position:fixed;top:140px;left:40px';
+        button.onclick = () => { window.hostClicked = true }; document.body.append(button)
+      })
+      await page.getByRole('button', { name: 'Host page action', exact: true }).click()
+      assert.equal(await page.evaluate(() => window.hostClicked), true)
+      await dock.locator('textarea').fill('Preserve this support draft')
+      await dock.locator('[data-mxw-open-max]').click()
+      await frame.locator('[data-max-mode-view]').waitFor()
+      assert.equal(await frame.locator('textarea').inputValue(), 'Preserve this support draft')
+      await page.evaluate(() => window.fixtureFrame.maxMode.close())
+      await dock.waitFor()
+      await page.evaluate(() => window.controller.setPresentation('page', document.getElementById('support-preview')))
+      await frame.locator('[data-max-mode-view]').waitFor()
+      await page.getByRole('button', { name: 'Request help', exact: true }).click()
+      await page.getByLabel('Subject', { exact: true }).fill('Preserved request draft')
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await page.evaluate(() => window.controller.setPresentation('docked', document.getElementById('support-preview')))
+      await dock.waitFor()
+      assert.equal(await frame.locator('textarea').inputValue(), 'Preserve this support draft')
+      assert.ok(await original.evaluate(el => el.isConnected))
+      assert.equal(await page.locator('iframe[data-loomai-workspace-frame]').count(), 1)
+      await dock.locator('textarea').focus()
+      await dock.getByRole('button', { name: 'Talk to a person', exact: true }).click()
+      await frame.getByRole('dialog').waitFor()
+      const rect = await frame.getByRole('dialog').boundingBox()
+      assert.ok(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= viewport.width + 1)
+      await frame.getByRole('button', { name: 'Close human support panel', exact: true }).click()
+      assert.equal(await frame.locator('body').evaluate(el => el.scrollWidth > innerWidth), false)
+      await page.close()
+    }
+  } finally { await browser.close(); await fixture.close() }
+})
+
 test('standalone stays full-screen above an existing startup shell and keeps mobile composer reachable', { timeout: 45000 }, async () => {
   const fixture = await startPreview()
   const browser = await chromium.launch({ headless: true })

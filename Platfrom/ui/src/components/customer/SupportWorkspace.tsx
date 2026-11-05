@@ -27,7 +27,7 @@ function approvedBootstrap(value: ConsoleSupportWorkspaceBootstrap, requestId?: 
 }
 
 /** One real pack controller and one isolated chat frame for the signed-in owner, independent of routes. */
-export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: number }) {
+export function SupportWorkspace({ visible, layer, presentation = 'page' }: { visible: boolean; layer: number; presentation?: 'page' | 'docked' }) {
   const container = useRef<HTMLDivElement>(null)
   const auth = usePlatformAuth()
   const latestAuth = useRef(auth); latestAuth.current = auth
@@ -37,6 +37,7 @@ export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: 
   const latestTheme = useRef(dark); latestTheme.current = dark
   const latestVisibility = useRef(visible); latestVisibility.current = visible
   const latestLayer = useRef(layer); latestLayer.current = layer
+  const latestPresentation = useRef(presentation); latestPresentation.current = presentation
   const workspaceFrame = useRef<IsolatedFrameHost<SupportChatApi> | null>(null)
   const current = useRef<SupportExperienceController | null>(null)
   const [ready, setReady] = useState(false)
@@ -90,12 +91,13 @@ export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: 
       const context: SupportMountContext = {
         installationId: initial.installationId, assignmentRevision: initial.assignmentRevision,
         deliveryMode: 'embedded', connectionMode: 'backend-mediated-private-runtime',
-        configuration: { ...initial.configuration, theme: { ...(initial.configuration.theme as object), darkMode: latestTheme.current } },
+        configuration: { ...initial.configuration, theme: { ...(initial.configuration.theme as object), stylePreset: 'clarity', primaryColor: '#16776c', darkMode: latestTheme.current } },
         widgetConfig: { storageNamespace: `${initial.installationId}:${initial.assignmentRevision}:${identity}`,
+          host: { companionDock: true },
           features: { cart: false, debug: false, conversations: false } },
         hostSession: { namespace: initial.principalNamespace, accountKey: identity },
         maxMode: frame.maxMode, workspaceFrame: frame,
-        presentation: { mode: 'page', container: container.current! },
+        presentation: { mode: latestPresentation.current, container: container.current! },
         credentials: { getIdentityAccessToken: token, getIdentity: () => {
           try { assertOwner(); return { status: 'authenticated', subjectKey: identity } }
           catch { return { status: 'anonymous' } }
@@ -108,6 +110,7 @@ export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: 
       mounted = await mountInstallation(context)
       if (!active) { mounted.destroy(); adapter.destroy(); return }
       current.current = mounted
+      mounted.setPresentation(latestPresentation.current, container.current!)
       mounted.setVisible(latestVisibility.current)
       mounted.setTheme(latestTheme.current ? 'dark' : 'light')
       let attached = false
@@ -128,7 +131,8 @@ export function SupportWorkspace({ visible, layer }: { visible: boolean; layer: 
   useEffect(() => { current.current?.setVisible(visible) }, [visible])
   useEffect(() => { current.current?.setTheme(dark ? 'dark' : 'light') }, [dark])
   useEffect(() => { workspaceFrame.current?.setLayer(layer) }, [layer])
-  return <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+  useEffect(() => { if (container.current) current.current?.setPresentation(presentation, container.current) }, [presentation])
+  return <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, '& .MuiAlert-root': { pointerEvents: 'auto' } }}>
     {error && <Alert severity="warning" action={<IconButton aria-label="Reload support workspace" size="small" onClick={() => setRetry(value => value + 1)}><RefreshRounded fontSize="small" /></IconButton>}>{error}</Alert>}
     {!ready && !error && <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 2 }}><CircularProgress size={16} /><Typography variant="body2">Opening support...</Typography></Stack>}
     <Box id="console-support-experience" ref={container} sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', '& > [data-loomai-support]': { flex: 1, minHeight: 0, minWidth: 0, width: '100%' } }} />

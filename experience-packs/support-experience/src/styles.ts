@@ -29,4 +29,13 @@ export const supportStyles = `
 .notification-toggle{flex-direction:row;align-items:center;gap:8px;min-height:32px}
 .notification-toggle input{flex:0 0 16px;width:16px;height:16px;padding:0;margin:0;accent-color:var(--support-accent)}
 ${enhancedSupportStyles}
+:host(.docked){display:flex;flex-direction:column;height:100%;min-height:0;pointer-events:none}
+:host(.docked) .shell{flex:1;height:100%;min-height:0}
+:host(.docked) .columns,:host(.docked) .chat{min-height:0;flex:1}
+:host(.docked) .shell[data-view=chat]{border:0;background:transparent;overflow:visible}
+:host(.docked) .shell[data-view=chat]>.header,:host(.docked) .shell[data-view=chat]>.team,:host(.docked) .shell[data-view=chat]>.footer{display:none}
+:host(.docked) .shell[data-view=chat]>.message:not(.error){display:none}
+:host(.docked) .shell:not([data-view=chat]){pointer-events:auto}
+:host(.docked) .message{pointer-events:auto}
+:host(.docked) .panel{min-height:0;max-height:100%;overflow:auto}
 `

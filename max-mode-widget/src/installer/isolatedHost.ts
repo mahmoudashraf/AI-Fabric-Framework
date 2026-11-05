@@ -7,6 +7,8 @@ export interface IsolatedFrameHost<T extends IsolatedFrameEngine> {
   maxMode: T;
   setTarget(element: HTMLElement | null): void;
   setLayer(layer: number): void;
+  /** Clip a docked frame to its visible widget surface so the host page stays clickable. */
+  setContentClipping(enabled: boolean): void;
   destroy(): void;
 }
 
@@ -47,6 +49,7 @@ export async function createIsolatedWorkspaceHost<T extends IsolatedFrameEngine 
   let target: HTMLElement | null = null;
   let animation = 0;
   let destroyed = false;
+  let contentClipping = false;
   const update = () => {
     if (destroyed) return;
     if (!target?.isConnected) frame.style.display = 'none';
@@ -55,13 +58,27 @@ export async function createIsolatedWorkspaceHost<T extends IsolatedFrameEngine 
       frame.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none';
       frame.style.left = `${rect.left}px`; frame.style.top = `${rect.top}px`;
       frame.style.width = `${rect.width}px`; frame.style.height = `${rect.height}px`;
-      frame.style.clipPath = `inset(${Math.max(0, -rect.top)}px ${Math.max(0, rect.right - innerWidth)}px ${Math.max(0, rect.bottom - innerHeight)}px ${Math.max(0, -rect.left)}px)`;
+      let top = Math.max(0, -rect.top), right = Math.max(0, rect.right - innerWidth);
+      let bottom = Math.max(0, rect.bottom - innerHeight), left = Math.max(0, -rect.left);
+      if (contentClipping) {
+        const root = frame.contentDocument?.getElementById('max-mode-widget-shadow-host')?.shadowRoot;
+        const overlay = root?.querySelector('[data-max-mode-view], dialog[open]');
+        const dock = root?.querySelector<HTMLElement>('.max-mode-companion-dock');
+        if (!overlay && dock) {
+          const bounds = dock.getBoundingClientRect();
+          top = Math.max(top, bounds.top - 12); right = Math.max(right, rect.width - bounds.right - 12);
+          bottom = Math.max(bottom, rect.height - bounds.bottom - 12); left = Math.max(left, bounds.left - 12);
+        } else if (!overlay) { top = rect.height; bottom = 0; }
+      }
+      // Clipping also limits iframe hit-testing; transparency alone would block the host page.
+      frame.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
     }
     // The frame never moves in the DOM. Scroll, resize and SPA layout changes only update its viewport.
     animation = target ? requestAnimationFrame(update) : 0;
   };
   return {
     maxMode,
+    setContentClipping(enabled) { contentClipping = enabled; },
     setLayer(value) {
       if (destroyed) throw new Error('This workspace frame has been destroyed.');
       if (!Number.isInteger(value) || value < 0 || value > 2147483647) throw new Error('The workspace frame layer is invalid.');

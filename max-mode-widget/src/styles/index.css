@@ -61,6 +61,9 @@
 }
 
 .max-mode-companion-dock {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--max-mode-viewport-height, 100dvh) - max(1rem, env(safe-area-inset-bottom, 0px)) - 1rem);
   bottom: calc(var(--max-mode-viewport-bottom, 0px) + max(1rem, env(safe-area-inset-bottom, 0px)));
   left: calc(var(--max-mode-viewport-left, 0px) + var(--max-mode-viewport-width, 100vw) / 2);
   width: min(78rem, calc(var(--max-mode-viewport-width, 100vw) - 1rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
