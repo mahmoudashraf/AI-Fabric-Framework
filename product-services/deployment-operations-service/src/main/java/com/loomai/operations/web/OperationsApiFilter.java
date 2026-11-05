@@ -2,6 +2,7 @@ package com.loomai.operations.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.operations.config.OperationsProperties;
+import com.loomai.operations.telemetry.TelemetryApiFilter;
 import com.loomai.operations.web.OperationsErrorHandler.ApiError;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -34,8 +35,9 @@ public class OperationsApiFilter extends OncePerRequestFilter {
     private final byte[] expectedKeyHash;
     private final int maxBodyBytes;
     private final ObjectMapper mapper;
+    private final TelemetryApiFilter telemetry;
 
-    public OperationsApiFilter(OperationsProperties properties, ObjectMapper mapper) {
+    public OperationsApiFilter(OperationsProperties properties, ObjectMapper mapper, TelemetryApiFilter telemetry) {
         String apiKey = properties.apiKey();
         if (apiKey == null || apiKey.length() < 32 || apiKey.length() > 512
             || apiKey.chars().anyMatch(character -> character < 33 || character > 126)) {
@@ -44,6 +46,7 @@ public class OperationsApiFilter extends OncePerRequestFilter {
         this.expectedKeyHash = sha256(apiKey);
         this.maxBodyBytes = properties.maxBodyBytes();
         this.mapper = mapper;
+        this.telemetry = telemetry;
     }
 
     @Override
@@ -51,6 +54,10 @@ public class OperationsApiFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("X-Content-Type-Options", "nosniff");
+        if (TelemetryApiFilter.owns(request.getRequestURI())) {
+            telemetry.filter(request, response, chain);
+            return;
+        }
         if (request.getMethod().equals("GET") && HEALTH_PATHS.contains(request.getRequestURI())) {
             chain.doFilter(request, response);
             return;

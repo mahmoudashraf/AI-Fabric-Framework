@@ -50,6 +50,10 @@ management:
           include: readinessState,db
 
 loomai:
+  telemetry:
+    enabled: ${TELEMETRY_ENABLED:false}
+    read-key: ${TELEMETRY_READ_KEY:}
+    sources-json: '${TELEMETRY_SOURCES_JSON:[]}'
   deployment-operations:
     api-key: ${DEPLOYMENT_OPERATIONS_API_KEY:}
     capacity-policy-json: '${DEPLOYMENT_OPERATIONS_CAPACITY_POLICY_JSON:{"revision":"unconfigured","targets":{}}}'

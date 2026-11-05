@@ -487,3 +487,87 @@ per-target concurrency, crash/lease takeover, unknown effect polling, deadlines,
 acknowledged cancellation and notice replay. Local HTTP tests verify actual wire
 authentication, no redirects/retries, total deadlines, response caps and trusted
 webhook IDs. These tests use fake core receipts, not real provider effects.
+
+## Independent server telemetry (010.60)
+
+Telemetry observes host/container usage only. It has no calls into assessments,
+allocations, lifecycle, quotas or provider commands, and does not depend on the
+Platform policy mode. It is disabled by default. Configure trusted environment
+values separately from the existing Operations API key:
+
+```properties
+TELEMETRY_ENABLED=true
+TELEMETRY_READ_KEY=<independent-random-read-secret>
+TELEMETRY_SOURCES_JSON=[{"serverId":"stage-host","displayName":"Staging host","environment":"staging","ingestKey":"<independent-random-host-secret>"}]
+```
+
+Each secret must be 32-512 printable non-space ASCII characters; generate random
+secrets and never reuse the read, per-host ingest or Operations key. The strict
+source registry supports 1-32 distinct server IDs. Source display names and
+environments come from this registry, never from a submitted batch. Use HTTPS
+across hosts. There is no browser CORS grant or public metrics port.
+If adding a dedicated HTTPS metrics hostname, expose only the exact telemetry
+namespace through the reverse proxy; keep policy/lifecycle routes private.
+
+All routes use `Authorization: Bearer <capability-key>` and `Cache-Control: no-store`:
+
+- `POST /internal/v1/telemetry/samples`: ingest key for exactly the claimed server;
+  returns 204 on acceptance or exact replay. Read/Operations keys cannot ingest.
+- `GET /internal/v1/telemetry/servers`: read key; returns the canonical server array.
+- `GET /internal/v1/telemetry/servers/{serverId}`: read key; returns one server.
+- `GET /internal/v1/telemetry/servers/{serverId}/history?range=1h|24h|7d&resourceId=<optional-full-container-id>`:
+  read key; returns `serverId`, nullable `resourceId`, `range`, `bucketSeconds`
+  and `points` containing `observedAt`, `values`, `maxValues`.
+
+The wire records live in `telemetry/TelemetryContracts.java`. Samples use string
+schema version `1`, Linux boot UUID, ISO instant observation/start timestamps,
+`HOST_NATIVE`, typed host measurements and at most 200 resources identified by
+full 64-character container IDs. Raw Docker inspect/environment/URL/ownership
+payloads and arbitrary metric keys are rejected. Provider references and roles
+are observations only; Platform must join its own trusted ownership records.
+Nullable supported fields remain null, not zero. Docker swap limit `-1` remains
+the unlimited sentinel. Never-started retained containers preserve Docker's
+`0001-01-01T00:00:00Z` start sentinel. No rate is derived across reboot/container restart.
+
+Ingestion is capped at 256 KiB, including streamed bodies, with no compression.
+Unknown/duplicate JSON fields, trailing JSON, scalar coercions, invalid ranges,
+duplicate resources and inconsistent total/free values are rejected. Observations
+must be no older than 24 hours or more than 30 seconds ahead. One distinct batch
+per server per UTC minute bounds ingestion/storage: another sample in that minute
+returns 409 `TELEMETRY_MINUTE_CONFLICT`. Identity is server/boot/observation time;
+changed replays return 409 `TELEMETRY_SAMPLE_CONFLICT`. Exact retries do not renew
+freshness. Older deliveries cannot replace latest; recorded retired boots cannot
+be resurrected as a new latest observation. These checks protect authentication,
+observation integrity and resource usage, not AI decisions or admission rights.
+
+V4 adds telemetry-only tables to the existing database and a separate short
+transaction lock. Raw minute batches last 24 hours; five-minute mean/count/max
+statistics last seven days. Statistics are equal-cadence observation means with
+per-metric non-null counts, not time-integrated rates or event deltas. Missing
+intervals remain gaps. The API returns 60-second, 180-second and 1800-second
+buckets for 1h, 24h and 7d respectively, at most 600 points and eight fixed series:
+host CPU usage, available memory, occupied swap, swap in/out rates, free disk and
+network receive/transmit rates; resource working set, hard/soft/swap memory limits,
+CPU cores/quota/throttled-period percentage and cumulative restart count.
+`maxValues` preserves observed maxima rather than maxima of bucket means.
+
+Retention runs every minute even when ingestion is disabled, deleting at most
+2000 raw rows, 8000 aggregate rows and 2000 boot rows per pass. The aggregate
+bound can outpace the maximum configured source/cadence/resource churn. Latest
+last-known snapshots stay bounded by the source registry and remain visibly
+stale; removed sources' latest snapshots are pruned when telemetry is enabled.
+History starts with real observations, never backfilled snapshots. A new source
+is `NEVER_RECEIVED`, with null timestamps/host and empty resources/history.
+Freshness uses observation time and becomes `STALE` after 180 seconds, retaining
+the actual received time. Partial collection and risk warnings are explanatory
+and grant no permission to mutate resources. Disabling returns 503
+`TELEMETRY_DISABLED` on telemetry routes without affecting existing APIs.
+
+Focused H2 and PostgreSQL 16 Testcontainer suites cover auth scope, strict/bounded
+payloads, retries/conflicts, boot/restart/freshness behavior, means/maxima/nulls,
+retention and empty history. Boundary tests cover disabled defaults, credential
+configuration and streamed body limits. Run together with existing regressions:
+
+```sh
+mvn -B -ntp -f product-services/deployment-operations-service/pom.xml verify
+```

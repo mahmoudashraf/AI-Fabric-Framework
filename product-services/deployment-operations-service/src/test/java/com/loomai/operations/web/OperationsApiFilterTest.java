@@ -31,7 +31,8 @@ class OperationsApiFilterTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean invoked = new AtomicBoolean();
         new OperationsApiFilter(new OperationsProperties(OperationsTestConfiguration.API_KEY,
-            "{}", Duration.ofMinutes(5), Duration.ofMinutes(5), Duration.ofSeconds(30), 16384), new ObjectMapper())
+            "{}", Duration.ofMinutes(5), Duration.ofMinutes(5), Duration.ofSeconds(30), 16384), new ObjectMapper(),
+            org.mockito.Mockito.mock(com.loomai.operations.telemetry.TelemetryApiFilter.class))
             .doFilter(streamed, response, (request, result) -> invoked.set(true));
         assertThat(response.getStatus()).isEqualTo(413);
         assertThat(invoked).isFalse();

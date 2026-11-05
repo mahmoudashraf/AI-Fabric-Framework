@@ -19,7 +19,8 @@ class OperationsConfigurationTest {
     @ValueSource(strings = {"too-short", "has whitespace but otherwise a sufficiently long secret"})
     void missingOrInvalidApiKeyFailsAtStartupWithoutLoggingItsValue(String key) {
         OperationsProperties properties = properties(key, "{\"revision\":\"unconfigured\",\"targets\":{}}");
-        assertThatThrownBy(() -> new OperationsApiFilter(properties, new ObjectMapper()))
+        assertThatThrownBy(() -> new OperationsApiFilter(properties, new ObjectMapper(),
+            org.mockito.Mockito.mock(com.loomai.operations.telemetry.TelemetryApiFilter.class)))
             .isInstanceOf(IllegalStateException.class)
             .hasMessage("DEPLOYMENT_OPERATIONS_API_KEY must be 32-512 printable non-space ASCII characters.");
     }
