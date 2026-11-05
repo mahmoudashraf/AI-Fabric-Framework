@@ -6,6 +6,7 @@ import { startPreview } from '../scripts/preview-server.mjs'
 
 test('docked support uses the real companion input, leaves the host clickable and retains its frame across Max/page changes', { timeout: 90000 }, async () => {
   const fixture = await startPreview()
+  fixture.conversations.set('preview-chat', { controlState: 'AI_ACTIVE', controlVersion: 1, participantMessages: [] })
   const browser = await chromium.launch({ headless: true })
   try {
     for (const viewport of [{ width: 1360, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
@@ -25,6 +26,7 @@ test('docked support uses the real companion input, leaves the host clickable an
       await page.getByRole('button', { name: 'Host page action', exact: true }).click()
       assert.equal(await page.evaluate(() => window.hostClicked), true)
       await dock.locator('textarea').fill('Preserve this support draft')
+      await dock.getByText('Ask about the guidance or submit a sample request.', { exact: true }).waitFor()
       await dock.locator('[data-mxw-open-max]').click()
       await frame.locator('[data-max-mode-view]').waitFor()
       assert.equal(await frame.locator('textarea').inputValue(), 'Preserve this support draft')

@@ -56,7 +56,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
       beforeNewConversation: context.refreshAssignment,
       host: { ...supplied.host, assistantLabel: p.assistantLabel, welcomeMessage: p.welcomeMessage,
         starterSuggestions: p.starterSuggestions, companionPlaceholder: p.placeholder,
-        companionEmptyMessage: config.copy?.emptyMessage, toolGroups: config.toolGroups, toolRail: config.toolRail,
+        companionEmptyMessage: config.copy?.emptyMessage?.trim() || p.welcomeMessage || 'Ask a support question.', toolGroups: config.toolGroups, toolRail: config.toolRail,
         defaultConversationMode: 'executor', effectiveConversationMode: 'executor', allowedConversationModes: ['executor'],
         showUtilityPanel: false, showCloseButton: dockEnabled, companionDock: dockEnabled,
         companionContextLabel: p.assistantLabel, companionModeLabel: 'Support assistant',
