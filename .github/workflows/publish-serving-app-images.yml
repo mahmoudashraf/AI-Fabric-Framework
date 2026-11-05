@@ -135,7 +135,6 @@ jobs:
               }
             };
             for (const app of catalogue.apps) {
-              if (event === 'schedule' && app.source !== 'framework') continue;
               if (event === 'push' && app.source !== 'platform') continue;
               if (event === 'workflow_dispatch' && selected !== 'all' && app.id !== selected) continue;
               const source = catalogue.sources[app.source];

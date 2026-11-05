@@ -152,11 +152,12 @@ test('manual selection accepts each exact catalogue ID and rejects unknown or in
   await assert.rejects(select({ event: 'pull_request' }), /Unsupported event/);
 });
 
-test('scheduled checks never select local sources and use framework input SHA, not scheduler SHA', async () => {
+test('scheduled checks repair coalesced pushes for both sources using their actual input SHAs', async () => {
   const { apps, calls } = await select({ event: 'schedule' });
-  assert.equal(apps.length, 15);
-  assert(apps.every(app => app.source === 'framework' && app.sha === frameworkSha));
-  assert(calls.filter(call => call.command === 'git').every(call => call.options.cwd === 'framework-source'));
+  assert.equal(apps.length, 20);
+  assert(apps.every(app => app.sha === (app.source === 'framework' ? frameworkSha : platformSha)));
+  assert(calls.some(call => call.command === 'git' && call.options.cwd === 'framework-source'));
+  assert(calls.some(call => call.command === 'git' && call.options.cwd === '.'));
 });
 
 test('existing images produce an empty matrix, including unchanged periodic checks', async () => {

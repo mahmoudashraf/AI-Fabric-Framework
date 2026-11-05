@@ -68,7 +68,9 @@ Build arguments carry only source metadata, never runtime configuration.
 - Dispatch accepts one exact app ID or `all`. `framework_sha=main` requests
   current main. Any explicit full lowercase framework SHA is **immutable-only**,
   even if it happens to equal current main. It never advances a current channel.
-- Framework sources are polled every fifteen minutes (7/22/37/52 UTC). The
+- Both framework and local sources are polled every fifteen minutes (7/22/37/52 UTC). This
+  repairs a source push replaced in GitHub's pending concurrency queue by a later,
+  unrelated push; it checks missing image/channel identities, not forced rebuilds. The
   schedule uses the `Platform-V11` catalogue. GitHub requires this workflow on
   default `main` for schedule/dispatch availability; dispatch using `Platform-V11`.
   Other dispatch branches are deliberately refused.
@@ -80,7 +82,7 @@ Build arguments carry only source metadata, never runtime configuration.
   are reused. A missing/stale channel alone creates a manifest-promotion job,
   **not a rebuild**. A second lookup protects the immutable tag before building.
 - Channel promotion rechecks the requested source branch head. An advanced head
-  leaves the channel unchanged; the next framework poll or fresh local-app
+  leaves the channel unchanged; the next source poll or fresh local-app
   dispatch/push can repair it. Historical requests cannot promote channels.
 - Global workflow concurrency plus `max-parallel: 2` bounds this workflow to two
   builds. GitHub can replace pending runs; this polls current source, not every
