@@ -1,0 +1,271 @@
+name: Publish Serving App Images
+
+on:
+  push:
+    branches: [Platform-V11]
+    paths:
+      - ".github/workflows/publish-serving-app-images.yml"
+      - "scripts/infrastructure-monitoring/build-catalogue*"
+      - "scripts/infrastructure-monitoring/serving_image_updater.py"
+      - "scripts/infrastructure-monitoring/test_serving_image_updater.py"
+      - "scripts/infrastructure-monitoring/loomai-serving-images.*"
+      - ".dockerignore"
+      - "Platfrom/loomai-site/**"
+      - "Platfrom/partner-ui/**"
+      - "verification-support/external-vehicle-provider-simulator/**"
+      - "product-services/mcp-execution-gateway-service/**"
+      - "product-services/shopify-bridge-service/**"
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Catalogue app ID, or all (see CI-build-separation README)"
+        type: string
+        default: all
+        required: true
+      framework_sha:
+        description: "main for current framework source, or an exact 40-character commit SHA"
+        type: string
+        default: main
+        required: true
+
+permissions:
+  contents: read
+
+# One workflow-wide queue also bounds overlapping dispatch/schedule/push builds.
+concurrency:
+  group: serving-app-images
+  cancel-in-progress: false
+
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
+  DOCKER_BUILD_CHECKS_ANNOTATIONS: "false"
+
+jobs:
+  plan:
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/Platform-V11'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - name: Checkout trusted Platform source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'Platform-V11' || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test catalogue and selection contract
+        run: |
+          node --test scripts/infrastructure-monitoring/build-catalogue.test.mjs
+          python3 -B -m unittest discover -s scripts/infrastructure-monitoring -p test_serving_image_updater.py -v
+
+      - name: Validate requested framework revision
+        env:
+          FRAMEWORK_SHA: ${{ inputs.framework_sha || 'main' }}
+        run: |
+          node -e 'if (!/^(main|[0-9a-f]{40})$/.test(process.env.FRAMEWORK_SHA)) throw new Error("Use main or a full lowercase commit SHA")'
+
+      - name: Checkout public framework source without runtime credentials
+        if: github.event_name != 'push'
+        uses: actions/checkout@v4
+        with:
+          repository: Loom-AI-Labs/ai-fabric-framework
+          ref: ${{ inputs.framework_sha || 'main' }}
+          path: framework-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authenticate private GHCR reads
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up registry manifest tooling
+        uses: docker/setup-buildx-action@v3
+
+      - name: Select missing source images
+        id: select
+        uses: actions/github-script@v7
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SELECTED_APP: ${{ inputs.app || 'all' }}
+          BEFORE_SHA: ${{ github.event.before }}
+          FRAMEWORK_SHA: ${{ inputs.framework_sha || 'main' }}
+        with:
+          script: |
+            // BEGIN CATALOGUE_SELECTION
+            const { readFileSync } = require('node:fs');
+            const { execFileSync } = require('node:child_process');
+            const catalogue = JSON.parse(readFileSync('scripts/infrastructure-monitoring/build-catalogue.json', 'utf8'));
+            const event = process.env.EVENT_NAME;
+            const selected = process.env.SELECTED_APP || 'all';
+            if (!['push', 'schedule', 'workflow_dispatch'].includes(event)) throw new Error('Unsupported event');
+            if (selected !== 'all' && !catalogue.apps.some(app => app.id === selected)) throw new Error('Unknown catalogue app');
+            const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+            let changed = null;
+            if (event === 'push' && /^[0-9a-f]{40}$/.test(process.env.BEFORE_SHA || '') && !/^0+$/.test(process.env.BEFORE_SHA)) {
+              try {
+                changed = git('.', 'diff', '--no-renames', '--name-only', '-z', process.env.BEFORE_SHA, 'HEAD').split('\0');
+              } catch {
+                core.warning('Push base unavailable; conservatively checking all local images.');
+              }
+            }
+            const matches = (file, input) => input.endsWith('/') ? file.startsWith(input) : file === input;
+            const recipeChanged = changed?.some(file => file === '.github/workflows/publish-serving-app-images.yml' || file.startsWith('scripts/infrastructure-monitoring/build-catalogue'));
+            const include = [];
+            const summary = [];
+            const digest = image => {
+              try {
+                const value = execFileSync('docker', ['buildx', 'imagetools', 'inspect', '--format', '{{json .Manifest}}', image], { encoding: 'utf8', stdio: 'pipe', timeout: 30000 });
+                const result = JSON.parse(value).digest;
+                if (!/^sha256:[0-9a-f]{64}$/.test(result)) throw new Error('Invalid manifest digest');
+                return result;
+              } catch (error) {
+                if (/manifest unknown|no such manifest|404 Not Found|: not found/i.test(String(error.stderr || ''))) return null;
+                throw new Error('GHCR lookup failed; refusing to risk overwriting an immutable tag.');
+              }
+            };
+            for (const app of catalogue.apps) {
+              if (event === 'schedule' && app.source !== 'framework') continue;
+              if (event === 'push' && app.source !== 'platform') continue;
+              if (event === 'workflow_dispatch' && selected !== 'all' && app.id !== selected) continue;
+              const source = catalogue.sources[app.source];
+              const inputs = [...(source.inputPaths || []), ...(app.inputPaths || [])];
+              if (event === 'push' && changed && !recipeChanged && !changed.some(file => inputs.some(input => matches(file, input)))) continue;
+              const cwd = app.source === 'framework' ? 'framework-source' : '.';
+              // Use the latest commit touching actual build inputs, not the Platform scheduler commit.
+              const sha = git(cwd, 'log', '-1', '--format=%H', 'HEAD', '--', ...inputs);
+              if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`No source commit for ${app.id}`);
+              const repository = source.repository || process.env.GITHUB_REPOSITORY;
+              const base = `ghcr.io/${process.env.GITHUB_REPOSITORY_OWNER.toLowerCase()}/${app.image}`;
+              const image = `${base}:${sha}-${app.id}`;
+              const channel = `${base}:${app.id}-current`;
+              const promote = app.source === 'platform' || process.env.FRAMEWORK_SHA === 'main';
+              const head = git(cwd, 'rev-parse', 'HEAD');
+              const existing = digest(image);
+              const channelReady = promote && existing && digest(channel) === existing;
+              const exists = Boolean(existing);
+              summary.push(`- ${app.id}: ${exists ? 'reuse' : 'publish'} \`${image}\``);
+              if (!exists || (promote && !channelReady)) include.push({ ...app, repository, sha, branch: source.branch, image, channel, promote, head });
+            }
+            core.setOutput('matrix', JSON.stringify({ include }));
+            await core.summary.addHeading('Serving app source check').addRaw(summary.join('\n') || 'No affected apps.').write();
+            // END CATALOGUE_SELECTION
+
+  publish:
+    name: Publish ${{ matrix.id }}
+    needs: plan
+    if: needs.plan.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Checkout exact app source, not a mutable branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.sha }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx on the GitHub runner
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Recheck immutable tag before publication
+        id: existing
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          if result=$(docker buildx imagetools inspect "$IMAGE" 2>&1); then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          else
+            case "$result" in
+              *"manifest unknown"*|*"no such manifest"*|*"404 Not Found"*|*": not found"*)
+                echo 'exists=false' >> "$GITHUB_OUTPUT"
+                ;;
+              *)
+                echo '::error::GHCR lookup failed; refusing to risk overwriting an immutable tag.'
+                exit 1
+                ;;
+            esac
+          fi
+
+      - name: Build and publish without runtime configuration
+        id: image
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ matrix.image }}
+          build-args: |
+            SOURCE_COMMIT=${{ matrix.sha }}
+            BUILD_COMMIT=${{ matrix.sha }}
+            SOURCE_BRANCH=${{ matrix.branch }}
+            BUILD_BRANCH=${{ matrix.branch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ matrix.repository }}
+            org.opencontainers.image.revision=${{ matrix.sha }}
+            org.opencontainers.image.title=${{ matrix.id }}
+            org.opencontainers.image.ref.name=${{ matrix.branch }}
+          cache-from: type=gha,scope=serving-${{ matrix.id }}
+          cache-to: type=gha,mode=max,scope=serving-${{ matrix.id }}
+
+      - name: Advance current channel without rebuilding
+        if: matrix.promote
+        uses: actions/github-script@v7
+        env:
+          BUILD_ROW: ${{ toJSON(matrix) }}
+        with:
+          script: |
+            // BEGIN CHANNEL_PROMOTION
+            const { execFileSync } = require('node:child_process');
+            const row = JSON.parse(process.env.BUILD_ROW);
+            if (!row.promote) throw new Error('Historical source cannot advance a current channel');
+            const [owner, repo] = row.repository.split('/');
+            const branch = await github.rest.repos.getBranch({ owner, repo, branch: row.branch });
+            if (branch.data.commit.sha !== row.head) {
+              core.notice('Source branch advanced; leave current channel unchanged until a fresh source check.');
+              return;
+            }
+            const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', stdio: 'pipe', timeout: 30000 }).trim();
+            const digest = image => JSON.parse(docker('buildx', 'imagetools', 'inspect', '--format', '{{json .Manifest}}', image)).digest;
+            const expected = digest(row.image);
+            if (!/^sha256:[0-9a-f]{64}$/.test(expected)) throw new Error('Invalid immutable image digest');
+            const source = `${row.image.split(':')[0]}@${expected}`;
+            docker('buildx', 'imagetools', 'create', '--prefer-index=false', '--tag', row.channel, source);
+            if (digest(row.channel) !== expected) throw new Error('Current channel digest readback failed');
+            core.info(`Current channel verified: ${row.channel}@${expected}`);
+            // END CHANNEL_PROMOTION
+
+      - name: Record image identity only
+        env:
+          IMAGE: ${{ matrix.image }}
+          SOURCE_SHA: ${{ matrix.sha }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          REUSED: ${{ steps.existing.outputs.exists }}
+        run: |
+          printf -- '- Image: `%s`\n- Source: `%s`\n- Digest: `%s`\n- Reused: `%s`\n' "$IMAGE" "$SOURCE_SHA" "$DIGEST" "$REUSED" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,12 @@
+[Unit]
+Description=Check opt-in serving image channels every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+Persistent=false
+Unit=loomai-serving-images.service
+
+[Install]
+WantedBy=timers.target

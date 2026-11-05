@@ -1,0 +1,30 @@
+[Unit]
+Description=LoomAI opt-in local adoption of prebuilt serving images
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/loomai/serving-images.json
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -B /usr/local/lib/loomai/serving_image_updater.py --apply
+Environment=DOCKER_CONFIG=/root/.docker
+StateDirectory=loomai-serving-images
+StateDirectoryMode=0700
+TimeoutStartSec=10min
+KillMode=control-group
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=10%
+MemoryMax=192M
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/loomai-serving-images
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true

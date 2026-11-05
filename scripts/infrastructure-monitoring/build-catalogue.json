@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "sources": {
+    "platform": {
+      "repository": "mahmoudashraf/AI-Fabric-Framework",
+      "branch": "Platform-V11"
+    },
+    "framework": {
+      "repository": "Loom-AI-Labs/ai-fabric-framework",
+      "branch": "main",
+      "inspectedSha": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "inputPaths": ["examples/real-apps/"]
+    }
+  },
+  "apps": [
+    {
+      "id": "loomai-site",
+      "source": "platform",
+      "image": "loomai-public-site",
+      "context": ".",
+      "dockerfile": "Platfrom/loomai-site/Dockerfile",
+      "inputPaths": ["Platfrom/loomai-site/", ".dockerignore"]
+    },
+    {
+      "id": "partner-ui",
+      "source": "platform",
+      "image": "loomai-partner-ui",
+      "context": ".",
+      "dockerfile": "Platfrom/partner-ui/Dockerfile",
+      "inputPaths": ["Platfrom/partner-ui/", ".dockerignore"]
+    },
+    {
+      "id": "external-vehicle-provider-simulator",
+      "source": "platform",
+      "image": "loomai-serving-vehicle-simulator",
+      "context": ".",
+      "dockerfile": "verification-support/external-vehicle-provider-simulator/deploy/container/Dockerfile",
+      "inputPaths": ["verification-support/external-vehicle-provider-simulator/", ".dockerignore"]
+    },
+    {
+      "id": "mcp-execution-gateway",
+      "source": "platform",
+      "image": "loomai-mcp-execution-gateway",
+      "context": ".",
+      "dockerfile": "product-services/mcp-execution-gateway-service/deploy/container/Dockerfile",
+      "inputPaths": ["product-services/mcp-execution-gateway-service/", ".dockerignore"]
+    },
+    {
+      "id": "shopify-bridge",
+      "source": "platform",
+      "image": "loomai-shopify-bridge",
+      "context": ".",
+      "dockerfile": "product-services/shopify-bridge-service/deploy/container/Dockerfile",
+      "inputPaths": ["product-services/shopify-bridge-service/", ".dockerignore"]
+    },
+    {
+      "id": "agentic-ai-action-resolver",
+      "source": "framework",
+      "image": "ai-fabric-agentic-action-resolver",
+      "context": ".",
+      "dockerfile": "examples/real-apps/agentic-ai-action-resolver/Dockerfile",
+      "inputPaths": [".dockerignore"]
+    },
+    {
+      "id": "ai-fabric-account-resolver",
+      "source": "framework",
+      "image": "ai-fabric-account-resolver",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/ai-fabric-account-resolver/Dockerfile"
+    },
+    {
+      "id": "ai-fabric-live-data-sync",
+      "source": "framework",
+      "image": "ai-fabric-live-data-sync",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/ai-fabric-live-data-sync/Dockerfile"
+    },
+    {
+      "id": "behavior-churn-signals",
+      "source": "framework",
+      "image": "ai-fabric-behavior-churn-signals",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/behavior-churn-signals/Dockerfile"
+    },
+    {
+      "id": "chat-capabilities-demo",
+      "source": "framework",
+      "image": "ai-fabric-chat-capabilities-demo",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/chat-capabilities-demo/Dockerfile"
+    },
+    {
+      "id": "conversation-handover-demo",
+      "source": "framework",
+      "image": "ai-fabric-conversation-handover-demo",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/conversation-handover-demo/Dockerfile"
+    },
+    {
+      "id": "deployment-knowledge-guard",
+      "source": "framework",
+      "image": "ai-fabric-deployment-knowledge-guard",
+      "context": ".",
+      "dockerfile": "examples/real-apps/deployment-knowledge-guard/Dockerfile",
+      "inputPaths": [".dockerignore"]
+    },
+    {
+      "id": "document-ingestion-workbench",
+      "source": "framework",
+      "image": "ai-fabric-document-ingestion-workbench",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/document-ingestion-workbench/Dockerfile"
+    },
+    {
+      "id": "ecommerce-store",
+      "source": "framework",
+      "image": "ai-fabric-ecommerce-store",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/ecommerce-store/Dockerfile"
+    },
+    {
+      "id": "incident-investigation-room",
+      "source": "framework",
+      "image": "ai-fabric-incident-investigation-room",
+      "context": ".",
+      "dockerfile": "examples/real-apps/incident-investigation-room/Dockerfile",
+      "inputPaths": [".dockerignore"]
+    },
+    {
+      "id": "mcp-operations-assistant",
+      "source": "framework",
+      "image": "ai-fabric-mcp-operations-assistant",
+      "context": ".",
+      "dockerfile": "examples/real-apps/mcp-operations-assistant/Dockerfile",
+      "inputPaths": [".dockerignore"]
+    },
+    {
+      "id": "mcp-operations-reference-server",
+      "source": "framework",
+      "image": "ai-fabric-mcp-operations-reference-server",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/mcp-operations-reference-server/Dockerfile"
+    },
+    {
+      "id": "privacy-first-customer-facing-support",
+      "source": "framework",
+      "image": "ai-fabric-privacy-first-customer-facing-support",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/privacy-first-customer-facing-support/Dockerfile"
+    },
+    {
+      "id": "retrieval-connector-boundary-lab",
+      "source": "framework",
+      "image": "ai-fabric-retrieval-connector-boundary-lab",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/retrieval-connector-boundary-lab/Dockerfile"
+    },
+    {
+      "id": "tenant-knowledge-portal",
+      "source": "framework",
+      "image": "ai-fabric-tenant-knowledge-portal",
+      "context": "examples/real-apps",
+      "dockerfile": "examples/real-apps/tenant-knowledge-portal/Dockerfile"
+    }
+  ]
+}
