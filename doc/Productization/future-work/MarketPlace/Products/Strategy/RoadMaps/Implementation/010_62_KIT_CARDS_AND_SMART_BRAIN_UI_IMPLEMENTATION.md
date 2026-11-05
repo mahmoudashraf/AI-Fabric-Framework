@@ -275,3 +275,42 @@ Live safe screenshots and reports are in
 stale build-commit metadata; qualification therefore also records the correct
 native image/revision rather than treating that old field as deployment proof.
 This metadata discrepancy does not affect the served cards or workspace setup.
+
+## Website, Console And Integration-Team Navigation
+
+The owner found that the kit detail hero mostly led to another preview, and
+the website-to-Console boundary was unclear. This follow-up keeps one rich kit
+detail implementation in Console and makes the journey explicit:
+
+1. `loomai.pro` is the public website and experience catalogue. Card actions say
+   Explore kit in Console; they open the corresponding Console detail page.
+2. Console kit pages show the Console identity and a visible LoomAI website
+   return link. Install kit is prominent in the hero and closing section and
+   opens the existing `/kits/new/{code}` setup route. Anonymous visitors use
+   the existing sign-in/registration gate with the selected kit preserved.
+3. Start a project opens the approved integration/customer-success Calendly
+   event. It starts with a consultation, not a silent kit/infrastructure create
+   or a claim that Calendly creates a Platform project/ticket.
+4. Book integration call is also available on the public site header, mobile
+   navigation, footer, homepage, catalogue and Connect page; Console public
+   product/kit pages; customer navigation; and customer Support. Existing
+   signed-in integration requests remain accessible independently.
+
+Approved scheduling event:
+`https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success`.
+The real calendar loaded successfully and displayed the 30-minute LoomAI
+Integration - Customer Success event. No appointment was booked during testing.
+Booking uses ordinary external links in a new tab with noopener/noreferrer:
+no Calendly script/iframe, automatic account prefill or resource disclosure.
+The fictional dealership customer-facing demo is not given owner-only LoomAI
+integration booking controls.
+
+Changes are UI-only: no API, authentication contract, template entitlement,
+billing, AI decision or runtime behavior changes. Booking URLs are centralized
+within each independently deployed frontend. Existing previews, kit offers,
+signup/recovery behavior, customer support requests and live demo links remain.
+
+Local build/check and 28 static route checks passed. Focused checks passed 11
+kit/booking/detail tests, 16 authentication-return/continuity tests, 42 catalogue
+and product responsive/theme states, nine Support kit setup groups, and the
+homepage preview/booking checks. Hosted rollout/qualification is pending.

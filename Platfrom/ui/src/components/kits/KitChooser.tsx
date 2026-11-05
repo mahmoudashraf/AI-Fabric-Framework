@@ -57,7 +57,7 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
         <div className="ek-card-capabilities">{copy.features.map(([Icon, label]) => <span key={label}><Icon />{label}</span>)}</div>
         <CardProducts />
         <Button component={Link} variant="contained" className="ek-card-explore" endIcon={<ArrowForwardRounded />}
-          to={detailLinks ? `/experiences/${definition.code}` : authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>{detailLinks ? 'Explore kit' : 'Use this kit'}</Button>
+          to={detailLinks ? `/experiences/${definition.code}` : authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>{detailLinks ? 'Explore kit' : 'Install kit'}</Button>
         <div className="ek-card-preview-command"><KitExperiencePreview kind={kind} name={definition.name} compact />
           {demo && <a className="ek-card-demo" href={demo} target="_blank" rel="noopener noreferrer"><PlayCircleOutlineRounded />{dealership ? 'Try live demo' : 'Try demo'}</a>}</div>
       </article>

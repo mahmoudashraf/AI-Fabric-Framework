@@ -4,6 +4,7 @@ import { Alert, Box, Typography } from '@mui/material'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { useCustomerSupport } from '../components/customer/CustomerSupportContext'
+import { IntegrationCallButton } from '../components/IntegrationCallButton'
 
 export function CustomerSupportPage({ view = 'assistant' }: { view?: 'assistant' | 'requests' }) {
   const auth = usePlatformAuth()
@@ -21,6 +22,6 @@ function SupportRoute({ view }: { view: 'assistant' | 'requests' }) {
     else if (view === 'requests') showRequests()
     else setMinimized(false)
   }, [caseId, view, location.search, setMinimized, openRequest, showRequests, openRequestForm])
-  return <Box><Typography variant="overline" color="secondary.main">LoomAI support</Typography>
-    <Typography variant="h4">{view === 'requests' ? 'My requests' : 'Integration support'}</Typography></Box>
+  return <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}><Box><Typography variant="overline" color="secondary.main">LoomAI support</Typography>
+    <Typography variant="h4">{view === 'requests' ? 'My requests' : 'Integration support'}</Typography></Box><IntegrationCallButton variant="outlined" /></Box>
 }

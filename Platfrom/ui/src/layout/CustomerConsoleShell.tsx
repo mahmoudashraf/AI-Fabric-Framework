@@ -30,6 +30,8 @@ import { DeploymentWorkspaceUnresolvedState } from '../components/DeploymentWork
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
 import { CustomerSupportAssistant } from '../components/customer/CustomerSupportAssistant'
 import { SupportResourceDialog } from '../components/customer/SupportResourceDialog'
+import { IntegrationCallButton } from '../components/IntegrationCallButton'
+import { integrationTeam } from '../integrationTeam'
 
 const navigation = [
   { path: '/home', label: 'Home', icon: SpaceDashboardOutlined },
@@ -97,9 +99,9 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
   const accountName = session?.customerName ?? 'Customer account'
   const accountInitial = accountName.charAt(0).toUpperCase()
   const nav = <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1.75 }}>
-    <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1, pt: 1, pb: 3 }}>
+    <Stack component="a" href={integrationTeam.websiteUrl} aria-label="LoomAI website" direction="row" spacing={1} alignItems="center" sx={{ px: 1, pt: 1, pb: 3, color: 'inherit', textDecoration: 'none' }}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', display: 'grid', placeItems: 'center', borderRadius: 1, width: 29, height: 29 }}><HubOutlined fontSize="small" /></Box>
-      <Typography sx={{ fontSize: 20, fontWeight: 700 }}>LoomAI</Typography>
+      <Box><Typography sx={{ fontSize: 20, fontWeight: 700 }}>LoomAI</Typography><Typography color="text.secondary" sx={{ fontSize: 10 }}>Console</Typography></Box>
     </Stack>
     <Stack direction="row" spacing={1} alignItems="center" sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.25, mb: 2.5 }}>
       <Avatar variant="rounded" sx={{ width: 28, height: 28, bgcolor: 'action.selected', color: 'text.secondary', fontSize: 12 }}>{accountInitial}</Avatar>
@@ -117,7 +119,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 12, fontWeight: location.pathname === item.path ? 600 : 400 }} />
       </ListItemButton>)}
     </List>
-    <Box sx={{ flexGrow: 1, minHeight: 24 }} /><Divider />
+    <Box sx={{ flexGrow: 1, minHeight: 24 }} /><IntegrationCallButton fullWidth size="small" sx={{ justifyContent: 'flex-start', px: 1, mb: 1.25, fontSize: 11 }} /><Divider />
     <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 0.75, pt: 2 }}>
       <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: 'action.selected', color: 'text.secondary' }}>{session?.displayName?.charAt(0) ?? accountInitial}</Avatar>
       <Box sx={{ minWidth: 0 }}><Typography sx={{ fontSize: 11, fontWeight: 600, overflowWrap: 'anywhere' }}>{session?.displayName ?? 'Customer administrator'}</Typography><Typography color="text.secondary" sx={{ fontSize: 10 }}>Customer administrator</Typography></Box>

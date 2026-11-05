@@ -22,8 +22,12 @@ async function load(relative, dependencies = {}) {
   }, exports)
   return exports
 }
+const integrationConfig = await load('../src/integrationTeam.ts')
+const integrationCall = await load('../src/components/IntegrationCallButton.tsx', { '../integrationTeam': integrationConfig })
 const identity = await load('../src/components/kits/KitIdentity.tsx', {
   '../../theme/CustomerConsoleTheme': { useCustomerColorPreference: () => ({ setPreference() {} }) },
+  '../IntegrationCallButton': integrationCall,
+  '../../integrationTeam': integrationConfig,
 })
 const content = await load('../src/components/kits/kitPreviewContent.ts')
 const scene = await load('../src/components/kits/KitCardScene.tsx', { './KitIdentity': identity, './kitPreviewContent': content })
@@ -91,5 +95,14 @@ test('card examples show the correct assets without collecting messages or execu
 test('signed-in chooser still bootstraps through the same kit setup routes', () => {
   const html = render(chooser.KitChooser, { definitions, authenticated: true, detailLinks: false })
   for (const definition of definitions) assert.ok(html.includes(`href="/kits/new/${definition.code}"`))
-  assert.equal((html.match(/Use this kit/g) ?? []).length, 3)
+  assert.equal((html.match(/Install kit/g) ?? []).length, 3)
+})
+
+test('integration calls use the approved real scheduling page without account context', () => {
+  const html = render(integrationCall.IntegrationCallButton)
+  assert.ok(html.includes(`href="${integrationConfig.integrationTeam.bookingUrl}"`))
+  assert.match(html, /target="_blank"/)
+  assert.match(html, /rel="noopener noreferrer"/)
+  assert.match(html, /Book integration call/)
+  assert.doesNotMatch(html, /\?email|customerId|deploymentId|iframe|<script/)
 })

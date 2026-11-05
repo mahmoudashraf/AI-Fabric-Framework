@@ -9,6 +9,10 @@
   flex: 0 0 2.75rem;
 }
 
+@media (max-width: 74rem) {
+  .site-header__booking { display: none; }
+}
+
 @media (max-width: 23rem) {
   .site-header .site-header__brand .loom-wordmark { width: 10rem; }
 }

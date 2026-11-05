@@ -19,6 +19,9 @@
 .ek-detail-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 23px; }
 .ek-detail-story .ek-detail-hero-actions .MuiButton-root { min-height: 43px; padding-inline: 16px; font-size: 14px; }
 .ek-detail-story .ek-detail-hero-actions .MuiButton-outlined { color: #fff; border-color: #c3cfd8; background: rgb(12 23 32 / 34%); }
+.ek-detail-hero .ek-detail-start-note { color: #d6e4ed; font-size: 12px; line-height: 1.5; margin-top: 10px; }
+.ek-detail-preview-link { display: inline-flex; align-items: center; gap: 7px; color: #e2e9ee; font-size: 13px; margin-top: 15px; }
+.ek-detail-preview-link svg { width: 18px; height: 18px; }
 .ek-page .ek-detail-story .MuiButton-contained { background: var(--ek-detail-button); color: #05161d; font-weight: 750; }
 .ek-page .ek-detail-story .MuiButton-contained:hover { background: color-mix(in srgb, var(--ek-detail-button) 83%, white); }
 .ek-detail-laptop { margin: 24px 5px 0; min-width: 0; align-self: center; }

@@ -25,10 +25,12 @@ const server = await createServer({ root, configFile: false, envFile: false, log
     if (id === '\0kit-review-auth') return 'export function usePlatformAuth(){return{session:null,isLoading:false}}'
     if (id === '\0kit-review-entry') return `import React from'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{BrowserRouter,useLocation}from'react-router-dom';
       import{ExperienceKitsPublicPage}from'/src/pages/ExperienceKitsPublicPage.tsx';
-      function Review(){const path=useLocation().pathname;return React.createElement(ExperienceKitsPublicPage,{code:path.split('/')[2]||undefined})}
+      import{PublicProductsPage}from'/src/pages/PublicProductsPage.tsx';
+      function Review(){const path=useLocation().pathname;return path.startsWith('/products')?React.createElement(PublicProductsPage,{product:path.split('/')[2]||undefined}):React.createElement(ExperienceKitsPublicPage,{code:path.split('/')[2]||undefined})}
       createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient({defaultOptions:{queries:{retry:false}}})},React.createElement(BrowserRouter,null,React.createElement(Review))));`
   }, configureServer(vite) { vite.middlewares.use((req, res, next) => {
-    if (!new URL(req.url, 'http://review').pathname.startsWith('/experiences')) return next()
+    const pathname = new URL(req.url, 'http://review').pathname
+    if (!pathname.startsWith('/experiences') && !/^\/products(?:\/(?:platform|engage|desk))?\/?$/.test(pathname)) return next()
     res.setHeader('Content-Type', 'text/html')
     res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif"><div id="root"></div><script>window.__PLATFORM_RUNTIME_CONFIG__={apiBaseUrl:location.origin}</script><script type="module" src="/kit-review.jsx"></script></body></html>')
   }) } }],
@@ -136,9 +138,18 @@ try {
         await bounds(`${scheme}-${width}-${definition.code}`)
         if (width === 1536) await page.screenshot({ path: `${output}/${definition.code}-${scheme}.png`, fullPage: true })
       }
-      assert.ok((await page.getByRole('link', { name: 'Get started', exact: true }).first().getAttribute('href')).includes(`/sign-up?kit=${definition.code}`))
+      assert.equal(await page.getByRole('link', { name: 'Install kit', exact: true }).first().getAttribute('href'), `/kits/new/${definition.code}`)
       await page.getByRole('link', { name: 'Back to experiences', exact: true }).click()
       await page.getByRole('heading', { name: 'Choose your AI experience', exact: true }).waitFor()
+    }
+    for (const product of ['platform', 'engage', 'desk']) {
+      await page.goto(`${base}products/${product}`)
+      assert.equal(await page.getByRole('link', { name: 'Book integration call', exact: true }).getAttribute('href'), 'https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success')
+      assert.equal(await page.getByRole('link', { name: 'LoomAI home', exact: true }).getAttribute('href'), 'https://loomai.pro/')
+      for (const width of [1440, 390, 320]) {
+        await page.setViewportSize({ width, height: 1100 })
+        await bounds(`${scheme}-${width}-${product}-booking`)
+      }
     }
   }
   assert.deepEqual(errors, [])

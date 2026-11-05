@@ -5,7 +5,9 @@ import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined'
 import CheckRounded from '@mui/icons-material/CheckRounded'
 import PlayCircleOutlineRounded from '@mui/icons-material/PlayCircleOutlineRounded'
 import SupportAgentRounded from '@mui/icons-material/SupportAgentRounded'
+import RocketLaunchOutlined from '@mui/icons-material/RocketLaunchOutlined'
 import { Link } from 'react-router-dom'
+import { IntegrationCallButton } from '../IntegrationCallButton'
 import type { ExperienceKitDefinition } from '../../api/experienceKitsApi'
 import { KitExperiencePreview } from './KitCapabilityPreview'
 import { dealershipOffer } from './KitCommercialPresentation'
@@ -16,13 +18,12 @@ import { kitDetailContent } from './kitDetailContent'
 import { kitPreviewKind, safeKitExternalUrl } from './kitModels'
 import './KitDetailPage.css'
 
-export function KitDetailPage({ definition, authenticated }: { definition: ExperienceKitDefinition; authenticated: boolean }) {
+export function KitDetailPage({ definition }: { definition: ExperienceKitDefinition; authenticated: boolean }) {
   const kind = kitPreviewKind(definition.code)
   const copy = kitDetailContent[kind]
   const dealership = kind === 'dealership'
   const demo = safeKitExternalUrl(definition.demoUrl)
-  const getStartedPath = authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`
-  const discussion = dealership ? 'Discuss free integration' : 'Discuss integration'
+  const getStartedPath = `/kits/new/${definition.code}`
   return <article className="ek-public-detail ek-detail-story" data-kind={kind} aria-labelledby="ek-detail-title">
     <section className="ek-detail-hero">
       <img className="ek-detail-hero-photo" src={kitAsset(copy.image)} alt="" width="1920" height="768" fetchPriority="high" />
@@ -31,10 +32,12 @@ export function KitDetailPage({ definition, authenticated }: { definition: Exper
           <span className="ek-detail-eyebrow">{copy.scope}</span><h1 id="ek-detail-title" aria-label={definition.name}>{copy.title}</h1>
           <p className="ek-detail-headline">{copy.headline}</p><p className="ek-detail-summary">{copy.summary}</p>
           <div className="ek-detail-hero-actions">
-            {demo ? <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" variant="contained" startIcon={<PlayCircleOutlineRounded />}>Try the live demo</Button>
-              : <Button component="a" href="#ek-detail-experience" variant="contained" endIcon={<ArrowForwardRounded />}>Explore the experience</Button>}
-            <Button component={Link} to="/support" variant="outlined" startIcon={<SupportAgentRounded />}>{discussion}</Button>
+            <Button component={Link} to={getStartedPath} variant="contained" startIcon={<RocketLaunchOutlined />}>Install kit</Button>
+            <IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
           </div>
+          <p className="ek-detail-start-note">Configure your kit in Console, or plan the integration with our team.</p>
+          {demo ? <a className="ek-detail-preview-link" href={demo} target="_blank" rel="noopener noreferrer"><PlayCircleOutlineRounded />Try the live demo</a>
+            : <a className="ek-detail-preview-link" href="#ek-detail-experience">Preview the experience<ArrowForwardRounded /></a>}
         </div>
         <figure className="ek-detail-laptop" role="img" aria-label={`Illustrative ${copy.title} workspace. Fictional example, not live AI.`}>
           <div className="ek-detail-laptop-display"><KitDetailWorkspace kind={kind} /></div><div className="ek-detail-laptop-base" aria-hidden="true" />
@@ -75,9 +78,9 @@ export function KitDetailPage({ definition, authenticated }: { definition: Exper
       <h2 id="ek-detail-included-title">What comes with your kit</h2><p>{definition.description}</p></div><ul>{definition.features.map(feature => <li key={feature}><CheckRounded />{feature}</li>)}</ul></section>
 
     <section className="ek-detail-closing"><h2>{copy.closing}</h2><div className="ek-detail-closing-actions">
-      <Button component={Link} to={getStartedPath} variant="contained" endIcon={<ArrowForwardRounded />}>Get started</Button>
+      <Button component={Link} to={getStartedPath} variant="contained" startIcon={<RocketLaunchOutlined />}>Install kit</Button>
       {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try the live demo</Button>}
-      <Button component={Link} to="/support" variant="outlined" startIcon={<SupportAgentRounded />}>{discussion}</Button>
-    </div><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
+      <IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
+    </div><p>Start a project with an integration call. No Console account is needed to book.</p><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
   </article>
 }

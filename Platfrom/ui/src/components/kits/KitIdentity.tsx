@@ -8,7 +8,10 @@ import ViewInArRounded from '@mui/icons-material/ViewInArRounded'
 import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import WhatsApp from '@mui/icons-material/WhatsApp'
 import SmartphoneOutlined from '@mui/icons-material/SmartphoneOutlined'
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import { Link } from 'react-router-dom'
+import { IntegrationCallButton } from '../IntegrationCallButton'
+import { integrationTeam } from '../../integrationTeam'
 import { useCustomerColorPreference } from '../../theme/CustomerConsoleTheme'
 
 export const kitAsset = (name: string) => `${import.meta.env.BASE_URL}products/${name}`
@@ -38,12 +41,13 @@ export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/k
   const label = theme.palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
   const query = selectedCode ? `?kit=${encodeURIComponent(selectedCode)}` : ''
   return <header className={`ek-public-header${catalogue ? ' ek-catalogue-header' : ''}`}>
-    <a href="https://loomai.pro/" className="ek-logo" aria-label="LoomAI home"><img src={kitAsset('box.svg')} width="32" height="32" alt="" />LoomAI{catalogue && <span>Console</span>}</a>
+    <div className="ek-brand-home"><a href={integrationTeam.websiteUrl} className="ek-logo" aria-label="LoomAI home"><img src={kitAsset('box.svg')} width="32" height="32" alt="" />LoomAI<span>Console</span></a>
+      <a className="ek-site-return" href={integrationTeam.websiteUrl}><ArrowBackRounded />LoomAI website</a></div>
     {catalogue && <div className="ek-catalogue-title"><h1>Choose your AI experience</h1><p>Start with a kit. Make it yours.</p></div>}
-    <div className="ek-header-actions"><Tooltip title={label}><IconButton aria-label={label}
+    <div className="ek-header-actions"><IntegrationCallButton size="small" /><Tooltip title={label}><IconButton aria-label={label}
       onClick={() => setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>
       {theme.palette.mode === 'dark' ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton></Tooltip>
-      <Button component={Link} to={authenticated ? consolePath : `/sign-in${query}`}>{authenticated ? 'My kits' : 'Sign in'}</Button>
+      <Button component={Link} to={authenticated ? consolePath : `/sign-in${query}`}>{authenticated ? 'Open Console' : 'Sign in'}</Button>
     </div>
   </header>
 }

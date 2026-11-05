@@ -102,6 +102,7 @@
 .home-kits__formats > span { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; }
 .home-kits__formats > small { color: var(--loom-text-muted); font-size: 12px; }
 .home-kits__note { color: var(--loom-text-muted); font-size: 11px; text-align: center; margin: 10px 0 0; }
+.home-kits__team { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 20px; padding: 18px 0; font-size: 14px; }
 .experience-catalogue-theme { --catalogue-accent: #79e9c7; --catalogue-ink: #086858; --catalogue-soft: #eaf9f3; --catalogue-border: #9cd9c8; }
 .experience-catalogue-theme--dealership { --catalogue-accent: #8bc8ff; --catalogue-ink: #176bc6; --catalogue-soft: #edf4fb; --catalogue-border: #9abde0; }
 .experience-catalogue-theme--support { --catalogue-accent: #ffc262; --catalogue-ink: #8a590b; --catalogue-soft: #faf6ed; --catalogue-border: #c8ab77; }

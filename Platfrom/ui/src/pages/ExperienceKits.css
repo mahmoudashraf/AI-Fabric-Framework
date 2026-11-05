@@ -58,6 +58,10 @@
 .ek-logo { display: inline-flex; align-items: center; gap: 8px; color: var(--ek-text) !important; font-size: 23px; font-weight: 650; }
 .ek-logo img { filter: invert(55%) sepia(85%) saturate(1800%) hue-rotate(179deg); }
 .ek-header-actions { display: flex; align-items: center; gap: 16px; }
+.ek-brand-home { display: grid; flex-shrink: 0; gap: 4px; }
+.ek-site-return { display: inline-flex; align-items: center; gap: 5px; color: var(--ek-muted); font-size: 11px; }
+.ek-site-return svg { width: 13px; height: 13px; }
+.ek-header-actions > a { white-space: nowrap; }
 .ek-public-intro { margin-bottom: 22px; }
 .ek-public-intro h1 { font-size: 32px; }
 .ek-public-intro p { font-size: 17px; color: var(--ek-muted); margin-top: 6px; }
@@ -439,6 +443,9 @@
   .ek-saved-kits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
+  .ek-public-header { flex-wrap: wrap; gap: 12px; }
+  .ek-header-actions { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+  .ek-header-actions > a:first-child { font-size: 11px; }
   .ek-public-container { padding: 16px 20px 0; }
   .ek-public-header { margin-bottom: 28px; }
   .ek-public-intro h1 { font-size: 31px; }

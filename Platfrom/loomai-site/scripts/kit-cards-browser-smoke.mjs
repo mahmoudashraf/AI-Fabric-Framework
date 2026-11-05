@@ -15,6 +15,7 @@ const errors = [], checks = [], layouts = []
 const kits = {
   generic: 'ai-customer-experience', dealership: 'dealership-ai-experience', support: 'ai-support-experience',
 }
+const bookingUrl = 'https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success'
 try {
   if (!origin) {
     const probe = createServer().listen(0, '127.0.0.1')
@@ -39,6 +40,13 @@ try {
   for (const route of ['/', '/experiences']) {
     await page.goto(origin + route)
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light')
+    const bookingLinks = await page.locator('a.integration-call').all()
+    assert.ok(bookingLinks.length >= 3)
+    for (const link of bookingLinks) {
+      assert.equal(await link.getAttribute('href'), bookingUrl)
+      assert.equal(await link.getAttribute('target'), '_blank')
+      assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
+    }
     const section = page.locator('.home-kits')
     assert.equal(await section.locator('.home-kit').count(), 3)
     for (const [kind, code] of Object.entries(kits)) {
@@ -133,6 +141,9 @@ try {
           }
           await dialog.locator('[data-catalogue-close]').click()
         }
+        await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+        assert.equal(await page.locator('[data-mobile-menu]').getByRole('link', { name: 'Book integration call', exact: true }).getAttribute('href'), bookingUrl)
+        await page.getByRole('button', { name: 'Close navigation', exact: true }).click()
       }
     }
   }

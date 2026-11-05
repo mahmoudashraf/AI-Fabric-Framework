@@ -2,6 +2,7 @@
 import { ArrowLeftRight, ArrowRight, Box, CalendarDays, CarFront, CircleCheck, Eye, FileText, Headphones, MessageSquare, Monitor, CirclePlay, Search, ShoppingBag, Smartphone, Store, Ticket, AppWindow, SquareArrowOutUpRight } from '@lucide/astro'
 import ExperienceCatalogueDialog from './ExperienceCatalogueDialog.astro'
 import HomeKitScene from './HomeKitScene.astro'
+import IntegrationCallAction from './IntegrationCallAction.astro'
 import { homeKitCards, kitDetailUrl } from './HomeKitCardsContent'
 import '../styles/kit-cards.css'
 
@@ -15,7 +16,7 @@ const icons = {
 <experience-catalogue>
   <section class="business-experiences home-kits" id="experiences" aria-labelledby="experiences-title">
     <div class="loom-container">
-      <header class="home-kits__heading"><h2 id="experiences-title">Choose your AI experience</h2><p>Start with a kit. Make it yours.</p></header>
+      <header class="home-kits__heading"><h2 id="experiences-title">Choose your AI experience</h2><p>Start with a kit. Make it yours in LoomAI Console.</p></header>
       <div class="home-kits__grid">
         {homeKitCards.map(kit => {
           const Icon = kit.kind === 'dealership' ? CarFront : kit.kind === 'support' ? Headphones : Store
@@ -30,7 +31,7 @@ const icons = {
               <div class="home-kit__capabilities">{kit.features.map((feature, index) => { const FeatureIcon = icons[kit.kind][index]; return <span><FeatureIcon size={18} />{feature}</span> })}</div>
               <div class="home-kit__products"><div><span><Box size={25} />Platform</span><b>+</b><span><MessageSquare size={25} />Engage</span><b>+</b>
                 <span><span class="home-kit__desk" aria-hidden="true"><span><img src="/assets/experiences/whatsapp.svg" alt="" width="11" height="11" /><Smartphone size={11} /></span><img src="/assets/experiences/demo-support-agent-headset.webp" alt="" width="32" height="32" loading="lazy" /></span>Human Desk</span></div><small>Human support optional with Desk</small></div>
-              <a class="home-kit__explore" href={kitDetailUrl(kit.code)}>Explore kit<ArrowRight size={19} aria-hidden="true" /></a>
+              <a class="home-kit__explore" href={kitDetailUrl(kit.code)}>Explore kit in Console<ArrowRight size={19} aria-hidden="true" /></a>
               <div class="home-kit__commands"><button type="button" data-catalogue-preview={kit.kind} data-catalogue-initial-format="workspace" aria-haspopup="dialog" aria-controls={`catalogue-preview-${kit.kind}`}><Eye size={17} />{kit.preview}</button>
                 {kit.kind === 'dealership' && <a href="/demos/dealership-ai"><CirclePlay size={17} />Try live demo</a>}</div>
             </article>
@@ -39,6 +40,7 @@ const icons = {
       </div>
       <div class="home-kits__formats" aria-label="Ways to use your AI experience"><small>Choose one or combine them.</small><span><AppWindow size={24} />Website widget</span><span><Monitor size={24} />Max workspace</span><span><SquareArrowOutUpRight size={24} />Standalone app</span></div>
       <p class="home-kits__note">Illustrative previews. Configure your own branding, knowledge and integrations.</p>
+      <div class="home-kits__team"><span>Prefer to start with our AI integration team?</span><IntegrationCallAction label="Start a project" /></div>
     </div>
   </section>
   {homeKitCards.map(kit => <ExperienceCatalogueDialog variant={kit.kind} />)}

@@ -2,6 +2,7 @@
 import { ArrowUpRight, GitFork, Menu, Moon, Sun, X } from '@lucide/astro'
 import { navigation } from '../data/content'
 import LoomWordmark from './LoomWordmark.astro'
+import IntegrationCallAction from './IntegrationCallAction.astro'
 
 const currentPath = Astro.url.pathname
 const businessPage = currentPath === '/' || currentPath.startsWith('/experiences')
@@ -32,6 +33,7 @@ const isActive = (patterns: string[]) =>
     </nav>
 
     <div class="site-header__actions">
+    <span class="site-header__booking"><IntegrationCallAction /></span>
     <button
       class="icon-button site-theme-toggle"
       type="button"
@@ -83,6 +85,7 @@ const isActive = (patterns: string[]) =>
       </a>
     ))}
     {businessPage && <a href="https://console.loomai.pro/"><span>Open Console</span><ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" /></a>}
+    <IntegrationCallAction />
     <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
       <span>GitHub</span>
       <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />

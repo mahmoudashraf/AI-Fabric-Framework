@@ -45,7 +45,7 @@
 .lp-brand > svg { color: var(--lp-blue); width: 32px; height: 32px; }
 .lp-symbol { display: inline-block; width: 30px; height: 30px; background: currentColor; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; flex-shrink: 0; }
 .lp-brand > .lp-symbol { width: 28px; height: 28px; }
-.lp-auth-actions { display: flex; align-items: center; gap: 12px; }
+.lp-auth-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; }
 .lp-header > .MuiIconButton-root { border: 1px solid var(--lp-border); border-radius: 8px; color: var(--lp-text); }
 .lp-public-products .MuiButton-root { min-height: 40px; padding: 9px 18px; border-radius: 6px; font-family: inherit; font-size: 14px; line-height: 1.4; text-transform: none; letter-spacing: 0; }
 .lp-auth-actions > .MuiButton-root:first-child:not(.lp-account-button) { color: var(--lp-muted); }
@@ -392,7 +392,8 @@
 }
 @media (max-width: 600px) {
   .lp-header, .lp-main, .lp-footer { padding-inline: 16px; }
-  .lp-header { min-height: 76px; gap: 8px; }
+  .lp-header { min-height: 76px; gap: 8px; flex-wrap: wrap; padding-block: 12px; }
+  .lp-header > .lp-auth-actions { width: 100%; justify-content: flex-start; }
   .lp-brand { font-size: 21px; gap: 6px; }
   .lp-brand > svg { width: 27px; height: 27px; }
   .lp-auth-actions { gap: 2px; }

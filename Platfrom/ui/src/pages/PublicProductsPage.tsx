@@ -31,6 +31,8 @@ import SmartToyOutlined from '@mui/icons-material/SmartToyOutlined'
 import ViewInArRounded from '@mui/icons-material/ViewInArRounded'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import './PublicProductsPage.css'
+import { IntegrationCallButton } from '../components/IntegrationCallButton'
+import { integrationTeam } from '../integrationTeam'
 
 export type PublicProduct = 'platform' | 'engage' | 'desk'
 
@@ -282,14 +284,15 @@ function PublicProductsContent({ product, authenticated = false, consolePath = '
   const selectedProduct = product ?? 'platform'
   const themeLabel = palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
   const authActions = <div className="lp-auth-actions">
+    <IntegrationCallButton size="small" />
     {authenticated ? <Button component={RouterLink} to={consolePath} variant="contained" className="lp-account-button">Open console</Button> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
   </div>
   const themeToggle = <Tooltip title={themeLabel}><IconButton aria-label={themeLabel} onClick={() => setPreference(palette.mode === 'dark' ? 'light' : 'dark')} size="small">{palette.mode === 'dark' ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}</IconButton></Tooltip>
   useEffect(() => { window.scrollTo(0, 0) }, [product])
   return <div className="lp-public-products" data-public-products-theme={palette.mode}>
-    <header className="lp-header"><a href="https://loomai.pro/" className="lp-brand" aria-label="LoomAI home"><PreviewSymbol name="box" /><span>LoomAI</span></a>{product ? authActions : themeToggle}</header>
+    <header className="lp-header"><a href={integrationTeam.websiteUrl} className="lp-brand" aria-label="LoomAI home"><PreviewSymbol name="box" /><span>LoomAI</span></a>{product ? authActions : themeToggle}</header>
     <main className="lp-main">{product ? <ProductDetail product={product} /> : <ProductLanding />}</main>
-    <footer className="lp-footer">{product ? <><span>Loom AI Labs</span>{themeToggle}</> : <><span>One account. Your connected AI products.</span>{authActions}</>}</footer>
+    <footer className="lp-footer">{product ? <><a href={integrationTeam.websiteUrl}>LoomAI website</a>{themeToggle}</> : <><span>One account. Your connected AI products.</span>{authActions}</>}</footer>
   </div>
 }
 

@@ -9,6 +9,7 @@ import RocketLaunchOutlined from '@mui/icons-material/RocketLaunchOutlined'
 import StorageOutlined from '@mui/icons-material/StorageOutlined'
 import SupportAgentRounded from '@mui/icons-material/SupportAgentRounded'
 import { Link } from 'react-router-dom'
+import { IntegrationCallButton } from '../IntegrationCallButton'
 import type { KitPreviewKind } from './kitPreviewContent'
 import './KitIntegrationJourney.css'
 
@@ -81,8 +82,8 @@ export function KitIntegrationJourney({ kind, getStartedPath, compact = false }:
         <h3>{title}</h3><p>{description}</p>
       </li>)}</ol>
       {!compact && <div className="ek-integration-next"><div><h3>Talk through your integration</h3><p>{content.costs}</p></div>
-        <div className="ek-integration-actions"><Button component={Link} to="/support" variant="outlined" startIcon={<SupportAgentRounded />}>Discuss integration</Button>
-          <Button component={Link} to={getStartedPath} endIcon={<ArrowForwardRounded />}>Get started</Button></div>
+        <div className="ek-integration-actions"><IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
+          <Button component={Link} to={getStartedPath} endIcon={<ArrowForwardRounded />}>Install kit</Button></div>
       </div>}
     </section>
     {compact && <details className="ek-detail-integration-scope"><summary>What we connect, and what you control</summary>{scope}<p>{content.costs}</p></details>}

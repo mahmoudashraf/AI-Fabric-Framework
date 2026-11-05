@@ -10,6 +10,19 @@ import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
 const require = createRequire(import.meta.url)
+async function loadLocal(relative, dependencies = {}) {
+  const source = await readFile(new URL(relative, import.meta.url), 'utf8')
+  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } })
+  const exports = {}
+  new Function('require', 'exports', compiled.outputText)(name => {
+    if (name in dependencies) return dependencies[name]
+    if (name === 'react/jsx-runtime' || name.startsWith('@mui/')) return require(name)
+    throw new Error(`Unexpected booking dependency: ${name}`)
+  }, exports)
+  return exports
+}
+const config = await loadLocal('../src/integrationTeam.ts')
+const booking = await loadLocal('../src/components/IntegrationCallButton.tsx', { '../integrationTeam': config })
 const source = await readFile(new URL('../src/components/kits/KitIntegrationJourney.tsx', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
@@ -19,6 +32,7 @@ const journey = {}
 new Function('require', 'exports', compiled.outputText)(name => {
   imports.push(name)
   if (name === './KitIntegrationJourney.css') return {}
+  if (name === '../IntegrationCallButton') return booking
   if (name === 'react-router-dom') return { Link: ({ to, children, ...props }) => React.createElement('a', { ...props, href: to }, children) }
   if (name === 'react/jsx-runtime' || name.startsWith('@mui/')) return require(name)
   throw new Error(`Unexpected integration journey dependency: ${name}`)
@@ -32,7 +46,7 @@ test('every kit has the ordered LoomAI-owned integration journey and real destin
     const steps = [...html.matchAll(/<h3>(.*?)<\/h3>/g)].map(match => match[1])
     assert.deepEqual(steps.slice(3, 7), ['Share requirements and access', 'LoomAI connects your systems', 'Test with your own team', 'Go live'])
     assert.match(html, /The LoomAI technical team connects your approved systems and knowledge/)
-    assert.match(html, /href="\/support"/)
+    assert.ok(html.includes(`href="${config.integrationTeam.bookingUrl}"`))
     assert.match(html, /href="\/sign-up\?kit=example"/)
     assert.doesNotMatch(html, /<form|<input|<button|£500|First 3 months free|Free integration|Only pay when value starts/)
   }
@@ -60,7 +74,7 @@ test('support and general kits retain domain-specific content without borrowing 
 })
 
 test('journey is presentation-only and uses existing theme tokens without global styles', async () => {
-  assert.ok(imports.every(name => name === './KitIntegrationJourney.css' || name === 'react-router-dom' || name === 'react/jsx-runtime' || name.startsWith('@mui/')))
+  assert.ok(imports.every(name => name === './KitIntegrationJourney.css' || name === '../IntegrationCallButton' || name === 'react-router-dom' || name === 'react/jsx-runtime' || name.startsWith('@mui/')))
   assert.doesNotMatch(source, /\b(?:fetch\(|localStorage|sessionStorage|onSubmit|checkout|stripe)/i)
   const css = await readFile(new URL('../src/components/kits/KitIntegrationJourney.css', import.meta.url), 'utf8')
   assert.match(css, /var\(--ek-text\)|var\(--ek-muted\)/)
@@ -124,8 +138,14 @@ test('real detail pages retain offers, preview, demo, links and responsive light
     await page.getByText(definition.description, { exact: true }).waitFor()
     for (const feature of definition.features) await page.getByText(feature, { exact: true }).waitFor()
     assert.equal(await page.locator('.ek-integration-steps > li').count(), 4)
-    const discussionName = definition.code === 'dealership-ai-experience' ? 'Discuss free integration' : 'Discuss integration'
-    assert.equal(await page.getByRole('link', { name: discussionName, exact: true }).first().getAttribute('href'), '/support')
+    const projectLinks = await page.getByRole('link', { name: 'Start a project', exact: true }).all()
+    assert.equal(projectLinks.length, 2)
+    for (const link of projectLinks) {
+      assert.equal(await link.getAttribute('href'), config.integrationTeam.bookingUrl)
+      assert.equal(await link.getAttribute('target'), '_blank')
+      assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
+    }
+    assert.equal(await page.getByRole('link', { name: 'LoomAI website', exact: true }).getAttribute('href'), 'https://loomai.pro/')
     assert.equal(await page.locator('.ek-detail-outcome').count(), 3)
     assert.equal(await page.locator('.ek-detail-products > a').count(), 3)
     await page.getByText('What we connect, and what you control', { exact: true }).click()
@@ -138,8 +158,10 @@ test('real detail pages retain offers, preview, demo, links and responsive light
       await page.getByRole('button', { name: 'Close preview', exact: true }).click()
       await page.getByRole('dialog').waitFor({ state: 'hidden' })
     }
-    for (const link of await page.getByRole('link', { name: 'Get started', exact: true }).all()) {
-      assert.equal(await link.getAttribute('href'), `/sign-up?kit=${definition.code}`)
+    const installLinks = await page.getByRole('link', { name: 'Install kit', exact: true }).all()
+    assert.equal(installLinks.length, 2)
+    for (const link of installLinks) {
+      assert.equal(await link.getAttribute('href'), `/kits/new/${definition.code}`)
     }
     const detailText = await page.locator('.ek-public-detail').innerText()
     if (definition.code === 'dealership-ai-experience') {
@@ -193,7 +215,7 @@ test('real detail pages retain offers, preview, demo, links and responsive light
     }
     await page.goto(`${base}experiences/${definition.code}?authenticated=true`)
     await page.getByRole('heading', { name: definition.name, exact: true }).waitFor()
-    for (const link of await page.getByRole('link', { name: 'Get started', exact: true }).all()) {
+    for (const link of await page.getByRole('link', { name: 'Install kit', exact: true }).all()) {
       assert.equal(await link.getAttribute('href'), `/kits/new/${definition.code}`)
     }
   }

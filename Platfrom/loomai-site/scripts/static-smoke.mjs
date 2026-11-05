@@ -53,6 +53,9 @@ for (const route of routes) {
   }
   htmlFiles.push(target)
   const html = readFileSync(target, 'utf8')
+  if (!route.startsWith('demos/') && !html.includes('href="https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success"')) {
+    errors.push(`Missing integration booking action at /${route}`)
+  }
   const h1Count = (html.match(/<h1(?:\s|>)/g) || []).length
   if (h1Count !== 1) {
     errors.push(`Expected one h1 at /${route || ''}, found ${h1Count}`)

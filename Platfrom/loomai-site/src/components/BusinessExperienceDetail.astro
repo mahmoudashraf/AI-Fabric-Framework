@@ -16,12 +16,14 @@ import {
 import BusinessExperienceFamily from './BusinessExperienceFamily.astro'
 import BusinessExperiencePreview from './BusinessExperiencePreview.astro'
 import BusinessExperienceSupport from './BusinessExperienceSupport.astro'
+import IntegrationCallAction from './IntegrationCallAction.astro'
 
 type Props = { kind: 'generic' | 'dealership' }
 const { kind } = Astro.props
 const dealership = kind === 'dealership'
 const title = dealership ? 'Dealership AI Experience' : 'AI Customer Experience'
-const consoleUrl = `https://console.loomai.pro/experiences/${dealership ? 'dealership-ai-experience' : 'ai-customer-experience'}`
+const kitCode = dealership ? 'dealership-ai-experience' : 'ai-customer-experience'
+const consoleUrl = `https://console.loomai.pro/kits/new/${kitCode}`
 const capabilities = dealership
   ? [
       {
@@ -86,7 +88,7 @@ const steps = [
         <a href="/experiences"
           ><ArrowLeft size={16} aria-hidden="true" />Back to experiences</a
         ><a href="https://console.loomai.pro/"
-          >Get started<ArrowRight size={16} aria-hidden="true" /></a
+          >Open Console<ArrowRight size={16} aria-hidden="true" /></a
         >
       </div>
       <p class="loom-eyebrow">
@@ -102,11 +104,11 @@ const steps = [
       </p>
       <div class="experience-detail-hero__actions">
         <a class="experience-button" href={consoleUrl}
-          >Get started<ArrowRight
+          >Install kit in Console<ArrowRight
             size={17}
             aria-hidden="true"
           /></a
-        >{
+        ><IntegrationCallAction label="Start a project" />{
           dealership ? (
             <a class="experience-secondary" href="/demos/dealership-ai">
               <Play size={17} aria-hidden="true" />
@@ -276,15 +278,8 @@ const steps = [
         </div>
       </div><div class="experience-detail-setup__actions">
         <a class="experience-button" href={consoleUrl}
-          >Get started<ArrowRight size={17} aria-hidden="true" /></a
-        ><a
-          class="experience-secondary"
-          href="https://console.loomai.pro/support"
-          >Get setup help<ArrowRight
-            size={16}
-            aria-hidden="true"
-          /></a
-        >
+          >Install kit in Console<ArrowRight size={17} aria-hidden="true" /></a
+        ><IntegrationCallAction label="Start a project" />
       </div><BusinessExperienceSupport />
     </div>
   </section>
