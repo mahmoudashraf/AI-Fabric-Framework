@@ -12667,3 +12667,44 @@ test is being called hosted acceptance. UI extraction remains last.
 - Tracking010.62; safe screenshots/reports:
   verification-support/kit-cards-01062/homepage/. Unrelated existing dirty work
   remains untouched. Temporary test servers stopped; no new infrastructure.
+
+## 2026-11-05 Kit Start Actions, Website Navigation And Team Booking Live
+
+- Owner requested clear website/Console navigation plus direct kit installation
+  or integration-project entry. The website labels its card action Explore kit
+  in Console. Console details always identify Console and link back to LoomAI.
+  Hero/closing actions are Install kit and Start a project, with previews secondary.
+- Install uses existing /kits/new/{code}; anonymous sign-in/registration preserves
+  the kit. Start a project opens the approved Calendly integration consultation,
+  not an automatic Platform project/ticket. Book integration call is also on
+  public site/navigation/mobile/footer/Connect, public Console pages, customer
+  navigation and Support. Existing support requests remain independent.
+- Approved event: https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success.
+  Real event/popup verified; no appointment submitted. No external script/iframe,
+  automatic email/account prefill or customer resource disclosure was added.
+- CURRENT frontend native source on staging Console, production Console and
+  production public site:73b49a469c211e28cc92039902809525f91f0975. Core CI42114424597
+  passed with backend skipped; serving CI42114423331 passed. The public site
+  auto-deployed; no duplicate job. All serving frontends are healthy.
+- Hosted install verification discovered pre-existing HTTP409 composition drift:
+  both public bootstrap defaults had stale target-profile fingerprints, while
+  their runtime artifacts matched. Normal staff publication created new immutable
+  public-dealership-profile-20261105/public-knowledge-profile-20261105 defaults;
+  only target fingerprints changed. Onboarding config selects them. Same backend
+  image8bf95331c11faeea7f4d532fbe1bd767e649b0ae restarted healthy on both hosts.
+  No backend/framework code, AI settings, runtime image, customer deployment,
+  app configuration, assignment or credentials changed; no validator bypass.
+- New-registration defaults remain dealer simulator and generic knowledge.
+  Support install needs an approved Support template for the account; booking
+  does not. Do not advertise private LoomAI diagnostic profiles as public defaults.
+- Local:11 kit/detail/booking tests,16 auth-return/continuity tests,42 responsive
+  catalogue/product states,nine Support setup groups,28 static routes and public
+  theme/preview/booking checks passed. Hosted:21 staging observations and22
+  production observations passed, including real website->Console->calendar and
+  back, native customer setup entry, mobile/theme/book links. No kit/infra/AI
+  query or appointment created. Only standard self-enrollment calls in browser.
+- Tracking010.62; safe evidence verification-support/kit-cards-01062/navigation/.
+  Full environment/identity/offer receipts remain private under
+  ~/.codex/private/loomai-kit-navigation/. After future profile identity changes,
+  revalidate and republish public defaults normally; never mutate old hashes or
+  weaken checks. Unrelated dirty work preserved; temporary test servers stopped.

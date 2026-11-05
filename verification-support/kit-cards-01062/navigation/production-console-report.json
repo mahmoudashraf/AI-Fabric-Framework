@@ -1,0 +1,132 @@
+{
+  "environment": "production",
+  "source": "73b49a469c211e28cc92039902809525f91f0975",
+  "at": "2026-11-05T22:07:04.694Z",
+  "checked": [
+    {
+      "label": "website-to-console-and-back",
+      "realSchedulingPopup": true,
+      "noBookingSubmitted": true
+    },
+    {
+      "label": "public-ai-customer-experience-dark-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-ai-customer-experience-dark-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "public-ai-customer-experience-light-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-ai-customer-experience-light-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "anonymous-install-ai-customer-experience",
+      "signInPreservesKit": true
+    },
+    {
+      "label": "public-dealership-ai-experience-dark-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-dealership-ai-experience-dark-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "public-dealership-ai-experience-light-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-dealership-ai-experience-light-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "anonymous-install-dealership-ai-experience",
+      "signInPreservesKit": true
+    },
+    {
+      "label": "public-ai-support-experience-dark-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-ai-support-experience-dark-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "public-ai-support-experience-light-1440",
+      "viewport": 1440,
+      "scroll": 1440,
+      "broken": []
+    },
+    {
+      "label": "public-ai-support-experience-light-390",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "anonymous-install-ai-support-experience",
+      "signInPreservesKit": true
+    },
+    {
+      "label": "customer-install-ai-customer-experience",
+      "nativeCustomerSetupLoaded": true
+    },
+    {
+      "label": "customer-install-dealership-ai-experience",
+      "nativeCustomerSetupLoaded": true
+    },
+    {
+      "label": "customer-install-ai-support-experience",
+      "nativeCustomerSetupLoaded": true
+    },
+    {
+      "label": "product-platform-mobile",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "product-engage-mobile",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "label": "product-desk-mobile",
+      "viewport": 390,
+      "scroll": 390,
+      "broken": []
+    }
+  ],
+  "errors": [],
+  "allowedEnrollmentCalls": 3,
+  "customerAppsUnchanged": true,
+  "noKitOrDeploymentCreated": true,
+  "noAIQuery": true,
+  "schedulingSubmissions": 0
+}

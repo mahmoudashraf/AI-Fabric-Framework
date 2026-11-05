@@ -1,0 +1,8 @@
+{
+  "mode": "observed-existing-auto-deploy-no-trigger",
+  "source": "73b49a469c211e28cc92039902809525f91f0975",
+  "status": "finished",
+  "revision": "73b49a469c211e28cc92039902809525f91f0975",
+  "tag": "73b49a469c211e28cc92039902809525f91f0975-loomai-site",
+  "health": "running:healthy"
+}

@@ -313,4 +313,42 @@ signup/recovery behavior, customer support requests and live demo links remain.
 Local build/check and 28 static route checks passed. Focused checks passed 11
 kit/booking/detail tests, 16 authentication-return/continuity tests, 42 catalogue
 and product responsive/theme states, nine Support kit setup groups, and the
-homepage preview/booking checks. Hosted rollout/qualification is pending.
+homepage preview/booking checks.
+
+### Navigation Rollout And Hosted Installation Entry Checks
+
+Current native frontend source on staging Console, production Console and the
+public site: `73b49a469c211e28cc92039902809525f91f0975`. Core-image CI
+`42114424597` passed with the backend image skipped. Serving-image CI
+`42114423331` passed for the public site only. The site auto-deployed, observed
+and qualified without submitting a duplicate deployment.
+
+Live verification exposed a pre-existing HTTP409 REVIEWED_COMPOSITION_CHANGED
+at public-template enrollment. Both public defaults pinned old target-profile
+fingerprints; their runtime artifact fingerprints were valid. Through the
+normal audited staff publication API, copied definitions changed only the
+current target-profile fingerprints, using new immutable IDs. The old records
+were not mutated. Public onboarding configuration now selects those current
+definitions. This required a configuration-only restart of the same backend
+image on each host, not a backend/framework release or a safety-gate bypass.
+Runtime images, plugins, AI defaults, allowed operations, target choices, limits,
+customer deployments, assignments and credentials were not changed.
+
+After repair, staging passed 21 hosted observations and production passed 22.
+These cover all three detail pages, anonymous install-to-sign-in/registration
+intent, native customer setup entry forms, desktop/mobile/light/dark, product
+booking links, customer navigation and Support. Production additionally clicked
+the real website-to-Console-to-Calendly path and the return-to-website link.
+No appointment, kit, infrastructure or AI query was submitted/created. Only the
+ordinary existing customer self-enrollment calls occurred in browser testing.
+Customer app configurations and protected application image tags are unchanged.
+
+Existing public defaults remain dealership simulator and generic knowledge, as
+approved for new registrations. Support installation still requires that
+account's approved Support template; the project consultation requires none.
+This is not new public access to private LoomAI diagnostic/support credentials.
+
+Safe evidence is in `verification-support/kit-cards-01062/navigation/`. Future
+target-profile changes must revalidate/republish affected public defaults through
+the same normal workflow. Do not hide composition drift with hash edits, SQL
+updates to immutable records or relaxed validation.

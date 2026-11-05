@@ -1,0 +1,12 @@
+[
+  {
+    "env": "staging",
+    "protectedImagesUnchanged": true,
+    "changes": []
+  },
+  {
+    "env": "production",
+    "protectedImagesUnchanged": true,
+    "changes": []
+  }
+]
