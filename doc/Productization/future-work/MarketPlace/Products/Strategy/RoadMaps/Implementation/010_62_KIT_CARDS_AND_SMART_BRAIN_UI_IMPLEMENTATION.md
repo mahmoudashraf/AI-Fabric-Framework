@@ -380,3 +380,19 @@ Reference: Calendly's official iframe embedding guide,
 https://calendly.com/help/how-to-embed-calendly-with-an-iframe.
 No appointment is submitted during verification. Hosted rollout and real
 calendar slot-selection results are recorded separately after qualification.
+
+### Booking Panel Rollout Completed
+
+Frontend source `ab4a8778f20027a78c5579f193b17f1b718646c4` is live and
+healthy on staging Console, production Console and the production public site.
+Native container revisions confirm that source. Core-image CI `42125363664`
+passed with the backend skipped; serving-image CI `42125363589` passed for the
+public site only. The site auto-deployed without a duplicate deployment request.
+
+Real Calendly verification passed on the website (desktop, mobile and mobile
+menu) and both Consoles (public detail desktop/mobile, authenticated Support,
+sidebar and mobile customer navigation). Date/time selection works inside the
+panel; closing returns to the same page and restores focus after the closing
+transition. No appointment, AI query or customer-resource mutation was made.
+Non-frontend application image tags remain unchanged. Safe reports and public
+screenshots are in `verification-support/kit-cards-01062/booking-panel/`.

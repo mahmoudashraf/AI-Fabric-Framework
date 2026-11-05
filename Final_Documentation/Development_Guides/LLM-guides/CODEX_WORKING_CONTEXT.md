@@ -12708,3 +12708,26 @@ test is being called hosted acceptance. UI extraction remains last.
   ~/.codex/private/loomai-kit-navigation/. After future profile identity changes,
   revalidate and republish public defaults normally; never mutate old hashes or
   weaken checks. Unrelated dirty work preserved; temporary test servers stopped.
+
+## 2026-11-05 In-Page Integration Booking Panel Live
+
+- Owner requested booking inside a floating dismissible panel instead of leaving
+  the page. Book integration call and Start a project now use a lazy Calendly
+  iframe in Console's shared dialog and the public site's native modal.
+  Explicit external-tab/modified-click links remain. No account/email/resource
+  prefill or token forwarding; no host scheduling script or booking backend.
+- Source ab4a8778f20027a78c5579f193b17f1b718646c4 is healthy on staging
+  Console, production Console and loomai.pro, confirmed by native revisions.
+  Core CI42125363664 passed (backend skipped); site CI42125363589 passed.
+  Site auto-deployed; Console updates were image-only. No backend/runtime/Desk
+  image or customer app/assignment was changed. CSP adds only the Calendly frame
+  origin while preserving existing self/YouTube and script-source restrictions.
+- Local builds/checks,20 focused Console tests,28 static routes,site responsive
+  card/preview/theme/mobile-panel regression passed. Real date/time selection,
+  close/page preservation and focus passed on website desktop/mobile/menu and
+  both Consoles' public details,customer Support,sidebar and mobile navigation.
+  Final hosted checks made no API mutations,AI queries or appointments.
+- Tracking010.62; safe evidence verification-support/kit-cards-01062/booking-panel/.
+  Private deployment/identity receipts ~/.codex/private/loomai-booking-panel/.
+  Earlier external-tab-only booking notes are superseded. Unrelated dirty work
+  is preserved; task-owned temporary preview/test servers have stopped.

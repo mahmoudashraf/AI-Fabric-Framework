@@ -1,0 +1,15 @@
+{
+  "environment": "production",
+  "target": "ui",
+  "app": {
+    "uuid": "a6fz2ncuzzulg6lrzzwrjshu",
+    "name": "loomai-platform-ui",
+    "tag": "ab4a8778f20027a78c5579f193b17f1b718646c4",
+    "status": "running:healthy"
+  },
+  "deploymentStatus": "finished",
+  "native": {
+    "revision": "ab4a8778f20027a78c5579f193b17f1b718646c4",
+    "status": "running"
+  }
+}

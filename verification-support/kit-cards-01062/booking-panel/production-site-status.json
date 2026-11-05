@@ -1,0 +1,14 @@
+{
+  "environment": "production",
+  "target": "site",
+  "app": {
+    "uuid": "t3r7unm08sh3tfatpadz7qky",
+    "name": "loomai-public-site",
+    "tag": "ab4a8778f20027a78c5579f193b17f1b718646c4-loomai-site",
+    "status": "running:healthy"
+  },
+  "native": {
+    "revision": "ab4a8778f20027a78c5579f193b17f1b718646c4",
+    "status": "running"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "environment": "production",
+  "target": "ui",
+  "origin": "https://console.loomai.pro",
+  "source": "ab4a8778f20027a78c5579f193b17f1b718646c4",
+  "status": "PASS",
+  "checks": [
+    {
+      "label": "public-desktop",
+      "realCalendar": true,
+      "slotSelected": true,
+      "noAppointmentSubmitted": true,
+      "originalPageRetained": true
+    },
+    {
+      "label": "public-mobile",
+      "realCalendar": true,
+      "slotSelected": true,
+      "noAppointmentSubmitted": true,
+      "originalPageRetained": true
+    },
+    {
+      "label": "customer-support",
+      "realCalendar": true,
+      "slotSelected": true,
+      "noAppointmentSubmitted": true,
+      "originalPageRetained": true
+    },
+    {
+      "label": "customer-sidebar",
+      "realCalendar": false,
+      "slotSelected": false,
+      "noAppointmentSubmitted": true,
+      "originalPageRetained": true
+    },
+    {
+      "label": "customer-mobile-menu",
+      "realCalendar": true,
+      "slotSelected": true,
+      "noAppointmentSubmitted": true,
+      "originalPageRetained": true
+    }
+  ],
+  "mutations": [],
+  "appointmentsSubmitted": 0,
+  "noAIQuery": true
+}

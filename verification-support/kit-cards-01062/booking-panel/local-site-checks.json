@@ -1,0 +1,55 @@
+{
+  "status": "PASS",
+  "checks": [
+    "/:lazy-booking-panel-slot-close-escape-focus-page-retained",
+    "/:three-kits-detail-links-dealership-only-offer-channel-icons",
+    "/:all-nine-preview-formats-close-escape-focus",
+    "/experiences:lazy-booking-panel-slot-close-escape-focus-page-retained",
+    "/experiences:three-kits-detail-links-dealership-only-offer-channel-icons",
+    "/experiences:all-nine-preview-formats-close-escape-focus",
+    "ten-responsive-theme-layouts-images-fonts-offers-and-all-mobile-previews"
+  ],
+  "layouts": [
+    {
+      "width": 1536,
+      "theme": "light"
+    },
+    {
+      "width": 1280,
+      "theme": "light"
+    },
+    {
+      "width": 768,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "width": 1536,
+      "theme": "dark"
+    },
+    {
+      "width": 1280,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "width": 320,
+      "theme": "dark"
+    }
+  ],
+  "errors": []
+}

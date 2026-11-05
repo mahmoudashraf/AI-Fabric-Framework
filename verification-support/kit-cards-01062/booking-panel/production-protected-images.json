@@ -1,0 +1,6 @@
+{
+  "environment": "production",
+  "protectedApplications": 21,
+  "protectedImageTagsUnchanged": true,
+  "changes": []
+}

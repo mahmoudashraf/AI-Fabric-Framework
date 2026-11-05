@@ -1,0 +1,6 @@
+{
+  "environment": "staging",
+  "protectedApplications": 41,
+  "protectedImageTagsUnchanged": true,
+  "changes": []
+}
