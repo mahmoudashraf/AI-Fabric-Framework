@@ -252,4 +252,26 @@ and all 28 static route checks passed. The focused browser runner passed both
 catalogue routes, all nine preview formats, close/Escape/focus behavior, local
 images/font, offer isolation and ten width/theme layouts (320-1536px). The shared
 theme/navigation regression also passed. Evidence is in
-`verification-support/kit-cards-01062/homepage/local/`. Hosted rollout is pending.
+`verification-support/kit-cards-01062/homepage/local/`.
+
+### Homepage Rollout Completed
+
+Serving-image CI `42106691452` passed, publishing only `loomai-site`. The
+production image-only deployment finished healthy. Native container image and
+revision confirm `852bc5614ed0ee55919acf2fa4b0025fa271a47f`; all other application
+image tags are unchanged. A separate clean-source build/check/smoke and browser
+pass confirmed no pre-existing dirty work was included in the release.
+
+Hosted browser verification passed on both `https://loomai.pro/` and
+`https://loomai.pro/experiences`: three cards, exact Console detail links,
+dealership-only offer, portrait/channel positioning, all nine preview formats,
+close/Escape/focus, five widths in both themes, local images/fonts, aligned
+desktop commands and mobile preview bounds. All three Console detail targets
+returned HTTP200. The public site's light default and explicit dark preference
+work correctly. No AI query, enquiry or ticket was submitted.
+
+Live safe screenshots and reports are in
+`verification-support/kit-cards-01062/homepage/live/`. Existing health JSON has
+stale build-commit metadata; qualification therefore also records the correct
+native image/revision rather than treating that old field as deployment proof.
+This metadata discrepancy does not affect the served cards or workspace setup.

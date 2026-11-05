@@ -1,0 +1,17 @@
+{
+  "native": {
+    "image": "ghcr.io/mahmoudashraf/loomai-public-site:852bc5614ed0ee55919acf2fa4b0025fa271a47f-loomai-site",
+    "revision": "852bc5614ed0ee55919acf2fa4b0025fa271a47f",
+    "health": "healthy"
+  },
+  "health": {
+    "status": "UP",
+    "service": "loomai-public-site",
+    "commit": "4d6a22e5667ea5ac96d04d9d8bdd6f38478d1df9",
+    "buildTime": "unknown",
+    "aiWorkspaceConfigured": true,
+    "checkedAt": "2026-11-05T20:52:44.118Z"
+  },
+  "otherImageChanges": [],
+  "checkedAt": "2026-11-05T20:52:44.059Z"
+}

@@ -12642,3 +12642,28 @@ test is being called hosted acceptance. UI extraction remains last.
   the approved mockup, local/hosted summaries and safe public screenshots.
   The previous Await visual approval state is superseded. This work is complete.
   Pre-existing unrelated worktree changes were preserved and not committed.
+
+## 2026-11-05 Public Homepage Three Kit Cards Live
+
+- Owner requested the approved kit cards at loomai.pro. Public homepage and
+  /experiences now show adaptive AI Customer Experience, Dealership AI and
+  AI Support, with photographic scenes, capabilities, Platform/Engage/Human
+  Desk portraits/channel symbols and direct links to the new Console details.
+- Dealership alone retains the approved GBP500month/paywhenvaluestarts/three
+  free months/freeintegration offer and live demo. Native previews support
+  website/Max/standalone; examples cannot submit requests or contact an agent.
+- CURRENT production public-site native image/revision:
+  852bc5614ed0ee55919acf2fa4b0025fa271a47f. Serving-image CI42106691452 passed
+  with only loomai-site published; image-only Coolify job finished healthy.
+  No backend, Console, Desk, runtime, customer configuration or other app image
+  changes. Existing health JSON's build commit is stale; native image/label was
+  checked separately and proves the correct release. Do not mistake that old
+  health metadata for the version of the served homepage.
+- Local, clean-source and hosted checks passed: Astro/build/content/28 static
+  routes, two catalogue routes, all nine preview formats, close/Escape/focus,
+  five widths in both themes, assets/font, aligned buttons and narrow-phone
+  bounds. Public light default/theme persistence and all three Console detail
+  targets passed. No AI query or business write ran.
+- Tracking010.62; safe screenshots/reports:
+  verification-support/kit-cards-01062/homepage/. Unrelated existing dirty work
+  remains untouched. Temporary test servers stopped; no new infrastructure.
