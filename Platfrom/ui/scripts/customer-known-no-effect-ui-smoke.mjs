@@ -362,7 +362,7 @@ try {
     await waitUntil(async () => (await assignment.innerText()).includes('revision 2'), 'parent refresh after settlement')
     assert.equal(await f.page.getByText('Failed release settlement', { exact: true }).count(), 0)
     assert.equal(settleCalls(f).length, 1)
-    await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
+    await f.page.getByRole('button', { name: 'Manage smart brain', exact: true }).nth(1).click()
     await f.page.getByRole('heading', { name: 'Fresh PostgreSQL workspace', level: 5, exact: true }).waitFor()
     await assignment.click()
     assert.deepEqual(await f.page.getByRole('option').allTextContents(), ['Destination current \u00b7 revision 1',

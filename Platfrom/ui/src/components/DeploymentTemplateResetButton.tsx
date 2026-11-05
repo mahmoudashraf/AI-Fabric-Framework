@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useEffect, useState } from 'react'
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack } from '@mui/material'
 import RestartAltOutlined from '@mui/icons-material/RestartAltOutlined'
@@ -33,11 +34,11 @@ function ScopedTemplateReset({ deploymentId, disabled, onPendingChange }: {
   return <Stack spacing={1}>
     <Button variant="outlined" startIcon={<RestartAltOutlined />} disabled={disabled || reset.isPending}
       onClick={() => { reset.reset(); setOpen(true) }}>Reset to template</Button>
-    {reset.isSuccess ? <Alert severity="success">Template settings restored to the draft. The live deployment and app are unchanged.</Alert> : null}
+    {reset.isSuccess ? <Alert severity="success">Template settings restored to the draft. The live {deploymentTerm.lowercase} and app are unchanged.</Alert> : null}
     <Dialog open={open} onClose={() => { if (!reset.isPending) setOpen(false) }} aria-labelledby="template-reset-title">
       <DialogTitle id="template-reset-title">Reset to template?</DialogTitle>
       <DialogContent>
-        <DialogContentText>Replace the saved draft settings with the original template defaults? Custom draft settings will be replaced. Installed plugins, external bindings and credentials are unchanged. Nothing will be published or deployed. Your existing deployment and app address will stay the same.</DialogContentText>
+        <DialogContentText>Replace the saved draft settings with the original template defaults? Custom draft settings will be replaced. Installed plugins, external bindings and credentials are unchanged. Nothing will be published or deployed. Your existing {deploymentTerm.lowercase} and app address will stay the same.</DialogContentText>
         {reset.isError ? <Alert severity="error" sx={{ mt: 2 }}>{reset.error instanceof Error ? reset.error.message : 'Template reset failed.'}</Alert> : null}
       </DialogContent>
       <DialogActions>

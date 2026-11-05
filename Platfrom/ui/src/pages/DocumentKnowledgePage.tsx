@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
@@ -578,7 +579,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
   const retentionCurrent = documentLive && sameTarget(retentionMutation.variables?.target, targetReference)
 
   if (!selectedDeploymentId) {
-    return <Alert severity="info">Select a deployment to open Document Knowledge.</Alert>
+    return <Alert severity="info">Select a {deploymentTerm.lowercase} to open Document Knowledge.</Alert>
   }
   if (draftQuery.isLoading || installsQuery.isLoading) {
     return <Stack alignItems="center" sx={{ py: 8 }}><CircularProgress /></Stack>
@@ -586,7 +587,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
   if (!documentConfigured) {
     return (
       <Alert severity="info">
-        This deployment does not include the Document Knowledge DATA capability.
+        This {deploymentTerm.lowercase} does not include the Document Knowledge DATA capability.
         {!customerSelfService ? <> <Link component={RouterLink} to="/marketplace">Open Marketplace</Link></> : null}
       </Alert>
     )
@@ -740,7 +741,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
 
           {bindingSaveCurrent && saveBindingMutation.isError ? <Alert severity="error">{errorText(saveBindingMutation.error)}</Alert> : null}
           {bindingSaveCurrent && saveBindingMutation.isSuccess ? <Alert severity="success">Storage binding saved.</Alert> : null}
-          {!install ? <Alert severity="warning">The Document Knowledge DATA install is missing; binding configuration cannot be compiled into the deployment draft.</Alert> : null}
+          {!install ? <Alert severity="warning">The Document Knowledge DATA install is missing; binding configuration cannot be compiled into the {deploymentTerm.lowercase} draft.</Alert> : null}
           <Stack direction="row" justifyContent="flex-end">
             <Button
               variant="contained" startIcon={<SaveRoundedIcon />}

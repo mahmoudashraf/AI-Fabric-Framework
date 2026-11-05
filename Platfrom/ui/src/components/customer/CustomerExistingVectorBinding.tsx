@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material'
@@ -38,7 +39,7 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     queryFn: async () => {
       const result = await fetchDeploymentWorkspace(deploymentId)
       if (result.deployment.id !== deploymentId || result.deployment.binding?.customerId !== session.customerId) {
-        throw new Error('The deployment is not available in the current customer account.')
+        throw new Error(`The ${deploymentTerm.lowercase} is not available in the current customer account.`)
       }
       return result
     } })
@@ -58,7 +59,7 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     ? targets.data.find(value => value.id === selection.targetId && value.active && value.environmentName === environment) : undefined
   const selectionIssue = environment && targets.isSuccess && releases.isSuccess && !target
     ? targets.data.some(value => value.active && value.environmentName === environment)
-      ? 'The vector target for this environment is ambiguous. An exact deployment target must be resolved before binding.'
+      ? `The vector target for this environment is ambiguous. An exact ${deploymentTerm.lowercase} target must be resolved before binding.`
       : 'No active vector target is available for this environment.' : ''
   const manifest = useQuery({ queryKey: ['customer-existing-vector', scope, 'manifest', selected?.id, selected?.configHash], retry: false,
     enabled: Boolean(selected), queryFn: () => fetchDeploymentVersionManifest(deploymentId, selected!.id) })
@@ -146,7 +147,7 @@ function VectorForm({ scope, session, deploymentId, targetId, environment, versi
         <TextField fullWidth label="Zilliz project ID" value={form.projectId} disabled={disabled} onChange={event => field('projectId', event.target.value)} />
         <TextField fullWidth label="Zilliz region ID" value={form.regionId} disabled={disabled} onChange={event => field('regionId', event.target.value)} />
       </Stack>
-      <TextField fullWidth select label="Existing deployment option" value={form.expectedDeploymentOption} disabled={disabled}
+      <TextField fullWidth select label={`Existing ${deploymentTerm.lowercase} option`} value={form.expectedDeploymentOption} disabled={disabled}
         onChange={event => field('expectedDeploymentOption', event.target.value)}>
         {['Free', 'Serverless', 'Dedicated'].map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}
       </TextField>

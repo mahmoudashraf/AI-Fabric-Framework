@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import type { AlertColor, ChipProps } from '@mui/material'
 import type { DeploymentWorkspaceLifecycleSummary } from '../api/platformApi'
 
@@ -84,14 +85,14 @@ export function liveStateDisplay(
     case 'LIVE_MATCHES_LATEST_PUBLISHED':
       return {
         label: 'Live matches latest publish',
-        description: 'The currently live deployment is aligned with the newest published version.',
+        description: `The currently live ${deploymentTerm.lowercase} is aligned with the newest published version.`,
         color: 'success',
         severity: 'success',
       }
     case 'LIVE_OUTDATED':
       return {
         label: 'Live is behind latest publish',
-        description: 'The live deployment is still on an older applied version.',
+        description: `The live ${deploymentTerm.lowercase} is still on an older applied version.`,
         color: 'warning',
         severity: 'warning',
       }

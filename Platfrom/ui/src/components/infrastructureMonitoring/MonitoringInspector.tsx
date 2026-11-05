@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
@@ -27,7 +28,7 @@ function Footprints({ resources }: { resources: ResourceSample[] }) {
     groups.set(key, [...(groups.get(key) ?? []), resource])
   }
   return <Stack spacing={1}>
-    <Typography variant="subtitle2">Deployment / target footprints</Typography>
+    <Typography variant="subtitle2">{deploymentTerm.singular} / target footprints</Typography>
     {[...groups.entries()].map(([key, items]) => {
       const first = items[0], path = deploymentPath(first)
       const memory = items.every(item => finite(item.memoryWorkingSetBytes)) ? items.reduce((sum, item) => sum + item.memoryWorkingSetBytes, 0) : null
@@ -63,7 +64,7 @@ function ServerMeasurements({ server, now }: { server: MonitoringServer; now: nu
       ['Unhealthy containers', server.observedAt ? number(server.resources.filter(r => r.health?.toLowerCase() === 'unhealthy').length, 0) : 'Unknown'],
       ['Restart count (current containers)', server.observedAt ? number(server.resources.reduce((sum, r) => sum + r.restartCount, 0), 0) : 'Unknown'],
       ['Containers with OOM evidence', server.observedAt ? number(server.resources.filter(r => r.oomKilled).length, 0) : 'Unknown'],
-      ['Mapped deployment / target pairs', server.observedAt ? number(knownTargets.size, 0) : 'Unknown'],
+      [`Mapped ${deploymentTerm.lowercase} / target pairs`, server.observedAt ? number(knownTargets.size, 0) : 'Unknown'],
     ]} />
     <Divider />
     <Footprints resources={server.resources} />
@@ -73,7 +74,7 @@ function ServerMeasurements({ server, now }: { server: MonitoringServer; now: nu
 function ResourceMeasurements({ resource }: { resource: ResourceSample }) {
   const path = deploymentPath(resource)
   return <Measurements entries={[
-    ['Deployment', path ? <Link component={RouterLink} to={path}>{resource.deploymentName || resource.deploymentId}<OpenInNewRoundedIcon sx={{ ml: 0.5, fontSize: 14, verticalAlign: 'middle' }} /></Link> : resource.providerKind === 'SHARED' ? 'Shared infrastructure' : 'Unmapped'],
+    [deploymentTerm.singular, path ? <Link component={RouterLink} to={path}>{resource.deploymentName || resource.deploymentId}<OpenInNewRoundedIcon sx={{ ml: 0.5, fontSize: 14, verticalAlign: 'middle' }} /></Link> : resource.providerKind === 'SHARED' ? 'Shared infrastructure' : 'Unmapped'],
     ['Target profile', resource.targetProfileId || 'Unmapped'], ['Role', resource.role || 'Unknown'],
     ['Container ID', resource.resourceId], ['Provider resource ID', resource.providerResourceId || 'Unmapped'],
     ['Provider kind', resource.providerKind], ['Image', resource.image || 'Unknown'], ['Started', timestamp(resource.startedAt)],

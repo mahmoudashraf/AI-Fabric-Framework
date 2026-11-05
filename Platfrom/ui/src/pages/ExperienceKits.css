@@ -53,14 +53,14 @@
 .ek-page .ek-amber { color: var(--ek-amber); }
 .ek-page .ek-mint { color: var(--ek-mint); }
 .ek-public-page { background: var(--ek-bg); min-height: 100vh; }
-.ek-public-container { max-width: 1440px; margin: 0 auto; padding: 16px 50px 0; }
+.ek-public-container { max-width: 1600px; margin: 0 auto; padding: 16px 28px 0; }
 .ek-public-header { display: flex; align-items: center; justify-content: space-between; min-height: 42px; gap: 20px; margin-bottom: 34px; }
 .ek-logo { display: inline-flex; align-items: center; gap: 8px; color: var(--ek-text) !important; font-size: 23px; font-weight: 650; }
 .ek-logo img { filter: invert(55%) sepia(85%) saturate(1800%) hue-rotate(179deg); }
 .ek-header-actions { display: flex; align-items: center; gap: 16px; }
 .ek-public-intro { margin-bottom: 22px; }
-.ek-public-intro h1 { font-size: 42px; }
-.ek-public-intro p { font-size: 20px; color: var(--ek-muted); margin-top: 4px; }
+.ek-public-intro h1 { font-size: 32px; }
+.ek-public-intro p { font-size: 17px; color: var(--ek-muted); margin-top: 6px; }
 .ek-chooser-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .ek-choice { border: 1px solid var(--ek-line); border-top: 5px solid var(--ek-mint); border-radius: 6px; padding: 18px 20px 14px; min-width: 0; background: var(--ek-bg); display: flex; flex-direction: column; }
 .ek-choice-dealership { border-top-color: var(--ek-amber); }

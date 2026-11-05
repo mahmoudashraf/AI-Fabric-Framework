@@ -6,6 +6,7 @@ import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import { Link } from 'react-router-dom'
+import { deploymentTerm } from '../../deploymentTerminology'
 import { kitAppAddressPreview, kitBrandColors, type KitExperienceForm } from './kitModels'
 import type { TicketProviderOption } from '../../api/experienceKitsApi'
 
@@ -66,7 +67,7 @@ export function KitExperienceFields({ value, onChange, disabled = false, deploym
       </div>}
     </section>
     <details className="ek-advanced"><summary><SettingsOutlined />Advanced configuration</summary><p>Your technical team can manage documents, connected systems, actions, sign-in and releases in the product editors.</p>
-      {deploymentId && <Link to={`/deployments?${new URLSearchParams({ view: 'manage', deploymentId })}`}>Open deployment configuration <ArrowForwardRounded /></Link>}
+      {deploymentId && <Link to={`/deployments?${new URLSearchParams({ view: 'manage', deploymentId })}`}>Open {deploymentTerm.lowercase} configuration <ArrowForwardRounded /></Link>}
     </details>
   </div>
 }

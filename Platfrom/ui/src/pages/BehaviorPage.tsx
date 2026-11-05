@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded'
@@ -164,7 +165,7 @@ function toggleValue(values: string[], value: string): string[] {
 
 function buildBehaviorConfig(config: unknown, selections: BehaviorSelections): unknown {
   if (!isRecord(config)) {
-    throw new Error('The saved deployment behavior contract is unavailable.')
+    throw new Error(`The saved ${deploymentTerm.lowercase} behavior contract is unavailable.`)
   }
   const next = JSON.parse(JSON.stringify(config)) as Record<string, unknown>
   const activation = isRecord(next.activation) ? next.activation : {}
@@ -304,13 +305,13 @@ export function BehaviorPage() {
     label: 'Behavior contract',
     description: dirty
       ? 'Behavior choices have unsaved browser-only changes.'
-      : 'Behavior choices match the saved deployment draft.',
+      : `Behavior choices match the saved ${deploymentTerm.lowercase} draft.`,
   } : null)
 
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!draftQuery.data) {
-        throw new Error('Deployment draft is unavailable.')
+        throw new Error(`${deploymentTerm.singular} draft is unavailable.`)
       }
       return updateDeploymentDraft(draftQuery.data.id, {
         behaviorConfig: buildBehaviorConfig(draftQuery.data.behaviorConfig, selections),
@@ -371,18 +372,18 @@ export function BehaviorPage() {
   }
 
   if (!selectedDeploymentId) {
-    return <Alert severity="info">Select a deployment to configure its behavior contract.</Alert>
+    return <Alert severity="info">Select a {deploymentTerm.lowercase} to configure its behavior contract.</Alert>
   }
 
   if (draftQuery.isLoading || behaviorQuery.isLoading || extensionQuery.isLoading) {
-    return <Alert severity="info">Loading deployment behavior contract…</Alert>
+    return <Alert severity="info">Loading {deploymentTerm.lowercase} behavior contract…</Alert>
   }
 
   if (draftQuery.isError || behaviorQuery.isError || extensionQuery.isError || !behavior) {
     const error = draftQuery.error ?? behaviorQuery.error ?? extensionQuery.error
     return (
       <Alert severity="error">
-        {error instanceof Error ? error.message : 'The deployment behavior contract could not be loaded.'}
+        {error instanceof Error ? error.message : `The ${deploymentTerm.lowercase} behavior contract could not be loaded.`}
       </Alert>
     )
   }
@@ -393,14 +394,14 @@ export function BehaviorPage() {
         <Stack spacing={0.75}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <AccountTreeRoundedIcon color="primary" />
-            <Typography variant="h4">{behavior.name}</Typography>
+            <Typography variant="h4">{deploymentEnumLabel(behavior.code, behavior.name)}</Typography>
             <Chip label={behavior.maturity} color={behavior.maturity === 'HOSTED_PROVEN' ? 'success' : 'warning'} />
           </Stack>
           <Typography color="text.secondary" sx={{ maxWidth: 900 }}>
             {behavior.description}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Behavior type is immutable for this deployment. Create another deployment to choose a different behavior.
+            Behavior type is immutable for this {deploymentTerm.lowercase}. Create another {deploymentTerm.lowercase} to choose a different behavior.
           </Typography>
         </Stack>
         <Button
@@ -423,7 +424,7 @@ export function BehaviorPage() {
           <Box>
             <Typography variant="h6">Exact release readiness</Typography>
             <Typography variant="body2" color="text.secondary">
-              Maturity belongs to an immutable Marketplace template, V04 composition, and runtime image, not to every deployment of this behavior.
+              Maturity belongs to an immutable Marketplace template, V04 composition, and runtime image, not to every {deploymentTerm.lowercase} of this behavior.
             </Typography>
           </Box>
           <Chip
@@ -651,7 +652,7 @@ export function BehaviorPage() {
       <Box component="section">
         <Typography variant="h6">Activation</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Choose which trusted request classes may start this deployment behavior.
+          Choose which trusted request classes may start this {deploymentTerm.lowercase} behavior.
         </Typography>
         <Grid container spacing={1}>
           {behavior.activationSources.map((source) => (
@@ -689,7 +690,7 @@ export function BehaviorPage() {
       <Box component="section">
         <Typography variant="h6">Channels</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Select only the product surfaces this deployment will expose.
+          Select only the product surfaces this {deploymentTerm.lowercase} will expose.
         </Typography>
         <Grid container spacing={1}>
           {behavior.channelBindings.map((channel) => (
@@ -846,9 +847,9 @@ function SmartBrainConfiguration({
 
   return (
     <Box component="section">
-      <Typography variant="h6">Smart Brain Inputs and Delivery</Typography>
+      <Typography variant="h6">Event-driven Inputs and Delivery</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Register trusted CloudEvent types, durable schedules, and the server-owned result delivery path for this deployment.
+        Register trusted CloudEvent types, durable schedules, and the server-owned result delivery path for this {deploymentTerm.lowercase}.
       </Typography>
 
       <TextField
@@ -991,7 +992,7 @@ function SmartBrainConfiguration({
 
 function smartBrainError(settings: SmartBrainSettings | null, behaviorType: string | undefined): string | null {
   if (behaviorType !== 'SMART_BRAIN') return null
-  if (!settings || settings.triggers.length === 0) return 'Register at least one Smart Brain trigger.'
+  if (!settings || settings.triggers.length === 0) return 'Register at least one event-driven trigger.'
   const codes = settings.triggers.map((trigger) => trigger.code.trim())
   if (codes.some((code) => !/^[a-z][a-z0-9-]{1,63}$/.test(code)) || new Set(codes).size !== codes.length) {
     return 'Trigger codes must be unique lower-kebab-case values.'

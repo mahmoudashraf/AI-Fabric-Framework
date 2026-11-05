@@ -16,7 +16,7 @@ const definition = { code: 'ai-support-experience', version: '1.0.0', name: 'AI 
 const configuration = { schemaVersion: 'loomai-support-experience-config-v1', app: { assistantLabel: 'Your support AI' },
   capabilities: { tickets: false, handover: false, currentPage: false, attachments: true }, theme: { primaryColor: '#409aff' } }
 const offer = { id: 'offer-support', name: 'Technical support', entitlement: { customerId: 'customer-one', status: 'ACTIVE' }, blockers: [], bindingSlots: [], settings: [],
-  targets: [{ id: 'stage', intent: 'CUSTOMER_STAGING', blockers: [] }],
+  targets: [{ id: 'stage', intent: 'CUSTOMER_STAGING', blockers: [], capabilities: [] }],
   workspaceProfiles: [{ id: 'support-style', label: 'Support workspace', interaction: { configuration }, theme: { primaryColor: '#409aff' } }] }
 const catalogue = [{ definition, offers: [offer], ticketProviders: [{ code: 'desk', name: 'Desk-managed tickets', declaredOperations: ['createRequest', 'getOwnRequest'] }] }]
 const releases = [
@@ -100,6 +100,9 @@ try {
       return json(kit)
     }
     if (path === '/api/customer-self-service/deployments') return json([{ deploymentId: 'dep-support', name: 'Support assistant', status: 'DRAFT' }])
+    if (path === '/api/customer-self-service/catalogue/offer-support') return json(offer)
+    if (path === '/api/deployments/dep-support/document-storage/connections') return json({ hostedAvailable: false, unavailableReason: 'Storage is not enabled in this support fixture.', maxUploadBytes: 1048576, supportedExtensions: ['txt'], connections: [] })
+    if (path === '/api/deployments/dep-support/document-storage-bindings') return json([])
     if (path === '/api/deployments/dep-support/releases') return json(releases)
     if (path.endsWith('/desk')) return json({ status: humanEnabled ? 'ENABLED' : 'DISABLED', portalUrl: null })
     if (path.endsWith('/support-space')) {
@@ -119,11 +122,11 @@ try {
     return json({ message: 'Unknown fixture API' }, 500)
   })
   await page.goto(base + 'experiences')
-  await page.getByRole('heading', { name: 'AI Support Experience', exact: true }).waitFor()
-  const choice = page.locator('article[data-kind="support"]')
-  await choice.getByText('Sample support request', { exact: false }).waitFor()
+  await page.getByRole('heading', { name: 'AI Support', exact: true }).waitFor()
+  const choice = page.locator('[data-kind="support"] article')
+  await choice.getByText('Request #1042', { exact: true }).waitFor()
   assert.doesNotMatch(await choice.innerText(), /Chair|GBP|Compare cars|Delivery/)
-  await choice.getByRole('button', { name: 'Preview experience', exact: true }).click()
+  await choice.getByRole('button', { name: 'Preview support', exact: true }).click()
   const preview = page.getByRole('dialog')
   await preview.getByRole('checkbox', { name: 'Request tracking sample' }).uncheck()
   await preview.getByRole('checkbox', { name: 'Human support sample' }).check()
@@ -144,7 +147,7 @@ try {
   await page.screenshot({ path: `${output}/02-support-public-mobile-dark.png`, fullPage: true })
   passed('Support public detail retains approved kit layout, dark/light and mobile bounds')
   await page.setViewportSize({ width: 1440, height: 1100 })
-  await page.getByRole('link', { name: 'Get started', exact: true }).click()
+  await page.getByRole('link', { name: 'Get started', exact: true }).first().click()
   await page.getByRole('heading', { name: 'Choose your starting point', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
   await page.getByLabel(/^App address name/).fill('example-support')

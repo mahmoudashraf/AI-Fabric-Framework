@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type { CustomerDeploymentSummary, PlatformAuthSessionSummary, PlatformConsumerSummary } from '../../api/platformApi'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
@@ -15,7 +16,7 @@ function commandScope(context: CustomerEngageCommandContext, consumerId: string,
   if (!context.actorId || !consumer || (consumer.boundDeploymentId && !deployment)
     || (!allowUnbound && (!deployment || !consumer.boundTargetProfileId)) || (requireRelease && !consumer.boundReleaseId)) {
     throw new Error(requireRelease ? 'Connect a verified runtime release before activating this app.'
-      : 'Connect a deployment and environment belonging to this customer account.')
+      : `Connect a ${deploymentTerm.lowercase} and environment belonging to this customer account.`)
   }
   // Current ownership and assignment scope the command; the server authorizes the actual target and operation.
   return { actorId: context.actorId, customerId: context.customerId, consumerId,

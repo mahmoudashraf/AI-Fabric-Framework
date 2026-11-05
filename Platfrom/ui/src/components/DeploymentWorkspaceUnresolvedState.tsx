@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import {
   Alert,
   Box,
@@ -30,24 +31,24 @@ export function DeploymentWorkspaceUnresolvedState() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Chip label="Deployment Not Found" color="error" sx={{ mb: 1.5, fontWeight: 700 }} />
+        <Chip label={`${deploymentTerm.singular} Not Found`} color="error" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-          The requested deployment is not available
+          The requested {deploymentTerm.lowercase} is not available
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>
-          The URL requested deployment <strong>{unresolvedRequestedDeploymentId}</strong>, but it does not exist in
+          The URL requested {deploymentTerm.lowercase} <strong>{unresolvedRequestedDeploymentId}</strong>, but it does not exist in
           the current workspace or you no longer have access to it.
         </Typography>
       </Box>
 
       <Alert severity="error">
-        Use one of the deployments below to reopen this page, or go back to the deployments grid to pick a different
+        Use one of the {deploymentTerm.pluralLowercase} below to reopen this page, or go back to the {deploymentTerm.pluralLowercase} grid to pick a different
         target.
       </Alert>
 
       <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
         <Button component={Link} to="/deployments" variant="contained" color="secondary">
-          Open deployments grid
+          Open {deploymentTerm.pluralLowercase} grid
         </Button>
       </Stack>
 
@@ -75,7 +76,7 @@ export function DeploymentWorkspaceUnresolvedState() {
                       to={buildDeploymentTarget(location.pathname, location.search, deployment.id)}
                       variant="outlined"
                     >
-                      Open this deployment
+                      Open this {deploymentTerm.lowercase}
                     </Button>
                   </Stack>
                 </CardContent>
@@ -85,7 +86,7 @@ export function DeploymentWorkspaceUnresolvedState() {
         </Grid>
       ) : (
         <Alert severity="info">
-          No deployments are currently available in this workspace. Create one from the deployments grid first.
+          No {deploymentTerm.pluralLowercase} are currently available in this workspace. Create one from the {deploymentTerm.pluralLowercase} grid first.
         </Alert>
       )}
     </Stack>

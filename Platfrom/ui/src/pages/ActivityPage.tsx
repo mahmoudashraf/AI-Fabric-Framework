@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
@@ -193,16 +194,16 @@ export function ActivityPage() {
       <Box>
         <Chip label="Activity" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-          Deployment activity timeline
+          {deploymentTerm.singular} activity timeline
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          Review the operational history for this deployment only, including release requests,
+          Review the operational history for this {deploymentTerm.lowercase} only, including release requests,
           approvals, assignment changes, prompt sessions, and lifecycle actions.
         </Typography>
       </Box>
 
       {!selectedDeploymentId ? (
-        <Alert severity="info">Select a deployment to view its recent operational activity.</Alert>
+        <Alert severity="info">Select a {deploymentTerm.lowercase} to view its recent operational activity.</Alert>
       ) : (
         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
           <CardContent>
@@ -214,11 +215,11 @@ export function ActivityPage() {
                 alignItems={{ xs: 'flex-start', md: 'center' }}
               >
                 <Box>
-                  <Typography variant="h6">Recent deployment events</Typography>
+                  <Typography variant="h6">Recent {deploymentTerm.lowercase} events</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     {workspace
                       ? `Showing the latest activity recorded for ${workspace.deployment.name}.`
-                      : 'Showing the latest activity recorded for the selected deployment.'}
+                      : `Showing the latest activity recorded for the selected ${deploymentTerm.lowercase}.`}
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -297,15 +298,15 @@ export function ActivityPage() {
               </Stack>
 
               {activityQuery.isLoading ? (
-                <Typography color="text.secondary">Loading deployment activity...</Typography>
+                <Typography color="text.secondary">Loading {deploymentTerm.lowercase} activity...</Typography>
               ) : activityQuery.isError ? (
                 <Alert severity="error">
                   {activityQuery.error instanceof Error
                     ? activityQuery.error.message
-                    : 'Failed to load deployment activity.'}
+                    : `Failed to load ${deploymentTerm.lowercase} activity.`}
                 </Alert>
               ) : events.length === 0 ? (
-                <Alert severity="info">No activity has been recorded for this deployment yet.</Alert>
+                <Alert severity="info">No activity has been recorded for this {deploymentTerm.lowercase} yet.</Alert>
               ) : filteredEvents.length === 0 ? (
                 <Alert severity="info">No activity matches the current filters.</Alert>
               ) : (
@@ -329,7 +330,7 @@ export function ActivityPage() {
                               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                 <Chip label={category} color={categoryColor(category)} size="small" />
                                 <Chip label={event.actorRole} color={roleColor(event.actorRole)} variant="outlined" size="small" />
-                                <Chip label={event.targetType} variant="outlined" size="small" />
+                                <Chip label={deploymentEnumLabel(event.targetType)} variant="outlined" size="small" />
                               </Stack>
                               <Typography variant="caption" color="text.secondary">
                                 {formatTimestamp(event.createdAt)}

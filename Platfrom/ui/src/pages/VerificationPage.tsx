@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
@@ -232,7 +233,7 @@ function buildGateSummary(args: {
       label: 'Platform preflight',
       status: args.preflightReady ? 'PASSED' : 'BLOCKED',
       message: args.preflightReady
-        ? 'Deployment provider preflight is ready.'
+        ? `${deploymentTerm.singular} provider preflight is ready.`
         : 'Platform preflight is still blocked on provisioning prerequisites.',
     },
     {
@@ -498,9 +499,9 @@ export function VerificationPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Verification is scoped to the deployment selected in the shared workspace header.
+                Verification is scoped to the {deploymentTerm.lowercase} selected in the shared workspace header.
               </Typography>
             </Box>
 
@@ -515,7 +516,7 @@ export function VerificationPage() {
                     <Chip label={`Live state: ${workspace.lifecycle.liveState}`} variant="outlined" />
                   </>
                 ) : (
-                  <Chip label="No deployment selected" variant="outlined" />
+                  <Chip label={`No ${deploymentTerm.lowercase} selected`} variant="outlined" />
                 )}
               </Stack>
 
@@ -545,7 +546,7 @@ export function VerificationPage() {
                 <Chip label="Direct apply" variant="outlined" />
               </Stack>
             ) : (
-              <Alert severity="info">Create a deployment first to evaluate release readiness.</Alert>
+              <Alert severity="info">Create a {deploymentTerm.lowercase} first to evaluate release readiness.</Alert>
             )}
           </Stack>
         </CardContent>
@@ -612,7 +613,7 @@ export function VerificationPage() {
                         ) : null}
                       </>
                     ) : (
-                      <Alert severity="info">No apply has been started for this deployment yet.</Alert>
+                      <Alert severity="info">No apply has been started for this {deploymentTerm.lowercase} yet.</Alert>
                     )}
                   </Stack>
                 </CardContent>
@@ -640,7 +641,7 @@ export function VerificationPage() {
                         </Typography>
                       </>
                     ) : (
-                      <Alert severity="info">No verification run exists yet for this deployment.</Alert>
+                      <Alert severity="info">No verification run exists yet for this {deploymentTerm.lowercase}.</Alert>
                     )}
                   </Stack>
                 </CardContent>
@@ -746,25 +747,25 @@ export function VerificationPage() {
                 ) : null}
 
                 {targetProfilesQuery.isLoading || providerPreflightQuery.isLoading ? (
-                  <Alert severity="info">Running deployment provider preflight...</Alert>
+                  <Alert severity="info">Running {deploymentTerm.lowercase} provider preflight...</Alert>
                 ) : targetProfilesQuery.isError ? (
                   <Alert severity="error">
                     {targetProfilesQuery.error instanceof Error
                       ? targetProfilesQuery.error.message
-                      : 'Failed to load deployment target profiles'}
+                      : `Failed to load ${deploymentTerm.lowercase} target profiles`}
                   </Alert>
                 ) : providerPreflightQuery.isError ? (
                   <Alert severity="error">
                     {providerPreflightQuery.error instanceof Error
                       ? providerPreflightQuery.error.message
-                      : 'Failed to run deployment provider preflight'}
+                      : `Failed to run ${deploymentTerm.lowercase} provider preflight`}
                   </Alert>
                 ) : !runtimeDefaultTargetProfile ? (
                   <Alert severity="error">No active runtime default target profile is configured.</Alert>
                 ) : !providerPreflightReady ? (
                   <Stack spacing={1}>
                     <Alert severity="error">
-                      <strong>{providerPreflight?.message ?? 'Deployment provider preflight is blocked.'}</strong>
+                      <strong>{providerPreflight?.message ?? `${deploymentTerm.singular} provider preflight is blocked.`}</strong>
                       <br />
                       Target profile: {runtimeDefaultTargetProfile.name} ({runtimeDefaultTargetProfile.providerType})
                     </Alert>
@@ -774,7 +775,7 @@ export function VerificationPage() {
                   </Stack>
                 ) : (
                   <Alert severity="success">
-                    Deployment provider preflight is ready for apply on {runtimeDefaultTargetProfile.name} ({runtimeDefaultTargetProfile.providerType}).
+                    {deploymentTerm.singular} provider preflight is ready for apply on {runtimeDefaultTargetProfile.name} ({runtimeDefaultTargetProfile.providerType}).
                   </Alert>
                 )}
               </Stack>
@@ -864,7 +865,7 @@ export function VerificationPage() {
                   <Typography variant="h6">Post-apply verification details</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Failed and warning checks are surfaced here with their recorded details so operators can
-                    diagnose rollout problems without leaving the deployment workspace.
+                    diagnose rollout problems without leaving the {deploymentTerm.lowercase} workspace.
                   </Typography>
                 </Box>
 
@@ -914,15 +915,15 @@ export function VerificationPage() {
                   <Box>
                     <Typography variant="h6">Platform-hosted verification</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Run the deployment verification scripts from the platform deployment itself. This admin-only runner
+                      Run the {deploymentTerm.lowercase} verification scripts from the platform {deploymentTerm.lowercase} itself. This admin-only runner
                       is asynchronous, read-only, and intended for rare operator diagnostics. Fleet-wide canonical rollout
-                      orchestration now lives on Verification Ops, while this page stays scoped to the selected deployment.
+                      orchestration now lives on Verification Ops, while this page stays scoped to the selected {deploymentTerm.lowercase}.
                     </Typography>
                   </Box>
 
                   <Alert severity="info">
-                    This runner always executes in read-only mode. It uses the active deployment release plus the
-                    platform-managed connector and admin secrets already stored in the platform. No deployment writes are
+                    This runner always executes in read-only mode. It uses the active {deploymentTerm.lowercase} release plus the
+                    platform-managed connector and admin secrets already stored in the platform. No {deploymentTerm.lowercase} writes are
                     performed from this UI path.
                   </Alert>
 
@@ -937,8 +938,8 @@ export function VerificationPage() {
                       size="small"
                       sx={{ minWidth: 220 }}
                     >
-                      <MenuItem value="vector">Vector deployment</MenuItem>
-                      <MenuItem value="ecommerce">Ecommerce deployment</MenuItem>
+                      <MenuItem value="vector">Vector {deploymentTerm.lowercase}</MenuItem>
+                      <MenuItem value="ecommerce">Ecommerce {deploymentTerm.lowercase}</MenuItem>
                       <MenuItem value="marketplace-runtime">Marketplace runtime</MenuItem>
                     </TextField>
                     <Button
@@ -950,7 +951,7 @@ export function VerificationPage() {
                       {dispatchHostedVerificationMutation.isPending ? 'Queueing…' : 'Run on platform'}
                     </Button>
                     <Typography variant="body2" color="text.secondary">
-                      The platform uses the current active release and verifies it without changing deployment data.
+                      The platform uses the current active release and verifies it without changing {deploymentTerm.lowercase} data.
                     </Typography>
                   </Stack>
 
@@ -975,7 +976,7 @@ export function VerificationPage() {
                         : 'Failed to load hosted verification runs'}
                     </Alert>
                   ) : (hostedRunsQuery.data?.length ?? 0) === 0 ? (
-                    <Alert severity="info">No platform-hosted verification runs were recorded for this deployment yet.</Alert>
+                    <Alert severity="info">No platform-hosted verification runs were recorded for this {deploymentTerm.lowercase} yet.</Alert>
                   ) : (
                     <HostedVerificationRunHistory runs={(hostedRunsQuery.data ?? []).slice(0, 8)} />
                   )}

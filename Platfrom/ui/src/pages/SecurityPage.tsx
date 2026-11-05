@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -185,7 +186,7 @@ function effectiveResolutionSummary(resolution?: {
   diagnosticMessage?: string | null
 } | null): string {
   if (!resolution) {
-    return 'No deployment-scoped override resolution is available yet.'
+    return `No ${deploymentTerm.lowercase}-scoped override resolution is available yet.`
   }
   const segments = [
     resolution.resolved ? 'Resolved' : 'Unresolved',
@@ -293,8 +294,8 @@ export function SecurityPage() {
       dirty: draftDirty,
       label: 'Security config',
       description: draftDirty
-        ? 'Security settings have unsaved browser-only changes until you save the deployment draft.'
-        : 'Security editor matches the saved deployment draft.',
+        ? `Security settings have unsaved browser-only changes until you save the ${deploymentTerm.lowercase} draft.`
+        : `Security editor matches the saved ${deploymentTerm.lowercase} draft.`,
     }),
     [draftDirty],
   )
@@ -487,7 +488,7 @@ export function SecurityPage() {
       cleanupPolicy: payload.cleanupPolicy,
     }),
     onSuccess: async (data) => {
-      setOverrideActionNotice(`${data.name} saved as a deployment override secret. Bind it to a deployment purpose before apply if you want it to take effect.`)
+      setOverrideActionNotice(`${data.name} saved as a ${deploymentTerm.lowercase} override secret. Bind it to a ${deploymentTerm.lowercase} purpose before apply if you want it to take effect.`)
       setOverrideSecretForm((previous) => ({
         ...previous,
         name: '',
@@ -504,7 +505,7 @@ export function SecurityPage() {
   const clearOverrideSecretMutation = useMutation({
     mutationFn: (name: string) => clearPlatformDeploymentOverrideSecret(name),
     onSuccess: async (data) => {
-      setOverrideActionNotice(`${data.name} cleared from the deployment override secret inventory.`)
+      setOverrideActionNotice(`${data.name} cleared from the ${deploymentTerm.lowercase} override secret inventory.`)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-deployment-override-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
@@ -522,7 +523,7 @@ export function SecurityPage() {
         secondarySecretName: draft.secondarySecretName.trim().length > 0 ? draft.secondarySecretName.trim() : undefined,
       }),
     onSuccess: async (data) => {
-      setOverrideActionNotice(`${data.displayName} now resolves through ${formatBindingMode(data.bindingMode).toLowerCase()} for this deployment.`)
+      setOverrideActionNotice(`${data.displayName} now resolves through ${formatBindingMode(data.bindingMode).toLowerCase()} for this ${deploymentTerm.lowercase}.`)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
@@ -534,7 +535,7 @@ export function SecurityPage() {
   const clearBindingMutation = useMutation({
     mutationFn: (secretPurpose: string) => clearDeploymentProviderSecretBinding(selectedDeploymentId, secretPurpose),
     onSuccess: async (_data, secretPurpose) => {
-      setOverrideActionNotice(`${secretPurpose} override binding cleared. The deployment will use standard precedence on the next evaluation.`)
+      setOverrideActionNotice(`${secretPurpose} override binding cleared. The ${deploymentTerm.lowercase} will use standard precedence on the next evaluation.`)
       setBindingDrafts((previous) => {
         const next = { ...previous }
         delete next[secretPurpose]
@@ -598,9 +599,9 @@ export function SecurityPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Security and secret operations now follow the deployment selected in the shared workspace header.
+                Security and secret operations now follow the {deploymentTerm.lowercase} selected in the shared workspace header.
               </Typography>
             </Box>
 
@@ -622,11 +623,11 @@ export function SecurityPage() {
             ) : null}
             {!canAdmin && workspace ? (
               <Alert severity="info">
-                Guardrail changes require deployment admin access. Draft-backed security config requires deployment editor access.
+                Guardrail changes require {deploymentTerm.lowercase} admin access. Draft-backed security config requires {deploymentTerm.lowercase} editor access.
               </Alert>
             ) : !canEdit && workspace ? (
               <Alert severity="info">
-                Draft-backed security config requires deployment editor access or higher.
+                Draft-backed security config requires {deploymentTerm.lowercase} editor access or higher.
               </Alert>
             ) : null}
           </Stack>
@@ -640,7 +641,7 @@ export function SecurityPage() {
               <Box>
                 <Typography variant="h6">Secret and config separation</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                  This deployment-scoped view shows which managed secrets are referenced by the current draft,
+                  This {deploymentTerm.lowercase}-scoped view shows which managed secrets are referenced by the current draft,
                   whether the platform secret store can satisfy them, and whether any credential was typed directly
                   into versioned config instead of using a placeholder.
                 </Typography>
@@ -667,12 +668,12 @@ export function SecurityPage() {
               </Stack>
 
               {secretUsageQuery.isLoading ? (
-                <Typography color="text.secondary">Inspecting deployment secret usage...</Typography>
+                <Typography color="text.secondary">Inspecting {deploymentTerm.lowercase} secret usage...</Typography>
               ) : secretUsageQuery.isError ? (
                 <Alert severity="error">
                   {secretUsageQuery.error instanceof Error
                     ? secretUsageQuery.error.message
-                    : 'Failed to inspect deployment secret usage'}
+                    : `Failed to inspect ${deploymentTerm.lowercase} secret usage`}
                 </Alert>
               ) : secretUsageQuery.data ? (
                 <>
@@ -695,7 +696,7 @@ export function SecurityPage() {
                           <Stack spacing={2}>
                             <Box>
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                Deployment secret usage
+                                {deploymentTerm.singular} secret usage
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                                 Secret values remain masked. This table shows reference posture only.
@@ -720,7 +721,7 @@ export function SecurityPage() {
                                           {secret.displayName}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                          {secret.secretName} • Source {secret.source}
+                                          {secret.secretName} • Source {deploymentEnumLabel(secret.source)}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
                                           {secret.summaryMessage}
@@ -784,19 +785,19 @@ export function SecurityPage() {
                                 <ListItem disableGutters>
                                   <ListItemText
                                     primary="Draft security config"
-                                    secondary="Deployment editors or admins change versioned security posture, then publish and apply it."
+                                    secondary={`${deploymentTerm.singular} editors or admins change versioned security posture, then publish and apply it.`}
                                   />
                                 </ListItem>
                                 <ListItem disableGutters>
                                   <ListItemText
                                     primary="Platform secret store"
-                                    secondary="Only PLATFORM_ADMIN can rotate or clear managed deployment secrets."
+                                    secondary={`Only PLATFORM_ADMIN can rotate or clear managed ${deploymentTerm.lowercase} secrets.`}
                                   />
                                 </ListItem>
                                 <ListItem disableGutters>
                                   <ListItemText
                                     primary="Operational guardrails"
-                                    secondary="Version upgrades use direct apply. Deployment admins control delete approval policy."
+                                    secondary={`Version upgrades use direct apply. ${deploymentTerm.singular} admins control delete approval policy.`}
                                   />
                                 </ListItem>
                               </List>
@@ -825,7 +826,7 @@ export function SecurityPage() {
                           </Card>
                         ) : (
                           <Alert severity="success">
-                            No literal credentials were detected in the current deployment draft.
+                            No literal credentials were detected in the current {deploymentTerm.lowercase} draft.
                           </Alert>
                         )}
                       </Stack>
@@ -843,16 +844,16 @@ export function SecurityPage() {
           <CardContent>
             <Stack spacing={2.5}>
               <Box>
-                <Typography variant="h6">Deployment provider overrides</Typography>
+                <Typography variant="h6">{deploymentTerm.singular} provider overrides</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                  Track D adds governed deployment-scoped provider credential overrides. Platform admins create or
-                  rotate raw override secrets. Deployment admins bind or unbind those secrets to supported provider
-                  purposes for the currently selected deployment.
+                  Track D adds governed {deploymentTerm.lowercase}-scoped provider credential overrides. Platform admins create or
+                  rotate raw override secrets. {deploymentTerm.singular} admins bind or unbind those secrets to supported provider
+                  purposes for the currently selected {deploymentTerm.lowercase}.
                 </Typography>
               </Box>
 
               <Stack direction="row" spacing={1} flexWrap="wrap">
-                <Chip label="Change type: Deployment-scoped secret override" color="secondary" variant="outlined" />
+                <Chip label={`Change type: ${deploymentTerm.singular}-scoped secret override`} color="secondary" variant="outlined" />
                 {bindingCatalogQuery.data ? (
                   <>
                     <Chip label={`${bindingCatalogQuery.data.bindings.length} active binding${bindingCatalogQuery.data.bindings.length === 1 ? '' : 's'}`} color="primary" />
@@ -863,17 +864,17 @@ export function SecurityPage() {
 
               <Alert severity="info">
                 Binding mode controls fallback behavior. <strong>Require override</strong> blocks evaluation if the
-                bound override is missing. <strong>Allow fallback</strong> lets the deployment use standard global
-                precedence when no deployment override resolves.
+                bound override is missing. <strong>Allow fallback</strong> lets the {deploymentTerm.lowercase} use standard global
+                precedence when no {deploymentTerm.lowercase} override resolves.
               </Alert>
 
               {bindingCatalogQuery.isLoading ? (
-                <Typography color="text.secondary">Loading deployment override binding catalog...</Typography>
+                <Typography color="text.secondary">Loading {deploymentTerm.lowercase} override binding catalog...</Typography>
               ) : bindingCatalogQuery.isError ? (
                 <Alert severity="error">
                   {bindingCatalogQuery.error instanceof Error
                     ? bindingCatalogQuery.error.message
-                    : 'Failed to load deployment override bindings'}
+                    : `Failed to load ${deploymentTerm.lowercase} override bindings`}
                 </Alert>
               ) : (
                 <Grid container spacing={2}>
@@ -884,23 +885,23 @@ export function SecurityPage() {
                           <Stack spacing={2}>
                             <Box>
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                Deployment binding matrix
+                                {deploymentTerm.singular} binding matrix
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                Only override-capable provider purposes used by this deployment are shown here.
+                                Only override-capable provider purposes used by this {deploymentTerm.lowercase} are shown here.
                               </Typography>
                             </Box>
 
                             {!canAdmin ? (
                               <Alert severity="info">
-                                Binding and unbinding deployment overrides requires deployment admin access.
+                                Binding and unbinding {deploymentTerm.lowercase} overrides requires {deploymentTerm.lowercase} admin access.
                               </Alert>
                             ) : null}
 
                             {relevantOverridePurposes.length === 0 ? (
                               <Alert severity="info">
-                                The current deployment does not use any provider secret purposes that support
-                                deployment-scoped overrides in Track D phase 1.
+                                The current {deploymentTerm.lowercase} does not use any provider secret purposes that support
+                                {deploymentTerm.lowercase}-scoped overrides in Track D phase 1.
                               </Alert>
                             ) : (
                               <Stack spacing={2}>
@@ -974,7 +975,7 @@ export function SecurityPage() {
                                                 disabled={!canAdmin}
                                                 helperText={
                                                   availableSecretsForPurpose.length > 0
-                                                    ? 'Only deployment override secrets registered for this purpose can be bound here.'
+                                                    ? `Only ${deploymentTerm.lowercase} override secrets registered for this purpose can be bound here.`
                                                     : 'No override secrets currently exist for this purpose.'
                                                 }
                                                 onChange={(event) =>
@@ -1072,16 +1073,16 @@ export function SecurityPage() {
                           <Stack spacing={2}>
                             <Box>
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                Deployment override secret inventory
+                                {deploymentTerm.singular} override secret inventory
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                These secrets live in the platform secret store with deployment-override scope.
+                                These secrets live in the platform secret store with {deploymentTerm.lowercase}-override scope.
                               </Typography>
                             </Box>
 
                             {!canManageSecrets ? (
                               <Alert severity="info">
-                                Creating, rotating, or deleting raw deployment override secret values requires the
+                                Creating, rotating, or deleting raw {deploymentTerm.lowercase} override secret values requires the
                                 <code> PLATFORM_ADMIN </code>
                                 role.
                               </Alert>
@@ -1146,9 +1147,9 @@ export function SecurityPage() {
                                 <Grid item xs={12}>
                                   <TextField
                                     fullWidth
-                                    label="Owner deployment id"
+                                    label={`Owner ${deploymentTerm.lowercase} id`}
                                     value={overrideSecretForm.deploymentId}
-                                    helperText="Leave blank to make this override reusable across deployments."
+                                    helperText={`Leave blank to make this override reusable across ${deploymentTerm.pluralLowercase}.`}
                                     onChange={(event) =>
                                       setOverrideSecretForm((previous) => ({
                                         ...previous,
@@ -1191,10 +1192,10 @@ export function SecurityPage() {
                             )}
 
                             {overrideSecretsQuery.isLoading && isPlatformAdmin ? (
-                              <Typography color="text.secondary">Loading deployment override secrets...</Typography>
+                              <Typography color="text.secondary">Loading {deploymentTerm.lowercase} override secrets...</Typography>
                             ) : overrideSecrets.length === 0 ? (
                               <Alert severity="info">
-                                No deployment override secrets have been registered yet.
+                                No {deploymentTerm.lowercase} override secrets have been registered yet.
                               </Alert>
                             ) : (
                               <List dense disablePadding>
@@ -1244,41 +1245,41 @@ export function SecurityPage() {
                 <Alert severity="error">
                   {bindingMutation.error instanceof Error
                     ? bindingMutation.error.message
-                    : 'Failed to save deployment override binding'}
+                    : `Failed to save ${deploymentTerm.lowercase} override binding`}
                 </Alert>
               ) : null}
               {clearBindingMutation.isError ? (
                 <Alert severity="error">
                   {clearBindingMutation.error instanceof Error
                     ? clearBindingMutation.error.message
-                    : 'Failed to clear deployment override binding'}
+                    : `Failed to clear ${deploymentTerm.lowercase} override binding`}
                 </Alert>
               ) : null}
               {overrideSecretMutation.isError ? (
                 <Alert severity="error">
                   {overrideSecretMutation.error instanceof Error
                     ? overrideSecretMutation.error.message
-                    : 'Failed to save deployment override secret'}
+                    : `Failed to save ${deploymentTerm.lowercase} override secret`}
                 </Alert>
               ) : null}
               {clearOverrideSecretMutation.isError ? (
                 <Alert severity="error">
                   {clearOverrideSecretMutation.error instanceof Error
                     ? clearOverrideSecretMutation.error.message
-                    : 'Failed to clear deployment override secret'}
+                    : `Failed to clear ${deploymentTerm.lowercase} override secret`}
                 </Alert>
               ) : null}
               {bindingMutation.isSuccess ? (
-                <Alert severity="success">Deployment override binding updated.</Alert>
+                <Alert severity="success">{deploymentTerm.singular} override binding updated.</Alert>
               ) : null}
               {clearBindingMutation.isSuccess ? (
-                <Alert severity="success">Deployment override binding cleared.</Alert>
+                <Alert severity="success">{deploymentTerm.singular} override binding cleared.</Alert>
               ) : null}
               {overrideSecretMutation.isSuccess ? (
-                <Alert severity="success">Deployment override secret saved.</Alert>
+                <Alert severity="success">{deploymentTerm.singular} override secret saved.</Alert>
               ) : null}
               {clearOverrideSecretMutation.isSuccess ? (
-                <Alert severity="success">Deployment override secret cleared.</Alert>
+                <Alert severity="success">{deploymentTerm.singular} override secret cleared.</Alert>
               ) : null}
               {overrideActionNotice ? <Alert severity="warning">{overrideActionNotice}</Alert> : null}
             </Stack>
@@ -1293,7 +1294,7 @@ export function SecurityPage() {
               <Box>
                 <Typography variant="h6">Auth, upstream, and CORS governance</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                  These checks translate deployment draft fields into operator guidance for runtime admin exposure,
+                  These checks translate {deploymentTerm.lowercase} draft fields into operator guidance for runtime admin exposure,
                   connector ingress, upstream trust boundaries, and browser origins.
                 </Typography>
               </Box>
@@ -1315,12 +1316,12 @@ export function SecurityPage() {
               </Stack>
 
               {securityGovernanceQuery.isLoading ? (
-                <Typography color="text.secondary">Evaluating deployment governance posture...</Typography>
+                <Typography color="text.secondary">Evaluating {deploymentTerm.lowercase} governance posture...</Typography>
               ) : securityGovernanceQuery.isError ? (
                 <Alert severity="error">
                   {securityGovernanceQuery.error instanceof Error
                     ? securityGovernanceQuery.error.message
-                    : 'Failed to evaluate deployment governance posture'}
+                    : `Failed to evaluate ${deploymentTerm.lowercase} governance posture`}
                 </Alert>
               ) : securityGovernanceQuery.data ? (
                 <>
@@ -1430,12 +1431,12 @@ export function SecurityPage() {
             <Alert severity={guardrailsDirty ? 'warning' : 'info'}>
               {guardrailsDirty
                 ? 'Guardrail changes are pending. Save them to update delete approval policy immediately.'
-                : 'Guardrails are already enforcing the current deployment operation policy.'}
+                : `Guardrails are already enforcing the current ${deploymentTerm.lowercase} operation policy.`}
             </Alert>
 
             {!canManageGuardrails ? (
               <Alert severity="info">
-                Guardrail changes require deployment admin access.
+                Guardrail changes require {deploymentTerm.lowercase} admin access.
               </Alert>
             ) : null}
 
@@ -1454,7 +1455,7 @@ export function SecurityPage() {
                       }
                     />
                   }
-                  label="Require approval before operators can delete deployments"
+                  label={`Require approval before operators can delete ${deploymentTerm.pluralLowercase}`}
                 />
               </Grid>
             </Grid>
@@ -1463,11 +1464,11 @@ export function SecurityPage() {
               <Alert severity="error">
                 {guardrailMutation.error instanceof Error
                   ? guardrailMutation.error.message
-                  : 'Failed to update deployment guardrails'}
+                  : `Failed to update ${deploymentTerm.lowercase} guardrails`}
               </Alert>
             ) : null}
             {guardrailMutation.isSuccess ? (
-              <Alert severity="success">Deployment guardrails updated.</Alert>
+              <Alert severity="success">{deploymentTerm.singular} guardrails updated.</Alert>
             ) : null}
 
             <Stack direction="row" spacing={1.5}>
@@ -1500,9 +1501,9 @@ export function SecurityPage() {
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Platform deployment secrets</Typography>
+              <Typography variant="h6">Platform {deploymentTerm.lowercase} secrets</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                Required deployment secrets resolve through the platform layer before the active deployment
+                Required {deploymentTerm.lowercase} secrets resolve through the platform layer before the active {deploymentTerm.lowercase}
                 provider reconciles services. Process env remains a local development fallback.
               </Typography>
             </Box>
@@ -1514,7 +1515,7 @@ export function SecurityPage() {
 
             <Alert severity="info">
               Secret changes do not use drafts or publishing. Save the secret here, then re-apply the current
-              version when you want provider-managed deployments to receive the new value.
+              version when you want provider-managed {deploymentTerm.pluralLowercase} to receive the new value.
             </Alert>
 
             {providerPreflightQuery.data ? (
@@ -1568,7 +1569,7 @@ export function SecurityPage() {
                                   color={secret.present ? 'success' : 'warning'}
                                   size="small"
                                 />
-                                <Chip label={secret.source} variant="outlined" size="small" />
+                                <Chip label={deploymentEnumLabel(secret.source)} variant="outlined" size="small" />
                               </Stack>
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                                 {secret.displayName}
@@ -1704,7 +1705,7 @@ export function SecurityPage() {
                     <Typography variant="h6">Structured security settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Remote authz path and connector authz upstream wiring remain on the Actions/Routing page.
-                      This page controls the higher-level deployment security posture, including browser CORS.
+                      This page controls the higher-level {deploymentTerm.lowercase} security posture, including browser CORS.
                     </Typography>
                   </Box>
 
@@ -1719,7 +1720,7 @@ export function SecurityPage() {
 
                   <Alert severity={draftDirty ? 'warning' : 'info'}>
                     {draftDirty
-                      ? 'These security settings are draft-backed config. Save the draft first, then publish a version, then apply it through the selected deployment provider.'
+                      ? `These security settings are draft-backed config. Save the draft first, then publish a version, then apply it through the selected ${deploymentTerm.lowercase} provider.`
                       : 'These settings are versioned config. Any future change here will require Save Draft, Publish, and Apply.'}
                   </Alert>
 

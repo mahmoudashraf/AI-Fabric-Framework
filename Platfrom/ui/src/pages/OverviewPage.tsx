@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import {
   Alert,
@@ -185,22 +186,22 @@ function surfaceTypeLabel(surfaceType: string): string {
     case 'PLATFORM_STACK':
       return 'Platform-managed stack'
     default:
-      return 'Deployment surface'
+      return `${deploymentTerm.singular} surface`
   }
 }
 
 function roleSummary(role: string): string {
   switch (role) {
     case 'DEPLOYMENT_ADMIN':
-      return 'Full deployment administration, including access and destructive operations.'
+      return `Full ${deploymentTerm.lowercase} administration, including access and destructive operations.`
     case 'DEPLOYMENT_EDITOR':
-      return 'Can edit drafts, publish changes, and operate the deployment.'
+      return `Can edit drafts, publish changes, and operate the ${deploymentTerm.lowercase}.`
     case 'DEPLOYMENT_OPERATOR':
       return 'Can apply published versions, rerun verification, and use the POC workspace.'
     case 'DEPLOYMENT_VIEWER':
       return 'Read-only access for diagnostics, versions, and configuration review.'
     default:
-      return 'No deployment assignment detected.'
+      return `No ${deploymentTerm.lowercase} assignment detected.`
   }
 }
 
@@ -221,21 +222,21 @@ function recommendedAction(workspace: NonNullable<ReturnType<typeof useDeploymen
   if (workspace.deployment.healthStatus === 'ATTENTION') {
     return {
       title: 'Review diagnostics',
-      description: 'The deployment needs attention. Inspect recent release and verification evidence first.',
+      description: `The ${deploymentTerm.lowercase} needs attention. Inspect recent release and verification evidence first.`,
       path: `/diagnostics?deploymentId=${deploymentId}`,
     }
   }
   if (workspace.access.canEdit && (workspace.deployment.activeVersion == null || workspace.deployment.activeVersion === 'draft' || workspace.deployment.status === 'DRAFT')) {
     return {
       title: 'Continue configuration',
-      description: 'The deployment is still draft-led. Review actions, providers, security, and prompts before publishing.',
+      description: `The ${deploymentTerm.lowercase} is still draft-led. Review actions, providers, security, and prompts before publishing.`,
       path: `/actions?deploymentId=${deploymentId}`,
     }
   }
   if (workspace.access.canOperate && workspace.latestRelease == null) {
     return {
       title: 'Prepare first release',
-      description: 'The deployment exists but has not been applied yet. Open versions and launch the first rollout.',
+      description: `The ${deploymentTerm.lowercase} exists but has not been applied yet. Open versions and launch the first rollout.`,
       path: `/revisions?deploymentId=${deploymentId}`,
     }
   }
@@ -247,7 +248,7 @@ function recommendedAction(workspace: NonNullable<ReturnType<typeof useDeploymen
     }
   }
   return {
-    title: 'Review deployment state',
+    title: `Review ${deploymentTerm.lowercase} state`,
     description: 'This workspace is read-only. Start with recent activity, versions, and diagnostics.',
     path: `/activity?deploymentId=${deploymentId}`,
   }
@@ -308,10 +309,10 @@ export function OverviewPage() {
         <Box>
           <Chip label="Overview" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
           <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-            Deployment overview
+            {deploymentTerm.singular} overview
           </Typography>
         </Box>
-        <Alert severity="info">Select a deployment to open its overview workspace.</Alert>
+        <Alert severity="info">Select a {deploymentTerm.lowercase} to open its overview workspace.</Alert>
       </Stack>
     )
   }
@@ -322,10 +323,10 @@ export function OverviewPage() {
         <Box>
           <Chip label="Overview" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
           <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-            Deployment overview
+            {deploymentTerm.singular} overview
           </Typography>
         </Box>
-        <Typography color="text.secondary">Loading deployment overview...</Typography>
+        <Typography color="text.secondary">Loading {deploymentTerm.lowercase} overview...</Typography>
       </Stack>
     )
   }
@@ -392,7 +393,7 @@ export function OverviewPage() {
         ? integrationSummary
           ? runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)
           : 'Runtime service is available. Supported connector admin reads are exposed through runtime-backed operator APIs.'
-        : 'Apply the deployment so the runtime service exists before deeper validation.',
+        : `Apply the ${deploymentTerm.lowercase} so the runtime service exists before deeper validation.`,
     },
     {
       key: 'poc-data',
@@ -408,9 +409,9 @@ export function OverviewPage() {
   const warningChecks = readinessChecks.filter((check) => check.status === 'WARNING')
   const readinessMessage = blockedChecks.length > 0
     ? blockedChecks[0].key === 'runtime'
-      ? 'Apply the deployment first so the runtime service exists before deeper validation.'
+      ? `Apply the ${deploymentTerm.lowercase} first so the runtime service exists before deeper validation.`
       : blockedChecks[0].key === 'knowledge'
-        ? 'Configure entity spaces before positioning this deployment as a grounded assistant.'
+        ? `Configure entity spaces before positioning this ${deploymentTerm.lowercase} as a grounded assistant.`
         : 'Resolve blocked readiness checks before customer-facing validation.'
     : warningChecks.some((check) => check.key === 'poc-data')
       ? 'The assistant shell is in place, but you still need proof-of-concept data for grounded validation.'
@@ -425,7 +426,7 @@ export function OverviewPage() {
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Start here before jumping into specialist screens. This overview keeps the latest release,
-          verification, permissions, endpoints, and next actions in one deployment-first view.
+          verification, permissions, endpoints, and next actions in one {deploymentTerm.lowercase}-first view.
         </Typography>
         <Alert severity={editorBufferState?.dirty ? 'warning' : liveState.severity} sx={{ mt: 2 }}>
           <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
@@ -446,7 +447,7 @@ export function OverviewPage() {
             </Alert>
           ) : integrationSummary ? (
             <Alert severity={integrationAlertSeverity(integrationSummary)} sx={{ mt: 2 }}>
-              <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+              <strong>Integration posture</strong>: {integrationSummary.guidance ?? `Apply the ${deploymentTerm.lowercase} before integrating.`}
             </Alert>
           ) : null
         ) : null}
@@ -458,7 +459,7 @@ export function OverviewPage() {
             <CardContent>
               <Stack spacing={1.25}>
                 <Typography variant="overline" color="text.secondary">
-                  Deployment posture
+                  {deploymentTerm.singular} posture
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
                   {workspace.deployment.healthStatus}
@@ -470,7 +471,7 @@ export function OverviewPage() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Active: ${workspace.deployment.activeVersion ?? 'draft'}`} variant="outlined" />
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
-                  <Chip label={`Behavior: ${workspace.deployment.behaviorType.replace(/_/g, ' ')}`} variant="outlined" />
+                  <Chip label={`Behavior: ${deploymentEnumLabel(workspace.deployment.behaviorType, workspace.deployment.behaviorType.replace(/_/g, ' '))}`} variant="outlined" />
                   {workspace.deployment.runtimeBaseUrl && integrationSummary ? (
                     <Chip
                       label={integrationModeLabel(integrationSummary)}
@@ -530,7 +531,7 @@ export function OverviewPage() {
                   Access and guardrails
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  {workspace.access.assignmentRole}
+                  {deploymentEnumLabel(workspace.access.assignmentRole)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {roleSummary(workspace.access.assignmentRole)}
@@ -553,7 +554,7 @@ export function OverviewPage() {
                 <Box>
                   <Typography variant="h6">Recommended next step</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Use the current deployment state and your assignment role to choose the safest next action.
+                    Use the current {deploymentTerm.lowercase} state and your assignment role to choose the safest next action.
                   </Typography>
                 </Box>
                 <Alert severity="info">
@@ -607,7 +608,7 @@ export function OverviewPage() {
                   <strong>Saved draft</strong>: {savedDraftState.description}
                 </Alert>
                 <Alert severity={liveState.severity}>
-                  <strong>Live deployment</strong>: {liveState.description}
+                  <strong>Live {deploymentTerm.lowercase}</strong>: {liveState.description}
                 </Alert>
                 {editorState ? (
                   <Alert severity={editorState.severity}>
@@ -636,17 +637,17 @@ export function OverviewPage() {
               <Typography variant="h6">Source of truth and provenance</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
                 Track which template, source branch, immutable version hash, and generated artifact bundle
-                currently define the deployment. This is the operator view of what actually produced live state.
+                currently define the {deploymentTerm.lowercase}. This is the operator view of what actually produced live state.
               </Typography>
             </Box>
 
             {sourceOfTruthQuery.isLoading ? (
-              <Typography color="text.secondary">Loading deployment provenance...</Typography>
+              <Typography color="text.secondary">Loading {deploymentTerm.lowercase} provenance...</Typography>
             ) : sourceOfTruthQuery.isError ? (
               <Alert severity="error">
                 {sourceOfTruthQuery.error instanceof Error
                   ? sourceOfTruthQuery.error.message
-                  : 'Failed to load deployment provenance.'}
+                  : `Failed to load ${deploymentTerm.lowercase} provenance.`}
               </Alert>
             ) : sourceOfTruth ? (
               <>
@@ -710,7 +711,7 @@ export function OverviewPage() {
                             Repository: {sourceOfTruth.generated.repository ?? sourceOfTruth.templateSource.repository}
                           </Typography>
                           <Chip
-                            label={sourceOfTruth.templateSource.overrideActive ? 'Deployment override active' : 'Template default source'}
+                            label={sourceOfTruth.templateSource.overrideActive ? `${deploymentTerm.singular} override active` : 'Template default source'}
                             size="small"
                             color={sourceOfTruth.templateSource.overrideActive ? 'secondary' : 'default'}
                             variant="outlined"
@@ -734,7 +735,7 @@ export function OverviewPage() {
                       <CardContent>
                         <Stack spacing={1.25}>
                           <Typography variant="overline" color="text.secondary">
-                            Generated deployment
+                            Generated {deploymentTerm.lowercase}
                           </Typography>
                           <Typography variant="h6" sx={{ fontWeight: 800 }}>
                             {sourceOfTruth.generated.projectName ?? 'No generated project yet'}
@@ -856,7 +857,7 @@ export function OverviewPage() {
                             ))}
                             {sourceOfTruth.managedVector.resources.length === 0 ? (
                               <Typography variant="body2" color="text.secondary">
-                                No managed vector resource records exist for this deployment yet.
+                                No managed vector resource records exist for this {deploymentTerm.lowercase} yet.
                               </Typography>
                             ) : null}
                           </Stack>
@@ -921,7 +922,7 @@ export function OverviewPage() {
                             Lifecycle owner: <strong>{sourceOfTruth.tenantScopedVector.lifecycleOwner}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Scope type: <strong>{sourceOfTruth.tenantScopedVector.scopeType}</strong>
+                            Scope type: <strong>{deploymentEnumLabel(sourceOfTruth.tenantScopedVector.scopeType)}</strong>
                           </Typography>
                           {sourceOfTruth.tenantScopedVector.rootResourceLabel && sourceOfTruth.tenantScopedVector.rootResourceValue ? (
                             <Typography variant="body2">
@@ -1156,10 +1157,10 @@ export function OverviewPage() {
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Unified deployment surface model</Typography>
+              <Typography variant="h6">Unified {deploymentTerm.lowercase} surface model</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
                 Runtime and REST connector are platform-provisioned services. Browser, upstream, and provider
-                entries are shown alongside them so operators can govern the full deployment surface without
+                entries are shown alongside them so operators can govern the full {deploymentTerm.lowercase} surface without
                 confusing external dependencies for provider-managed services.
               </Typography>
             </Box>
@@ -1170,7 +1171,7 @@ export function OverviewPage() {
               <Alert severity="error">
                 {serviceConfigModelQuery.error instanceof Error
                   ? serviceConfigModelQuery.error.message
-                  : 'Failed to load deployment service configuration model.'}
+                  : `Failed to load ${deploymentTerm.lowercase} service configuration model.`}
               </Alert>
             ) : serviceConfigModelQuery.data ? (
               <>
@@ -1244,7 +1245,7 @@ export function OverviewPage() {
                                       </Stack>
                                       <Typography variant="body2">{field.valueSummary}</Typography>
                                       <Typography variant="caption" color="text.secondary">
-                                        Source: {field.source} • {field.guidance}
+                                        Source: {deploymentEnumLabel(field.source)} • {field.guidance}
                                       </Typography>
                                     </Stack>
                                   </CardContent>
@@ -1409,7 +1410,7 @@ export function OverviewPage() {
             <Box>
               <Typography variant="h6">Production readiness scorecard</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
-                One deployment-level go-live summary covering config completeness, verification evidence,
+                One {deploymentTerm.lowercase}-level go-live summary covering config completeness, verification evidence,
                 security posture, live service health, and operator ownership.
               </Typography>
             </Box>
@@ -1528,7 +1529,7 @@ export function OverviewPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Provider and deployment surface navigation</Typography>
+              <Typography variant="h6">Provider and {deploymentTerm.lowercase} surface navigation</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 One operator view for provider console links, platform-managed services, client-facing surfaces,
                 external dependencies, and the traffic relationships between runtime, connector, artifacts, and upstream APIs.
@@ -1541,7 +1542,7 @@ export function OverviewPage() {
               <Alert severity="error">
                 {navigationQuery.error instanceof Error
                   ? navigationQuery.error.message
-                  : 'Failed to load deployment service navigation.'}
+                  : `Failed to load ${deploymentTerm.lowercase} service navigation.`}
               </Alert>
             ) : navigationQuery.data ? (
               <>

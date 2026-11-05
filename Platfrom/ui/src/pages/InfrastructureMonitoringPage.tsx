@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
@@ -123,7 +124,7 @@ function AdminMonitoring({ scope }: { scope: string }) {
       {rows.length ? <ResourceConsumers rows={rows} now={now} onSelect={setSelection} /> : <Alert severity="info">No resource samples match these filters.</Alert>}
     </>}
     <Typography component="footer" variant="caption" color="text.secondary" sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
-      Metrics are observations only. They do not govern deployment admission, workspace quotas, or lifecycle authorization.
+      Metrics are observations only. They do not govern {deploymentTerm.lowercase} admission, workspace quotas, or lifecycle authorization.
     </Typography>
     {selection && <MonitoringInspector selection={selection} fleetServer={allServers.find(server => server.serverId === selection.serverId)} scope={scope}
       range={range} visible={visible} now={now} onClose={() => setSelection(null)} />}

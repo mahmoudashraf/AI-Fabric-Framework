@@ -226,7 +226,7 @@ export function PlatformDiagnosticsPage() {
           <Typography variant="h4">Platform Diagnostics</Typography>
         </Stack>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75 }}>
-          Inspect the platform deployment itself, including provider service discovery, platform-hosted verification runs,
+          Inspect the platform rollout itself, including provider service discovery, platform-hosted verification runs,
           and platform provider logs.
         </Typography>
       </Box>
@@ -507,7 +507,7 @@ export function PlatformDiagnosticsPage() {
                     <TableRow>
                       <TableCell>Service</TableCell>
                       <TableCell>{formatOptional(diagnosticsQuery.data.railwayService.serviceName)}</TableCell>
-                      <TableCell>Latest deployment</TableCell>
+                      <TableCell>Latest rollout</TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Typography variant="body2">{formatOptional(diagnosticsQuery.data.railwayService.latestDeploymentId)}</Typography>
@@ -569,7 +569,7 @@ export function PlatformDiagnosticsPage() {
                     onChange={(event) => setSource(event.target.value)}
                     sx={{ minWidth: 180 }}
                   >
-                    <MenuItem value="deployment">Deployment logs</MenuItem>
+                    <MenuItem value="deployment">Rollout logs</MenuItem>
                     <MenuItem value="build">Build logs</MenuItem>
                     <MenuItem value="http">HTTP logs</MenuItem>
                   </TextField>

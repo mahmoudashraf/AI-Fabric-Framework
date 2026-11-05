@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
 import GavelRoundedIcon from '@mui/icons-material/GavelRounded'
 import HistoryToggleOffRoundedIcon from '@mui/icons-material/HistoryToggleOffRounded'
@@ -148,7 +149,7 @@ export function ApprovalsPage() {
       reason,
     }),
     onSuccess: async (approval) => {
-      setNotice(`Approval request ${approval.id} submitted for ${approval.operationType}.`)
+      setNotice(`Approval request ${approval.id} submitted for ${deploymentEnumLabel(approval.operationType)}.`)
       setReason('')
       await queryClient.invalidateQueries({ queryKey: ['deployment-approvals', selectedDeploymentId] })
     },
@@ -238,10 +239,10 @@ export function ApprovalsPage() {
       <Box>
         <Chip label="Approvals" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-          Protected deployment actions
+          Protected {deploymentTerm.lowercase} actions
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          Operators can request approval for guarded deployment actions, and platform admins can approve or reject
+          Operators can request approval for guarded {deploymentTerm.lowercase} actions, and platform admins can approve or reject
           them here. Approved requests are single-use and are consumed when the protected action runs.
         </Typography>
       </Box>
@@ -253,7 +254,7 @@ export function ApprovalsPage() {
       {rejectMutation.error instanceof Error ? <Alert severity="error">{rejectMutation.error.message}</Alert> : null}
 
       {!selectedDeploymentId ? (
-        <Alert severity="info">Select a deployment in the workspace header first.</Alert>
+        <Alert severity="info">Select a {deploymentTerm.lowercase} in the workspace header first.</Alert>
       ) : null}
 
       {workspace ? (
@@ -308,7 +309,7 @@ export function ApprovalsPage() {
                   onChange={(event) => setOperationType(event.target.value as 'APPLY_VERSION' | 'DELETE_DEPLOYMENT')}
                 >
                   <MenuItem value="APPLY_VERSION">Apply version</MenuItem>
-                  <MenuItem value="DELETE_DEPLOYMENT">Delete deployment</MenuItem>
+                  <MenuItem value="DELETE_DEPLOYMENT">Delete {deploymentTerm.lowercase}</MenuItem>
                 </TextField>
                 {operationType === 'APPLY_VERSION' ? (
                   <TextField
@@ -398,7 +399,7 @@ export function ApprovalsPage() {
                     >
                       <MenuItem value="ALL">All operations</MenuItem>
                       <MenuItem value="APPLY_VERSION">Apply version</MenuItem>
-                      <MenuItem value="DELETE_DEPLOYMENT">Delete deployment</MenuItem>
+                      <MenuItem value="DELETE_DEPLOYMENT">Delete {deploymentTerm.lowercase}</MenuItem>
                     </TextField>
                   </Grid>
                   <Grid item xs={12} md={2}>
@@ -435,14 +436,14 @@ export function ApprovalsPage() {
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                                 {approval.operationType === 'APPLY_VERSION'
                                   ? `Apply ${approval.targetVersionLabel ?? approval.targetVersionId ?? 'version'}`
-                                  : 'Delete deployment'}
+                                  : `Delete ${deploymentTerm.lowercase}`}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
                                 Requested by {approval.requestedByDisplayName ?? approval.requestedByActorId}
                               </Typography>
                             </Box>
                             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              <Chip label={approval.operationType} variant="outlined" />
+                              <Chip label={deploymentEnumLabel(approval.operationType)} variant="outlined" />
                               <Chip label={approval.status} color={statusColor(approval.status)} />
                             </Stack>
                           </Stack>
@@ -507,14 +508,14 @@ export function ApprovalsPage() {
                   ))}
                   {filteredApprovals.length === 0 ? (
                     <Alert severity="info" icon={<WarningAmberRoundedIcon fontSize="inherit" />}>
-                      No approval requests match the current filters for this deployment.
+                      No approval requests match the current filters for this {deploymentTerm.lowercase}.
                     </Alert>
                   ) : null}
                 </Stack>
 
                 {mine.some((approval) => approval.status === 'APPROVED') ? (
                   <Alert severity="success">
-                    You have at least one approved request ready to consume. Return to the relevant deployment action and
+                    You have at least one approved request ready to consume. Return to the relevant {deploymentTerm.lowercase} action and
                     run it from the platform UI.
                   </Alert>
                 ) : null}

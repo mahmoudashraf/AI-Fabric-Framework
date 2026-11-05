@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import ts from 'typescript'
+import { deploymentTerminologySource } from './deployment-terminology-test-support.mjs'
 
 const source = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
 const customerConsoleSource = await readFile(
@@ -346,7 +347,7 @@ test('promotion button and submit handler block mismatched assignments without a
       operationKey: (...args) => { calls.push(['key', ...args]); return 'review-key' },
       admissionCommands: { current: { authorize: async (...args) => { calls.push(['authorize', ...args]) } } },
       planDeploymentPracticalPromotion: async (...args) => { calls.push(['plan', ...args]); return result } }
-    const invoke = new Function(...Object.keys(scope), ts.transpileModule(`return (${mutation.getText(ast)})`,
+    const invoke = new Function(...Object.keys(scope), ts.transpileModule(`${deploymentTerminologySource().replace(/^export /gm, '')}\nreturn (${mutation.getText(ast)})`,
       { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText)(...Object.values(scope))
     if (!stagingAssignmentReady) {
       await assert.rejects(invoke(), /Select or create a staging assignment/)

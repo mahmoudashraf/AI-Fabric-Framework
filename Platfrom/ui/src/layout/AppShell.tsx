@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import { isCustomerSession } from '../auth/customerSession'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
@@ -59,7 +60,7 @@ import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/
 const drawerWidth = 280
 
 const navItems = [
-  { label: 'Deployments', customerLabel: 'My Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
+  { label: deploymentTerm.plural, customerLabel: `My ${deploymentTerm.plural}`, path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Behavior', path: '/behavior', icon: <AccountTreeRoundedIcon /> },
   { label: 'Behavior Runs', path: '/behavior-operations', icon: <HubRoundedIcon />, behaviorOperationsOnly: true },

@@ -19,7 +19,7 @@ import HandshakeOutlined from '@mui/icons-material/HandshakeOutlined'
 import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import ViewListOutlined from '@mui/icons-material/ViewListOutlined'
 import ForumOutlined from '@mui/icons-material/ForumOutlined'
-import { KitMark, kitAsset } from './KitIdentity'
+import { KitDeskMark, KitMark, kitAsset } from './KitIdentity'
 import { kitPreviewContent, kitPreviewFormats, type KitPreviewContent, type KitPreviewContext, type KitPreviewFormat, type KitPreviewKind } from './kitPreviewContent'
 import './KitCapabilityPreview.css'
 import { SupportKitExperiencePreview, SupportKitIllustration } from './SupportKitPreview'
@@ -36,7 +36,7 @@ export function KitIncludedProducts() {
   return <section className="ek-included-products" aria-label="Products included in this experience"><h3>Powered by</h3><div>
     <div><KitMark product="platform" /><span><strong>LoomAI Platform</strong><small>Connect your business</small></span></div><b aria-hidden="true">+</b>
     <div><KitMark product="engage" /><span><strong>LoomAI Engage</strong><small>Brand the experience</small></span></div><b aria-hidden="true">+</b>
-    <div><KitMark product="desk" /><span><strong>LoomAI Desk <em>Optional</em></strong><small>Bring your team</small></span></div>
+    <div><KitDeskMark /><span><strong>LoomAI Desk <em>Optional</em></strong><small>Bring your team</small></span></div>
   </div></section>
 }
 
@@ -129,12 +129,12 @@ function PreviewStage({ content, format }: { content: KitPreviewContent; format:
   </div>
 }
 
-export function KitExperiencePreview({ kind, name, children }: { kind: KitPreviewKind; name: string; children?: React.ReactNode }) {
-  return kind === 'support' ? <><KitIncludedProducts /><SupportKitExperiencePreview name={name}>{children}</SupportKitExperiencePreview></>
-    : <ShoppingKitExperiencePreview kind={kind} name={name}>{children}</ShoppingKitExperiencePreview>
+export function KitExperiencePreview({ kind, name, children, compact = false }: { kind: KitPreviewKind; name: string; children?: React.ReactNode; compact?: boolean }) {
+  return kind === 'support' ? <>{!compact && <KitIncludedProducts />}<SupportKitExperiencePreview name={name} compact={compact}>{children}</SupportKitExperiencePreview></>
+    : <ShoppingKitExperiencePreview kind={kind} name={name} compact={compact}>{children}</ShoppingKitExperiencePreview>
 }
 
-function ShoppingKitExperiencePreview({ kind, name, children }: { kind: Exclude<KitPreviewKind, 'support'>; name: string; children?: React.ReactNode }) {
+function ShoppingKitExperiencePreview({ kind, name, children, compact }: { kind: Exclude<KitPreviewKind, 'support'>; name: string; children?: React.ReactNode; compact: boolean }) {
   const [format, setFormat] = useState<KitPreviewFormat>('max')
   const [open, setOpen] = useState(false)
   const { palette } = useTheme()
@@ -143,13 +143,13 @@ function ShoppingKitExperiencePreview({ kind, name, children }: { kind: Exclude<
   const content = kitPreviewContent(kind)
   const show = (next: KitPreviewFormat) => { setFormat(next); setOpen(true) }
   return <>
-    <section className="ek-experience-formats" aria-label={`Ways to use ${name}`}><div><h3>Three ways customers can use it</h3><small>Choose one or combine them.</small></div>
+    {!compact && <section className="ek-experience-formats" aria-label={`Ways to use ${name}`}><div><h3>Three ways customers can use it</h3><small>Choose one or combine them.</small></div>
       <div className="ek-format-grid">{kitPreviewFormats.map(item => <button key={item.id} type="button" onClick={() => show(item.id)}
         aria-label={`Preview ${item.label} for ${name}`} className={item.id === 'max' ? 'ek-format-featured' : ''}>
         <FormatMiniature content={content} format={item.id} /><strong>{item.label}</strong></button>)}</div>
-    </section>
-    <KitIncludedProducts />
-    <div className="ek-cap-commands">{children}<Button variant="outlined" startIcon={<OpenInFullRounded />} onClick={() => show('max')}>Preview experience</Button></div>
+    </section>}
+    {!compact && <KitIncludedProducts />}
+    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={<OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview workspace' : 'Preview experience'}</Button></div>
     <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xl" fullScreen={narrow} aria-labelledby={titleId}
       PaperProps={{ className: 'ek-page ek-experience-dialog', 'data-kit-theme': palette.mode } as React.HTMLAttributes<HTMLDivElement>}>
       <div className="ek-experience-dialog-header"><div><KitMark product="platform" /><h2 id={titleId}>Workspace preview</h2><span>Illustrative experience</span></div>

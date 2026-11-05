@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, type ReactNode } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material'
@@ -16,7 +17,7 @@ export function CustomerSetupNavigationGuard({ children }: { children: ReactNode
     return () => window.removeEventListener('beforeunload', preventDiscard)
   }, [])
   return <>{children}<Dialog open={blocker.state === 'blocked'} onClose={() => blocker.state === 'blocked' && blocker.reset()} maxWidth="xs" fullWidth>
-    <DialogTitle>Leave deployment setup?</DialogTitle>
+    <DialogTitle>Leave {deploymentTerm.lowercase} setup?</DialogTitle>
     <DialogContent>Unsaved form entries will be discarded. Completed server operations are not undone, retried or activated by leaving.</DialogContent>
     <DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button><Button onClick={() => blocker.state === 'blocked' && blocker.proceed()}>Leave setup</Button></DialogActions>
   </Dialog></>

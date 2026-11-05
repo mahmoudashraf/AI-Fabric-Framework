@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import HubRoundedIcon from '@mui/icons-material/HubRounded'
@@ -119,7 +120,7 @@ export function BehaviorOperationsPage() {
   })
 
   if (!selectedDeploymentId) {
-    return <Alert severity="info">Select a deployment to open behavior operations.</Alert>
+    return <Alert severity="info">Select a {deploymentTerm.lowercase} to open behavior operations.</Alert>
   }
   if (behaviorType === 'AGENTIC_SPECIALIST_TEAM') {
     return (
@@ -142,7 +143,7 @@ export function BehaviorOperationsPage() {
   }
   return (
     <Alert severity="info">
-      Durable behavior operations are available for Agentic Specialist Team and Smart Brain deployments.
+      Durable behavior operations are available for {deploymentTerm.pluralLowercase} with Agentic Specialist Team or Event-driven behavior.
     </Alert>
   )
 }
@@ -218,7 +219,7 @@ function AgenticOperations({
         <HubRoundedIcon color="primary" />
         <Box>
           <Typography variant="h4">Agentic Executions</Typography>
-          <Typography color="text.secondary">Deployment Intelligence Specialist Team</Typography>
+          <Typography color="text.secondary">{deploymentTerm.singular} Intelligence Specialist Team</Typography>
         </Box>
       </Stack>
 
@@ -412,7 +413,7 @@ function SmartBrainOperations({
       <Stack direction="row" spacing={1.25} alignItems="center">
         <BoltRoundedIcon color="primary" />
         <Box>
-          <Typography variant="h4">Smart Brain Operations</Typography>
+          <Typography variant="h4">Event-driven Operations</Typography>
           <Typography color="text.secondary">Trusted CloudEvent ingress and durable result lifecycle</Typography>
         </Box>
       </Stack>
@@ -473,7 +474,7 @@ function SmartBrainOperations({
       </Box>
 
       {inputError ? <Alert severity="error">{inputError}</Alert> : null}
-      {operationError ? <Alert severity="error">{operationError instanceof Error ? operationError.message : 'Smart Brain operation failed.'}</Alert> : null}
+      {operationError ? <Alert severity="error">{operationError instanceof Error ? operationError.message : 'Event-driven operation failed.'}</Alert> : null}
       {!canOperate ? <Alert severity="warning">Operator access is required to trigger, replay, or cancel operations.</Alert> : null}
 
       <Divider />

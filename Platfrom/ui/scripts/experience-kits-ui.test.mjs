@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 async function loadTypescript(relative, dependencies) {
   const source = await readFile(new URL(relative, import.meta.url), 'utf8')
-  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } })
+  const compiled = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } })
   const exports = {}
   new Function('require', 'exports', compiled.outputText)(name => {
     if (!(name in dependencies)) throw new Error(`Unexpected test dependency ${name}`)

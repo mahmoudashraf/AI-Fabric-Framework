@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type {
   DeploymentDraftResponse, DeploymentMarketplaceInstallSummary, MarketplacePluginVersionSummary,
 } from '../../api/platformApi'
@@ -69,7 +70,7 @@ function belongsTo(node: Record<string, unknown>, install: DeploymentMarketplace
 export function specialistAuthority(deploymentId: string, draft: DeploymentDraftResponse,
   installs: DeploymentMarketplaceInstallSummary[], versions: MarketplacePluginVersionSummary[]): SpecialistAuthority {
   if (draft.deploymentId !== deploymentId || installs.some(install => install.deploymentId !== deploymentId)) {
-    throw new Error('The installed capability catalogue belongs to another deployment.')
+    throw new Error(`The installed capability catalogue belongs to another ${deploymentTerm.lowercase}.`)
   }
   const sources = new Map<string, SpecialistChoice>(), readTools = new Map<string, SpecialistChoice>()
   const actions = assistanceRecord(draft.actionsConfig) && Array.isArray(draft.actionsConfig.actions) ? draft.actionsConfig.actions : []
@@ -145,7 +146,7 @@ export function specialistBehaviorUpdate(current: unknown, value: SpecialistAssi
 
 export function compiledSpecialistAssistance(manifest: unknown, deploymentId: string, versionId: string) {
   if (!assistanceRecord(manifest) || manifest.deploymentId !== deploymentId || manifest.versionId !== versionId) {
-    throw new Error('The published capability snapshot belongs to another deployment or version.')
+    throw new Error(`The published capability snapshot belongs to another ${deploymentTerm.lowercase} or version.`)
   }
   const behavior = assistanceRecord(manifest.behaviorConfig) ? manifest.behaviorConfig : {}
   const value = assistanceRecord(behavior.specialistAssistance) ? behavior.specialistAssistance : {}

@@ -35,7 +35,7 @@ try{
       return route.continue()
     })
     await page.goto(base+`/?product=${product}`)
-    await page.getByRole('heading',{name:'Deployments',exact:true}).waitFor()
+    await page.getByRole('heading',{name:'Smart Brains',exact:true}).waitFor()
     const links=page.getByRole('navigation',{name:'Customer navigation'}).getByRole('link')
     assert.equal(await links.count(),7)
     assert((await links.allTextContents()).includes('Engage apps'))

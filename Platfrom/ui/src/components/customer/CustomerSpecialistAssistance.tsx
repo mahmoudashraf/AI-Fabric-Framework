@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -45,7 +46,7 @@ function SpecialistAssistanceScope({ scope, session, deploymentId }: {
     queryFn: async () => {
       const result = await fetchDeploymentWorkspace(deploymentId)
       if (result.deployment.id !== deploymentId || result.deployment.binding?.customerId !== session.customerId) {
-        throw new Error('This deployment is not available in the current customer account.')
+        throw new Error(`This ${deploymentTerm.lowercase} is not available in the current customer account.`)
       }
       return result
     } })
@@ -53,7 +54,7 @@ function SpecialistAssistanceScope({ scope, session, deploymentId }: {
     enabled: workspace.isSuccess && workspace.data.deployment.behaviorType === 'CONVERSATIONAL',
     queryFn: async () => {
       const result = await fetchDeploymentDraft(deploymentId)
-      if (result.deploymentId !== deploymentId) throw new Error('The deployment draft scope changed.')
+      if (result.deploymentId !== deploymentId) throw new Error(`The ${deploymentTerm.lowercase} draft scope changed.`)
       return result
     } })
   if (workspace.isError) return <Alert severity="error">{errorText(workspace.error)}</Alert>
@@ -110,7 +111,7 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
       if (!alive.current || !isCustomerSession(identity) || identity.actorId !== session.actorId
         || identity.customerId !== session.customerId || identity.authenticationMode !== session.authenticationMode
         || workspace.deployment.id !== deploymentId || workspace.deployment.binding?.customerId !== session.customerId
-        || !workspace.access.canEdit) throw new Error('Customer access changed. Reopen this deployment before saving.')
+        || !workspace.access.canEdit) throw new Error(`Customer access changed. Reopen this ${deploymentTerm.lowercase} before saving.`)
       if (current.deploymentId !== deploymentId || current.id !== baseline.id || current.revisionNumber !== baseline.revisionNumber
         || JSON.stringify(current.behaviorConfig) !== JSON.stringify(baseline.behaviorConfig)) {
         throw new Error('The behavior draft changed. Reload the saved capabilities before saving your changes.')
@@ -121,16 +122,16 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
         const message = specialistAssistanceError(proposed, specialistAuthority(deploymentId, current, rows, manifests))
         if (message) throw new Error(message)
       }
-      if (!alive.current) throw new Error('The selected deployment changed; no draft was saved.')
+      if (!alive.current) throw new Error(`The selected ${deploymentTerm.lowercase} changed; no draft was saved.`)
       const result = await updateDeploymentDraft(current.id, { behaviorConfig: specialistBehaviorUpdate(current.behaviorConfig, proposed) })
-      if (result.deploymentId !== deploymentId || result.id !== current.id) throw new Error('The saved capability response has a different deployment scope.')
+      if (result.deploymentId !== deploymentId || result.id !== current.id) throw new Error(`The saved capability response has a different ${deploymentTerm.lowercase} scope.`)
       if (!readSpecialistAssistance(result.behaviorConfig)) throw new Error('The saved capability response is incomplete. Reload the draft to check its state.')
       return result
     }, onSuccess: async result => {
       if (!alive.current) return
       setBaseline(result)
       setValue(readSpecialistAssistance(result.behaviorConfig) ?? emptySpecialistAssistance())
-      setNotice('Support capabilities saved to the draft. Publish and apply a version to update the deployment.')
+      setNotice(`Support capabilities saved to the draft. Publish and apply a version to update the ${deploymentTerm.lowercase}.`)
       await client.invalidateQueries({ predicate: query => query.queryKey.includes(deploymentId)
         || query.queryKey.includes(scope) || query.queryKey[0] === 'customer-deployment-portfolio' })
     } })
@@ -154,7 +155,7 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
     {notice ? <Alert severity="success">{notice}</Alert> : null}
     {save.isError ? <Alert severity="error">{errorText(save.error)}</Alert> : null}
     {reloadError ? <Alert severity="error">{reloadError}</Alert> : null}
-    {!canEdit ? <Alert severity="info">This deployment is read-only for your account.</Alert> : null}
+    {!canEdit ? <Alert severity="info">This {deploymentTerm.lowercase} is read-only for your account.</Alert> : null}
     {!value.enabled ? <Typography variant="body2" color="text.secondary">Optional specialist assistance is disabled.</Typography> : <>
       {loadingCatalogue ? <Stack direction="row" gap={1}><CircularProgress size={18} /><Typography variant="body2">Loading installed knowledge and READ tools...</Typography></Stack> : null}
       {catalogueError ? <Alert severity="error">{catalogueError}</Alert> : null}
@@ -263,7 +264,7 @@ function ResolutionEditor({ initial, areas, disabled, onClose, onUse }: { initia
   return <EditorDrawer title={initial.name ? 'Edit resolution plan' : 'New resolution plan'} onClose={onClose} disabled={disabled || !plan.name.trim() || !plan.objective.trim() || !plan.areaIds.length || invalidParallel} onUse={() => onUse(plan)}>
     <TextField autoFocus label="Plan name" value={plan.name} inputProps={{ maxLength: 120 }} onChange={e => setPlan(current => ({ ...current, name: e.target.value }))} disabled={disabled} />
     <TextField label="Objective" multiline minRows={4} value={plan.objective} inputProps={{ maxLength: 1000 }} onChange={e => setPlan(current => ({ ...current, objective: e.target.value }))} disabled={disabled} />
-    <ChoicePicker label="Support areas" value={plan.areaIds} choices={areas.map(item => ({ id: item.id, label: item.name, plugin: 'This deployment' }))} disabled={disabled}
+    <ChoicePicker label="Support areas" value={plan.areaIds} choices={areas.map(item => ({ id: item.id, label: item.name, plugin: `This ${deploymentTerm.lowercase}` }))} disabled={disabled}
       onChange={areaIds => setPlan(current => ({ ...current, areaIds }))} />
     <FormControlLabel label="Allow independent parallel checks" control={<Checkbox checked={plan.allowParallel} disabled={disabled || !plan.allowParallel && plan.areaIds.length < 2}
       onChange={e => setPlan(current => ({ ...current, allowParallel: e.target.checked }))} />} />

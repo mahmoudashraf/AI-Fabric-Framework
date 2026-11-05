@@ -2,9 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 const source = await readFile(new URL('../src/components/customer/customerExternalIntegration.ts', import.meta.url), 'utf8')
-const code = ts.transpileModule(withCustomerSessionSupport(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const code = ts.transpileModule(withDeploymentTerminology(withCustomerSessionSupport(source)), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const { externalConnectionProfile: profile, requireFreshExternalAuthority: fresh, checkedExternalApproval: option, checkedExternalBinding: binding } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 function fixture() {
   const session = { authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION', actorId: 'owner', customerId: 'customer' }

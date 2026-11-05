@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
@@ -477,7 +478,7 @@ function deriveFailureAnalysis(
     return {
       severity: 'info',
       stage: 'No release',
-      headline: 'No deployment release exists yet.',
+      headline: `No ${deploymentTerm.lowercase} release exists yet.`,
       reason: 'Apply a version before expecting runtime evidence, provider logs, or verification history.',
       currentStep: 'Release not started',
       recommendation: 'Publish and apply a version, then return here for operational evidence.',
@@ -488,8 +489,8 @@ function deriveFailureAnalysis(
     return {
       severity: 'warning',
       stage: 'Activation not confirmed',
-      headline: 'The deployment provider is still taking longer than expected to report a healthy active deployment.',
-      reason: latestRelease.currentStepDescription ?? 'Deployment activation status is not confirmed yet.',
+      headline: `The ${deploymentTerm.lowercase} provider is still taking longer than expected to report a healthy active ${deploymentTerm.lowercase}.`,
+      reason: latestRelease.currentStepDescription ?? `${deploymentTerm.singular} activation status is not confirmed yet.`,
       currentStep: provisioningSummary.progress.currentStepDescription,
       recommendation: 'Refresh the release status or compare provider logs before retrying apply.',
     }
@@ -527,7 +528,7 @@ function deriveFailureAnalysis(
     return {
       severity: 'warning',
       stage: 'Provider drift',
-      headline: 'Provider live state has drifted away from the platform-managed deployment.',
+      headline: `Provider live state has drifted away from the platform-managed ${deploymentTerm.lowercase}.`,
       reason: liveProviderReadback.summaryMessage,
       currentStep: driftedLabels.length > 0 ? driftedLabels : 'Provider live read-back',
       recommendation: 'Redeploy the active version before using provider-side restarts or runtime data resets.',
@@ -553,7 +554,7 @@ function deriveFailureAnalysis(
       severity: 'success',
       stage: 'Healthy',
       headline: 'Latest release and verification evidence are healthy.',
-      reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? 'Deployment is verified.',
+      reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? `${deploymentTerm.singular} is verified.`,
       currentStep: provisioningSummary.progress.currentStepDescription,
       recommendation: 'Keep this as the current reference point when comparing future rollout regressions.',
     }
@@ -572,7 +573,7 @@ function deriveFailureAnalysis(
 function recoveryRecommendation(reason: string): string {
   const normalized = reason.toLowerCase()
   if (normalized.includes('railway_workspace_id')) {
-    return 'Configure the deployment provider workspace id and API token in platform provisioning before retrying apply.'
+    return `Configure the ${deploymentTerm.lowercase} provider workspace id and API token in platform provisioning before retrying apply.`
   }
   if (normalized.includes('routing config not found') || normalized.includes('artifact')) {
     return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
@@ -587,7 +588,7 @@ function recoveryRecommendation(reason: string): string {
     return 'Verify provider credentials in platform secrets and re-apply before rerunning indexing or verification.'
   }
   if (normalized.includes('timeout')) {
-    return 'Review build and deployment logs for slow or blocked upstream calls before expanding timeout budgets.'
+    return `Review build and ${deploymentTerm.lowercase} logs for slow or blocked upstream calls before expanding timeout budgets.`
   }
   return 'Start with the recommended logs below, then compare release, verification, and artifact provenance before retrying.'
 }
@@ -621,8 +622,8 @@ function deriveRecoveryHints(
     hints.push({
       key: 'artifacts',
       severity: 'error',
-      title: 'Check connector deployment logs for artifact fetch failures',
-      message: 'Connector startup or runtime fetch failures usually show up in deployment logs first.',
+      title: `Check connector ${deploymentTerm.lowercase} logs for artifact fetch failures`,
+      message: `Connector startup or runtime fetch failures usually show up in ${deploymentTerm.lowercase} logs first.`,
       service: 'restConnector',
       source: 'deployment',
     })
@@ -641,7 +642,7 @@ function deriveRecoveryHints(
     hints.push({
       key: 'runtime-unavailable',
       severity: 'error',
-      title: 'Verify runtime deployment health first',
+      title: `Verify runtime ${deploymentTerm.lowercase} health first`,
       message: 'Connector proxy failures are usually downstream of a runtime rollout or activation problem.',
       service: 'runtime',
       source: 'deployment',
@@ -652,7 +653,7 @@ function deriveRecoveryHints(
       key: 'provider',
       severity: 'warning',
       title: 'Confirm provider credentials and runtime env',
-      message: 'Deployment logs and verification output should confirm whether the runtime saw the expected provider key.',
+      message: `${deploymentTerm.singular} logs and verification output should confirm whether the runtime saw the expected provider key.`,
       service: 'runtime',
       source: 'deployment',
     })
@@ -662,7 +663,7 @@ function deriveRecoveryHints(
       key: 'build',
       severity: 'warning',
       title: 'Review build logs for container assembly errors',
-      message: 'Build-time failures often occur before deployment logs become useful.',
+      message: `Build-time failures often occur before ${deploymentTerm.lowercase} logs become useful.`,
       service: 'runtime',
       source: 'build',
     })
@@ -672,8 +673,8 @@ function deriveRecoveryHints(
     hints.push({
       key: 'generic',
       severity: analysis.severity === 'error' ? 'error' : 'warning',
-      title: 'Start with deployment logs for the latest release',
-      message: 'Deployment logs usually show the first actionable failure signal before downstream checks diverge.',
+      title: `Start with ${deploymentTerm.lowercase} logs for the latest release`,
+      message: `${deploymentTerm.singular} logs usually show the first actionable failure signal before downstream checks diverge.`,
       service: 'runtime',
       source: 'deployment',
     })
@@ -886,7 +887,7 @@ export function DiagnosticsPage() {
           Release evidence and live verification
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          This screen combines deployment endpoints, provisioning evidence, stored verification runs,
+          This screen combines {deploymentTerm.lowercase} endpoints, provisioning evidence, stored verification runs,
           and manual reruns so the platform can act as an operator console instead of only a config editor.
         </Typography>
         {workspace?.deployment.deletion ? (
@@ -929,7 +930,7 @@ export function DiagnosticsPage() {
               <Alert severity="error">
                 {targetProfilesQuery.error instanceof Error
                   ? targetProfilesQuery.error.message
-                  : 'Failed to load deployment target profiles'}
+                  : `Failed to load ${deploymentTerm.lowercase} target profiles`}
               </Alert>
             ) : providerPreflightQuery.isError ? (
               <Alert severity="error">
@@ -992,9 +993,9 @@ export function DiagnosticsPage() {
             ) : null}
 
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Diagnostics now stay anchored to the deployment selected in the shared workspace header.
+                Diagnostics now stay anchored to the {deploymentTerm.lowercase} selected in the shared workspace header.
               </Typography>
             </Box>
 
@@ -1007,7 +1008,7 @@ export function DiagnosticsPage() {
                     <Chip label={workspace.template.name} variant="outlined" />
                   </>
                 ) : (
-                  <Chip label="No deployment selected" variant="outlined" />
+                  <Chip label={`No ${deploymentTerm.lowercase} selected`} variant="outlined" />
                 )}
               </Stack>
 
@@ -1051,7 +1052,7 @@ export function DiagnosticsPage() {
                 ) : null}
               </Stack>
             ) : (
-              <Alert severity="info">Create a deployment first to inspect diagnostics.</Alert>
+              <Alert severity="info">Create a {deploymentTerm.lowercase} first to inspect diagnostics.</Alert>
             )}
           </Stack>
         </CardContent>
@@ -1120,7 +1121,7 @@ export function DiagnosticsPage() {
                         variant="outlined"
                         onClick={() => focusLogs(hint.service, hint.source)}
                       >
-                        {hint.service} {hint.source} logs
+                        {hint.service} {hint.source === 'deployment' ? 'rollout' : hint.source} logs
                       </Button>
                     ))}
                     {providerProjectUrl ? (
@@ -1146,7 +1147,7 @@ export function DiagnosticsPage() {
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography variant="h6">Provider live drift</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Live provider read-back from the deployment source of truth. This is the safety signal used to
+                      Live provider read-back from the {deploymentTerm.lowercase} source of truth. This is the safety signal used to
                       block targeted restarts when provider settings drift away from the platform-managed plan.
                     </Typography>
                   </Box>
@@ -1238,7 +1239,7 @@ export function DiagnosticsPage() {
                     ) : null}
                   </>
                 ) : (
-                  <Alert severity="info">No provider live read-back is available for this deployment yet.</Alert>
+                  <Alert severity="info">No provider live read-back is available for this {deploymentTerm.lowercase} yet.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1250,7 +1251,7 @@ export function DiagnosticsPage() {
                 <Box>
                   <Typography variant="h6">Tenant-scoped vector scope</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Provider-native tenant handle resolution for the current deployment binding. This is the operator
+                    Provider-native tenant handle resolution for the current {deploymentTerm.lowercase} binding. This is the operator
                     view for shared vector posture, lifecycle ownership, and migration safety.
                   </Typography>
                 </Box>
@@ -1284,7 +1285,7 @@ export function DiagnosticsPage() {
                       <Chip label={`Strategy: ${tenantScopedVector.vectorStrategy}`} variant="outlined" />
                       <Chip label={`Provisioning: ${tenantScopedVector.vectorProvisioningMode}`} variant="outlined" />
                       <Chip label={`Lifecycle: ${tenantScopedVector.lifecycleOwner}`} variant="outlined" />
-                      <Chip label={`Scope: ${tenantScopedVector.scopeType}`} color={serviceStatusColor(tenantScopedVector.status)} />
+                      <Chip label={`Scope: ${deploymentEnumLabel(tenantScopedVector.scopeType)}`} color={serviceStatusColor(tenantScopedVector.status)} />
                       {tenantScopedVector.registry ? (
                         <Chip
                           label={`Registry: ${tenantScopedVector.registry.status}`}
@@ -1397,7 +1398,7 @@ export function DiagnosticsPage() {
                     </Grid>
                   </>
                 ) : (
-                  <Alert severity="info">No tenant-scoped vector scope is available for this deployment yet.</Alert>
+                  <Alert severity="info">No tenant-scoped vector scope is available for this {deploymentTerm.lowercase} yet.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1409,7 +1410,7 @@ export function DiagnosticsPage() {
                 <Box>
                   <Typography variant="h6">Managed vector resources</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Provider-side indexes or collections that the platform created or reconciled for this deployment.
+                    Provider-side indexes or collections that the platform created or reconciled for this {deploymentTerm.lowercase}.
                   </Typography>
                 </Box>
 
@@ -1503,11 +1504,11 @@ export function DiagnosticsPage() {
                         ))}
                       </Grid>
                     ) : (
-                      <Alert severity="info">No managed vector resource records exist for this deployment yet.</Alert>
+                      <Alert severity="info">No managed vector resource records exist for this {deploymentTerm.lowercase} yet.</Alert>
                     )}
                   </>
                 ) : (
-                  <Alert severity="info">No managed vector resource state is available for this deployment yet.</Alert>
+                  <Alert severity="info">No managed vector resource state is available for this {deploymentTerm.lowercase} yet.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1785,7 +1786,7 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Latest provisioning evidence</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Latest stored provisioning result for the deployment’s most recent release.
+                      Latest stored provisioning result for the {deploymentTerm.lowercase}’s most recent release.
                     </Typography>
                     {latestRelease ? (
                       <>
@@ -1870,7 +1871,7 @@ export function DiagnosticsPage() {
                         </Stack>
                       </>
                     ) : (
-                      <Alert severity="info">No release evidence exists yet for this deployment.</Alert>
+                      <Alert severity="info">No release evidence exists yet for this {deploymentTerm.lowercase}.</Alert>
                     )}
                   </Stack>
                 </CardContent>
@@ -1883,7 +1884,7 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Latest verification result</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      The latest stored verification run for the selected deployment.
+                      The latest stored verification run for the selected {deploymentTerm.lowercase}.
                     </Typography>
                     {selectedRun ? (
                       <>
@@ -1901,7 +1902,7 @@ export function DiagnosticsPage() {
                         </Typography>
                       </>
                     ) : (
-                      <Alert severity="info">No verification runs exist yet for this deployment.</Alert>
+                      <Alert severity="info">No verification runs exist yet for this {deploymentTerm.lowercase}.</Alert>
                     )}
                   </Stack>
                 </CardContent>
@@ -1920,7 +1921,7 @@ export function DiagnosticsPage() {
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography variant="h6">Provider logs</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Release-aware deployment logs pulled through the platform backend using the active provider API.
+                      Release-aware {deploymentTerm.lowercase} logs pulled through the platform backend using the active provider API.
                     </Typography>
                   </Box>
                   <TextField
@@ -2022,7 +2023,7 @@ export function DiagnosticsPage() {
                       : 'Failed to load releases'}
                   </Alert>
                 ) : releaseHistory.length === 0 ? (
-                  <Alert severity="info">No release evidence exists yet for this deployment.</Alert>
+                  <Alert severity="info">No release evidence exists yet for this {deploymentTerm.lowercase}.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
@@ -2284,7 +2285,7 @@ export function DiagnosticsPage() {
                       : 'Failed to load audit events'}
                   </Alert>
                 ) : auditEvents.length === 0 ? (
-                  <Alert severity="info">No audit events recorded yet for this deployment.</Alert>
+                  <Alert severity="info">No audit events recorded yet for this {deploymentTerm.lowercase}.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
@@ -2313,7 +2314,7 @@ export function DiagnosticsPage() {
                           <TableCell>{event.action}</TableCell>
                           <TableCell>
                             <Stack spacing={0.25}>
-                              <Typography variant="body2">{event.targetType}</Typography>
+                              <Typography variant="body2">{deploymentEnumLabel(event.targetType)}</Typography>
                               <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                                 {event.targetId}
                               </Typography>
@@ -2368,7 +2369,7 @@ export function DiagnosticsPage() {
                 label="Approved action id"
                 value={remediationApprovalId}
                 onChange={(event) => setRemediationApprovalId(event.target.value)}
-                helperText="Provide the approved deployment operation id if the deployment guardrail requires one."
+                helperText={`Provide the approved ${deploymentTerm.lowercase} operation id if the ${deploymentTerm.lowercase} guardrail requires one.`}
                 fullWidth
               />
             ) : null}
@@ -2380,7 +2381,7 @@ export function DiagnosticsPage() {
                     onChange={(event) => setRemediationConfirmed(event.target.checked)}
                   />
                 )}
-                label="I understand this action affects live deployment state."
+                label={`I understand this action affects live ${deploymentTerm.lowercase} state.`}
               />
             ) : null}
           </Stack>

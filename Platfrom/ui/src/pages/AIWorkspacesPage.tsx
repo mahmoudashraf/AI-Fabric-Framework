@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
@@ -402,7 +403,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
     const app = connectInstallationId ? installations.find(item => item.installationId === connectInstallationId) : null
     if (connectInstallationId && !app) { setSelectionError('The requested app is not available in this account.'); return }
     if (connectDeploymentId && !portfolioQuery.data.some(item => item.deploymentId === connectDeploymentId)) {
-      setSelectionError('The requested deployment is not available in this account.'); return
+      setSelectionError(`The requested ${deploymentTerm.lowercase} is not available in this account.`); return
     }
     setConnectionPanel({ fromEditor: false, deploymentId: connectDeploymentId ?? app?.deploymentId ?? undefined,
       consumerId: app?.consumerId ?? undefined, app, chooseApp: !connectInstallationId })
@@ -607,7 +608,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>Engage apps</Typography>
           <Typography color="text.secondary">
-            Embed on your website, publish a standalone app, or use both with the same deployment.
+            Embed on your website, publish a standalone app, or use both with the same {deploymentTerm.lowercase}.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ maxWidth: '100%' }}>
@@ -645,7 +646,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
               <TableCell>Name</TableCell>
               <TableCell>Delivery</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>{customerScopeLocked ? 'AI deployment' : 'Consumer'}</TableCell>
+              <TableCell>{customerScopeLocked ? deploymentTerm.singular : 'Consumer'}</TableCell>
               <TableCell>Connection</TableCell>
               <TableCell>Assignment</TableCell>
               <TableCell>Origins</TableCell>
@@ -726,11 +727,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
             </Stack>
             {customerScopeLocked ? <Stack spacing={1}>
               <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-                <Box><Typography variant="subtitle2">AI deployment</Typography><Typography variant="body2" color="text.secondary">{reviewedDeployment?.name ?? 'Not connected'}</Typography>
+                <Box><Typography variant="subtitle2">{deploymentTerm.singular}</Typography><Typography variant="body2" color="text.secondary">{reviewedDeployment?.name ?? 'Not connected'}</Typography>
                   {consumer?.boundTargetProfileId ? <Typography variant="caption" color="text.secondary">{consumer.boundDeploymentEnvironment ?? 'Selected environment'} / {consumer.boundReleaseId ? 'Runtime connected' : 'Configuration draft'}</Typography> : null}</Box>
                 <Button startIcon={<LinkRoundedIcon />} disabled={editingActive} onClick={() => setConnectionPanel({ fromEditor: true,
                   deploymentId: consumer?.boundDeploymentId ?? undefined, consumerId: form.consumerId,
-                  app: editing !== 'new' ? editing : null })}>{consumer ? 'Change deployment' : 'Connect deployment'}</Button>
+                  app: editing !== 'new' ? editing : null })}>{consumer ? `Change ${deploymentTerm.lowercase}` : `Connect ${deploymentTerm.lowercase}`}</Button>
               </Stack>
               <CustomerAdvancedSection><Typography variant="caption">Assignment: {form.consumerId || 'Not connected'} / revision {consumer?.bindingRevision ?? '-'}</Typography></CustomerAdvancedSection>
             </Stack> : null}
@@ -754,10 +755,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 ) : portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
                   <Alert severity="error">{errorText(portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
                 ) : !reviewedScopeReady ? (
-                  <Alert severity="info" action={<Button onClick={() => setConnectionPanel({ fromEditor: true })}>Connect deployment</Button>}>Connect one of your deployments to save this app. Appearance preview is available now.</Alert>
+                  <Alert severity="info" action={<Button onClick={() => setConnectionPanel({ fromEditor: true })}>Connect {deploymentTerm.lowercase}</Button>}>Connect one of your {deploymentTerm.pluralLowercase} to save this app. Appearance preview is available now.</Alert>
                 ) : reviewedProfiles.length === 0 ? (
                   <Alert severity="warning">
-                    No starter or existing app configuration is available for this deployment.
+                    No starter or existing app configuration is available for this {deploymentTerm.lowercase}.
                   </Alert>
                 ) : !reviewedProfile ? (
                   <Alert severity="warning">Select a starter or existing app configuration before saving.</Alert>
@@ -791,7 +792,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
                 <ToggleButton value="embedded" sx={{ gap: 1 }}><CodeRoundedIcon fontSize="small" />Embed on my website</ToggleButton>
                 <ToggleButton value="standalone" sx={{ gap: 1 }}><OpenInNewRoundedIcon fontSize="small" />Standalone app</ToggleButton>
               </ToggleButtonGroup>
-              <Typography variant="caption" color="text.secondary">Add both as separate Engage installations connected to the same deployment.</Typography>
+              <Typography variant="caption" color="text.secondary">Add both as separate Engage installations connected to the same {deploymentTerm.lowercase}.</Typography>
             </Stack>
             {effectiveDeliveryMode === 'standalone' && (
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -936,7 +937,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
         }} /> : null}
       {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{pendingDestructive?.command === 'delete' ? (pendingDestructive.installation.status === 'DRAFT' ? 'Delete draft app?' : 'Delete app?') : 'Disable app?'}</DialogTitle>
-        <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? 'This permanently removes this inactive app and its web addresses. It does not delete its deployment, documents or conversations.' : 'This disables the selected app installation. It does not stop or delete its deployment.'}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
+        <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? `This permanently removes this inactive app and its web addresses. It does not delete its ${deploymentTerm.lowercase}, documents or conversations.` : `This disables the selected app installation. It does not stop or delete its ${deploymentTerm.lowercase}.`}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
         <DialogActions><Button onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={!pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
           if (!pendingCurrent || !pendingInstallation || !pendingDestructive) return
           if (pendingDestructive.command === 'delete') deleteMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })
@@ -986,14 +987,14 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 750 }}>{installation.displayName}</Typography>
-          {customerView ? <Typography variant="body2" color="text.secondary">AI deployment: {deploymentName ?? 'Not connected'}</Typography> : null}
+          {customerView ? <Typography variant="body2" color="text.secondary">{deploymentTerm.singular}: {deploymentName ?? 'Not connected'}</Typography> : null}
           <CustomerAdvancedSection><Typography variant="body2" color="text.secondary">
-            Assigned deployment {installation.deploymentId ?? 'unavailable'} · release {installation.releaseId ?? 'unavailable'}
+            Assigned {deploymentTerm.lowercase} {installation.deploymentId ?? 'unavailable'} · release {installation.releaseId ?? 'unavailable'}
           </Typography></CustomerAdvancedSection>
         </Box>
         <Stack direction="row" gap={1} flexWrap="wrap">
           <Button startIcon={<PaletteOutlinedIcon />} onClick={customize}>Appearance & preview</Button>
-          {connect ? <Button startIcon={<LinkRoundedIcon />} onClick={connect}>Change deployment</Button> : null}
+          {connect ? <Button startIcon={<LinkRoundedIcon />} onClick={connect}>Change {deploymentTerm.lowercase}</Button> : null}
           {customerView ? <Button startIcon={installation.deliveryMode === 'standalone' ? <CodeRoundedIcon /> : <OpenInNewRoundedIcon />}
             disabled={addDeliveryDisabled} onClick={() => addDelivery(installation.deliveryMode === 'standalone' ? 'embedded' : 'standalone')}>
             {installation.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}
@@ -1030,7 +1031,7 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
               <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Add once before the closing </body> tag on your website.'}</Typography>
               <Stack component="ol" spacing={1} sx={{ pl: 2.5, my: 2 }}>
                 <Typography component="li" variant="body2">Allow your exact website origin in this installation.</Typography>
-                <Typography component="li" variant="body2">If readiness reports missing runtime origins or identity settings, publish and apply the deployment update, then refresh readiness.</Typography>
+                <Typography component="li" variant="body2">If readiness reports missing runtime origins or identity settings, publish and apply the {deploymentTerm.lowercase} update, then refresh readiness.</Typography>
                 <Typography component="li" variant="body2">Activate this installation, add the script to your site layout, and open your website to try the workspace.</Typography>
               </Stack>
               <Typography variant="subtitle2">Allowed websites</Typography>

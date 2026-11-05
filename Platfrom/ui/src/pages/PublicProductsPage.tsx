@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useEffect, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Button, IconButton, Tooltip, useTheme } from '@mui/material'
@@ -62,7 +63,7 @@ const products: Record<PublicProduct, {
     promise: 'Connect your systems and deploy your AI.',
     summary: 'Templates, plugins and your own configuration.',
     vision: 'Connect your business systems. Deploy your AI. Keep control.',
-    description: 'Start with a template, connect plugins, and configure a dedicated AI deployment for your business.',
+    description: `Start with a template, connect plugins, and configure a dedicated ${deploymentTerm.singular} for your business.`,
     startLabel: 'Get started',
     features: [
       { icon: DnsOutlined, title: 'Connect your data', description: 'Keep indexed knowledge aligned with your systems.' },
@@ -79,7 +80,7 @@ const products: Record<PublicProduct, {
     startLabel: 'Create a workspace',
     features: [
       { icon: PersonOutlineRounded, title: 'Your brand', description: 'Your name, identity and experience.' },
-      { icon: DnsOutlined, title: 'Your connected knowledge', description: "Answers grounded in your deployment's data." },
+      { icon: DnsOutlined, title: 'Your connected knowledge', description: `Answers grounded in your ${deploymentTerm.lowercase}'s data.` },
       { icon: HeadsetMicOutlined, title: 'Your team when needed', description: 'Continue the conversation in LoomAI Desk.' },
     ],
   },
@@ -92,7 +93,7 @@ const products: Record<PublicProduct, {
     startLabel: 'Set up Desk',
     features: [
       { icon: DescriptionOutlined, title: 'Keep the context', description: 'Your team sees the conversation so far.' },
-      { icon: PersonOutlineRounded, title: 'Assign your agents', description: 'Give people access to the right deployments.' },
+      { icon: PersonOutlineRounded, title: 'Assign your agents', description: `Give people access to the right ${deploymentTerm.pluralLowercase}.` },
       { icon: ShieldOutlined, title: 'Review actions', description: 'Make authorized decisions in the same service.' },
     ],
   },
@@ -123,18 +124,18 @@ function PreviewItem({ icon: Icon, title, subtitle, status = false }: {
 }
 
 function PlatformPreview({ expanded = false }: { expanded?: boolean }) {
-  if (!expanded) return <PreviewFrame label="Your systems connect through plugins to an AI deployment" className="lp-platform-compact">
+  if (!expanded) return <PreviewFrame label={`Your systems connect through plugins to a ${deploymentTerm.lowercase}`} className="lp-platform-compact">
     <div className="lp-compact-connection">
       <div className="lp-compact-node"><h3>Your systems</h3><div className="lp-system-icons"><PreviewSymbol name="database" /><img src={`${assetBase}google-drive.png`} alt="" width="24" height="24" /><img src={`${assetBase}slack.svg`} alt="" width="24" height="24" /><MoreHorizRounded /></div></div>
       <ArrowForwardRounded className="lp-flow-arrow" />
       <div className="lp-compact-node"><h3>Plugins</h3><ExtensionRounded className="lp-node-icon" /></div>
       <ArrowForwardRounded className="lp-flow-arrow" />
-      <div className="lp-compact-node"><h3>AI deployment</h3><div className="lp-deployment-icon"><DnsOutlined className="lp-node-icon" /><AutoAwesomeRounded /></div></div>
+      <div className="lp-compact-node"><h3>{deploymentTerm.singular}</h3><div className="lp-deployment-icon"><DnsOutlined className="lp-node-icon" /><AutoAwesomeRounded /></div></div>
     </div>
   </PreviewFrame>
-  return <PreviewFrame label="Business systems connect through plugins to a dedicated AI deployment, Engage and Desk"
+  return <PreviewFrame label={`Business systems connect through plugins to a dedicated ${deploymentTerm.singular}, Engage and Desk`}
     className={expanded ? 'lp-platform-expanded' : 'lp-platform-compact'}>
-    {expanded && <div className="lp-preview-heading"><ProductMark product="platform" small /><div><strong>Dealership AI</strong><span>Example deployment</span></div><span className="lp-example-badge">Illustrative setup</span></div>}
+    {expanded && <div className="lp-preview-heading"><ProductMark product="platform" small /><div><strong>Dealership AI</strong><span>Example {deploymentTerm.lowercase}</span></div><span className="lp-example-badge">Illustrative setup</span></div>}
     <div className="lp-system-flow">
       <div className="lp-flow-column"><h3>Your systems</h3>
         <PreviewItem icon={expanded ? DirectionsCarOutlined : PublicRounded} title={expanded ? 'Stock API' : 'Website'} subtitle={expanded ? 'Live vehicle stock and details' : undefined} status={expanded} />
@@ -143,8 +144,8 @@ function PlatformPreview({ expanded = false }: { expanded?: boolean }) {
         {!expanded && <PreviewItem icon={DescriptionOutlined} title="Knowledge base" />}
       </div>
       <ArrowForwardRounded className="lp-flow-arrow" />
-      <div className="lp-flow-column lp-flow-enablement"><h3>{expanded ? 'Your AI deployment' : 'Plugins'}</h3>
-        <PreviewItem icon={expanded ? CodeRounded : LinkRounded} title={expanded ? 'Templates' : 'API connector'} subtitle={expanded ? 'Start with a deployment template' : undefined} status={expanded} />
+      <div className="lp-flow-column lp-flow-enablement"><h3>{expanded ? `Your ${deploymentTerm.singular}` : 'Plugins'}</h3>
+        <PreviewItem icon={expanded ? CodeRounded : LinkRounded} title={expanded ? 'Templates' : 'API connector'} subtitle={expanded ? `Start with a ${deploymentTerm.lowercase} template` : undefined} status={expanded} />
         <PreviewItem icon={HubRounded} title={expanded ? 'Data & action plugins' : 'Data sync'} subtitle={expanded ? 'Connect knowledge and actions' : undefined} status={expanded} />
         <PreviewItem icon={expanded ? DescriptionOutlined : SettingsOutlined} title={expanded ? 'Knowledge' : 'Settings'} subtitle={expanded ? 'Indexed data and documents' : undefined} status={expanded} />
       </div>
@@ -152,7 +153,7 @@ function PlatformPreview({ expanded = false }: { expanded?: boolean }) {
       {expanded ? <>
         <div className="lp-flow-column lp-flow-experience"><h3><ProductMark product="engage" small /> Engage</h3><EngageConversation compact /></div>
         <div className="lp-flow-column lp-flow-support"><h3><ProductMark product="desk" small /> Desk</h3><DeskConversation compact /></div>
-      </> : <div className="lp-flow-column lp-flow-runtime"><span>AI deployment</span><ProductMark product="platform" /><strong>LoomAI Platform</strong><span className="lp-ready"><i />Ready</span></div>}
+      </> : <div className="lp-flow-column lp-flow-runtime"><span>{deploymentTerm.singular}</span><ProductMark product="platform" /><strong>LoomAI Platform</strong><span className="lp-ready"><i />Ready</span></div>}
     </div>
   </PreviewFrame>
 }
@@ -246,12 +247,12 @@ function ProductDetail({ product }: { product: PublicProduct }) {
       </div>
       <figure className="lp-product-figure">
         {product === 'platform' ? <PlatformPreview expanded /> : product === 'engage' ? <EngagePreview expanded /> : <DeskPreview expanded />}
-        <figcaption>{product === 'platform' ? 'Your systems, connected to a dedicated AI deployment.' : product === 'engage' ? 'Embed it on your website, or launch it as a standalone workspace.' : 'Your team, with the conversation context already in place.'}</figcaption>
+        <figcaption>{product === 'platform' ? `Your systems, connected to a dedicated ${deploymentTerm.singular}.` : product === 'engage' ? 'Embed it on your website, or launch it as a standalone workspace.' : 'Your team, with the conversation context already in place.'}</figcaption>
       </figure>
       {product === 'desk' && <div className="lp-handover-flow"><span><ForumOutlined />AI conversation</span><ArrowForwardRounded /><span><PersonOutlineRounded />Human agent</span><ArrowForwardRounded /><span><RefreshRounded />Return to AI</span></div>}
       <Features product={product} />
-      <p className="lp-action-note">{product === 'desk' ? 'Use the same account as your LoomAI console. Connect a deployment and assign your agents.' : 'Demo uses fictional stock and a simulated AutoTrader integration.'}</p>
-      {product === 'engage' && <p className="lp-action-note">Connect an AI deployment to power your workspace.</p>}
+      <p className="lp-action-note">{product === 'desk' ? `Use the same account as your LoomAI console. Connect a ${deploymentTerm.lowercase} and assign your agents.` : 'Demo uses fictional stock and a simulated AutoTrader integration.'}</p>
+      {product === 'engage' && <p className="lp-action-note">Connect a {deploymentTerm.lowercase} to power your workspace.</p>}
     </section>
   </>
 }

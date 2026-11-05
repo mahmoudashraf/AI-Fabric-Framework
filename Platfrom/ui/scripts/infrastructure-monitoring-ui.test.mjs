@@ -202,7 +202,7 @@ test('empty history, history errors, details failure and fleet failure stay expl
   await page.getByText('No history received for this window.', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Inspect server Staging host', exact: true }).click()
   await page.getByRole('dialog').getByText('Server details unavailable.', { exact: false }).waitFor()
-  await page.getByRole('dialog').getByText('Deployment / target footprints', { exact: true }).waitFor()
+  await page.getByRole('dialog').getByText('Smart Brain / target footprints', { exact: true }).waitFor()
   await page.getByRole('dialog').getByRole('button', { name: 'Close inspector', exact: true }).click()
   state.historyError = true
   await page.getByRole('button', { name: 'History range 24h', exact: true }).click()

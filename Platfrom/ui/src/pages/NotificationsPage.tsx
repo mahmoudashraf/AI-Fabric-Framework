@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import {
   Alert,
@@ -123,7 +124,7 @@ function PlatformNotificationsPage({ session }: { session: PlatformAuthSessionSu
           Deletion and cleanup notifications
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          Track queued deployment deletions, hard-delete cleanup progress, and full failure details. This page is the
+          Track queued {deploymentTerm.lowercase} deletions, hard-delete cleanup progress, and full failure details. This page is the
           operator record for what was requested and what actually happened.
         </Typography>
       </Box>
@@ -229,7 +230,7 @@ function PlatformNotificationsPage({ session }: { session: PlatformAuthSessionSu
                               variant="outlined"
                               size="small"
                             >
-                              Open deployment
+                              Open {deploymentTerm.lowercase}
                             </Button>
                           </Stack>
 
@@ -268,7 +269,7 @@ function PlatformNotificationsPage({ session }: { session: PlatformAuthSessionSu
                               </Typography>
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <Typography variant="subtitle2">Deployment</Typography>
+                              <Typography variant="subtitle2">{deploymentTerm.singular}</Typography>
                               <Typography variant="body2" color="text.secondary">
                                 {selectedOperation.deploymentId}
                               </Typography>

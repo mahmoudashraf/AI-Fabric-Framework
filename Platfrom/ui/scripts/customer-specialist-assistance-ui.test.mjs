@@ -242,7 +242,7 @@ test('scope change cancels a pending save before its write', async t => {
 
 test('a read-only customer sees the configuration without mutation controls', async t => {
   const { page, state } = await fixture(t, { canEdit: false })
-  await page.getByText('This deployment is read-only for your account.').waitFor()
+  await page.getByText('This smart brain is read-only for your account.').waitFor()
   assert.equal(await page.getByRole('checkbox', { name: 'Specialist assistance', exact: true }).isDisabled(), true)
   assert.equal(await page.getByRole('button', { name: 'Edit Account help', exact: true }).isDisabled(), true)
   assert.equal(await page.getByRole('button', { name: 'Save support capabilities', exact: true }).isDisabled(), true)

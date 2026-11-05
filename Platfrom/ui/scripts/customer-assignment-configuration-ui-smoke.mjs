@@ -223,16 +223,16 @@ try {
   await scenario('changed-target-actor-and-late-completion', async f => {
     f.state.holdRead = true
     await button(f.page).click(); await until(() => f.state.pendingRead.length === 1, 'held preflight')
-    await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
+    await f.page.getByRole('button', { name: 'Manage smart brain', exact: true }).nth(1).click()
     await f.page.getByRole('heading', { name: 'dep-b', level: 5, exact: true }).waitFor()
     f.state.holdRead = false; await f.state.pendingRead.shift()()
     await until(async () => await button(f.page).isEnabled(), 'new scope after rejected stale preflight')
     assert.equal(configurationCalls(f).length, 0)
     assert.equal(await f.page.getByText('Assignment or workspace configuration changed. Refresh and review before configuring.', { exact: true }).count(), 0)
-    await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(0).click()
+    await f.page.getByRole('button', { name: 'Manage smart brain', exact: true }).nth(0).click()
     f.state.holdConfigure = true
     await button(f.page).click(); await until(() => f.state.pendingConfigure.length === 1, 'held configuration POST')
-    await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
+    await f.page.getByRole('button', { name: 'Manage smart brain', exact: true }).nth(1).click()
     await f.page.evaluate(() => window.__actor('different-owner'))
     await f.state.pendingConfigure.shift()()
     await until(async () => (await f.page.getByRole('combobox', { name: /^Customer app assignment/ }).innerText()).includes('spare-app'), 'old result updates only its captured binding')
@@ -248,7 +248,7 @@ try {
     await f.state.pendingConfigure.shift()(true, false)
     await f.page.getByText('Assignment configuration response is unconfirmed. Reconcile its binding; do not resubmit.', { exact: true }).waitFor()
     assert.equal(await button(f.page).isDisabled(), true)
-    await f.page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
+    await f.page.getByRole('button', { name: 'Manage smart brain', exact: true }).nth(1).click()
     assert.equal(await button(f.page).isDisabled(), true)
     await f.page.reload({ waitUntil: 'networkidle' })
     await button(f.page).waitFor()

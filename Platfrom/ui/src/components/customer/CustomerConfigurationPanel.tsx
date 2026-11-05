@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, IconButton, Stack, Tooltip, Typography } from '@mui/material'
@@ -51,7 +52,7 @@ export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, chi
     </Drawer>
     <Dialog open={open && (confirmClose || blocker.state === 'blocked')} onClose={keepEditing} maxWidth="xs" fullWidth>
       <DialogTitle>Close configuration?</DialogTitle>
-      <DialogContent>Any changes not explicitly saved will be discarded. No deployment or app assignment changes when this panel closes.</DialogContent>
+      <DialogContent>Any changes not explicitly saved will be discarded. No {deploymentTerm.lowercase} or app assignment changes when this panel closes.</DialogContent>
       <DialogActions><Button onClick={keepEditing}>Keep editing</Button><Button onClick={discard}>Close panel</Button></DialogActions>
     </Dialog>
   </>

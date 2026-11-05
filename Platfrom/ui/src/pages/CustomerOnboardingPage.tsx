@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -84,7 +85,7 @@ export function CustomerProductStartPage() {
       if (product === 'platform' || !deployments.data?.length) {
         await enrollPublicCustomerTemplates()
         const catalogue = await fetchCustomerSelfServiceCatalogue()
-        if (!catalogue.length) throw new Error('No self-service template is available for this workspace yet. Your account is ready; contact LoomAI to enable an appropriate template. No deployment has been created.')
+        if (!catalogue.length) throw new Error(`No self-service template is available for this workspace yet. Your account is ready; contact LoomAI to enable an appropriate template. No ${deploymentTerm.lowercase} has been created.`)
         await queryClient.invalidateQueries({ queryKey: ['customer-self-service-catalogue'] })
         navigate('/deployments?view=setup&step=template')
       } else navigate(product === 'engage' ? '/ai-workspaces?view=manage' : '/human-support')
@@ -94,15 +95,15 @@ export function CustomerProductStartPage() {
   const needsDeployment = product !== 'platform' && deployments.data?.length === 0
   if (!selectedProduct(location.search)) return <Navigate to="/kits" replace />
   return <Stack spacing={3} sx={{ maxWidth: 650 }}>
-    <Box><Typography variant="h4" component="h1">{product === 'platform' ? 'Set up your AI deployment' : product === 'engage' ? 'Create your Engage workspace' : 'Connect LoomAI Desk'}</Typography>
+    <Box><Typography variant="h4" component="h1">{product === 'platform' ? `Set up your ${deploymentTerm.singular}` : product === 'engage' ? 'Create your Engage workspace' : 'Connect LoomAI Desk'}</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>Workspace: {auth.session?.customerName}</Typography></Box>
     <Typography>{product === 'platform' ? 'Choose a template, connect your systems, then test your configuration before going live.'
-      : product === 'engage' ? 'Connect a deployment, choose your branding, and publish a standalone or embedded AI experience.'
-        : 'Enable Desk for a deployment, then assign agents to continue conversations and review actions.'}</Typography>
+      : product === 'engage' ? `Connect a ${deploymentTerm.lowercase}, choose your branding, and publish a standalone or embedded AI experience.`
+        : `Enable Desk for a ${deploymentTerm.lowercase}, then assign agents to continue conversations and review actions.`}</Typography>
     {deployments.isPending ? <CircularProgress size={24} /> : deployments.isError ? <Alert severity="error">{deployments.error.message}</Alert> : <>
-      {needsDeployment ? <Alert severity="info">First create an AI deployment. Then return here to {product === 'engage' ? 'create your Engage app' : 'enable human support'}.</Alert> : null}
+      {needsDeployment ? <Alert severity="info">First create a {deploymentTerm.lowercase}. Then return here to {product === 'engage' ? 'create your Engage app' : 'enable human support'}.</Alert> : null}
       {error ? <Alert severity="warning">{error}</Alert> : null}
-      <Button variant="contained" onClick={() => { void start() }} disabled={busy}>{busy ? 'Opening setup...' : product === 'platform' || needsDeployment ? 'Choose a deployment template' : product === 'engage' ? 'Create Engage app' : 'Configure human support'}</Button>
+      <Button variant="contained" onClick={() => { void start() }} disabled={busy}>{busy ? 'Opening setup...' : product === 'platform' || needsDeployment ? `Choose a ${deploymentTerm.lowercase} template` : product === 'engage' ? 'Create Engage app' : 'Configure human support'}</Button>
     </>}
     <Button component={Link} to="/home">Open your console</Button>
     <Button component={Link} to="/products" startIcon={<ArrowBack />}>Back to products</Button>

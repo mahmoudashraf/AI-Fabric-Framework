@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import type { DeploymentIntegrationSummary } from '../api/platformApi'
 
 export function integrationModeLabel(summary: DeploymentIntegrationSummary | null | undefined): string {
@@ -65,9 +66,9 @@ export function runtimeIntegrationDescription(
   switch (integration.preferredIntegrationMode) {
     case 'BACKEND_MEDIATED_PRIVATE_RUNTIME': {
       const policySuffix = integration.trustedBackendPlatformDefaultIssuerPolicy
-        ? ' Trusted caller verification is enabled, but the accepted issuer policy still uses platform-managed first-party defaults. Set deployment security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer backend.'
+        ? ` Trusted caller verification is enabled, but the accepted issuer policy still uses platform-managed first-party defaults. Set ${deploymentTerm.lowercase} security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer backend.`
         : !integration.externalTrustedBackendIntegrationReady
-          ? ' Trusted caller verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete deployment security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as the long-term external production ingress.'
+          ? ` Trusted caller verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete ${deploymentTerm.lowercase} security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as the long-term external production ingress.`
           : ' Trusted caller issuer/audience policy is explicitly configured for external host-backed integration.'
       return `${integration.backendMediatedRuntimeBaseUrl ?? runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend${integration.trustedBackendAuthorizationHeader ? ` using ${integration.trustedBackendAuthorizationHeader} for trusted caller auth` : ''}, and reserve browser-direct runtime access for operator inspection and governed tooling.${policySuffix}`
     }
@@ -76,7 +77,7 @@ export function runtimeIntegrationDescription(
     case 'AUTH_CONFIGURATION_REQUIRED':
       return `${runtimeBaseUrl} Runtime is deployed, but no supported customer auth posture is configured yet. Keep customer traffic off the runtime until you configure trusted-backend private runtime or signed public-token access.`
     default:
-      return `${runtimeBaseUrl} ${integration.guidance ?? 'Apply the deployment before integrating.'}`
+      return `${runtimeBaseUrl} ${integration.guidance ?? `Apply the ${deploymentTerm.lowercase} before integrating.`}`
   }
 }
 

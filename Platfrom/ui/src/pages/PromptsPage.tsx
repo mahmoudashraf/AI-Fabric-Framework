@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
@@ -539,8 +540,8 @@ export function PromptsPage() {
       dirty: draftDirty,
       label: 'Prompt editor',
       description: draftDirty
-        ? 'Prompt edits exist only in the current browser buffer until you save the deployment draft or use a session-scoped hot apply.'
-        : 'Prompt editor matches the saved deployment draft.',
+        ? `Prompt edits exist only in the current browser buffer until you save the ${deploymentTerm.lowercase} draft or use a session-scoped hot apply.`
+        : `Prompt editor matches the saved ${deploymentTerm.lowercase} draft.`,
     }),
     [draftDirty],
   )
@@ -671,7 +672,7 @@ export function PromptsPage() {
             <Box>
               <Typography variant="h6">Prompt posture</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
-                Keep the browser editor buffer, saved deployment draft, published prompt baseline, and any active POC
+                Keep the browser editor buffer, saved {deploymentTerm.lowercase} draft, published prompt baseline, and any active POC
                 session override clearly separated while tuning behavior.
               </Typography>
             </Box>
@@ -688,7 +689,7 @@ export function PromptsPage() {
                 variant="outlined"
               />
               {workspace?.deployment.activeVersion ? (
-                <Chip label={`Deployment active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
+                <Chip label={`${deploymentTerm.singular} active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
               ) : null}
             </Stack>
 
@@ -704,7 +705,7 @@ export function PromptsPage() {
                         {draftDirty ? 'Unsaved changes' : 'Matches saved draft'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Local browser state only. Nothing changes in the deployment until you save or activate a
+                        Local browser state only. Nothing changes in the {deploymentTerm.lowercase} until you save or activate a
                         session override.
                       </Typography>
                       <Chip
@@ -850,7 +851,7 @@ export function PromptsPage() {
               </Alert>
             ) : draftDirty ? (
               <Alert severity="warning">
-                Editor changes exist only in this browser session right now. Save them to update the deployment draft,
+                Editor changes exist only in this browser session right now. Save them to update the {deploymentTerm.lowercase} draft,
                 or activate POC hot apply to test them without publishing.
               </Alert>
             ) : baselineQuery.data?.versionId ? (
@@ -874,7 +875,7 @@ export function PromptsPage() {
             <Box>
               <Typography variant="h6">Prompt bundle</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Prompt changes are versioned deployment config. Save the draft here, then publish and apply when you
+                Prompt changes are versioned {deploymentTerm.lowercase} config. Save the draft here, then publish and apply when you
                 want the revised prompt bundle to become part of a release.
               </Typography>
             </Box>
@@ -904,7 +905,7 @@ export function PromptsPage() {
             </Alert>
             {!canEdit ? (
               <Alert severity="info">
-                Saving prompt config and managing prompt revisions requires deployment editor access or higher.
+                Saving prompt config and managing prompt revisions requires {deploymentTerm.lowercase} editor access or higher.
               </Alert>
             ) : null}
 
@@ -916,7 +917,7 @@ export function PromptsPage() {
                       Curated module baseline
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Curated modules seed the deployment-owned prompt bundle. Reapplying a module replaces the saved
+                      Curated modules seed the {deploymentTerm.lowercase}-owned prompt bundle. Reapplying a module replaces the saved
                       draft prompt bundle with that module baseline and updates the runtime curated pack metadata for
                       the next publish/apply.
                     </Typography>
@@ -992,7 +993,7 @@ export function PromptsPage() {
                           Retrieval tuning
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                          Minimum similarity score required for deployment RAG retrieval. Lower values widen recall and
+                          Minimum similarity score required for {deploymentTerm.lowercase} RAG retrieval. Lower values widen recall and
                           can help broad catalog summaries; higher values keep grounding stricter.
                         </Typography>
                       </Box>
@@ -1011,7 +1012,7 @@ export function PromptsPage() {
                         error={Boolean(ragSimilarityThresholdError)}
                         helperText={
                           ragSimilarityThresholdError ??
-                          'Deployment-scoped retrieval threshold. Demo and canonical commerce rollouts default to 0.1.'
+                          `${deploymentTerm.singular}-scoped retrieval threshold. Demo and canonical commerce rollouts default to 0.1.`
                         }
                       />
                       <TextField
@@ -1029,7 +1030,7 @@ export function PromptsPage() {
                         error={Boolean(ragMaxDocumentsUsedForContextError)}
                         helperText={
                           ragMaxDocumentsUsedForContextError ??
-                          'Optional deployment override for how many retrieved documents are used to ground final answer generation.'
+                          `Optional ${deploymentTerm.lowercase} override for how many retrieved documents are used to ground final answer generation.`
                         }
                       />
                       <TextField
@@ -1047,7 +1048,7 @@ export function PromptsPage() {
                         error={Boolean(ragMaxContextCharsError)}
                         helperText={
                           ragMaxContextCharsError ??
-                          'Optional deployment override for the total retrieved context characters passed into final answer generation.'
+                          `Optional ${deploymentTerm.lowercase} override for the total retrieved context characters passed into final answer generation.`
                         }
                       />
                       <TextField
@@ -1065,7 +1066,7 @@ export function PromptsPage() {
                         error={Boolean(responseGenerationMaxTokensConciseError)}
                         helperText={
                           responseGenerationMaxTokensConciseError ??
-                          'Optional deployment override for extractor-selected CONCISE answers. Framework default is 400.'
+                          `Optional ${deploymentTerm.lowercase} override for extractor-selected CONCISE answers. Framework default is 400.`
                         }
                       />
                       <TextField
@@ -1083,7 +1084,7 @@ export function PromptsPage() {
                         error={Boolean(responseGenerationMaxTokensStandardError)}
                         helperText={
                           responseGenerationMaxTokensStandardError ??
-                          'Optional deployment override for extractor-selected STANDARD answers. Leave blank to keep provider defaults.'
+                          `Optional ${deploymentTerm.lowercase} override for extractor-selected STANDARD answers. Leave blank to keep provider defaults.`
                         }
                       />
                       <TextField
@@ -1101,7 +1102,7 @@ export function PromptsPage() {
                         error={Boolean(responseGenerationMaxTokensDeepError)}
                         helperText={
                           responseGenerationMaxTokensDeepError ??
-                          'Optional deployment override for extractor-selected DEEP answers. Framework default is 1200.'
+                          `Optional ${deploymentTerm.lowercase} override for extractor-selected DEEP answers. Framework default is 1200.`
                         }
                       />
                       <TextField
@@ -1332,7 +1333,7 @@ export function PromptsPage() {
             <Box>
               <Typography variant="h6">POC session hot apply</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Persist the current editor overlay for your deployment POC session so the embedded chatbot uses these
+                Persist the current editor overlay for your {deploymentTerm.lowercase} POC session so the embedded chatbot uses these
                 prompt changes across multiple turns without saving, publishing, or applying a release.
               </Typography>
             </Box>
@@ -1352,16 +1353,16 @@ export function PromptsPage() {
 
             {runtimeUnavailable ? (
               <Alert severity="warning">
-                Apply the deployment before activating session hot apply. The POC console must have a live runtime URL.
+                Apply the {deploymentTerm.lowercase} before activating session hot apply. The POC console must have a live runtime URL.
               </Alert>
             ) : !canOperate ? (
               <Alert severity="info">
-                POC hot apply is available to deployment operators and above.
+                POC hot apply is available to {deploymentTerm.lowercase} operators and above.
               </Alert>
             ) : (
               <Alert severity="info">
                 Session hot apply is operator-scoped and secured with the runtime admin key. It only affects the
-                platform POC console for this deployment until you clear it.
+                platform POC console for this {deploymentTerm.lowercase} until you clear it.
               </Alert>
             )}
 
@@ -1391,7 +1392,7 @@ export function PromptsPage() {
 
             {activatePromptSessionMutation.isSuccess ? (
               <Alert severity="success">
-                Prompt hot apply is active for the deployment POC console. Open the POC page to test multi-turn
+                Prompt hot apply is active for the {deploymentTerm.lowercase} POC console. Open the POC page to test multi-turn
                 behavior with this overlay.
               </Alert>
             ) : null}
@@ -1434,7 +1435,7 @@ export function PromptsPage() {
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Activate the current editor state as a persistent overlay for your operator session, then clear it
-                      when you want the POC console back on the saved deployment behavior.
+                      when you want the POC console back on the saved {deploymentTerm.lowercase} behavior.
                     </Typography>
                     <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
                       <Button
@@ -1474,7 +1475,7 @@ export function PromptsPage() {
             <Box>
               <Typography variant="h6">Prompt preview console</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Run the currently applied deployment through the embedded POC path, then compare it with an
+                Run the currently applied {deploymentTerm.lowercase} through the embedded POC path, then compare it with an
                 operator-only request-scoped preview overlay built from the prompt editor. Preview runs do not save,
                 publish, or apply anything.
               </Typography>
@@ -1495,12 +1496,12 @@ export function PromptsPage() {
 
             {runtimeUnavailable ? (
               <Alert severity="warning">
-                Apply the deployment before using prompt preview. This feature runs against the selected deployment
+                Apply the {deploymentTerm.lowercase} before using prompt preview. This feature runs against the selected {deploymentTerm.lowercase}
                 runtime and requires a live runtime URL.
               </Alert>
             ) : !canOperate ? (
               <Alert severity="info">
-                Prompt preview and live POC evaluation require deployment operator access or higher.
+                Prompt preview and live POC evaluation require {deploymentTerm.lowercase} operator access or higher.
               </Alert>
             ) : (
               <Alert severity="info">
@@ -1561,7 +1562,7 @@ export function PromptsPage() {
                   <CardContent>
                     <Stack spacing={1.5}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                        Currently applied deployment
+                        Currently applied {deploymentTerm.lowercase}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Uses the active runtime prompt behavior with no preview overlay. Helpful as the baseline before
@@ -1643,8 +1644,8 @@ export function PromptsPage() {
             <Box>
               <Typography variant="h6">Prompt revisions</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Prompt revisions are lightweight prompt-only snapshots inside the deployment workspace. They are useful
-                for restoring prompt behavior quickly without rolling back the rest of the deployment draft.
+                Prompt revisions are lightweight prompt-only snapshots inside the {deploymentTerm.lowercase} workspace. They are useful
+                for restoring prompt behavior quickly without rolling back the rest of the {deploymentTerm.lowercase} draft.
               </Typography>
             </Box>
 

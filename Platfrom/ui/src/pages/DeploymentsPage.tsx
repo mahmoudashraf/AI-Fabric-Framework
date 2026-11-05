@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import { zodResolver } from '@hookform/resolvers/zod'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded'
@@ -90,7 +91,7 @@ const schema = z.object({
   vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
   customerId: z.string().optional(),
   tenantId: z.string().optional(),
-  behaviorType: z.string().min(1, 'Choose a deployment behavior'),
+  behaviorType: z.string().min(1, `Choose a ${deploymentTerm.lowercase} behavior`),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -174,11 +175,11 @@ function behaviorIcon(code: string) {
 }
 
 function behaviorLabel(code: string): string {
-  return code
+  return deploymentEnumLabel(code, code
     .toLowerCase()
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
+    .join(' '))
 }
 
 function isVerifiedOpenAiStack(template: TemplateSelectionSummary): boolean {
@@ -204,7 +205,7 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         {
           value: 'PLATFORM_MANAGED',
           label: 'Platform-managed',
-          description: 'The platform creates or reconciles the Pinecone serverless index and binds its resolved host back into the deployment automatically.',
+          description: `The platform creates or reconciles the Pinecone serverless index and binds its resolved host back into the ${deploymentTerm.lowercase} automatically.`,
         },
         {
           value: 'EXTERNAL_EXISTING',
@@ -217,7 +218,7 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         {
           value: 'PLATFORM_MANAGED',
           label: 'Platform-managed',
-          description: 'The platform creates or reuses a Qdrant Cloud cluster, issues a deployment-scoped database key, and reconciles collections automatically.',
+          description: `The platform creates or reuses a Qdrant Cloud cluster, issues a ${deploymentTerm.lowercase}-scoped database key, and reconciles collections automatically.`,
         },
         {
           value: 'EXTERNAL_EXISTING',
@@ -236,7 +237,7 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         {
           value: 'PLATFORM_MANAGED',
           label: 'Platform-managed',
-          description: 'The platform creates or reuses a Zilliz Cloud cluster, binds deployment-scoped Milvus runtime credentials, and keeps the cluster attached to the deployment lifecycle.',
+          description: `The platform creates or reuses a Zilliz Cloud cluster, binds ${deploymentTerm.lowercase}-scoped Milvus runtime credentials, and keeps the cluster attached to the ${deploymentTerm.lowercase} lifecycle.`,
         },
         {
           value: 'EXTERNAL_EXISTING',
@@ -267,7 +268,7 @@ function vectorVendorCapabilityMessage(template: { id?: string; vectorStrategy: 
   if (template.id === 'custom-start-from-scratch') {
     return {
       severity: 'info',
-      message: 'This neutral starter preset seeds a safe runtime-local baseline. Change LLM, embeddings, vector backend, and security after create in the deployment workspaces.',
+      message: `This neutral starter preset seeds a safe runtime-local baseline. Change LLM, embeddings, vector backend, and security after create in the ${deploymentTerm.lowercase} workspaces.`,
     }
   }
   switch (template.vectorStrategy) {
@@ -279,17 +280,17 @@ function vectorVendorCapabilityMessage(template: { id?: string; vectorStrategy: 
     case 'qdrant':
       return {
         severity: 'success',
-        message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
+        message: `Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a ${deploymentTerm.lowercase}-scoped database key automatically.`,
       }
     case 'weaviate':
       return {
         severity: 'info',
-        message: 'Weaviate is deployment-verified as a bring-your-own managed-service target. Use an existing Weaviate Cloud endpoint and let the platform bind it into the runtime.',
+        message: `Weaviate is ${deploymentTerm.lowercase}-verified as a bring-your-own managed-service target. Use an existing Weaviate Cloud endpoint and let the platform bind it into the runtime.`,
       }
     case 'milvus':
       return {
         severity: 'success',
-        message: 'Milvus is deployment-verified through platform-managed Zilliz Cloud provisioning. The platform can create or reuse the managed cluster and bind deployment-scoped runtime credentials automatically.',
+        message: `Milvus is ${deploymentTerm.lowercase}-verified through platform-managed Zilliz Cloud provisioning. The platform can create or reuse the managed cluster and bind ${deploymentTerm.lowercase}-scoped runtime credentials automatically.`,
       }
     default:
       return {
@@ -404,13 +405,13 @@ function isVerificationRolloutInProgress(item: DeploymentVerificationRolloutSumm
 function assignmentRoleLabel(role: string): string {
   switch (role) {
     case 'DEPLOYMENT_ADMIN':
-      return 'Deployment Admin'
+      return `${deploymentTerm.singular} Admin`
     case 'DEPLOYMENT_EDITOR':
-      return 'Deployment Editor'
+      return `${deploymentTerm.singular} Editor`
     case 'DEPLOYMENT_OPERATOR':
-      return 'Deployment Operator'
+      return `${deploymentTerm.singular} Operator`
     case 'DEPLOYMENT_VIEWER':
-      return 'Deployment Viewer'
+      return `${deploymentTerm.singular} Viewer`
     default:
       return 'No assignment'
   }
@@ -438,12 +439,12 @@ function roleCapabilitySummary(deployment: DeploymentOverviewSummary): string {
     return 'Can configure, release, operate, manage access, and run destructive actions.'
   }
   if (deployment.access.canEdit) {
-    return 'Can edit drafts, publish versions, and operate the deployment, but cannot manage access or destructive actions.'
+    return `Can edit drafts, publish versions, and operate the ${deploymentTerm.lowercase}, but cannot manage access or destructive actions.`
   }
   if (deployment.access.canOperate) {
     return 'Can apply published versions, run verification, and use the POC workspace, but cannot edit draft configuration.'
   }
-  return 'Read-only access. Review deployment state, diagnostics, and release history without changing it.'
+  return `Read-only access. Review ${deploymentTerm.lowercase} state, diagnostics, and release history without changing it.`
 }
 
 function listViewEquals(
@@ -476,21 +477,21 @@ function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
   if (deployment.healthStatus === 'ATTENTION') {
     return {
       label: 'Review diagnostics',
-      description: 'This deployment needs attention. Start with verification evidence and latest release details.',
+      description: `This ${deploymentTerm.lowercase} needs attention. Start with verification evidence and latest release details.`,
       to: `/diagnostics?deploymentId=${deploymentId}`,
     }
   }
   if (deployment.access.canEdit && (deployment.activeVersion == null || deployment.activeVersion === 'draft' || deployment.status === 'DRAFT')) {
     return {
       label: 'Continue configuration',
-      description: 'The deployment is still draft-led. Continue editing configuration before the next publish.',
+      description: `The ${deploymentTerm.lowercase} is still draft-led. Continue editing configuration before the next publish.`,
       to: `/actions?deploymentId=${deploymentId}`,
     }
   }
   if (deployment.access.canOperate && deployment.latestRelease == null) {
     return {
       label: 'Prepare first release',
-      description: 'A deployment exists but has not been applied yet. Review versions and apply when ready.',
+      description: `A ${deploymentTerm.lowercase} exists but has not been applied yet. Review versions and apply when ready.`,
       to: `/revisions?deploymentId=${deploymentId}`,
     }
   }
@@ -503,7 +504,7 @@ function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
   }
   return {
     label: 'Open workspace',
-    description: 'Review deployment configuration, releases, and diagnostics in read-only mode.',
+    description: `Review ${deploymentTerm.lowercase} configuration, releases, and diagnostics in read-only mode.`,
     to: `/overview?deploymentId=${deploymentId}`,
   }
 }
@@ -1228,12 +1229,12 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
   return (
     <Stack spacing={3}>
       <Box>
-        <Chip label="Deployments" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
+        <Chip label={deploymentTerm.plural} color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-          Customer deployment lifecycle
+          Customer {deploymentTerm.lowercase} lifecycle
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
-          Create a deployment, understand whether it is healthy, then move into revisions or
+          Create a {deploymentTerm.lowercase}, understand whether it is healthy, then move into revisions or
           diagnostics only when you need deeper control. The default view hides most platform
           internals and focuses on safe customer operations.
         </Typography>
@@ -1245,7 +1246,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             <CardContent>
               <Stack spacing={1}>
                 <Typography variant="overline" color="text.secondary">
-                  Active deployments
+                  Active {deploymentTerm.pluralLowercase}
                 </Typography>
                 <Typography variant="h4" sx={{ fontWeight: 800 }}>
                   {metrics.active}
@@ -1300,7 +1301,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
 
       {bindingMigrationNotice ? (
         <Alert severity="success">
-          {bindingMigrationNotice.message} New deployment: <strong>{bindingMigrationNotice.deploymentName}</strong> (
+          {bindingMigrationNotice.message} New {deploymentTerm.lowercase}: <strong>{bindingMigrationNotice.deploymentName}</strong> (
           {bindingMigrationNotice.deploymentId}) bound to <strong>{bindingMigrationNotice.customerName}</strong> /{' '}
           <strong>{bindingMigrationNotice.tenantName}</strong>.
         </Alert>
@@ -1314,7 +1315,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                 <Typography variant="h6">Canonical verification rollouts</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
                   Use this admin-only surface to explicitly create, apply, verify, and clean up the platform-owned
-                  canonical verification deployments. You can target only the presets you want instead of recreating
+                  canonical verification {deploymentTerm.pluralLowercase}. You can target only the presets you want instead of recreating
                   the whole matrix every time.
                 </Typography>
               </Box>
@@ -1367,7 +1368,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                   disabled={ecommerceDemoRolloutMutation.isPending}
                   onClick={() => ecommerceDemoRolloutMutation.mutate()}
                 >
-                  {ecommerceDemoRolloutMutation.isPending ? 'Rolling out…' : 'Roll out ecommerce demo deployment'}
+                  {ecommerceDemoRolloutMutation.isPending ? 'Rolling out…' : `Roll out ecommerce demo ${deploymentTerm.lowercase}`}
                 </Button>
                 <FormControlLabel
                   control={(
@@ -1379,7 +1380,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                   label="Write mode for hosted verification"
                 />
                 <Typography variant="body2" color="text.secondary">
-                  Keep this off for read-only checks. Turn it on only when you want the dedicated rollout deployment
+                  Keep this off for read-only checks. Turn it on only when you want the dedicated rollout {deploymentTerm.lowercase}
                   scripts to execute their create/upsert/delete verification paths.
                 </Typography>
               </Stack>
@@ -1406,8 +1407,8 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
 
               {verificationRolloutWriteMode ? (
                 <Alert severity="warning">
-                  Write mode is restricted to the canonical rollout deployments in this panel. It is intended for
-                  dedicated verification stacks, not customer production deployments.
+                  Write mode is restricted to the canonical rollout {deploymentTerm.pluralLowercase} in this panel. It is intended for
+                  dedicated verification stacks, not customer production {deploymentTerm.pluralLowercase}.
                 </Alert>
               ) : null}
               {rolloutActionNotice ? (
@@ -1462,7 +1463,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                     <Alert severity="error">
                       {ecommerceDemoRolloutMutation.error instanceof Error
                         ? ecommerceDemoRolloutMutation.error.message
-                        : 'Failed to roll out the ecommerce demo deployment.'}
+                        : `Failed to roll out the ecommerce demo ${deploymentTerm.lowercase}.`}
                     </Alert>
                   ) : null}
                   {verificationRolloutNotice ? (
@@ -1474,7 +1475,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                     <Alert severity="error">
                       {rolloutVerificationMutation.error instanceof Error
                         ? rolloutVerificationMutation.error.message
-                        : 'Failed to queue hosted verification for the selected rollout deployment.'}
+                        : `Failed to queue hosted verification for the selected rollout ${deploymentTerm.lowercase}.`}
                     </Alert>
                   ) : null}
 
@@ -1556,7 +1557,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
 
                               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                 {item.deploymentId ? <Chip size="small" label={item.deploymentId} variant="outlined" /> : null}
-                                {item.deploymentStatus ? <Chip size="small" label={`Deployment: ${item.deploymentStatus}`} variant="outlined" /> : null}
+                                {item.deploymentStatus ? <Chip size="small" label={`${deploymentTerm.singular}: ${item.deploymentStatus}`} variant="outlined" /> : null}
                                 {item.latestReleaseStatus ? <Chip size="small" label={`Release: ${item.latestReleaseStatus}`} variant="outlined" /> : null}
                                 {item.latestProvisioningStatus ? <Chip size="small" label={`Provisioning: ${item.latestProvisioningStatus}`} variant="outlined" /> : null}
                                 {item.latestVerificationStatus ? <Chip size="small" label={`Verification: ${item.latestVerificationStatus}`} variant="outlined" /> : null}
@@ -1594,7 +1595,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             <CardContent>
               <Stack spacing={2.5}>
                 <Box>
-                  <Typography variant="h6">Create deployment</Typography>
+                  <Typography variant="h6">Create {deploymentTerm.lowercase}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Choose a starting stack preset, give the environment a clear name, and the platform
                     will create the editable draft lifecycle behind it.
@@ -1602,16 +1603,16 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                 </Box>
 
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">1. Choose deployment behavior</Typography>
+                  <Typography variant="subtitle2">1. Choose {deploymentTerm.lowercase} behavior</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Behavior defines how the deployed runtime is activated and coordinated. It is fixed for the
-                    deployment so published versions, verification, and runtime identity cannot drift between modes.
+                    {deploymentTerm.lowercase} so published versions, verification, and runtime identity cannot drift between modes.
                   </Typography>
                   {behaviorsQuery.isError ? (
                     <Alert severity="error">
                       {behaviorsQuery.error instanceof Error
                         ? behaviorsQuery.error.message
-                        : 'Failed to load deployment behaviors.'}
+                        : `Failed to load ${deploymentTerm.lowercase} behaviors.`}
                     </Alert>
                   ) : (
                     <Grid container spacing={1.5}>
@@ -1640,7 +1641,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                                   <Stack direction="row" spacing={1} alignItems="center">
                                     {behaviorIcon(behavior.code)}
                                     <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                      {behavior.name}
+                                      {deploymentEnumLabel(behavior.code, behavior.name)}
                                     </Typography>
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
@@ -1684,7 +1685,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                 <Stack spacing={1.25}>
                   <Typography variant="subtitle2">2. Choose starting stack</Typography>
                   <Alert severity="info">
-                    The list prioritizes the OpenAI deployment stacks the platform has already verified across the vector backends we currently support. The full preset catalog stays available below.
+                    The list prioritizes the OpenAI {deploymentTerm.lowercase} stacks the platform has already verified across the vector backends we currently support. The full preset catalog stays available below.
                   </Alert>
                   <Box
                     sx={{
@@ -1937,7 +1938,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                         <Typography variant="subtitle2">5. Bind customer and tenant</Typography>
                         <Alert severity="info" icon={<ApartmentRoundedIcon fontSize="inherit" />}>
                           Customer and tenant binding is admin-controlled. Leave both fields empty to place the
-                          deployment under the platform internal customer with an auto-created tenant. Select a
+                          {deploymentTerm.lowercase} under the platform internal customer with an auto-created tenant. Select a
                           customer with no tenant to auto-create a dedicated tenant under that customer.
                         </Alert>
                         <TextField
@@ -1986,7 +1987,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                           {selectedCustomer ? (
                             <Chip
                               size="small"
-                              label={`${selectedCustomer.tenantCount} tenant(s) · ${selectedCustomer.deploymentCount} deployment(s)`}
+                              label={`${selectedCustomer.tenantCount} tenant(s) · ${selectedCustomer.deploymentCount} ${selectedCustomer.deploymentCount === 1 ? deploymentTerm.lowercase : deploymentTerm.pluralLowercase}`}
                               variant="outlined"
                             />
                           ) : null}
@@ -2001,7 +2002,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                       render={({ field, fieldState }) => (
                         <TextField
                           {...field}
-                          label="Deployment name"
+                          label={`${deploymentTerm.singular} name`}
                           error={!!fieldState.error}
                           helperText={fieldState.error?.message ?? 'For example: Acme Commerce Dev'}
                         />
@@ -2026,14 +2027,14 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                         {isCustomStarterPreset(selectedTemplate.id)
                           ? (
                             <>
-                              This deployment will start with <strong>{selectedTemplate.name}</strong>. The platform seeds
+                              This {deploymentTerm.lowercase} will start with <strong>{selectedTemplate.name}</strong>. The platform seeds
                               editable runtime-local defaults so you can change LLM, embeddings, vector backend, and
                               security immediately after create.
                             </>
                           )
                           : (
                             <>
-                              This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
+                              This {deploymentTerm.lowercase} will start with <strong>{selectedTemplate.name}</strong>, using{' '}
                               {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
                               and {selectedTemplate.vectorStrategy} for vector storage.
                             </>
@@ -2068,7 +2069,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                       <Alert severity="error">
                         {createMutation.error instanceof Error
                           ? createMutation.error.message
-                          : 'Failed to create deployment'}
+                          : `Failed to create ${deploymentTerm.lowercase}`}
                       </Alert>
                     ) : null}
 
@@ -2078,7 +2079,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                       startIcon={<AddRoundedIcon />}
                       disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading || behaviorsQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '7' : '6'}. Create deployment`}
+                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '7' : '6'}. Create ${deploymentTerm.lowercase}`}
                     </Button>
                   </Stack>
                 </form>
@@ -2094,8 +2095,8 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                 <Box>
                   <Typography variant="h6">What happens next</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    New deployments start as editable drafts. Publish and apply remain available in
-                    Revisions, while Diagnostics shows verification evidence and deployment health.
+                    New {deploymentTerm.pluralLowercase} start as editable drafts. Publish and apply remain available in
+                    Revisions, while Diagnostics shows verification evidence and {deploymentTerm.lowercase} health.
                   </Typography>
                 </Box>
 
@@ -2126,7 +2127,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               alignItems={{ xs: 'flex-start', md: 'center' }}
             >
               <Box>
-                <Typography variant="h6">Deployment overview</Typography>
+                <Typography variant="h6">{deploymentTerm.singular} overview</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   This is the customer-safe lifecycle view. Open Revisions or Diagnostics only when
                   you need deeper release control.
@@ -2146,7 +2147,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             {bulkNotice ? (
               <Alert severity={bulkNotice.failedCount > 0 ? 'warning' : 'success'}>
                 Bulk {bulkNotice.action.toLowerCase()} completed: {bulkNotice.succeededCount} succeeded, {bulkNotice.failedCount} failed.
-                {bulkNotice.failedCount > 0 ? ` Failed deployments: ${bulkNotice.results.filter((item) => item.status === 'FAILED').map((item) => item.deploymentName).join(', ')}.` : ''}
+                {bulkNotice.failedCount > 0 ? ` Failed ${deploymentTerm.pluralLowercase}: ${bulkNotice.results.filter((item) => item.status === 'FAILED').map((item) => item.deploymentName).join(', ')}.` : ''}
               </Alert>
             ) : null}
 
@@ -2161,7 +2162,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                   >
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                        Filter the deployment grid
+                        Filter the {deploymentTerm.lowercase} grid
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Search by name, id, or environment, then narrow by health, assignment role, or template.
@@ -2179,10 +2180,10 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                     <Grid item xs={12} md={4}>
                       <TextField
                         fullWidth
-                        label="Search deployments"
+                        label={`Search ${deploymentTerm.pluralLowercase}`}
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
-                        helperText="Matches deployment name, id, or environment"
+                        helperText={`Matches ${deploymentTerm.lowercase} name, id, or environment`}
                       />
                     </Grid>
                     <Grid item xs={12} md={2.5}>
@@ -2208,10 +2209,10 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                         onChange={(event) => setRoleFilter(event.target.value)}
                       >
                         <MenuItem value="ALL">All roles</MenuItem>
-                        <MenuItem value="DEPLOYMENT_ADMIN">Deployment Admin</MenuItem>
-                        <MenuItem value="DEPLOYMENT_EDITOR">Deployment Editor</MenuItem>
-                        <MenuItem value="DEPLOYMENT_OPERATOR">Deployment Operator</MenuItem>
-                        <MenuItem value="DEPLOYMENT_VIEWER">Deployment Viewer</MenuItem>
+                        <MenuItem value="DEPLOYMENT_ADMIN">{deploymentTerm.singular} Admin</MenuItem>
+                        <MenuItem value="DEPLOYMENT_EDITOR">{deploymentTerm.singular} Editor</MenuItem>
+                        <MenuItem value="DEPLOYMENT_OPERATOR">{deploymentTerm.singular} Operator</MenuItem>
+                        <MenuItem value="DEPLOYMENT_VIEWER">{deploymentTerm.singular} Viewer</MenuItem>
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -2283,7 +2284,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                           Bulk administration
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Select deployments from the grid, then archive, restore, or permanently delete them with one guarded action.
+                          Select {deploymentTerm.pluralLowercase} from the grid, then archive, restore, or permanently delete them with one guarded action.
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -2366,7 +2367,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                           Provider workspace cleanup
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Clean provider resources that are not owned by current deployments, vector runner registrations, or managed product-service bindings. The backend keeps mandatory resources out of the cleanup target set.
+                          Clean provider resources that are not owned by current {deploymentTerm.pluralLowercase}, vector runner registrations, or managed product-service bindings. The backend keeps mandatory resources out of the cleanup target set.
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -2520,14 +2521,14 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             ) : null}
 
             {overviewsQuery.isLoading ? (
-              <Typography color="text.secondary">Loading deployments…</Typography>
+              <Typography color="text.secondary">Loading {deploymentTerm.pluralLowercase}…</Typography>
             ) : activeDeployments.length === 0 ? (
               <Alert severity="info">
-                No active deployments yet. Create one above to start the draft, publish, and apply lifecycle.
+                No active {deploymentTerm.pluralLowercase} yet. Create one above to start the draft, publish, and apply lifecycle.
               </Alert>
             ) : filteredActiveDeployments.length === 0 ? (
               <Alert severity="info">
-                No active deployments match the current filters. Clear the filters or broaden the search to see more results.
+                No active {deploymentTerm.pluralLowercase} match the current filters. Clear the filters or broaden the search to see more results.
               </Alert>
             ) : (
               <Grid container spacing={2}>
@@ -2565,7 +2566,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                                 <Checkbox
                                   checked={selectedDeploymentSet.has(deployment.id)}
                                   onChange={() => toggleDeploymentSelection(deployment.id)}
-                                  inputProps={{ 'aria-label': `Select deployment ${deployment.name}` }}
+                                  inputProps={{ 'aria-label': `Select ${deploymentTerm.lowercase} ${deployment.name}` }}
                                 />
                               ) : null}
                               <Chip
@@ -2849,20 +2850,20 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             {showArchived ? (
               <Stack spacing={1.5}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Archived deployments
+                  Archived {deploymentTerm.pluralLowercase}
                 </Typography>
                 {restoreMutation.isError ? (
                   <Alert severity="error">
                     {restoreMutation.error instanceof Error
                       ? restoreMutation.error.message
-                      : 'Failed to restore deployment'}
+                      : `Failed to restore ${deploymentTerm.lowercase}`}
                   </Alert>
                 ) : null}
                 {filteredArchivedDeployments.length === 0 ? (
                   <Typography color="text.secondary">
                     {archivedDeployments.length === 0
-                      ? 'No archived deployments.'
-                      : 'No archived deployments match the current filters.'}
+                      ? `No archived ${deploymentTerm.pluralLowercase}.`
+                      : `No archived ${deploymentTerm.pluralLowercase} match the current filters.`}
                   </Typography>
                 ) : (
                   <Grid container spacing={2}>
@@ -2885,7 +2886,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                                     <Checkbox
                                       checked={selectedDeploymentSet.has(deployment.id)}
                                       onChange={() => toggleDeploymentSelection(deployment.id)}
-                                      inputProps={{ 'aria-label': `Select archived deployment ${deployment.name}` }}
+                                      inputProps={{ 'aria-label': `Select archived ${deploymentTerm.lowercase} ${deployment.name}` }}
                                     />
                                   ) : null}
                                   <Chip
@@ -2984,7 +2985,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 460 } }}>
             <DialogContentText>
-              Deployment binding is only mutable before any version is published or any release exists.
+              {deploymentTerm.singular} binding is only mutable before any version is published or any release exists.
               Choose a customer and optionally an existing tenant. Leaving tenant empty creates a new
               dedicated tenant under the selected customer.
             </DialogContentText>
@@ -3000,9 +3001,9 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             ) : null}
             {bindingRequiresMigration ? (
               <Alert severity="warning">
-                Historical deployment ownership will not be mutated in place. The governed flow creates a new
-                tenant-bound draft deployment from the source deployment&apos;s current draft, then leaves the
-                source deployment unchanged for rollback and audit.
+                Historical {deploymentTerm.lowercase} ownership will not be mutated in place. The governed flow creates a new
+                tenant-bound draft {deploymentTerm.lowercase} from the source {deploymentTerm.lowercase}&apos;s current draft, then leaves the
+                source {deploymentTerm.lowercase} unchanged for rollback and audit.
               </Alert>
             ) : null}
             <TextField
@@ -3011,7 +3012,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               value={bindingCustomerId}
               onChange={(event) => setBindingCustomerId(event.target.value)}
               helperText={customerScopeLocked
-                ? 'Customer admins can only rebind deployments inside their own customer boundary.'
+                ? `Customer admins can only rebind ${deploymentTerm.pluralLowercase} inside their own customer boundary.`
                 : undefined}
               disabled={customerScopeLocked}
             >
@@ -3044,16 +3045,16 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             {bindingRequiresMigration ? (
               <>
                 <TextField
-                  label="New deployment name"
+                  label={`New ${deploymentTerm.lowercase} name`}
                   value={bindingMigrationName}
                   onChange={(event) => setBindingMigrationName(event.target.value)}
-                  helperText="The migration flow creates a new deployment. Edit the proposed name if you want a more specific tenant-bound rollout name."
+                  helperText={`The migration flow creates a new ${deploymentTerm.lowercase}. Edit the proposed name if you want a more specific tenant-bound rollout name.`}
                 />
                 <TextField
                   label="Environment"
                   value={bindingMigrationEnvironment}
                   onChange={(event) => setBindingMigrationEnvironment(event.target.value)}
-                  helperText="Defaults to the source deployment environment."
+                  helperText={`Defaults to the source ${deploymentTerm.lowercase} environment.`}
                 />
                 <TextField
                   label="Migration reason"
@@ -3062,7 +3063,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                   required
                   multiline
                   minRows={2}
-                  helperText="Required for audit. Describe why this deployment is being migrated to a different tenant."
+                  helperText={`Required for audit. Describe why this ${deploymentTerm.lowercase} is being migrated to a different tenant.`}
                 />
                 {bindingMigrationPreviewQuery.isLoading ? (
                   <Alert severity="info">Preparing tenant migration preview…</Alert>
@@ -3071,7 +3072,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                   <Alert severity={bindingMigrationPreviewQuery.data.status === 'READY' ? 'info' : 'warning'}>
                     <strong>{bindingMigrationPreviewQuery.data.message}</strong>
                     <br />
-                    Proposed deployment: {bindingMigrationPreviewQuery.data.proposedDeploymentName} (
+                    Proposed {deploymentTerm.lowercase}: {bindingMigrationPreviewQuery.data.proposedDeploymentName} (
                     {bindingMigrationPreviewQuery.data.proposedEnvironmentName})
                     <br />
                     History carried forward by reference: {bindingMigrationPreviewQuery.data.publishedVersionCount} published version(s),{' '}
@@ -3097,14 +3098,14 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               <Alert severity="error">
                 {updateBindingMutation.error instanceof Error
                   ? updateBindingMutation.error.message
-                  : 'Failed to update deployment binding.'}
+                  : `Failed to update ${deploymentTerm.lowercase} binding.`}
               </Alert>
             ) : null}
             {createBindingMigrationMutation.isError ? (
               <Alert severity="error">
                 {createBindingMigrationMutation.error instanceof Error
                   ? createBindingMigrationMutation.error.message
-                  : 'Failed to create the tenant migration deployment.'}
+                  : `Failed to create the tenant migration ${deploymentTerm.lowercase}.`}
               </Alert>
             ) : null}
           </Stack>
@@ -3149,7 +3150,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
                 })
               }}
             >
-              {createBindingMigrationMutation.isPending ? 'Creating migration…' : 'Create migration deployment'}
+              {createBindingMigrationMutation.isPending ? 'Creating migration…' : `Create migration ${deploymentTerm.lowercase}`}
             </Button>
           ) : (
             <Button
@@ -3181,12 +3182,12 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
           }
         }}
       >
-        <DialogTitle>Archive deployment</DialogTitle>
+        <DialogTitle>Archive {deploymentTerm.lowercase}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              Archiving removes the deployment from active customer workflows, but preserves release
-              history and audit evidence. To confirm, type the deployment name exactly.
+              Archiving removes the {deploymentTerm.lowercase} from active customer workflows, but preserves release
+              history and audit evidence. To confirm, type the {deploymentTerm.lowercase} name exactly.
             </DialogContentText>
             {archiveTarget ? (
               <Alert severity="warning">
@@ -3195,7 +3196,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             ) : null}
             <TextField
               autoFocus
-              label="Type deployment name"
+              label={`Type ${deploymentTerm.lowercase} name`}
               value={archiveConfirmationText}
               onChange={(event) => setArchiveConfirmationText(event.target.value)}
               inputProps={{ 'data-testid': 'archive-confirmation-input' }}
@@ -3204,7 +3205,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               <Alert severity="error">
                 {archiveMutation.error instanceof Error
                   ? archiveMutation.error.message
-                  : 'Failed to archive deployment'}
+                  : `Failed to archive ${deploymentTerm.lowercase}`}
               </Alert>
             ) : null}
           </Stack>
@@ -3246,12 +3247,12 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
           }
         }}
       >
-        <DialogTitle>Delete deployment permanently</DialogTitle>
+        <DialogTitle>Delete {deploymentTerm.lowercase} permanently</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This queues a permanent delete request. The platform will mark the deployment as subject to deletion completion,
-              then finish record removal and optional infrastructure cleanup asynchronously. To continue, type the deployment name exactly.
+              This queues a permanent delete request. The platform will mark the {deploymentTerm.lowercase} as subject to deletion completion,
+              then finish record removal and optional infrastructure cleanup asynchronously. To continue, type the {deploymentTerm.lowercase} name exactly.
             </DialogContentText>
             {deleteTarget ? (
               <Alert severity="error">
@@ -3260,7 +3261,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
             ) : null}
             <TextField
               autoFocus
-              label="Type deployment name"
+              label={`Type ${deploymentTerm.lowercase} name`}
               value={deleteConfirmationText}
               onChange={(event) => setDeleteConfirmationText(event.target.value)}
               inputProps={{ 'data-testid': 'delete-confirmation-input' }}
@@ -3293,7 +3294,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               <Alert severity="error">
                 {deleteMutation.error instanceof Error
                   ? deleteMutation.error.message
-                  : 'Failed to delete deployment'}
+                  : `Failed to delete ${deploymentTerm.lowercase}`}
               </Alert>
             ) : null}
           </Stack>
@@ -3344,7 +3345,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This deletes only selected provider projects and services that are not owned by deployments, vector runner registrations, or managed product-service bindings and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
+              This deletes only selected provider projects and services that are not owned by {deploymentTerm.pluralLowercase}, vector runner registrations, or managed product-service bindings and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
             </DialogContentText>
             <Alert severity="warning">
               Selected items: <strong>{selectedOrphanCount}</strong>. Mandatory provider resources are excluded by backend policy before deletion runs.
@@ -3410,7 +3411,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 520 } }}>
             <DialogContentText>
-              This permanently deletes the selected canonical verification deployments and tears down provider-managed
+              This permanently deletes the selected canonical verification {deploymentTerm.pluralLowercase} and tears down provider-managed
               provider artifacts linked through the platform hard-delete path. Type <strong>CLEANUP ROLLOUTS</strong> to continue.
             </DialogContentText>
             <Alert severity="warning">
@@ -3469,7 +3470,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 560 } }}>
             <DialogContentText>
-              This archives and hard deletes the selected canonical verification deployments where possible. It does not
+              This archives and hard deletes the selected canonical verification {deploymentTerm.pluralLowercase} where possible. It does not
               recreate replacements. Use the separate create/apply action after cleanup if you want fresh rollouts.
               Any cleanup that is already queued or running continues in the background. Type <strong>RESET ROLLOUTS</strong>
               to continue.
@@ -3534,14 +3535,14 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This bulk action will run against {bulkTarget?.deploymentIds.length ?? 0} deployments. Type{' '}
+              This bulk action will run against {bulkTarget?.deploymentIds.length ?? 0} {deploymentTerm.pluralLowercase}. Type{' '}
               <strong>{bulkTarget?.action ?? 'ACTION'}</strong> to confirm.
             </DialogContentText>
             {bulkTarget ? (
               <Alert severity={bulkTarget.action === 'DELETE' ? 'error' : 'warning'}>
                 {bulkTarget.action === 'DELETE'
-                  ? 'Permanent delete only succeeds for deployments that are already archived.'
-                  : 'Bulk actions return per-deployment success or failure details after execution.'}
+                  ? `Permanent delete only succeeds for ${deploymentTerm.pluralLowercase} that are already archived.`
+                  : `Bulk actions return per-${deploymentTerm.lowercase} success or failure details after execution.`}
               </Alert>
             ) : null}
             <TextField
@@ -3554,7 +3555,7 @@ function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePla
               <Alert severity="error">
                 {bulkMutation.error instanceof Error
                   ? bulkMutation.error.message
-                  : 'Bulk deployment action failed.'}
+                  : `Bulk ${deploymentTerm.lowercase} action failed.`}
               </Alert>
             ) : null}
           </Stack>

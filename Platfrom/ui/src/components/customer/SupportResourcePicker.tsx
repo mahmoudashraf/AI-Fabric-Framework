@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Autocomplete, MenuItem, Stack, TextField } from '@mui/material'
@@ -19,7 +20,7 @@ export function useSupportResources(customerId: string) {
   return { deployments, apps, choices, label: (ref: SupportResource) => choices.find(item => sameResource(item, ref))?.label || ref.id }
 }
 export const sameResource = (a: SupportResource, b: SupportResource) => a.type === b.type && a.id === b.id
-const group = { DEPLOYMENT: 'Deployments', ENGAGE_APP: 'Engage apps', CONNECTION: 'Connections' }
+const group = { DEPLOYMENT: deploymentTerm.plural, ENGAGE_APP: 'Engage apps', CONNECTION: 'Connections' }
 
 export function SupportResourcePicker({ customerId, value, onChange, disabled = false }: {
   customerId: string; value: SupportResource[]; onChange(value: SupportResource[]): void; disabled?: boolean
@@ -37,7 +38,7 @@ export function SupportResourcePicker({ customerId, value, onChange, disabled = 
       getOptionDisabled={option => value.length >= 8 && !value.some(item => sameResource(item, option))}
       onChange={(_, next) => onChange(next.map(({ type, id }) => ({ type, id })))}
       renderInput={params => <TextField {...params} label="Affected resources (optional)" size="small" />} />
-    {(resources.deployments.data?.length || 0) > 0 && <TextField select size="small" label="Connections from deployment" value={connectionDeployment}
+    {(resources.deployments.data?.length || 0) > 0 && <TextField select size="small" label={`Connections from ${deploymentTerm.lowercase}`} value={connectionDeployment}
       disabled={disabled} onChange={event => setConnectionDeployment(event.target.value)}>
       <MenuItem value="">None selected</MenuItem>
       {resources.deployments.data?.map(item => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}

@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import {
@@ -67,7 +68,7 @@ const BEHAVIOR_TEMPLATE_OPTIONS = {
     version: '1.0.4',
   },
   SMART_BRAIN: {
-    label: 'Smart Brain',
+    label: 'Event-driven',
     pluginId: 'mkp-template-smart-brain',
     version: '1.0.1',
   },
@@ -97,9 +98,9 @@ function hostedProfileOptionLabel(profile: string): string {
     return 'Marketplace runtime'
   }
   if (profile === 'ecommerce') {
-    return 'Ecommerce deployment'
+    return `Ecommerce ${deploymentTerm.lowercase}`
   }
-  return 'Vector deployment'
+  return `Vector ${deploymentTerm.lowercase}`
 }
 
 function requiredSecretItems(summary: DeploymentSecretUsageSummary | undefined): DeploymentSecretUsageItemSummary[] {
@@ -120,10 +121,10 @@ function rolloutRunBlockReason(
   secretQueryState: 'loading' | 'error' | 'ready' | 'none',
 ): string | null {
   if (!rollout.exists || !rollout.deploymentId) {
-    return 'Canonical deployment is missing.'
+    return `Canonical ${deploymentTerm.lowercase} is missing.`
   }
   if (rollout.archived) {
-    return 'Canonical deployment is archived.'
+    return `Canonical ${deploymentTerm.lowercase} is archived.`
   }
   if (!rollout.runtimeBaseUrl) {
     return 'Runtime URL is not available yet.'
@@ -666,10 +667,10 @@ export function VerificationOpsPage() {
   const runRolloutHostedVerificationMutation = useMutation({
     mutationFn: async (rollout: DeploymentVerificationRolloutItemSummary) => {
       if (manualOpsLocked) {
-        throw new Error('A platform release suite run is active. Wait for it to finish before queueing deployment-only hosted verification.')
+        throw new Error(`A platform release suite run is active. Wait for it to finish before queueing ${deploymentTerm.lowercase}-only hosted verification.`)
       }
       if (!rollout.deploymentId) {
-        throw new Error(`${rollout.displayName} does not have a canonical deployment yet.`)
+        throw new Error(`${rollout.displayName} does not have a canonical ${deploymentTerm.lowercase} yet.`)
       }
       const secretState = secretUsageStateByDeploymentId.get(rollout.deploymentId)
       const blockReason = rolloutRunBlockReason(rollout, secretState?.summary, secretState?.queryState ?? 'none')
@@ -689,7 +690,7 @@ export function VerificationOpsPage() {
   const runOrderedHostedVerificationMutation = useMutation({
     mutationFn: async () => {
       if (manualOpsLocked) {
-        throw new Error('A platform release suite run is active. Wait for it to finish before queueing deployment-only hosted verification.')
+        throw new Error(`A platform release suite run is active. Wait for it to finish before queueing ${deploymentTerm.lowercase}-only hosted verification.`)
       }
       if (!sharedInferenceReady(sharedInferenceHealthQuery.data?.status)) {
         throw new Error('Shared inference service is not ready. Reconcile it first, then queue the ordered verification run map.')
@@ -822,7 +823,7 @@ export function VerificationOpsPage() {
         <Grid item xs={12} lg={3}>
           <SummarySectionCard
             title="Canonical fleet summary"
-            subtitle="High-level readiness for the six canonical verification deployments."
+            subtitle={`High-level readiness for the six canonical verification ${deploymentTerm.pluralLowercase}.`}
           >
             {verificationRolloutsQuery.isLoading ? (
               <Typography color="text.secondary">Loading canonical fleet summary…</Typography>
@@ -907,22 +908,22 @@ export function VerificationOpsPage() {
 
         <Grid item xs={12} lg={3}>
           <SummarySectionCard
-            title="Deployment status summary"
-            subtitle="Aggregated canonical deployment, latest release, and verification status counts."
+            title={`${deploymentTerm.singular} status summary`}
+            subtitle={`Aggregated canonical ${deploymentTerm.lowercase}, latest release, and verification status counts.`}
           >
             {verificationRolloutsQuery.isLoading ? (
-              <Typography color="text.secondary">Loading deployment status summary…</Typography>
+              <Typography color="text.secondary">Loading {deploymentTerm.lowercase} status summary…</Typography>
             ) : verificationRolloutsQuery.isError ? (
               <Alert severity="error">
                 {verificationRolloutsQuery.error instanceof Error
                   ? verificationRolloutsQuery.error.message
-                  : 'Failed to load deployment status summary.'}
+                  : `Failed to load ${deploymentTerm.lowercase} status summary.`}
               </Alert>
             ) : (
               <Stack spacing={1.5}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
-                    Deployment status
+                    {deploymentTerm.singular} status
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {deploymentStatusSummary.deployment.map((entry) => (
@@ -1007,7 +1008,7 @@ export function VerificationOpsPage() {
             {activeSelectedSuiteRun ? (
               <Alert severity="info">
                 Suite run {activeSelectedSuiteRun.id} is {activeSelectedSuiteRun.status.toLowerCase()}.
-                Manual recreate, reconcile, and deployment-only queue actions stay locked until it finishes.
+                Manual recreate, reconcile, and {deploymentTerm.lowercase}-only queue actions stay locked until it finishes.
               </Alert>
             ) : null}
 
@@ -1100,7 +1101,7 @@ export function VerificationOpsPage() {
                       onChange={(event) => setKeepBehaviorDeployment(event.target.checked)}
                     />
                   )}
-                  label="Keep certified deployment as a live evidence fixture"
+                  label={`Keep certified ${deploymentTerm.lowercase} as a live evidence fixture`}
                 />
                 {!behaviorVerificationInputsReady ? (
                   <Alert severity="warning" sx={{ mt: 1 }}>
@@ -1119,7 +1120,7 @@ export function VerificationOpsPage() {
                   <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
-                      label="Deployment ID"
+                      label={`${deploymentTerm.singular} ID`}
                       value={documentDeploymentId}
                       onChange={(event) => setDocumentDeploymentId(event.target.value)}
                     />
@@ -1198,7 +1199,7 @@ export function VerificationOpsPage() {
                 />
                 {!documentKnowledgeInputsReady ? (
                   <Alert severity="warning" sx={{ mt: 1 }}>
-                    Select a document-enabled deployment and provide both text and JSON canary objects with retrieval queries.
+                    Select a document-enabled {deploymentTerm.lowercase} and provide both text and JSON canary objects with retrieval queries.
                   </Alert>
                 ) : null}
               </Box>
@@ -1241,7 +1242,7 @@ export function VerificationOpsPage() {
 
             <Typography variant="body2" color="text.secondary">
               Repair mode is intentionally narrow. It only allows governed control-plane recovery for shared inference reconcile
-              and canonical rollout recreation. It does not expose secret values, mutate deployment content, or bypass hosted verification.
+              and canonical rollout recreation. It does not expose secret values, mutate {deploymentTerm.lowercase} content, or bypass hosted verification.
             </Typography>
 
             {dispatchCanonicalReleaseSuiteMutation.isError ? (
@@ -1403,7 +1404,7 @@ export function VerificationOpsPage() {
                 disabled={runOrderedHostedVerificationMutation.isPending || orderedRollouts.length === 0 || manualOpsLocked}
                 onClick={() => runOrderedHostedVerificationMutation.mutate()}
               >
-                {runOrderedHostedVerificationMutation.isPending ? 'Queueing deployment-only verification…' : 'Queue deployment-only hosted verification'}
+                {runOrderedHostedVerificationMutation.isPending ? `Queueing ${deploymentTerm.lowercase}-only verification…` : `Queue ${deploymentTerm.lowercase}-only hosted verification`}
               </Button>
               <Button component={Link} to="/inference-services" variant="text">
                 Open inference services
@@ -1537,7 +1538,7 @@ export function VerificationOpsPage() {
                           {rollout.displayName}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {hostedProfileOptionLabel(rollout.verificationProfile)} · {rollout.deploymentId ?? 'no deployment'}
+                          {hostedProfileOptionLabel(rollout.verificationProfile)} · {rollout.deploymentId ?? `no ${deploymentTerm.lowercase}`}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -1578,7 +1579,7 @@ export function VerificationOpsPage() {
                               variant="text"
                               to={`/verification?deploymentId=${encodeURIComponent(rollout.deploymentId)}`}
                             >
-                              Open deployment
+                              Open {deploymentTerm.lowercase}
                             </Button>
                           ) : null}
                         </Stack>
@@ -1656,7 +1657,7 @@ export function VerificationOpsPage() {
                           {rollout.displayName}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {rollout.deploymentId ?? 'no deployment'}
+                          {rollout.deploymentId ?? `no ${deploymentTerm.lowercase}`}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ maxWidth: 420 }}>
@@ -1665,7 +1666,7 @@ export function VerificationOpsPage() {
                         ) : secretState?.queryState === 'error' ? (
                           <Typography color="error.main">{secretState.error}</Typography>
                         ) : requiredSecrets.length === 0 ? (
-                          <Typography color="text.secondary">No required deployment secrets.</Typography>
+                          <Typography color="text.secondary">No required {deploymentTerm.lowercase} secrets.</Typography>
                         ) : (
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             {requiredSecrets.map((item) => (
@@ -1727,7 +1728,7 @@ export function VerificationOpsPage() {
               <Typography color="text.secondary">Loading rollout hosted verification runs…</Typography>
             ) : rolloutHostedRunsQueries.some((query) => query.isError) ? (
               <Alert severity="error">
-                At least one rollout hosted verification history query failed. Refresh the page or open the deployment-scoped verification page for a single rollout.
+                At least one rollout hosted verification history query failed. Refresh the page or open the {deploymentTerm.lowercase}-scoped verification page for a single rollout.
               </Alert>
             ) : rolloutHostedRuns.length === 0 ? (
               <Alert severity="info">
@@ -1741,7 +1742,7 @@ export function VerificationOpsPage() {
       </Card>
 
       <Alert severity="info" icon={<OpenInNewRoundedIcon fontSize="inherit" />}>
-        Deployment-scoped release gating stays on the existing verification page. Use this admin page only for canonical rollout recreation, fleet-order verification, and platform-visible readiness checks.
+        {deploymentTerm.singular}-scoped release gating stays on the existing verification page. Use this admin page only for canonical rollout recreation, fleet-order verification, and platform-visible readiness checks.
       </Alert>
     </Stack>
   )

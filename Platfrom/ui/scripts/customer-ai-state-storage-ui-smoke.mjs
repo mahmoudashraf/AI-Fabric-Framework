@@ -100,7 +100,7 @@ async function fixture({ invalidMode = false, publishDenied = false } = {}) {
     return json(route, { message: 'Unhandled fixture route' }, 500)
   })
   await page.goto(base+'storage-fixture', { waitUntil: 'networkidle' })
-  try { await page.getByRole('heading', { name: 'My deployments' }).waitFor() }
+  try { await page.getByRole('heading', { name: 'My smart brains' }).waitFor() }
   catch (error) {
     await page.screenshot({ path: output+'/failure.png', fullPage: true })
     throw new Error(`${error.message}\nPage errors: ${JSON.stringify(state.errors)}\nBody: ${await page.locator('body').innerText()}`)
@@ -112,19 +112,19 @@ async function choose(page, label, option) {
   await page.getByRole('option', { name: option, exact: true }).click()
 }
 async function readyCreation(page) {
-  await page.getByRole('textbox', { name: 'Deployment name', exact: true }).fill('My AI workspace')
+  await page.getByRole('textbox', { name: 'Smart Brain name', exact: true }).fill('My AI workspace')
   assert.equal(await page.getByRole('button', { name: 'Verify placement', exact: true }).count(), 0)
 }
-async function waitPending(f) { await f.page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.disabled && b.textContent.includes('Create staging deployment'))); while (!f.state.pending.length) await new Promise(resolve => setTimeout(resolve, 10)) }
+async function waitPending(f) { await f.page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.disabled && b.textContent.includes('Create staging smart brain'))); while (!f.state.pending.length) await new Promise(resolve => setTimeout(resolve, 10)) }
 
 try {
   const create = await fixture()
   try {
     await readyCreation(create.page)
-    assert.equal(await create.page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+    assert.equal(await create.page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), true)
     await choose(create.page, 'AI-state storage', 'Managed AI-state PostgreSQL')
     create.state.holdBootstrap = true
-    await create.page.getByRole('button', { name: 'Create staging deployment', exact: true }).click(); await waitPending(create)
+    await create.page.getByRole('button', { name: 'Create staging smart brain', exact: true }).click(); await waitPending(create)
     const request = create.state.calls.find(c => c.method === 'POST' && c.path.endsWith('/deployments'))
     assert.equal(request.body.aiStateStorageMode, 'MANAGED_POSTGRES'); assert.equal(request.body.expectedEntitlementRevision, 4)
     await choose(create.page, 'Product offer', 'offer-b')
@@ -134,8 +134,8 @@ try {
     const response = create.page.waitForResponse(r => r.url().endsWith('/deployments') && r.request().method() === 'POST')
     await create.state.pending.shift()(); await response
     await create.page.getByRole('heading', { name: 'dep-a', exact: true, level: 5 }).waitFor()
-    assert.equal(await create.page.getByText('The requested deployment is unavailable', { exact: false }).count(), 0)
-    assert.equal(await create.page.getByRole('textbox', { name: 'Deployment name', exact: true }).inputValue(), 'My AI workspace')
+    assert.equal(await create.page.getByText('The requested smart brain is unavailable', { exact: false }).count(), 0)
+    assert.equal(await create.page.getByRole('textbox', { name: 'Smart Brain name', exact: true }).inputValue(), 'My AI workspace')
     assert.equal(await create.page.getByRole('combobox', { name: /^AI-state storage/ })
       .evaluate(element => element.parentElement.querySelector('input').value), 'MANAGED_POSTGRES')
     passed += 1

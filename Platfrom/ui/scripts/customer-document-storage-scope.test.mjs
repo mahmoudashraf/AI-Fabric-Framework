@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/customerDocumentStorageScope.ts', import.meta.url), 'utf8')
-const code = ts.transpileModule(withCustomerSessionSupport(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const code = ts.transpileModule(withDeploymentTerminology(withCustomerSessionSupport(source)), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const { customerDocumentStorageScope: scope, requireFreshCustomerDocumentStorageScope: fresh, hasReviewedDocumentStorageInstall } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 function fixture() {
   const session = { authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' }

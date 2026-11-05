@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
@@ -329,7 +330,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   let storedStorageError: string | null = null
   try {
     if (requiresStorageChoice && selectedOffer && storageDraft.data) {
-      if (storageDraft.data.deploymentId !== selectedDeploymentId) throw new Error('The deployment storage scope changed.')
+      if (storageDraft.data.deploymentId !== selectedDeploymentId) throw new Error(`The ${deploymentTerm.lowercase} storage scope changed.`)
       savedStorageMode = storedAiStateStorageMode(selectedOffer, storageDraft.data)
     }
   } catch (error) { storedStorageError = errorText(error) }
@@ -525,7 +526,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     mutationFn: ({ offer, targetProfileId, name, mode, token }: {
       offer: CustomerOfferSummary; targetProfileId: string; name: string; mode: string; token: symbol
     }) => {
-      if (!operationsReady || !creationGuard.isCurrent(token)) throw new Error('Review the current deployment setup and operations policy before creating it.')
+      if (!operationsReady || !creationGuard.isCurrent(token)) throw new Error(`Review the current ${deploymentTerm.lowercase} setup and operations policy before creating it.`)
       const identity = { offerId: offer.id, fingerprint: offer.fingerprint, targetProfileId,
         name: name.trim(), revision: offer.entitlement.revision, aiStateStorageMode: mode }
       return bootstrapCustomerDeployment(offer.id, customerStorageBootstrapRequest(offer, customerId,
@@ -547,7 +548,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const publish = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
       if (!selectedDeployment || !storageDraft.data || !publishGuard.publish(token, true)) {
-        throw new Error('Read the current deployment draft before publishing.')
+        throw new Error(`Read the current ${deploymentTerm.lowercase} draft before publishing.`)
       }
       const current = await fetchDeploymentDraft(selectedDeployment.deploymentId)
       if (current.deploymentId !== selectedDeployment.deploymentId || current.id !== storageDraft.data.id
@@ -587,7 +588,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const createConsumer = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
       if (!operationsReady || !selectedOffer || !selectedDeployment || !assignmentCreationGuard.isCurrent(token)) {
-        throw new Error('A reviewed offer and customer-staging deployment are required.')
+        throw new Error(`A reviewed offer and customer-staging ${deploymentTerm.lowercase} are required.`)
       }
       const offer = selectedOffer
       const release = releaseReady(stagingRelease) ? stagingRelease : null
@@ -602,7 +603,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
           operation: 'ACTIVATE', operationKey: key,
         })
       }
-      if (!assignmentCreationGuard.isCurrent(token)) throw new Error('Assignment setup changed. Review the current deployment before creating it.')
+      if (!assignmentCreationGuard.isCurrent(token)) throw new Error(`Assignment setup changed. Review the current ${deploymentTerm.lowercase} before creating it.`)
       return createCustomerDeploymentStagingConsumer(offer.id, selectedDeploymentId, {
         consumerId: consumerId.trim(),
         displayName: consumerName.trim(),
@@ -617,7 +618,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       setConsumerId('')
       setConsumerName('')
       setNotice({ severity: 'success', message: consumer.boundReleaseId
-        ? 'App assignment created for the verified customer deployment.'
+        ? `App assignment created for the verified customer ${deploymentTerm.lowercase}.`
         : 'App assignment configured. Its staging release is awaiting activation.' })
       await invalidateCustomerState()
       setSelectedConsumerId(consumer.consumerId)
@@ -685,7 +686,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const bindConsumerToStaging = useMutation({
     mutationFn: async () => {
       if (!selectedOffer || !selectedDeploymentId || !selectedConsumer || !stagingRelease?.targetProfileId) {
-        throw new Error('Select a reviewed offer, deployment, app assignment, and verified customer-staging release.')
+        throw new Error(`Select a reviewed offer, ${deploymentTerm.lowercase}, app assignment, and verified customer-staging release.`)
       }
       const key = operationKey('bind-staging-assignment', {
         deploymentId: selectedDeploymentId, consumerId: selectedConsumer.consumerId,
@@ -717,7 +718,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const planPromotion = useMutation({
     mutationFn: async () => {
       if (!stagingAssignmentReady) {
-        throw new Error('Select or create a staging assignment connected to this deployment\'s verified staging release. No assignment is changed automatically.')
+        throw new Error(`Select or create a staging assignment connected to this ${deploymentTerm.lowercase}'s verified staging release. No assignment is changed automatically.`)
       }
       const identity = { deploymentId: selectedDeploymentId, consumerId: selectedConsumer!.consumerId,
         bindingRevision: selectedConsumer!.bindingRevision, stagingReleaseId: stagingRelease!.id,
@@ -879,9 +880,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     <Stack spacing={3}>
       <Box>
         <Chip label="Customer workspace" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>{guided ? 'Deployment setup' : 'My deployments'}</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{guided ? `${deploymentTerm.singular} setup` : `My ${deploymentTerm.pluralLowercase}`}</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 900 }}>
-          Create an isolated customer-staging deployment from a reviewed product offer, verify it, and promote the same immutable version to production.
+          Create an isolated customer-staging {deploymentTerm.lowercase} from a reviewed product offer, verify it, and promote the same immutable version to production.
         </Typography>
       </Box>
 
@@ -902,25 +903,25 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         </Stack>
         {operationsStatus ? <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {operationsStatus.mode === 'DISABLED'
-            ? 'Deployments are operator-managed. Automatic capacity enforcement, staging expiry and recovery are not configured.'
+            ? `${deploymentTerm.plural} are operator-managed. Automatic capacity enforcement, staging expiry and recovery are not configured.`
             : operationsStatus.mode === 'OBSERVE'
               ? 'Policy assessment is nonblocking. The server records observations while core authorization and release checks remain required.'
-              : 'The server assesses policy at apply. Healthy policy denials block deployment; a policy service outage is recorded as a bypass. Core authorization and release checks remain required.'}
+              : 'The server assesses policy at apply. Healthy policy denials block apply; a policy service outage is recorded as a bypass. Core authorization and release checks remain required.'}
         </Typography> : null}
         {operationsStatus && operationsStatus.mode !== 'DISABLED' && !operationsStatus.serviceConfigured ? <Alert severity="warning" sx={{ mt: 1 }}>
           The external policy service is not configured. Apply will record a policy bypass; ownership, credentials and release verification remain required.
         </Alert> : null}
         {operationsStatusQuery.error ? <Alert severity="error" sx={{ mt: 1 }}>{errorText(operationsStatusQuery.error)}</Alert>
-          : operationsStatusQuery.isSuccess && !operationsStatus ? <Alert severity="error" sx={{ mt: 1 }}>Deployment operations policy status is invalid. Refresh before continuing.</Alert> : null}
+          : operationsStatusQuery.isSuccess && !operationsStatus ? <Alert severity="error" sx={{ mt: 1 }}>{deploymentTerm.singular} operations policy status is invalid. Refresh before continuing.</Alert> : null}
       </Box>
 
       {guided ? <>
-        <Tabs value={step} onChange={(_, value: string) => selectStep(value)} variant="scrollable" scrollButtons="auto" aria-label="Deployment setup stages">
+        <Tabs value={step} onChange={(_, value: string) => selectStep(value)} variant="scrollable" scrollButtons="auto" aria-label={`${deploymentTerm.singular} setup stages`}>
           {journeySteps.map(item => <Tab key={item.id} value={item.id} label={item.label} disabled={item.id !== 'template' && !selectedDeployment} />)}
         </Tabs>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
-          <TextField select size="small" label="Deployment being configured" value={selectedDeploymentId} onChange={event => setSelectedDeploymentId(event.target.value)} sx={{ minWidth: 260 }}>
-            <MenuItem value="">Choose an existing deployment</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
+          <TextField select size="small" label={`${deploymentTerm.singular} being configured`} value={selectedDeploymentId} onChange={event => setSelectedDeploymentId(event.target.value)} sx={{ minWidth: 260 }}>
+            <MenuItem value="">Choose an existing {deploymentTerm.lowercase}</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
           </TextField>
           {!detailSection ? <Button component={RouterLink} to={`${location.pathname}?${new URLSearchParams({ view: 'manage', ...(selectedDeploymentId ? { deploymentId: selectedDeploymentId } : {}) })}`}>All setup controls</Button> : null}
         </Stack>
@@ -936,10 +937,10 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               lastDeploymentId: selectedDeploymentId,
               lastSection: preferencesQuery.data?.deploymentWorkspace?.lastSection ?? null,
             } })}>Retry selection save</Button>
-        ) : undefined}>Deployment selection could not be persisted. {errorText(preferencesQuery.error || saveSelection.error)}</Alert>
+        ) : undefined}>{deploymentTerm.singular} selection could not be persisted. {errorText(preferencesQuery.error || saveSelection.error)}</Alert>
       ) : null}
       {requestedDeploymentId && portfolioQuery.isSuccess && !selectedDeployment ? (
-        <Alert severity="error">The requested deployment is unavailable in your customer portfolio. Select an owned deployment to continue.</Alert>
+        <Alert severity="error">The requested {deploymentTerm.lowercase} is unavailable in your customer portfolio. Select an owned {deploymentTerm.lowercase} to continue.</Alert>
       ) : null}
       {!customerId ? <Alert severity="error">This account has no customer ownership scope.</Alert> : null}
 
@@ -966,7 +967,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 750 }}>Create from a reviewed offer</Typography>
             <Typography variant="body2" color="text.secondary">
-              Only entitled templates, settings and reviewed deployment targets are available here.
+              Only entitled templates, settings and reviewed {deploymentTerm.lowercase} targets are available here.
             </Typography>
           </Box>
           <Grid container spacing={2}>
@@ -991,7 +992,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               </TextField>
             </Grid>
             <Grid item xs={12} md={4}>
-              <TextField fullWidth label="Deployment name" value={deploymentName}
+              <TextField fullWidth label={`${deploymentTerm.singular} name`} value={deploymentName}
                 onChange={(event) => setDeploymentName(event.target.value)} />
             </Grid>
             {creationStorageModes ? <Grid item xs={12} md={4}>
@@ -1026,7 +1027,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               onClick={() => bootstrap.mutate({ offer: creationOffer!, targetProfileId: selectedTargetProfileId,
                 name: deploymentName, mode: selectedStorageMode, token: creationGuard.capture() })}
             >
-              Create staging deployment
+              Create staging {deploymentTerm.lowercase}
             </Button>
           </Stack>
         </Stack>
@@ -1056,7 +1057,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   <Typography variant="body2" color="text.secondary">Created {timestamp(deployment.createdAt)}</Typography>
                   <Button variant={deployment.deploymentId === selectedDeploymentId ? 'contained' : 'outlined'}
                     onClick={() => setSelectedDeploymentId(deployment.deploymentId)}>
-                    Manage deployment
+                    Manage {deploymentTerm.lowercase}
                   </Button>
                 </Stack>
               </CardContent>
@@ -1384,7 +1385,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               </Stack>
               {releaseReady(stagingRelease) && !stagingAssignmentReady ? <Alert severity="info"
                 action={guided ? <Button color="inherit" size="small" onClick={() => selectStep('configure')}>Choose assignment</Button> : undefined}>
-                Select or create a staging assignment connected to this deployment's verified staging release in the Engage assignment section.
+                Select or create a staging assignment connected to this {deploymentTerm.lowercase}'s verified staging release in the Engage assignment section.
                 No assignment is changed automatically.
               </Alert> : null}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
@@ -1466,9 +1467,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         <Button variant="outlined" disabled={!selectedDeployment || step === 'retention'} onClick={() => selectStep(journeySteps[Math.min(journeySteps.length - 1, journeySteps.findIndex(item => item.id === step) + 1)].id)}>Next stage</Button>
       </Stack> : null}
       {detailSection && selectedDeployment ? <CustomerAdvancedSection><Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
-        <Typography variant="h6">Deployment references</Typography>
+        <Typography variant="h6">{deploymentTerm.singular} references</Typography>
         {[
-          ['Deployment', selectedDeploymentId], ['Offer', selectedDeployment.offerId],
+          [deploymentTerm.singular, selectedDeploymentId], ['Offer', selectedDeployment.offerId],
           ['Offer revision', selectedDeployment.offerFingerprint], ['Published version', latestVersion?.id ?? 'Not published'],
           ['Staging release', stagingRelease?.id ?? 'Not deployed'], ['Production release', productionRelease?.id ?? 'Not deployed'],
         ].map(([label,value]) => <Typography key={label} variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{label}: {value}</Typography>)}
@@ -1608,7 +1609,7 @@ function PreparedFailureReview({ scope, onRecovered }: { scope: PreparedFailureR
   }
   return <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
     <Typography variant="subtitle2">Prepared failure recovery</Typography>
-    <Typography variant="body2">Failed release: {scope.releaseId}. Recovery retains prepared resources and allowance. Deployment remains a separate explicit action.</Typography>
+    <Typography variant="body2">Failed release: {scope.releaseId}. Recovery retains prepared resources and allowance. Applying remains a separate explicit action.</Typography>
     <TextField label="Recovery reason" size="small" fullWidth value={reason} inputProps={{ maxLength: 255 }}
       disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setReason(event.target.value)} />
     {error || protectionError ? <Alert severity="warning">{error ?? protectionError}</Alert> : null}

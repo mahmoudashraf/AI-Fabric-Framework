@@ -294,7 +294,7 @@ try {
   await page.goto(`${uiBaseUrl}/${customerLayout ? 'runtime-artifacts' : 'deployments'}`, { waitUntil: 'networkidle' })
   await page.waitForURL(url => url.pathname === '/deployments')
   await page.goto(`${uiBaseUrl}/deployments?view=manage`, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'My deployments' }).waitFor()
+  await page.getByRole('heading', { name: 'My smart brains' }).waitFor()
 
   await page.getByRole('combobox', { name: 'Customer staging target' }).click()
   const stagingOption = page.getByRole('option', { name: /staging-target/ })
@@ -305,8 +305,8 @@ try {
   await page.keyboard.press('Escape')
   assert.equal(await page.getByRole('button', { name: 'Verify placement' }).count(), 0)
   await page.getByText('DISABLED · Manual team', { exact: true }).waitFor()
-  await page.getByRole('textbox', { name: 'Deployment name' }).fill('Northfield second workspace')
-  if (await page.getByRole('button', { name: 'Create staging deployment' }).isDisabled()) {
+  await page.getByRole('textbox', { name: 'Smart Brain name' }).fill('Northfield second workspace')
+  if (await page.getByRole('button', { name: 'Create staging smart brain' }).isDisabled()) {
     throw new Error('Reviewed target and effective policy did not enable customer staging creation.')
   }
   await page.getByRole('combobox', { name: 'Product offer' }).click()
@@ -320,7 +320,7 @@ try {
 
   if (customerLayout) {
   const sidebar = page.getByRole('navigation', { name: 'Customer navigation' })
-  for (const label of ['Deployments', 'Engage apps', 'Knowledge & data', 'Connections', 'Action reviews', 'Activity & alerts', 'Account & team']) {
+  for (const label of ['Smart Brains', 'Engage apps', 'Knowledge & data', 'Connections', 'Action reviews', 'Activity & alerts', 'Account & team']) {
     await sidebar.getByText(label, { exact: true }).waitFor()
   }
   for (const forbidden of ['Providers', 'Runtime Artifacts', 'Customers', 'Marketplace']) {

@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -488,7 +489,7 @@ const SEMANTIC_RECOVERY_FIELDS: Array<{
   {
     key: 'semanticRecoveryAdvancedNoEvidence',
     label: 'Advanced retrieval with no evidence',
-    helperText: 'Strict mode returns no evidence. Recovery remains bounded by the deployment source allowlist.',
+    helperText: `Strict mode returns no evidence. Recovery remains bounded by the ${deploymentTerm.lowercase} source allowlist.`,
     options: [
       { value: 'RETURN_NO_EVIDENCE', label: 'Return no evidence' },
       { value: 'BOUNDED_ALLOWED_SPACE_RECOVERY', label: 'Bounded allowed-source recovery' },
@@ -613,7 +614,7 @@ function vectorStoragePostureOptions(strategy: string, provisioningMode: string)
       {
         value: 'EMBEDDED',
         label: 'Embedded',
-        helper: 'Runtime-local vector stores keep data inside the deployment and do not support shared tenant infrastructure.',
+        helper: `Runtime-local vector stores keep data inside the ${deploymentTerm.lowercase} and do not support shared tenant infrastructure.`,
       },
     ]
   }
@@ -621,7 +622,7 @@ function vectorStoragePostureOptions(strategy: string, provisioningMode: string)
     {
       value: 'DEDICATED',
       label: 'Dedicated',
-      helper: 'This deployment gets its own provider-level vector boundary and does not share tenant data paths with other tenants.',
+      helper: `This ${deploymentTerm.lowercase} gets its own provider-level vector boundary and does not share tenant data paths with other tenants.`,
     },
   ]
   if (supportsSharedVectorStorage(strategy, provisioningMode)) {
@@ -636,7 +637,7 @@ function vectorStoragePostureOptions(strategy: string, provisioningMode: string)
 
 function vectorStoragePostureGuidance(strategy: string, provisioningMode: string, posture: string): string {
   const selected = vectorStoragePostureOptions(strategy, provisioningMode).find((option) => option.value === posture)
-  return selected?.helper ?? 'Choose whether this deployment uses embedded, dedicated, or provider-native shared vector storage.'
+  return selected?.helper ?? `Choose whether this ${deploymentTerm.lowercase} uses embedded, dedicated, or provider-native shared vector storage.`
 }
 
 function hyphenScopeToken(raw: string | null | undefined, fallback: string): string {
@@ -678,7 +679,7 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
       {
         value: 'PLATFORM_MANAGED',
         label: 'Platform-managed',
-        helper: 'The platform creates or reconciles the Pinecone index and binds the resulting host back into the deployment.',
+        helper: `The platform creates or reconciles the Pinecone index and binds the resulting host back into the ${deploymentTerm.lowercase}.`,
       },
       {
         value: 'EXTERNAL_EXISTING',
@@ -692,7 +693,7 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
       {
         value: 'PLATFORM_MANAGED',
         label: 'Platform-managed',
-        helper: 'The platform creates or reuses a Qdrant Cloud cluster, issues a deployment-scoped database key, and reconciles one collection per entity type.',
+        helper: `The platform creates or reuses a Qdrant Cloud cluster, issues a ${deploymentTerm.lowercase}-scoped database key, and reconciles one collection per entity type.`,
       },
       {
         value: 'EXTERNAL_EXISTING',
@@ -706,7 +707,7 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
       {
         value: 'PLATFORM_MANAGED',
         label: 'Platform-managed',
-        helper: 'The platform creates or reuses a Zilliz Cloud cluster, stores deployment-scoped runtime credentials, and binds the resolved Milvus endpoint back into runtime config.',
+        helper: `The platform creates or reuses a Zilliz Cloud cluster, stores ${deploymentTerm.lowercase}-scoped runtime credentials, and binds the resolved Milvus endpoint back into runtime config.`,
       },
       {
         value: 'EXTERNAL_EXISTING',
@@ -763,7 +764,7 @@ function provisioningCapabilityMessage(strategy: string): { severity: 'info' | '
     case 'qdrant':
       return {
         severity: 'success',
-        message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
+        message: `Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a ${deploymentTerm.lowercase}-scoped database key automatically.`,
       }
     case 'weaviate':
       return {
@@ -773,7 +774,7 @@ function provisioningCapabilityMessage(strategy: string): { severity: 'info' | '
     case 'milvus':
       return {
         severity: 'success',
-        message: 'Milvus now supports both bring-your-own and platform-managed provisioning. The platform can provision or reuse a Zilliz Cloud cluster, bind deployment-scoped runtime credentials, and wire the resolved endpoint back into runtime config.',
+        message: `Milvus now supports both bring-your-own and platform-managed provisioning. The platform can provision or reuse a Zilliz Cloud cluster, bind ${deploymentTerm.lowercase}-scoped runtime credentials, and wire the resolved endpoint back into runtime config.`,
       }
     default:
       return {
@@ -918,11 +919,11 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
       enabled: true,
       mode: 'MANAGED_CLOUD_CLUSTER',
       targets: [
-        `${form.qdrantCloudClusterNameOverride.trim() || 'deployment-managed cluster'} (${form.qdrantCloudProviderId.trim() || 'aws'}/${form.qdrantCloudRegionId.trim() || 'region not configured'})`,
+        `${form.qdrantCloudClusterNameOverride.trim() || `${deploymentTerm.lowercase}-managed cluster`} (${form.qdrantCloudProviderId.trim() || 'aws'}/${form.qdrantCloudRegionId.trim() || 'region not configured'})`,
         ...(entityTypes.length > 0 ? entityTypes : ['No entity types configured']),
       ],
       message: form.qdrantCloudRegionId.trim()
-        ? 'Apply will create or reuse a Qdrant Cloud cluster, issue a deployment-scoped database key, and reconcile one collection per configured entity type.'
+        ? `Apply will create or reuse a Qdrant Cloud cluster, issue a ${deploymentTerm.lowercase}-scoped database key, and reconcile one collection per configured entity type.`
         : 'Platform-managed Qdrant Cloud provisioning is enabled, but qdrantCloudRegionId still needs review before apply.',
     }
   }
@@ -931,10 +932,10 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
       enabled: true,
       mode: 'MANAGED_ZILLIZ_CLOUD_CLUSTER',
       targets: [
-        `${form.zillizCloudClusterNameOverride.trim() || 'deployment-managed cluster'} (${form.zillizCloudProjectId.trim() || 'project not configured'} / ${form.zillizCloudRegionId.trim() || 'region not configured'} / ${form.zillizCloudClusterPlan.trim() || 'Serverless'})`,
+        `${form.zillizCloudClusterNameOverride.trim() || `${deploymentTerm.lowercase}-managed cluster`} (${form.zillizCloudProjectId.trim() || 'project not configured'} / ${form.zillizCloudRegionId.trim() || 'region not configured'} / ${form.zillizCloudClusterPlan.trim() || 'Serverless'})`,
       ],
       message: form.zillizCloudProjectId.trim() && form.zillizCloudRegionId.trim()
-        ? 'Apply will create or reconcile a Zilliz Cloud managed Milvus cluster, store deployment-scoped runtime credentials, and bind the resolved endpoint back into runtime config.'
+        ? `Apply will create or reconcile a Zilliz Cloud managed Milvus cluster, store ${deploymentTerm.lowercase}-scoped runtime credentials, and bind the resolved endpoint back into runtime config.`
         : 'Platform-managed Zilliz Cloud provisioning is enabled, but zillizCloudProjectId and zillizCloudRegionId still need review before apply.',
     }
   }
@@ -966,8 +967,8 @@ function buildSharedVectorHandlePreview(
       severity: 'warning',
       title: 'Tenant binding required for shared storage',
       lines: [
-        'Shared vector storage depends on the deployment being bound to a customer and tenant.',
-        'Bind this deployment to a tenant before relying on shared provider-native handles.',
+        `Shared vector storage depends on the ${deploymentTerm.lowercase} being bound to a customer and tenant.`,
+        `Bind this ${deploymentTerm.lowercase} to a tenant before relying on shared provider-native handles.`,
       ],
     }
   }
@@ -1053,7 +1054,7 @@ function buildVendorSetupGuides(
               : 'Package selection will auto-pick the cheapest active package in the chosen region.',
             qdrantCloudManagementKey?.present
               ? `${qdrantCloudManagementKey.displayName} is available from ${qdrantCloudManagementKey.source.toLowerCase()}.`
-              : 'QDRANT_CLOUD_MANAGEMENT_API_KEY is not configured. Add it in Secrets before applying a platform-managed Qdrant deployment.',
+              : 'QDRANT_CLOUD_MANAGEMENT_API_KEY is not configured. Add it in Secrets before applying a platform-managed Qdrant cluster.',
             entityTypes.length > 0
               ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
               : 'Platform-managed Qdrant Cloud provisioning requires at least one configured entity type in Entities.',
@@ -1143,14 +1144,14 @@ function buildVendorSetupGuides(
             `Zilliz Cloud target: ${form.zillizCloudProjectId.trim() || 'project not configured'} / ${form.zillizCloudRegionId.trim() || 'region not configured'} / ${form.zillizCloudClusterPlan.trim() || 'Serverless'}`,
             form.zillizCloudClusterNameOverride.trim()
               ? `Cluster name override: ${form.zillizCloudClusterNameOverride.trim()}`
-              : 'Cluster name will be derived from the deployment id unless you override it.',
+              : `Cluster name will be derived from the ${deploymentTerm.lowercase} id unless you override it.`,
             zillizApiKey?.present
               ? `${zillizApiKey.displayName} is available from ${zillizApiKey.source.toLowerCase()}.`
-              : 'ZILLIZ_CLOUD_API_KEY is not configured. Add it in Secrets before applying a platform-managed Zilliz Cloud deployment.',
+              : 'ZILLIZ_CLOUD_API_KEY is not configured. Add it in Secrets before applying a platform-managed Zilliz Cloud cluster.',
             ['Standard', 'Enterprise'].includes(form.zillizCloudClusterPlan.trim())
               ? `Dedicated plan settings: ${form.zillizCloudCuType.trim() || 'CU type not configured'} / ${form.zillizCloudCuSize.trim() || 'CU size not configured'} CU`
               : 'Free and Serverless plans do not require dedicated CU settings.',
-            'Apply will create or reuse the Zilliz Cloud cluster, store deployment-scoped Milvus runtime credentials, and wire the resolved endpoint back into runtime config automatically.',
+            `Apply will create or reuse the Zilliz Cloud cluster, store ${deploymentTerm.lowercase}-scoped Milvus runtime credentials, and wire the resolved endpoint back into runtime config automatically.`,
           ]
         : [
             `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
@@ -1159,7 +1160,7 @@ function buildVendorSetupGuides(
               : 'Set the Milvus host before publish/apply.',
             milvusUsername?.present && milvusPassword?.present
               ? 'Milvus username and password are both available from the platform secret workspace.'
-              : 'MILVUS_USERNAME and MILVUS_PASSWORD are optional. Add them in Secrets when the Milvus deployment requires authentication.',
+              : 'MILVUS_USERNAME and MILVUS_PASSWORD are optional. Add them in Secrets when the Milvus service requires authentication.',
           ],
     })
   }
@@ -1424,7 +1425,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
       items.push({ label: 'Qdrant Cloud region', value: form.qdrantCloudRegionId.trim() || 'Not configured' })
       items.push({ label: 'Qdrant Cloud account', value: form.qdrantCloudAccountId.trim() || 'Auto-resolve' })
       items.push({ label: 'Qdrant Cloud package', value: form.qdrantCloudPackageId.trim() || 'Auto-select' })
-      items.push({ label: 'Qdrant cluster name', value: form.qdrantCloudClusterNameOverride.trim() || 'Derived from deployment id' })
+      items.push({ label: 'Qdrant cluster name', value: form.qdrantCloudClusterNameOverride.trim() || `Derived from ${deploymentTerm.lowercase} id` })
     } else {
       items.push({ label: 'Qdrant host', value: form.qdrantHost.trim() || 'Not configured' })
       items.push({ label: 'Qdrant port', value: form.qdrantPort.trim() || '6333' })
@@ -1477,7 +1478,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
       items.push({ label: 'Zilliz project ID', value: form.zillizCloudProjectId.trim() || 'Not configured' })
       items.push({ label: 'Zilliz region ID', value: form.zillizCloudRegionId.trim() || 'Not configured' })
       items.push({ label: 'Zilliz plan', value: form.zillizCloudClusterPlan.trim() || 'Serverless' })
-      items.push({ label: 'Zilliz cluster name', value: form.zillizCloudClusterNameOverride.trim() || 'Derived from deployment id' })
+      items.push({ label: 'Zilliz cluster name', value: form.zillizCloudClusterNameOverride.trim() || `Derived from ${deploymentTerm.lowercase} id` })
       if (['Standard', 'Enterprise'].includes(form.zillizCloudClusterPlan.trim())) {
         items.push({ label: 'Zilliz CU type', value: form.zillizCloudCuType.trim() || 'Not configured' })
         items.push({ label: 'Zilliz CU size', value: form.zillizCloudCuSize.trim() || 'Not configured' })
@@ -1612,11 +1613,11 @@ function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'suc
 
 function describeEffectiveResolution(resolution?: DeploymentSecretResolutionSummary | null): string {
   if (!resolution) {
-    return 'No deployment-aware secret resolution details were returned.'
+    return `No ${deploymentTerm.lowercase}-aware secret resolution details were returned.`
   }
   const segments = [
     resolution.resolved ? 'Resolved' : 'Unresolved',
-    resolution.scopeType ?? 'No scope',
+    deploymentEnumLabel(resolution.scopeType ?? 'No scope'),
     resolution.bindingMode ?? 'No binding mode',
     resolution.secretName ?? 'No primary secret',
   ]
@@ -1639,7 +1640,7 @@ function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary):
   }
   if (!resolution.resolved) {
     return resolution.diagnosticMessage
-      ?? `${secret.displayName} is not resolving for this deployment. Review Security -> Deployment provider overrides.`
+      ?? `${secret.displayName} is not resolving for this ${deploymentTerm.lowercase}. Review Security -> ${deploymentTerm.singular} provider overrides.`
   }
   return null
 }
@@ -1687,8 +1688,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
       dirty: draftDirty,
       label: 'Provider config',
       description: draftDirty
-        ? 'Provider profile edits exist only in the current browser buffer until you save the deployment draft.'
-        : 'Provider profile editor matches the saved deployment draft.',
+        ? `Provider profile edits exist only in the current browser buffer until you save the ${deploymentTerm.lowercase} draft.`
+        : `Provider profile editor matches the saved ${deploymentTerm.lowercase} draft.`,
     }),
     [draftDirty],
   )
@@ -1812,7 +1813,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Provider selection stays structured and versioned. This screen edits the bounded provider knobs
-          that later compile into runtime deployment settings without storing credentials in the draft.
+          that later compile into runtime {deploymentTerm.lowercase} settings without storing credentials in the draft.
         </Typography>
       </Box>
 
@@ -1822,9 +1823,9 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Provider profile changes follow the deployment selected in the shared workspace header.
+                Provider profile changes follow the {deploymentTerm.lowercase} selected in the shared workspace header.
               </Typography>
             </Box>
 
@@ -1838,7 +1839,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
             ) : null}
             {!canEdit && workspace ? (
               <Alert severity="info">
-                Saving provider config requires deployment editor access or higher.
+                Saving provider config requires {deploymentTerm.lowercase} editor access or higher.
               </Alert>
             ) : null}
 
@@ -1859,7 +1860,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
             <Box>
               <Typography variant="h6">Provider readiness</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                These checks run from the saved deployment draft. Save changes before treating validation,
+                These checks run from the saved {deploymentTerm.lowercase} draft. Save changes before treating validation,
                 secret readiness, or vendor probes as authoritative.
               </Typography>
             </Box>
@@ -1896,7 +1897,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                     <Alert severity="error">
                       {validationQuery.error instanceof Error
                         ? validationQuery.error.message
-                        : 'Failed to validate the saved deployment draft'}
+                        : `Failed to validate the saved ${deploymentTerm.lowercase} draft`}
                     </Alert>
                   ) : providerValidationIssues.length > 0 ? (
                     <List dense disablePadding>
@@ -1911,7 +1912,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                     </List>
                   ) : (
                     <Alert severity="success">
-                      No provider-specific validation blockers were found in the saved deployment draft.
+                      No provider-specific validation blockers were found in the saved {deploymentTerm.lowercase} draft.
                     </Alert>
                   )}
                 </Stack>
@@ -1945,9 +1946,9 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                   ) : providerOverrideIssues.length > 0 ? (
                     <Stack spacing={1.25}>
                       <Alert severity="warning">
-                        One or more provider credentials need deployment override attention. Review
+                        One or more provider credentials need {deploymentTerm.lowercase} override attention. Review
                         <code> Security </code>
-                        and update the deployment provider override bindings before the next apply or probe run.
+                        and update the {deploymentTerm.lowercase} provider override bindings before the next apply or probe run.
                       </Alert>
                       <List dense disablePadding>
                         {providerOverrideIssues.map(({ secret, message }) => (
@@ -1993,7 +1994,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                     </List>
                   ) : (
                     <Alert severity="info">
-                      The current provider stack does not add any managed platform secret dependencies beyond the standard deployment defaults.
+                      The current provider stack does not add any managed platform secret dependencies beyond the standard {deploymentTerm.lowercase} defaults.
                     </Alert>
                   )}
                 </Stack>
@@ -2136,8 +2137,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                   <Box>
                     <Typography variant="h6">Structured provider settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Platform-managed deployments now expose the full provider and vector matrix supported by the
-                      framework on this branch. Secrets stay in the secret workspace; deployment-specific non-secret
+                      Platform-managed {deploymentTerm.pluralLowercase} now expose the full provider and vector matrix supported by the
+                      framework on this branch. Secrets stay in the secret workspace; {deploymentTerm.lowercase}-specific non-secret
                       settings stay here.
                     </Typography>
                   </Box>
@@ -2195,7 +2196,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             label="Embedding provider"
                             value={formState.embeddingProvider}
                             onChange={(event) => handleFieldChange('embeddingProvider', event.target.value)}
-                            helperText="ONNX runs locally. Remote providers use platform-managed secrets and deployment-scoped connection settings."
+                            helperText={`ONNX runs locally. Remote providers use platform-managed secrets and ${deploymentTerm.lowercase}-scoped connection settings.`}
                           >
                             <MenuItem value="openai">OpenAI</MenuItem>
                             <MenuItem value="azure">Azure OpenAI</MenuItem>
@@ -2270,7 +2271,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               ? `${selectedDeploymentSummary.binding.customerName} / ${selectedDeploymentSummary.binding.tenantName}`
                               : 'No tenant binding'}
                             InputProps={{ readOnly: true }}
-                            helperText="Shared posture depends on the deployment’s customer and tenant binding. The platform derives scoped provider handles from that binding when overrides are blank."
+                            helperText={`Shared posture depends on the ${deploymentTerm.lowercase}’s customer and tenant binding. The platform derives scoped provider handles from that binding when overrides are blank.`}
                           />
                         </Grid>
                         {sharedVectorHandlePreview ? (
@@ -2296,7 +2297,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             label="Runtime profile"
                             value={formState.runtimeProfile}
                             onChange={(event) => handleFieldChange('runtimeProfile', event.target.value)}
-                            helperText="Use runtime-managed for secure platform-driven deployments. runtime-dev remains explicit dev-only."
+                            helperText={`Use runtime-managed for secure platform-driven ${deploymentTerm.pluralLowercase}. runtime-dev remains explicit dev-only.`}
                           >
                             <MenuItem value="runtime-managed">runtime-managed</MenuItem>
                             <MenuItem value="runtime-dev">runtime-dev</MenuItem>
@@ -2388,7 +2389,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                         <Grid item xs={12}>
                           <Alert severity="info">
                             These are server-owned recovery decisions. Strict defaults expose unresolved model output
-                            instead of guessing from query words. Optional recovery remains bounded by the deployment
+                            instead of guessing from query words. Optional recovery remains bounded by the {deploymentTerm.lowercase}
                             action and knowledge-source allowlists.
                           </Alert>
                         </Grid>
@@ -2914,7 +2915,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               <>
                                 <Grid item xs={12}>
                                   <Alert severity="info">
-                                    Platform-managed Qdrant uses the formal Qdrant Cloud control plane. The platform will create or reuse a managed cluster, issue a deployment-scoped database key, and wire the resolved endpoint back into runtime config.
+                                    Platform-managed Qdrant uses the formal Qdrant Cloud control plane. The platform will create or reuse a managed cluster, issue a {deploymentTerm.lowercase}-scoped database key, and wire the resolved endpoint back into runtime config.
                                   </Alert>
                                 </Grid>
                                 <Grid item xs={12} md={4}>
@@ -2964,7 +2965,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                     label="Qdrant cluster name override"
                                     value={formState.qdrantCloudClusterNameOverride}
                                     onChange={(event) => handleFieldChange('qdrantCloudClusterNameOverride', event.target.value)}
-                                    helperText="Optional. Otherwise the cluster name is derived from the deployment id."
+                                    helperText={`Optional. Otherwise the cluster name is derived from the ${deploymentTerm.lowercase} id.`}
                                   />
                                 </Grid>
                               </>
@@ -2976,7 +2977,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                     label="Qdrant host"
                                     value={formState.qdrantHost}
                                     onChange={(event) => handleFieldChange('qdrantHost', event.target.value)}
-                                    helperText="Required. Hostname, internal address, or full https:// cluster endpoint for the target Qdrant deployment."
+                                    helperText="Required. Hostname, internal address, or full https:// cluster endpoint for the target Qdrant cluster."
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={2}>
@@ -3015,7 +3016,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 value={formState.qdrantCollectionPrefix}
                                 onChange={(event) => handleFieldChange('qdrantCollectionPrefix', event.target.value)}
                                 helperText={formState.vectorStoragePosture === 'SHARED'
-                                  ? 'Optional override. Leave blank to derive the collection prefix from the deployment’s customer and tenant binding.'
+                                  ? `Optional override. Leave blank to derive the collection prefix from the ${deploymentTerm.lowercase}’s customer and tenant binding.`
                                   : 'Optional override. Use only when you need a specific collection naming boundary in an external Qdrant cluster.'}
                               />
                             </Grid>
@@ -3042,8 +3043,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 label={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
                                   ? 'Platform-managed Qdrant Cloud always reconciles one collection per configured entity type'
                                   : formState.vectorStoragePosture === 'SHARED'
-                                    ? 'Shared Qdrant posture uses tenant-scoped shared-handle registry and disables deployment-owned collection reconciliation.'
-                                  : 'Let the platform create or reconcile Qdrant collections for this deployment'}
+                                    ? `Shared Qdrant posture uses tenant-scoped shared-handle registry and disables ${deploymentTerm.lowercase}-owned collection reconciliation.`
+                                  : `Let the platform create or reconcile Qdrant collections for this ${deploymentTerm.lowercase}`}
                               />
                             </Grid>
                           </>
@@ -3166,8 +3167,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 value={formState.pineconeNamespacePrefix}
                                 onChange={(event) => handleFieldChange('pineconeNamespacePrefix', event.target.value)}
                                 helperText={formState.vectorStoragePosture === 'SHARED'
-                                  ? 'Optional override. Leave blank to derive the namespace prefix from the deployment’s customer and tenant binding.'
-                                  : 'Optional override. Use when this deployment must stay inside a dedicated namespace family within the Pinecone index.'}
+                                  ? `Optional override. Leave blank to derive the namespace prefix from the ${deploymentTerm.lowercase}’s customer and tenant binding.`
+                                  : `Optional override. Use when this ${deploymentTerm.lowercase} must stay inside a dedicated namespace family within the Pinecone index.`}
                               />
                             </Grid>
                           </>
@@ -3177,7 +3178,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           <>
                             <Grid item xs={12}>
                               <Alert severity="info">
-                                Weaviate uses external managed-service mode in the platform. Point the deployment at an existing Weaviate Cloud cluster, then let the platform verify connectivity and bind runtime config.
+                                Weaviate uses external managed-service mode in the platform. Point the {deploymentTerm.lowercase} at an existing Weaviate Cloud cluster, then let the platform verify connectivity and bind runtime config.
                               </Alert>
                             </Grid>
                             <Grid item xs={12} md={3}>
@@ -3235,7 +3236,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 onChange={(event) => handleFieldChange('weaviateClassPrefix', event.target.value)}
                                 helperText={formState.vectorStoragePosture === 'SHARED'
                                   ? 'Optional override. Leave blank to derive the class prefix from the customer binding.'
-                                  : 'Optional override. Use when this deployment should write to a dedicated Weaviate class family.'}
+                                  : `Optional override. Use when this ${deploymentTerm.lowercase} should write to a dedicated Weaviate class family.`}
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
@@ -3271,7 +3272,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
                                 {formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
-                                  ? 'Zilliz Cloud platform-managed mode is active. Apply will provision or reuse a managed Zilliz Cloud cluster, store deployment-scoped runtime credentials, and bind the resolved Milvus endpoint into runtime config.'
+                                  ? `Zilliz Cloud platform-managed mode is active. Apply will provision or reuse a managed Zilliz Cloud cluster, store ${deploymentTerm.lowercase}-scoped runtime credentials, and bind the resolved Milvus endpoint into runtime config.`
                                   : 'Milvus is in bring-your-own mode. Use this for an existing Milvus or Zilliz endpoint that you operate outside the platform.'}
                               </Alert>
                             </Grid>
@@ -3316,7 +3317,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                     label="Zilliz cluster name override"
                                     value={formState.zillizCloudClusterNameOverride}
                                     onChange={(event) => handleFieldChange('zillizCloudClusterNameOverride', event.target.value)}
-                                    helperText="Optional. Otherwise the cluster name is derived from the deployment id."
+                                    helperText={`Optional. Otherwise the cluster name is derived from the ${deploymentTerm.lowercase} id.`}
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
@@ -3411,8 +3412,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 value={formState.milvusCollectionPrefix}
                                 onChange={(event) => handleFieldChange('milvusCollectionPrefix', event.target.value)}
                                 helperText={formState.vectorStoragePosture === 'SHARED'
-                                  ? 'Optional override. Leave blank to derive the collection prefix from the deployment’s customer and tenant binding.'
-                                  : 'Optional override. Use when this deployment should stay inside a dedicated Milvus collection family.'}
+                                  ? `Optional override. Leave blank to derive the collection prefix from the ${deploymentTerm.lowercase}’s customer and tenant binding.`
+                                  : `Optional override. Use when this ${deploymentTerm.lowercase} should stay inside a dedicated Milvus collection family.`}
                               />
                             </Grid>
                             <Grid item xs={12}>

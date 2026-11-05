@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
@@ -496,7 +497,7 @@ export function CustomersPage() {
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Customers are the top-level enterprise ownership boundary. Tenants live inside a customer,
-          and every deployment is bound to exactly one tenant. This page manages those durable
+          and every {deploymentTerm.lowercase} is bound to exactly one tenant. This page manages those durable
           platform records, tenant bindings, and the shared tenant-scoped vector handles registered
           for enterprise storage posture.
         </Typography>
@@ -527,7 +528,7 @@ export function CustomersPage() {
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={1}>
-                <Typography variant="overline" color="text.secondary">Bound deployments</Typography>
+                <Typography variant="overline" color="text.secondary">Bound {deploymentTerm.pluralLowercase}</Typography>
                 <Typography variant="h4" sx={{ fontWeight: 800 }}>{metrics.boundDeployments}</Typography>
               </Stack>
             </CardContent>
@@ -563,7 +564,7 @@ export function CustomersPage() {
                   <Box>
                     <Typography variant="h6">Create customer</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Create a durable customer account boundary before assigning deployments and tenants.
+                      Create a durable customer account boundary before assigning {deploymentTerm.pluralLowercase} and tenants.
                     </Typography>
                   </Box>
                   <TextField
@@ -606,7 +607,7 @@ export function CustomersPage() {
                 <Box>
                   <Typography variant="h6">Customer registry</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Review customer ownership, tenants, and which deployments are already bound.
+                    Review customer ownership, tenants, and which {deploymentTerm.pluralLowercase} are already bound.
                   </Typography>
                 </Box>
 
@@ -647,7 +648,7 @@ export function CustomersPage() {
                               </Box>
                               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                 <Chip size="small" label={`${customer.tenantCount} tenant(s)`} variant="outlined" />
-                                <Chip size="small" label={`${customer.deploymentCount} deployment(s)`} variant="outlined" />
+                                <Chip size="small" label={`${customer.deploymentCount} ${customer.deploymentCount === 1 ? deploymentTerm.lowercase : deploymentTerm.pluralLowercase}`} variant="outlined" />
                                 <Chip size="small" label={`${customer.consumerCount} consumer(s)`} variant="outlined" />
                                 {!customer.platformManaged ? (
                                   <Button
@@ -686,7 +687,7 @@ export function CustomersPage() {
                                     External consumers
                                   </Typography>
                                   <Typography variant="body2" color="text.secondary">
-                                    External backend and frontend clients use <code>consumerId</code> to resolve the current deployment binding.
+                                    External backend and frontend clients use <code>consumerId</code> to resolve the current {deploymentTerm.lowercase} binding.
                                   </Typography>
                                 </Box>
                                 <Button
@@ -750,7 +751,7 @@ export function CustomersPage() {
                                                   variant="text"
                                                   onClick={() => {
                                                     const confirmed = window.confirm(
-                                                      `Delete consumer ${consumer.consumerId}? Unbind it first if it is still attached to a deployment.`,
+                                                      `Delete consumer ${consumer.consumerId}? Unbind it first if it is still attached to a ${deploymentTerm.lowercase}.`,
                                                     )
                                                     if (confirmed) {
                                                       deleteConsumerMutation.mutate({
@@ -768,9 +769,9 @@ export function CustomersPage() {
 
                                             {consumer.boundDeploymentId ? (
                                               <Alert severity="success">
-                                                Bound to deployment <strong>{consumer.boundDeploymentName}</strong>
+                                                Bound to {deploymentTerm.lowercase} <strong>{consumer.boundDeploymentName}</strong>
                                                 {' '}
-                                                ({consumer.boundDeploymentEnvironment}) with deployment status {consumer.boundDeploymentStatus}.
+                                                ({consumer.boundDeploymentEnvironment}) with {deploymentTerm.lowercase} status {consumer.boundDeploymentStatus}.
                                                 {consumer.boundReleaseId ? (
                                                   <>
                                                     {' '}
@@ -780,7 +781,7 @@ export function CustomersPage() {
                                                 ) : null}
                                               </Alert>
                                             ) : (
-                                              <Alert severity="info">This consumer is not currently bound to a deployment.</Alert>
+                                              <Alert severity="info">This consumer is not currently bound to a {deploymentTerm.lowercase}.</Alert>
                                             )}
 
                                             <Typography variant="caption" color="text.secondary">
@@ -821,10 +822,10 @@ export function CustomersPage() {
                                           </Typography>
                                           {tenant.boundDeploymentId ? (
                                             <Alert severity="success" icon={<PeopleAltRoundedIcon fontSize="inherit" />}>
-                                              Bound to deployment <strong>{tenant.boundDeploymentName}</strong> ({tenant.boundDeploymentEnvironment}).
+                                              Bound to {deploymentTerm.lowercase} <strong>{tenant.boundDeploymentName}</strong> ({tenant.boundDeploymentEnvironment}).
                                             </Alert>
                                           ) : (
-                                            <Alert severity="info">No deployment is currently bound to this tenant.</Alert>
+                                            <Alert severity="info">No {deploymentTerm.lowercase} is currently bound to this tenant.</Alert>
                                           )}
                                           {tenant.sharedVector ? (
                                             <Stack spacing={0.75}>
@@ -880,7 +881,7 @@ export function CustomersPage() {
                                                 variant="text"
                                                 startIcon={<OpenInNewRoundedIcon />}
                                               >
-                                                Review deployments
+                                                Review {deploymentTerm.pluralLowercase}
                                               </Button>
                                             ) : null}
                                             {!tenant.platformManaged ? (
@@ -1109,7 +1110,7 @@ export function CustomersPage() {
             />
             <TextField
               select
-              label="Initial deployment binding"
+              label={`Initial ${deploymentTerm.lowercase} binding`}
               value={consumerForm.deploymentId}
               onChange={(event) => setConsumerForm((current) => ({ ...current, deploymentId: event.target.value }))}
               helperText="Optional. Leave empty to create the consumer first and bind later."
@@ -1236,15 +1237,15 @@ export function CustomersPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 460 } }}>
             <Alert severity="info">
-              Consumer <strong>{bindingConsumer?.consumer.consumerId}</strong> resolves to the selected deployment.
+              Consumer <strong>{bindingConsumer?.consumer.consumerId}</strong> resolves to the selected {deploymentTerm.lowercase}.
             </Alert>
             <TextField
               select
-              label="Deployment"
+              label={deploymentTerm.singular}
               disabled={updateConsumerBindingMutation.isPending}
               value={consumerBindingForm.deploymentId}
               onChange={(event) => setConsumerBindingForm((current) => ({ ...current, deploymentId: event.target.value, releaseId: '' }))}
-              helperText="Select a deployment to bind, or choose Unbound to detach the consumer."
+              helperText={`Select a ${deploymentTerm.lowercase} to bind, or choose Unbound to detach the consumer.`}
             >
               <MenuItem value="">Unbound</MenuItem>
               {bindingConsumer ? deploymentsForCustomer(bindingConsumer.customer.id).map((deployment) => (
@@ -1405,7 +1406,7 @@ export function CustomersPage() {
             {activeSharedHandles.length > 0 ? (
               <Alert severity="warning">
                 Purge is blocked while this tenant still has {activeSharedHandles.length} active shared handle(s).
-                Detach or migrate the active deployment-backed handles before removing historical records.
+                Detach or migrate the active {deploymentTerm.lowercase}-backed handles before removing historical records.
               </Alert>
             ) : null}
 
@@ -1503,7 +1504,7 @@ export function CustomersPage() {
                             </Grid>
                             <Grid item xs={12} md={6}>
                               <Typography variant="body2">
-                                Deployment: <strong>{handle.deploymentId || 'Detached history'}</strong>
+                                {deploymentTerm.singular}: <strong>{handle.deploymentId || 'Detached history'}</strong>
                               </Typography>
                             </Grid>
                             <Grid item xs={12} md={6}>

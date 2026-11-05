@@ -5,11 +5,12 @@ import { createRequire } from 'node:module'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 const require = createRequire(import.meta.url)
 async function load(relative, dependencies) {
   const source = await readFile(new URL(relative, import.meta.url), 'utf8')
-  const compiled = ts.transpileModule(source, { compilerOptions: {
+  const compiled = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
   } })
   const exports = {}

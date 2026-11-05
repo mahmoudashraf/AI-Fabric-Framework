@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useRef, useState } from 'react'
 import { Alert, Button, Link, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import PublishedWithChangesOutlined from '@mui/icons-material/PublishedWithChangesOutlined'
@@ -53,7 +54,7 @@ export function CustomerVerifiedReleaseAssignments({ customerId, deploymentId, t
     {!targetProfileId ? <Typography color="text.secondary">Select an apply target to view its app assignments.</Typography>
       : consumers.isLoading ? <Typography>Reading app assignments...</Typography>
       : consumers.isError ? <Alert severity="error">{consumers.error instanceof Error ? consumers.error.message : 'App assignments could not be read.'}</Alert>
-      : !assignments.length ? <Typography color="text.secondary">No existing app assignment is bound to this deployment.</Typography>
+      : !assignments.length ? <Typography color="text.secondary">No existing app assignment is bound to this {deploymentTerm.lowercase}.</Typography>
       : <>
         <TextField select fullWidth label="App assignment" value={selected?.consumerId ?? ''}
           disabled={useRelease.isPending} onChange={event => { setSelectedId(event.target.value); useRelease.reset() }}>
@@ -63,7 +64,7 @@ export function CustomerVerifiedReleaseAssignments({ customerId, deploymentId, t
         {selected ? <Typography variant="body2">Current target: {selected.boundTargetProfileId ?? 'Unassigned'} / {selected.boundReleaseId ?? 'No release'}</Typography> : null}
         <Typography variant="body2">Selected target: {targetProfileId}</Typography>
         {release ? <Typography variant="body2">Release: {release.id} / {release.status} / {release.verificationStatus}</Typography> : null}
-        {selected && selected.boundTargetProfileId !== targetProfileId ? <Alert severity="warning">Using this release switches the app to the selected environment. Existing conversations stay on their original deployment.</Alert> : null}
+        {selected && selected.boundTargetProfileId !== targetProfileId ? <Alert severity="warning">Using this release switches the app to the selected environment. Existing conversations stay on their original {deploymentTerm.lowercase}.</Alert> : null}
         {!verified ? <Alert severity="info">The target release must pass verification before an app can use it.</Alert> : null}
         {selected?.boundReleaseId === release?.id && verified ? <Alert severity="success">This app assignment already uses the verified release.</Alert> : null}
         <Button variant="outlined" startIcon={<PublishedWithChangesOutlined />}

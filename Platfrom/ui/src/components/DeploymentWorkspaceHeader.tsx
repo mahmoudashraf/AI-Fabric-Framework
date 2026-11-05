@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import {
   Alert,
   Box,
@@ -77,13 +78,13 @@ function workspaceRoleGuidance(workspace: DeploymentWorkspaceSummary): {
   if (workspace.access.canAdmin) {
     return {
       severity: 'success',
-      message: 'Admin access: you can configure the deployment, manage assignments, run releases, and perform guarded destructive actions.',
+      message: `Admin access: you can configure the ${deploymentTerm.lowercase}, manage assignments, run releases, and perform guarded destructive actions.`,
     }
   }
   if (workspace.access.canEdit) {
     return {
       severity: 'success',
-      message: 'Editor access: you can edit drafts, publish releases, and operate the deployment, but assignment and destructive controls remain restricted.',
+      message: `Editor access: you can edit drafts, publish releases, and operate the ${deploymentTerm.lowercase}, but assignment and destructive controls remain restricted.`,
     }
   }
   if (workspace.access.canOperate) {
@@ -94,7 +95,7 @@ function workspaceRoleGuidance(workspace: DeploymentWorkspaceSummary): {
   }
   return {
     severity: 'info',
-    message: 'Viewer access: this deployment workspace is read-only. Use diagnostics, versions, and configuration pages to review state without changing it.',
+    message: `Viewer access: this ${deploymentTerm.lowercase} workspace is read-only. Use diagnostics, versions, and configuration pages to review state without changing it.`,
   }
 }
 
@@ -198,22 +199,22 @@ export function DeploymentWorkspaceHeader() {
             >
               <Box>
                 <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
-                  Deployment Workspace
+                  {deploymentTerm.singular} Workspace
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.4 }}>
                   {workspace?.deployment.name
                     ?? selectedDeploymentSummary?.name
-                    ?? (unresolvedRequestedDeploymentId ? 'Deployment not found' : 'Select a deployment')}
+                    ?? (unresolvedRequestedDeploymentId ? `${deploymentTerm.singular} not found` : `Select a ${deploymentTerm.lowercase}`)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  Keep one deployment selected while you move across configuration, access, versions, verification, and diagnostics.
+                  Keep one {deploymentTerm.lowercase} selected while you move across configuration, access, versions, verification, and diagnostics.
                 </Typography>
               </Box>
 
               <TextField
                 select
                 size="small"
-                label="Deployment"
+                label={deploymentTerm.singular}
                 value={selectedDeploymentId}
                 onChange={(event) => setSelectedDeploymentId(event.target.value)}
                 disabled={deploymentsLoading || deployments.length === 0}
@@ -221,7 +222,7 @@ export function DeploymentWorkspaceHeader() {
                 SelectProps={{ native: true }}
               >
                 <option value="">
-                  {deploymentsLoading ? 'Loading deployments...' : 'Select deployment'}
+                  {deploymentsLoading ? `Loading ${deploymentTerm.pluralLowercase}...` : `Select ${deploymentTerm.lowercase}`}
                 </option>
                 {deployments.map((deployment) => (
                   <option key={deployment.id} value={deployment.id}>
@@ -234,8 +235,8 @@ export function DeploymentWorkspaceHeader() {
             {!selectedDeploymentId ? (
               <Alert severity={unresolvedRequestedDeploymentId ? 'error' : 'info'}>
                 {unresolvedRequestedDeploymentId
-                  ? `Deployment ${unresolvedRequestedDeploymentId} is not available. Choose a valid deployment below or use the recovery cards on the page.`
-                  : 'Create a deployment from the deployments grid to start using the workspace.'}
+                  ? `${deploymentTerm.singular} ${unresolvedRequestedDeploymentId} is not available. Choose a valid ${deploymentTerm.lowercase} below or use the recovery cards on the page.`
+                  : `Create a ${deploymentTerm.lowercase} from the ${deploymentTerm.pluralLowercase} grid to start using the workspace.`}
               </Alert>
             ) : workspaceLoading ? (
               <Stack direction="row" spacing={1.5} alignItems="center">
@@ -246,9 +247,9 @@ export function DeploymentWorkspaceHeader() {
               <>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
-                  <Chip label={`Behavior: ${workspace.deployment.behaviorType.replace(/_/g, ' ')}`} variant="outlined" />
+                  <Chip label={`Behavior: ${deploymentEnumLabel(workspace.deployment.behaviorType, workspace.deployment.behaviorType.replace(/_/g, ' '))}`} variant="outlined" />
                   <Chip label={`Template: ${workspace.template.name}`} variant="outlined" />
-                  <Chip label={`Role: ${workspace.access.assignmentRole}`} variant="outlined" />
+                  <Chip label={`Role: ${deploymentEnumLabel(workspace.access.assignmentRole)}`} variant="outlined" />
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Health: ${workspace.deployment.healthStatus}`} variant="outlined" />
                   <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" />
@@ -285,7 +286,7 @@ export function DeploymentWorkspaceHeader() {
                     </Alert>
                   ) : integrationSummary ? (
                     <Alert severity={integrationAlertSeverity(integrationSummary)}>
-                      <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+                      <strong>Integration posture</strong>: {integrationSummary.guidance ?? `Apply the ${deploymentTerm.lowercase} before integrating.`}
                     </Alert>
                   ) : null
                 ) : null}
@@ -498,11 +499,11 @@ export function DeploymentWorkspaceHeader() {
                           </>
                         ) : runnerExpected ? (
                           <Typography variant="body2" color="warning.main">
-                            This deployment expects a platform-managed runner, but no active registration is currently visible.
+                            This {deploymentTerm.lowercase} expects a platform-managed runner, but no active registration is currently visible.
                           </Typography>
                         ) : (
                           <Typography variant="body2" color="text.secondary">
-                            This deployment is not currently using a managed vectorization runner.
+                            This {deploymentTerm.lowercase} is not currently using a managed vectorization runner.
                           </Typography>
                         )}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

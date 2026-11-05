@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
@@ -83,11 +84,11 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
           {activeApps.filter(app => !products.some(product => product.apps.some(item => item.installationId === app.installationId))).map(app => <Box key={app.installationId} sx={{ mt: 2 }}><Button onClick={() => onInspect(appResource(app))}>{app.displayName}</Button>{safeCustomerAppUrl(app.appUrl) ? <Button component="a" href={safeCustomerAppUrl(app.appUrl)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}</Box>)}
         </CardContent></Card>
       </Box>
-      {!products.length && !errors.length ? <Alert severity="info" sx={{ mt: 2 }}>No deployment template is currently available. <Button component={RouterLink} to="/deployments?view=setup&step=template">Review invitations</Button></Alert> : null}
+      {!products.length && !errors.length ? <Alert severity="info" sx={{ mt: 2 }}>No {deploymentTerm.lowercase} template is currently available. <Button component={RouterLink} to="/deployments?view=setup&step=template">Review invitations</Button></Alert> : null}
     </Box>
     <Divider />
     <Accordion expanded={historyOpen} onChange={(_, open) => setHistoryOpen(open)} disableGutters elevation={0} sx={{ bgcolor: 'transparent', '&:before': { display: 'none' } }}>
-      <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography variant="body2">Other deployments and app drafts ({otherDeployments.length + inactiveApps.length})</Typography></AccordionSummary>
+      <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography variant="body2">Other {deploymentTerm.pluralLowercase} and app drafts ({otherDeployments.length + inactiveApps.length})</Typography></AccordionSummary>
       <AccordionDetails><Stack spacing={1}>
         {otherDeployments.map(deployment => <Stack key={deployment.deploymentId} direction="row" justifyContent="space-between" gap={2}><Button onClick={() => onInspect(deploymentResource(deployment, offers.find(offer => offer.id === deployment.offerId)))} sx={{ textAlign: 'left', overflowWrap: 'anywhere' }}>{deployment.name}</Button><Chip size="small" label={deployment.status} variant="outlined" /></Stack>)}
         {inactiveApps.map(app => <Stack key={app.installationId} direction="row" justifyContent="space-between" gap={2}><Button onClick={() => onInspect(appResource(app))} sx={{ textAlign: 'left', overflowWrap: 'anywhere' }}>{app.displayName}</Button><Chip size="small" label={app.status} variant="outlined" /></Stack>)}

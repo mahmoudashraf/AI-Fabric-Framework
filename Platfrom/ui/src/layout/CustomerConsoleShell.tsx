@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
@@ -33,7 +34,7 @@ import { SupportResourceDialog } from '../components/customer/SupportResourceDia
 const navigation = [
   { path: '/home', label: 'Home', icon: SpaceDashboardOutlined },
   { path: '/kits', label: 'My kits', icon: Inventory2Outlined },
-  { path: '/deployments', label: 'Deployments', icon: DnsOutlined },
+  { path: '/deployments', label: deploymentTerm.plural, icon: DnsOutlined },
   { path: '/ai-workspaces', label: 'Engage apps', icon: WidgetsOutlined },
   { path: '/document-knowledge', label: 'Knowledge & data', icon: DatasetOutlined },
   { path: '/integrations', label: 'Connections', icon: CableOutlined },

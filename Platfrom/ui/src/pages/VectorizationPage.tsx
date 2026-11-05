@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
@@ -1040,7 +1041,7 @@ export function VectorizationPage() {
   }
 
   if (!selectedDeploymentId) {
-    return <Alert severity="info">Select a deployment from the workspace header to configure vectorization.</Alert>
+    return <Alert severity="info">Select a {deploymentTerm.lowercase} from the workspace header to configure vectorization.</Alert>
   }
 
   const selectedRunDetails = runDetailsQuery.data
@@ -1063,7 +1064,7 @@ export function VectorizationPage() {
           Vectorization
         </Typography>
         <Typography color="text.secondary">
-          Configure source connectivity, entity mapping, runner mode, discovery, bootstrap, and reindex for this deployment through the runtime data-sync boundary.
+          Configure source connectivity, entity mapping, runner mode, discovery, bootstrap, and reindex for this {deploymentTerm.lowercase} through the runtime data-sync boundary.
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap">
           <Chip label={selectedDeploymentSummary?.name ?? selectedDeploymentId} />
@@ -1243,7 +1244,7 @@ export function VectorizationPage() {
             <Typography variant="h6">Entity Scope And Mapping</Typography>
             {availableEntities.length === 0 ? (
               <Alert severity="warning">
-                No configured deployment entities were detected. Configure entity spaces on the Knowledge page first.
+                No configured {deploymentTerm.lowercase} entities were detected. Configure entity spaces on the Knowledge page first.
               </Alert>
             ) : (
               availableEntities.map((entityType) => {
@@ -1346,8 +1347,8 @@ export function VectorizationPage() {
                     </Typography>
                     {canAdmin ? (
                       <TextField
-                        label="Tenant isolation counterpart deployment"
-                        helperText="Optional. Leave blank to let the platform resolve another deployment under the same customer and shared vector root."
+                        label={`Tenant isolation counterpart ${deploymentTerm.lowercase}`}
+                        helperText={`Optional. Leave blank to let the platform resolve another ${deploymentTerm.lowercase} under the same customer and shared vector root.`}
                         value={verificationCounterpartDeploymentId}
                         onChange={(event) => setVerificationCounterpartDeploymentId(event.target.value)}
                       />
@@ -1449,7 +1450,7 @@ export function VectorizationPage() {
                           </Box>
                         ))
                       ) : (
-                        <Alert severity="info">No vectorization verifications have been run for this deployment yet.</Alert>
+                        <Alert severity="info">No vectorization verifications have been run for this {deploymentTerm.lowercase} yet.</Alert>
                       )}
                     </Stack>
                   </Grid>
@@ -1569,7 +1570,7 @@ export function VectorizationPage() {
                     <TextField label="Session expires" value={formatTimestamp(overviewQuery.data.runner.lastSessionExpiresAt)} InputProps={{ readOnly: true }} />
                   </>
                 ) : (
-                  <Alert severity="info">No runner registration exists yet for this deployment.</Alert>
+                  <Alert severity="info">No runner registration exists yet for this {deploymentTerm.lowercase}.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1834,7 +1835,7 @@ export function VectorizationPage() {
                     </Box>
                   ))
                 ) : (
-                  <Alert severity="info">No vectorization runs have been queued for this deployment yet.</Alert>
+                  <Alert severity="info">No vectorization runs have been queued for this {deploymentTerm.lowercase} yet.</Alert>
                 )}
               </Stack>
             </CardContent>

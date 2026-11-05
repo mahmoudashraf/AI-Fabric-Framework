@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 const compile = async path => {
   const source = await readFile(new URL(path, import.meta.url), 'utf8')
-  const result = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
+  const result = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
   return import(`data:text/javascript;base64,${Buffer.from(result.outputText).toString('base64')}`)
 }
 const helper = await compile('../src/components/customer/customerAiStateStorage.ts')

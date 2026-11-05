@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { Alert, Box, Button, Divider, Stack, Typography } from '@mui/material'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
@@ -19,6 +20,6 @@ export function CustomerAccountPage() {
     </Box>
     {supabaseSession && <Box><Button variant="outlined" href="/auth/recovery">Change password</Button></Box>}
     <Divider />
-    {session.canManageUserDirectory ? <UsersPage embedded /> : <Alert severity="info">Team administration is not enabled for this account. Your own sign-in and deployment access are unchanged.</Alert>}
+    {session.canManageUserDirectory ? <UsersPage embedded /> : <Alert severity="info">Team administration is not enabled for this account. Your own sign-in and {deploymentTerm.lowercase} access are unchanged.</Alert>}
   </Stack>
 }

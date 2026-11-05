@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import LinkRounded from '@mui/icons-material/LinkRounded'
@@ -85,9 +86,9 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
       if (!active.current.open || active.current.customerId !== scope.customerId || active.current.actorId !== scope.actorId
         || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || !isCustomerAuthenticationMode(session.authenticationMode)
         || session.customerId !== scope.customerId || session.actorId !== scope.actorId) {
-        throw new Error('The customer account changed. Reopen Connect deployment in the current account.')
+        throw new Error(`The customer account changed. Reopen Connect ${deploymentTerm.lowercase} in the current account.`)
       }
-      if (!canConnect) throw new Error('Review the deployment connection before continuing.')
+      if (!canConnect) throw new Error(`Review the ${deploymentTerm.lowercase} connection before continuing.`)
       let connection = matches.find(item => item.consumerId === connectionId)
       if (!connection) {
         const payload = { deploymentId, targetProfileId: targetId, releaseId: releaseId || null,
@@ -103,15 +104,15 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
     finally { setPending(false) }
   }
   return <Dialog open={open} onClose={pending ? undefined : onClose} fullWidth maxWidth="sm">
-    <DialogTitle>Connect deployment</DialogTitle>
+    <DialogTitle>Connect {deploymentTerm.lowercase}</DialogTitle>
     <DialogContent dividers><Stack spacing={2.5}>
       {chooseApp ? <TextField select label="Engage app" value={appId} disabled={pending} onChange={event => setAppId(event.target.value)}>
         <MenuItem value="new">Create a new Engage app</MenuItem>
         {apps.map(app => <MenuItem key={app.installationId} value={app.installationId}>{app.displayName} · {app.status}</MenuItem>)}
       </TextField> : null}
-      <TextField select label="AI deployment" value={deploymentId} disabled={pending} onChange={event => {
+      <TextField select label={deploymentTerm.singular} value={deploymentId} disabled={pending} onChange={event => {
         setDeploymentId(event.target.value); setEnvironment(''); setTargetId(''); setReleaseId(''); setError(null); setSelectionIssue(null)
-      }}><MenuItem value="">Choose a deployment</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}</TextField>
+      }}><MenuItem value="">Choose a {deploymentTerm.lowercase}</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}</TextField>
       {deploymentId && targets.isSuccess && releases.isSuccess ? <Stack spacing={1}>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           {environment ? <Chip label={environments.find(item => item.name === environment)?.label ?? environment} size="small" variant="outlined" /> : null}
@@ -143,17 +144,17 @@ export function CustomerEngageConnectionPanel({ open, onClose, customerId, actor
         <MenuItem value="">Configure draft - no live release</MenuItem>
         {environmentReleases.map(item => <MenuItem key={item.id} value={item.id} disabled={!connectableRelease(item)}>{new Date(item.createdAt).toLocaleString()} · {connectableRelease(item) ? 'Ready' : 'Verification needed'}</MenuItem>)}
       </TextField>
-      {environment && !targetId && targets.isSuccess && releases.isSuccess ? <Alert severity="warning">This environment needs a deployment target configured before you can connect an app.</Alert> : null}
+      {environment && !targetId && targets.isSuccess && releases.isSuccess ? <Alert severity="warning">This environment needs a {deploymentTerm.lowercase} target configured before you can connect an app.</Alert> : null}
       </Stack></Collapse>
       {!releaseId && targetId ? <Alert severity="info">You can save and preview an app now. Activation waits for a verified runtime release.</Alert> : null}
       {matches.length > 1 ? <TextField select label="Existing connection" value={connectionId} disabled={pending} onChange={event => setConnectionId(event.target.value)}>
         <MenuItem value="">Choose a connection</MenuItem>{matches.map(item => <MenuItem key={item.consumerId} value={item.consumerId}>{item.displayName}</MenuItem>)}<MenuItem value="new">Create a separate connection</MenuItem>
       </TextField> : null}
       {selectedApp ? <Typography variant="body2">Only {selectedApp.displayName} will use the selected connection after you save its configuration. Other apps will not move.</Typography> : null}
-      {selectedApp?.status === 'ACTIVE' ? <Alert severity="warning" action={<Button onClick={() => onManageApp(selectedApp)}>App settings</Button>}>Disable this app in its settings before changing its deployment. Its current connection has not changed.</Alert> : null}
+      {selectedApp?.status === 'ACTIVE' ? <Alert severity="warning" action={<Button onClick={() => onManageApp(selectedApp)}>App settings</Button>}>Disable this app in its settings before changing its {deploymentTerm.lowercase}. Its current connection has not changed.</Alert> : null}
       {connectionId && connectionId !== 'new' ? <Typography variant="caption" color="text.secondary">Using an existing connection. {apps.filter(app => app.consumerId === connectionId).length} app(s) currently use it; its assignment will not be changed.</Typography> : null}
       {readError || error ? <Alert severity="error">{error ?? (readError instanceof Error ? readError.message : 'Connection options could not be loaded.')}</Alert> : null}
     </Stack></DialogContent>
-    <DialogActions><Button disabled={pending} onClick={onClose}>Cancel</Button><Button variant="contained" startIcon={<LinkRounded />} disabled={pending || !canConnect} onClick={() => void connect()}>{pending ? 'Connecting...' : 'Use this deployment'}</Button></DialogActions>
+    <DialogActions><Button disabled={pending} onClick={onClose}>Cancel</Button><Button variant="contained" startIcon={<LinkRounded />} disabled={pending || !canConnect} onClick={() => void connect()}>{pending ? 'Connecting...' : `Use this ${deploymentTerm.lowercase}`}</Button></DialogActions>
   </Dialog>
 }

@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded'
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded'
@@ -83,12 +84,14 @@ function shortHash(value: string | null): string {
 function SelectionGroup({
   title,
   values,
+  labelForValue = (value) => value,
   selected,
   disabled,
   onToggle,
 }: {
   title: string
   values: string[]
+  labelForValue?: (value: string) => string
   selected: string[]
   disabled?: boolean
   onToggle: (value: string) => void
@@ -111,7 +114,7 @@ function SelectionGroup({
                     onChange={() => onToggle(value)}
                   />
                 )}
-                label={<Typography variant="body2">{value}</Typography>}
+                label={<Typography variant="body2">{labelForValue(value)}</Typography>}
               />
             </Grid>
           ))}
@@ -286,8 +289,9 @@ export function RuntimeArtifactsPage() {
 
         <Divider sx={{ my: 3 }} />
         <SelectionGroup
-          title="Supported deployment behaviors"
+          title={`Supported ${deploymentTerm.lowercase} behaviors`}
           values={(behaviorsQuery.data ?? []).map((behavior) => behavior.code)}
+          labelForValue={deploymentEnumLabel}
           selected={form.supportedBehaviorTypes}
           onToggle={(value) => setForm((current) => ({
             ...current,

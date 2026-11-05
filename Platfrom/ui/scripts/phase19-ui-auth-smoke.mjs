@@ -26,7 +26,7 @@ try {
 
   await page.getByText('Configurable AI Enablement Platform').waitFor()
   const signedInBody = await page.locator('body').innerText()
-  assertIncludes(signedInBody, 'Deployments', 'deployments screen')
+  assertIncludes(signedInBody, 'Smart Brains', 'deployments screen')
   assertIncludes(signedInBody, 'PLATFORM_ADMIN', 'role chip')
   assertIncludes(signedInBody, 'SESSION', 'session auth mode chip')
 

@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded'
 import HubRoundedIcon from '@mui/icons-material/HubRounded'
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded'
@@ -123,7 +124,7 @@ function activeDependentWarning(service: PlatformManagedInferenceServiceSummary 
   if (!service || service.dependentActiveDeploymentsCount <= 0) {
     return null
   }
-  return `${service.dependentActiveDeploymentsCount} active deployment${service.dependentActiveDeploymentsCount === 1 ? '' : 's'} currently depend on this service.`
+  return `${service.dependentActiveDeploymentsCount} active ${service.dependentActiveDeploymentsCount === 1 ? deploymentTerm.lowercase : deploymentTerm.pluralLowercase} currently depend on this service.`
 }
 
 function probeCard(probe: PlatformManagedInferenceProbeSummary | null | undefined, title: string) {
@@ -662,7 +663,7 @@ export function InferenceServicesPage() {
                         <Typography variant="body2"><strong>Environment:</strong> {detailValue(selectedService.environmentScope)}</Typography>
                         <Typography variant="body2"><strong>Tier:</strong> {detailValue(selectedService.tierScope)}</Typography>
                         <Typography variant="body2"><strong>Deployment:</strong> {detailValue(selectedService.deploymentId)}</Typography>
-                        <Typography variant="body2"><strong>Last deployment id:</strong> {detailValue(selectedService.lastDeploymentId)}</Typography>
+                        <Typography variant="body2"><strong>Last {deploymentTerm.lowercase} id:</strong> {detailValue(selectedService.lastDeploymentId)}</Typography>
                         <Typography variant="body2"><strong>Last reconciled:</strong> {formatTimestamp(selectedService.lastReconciledAt)}</Typography>
                         <Typography variant="body2"><strong>Reconcile status:</strong> {detailValue(selectedService.lastReconcileStatus)}</Typography>
                         <Typography variant="body2" color="text.secondary">{detailValue(selectedService.lastReconcileMessage)}</Typography>
@@ -753,13 +754,13 @@ export function InferenceServicesPage() {
                         <Stack direction="row" spacing={1} alignItems="center">
                           <MemoryRoundedIcon color="primary" />
                           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            Dependent deployments
+                            Dependent {deploymentTerm.pluralLowercase}
                           </Typography>
                         </Stack>
                         {dependentsQuery.isLoading ? (
-                          <Typography color="text.secondary">Loading dependent deployments…</Typography>
+                          <Typography color="text.secondary">Loading dependent {deploymentTerm.pluralLowercase}…</Typography>
                         ) : (dependentsQuery.data ?? []).length === 0 ? (
-                          <Typography color="text.secondary">No deployments currently reference this service.</Typography>
+                          <Typography color="text.secondary">No {deploymentTerm.pluralLowercase} currently reference this service.</Typography>
                         ) : (
                           <List sx={{ p: 0 }}>
                             {(dependentsQuery.data ?? []).map((dependent: PlatformManagedInferenceDependentDeploymentSummary) => (

@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
 import GppGoodRoundedIcon from '@mui/icons-material/GppGoodRounded'
 import ManageSearchRoundedIcon from '@mui/icons-material/ManageSearchRounded'
@@ -315,7 +316,7 @@ export function ThinkerResolverPage() {
         <Chip label="006 Governed Issue Resolution" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800 }}>Thinker Resolver</Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 1180 }}>
-          Read-only diagnosis, evidence capture, policy simulation, and governed low-risk support escalation for Shopify Companion deployments.
+          Read-only diagnosis, evidence capture, policy simulation, and governed low-risk support escalation for Shopify Companion {deploymentTerm.pluralLowercase}.
         </Typography>
       </Box>
 
@@ -344,13 +345,13 @@ export function ThinkerResolverPage() {
 
       <Grid container spacing={2}>
         <Grid item xs={12} lg={4}>
-          <SectionCard title="Deployment Control" icon={<SecurityRoundedIcon />}>
+          <SectionCard title={`${deploymentTerm.singular} Control`} icon={<SecurityRoundedIcon />}>
             <Stack spacing={2}>
               <FormControl fullWidth size="small">
-                <InputLabel id="thinker-deployment-select">Deployment</InputLabel>
+                <InputLabel id="thinker-deployment-select">{deploymentTerm.singular}</InputLabel>
                 <Select
                   labelId="thinker-deployment-select"
-                  label="Deployment"
+                  label={deploymentTerm.singular}
                   value={selectedDeploymentId}
                   onChange={(event) => {
                     setSelectedDeploymentId(event.target.value)
@@ -408,7 +409,7 @@ export function ThinkerResolverPage() {
                   </Stack>
                 </Stack>
               ) : (
-                <Alert severity="info">Choose a deployment to load Thinker controls.</Alert>
+                <Alert severity="info">Choose a {deploymentTerm.lowercase} to load Thinker controls.</Alert>
               )}
             </Stack>
           </SectionCard>

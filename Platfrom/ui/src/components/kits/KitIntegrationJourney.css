@@ -1,0 +1,115 @@
+.ek-detail-refresh .ek-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.ek-detail-refresh .ek-detail-actions .ek-primary-button { margin-right: 0; }
+.ek-detail-refresh .ek-detail-copy li { align-items: flex-start; }
+.ek-detail-refresh .ek-detail-copy li > svg { flex-shrink: 0; }
+.ek-detail-refresh .ek-detail-copy .ek-dealership-offer ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 10px 0 0;
+  margin: 0;
+}
+.ek-detail-refresh .ek-detail-copy .ek-dealership-offer li { align-items: center; gap: 6px; }
+.ek-detail-refresh .ek-detail-desk { margin-top: 24px; }
+.ek-detail-refresh .ek-public-detail-grid > div { min-width: 0; }
+.ek-integration-journey {
+  margin-top: 40px;
+  min-width: 0;
+  letter-spacing: 0;
+}
+.ek-integration-journey *,
+.ek-integration-journey *::before,
+.ek-integration-journey *::after { box-sizing: border-box; letter-spacing: 0; }
+.ek-integration-journey .ek-integration-band {
+  padding: 32px 0;
+  border-top: 1px solid var(--ek-line);
+}
+.ek-integration-heading { max-width: 760px; }
+.ek-integration-journey .ek-integration-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--ek-mint);
+  font-size: 12px;
+  font-weight: 650;
+}
+.ek-integration-label > svg { width: 18px; height: 18px; flex-shrink: 0; }
+.ek-integration-journey h2 { font-size: 23px; line-height: 1.35; }
+.ek-integration-heading > p { margin-top: 10px; color: var(--ek-muted); font-size: 14px; }
+.ek-integration-scope {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 28px;
+}
+.ek-integration-scope > div { min-width: 0; padding-left: 18px; border-left: 2px solid var(--ek-line); }
+.ek-integration-scope > div > svg { width: 24px; height: 24px; color: var(--ek-blue); margin-bottom: 10px; }
+.ek-integration-scope > div:nth-child(2) > svg { color: var(--ek-mint); }
+.ek-integration-scope > div:nth-child(3) > svg { color: var(--ek-amber); }
+.ek-integration-journey h3 { font-size: 15px; line-height: 1.4; }
+.ek-integration-scope p,
+.ek-integration-steps p,
+.ek-integration-next p { margin-top: 8px; color: var(--ek-muted); font-size: 13px; }
+.ek-integration-journey .ek-integration-disclosure {
+  margin-top: 24px;
+  max-width: 900px;
+  color: var(--ek-muted);
+  font-size: 12px;
+}
+.ek-integration-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  list-style: none;
+  padding: 0;
+  margin: 28px 0 0;
+}
+.ek-integration-steps > li { min-width: 0; }
+.ek-integration-step-marker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 14px;
+}
+.ek-integration-step-marker::after { content: ''; height: 1px; background: var(--ek-line); flex: 1; }
+.ek-integration-step-marker > span { color: var(--ek-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ek-integration-step-marker > svg { width: 24px; height: 24px; flex-shrink: 0; color: var(--ek-mint); }
+.ek-integration-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ek-line);
+}
+.ek-integration-next > div { min-width: 0; }
+.ek-integration-next p { max-width: 600px; }
+.ek-integration-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+.ek-integration-journey .MuiButton-root { white-space: normal; overflow-wrap: anywhere; }
+.ek-integration-journey a:focus-visible { outline: 2px solid var(--ek-blue); outline-offset: 4px; border-radius: 6px; }
+.ek-integration-journey h2,
+.ek-integration-journey h3,
+.ek-integration-journey p { overflow-wrap: anywhere; }
+@media (max-width: 1050px) {
+  .ek-integration-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .ek-integration-next { align-items: flex-start; flex-direction: column; gap: 18px; }
+}
+@media (max-width: 760px) {
+  .ek-integration-journey { margin-top: 30px; }
+  .ek-integration-journey .ek-integration-band { padding-block: 26px; }
+  .ek-integration-journey h2 { font-size: 21px; }
+  .ek-integration-scope { grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 24px; }
+}
+@media (max-width: 450px) {
+  .ek-integration-steps { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .ek-integration-step-marker { margin-bottom: 10px; }
+  .ek-integration-actions { flex-shrink: 1; }
+}

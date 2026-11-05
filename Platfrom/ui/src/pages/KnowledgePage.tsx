@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import PreviewRoundedIcon from '@mui/icons-material/PreviewRounded'
@@ -680,7 +681,7 @@ export function KnowledgePage() {
       label: 'Knowledge config',
       description: draftDirty
         ? 'Typed entity projection changes are pending.'
-        : 'Knowledge editor matches the saved deployment draft.',
+        : `Knowledge editor matches the saved ${deploymentTerm.lowercase} draft.`,
     }),
     [draftDirty],
   )
@@ -890,7 +891,7 @@ export function KnowledgePage() {
       >
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6">Deployment workspace</Typography>
+            <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
             {workspace ? (
               <Stack
                 direction="row"
@@ -912,7 +913,7 @@ export function KnowledgePage() {
             ) : null}
             {!canEdit && workspace ? (
               <Alert severity="info">
-                Deployment editor access is required to change this draft.
+                {deploymentTerm.singular} editor access is required to change this draft.
               </Alert>
             ) : null}
             {draftQuery.data ? (

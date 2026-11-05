@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { Box, Button, Chip, Link, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import { bytes, cores, deploymentPath, limit, number, type InspectorSelection, type ResourceRow } from './monitoringModels'
@@ -6,7 +7,7 @@ import { Freshness } from './ServerOverview'
 export function ResourceConsumers({ rows, now, onSelect }: { rows: ResourceRow[]; now: number; onSelect: (selection: InspectorSelection) => void }) {
   return <TableContainer component={Box} sx={{ overflowX: 'auto', maxHeight: 560 }} tabIndex={0} aria-label="Top consumers scroll area">
     <Table size="small" stickyHeader sx={{ minWidth: 920 }} aria-label="Top resource consumers">
-      <TableHead><TableRow>{['Resource / deployment', 'Server', 'Role', 'Working set / hard limit', 'Container CPU (cores)', 'Restarts', 'State / health'].map(label => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
+      <TableHead><TableRow>{[`Resource / ${deploymentTerm.lowercase}`, 'Server', 'Role', 'Working set / hard limit', 'Container CPU (cores)', 'Restarts', 'State / health'].map(label => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
       <TableBody>{rows.map(({ server, resource }) => {
         const path = deploymentPath(resource)
         return <TableRow key={`${server.serverId}/${resource.resourceId}`} hover sx={{ '& td': { py: 1.25, verticalAlign: 'top' } }}>

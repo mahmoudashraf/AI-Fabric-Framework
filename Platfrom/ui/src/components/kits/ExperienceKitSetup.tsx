@@ -6,6 +6,7 @@ import CheckRounded from '@mui/icons-material/CheckRounded'
 import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import WebOutlined from '@mui/icons-material/WebOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { deploymentTerm } from '../../deploymentTerminology'
 import { Link, useNavigate } from 'react-router-dom'
 import { enrollPublicCustomerTemplates, type AiStateStorageMode, type CustomerOfferSummary } from '../../api/platformApi'
 import { createExperienceKit, experienceKitKeys, fetchExperienceKitCatalogue, type CreateExperienceKitRequest, type ExperienceKitCatalogueEntry } from '../../api/experienceKitsApi'
@@ -192,7 +193,7 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
           {storageError && <Alert severity="error">{storageError}</Alert>}
           {offer && <div className="ek-configured-parts"><h3>Your information, your business</h3><p>Add your approved documents and connect the systems your customers need before going live.</p>
             <details className="ek-advanced"><summary>Connection details for your team</summary>{offer.bindingSlots.length ? <ul>{offer.bindingSlots.map(slot => <li key={slot.id}>{slot.id}<small>{slot.kind.replace(/_/g, ' ').toLowerCase()}</small></li>)}</ul>
-              : <p>No external connection slots are declared by this template.</p>}<p>Technical setup uses the deployment editor after your workspace is created.</p></details></div>}
+              : <p>No external connection slots are declared by this template.</p>}<p>Technical setup uses the {deploymentTerm.lowercase} editor after your workspace is created.</p></details></div>}
         </> : step === 1 ? <><h2>Your experience</h2><KitExperienceFields value={form} onChange={setForm} disabled={create.isPending}
           supportExperience={supportExperience} ticketProviders={entry.ticketProviders} /></>
           : <><h2>Review your kit</h2><dl className="ek-review-facts">

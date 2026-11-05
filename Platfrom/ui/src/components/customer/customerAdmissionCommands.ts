@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { fetchDeploymentOperationsStatus } from '../../api/platformApi'
 import type {
   CustomerAdmissionReservationRequest,
@@ -53,7 +54,7 @@ export class CustomerAdmissionCommands {
       || status.manualDeploymentsAllowed !== true || typeof status.serviceConfigured !== 'boolean'
       || !['FUNDED', 'TEAM_AUTHORIZED', 'CUSTOMER_KEY'].includes(status.providerUsageMode)
       || status.decisionSource !== 'EXTERNAL_SERVICE') {
-      throw new Error('Deployment operations policy status is invalid. Refresh before continuing.')
+      throw new Error(`${deploymentTerm.singular} operations policy status is invalid. Refresh before continuing.`)
     }
     return null
   }

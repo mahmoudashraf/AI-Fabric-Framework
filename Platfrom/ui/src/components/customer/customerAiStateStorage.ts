@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type {
   AiStateStorageMode, CustomerAiStateStorageBindRequest, CustomerAiStateStorageSummary,
   CustomerDeploymentBootstrapRequest, CustomerDeploymentSummary, CustomerOfferSummary,
@@ -61,7 +62,7 @@ export async function publishStoredAiStateStorage<T>(
 ) {
   ownedOffer(offer, customerId)
   if (deployment.offerId !== offer.id || deployment.offerFingerprint !== offer.fingerprint
-    || expectedDraft.deploymentId !== deployment.deploymentId) throw new Error('The deployment storage scope changed.')
+    || expectedDraft.deploymentId !== deployment.deploymentId) throw new Error(`The ${deploymentTerm.lowercase} storage scope changed.`)
   const expectedMode = storedAiStateStorageMode(offer, expectedDraft)
   const current = await api.draft(deployment.deploymentId)
   if (current.deploymentId !== deployment.deploymentId || current.id !== expectedDraft.id
@@ -124,7 +125,7 @@ export function checkedAiStateBinding(scope: AiStateBindingScope, binding: Custo
     || binding.deploymentId !== scope.deployment.deploymentId || binding.targetProfileId !== scope.targetProfileId
     || binding.versionId !== scope.version.id || binding.configHash !== scope.version.configHash
     || binding.mode !== 'CUSTOMER_POSTGRES' || binding.lifecycle !== 'RETAIN_EXTERNAL' || !binding.migrationAuthorized) {
-    throw new Error('The PostgreSQL readback does not match this deployment, target and version.')
+    throw new Error(`The PostgreSQL readback does not match this ${deploymentTerm.lowercase}, target and version.`)
   }
   return binding
 }

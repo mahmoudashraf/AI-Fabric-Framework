@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type { CustomerDeploymentSummary, CustomerOfferSummary, DeploymentMarketplaceInstallSummary, DeploymentSummary, PlatformAuthSessionSummary } from '../../api/platformApi'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 
@@ -29,7 +30,7 @@ export function customerDocumentStorageScope(input: {
     || !offer.targets.some(target => target.id === input.targetProfileId && target.capabilities.includes(input.operation))
     || slot?.length !== 1 || (input.operation === 'BINDING_REPLACE'
       && (!input.selectedProfileId || !slot[0].supportedProfileIds.includes(input.selectedProfileId)))) {
-    throw new Error('Current owned deployment, reviewed offer, entitlement and document-storage target are required.')
+    throw new Error(`Current owned ${deploymentTerm.lowercase}, reviewed offer, entitlement and document-storage target are required.`)
   }
   return { actorId: session.actorId, authenticationMode: session.authenticationMode, customerId: session.customerId,
     deploymentId: deployment.deploymentId, tenantId: deployment.tenantId, offerId: offer.id, offerFingerprint: offer.fingerprint,

@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
@@ -71,7 +72,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     next.delete('resourceKind'); next.delete('resourceId'); next.delete('releaseId'); next.delete('editorSection')
     navigate({ pathname: location.pathname, search: next.toString() })
   }
-  const title = props.mode === 'home' ? 'Your workspace' : props.mode === 'apps' ? 'Engage apps' : 'Deployments'
+  const title = props.mode === 'home' ? 'Your workspace' : props.mode === 'apps' ? 'Engage apps' : deploymentTerm.plural
   const openConfiguration = (section: CustomerEditorSection = 'configuration') => {
     if (selected?.kind === 'deployment' && !offer) {
       navigate({ pathname: '/revisions', search: new URLSearchParams({ deploymentId: selected.id,
@@ -100,7 +101,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   </Stack> : null
   const inspector = selected ? <Box component="aside" aria-label={`${selected.name} details`} sx={{ width: compact ? '100%' : 425, minWidth: 0, bgcolor: 'background.paper', height: '100%', overflowY: 'auto' }}>
     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, pt: 2, pb: 1 }}>
-      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : 'Deployment'}</Typography>
+      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>
       <Tooltip title="Close details"><IconButton aria-label="Close resource details" onClick={close}><CloseRounded fontSize="small" /></IconButton></Tooltip>
     </Stack>
     <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
@@ -110,7 +111,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>
         <Button component={RouterLink} startIcon={<LinkRounded />} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage',
           ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
-        })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : 'Change deployment'}</Button>
+        })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : `Change ${deploymentTerm.lowercase}`}</Button>
         {assignedApp ? <Button component={RouterLink} startIcon={<PaletteOutlined />}
           to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', previewInstallationId: assignedApp.installationId })}`}>Appearance & preview</Button> : null}
         {selected.kind === 'deployment' ? <Button component={RouterLink} variant="outlined" to={`/revisions?${new URLSearchParams({
@@ -158,8 +159,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   return <Box sx={{ display: 'flex', m: { xs: -2, md: -3.5 }, minHeight: 'calc(100vh - 62px)' }}>
     <Box sx={{ p: { xs: 2, md: 3.5 }, flex: 1, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Your deployment configurations and verified target releases.'}</Typography></Box>
-        {props.mode !== 'home' ? <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : 'Create deployment'}</Button> : null}
+        <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : `Your ${deploymentTerm.lowercase} configurations and verified target releases.`}</Typography></Box>
+        {props.mode !== 'home' ? <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : `Create ${deploymentTerm.lowercase}`}</Button> : null}
       </Stack>
       {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
@@ -167,7 +168,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>Choose a starting template</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
-        {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in deployment setup.</Alert> : null}
+        {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
       </Box> : <>
         <TextField size="small" placeholder="Find a resource..." inputProps={{ 'aria-label': 'Find a customer resource' }} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 2.5, maxWidth: 300 }} />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selected ? '1fr' : 'repeat(2,minmax(0,1fr))' }, gap: 2 }}>
@@ -176,7 +177,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
               {resource.kind === 'app' ? <WidgetsOutlined color="primary" /> : <DnsOutlined color="primary" />}<Chip size="small" color={resource.severity} label={resource.status || 'Unknown'} />
             </Stack><Typography fontWeight={600} sx={{ mt: 2, overflowWrap: 'anywhere' }}>{resource.name}</Typography><Typography variant="caption" color="text.secondary">{resource.subtitle}</Typography>
               {resource.issues[0] ? <Typography color="warning.main" variant="caption" display="block" sx={{ mt: 1.5 }}>{resource.issues[0].message}</Typography> : null}
-              <Divider sx={{ my: 1.5 }} /><Typography color="text.secondary" variant="caption">{resource.kind === 'app' ? 'Engage installation' : 'Deployment configuration'}</Typography>
+              <Divider sx={{ my: 1.5 }} /><Typography color="text.secondary" variant="caption">{resource.kind === 'app' ? 'Engage installation' : `${deploymentTerm.singular} configuration`}</Typography>
             </CardContent>
           </CardActionArea></Card>)}
         </Box>

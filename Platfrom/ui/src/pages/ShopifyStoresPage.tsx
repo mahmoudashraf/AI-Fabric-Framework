@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -604,7 +605,7 @@ export function ShopifyStoresPage() {
     onSuccess: async (result: ShopifyStoreBootstrapSummary) => {
       const created: string[] = []
       if (result.createdCustomer) created.push('customer')
-      if (result.createdDeployment) created.push('deployment')
+      if (result.createdDeployment) created.push(deploymentTerm.lowercase)
       if (result.createdConsumer) created.push('consumer')
       const createdSummary = created.length > 0 ? ` Created ${created.join(', ')}.` : ' Reused existing platform objects.'
       setMessage({
@@ -933,7 +934,7 @@ export function ShopifyStoresPage() {
             Shopify Stores
           </Typography>
           <Typography color="text.secondary">
-            Platform drill-through for shop, customer, deployment, consumer, and sync-state mappings.
+            Platform drill-through for shop, customer, {deploymentTerm.lowercase}, consumer, and sync-state mappings.
           </Typography>
         </div>
         <Stack direction="row" spacing={1}>
@@ -1076,8 +1077,8 @@ export function ShopifyStoresPage() {
                       ['Display name', selectedStore.displayName],
                       ['Product service', selectedStore.productServiceDisplayName],
                       ['Customer', selectedStore.customerName ?? selectedStore.customerId],
-                      ['Deployment', selectedStore.deploymentName ?? selectedStore.deploymentId],
-                      ['Deployment status', selectedStore.deploymentStatus],
+                      [deploymentTerm.singular, selectedStore.deploymentName ?? selectedStore.deploymentId],
+                      [`${deploymentTerm.singular} status`, selectedStore.deploymentStatus],
                       ['Latest version', selectedStore.latestVersion ? `${selectedStore.latestVersion.versionLabel} (${selectedStore.latestVersion.status})` : null],
                       [
                         'Latest release',
@@ -1527,7 +1528,7 @@ export function ShopifyStoresPage() {
                       <CardContent>
                         <Stack spacing={1.5}>
                           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                            <Typography sx={{ fontWeight: 700 }}>Deployment capabilities</Typography>
+                            <Typography sx={{ fontWeight: 700 }}>{deploymentTerm.singular} capabilities</Typography>
                             <Chip size="small" label={`${selectedStore.capabilities.actionCount} actions`} />
                             <Chip size="small" label={`${selectedStore.capabilities.knowledgeSourceCount} knowledge sources`} />
                             <Chip size="small" label={`${selectedStore.capabilities.marketplaceDatasetCount} datasets`} />
@@ -1906,7 +1907,7 @@ export function ShopifyStoresPage() {
                                     <Typography sx={{ fontWeight: 700 }}>Effective indexed fields</Typography>
                                     {selectedVectorization.effectiveIndexedFields.length === 0 ? (
                                       <Typography variant="body2" color="text.secondary">
-                                        No effective indexed fields are available until the deployment vectorization plan is active.
+                                        No effective indexed fields are available until the {deploymentTerm.lowercase} vectorization plan is active.
                                       </Typography>
                                     ) : (
                                       <Grid container spacing={1}>
@@ -2289,7 +2290,7 @@ export function ShopifyStoresPage() {
             </TextField>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField label="Customer ID" value={form.customerId ?? ''} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value || null }))} fullWidth />
-              <TextField label="Deployment ID" value={form.deploymentId ?? ''} onChange={(event) => setForm((current) => ({ ...current, deploymentId: event.target.value || null }))} fullWidth />
+              <TextField label={`${deploymentTerm.singular} ID`} value={form.deploymentId ?? ''} onChange={(event) => setForm((current) => ({ ...current, deploymentId: event.target.value || null }))} fullWidth />
             </Stack>
             <TextField label="Consumer ID" value={form.consumerId ?? ''} onChange={(event) => setForm((current) => ({ ...current, consumerId: event.target.value || null }))} fullWidth />
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -2501,7 +2502,7 @@ export function ShopifyStoresPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Alert severity="warning">
-              This removes the platform mapping record only. It does not delete the underlying customer, deployment, or consumer objects.
+              This removes the platform mapping record only. It does not delete the underlying customer, {deploymentTerm.lowercase}, or consumer objects.
             </Alert>
             {selectedStore ? (
               <Typography variant="body2">
@@ -2516,7 +2517,7 @@ export function ShopifyStoresPage() {
             />
             <FormControlLabel
               control={<Checkbox checked={deleteForce} onChange={(event) => setDeleteForce(event.target.checked)} />}
-              label="Force delete even if customer, deployment, or consumer bindings still exist"
+              label={`Force delete even if customer, ${deploymentTerm.lowercase}, or consumer bindings still exist`}
             />
           </Stack>
         </DialogContent>
@@ -2558,7 +2559,7 @@ export function ShopifyStoresPage() {
                     </List>
                   </Alert>
                 ) : (
-                  <Alert severity="success">Customer, deployment, and consumer bindings are aligned.</Alert>
+                  <Alert severity="success">Customer, {deploymentTerm.lowercase}, and consumer bindings are aligned.</Alert>
                 )}
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
@@ -2586,7 +2587,7 @@ export function ShopifyStoresPage() {
                     <Card variant="outlined">
                       <CardContent>
                         <Stack spacing={1}>
-                          <Typography sx={{ fontWeight: 700 }}>Deployment</Typography>
+                          <Typography sx={{ fontWeight: 700 }}>{deploymentTerm.singular}</Typography>
                           <Typography variant="body2" color="text.secondary">
                             {bindingQuery.data.deployment?.name ?? '—'} · {bindingQuery.data.deployment?.id ?? '—'}
                           </Typography>
@@ -2621,7 +2622,7 @@ export function ShopifyStoresPage() {
                             Status {bindingQuery.data.consumer?.status ?? '—'} · customer {bindingQuery.data.consumer?.customerId ?? '—'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Bound deployment {bindingQuery.data.consumer?.boundDeploymentName ?? '—'} · {bindingQuery.data.consumer?.boundDeploymentId ?? '—'}
+                            Bound {deploymentTerm.lowercase} {bindingQuery.data.consumer?.boundDeploymentName ?? '—'} · {bindingQuery.data.consumer?.boundDeploymentId ?? '—'}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             Last bound {formatTimestamp(bindingQuery.data.consumer?.lastBoundAt)} · Updated {formatTimestamp(bindingQuery.data.consumer?.updatedAt)}

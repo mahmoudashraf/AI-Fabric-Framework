@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import BookmarkAddRoundedIcon from '@mui/icons-material/BookmarkAddRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
@@ -524,7 +525,7 @@ export function PocPage() {
     ],
     queryFn: () =>
       fetchDeploymentPocChatSuggestions(selectedDeploymentId, {
-        content: `Deployment ${workspace?.deployment.name ?? ''} using template ${workspace?.template.name ?? ''}`,
+        content: `${deploymentTerm.singular} ${workspace?.deployment.name ?? ''} using template ${workspace?.template.name ?? ''}`,
         maxSuggestions: 4,
         authPath: selectedAuthPath,
       }),
@@ -914,13 +915,13 @@ export function PocPage() {
             <Box>
               <Typography variant="h6">Embedded POC chatbot</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Use the selected deployment directly from the platform to validate grounded answers, action execution,
+                Use the selected {deploymentTerm.lowercase} directly from the platform to validate grounded answers, action execution,
                 and overall operator-facing behavior before external UI integration work starts.
               </Typography>
             </Box>
 
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label="Mode: Deployment-scoped POC console" color="primary" variant="outlined" />
+              <Chip label={`Mode: ${deploymentTerm.singular}-scoped POC console`} color="primary" variant="outlined" />
               <Chip label={`Runtime: ${workspace?.deployment.runtimeBaseUrl ? 'connected' : 'not applied'}`} variant="outlined" />
               <Chip label={`Auth path: ${authPathLabel(selectedAuthPath)}`} color="primary" variant="outlined" />
               <Chip
@@ -956,17 +957,17 @@ export function PocPage() {
 
             {runtimeUnavailable ? (
               <Alert severity="warning">
-                This deployment does not have a runtime URL yet. Apply the deployment before using the embedded POC
+                This {deploymentTerm.lowercase} does not have a runtime URL yet. Apply the {deploymentTerm.lowercase} before using the embedded POC
                 chat console.
               </Alert>
             ) : !canOperate ? (
               <Alert severity="info">
-                This deployment role is read-only. POC chat, dataset import, and reset operations require operator access or higher.
+                This {deploymentTerm.lowercase} role is read-only. POC chat, dataset import, and reset operations require operator access or higher.
               </Alert>
             ) : (
               <Stack spacing={1.5}>
                 <Alert severity="info">
-                  Scenario suggestions are deployment-aware. Use them to test prompt behavior, retrieval, and live
+                  Scenario suggestions are {deploymentTerm.lowercase}-aware. Use them to test prompt behavior, retrieval, and live
                   actions in a controlled operator session.
                 </Alert>
                 {integrationSummaryQuery.isError ? (
@@ -983,7 +984,7 @@ export function PocPage() {
                   <Alert severity="success">
                     Prompt hot apply is active for this operator session with {promptSession.promptKeyCount} prompt
                     override{promptSession.promptKeyCount === 1 ? '' : 's'}. Clear it from the Prompts page when you
-                    want to return to the saved deployment behavior.
+                    want to return to the saved {deploymentTerm.lowercase} behavior.
                   </Alert>
                 ) : null}
               </Stack>
@@ -1058,7 +1059,7 @@ export function PocPage() {
               <Alert severity="warning">
                 {runtimeAuthContextQuery.error instanceof Error
                   ? runtimeAuthContextQuery.error.message
-                  : 'Runtime auth context is unavailable for this deployment.'}
+                  : `Runtime auth context is unavailable for this ${deploymentTerm.lowercase}.`}
               </Alert>
             ) : null}
           </Stack>
@@ -1073,7 +1074,7 @@ export function PocPage() {
                 <Typography variant="h6">Test data and reset</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
                   Review the current dataset profile, inspect live indexing counts, and clear runtime vectors to get
-                  back to a clean proof-of-concept loop without leaving the deployment workspace.
+                  back to a clean proof-of-concept loop without leaving the {deploymentTerm.lowercase} workspace.
                 </Typography>
               </Box>
               <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
@@ -1119,7 +1120,7 @@ export function PocPage() {
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {pocWorkspaceQuery.data?.dataset.profileDescription ??
-                        'The platform will show the active dataset profile here after the deployment is configured.'}
+                        `The platform will show the active dataset profile here after the ${deploymentTerm.lowercase} is configured.`}
                     </Typography>
                     <Typography variant="body2">
                       <strong>Source:</strong> {pocWorkspaceQuery.data?.dataset.configSource ?? '—'}
@@ -1181,7 +1182,7 @@ export function PocPage() {
                         clearVectorsMutation.isPending
                       }
                       onClick={() => {
-                        if (!window.confirm('Clear runtime vectors for this deployment POC session?')) {
+                        if (!window.confirm(`Clear runtime vectors for this ${deploymentTerm.lowercase} POC session?`)) {
                           return
                         }
                         clearVectorsMutation.mutate()
@@ -1205,7 +1206,7 @@ export function PocPage() {
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Guide a bounded import through source selection, target entity scope, readiness checks, and
-                          execution without leaving the deployment workspace.
+                          execution without leaving the {deploymentTerm.lowercase} workspace.
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -1468,7 +1469,7 @@ export function PocPage() {
 
                         {importTransportBlocked ? (
                           <Alert severity="warning">
-                            {importTransportCheck?.message ?? 'This deployment does not yet expose a usable import transport.'}
+                            {importTransportCheck?.message ?? `This ${deploymentTerm.lowercase} does not yet expose a usable import transport.`}
                           </Alert>
                         ) : null}
                       </Stack>
@@ -1519,7 +1520,7 @@ export function PocPage() {
                     </Typography>
                     {recentImports.length === 0 ? (
                       <Typography variant="body2" color="text.secondary">
-                        No import runs yet for this deployment.
+                        No import runs yet for this {deploymentTerm.lowercase}.
                       </Typography>
                     ) : (
                       recentImports.map((importRun) => (
@@ -1756,7 +1757,7 @@ export function PocPage() {
                 </Typography>
                 <Typography variant="body2">
                   The widget stays browser-to-platform. The selected POC auth path is applied server-side by the
-                  platform adapter when it calls the deployment runtime.
+                  platform adapter when it calls the {deploymentTerm.lowercase} runtime.
                 </Typography>
               </Stack>
 

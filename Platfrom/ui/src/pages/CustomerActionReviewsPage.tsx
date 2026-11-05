@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, MenuItem, Stack, TextField } from '@mui/material'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -30,10 +31,10 @@ function CustomerActionReviewReads({ customerId }: { customerId: string }) {
     && release.status === 'APPLIED_VERIFIED' && release.verificationStatus === 'PASSED'))
   const target = available.find(item => item.id === params.get('targetProfileId'))
   return <Stack spacing={3}>
-    <TextField select size="small" label="Review deployment" value={deployment?.deploymentId ?? ''} onChange={event => {
+    <TextField select size="small" label={`Review ${deploymentTerm.lowercase}`} value={deployment?.deploymentId ?? ''} onChange={event => {
       navigate({ pathname: location.pathname, search: new URLSearchParams({ deploymentId: event.target.value }).toString() })
     }} sx={{ maxWidth: 420 }}>
-      <MenuItem value="">Select deployment</MenuItem>{(portfolio.data ?? []).map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
+      <MenuItem value="">Select {deploymentTerm.lowercase}</MenuItem>{(portfolio.data ?? []).map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
     </TextField>
     {deployment ? <TextField select size="small" label="Review environment" value={target?.id ?? ''}
       disabled={targets.isPending || releases.isPending} onChange={event => {
@@ -49,9 +50,9 @@ function CustomerActionReviewReads({ customerId }: { customerId: string }) {
     </TextField> : null}
     {portfolio.isError ? <Alert severity="error">Review scope could not be loaded.</Alert> : null}
     {targets.isError || releases.isError ? <Alert severity="error">Review environments could not be loaded.</Alert> : null}
-    {requestedId && portfolio.isSuccess && !deployment ? <Alert severity="error">The requested review deployment is unavailable. No other deployment was selected.</Alert> : null}
-    {!requestedId ? <Alert severity="info">Select a deployment to review its governed action proposals.</Alert> : null}
-    {deployment && targets.isSuccess && releases.isSuccess && !available.length ? <Alert severity="info">No verified environment is available for this deployment.</Alert> : null}
+    {requestedId && portfolio.isSuccess && !deployment ? <Alert severity="error">The requested review {deploymentTerm.lowercase} is unavailable. No other {deploymentTerm.lowercase} was selected.</Alert> : null}
+    {!requestedId ? <Alert severity="info">Select a {deploymentTerm.lowercase} to review its governed action proposals.</Alert> : null}
+    {deployment && targets.isSuccess && releases.isSuccess && !available.length ? <Alert severity="info">No verified environment is available for this {deploymentTerm.lowercase}.</Alert> : null}
     {deployment && params.get('targetProfileId') && targets.isSuccess && releases.isSuccess && !target ? <Alert severity="error">The requested review environment is unavailable. No other environment was selected.</Alert> : null}
     {deployment && target ? <HumanReviewPage key={`${customerId}:${deployment.deploymentId}:${target.id}`} title="Action reviews" targetProfileId={target.id} /> : null}
   </Stack>

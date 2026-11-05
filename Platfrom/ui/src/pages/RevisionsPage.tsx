@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
@@ -402,7 +403,7 @@ function impactSummaryMessage(
   changedArtifacts: string[],
 ): string {
   if (!currentPlan) {
-    return `First apply for ${nextPlan.versionLabel}: runtime, the internal REST connector service, immutable artifacts, and deployment access surfaces will be created.`
+    return `First apply for ${nextPlan.versionLabel}: runtime, the internal REST connector service, immutable artifacts, and ${deploymentTerm.lowercase} access surfaces will be created.`
   }
   if (
     !runtimeImpact.changed
@@ -843,7 +844,7 @@ export function RevisionsPage() {
         externalIntegrationImpact: {
           requiresCustomerEnvChange: false,
           changedValues: [],
-          reason: 'Export does not mutate deployment state.',
+          reason: `Export does not mutate ${deploymentTerm.lowercase} state.`,
         },
         warnings: [],
       })
@@ -856,7 +857,7 @@ export function RevisionsPage() {
 
   const parsedImportBundle = () => {
     if (bundleImportJson.trim().length === 0) {
-      throw new Error('Paste or upload a deployment bundle JSON file first.')
+      throw new Error(`Paste or upload a ${deploymentTerm.lowercase} bundle JSON file first.`)
     }
     return JSON.parse(bundleImportJson)
   }
@@ -994,9 +995,9 @@ export function RevisionsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Versioning and release operations now stay anchored to the deployment selected in the shared workspace header.
+                Versioning and release operations now stay anchored to the {deploymentTerm.lowercase} selected in the shared workspace header.
               </Typography>
             </Box>
 
@@ -1017,7 +1018,7 @@ export function RevisionsPage() {
                 ) : null}
               </Stack>
             ) : (
-              <Alert severity="info">Create a deployment first to start managing revisions.</Alert>
+              <Alert severity="info">Create a {deploymentTerm.lowercase} first to start managing revisions.</Alert>
             )}
           </Stack>
         </CardContent>
@@ -1029,12 +1030,12 @@ export function RevisionsPage() {
             <Stack spacing={3}>
               <Box>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                  <Typography variant="h6">Deployment backup and restore</Typography>
-                  <Chip size="small" label="Deployment admin" color="warning" variant="outlined" />
+                  <Typography variant="h6">{deploymentTerm.singular} backup and restore</Typography>
+                  <Chip size="small" label={`${deploymentTerm.singular} admin`} color="warning" variant="outlined" />
                   <Chip size="small" label="No plaintext secrets" color="success" variant="outlined" />
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                  Export a config-only bundle for migration review, or seal deployment-scoped secrets to an operator
+                  Export a config-only bundle for migration review, or seal {deploymentTerm.lowercase}-scoped secrets to an operator
                   public key for disaster recovery. Imports always create a draft and still require publish/apply gates.
                 </Typography>
               </Box>
@@ -1102,14 +1103,14 @@ export function RevisionsPage() {
                       <Alert severity="error">
                         {exportPreviewMutation.error instanceof Error
                           ? exportPreviewMutation.error.message
-                          : 'Failed to preview deployment export.'}
+                          : `Failed to preview ${deploymentTerm.lowercase} export.`}
                       </Alert>
                     ) : null}
                     {exportMutation.isError ? (
                       <Alert severity="error">
                         {exportMutation.error instanceof Error
                           ? exportMutation.error.message
-                          : 'Failed to create deployment export.'}
+                          : `Failed to create ${deploymentTerm.lowercase} export.`}
                       </Alert>
                     ) : null}
                     {bundleExportPreview ? (
@@ -1204,7 +1205,7 @@ export function RevisionsPage() {
                       <Grid container spacing={1}>
                         <Grid item xs={12} md={6}>
                           <TextField
-                            label="New deployment name"
+                            label={`New ${deploymentTerm.lowercase} name`}
                             value={bundleImportName}
                             onChange={(event) => setBundleImportName(event.target.value)}
                             size="small"
@@ -1223,7 +1224,7 @@ export function RevisionsPage() {
                       </Grid>
                     ) : (
                       <Alert severity="info">
-                        Restore-in-place targets the selected deployment: <strong>{selectedDeployment.id}</strong>.
+                        Restore-in-place targets the selected {deploymentTerm.lowercase}: <strong>{selectedDeployment.id}</strong>.
                         Runtime URL and assertion audience remain unchanged.
                       </Alert>
                     )}
@@ -1262,14 +1263,14 @@ export function RevisionsPage() {
                       <Alert severity="error">
                         {importPreviewMutation.error instanceof Error
                           ? importPreviewMutation.error.message
-                          : 'Failed to preview deployment import.'}
+                          : `Failed to preview ${deploymentTerm.lowercase} import.`}
                       </Alert>
                     ) : null}
                     {importMutation.isError ? (
                       <Alert severity="error">
                         {importMutation.error instanceof Error
                           ? importMutation.error.message
-                          : 'Failed to import deployment bundle.'}
+                          : `Failed to import ${deploymentTerm.lowercase} bundle.`}
                       </Alert>
                     ) : null}
                     {bundleImportPreview ? (
@@ -1321,10 +1322,10 @@ export function RevisionsPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="h6">Deployment source</Typography>
+                  <Typography variant="h6">{deploymentTerm.singular} source</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    This controls which GitHub repo and branch the active deployment provider will
-                    reconcile for this deployment. Keep this admin-only. Customers should choose
+                    This controls which GitHub repo and branch the active {deploymentTerm.lowercase} provider will
+                    reconcile for this {deploymentTerm.lowercase}. Keep this admin-only. Customers should choose
                     templates, not raw branches.
                   </Typography>
                 </Box>
@@ -1399,7 +1400,7 @@ export function RevisionsPage() {
                   </>
                 ) : (
                   <Alert severity="info">
-                    Changing deployment source is restricted to deployment admins.
+                    Changing {deploymentTerm.lowercase} source is restricted to {deploymentTerm.lowercase} admins.
                   </Alert>
                 )}
 
@@ -1407,7 +1408,7 @@ export function RevisionsPage() {
                   <Alert severity="error">
                     {updateSourceMutation.error instanceof Error
                       ? updateSourceMutation.error.message
-                      : 'Failed to update deployment source'}
+                      : `Failed to update ${deploymentTerm.lowercase} source`}
                   </Alert>
                 ) : null}
               </Stack>
@@ -1432,7 +1433,7 @@ export function RevisionsPage() {
                       <>
                         {!canEdit ? (
                           <Alert severity="info">
-                            Publishing drafts requires deployment editor access or higher.
+                            Publishing drafts requires {deploymentTerm.lowercase} editor access or higher.
                           </Alert>
                         ) : null}
                         <Stack spacing={0.5}>
@@ -1478,7 +1479,7 @@ export function RevisionsPage() {
                       <Typography variant="h6">Draft snapshot</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                         This is the shape of the editable config that will be compiled into immutable
-                        deployment artifacts on publish.
+                        {deploymentTerm.lowercase} artifacts on publish.
                       </Typography>
                     </Box>
                     <Grid container spacing={2}>
@@ -1695,7 +1696,7 @@ export function RevisionsPage() {
                   <>
                     {!canOperate ? (
                       <Alert severity="info">
-                        Applying versions requires deployment operator access or higher.
+                        Applying versions requires {deploymentTerm.lowercase} operator access or higher.
                       </Alert>
                     ) : null}
                     <Grid container spacing={1.5} alignItems="flex-start">
@@ -1776,7 +1777,7 @@ export function RevisionsPage() {
                     ) : null}
                     {behaviorRequiresSourceArtifact && !sourceArtifactsQuery.isLoading && compatibleSourceArtifacts.length === 0 ? (
                       <Alert severity="error">
-                        No promoted source artifact currently proves {selectedDeployment.behaviorType.replace(/_/g, ' ')}.
+                        No promoted source artifact currently proves {deploymentEnumLabel(selectedDeployment.behaviorType, selectedDeployment.behaviorType.replace(/_/g, ' '))}.
                         Register and review its capability manifest before attempting apply.
                       </Alert>
                     ) : null}
@@ -1937,12 +1938,12 @@ export function RevisionsPage() {
                 {applyMutation.isSuccess && applyMutation.data.deploymentId === selectedDeploymentId ? (
                   <Alert severity="info">
                     Release {applyMutation.data.id}: {applyMutation.data.currentStepDescription ?? applyMutation.data.status}
-                    {isCustomerWorkspace ? ' Updating the existing deployment; the Engage app address is unchanged.' : ''}
+                    {isCustomerWorkspace ? ` Updating the existing ${deploymentTerm.lowercase}; the Engage app address is unchanged.` : ''}
                   </Alert>
                 ) : null}
                 {inProgressRelease ? (
                   <Alert severity="info">
-                    A release is already running for this deployment. Status and current step refresh automatically.
+                    A release is already running for this {deploymentTerm.lowercase}. Status and current step refresh automatically.
                   </Alert>
                 ) : null}
               </Stack>
@@ -2084,7 +2085,7 @@ export function RevisionsPage() {
                           </Button>
                         ) : undefined}
                       >
-                        Deployment activation status is not confirmed yet. The provider may still be finishing startup.
+                        {deploymentTerm.singular} activation status is not confirmed yet. The provider may still be finishing startup.
                         {latestRelease.errorMessage ? ` ${latestRelease.errorMessage}` : ''}
                       </Alert>
                     ) : latestRelease.errorMessage ? (
@@ -2092,7 +2093,7 @@ export function RevisionsPage() {
                     ) : null}
                   </>
                 ) : (
-                  <Alert severity="info">No release has been applied yet for this deployment.</Alert>
+                  <Alert severity="info">No release has been applied yet for this {deploymentTerm.lowercase}.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -2104,7 +2105,7 @@ export function RevisionsPage() {
                 <Box>
                   <Typography variant="h6">Provisioning plan preview</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    This preview shows what the platform would send to the selected deployment provider
+                    This preview shows what the platform would send to the selected {deploymentTerm.lowercase} provider
                     for the selected version: project naming, service roots, env vars, immutable artifact
                     URLs, and rollout steps.
                   </Typography>
@@ -2219,7 +2220,7 @@ export function RevisionsPage() {
                             <CardContent>
                               <Stack spacing={1}>
                                 <Typography variant="overline" color="text.secondary">
-                                  Deployment links
+                                  {deploymentTerm.singular} links
                                 </Typography>
                                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
                                   {livePlan ? 'Compared to live' : 'First release'}
@@ -2448,7 +2449,7 @@ export function RevisionsPage() {
                       : 'Failed to load releases'}
                   </Alert>
                 ) : releaseHistory.length === 0 ? (
-                  <Alert severity="info">No release history exists yet for this deployment.</Alert>
+                  <Alert severity="info">No release history exists yet for this {deploymentTerm.lowercase}.</Alert>
                 ) : filteredReleaseHistory.length === 0 ? (
                   <Alert severity="info">No releases match the current filters.</Alert>
                 ) : (

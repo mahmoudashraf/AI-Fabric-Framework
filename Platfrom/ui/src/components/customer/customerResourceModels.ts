@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 
 export type CustomerResourceIssue = { code: string; message: string; severity: 'error' | 'warning' | 'info' }
@@ -21,7 +22,7 @@ export function deploymentResource(deployment: CustomerDeploymentSummary, offer?
   const connectedApps = apps.filter(app => app.deploymentId === deployment.deploymentId && app.status === 'ACTIVE' && app.releaseId)
   return {
     id: deployment.deploymentId, kind: 'deployment', name: deployment.name,
-    subtitle: offer?.name ?? 'Deployment configuration',
+    subtitle: offer?.name ?? `${deploymentTerm.singular} configuration`,
     status: connectedApps.length ? 'App connected' : deployment.status === 'DRAFT' ? 'Draft configuration' : deployment.status,
     severity: connectedApps.length || deployment.status === 'DRAFT' ? 'info' : 'default', issues: [],
     deploymentId: deployment.deploymentId, releaseId: null, updatedAt: deployment.createdAt,
@@ -29,7 +30,7 @@ export function deploymentResource(deployment: CustomerDeploymentSummary, offer?
       ['Reviewed template', offer?.name ?? 'Not available']],
     configurationFacts: [['Template', offer?.name ?? 'Not available'], ['Reviewed targets', offer ? String(offer.targets.length) : 'Not available'],
       ['Connection slots', offer ? String(offer.bindingSlots.length) : 'Not available']],
-    advancedFacts: [['Deployment ID', deployment.deploymentId], ['Published version', deployment.activeVersionId ?? 'Not published'],
+    advancedFacts: [[`${deploymentTerm.singular} ID`, deployment.deploymentId], ['Published version', deployment.activeVersionId ?? 'Not published'],
       ['Offer ID', deployment.offerId], ['Bootstrap target', deployment.bootstrapTargetProfileId]],
   }
 }

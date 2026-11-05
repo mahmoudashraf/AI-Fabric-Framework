@@ -6,6 +6,8 @@ import ForumOutlined from '@mui/icons-material/ForumOutlined'
 import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined'
 import ViewInArRounded from '@mui/icons-material/ViewInArRounded'
 import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
+import WhatsApp from '@mui/icons-material/WhatsApp'
+import SmartphoneOutlined from '@mui/icons-material/SmartphoneOutlined'
 import { Link } from 'react-router-dom'
 import { useCustomerColorPreference } from '../../theme/CustomerConsoleTheme'
 
@@ -15,6 +17,10 @@ export function KitMark({ product, large = false }: { product: 'platform' | 'eng
   const Icon = product === 'platform' ? ViewInArRounded : product === 'engage' ? ForumOutlined
     : product === 'desk' ? HeadsetMicOutlined : DirectionsCarOutlined
   return <span className={`ek-mark ek-${product}${large ? ' ek-mark-large' : ''}`}><Icon /></span>
+}
+
+export function KitDeskMark() {
+  return <span className="ek-desk-mark" aria-hidden="true"><span className="ek-desk-channels"><WhatsApp /><SmartphoneOutlined /></span><HeadsetMicOutlined /></span>
 }
 
 export function KitProductLine({ dealership = false, support = false }: { dealership?: boolean; support?: boolean }) {

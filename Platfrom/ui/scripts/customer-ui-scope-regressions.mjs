@@ -234,7 +234,7 @@ try {
     assert.equal(await sidebar.getByRole('link', { name: 'Knowledge & data', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-b')
     assert.equal(await sidebar.getByRole('link', { name: 'Connections', exact: true }).getAttribute('href'), '/integrations?deploymentId=deployment-b')
     await page.getByRole('heading', { name: 'Workspace A', exact: true, level: 6 }).locator('..').locator('..').locator('..')
-      .getByRole('button', { name: 'Manage deployment' }).click()
+      .getByRole('button', { name: 'Manage smart brain' }).click()
     await selectedConsole(page, 'a')
     assert.equal(await sidebar.getByRole('link', { name: 'Knowledge & data', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-a')
     await page.goBack()
@@ -261,7 +261,7 @@ try {
   try {
     await selectedConsole(retrySelection.page, 'b')
     await retrySelection.page.getByRole('button', { name: 'Retry selection save' }).click()
-    await retrySelection.page.waitForFunction(() => !document.body.textContent.includes('Deployment selection could not be persisted.'))
+    await retrySelection.page.waitForFunction(() => !document.body.textContent.includes('Smart Brain selection could not be persisted.'))
     const writes = retrySelection.calls.filter(call => call.path === '/api/platform/preferences' && call.method === 'PUT')
     assert.equal(writes.length, 2)
     assert.deepEqual(writes[0].body, writes[1].body)
@@ -271,7 +271,7 @@ try {
 
   const missing = await fixture({ initial: 'deployments?view=manage&deploymentId=foreign-or-missing' })
   try {
-    await missing.page.getByText(/requested deployment is unavailable/).waitFor()
+    await missing.page.getByText(/requested smart brain is unavailable/).waitFor()
     assert.equal(await missing.page.getByRole('heading', { level: 5 }).count(), 0)
     assert.equal(new URL(missing.page.url()).searchParams.get('deploymentId'), 'foreign-or-missing')
     assert.equal(missing.calls.some(call => call.path.includes('/foreign-or-missing/')), false)
@@ -285,9 +285,9 @@ try {
     try {
       const { page } = placement
       await page.getByRole('region', { name: 'Operations policy', exact: true }).waitFor()
-      await page.getByRole('textbox', { name: 'Deployment name' }).fill('Generic support workspace')
+      await page.getByRole('textbox', { name: 'Smart Brain name' }).fill('Generic support workspace')
       assert.equal(await page.getByRole('button', { name: 'Verify placement', exact: true }).count(), 0)
-      assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), false)
+      assert.equal(await page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), false)
       passed += 1
       console.log(`Passed: ${operationsMode} leaves policy assessment to core without legacy placement gates`)
     } finally { await placement.close() }
@@ -349,8 +349,8 @@ try {
     assert.equal(await page.getByRole('option').count(), 2)
     assert.equal(await page.getByRole('option').filter({ hasText: 'production-disabled' }).count(), 0)
     await page.keyboard.press('Escape')
-    await page.getByRole('textbox', { name: 'Deployment name' }).fill('Cannot reuse retired bootstrap')
-    assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+    await page.getByRole('textbox', { name: 'Smart Brain name' }).fill('Cannot reuse retired bootstrap')
+    assert.equal(await page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), true)
     assert.ok(retiredOffer.calls.some(call => call.path === '/api/deployments/deployment-b/target-profiles'))
     assert.equal(retiredOffer.calls.some(call => call.method !== 'GET' && call.path !== '/api/platform/preferences'), false)
     passed += 1
@@ -401,9 +401,9 @@ try {
   }] })
   try {
     const { page } = blockedBootstrap
-    await page.getByRole('textbox', { name: 'Deployment name' }).fill('New bootstrap still validated')
+    await page.getByRole('textbox', { name: 'Smart Brain name' }).fill('New bootstrap still validated')
     await page.getByText('BLOCKED · TARGET_NOT_READY', { exact: true }).waitFor()
-    assert.equal(await page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), true)
     assert.equal(blockedBootstrap.calls.some(call => call.path.endsWith('/target-profiles')), false)
     passed += 1
     console.log('Passed: new deployment bootstrap keeps catalogue target readiness checks and does not query another deployment for targets')

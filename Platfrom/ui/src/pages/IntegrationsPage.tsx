@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import CableRoundedIcon from '@mui/icons-material/CableRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded'
@@ -159,7 +160,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
           <Typography color="text.secondary">
-            Deployment-local provider connections, trusted resource bindings, live synchronization, and signed inbound events.
+            {deploymentTerm.singular}-local provider connections, trusted resource bindings, live synchronization, and signed inbound events.
           </Typography>
         </Box>
         <Alert
@@ -170,7 +171,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
             </Button>
           ) : undefined}
         >
-          This deployment has no external DATA or conversation-channel integration in its reviewed configuration.
+          This {deploymentTerm.lowercase} has no external DATA or conversation-channel integration in its reviewed configuration.
         </Alert>
       </Stack>
     )
@@ -182,7 +183,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
           <Typography color="text.secondary">
-            Safe operational state from the selected deployment. Credentials and provider payloads are never returned here.
+            Safe operational state from the selected {deploymentTerm.lowercase}. Credentials and provider payloads are never returned here.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
@@ -324,7 +325,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
                   {overview.data.protectedResources.map((resource) => (
                     <TableRow key={resource.bindingId}>
                       <TableCell sx={{ fontFamily: 'monospace' }}>{resource.bindingId}</TableCell>
-                      <TableCell>{resource.resourceType}</TableCell>
+                      <TableCell>{deploymentEnumLabel(resource.resourceType)}</TableCell>
                       <TableCell>{resource.displayValue ?? 'Policy-hidden'}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace' }}>{resource.fingerprint}</TableCell>
                       <TableCell>{resource.capabilityGrants.join(', ') || 'None declared'}</TableCell>
@@ -469,7 +470,7 @@ export function ConversationHandoverOperations({
         <Box>
           <Typography variant="h6">Conversation handover</Typography>
           <Typography variant="body2" color="text.secondary">
-            Deployment-owned conversation authority and delivery evidence. Message and intake content are not projected here.
+            {deploymentTerm.singular}-owned conversation authority and delivery evidence. Message and intake content are not projected here.
           </Typography>
         </Box>
       </Stack>
@@ -595,7 +596,7 @@ function WebhookEvents({
   onReplay: (event: IntegrationWebhookEvent) => void
 }) {
   if (events.length === 0) {
-    return <Typography color="text.secondary" sx={{ p: 2 }}>No verified events have reached this deployment.</Typography>
+    return <Typography color="text.secondary" sx={{ p: 2 }}>No verified events have reached this {deploymentTerm.lowercase}.</Typography>
   }
   return (
     <TableContainer>

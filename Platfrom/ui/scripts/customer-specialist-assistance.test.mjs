@@ -2,9 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/specialistAssistanceForm.ts', import.meta.url), 'utf8')
-const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const code = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const { emptySpecialistAssistance, readSpecialistAssistance, specialistAuthority, specialistAssistanceError,
   specialistBehaviorUpdate, compiledSpecialistAssistance } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 
@@ -52,8 +53,8 @@ test('knowledge and READ picks require owned enabled installs and exact publishe
   assert.deepEqual(authority.readTools.map(item => item.id), ['get_account_status'])
   assert.deepEqual(specialistAuthority('dep', f.draft, [{ ...f.install, status: 'DISABLED' }], []), { sources: [], readTools: [] })
   assert.deepEqual(specialistAuthority('dep', f.draft, [{ ...f.install, entitlement: { entitledForCompilation: false } }], []), { sources: [], readTools: [] })
-  assert.throws(() => specialistAuthority('other', f.draft, [f.install], [f.version]), /another deployment/)
-  assert.throws(() => specialistAuthority('dep', f.draft, [{ ...f.install, deploymentId: 'other' }], [f.version]), /another deployment/)
+  assert.throws(() => specialistAuthority('other', f.draft, [f.install], [f.version]), /another smart brain/)
+  assert.throws(() => specialistAuthority('dep', f.draft, [{ ...f.install, deploymentId: 'other' }], [f.version]), /another smart brain/)
   for (const patch of [{ status: 'DRAFT' }, { pluginId: 'foreign' }, { version: '2.0.0' }, { id: 'wrong-version' }]) {
     assert.throws(() => specialistAuthority('dep', f.draft, [f.install], [{ ...f.version, ...patch }]), /approved manifest/)
   }
@@ -117,8 +118,8 @@ test('immutable preview reads exact server refs, never generates them from edita
     contentHash: 'sha256:server-value', compiled: { contractVersion: 'LOOMAI_SPECIALIST_ASSISTANCE_V1', resources: [],
       invocations: [{ id: 'account', name: 'Account help', targetType: 'SPECIALIST', targetRef: 'actual-server-resource@7' }] } } } }
   assert.equal(compiledSpecialistAssistance(manifest, 'dep', 'published').invocations[0].targetRef, 'actual-server-resource@7')
-  assert.throws(() => compiledSpecialistAssistance(manifest, 'foreign', 'published'), /another deployment/)
-  assert.throws(() => compiledSpecialistAssistance(manifest, 'dep', 'other'), /another deployment/)
+  assert.throws(() => compiledSpecialistAssistance(manifest, 'foreign', 'published'), /another smart brain/)
+  assert.throws(() => compiledSpecialistAssistance(manifest, 'dep', 'other'), /another smart brain/)
   delete manifest.behaviorConfig.specialistAssistance.compiled.invocations[0].targetRef
   assert.throws(() => compiledSpecialistAssistance(manifest, 'dep', 'published'), /No references were inferred/)
 })

@@ -2,9 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/customerResourceModels.ts', import.meta.url), 'utf8')
-const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
+const compiled = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
 const { deploymentResource, resourceReleaseSelection, releaseIssues } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const deployment = { deploymentId: 'dep-owned', name: 'Owned deployment', status: 'DRAFT', environmentName: 'Staging' }
 const app = (releaseId, overrides = {}) => ({ installationId: 'app-owned', deploymentId: deployment.deploymentId, status: 'ACTIVE', releaseId, ...overrides })

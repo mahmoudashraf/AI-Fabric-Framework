@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -773,7 +774,7 @@ export function ShopifyPackageProfilesPage() {
                     {selectInput('Template version', form.templatePluginVersion ?? '', templateVersionOptions, (value) => updateForm({ templatePluginVersion: value }))}
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    {selectInput('Deployment template', form.deploymentTemplateId, deploymentTemplateSelectOptions, (value) => updateForm({ deploymentTemplateId: value }))}
+                    {selectInput(`${deploymentTerm.singular} template`, form.deploymentTemplateId, deploymentTemplateSelectOptions, (value) => updateForm({ deploymentTemplateId: value }))}
                   </Grid>
                   <Grid item xs={12} md={6}>
                     {selectInput('Inference plugin', form.inferencePluginId, inferencePluginOptions, (value) => updateForm({ inferencePluginId: value }))}

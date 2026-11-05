@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import {
   Accordion,
@@ -70,7 +71,7 @@ function profileInfo(profile: string): HostedVerificationProfileInfo {
   }
   if (profile === 'ecommerce') {
     return {
-      label: 'Ecommerce deployment',
+      label: `Ecommerce ${deploymentTerm.lowercase}`,
       scope: [
         'Store, runtime, and runtime-backed connector operational health',
         'Store admin endpoint presence and safe action-routing smoke checks',
@@ -82,7 +83,7 @@ function profileInfo(profile: string): HostedVerificationProfileInfo {
     }
   }
   return {
-    label: 'Vector deployment',
+    label: `Vector ${deploymentTerm.lowercase}`,
     scope: [
       'Runtime health plus runtime-backed connector operational health',
       'Runtime admin and runtime-backed connector admin endpoints',
@@ -334,7 +335,7 @@ export function HostedVerificationRunHistory({
                   <TableBody>
                     {showDeploymentId ? (
                       <TableRow>
-                        <TableCell>Deployment</TableCell>
+                        <TableCell>{deploymentTerm.singular}</TableCell>
                         <TableCell sx={{ fontFamily: 'monospace' }}>{run.deploymentId}</TableCell>
                         <TableCell>Release</TableCell>
                         <TableCell sx={{ fontFamily: 'monospace' }}>{run.releaseId}</TableCell>

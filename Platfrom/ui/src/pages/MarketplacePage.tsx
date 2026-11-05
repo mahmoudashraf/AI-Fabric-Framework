@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
@@ -655,11 +656,11 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPlugin || targetDeploymentId.length === 0) {
-        throw new Error('Select a target deployment and a marketplace plugin first.')
+        throw new Error(`Select a target ${deploymentTerm.lowercase} and a marketplace plugin first.`)
       }
       if (requiresDeploymentProviderBaseline) {
         throw new Error(
-          'This deployment is missing provider configuration. Open Providers and set LLM and embedding providers before installing this plugin.',
+          `This ${deploymentTerm.lowercase} is missing provider configuration. Open Providers and set LLM and embedding providers before installing this plugin.`,
         )
       }
       if (installFieldErrors.length > 0) {
@@ -762,7 +763,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
     },
     onSuccess: async () => {
       setFormError(null)
-      setSuccessMessage('Marketplace install removed from the deployment.')
+      setSuccessMessage(`Marketplace install removed from the ${deploymentTerm.lowercase}.`)
       await invalidateDeploymentState()
     },
     onError: (error: Error) => {
@@ -786,7 +787,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
         tenantId: templateTenantId.trim() || undefined,
       }
       if (!payload.name) {
-        throw new Error('Deployment name is required.')
+        throw new Error(`${deploymentTerm.singular} name is required.`)
       }
       if (!payload.environment) {
         throw new Error('Environment is required.')
@@ -795,7 +796,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
     },
     onSuccess: async (deployment) => {
       setFormError(null)
-      setSuccessMessage(`Template bootstrapped deployment ${deployment.name}.`)
+      setSuccessMessage(`Template bootstrapped ${deploymentTerm.lowercase} ${deployment.name}.`)
       await queryClient.invalidateQueries({ queryKey: ['deployments'] })
       navigate(`/overview?deploymentId=${encodeURIComponent(deployment.id)}`)
     },
@@ -905,18 +906,18 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
             Marketplace
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 900 }}>
-            {deploymentScoped ? 'Manage plugins in this deployment draft. Publish and apply the draft to update the runtime.'
-              : 'Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action, data, or inference-profile plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.'}
+            {deploymentScoped ? `Manage plugins in this ${deploymentTerm.lowercase} draft. Publish and apply the draft to update the runtime.`
+              : `Browse first-party marketplace plugins, bootstrap template-based ${deploymentTerm.pluralLowercase}, and assign action, data, or inference-profile plugins into an explicitly selected ${deploymentTerm.lowercase} draft through the normal publish and apply lifecycle.`}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip icon={<StorefrontRoundedIcon />} label={`${pluginsQuery.data?.length ?? 0} plugins`} variant="outlined" />
           <Chip
             icon={<ExtensionRoundedIcon />}
-            label={targetDeploymentId ? `Target: ${targetDeploymentId}` : 'No target deployment selected'}
+            label={targetDeploymentId ? `Target: ${targetDeploymentId}` : `No target ${deploymentTerm.lowercase} selected`}
             color={targetDeploymentId ? 'primary' : 'default'}
           />
-          <Chip label={`${deploymentsQuery.data?.length ?? 0} accessible deployments`} variant="outlined" />
+          <Chip label={`${deploymentsQuery.data?.length ?? 0} accessible ${deploymentTerm.pluralLowercase}`} variant="outlined" />
           {impactQuery.data ? (
             <Chip icon={<SyncRoundedIcon />} label={`${impactQuery.data.totalInstalls} active install records`} variant="outlined" />
           ) : null}
@@ -927,7 +928,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
       {successMessage ? <Alert severity="success">{successMessage}</Alert> : null}
       {!targetDeploymentId ? (
         <Alert severity="info">
-          Marketplace is global. Template plugins can create new deployments directly, and action, data, or inference-profile plugins install into the target deployment you choose below.
+          Marketplace is global. Template plugins can create new {deploymentTerm.pluralLowercase} directly, and action, data, or inference-profile plugins install into the target {deploymentTerm.lowercase} you choose below.
         </Alert>
       ) : null}
 
@@ -937,11 +938,11 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Target deployment
+                  Target {deploymentTerm.lowercase}
                 </Typography>
                 <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                  {deploymentScoped ? 'Plugin changes belong to the selected deployment draft.'
-                    : 'Marketplace installs and entitlement changes are assigned to a deployment you select here. This page no longer inherits the deployment workspace selection.'}
+                  {deploymentScoped ? `Plugin changes belong to the selected ${deploymentTerm.lowercase} draft.`
+                    : `Marketplace installs and entitlement changes are assigned to a ${deploymentTerm.lowercase} you select here. This page no longer inherits the ${deploymentTerm.lowercase} workspace selection.`}
                 </Typography>
               </Box>
               {targetDeploymentId ? (
@@ -959,15 +960,15 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                 <TextField
                   select
                   fullWidth
-                  label="Target deployment"
+                  label={`Target ${deploymentTerm.lowercase}`}
                   value={targetDeploymentId}
                   onChange={(event) => setTargetDeploymentId(event.target.value)}
                   disabled={deploymentScoped || deploymentsQuery.isLoading || (deploymentsQuery.data ?? []).length === 0}
                   helperText={targetWorkspace
-                    ? `${targetWorkspace.deployment.name} · ${targetWorkspace.access.assignmentRole}`
-                    : 'Select the deployment that should receive installs and subscriptions.'}
+                    ? `${targetWorkspace.deployment.name} · ${deploymentEnumLabel(targetWorkspace.access.assignmentRole)}`
+                    : `Select the ${deploymentTerm.lowercase} that should receive installs and subscriptions.`}
                 >
-                  <MenuItem value="">No target deployment</MenuItem>
+                  <MenuItem value="">No target {deploymentTerm.lowercase}</MenuItem>
                   {(deploymentsQuery.data ?? []).map((deployment) => (
                     <MenuItem key={deployment.id} value={deployment.id}>
                       {deployment.name} · {deployment.environment} · {deployment.id}
@@ -978,14 +979,14 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
               <Grid item xs={12} md={6}>
                 {targetDeploymentId ? (
                   targetWorkspaceQuery.isLoading ? (
-                    <Alert severity="info">Loading target deployment access…</Alert>
+                    <Alert severity="info">Loading target {deploymentTerm.lowercase} access…</Alert>
                   ) : !canEdit ? (
-                    <Alert severity="warning">Your current assignment role is read-only for marketplace changes on this deployment.</Alert>
+                    <Alert severity="warning">Your current assignment role is read-only for marketplace changes on this {deploymentTerm.lowercase}.</Alert>
                   ) : (
-                    <Alert severity="success">Marketplace changes will compile into the active draft for this deployment.</Alert>
+                    <Alert severity="success">Marketplace changes will compile into the active draft for this {deploymentTerm.lowercase}.</Alert>
                   )
                 ) : (
-                  <Alert severity="info">Choose a target deployment when you want to install or subscribe to a plugin.</Alert>
+                  <Alert severity="info">Choose a target {deploymentTerm.lowercase} when you want to install or subscribe to a plugin.</Alert>
                 )}
               </Grid>
             </Grid>
@@ -1002,7 +1003,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                   Managed inference services
                 </Typography>
                 <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                  Shared inference-profile plugins depend on these platform-managed services being reconciled and active before installs can compile into deployment provider configuration.
+                  Shared inference-profile plugins depend on these platform-managed services being reconciled and active before installs can compile into {deploymentTerm.lowercase} provider configuration.
                 </Typography>
               </Box>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -1244,11 +1245,11 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                               <Stack spacing={1}>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
                                   <Typography variant="subtitle2" color="text.secondary">
-                                    Deployment behavior contract
+                                    {deploymentTerm.singular} behavior contract
                                   </Typography>
                                   <Chip
                                     size="small"
-                                    label={selectedVersionSummary.contributions.templateDeploymentBehaviorType.replace(/_/g, ' ')}
+                                    label={deploymentEnumLabel(selectedVersionSummary.contributions.templateDeploymentBehaviorType, selectedVersionSummary.contributions.templateDeploymentBehaviorType.replace(/_/g, ' '))}
                                     color="primary"
                                     variant="outlined"
                                   />
@@ -1287,7 +1288,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                                   <Typography variant="subtitle2" color="text.secondary">Source-attested specialist contract</Typography>
                                   <Chip size="small" label={selectedVersionSummary.contributions.specialistContractVersion ?? 'Unknown contract'} variant="outlined" />
                                   {selectedVersionSummary.contributions.specialistCompatibleBehaviorTypes.map((behaviorType) => (
-                                    <Chip key={behaviorType} size="small" label={behaviorType.replace(/_/g, ' ')} color="secondary" variant="outlined" />
+                                    <Chip key={behaviorType} size="small" label={deploymentEnumLabel(behaviorType, behaviorType.replace(/_/g, ' '))} color="secondary" variant="outlined" />
                                   ))}
                                 </Stack>
                                 {selectedVersionSummary.contributions.specialistBundleRefs.map((bundle) => (
@@ -1353,7 +1354,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                                   Verification packs: {contributionList(selectedVersionSummary.contributions.conversationChannel.verificationPackIds)}
                                 </Typography>
                                 <Alert severity="info">
-                                  Provider URLs and deployment-bound secret references are collected by the generated install form. Secret values are not stored in this manifest.
+                                  Provider URLs and {deploymentTerm.lowercase}-bound secret references are collected by the generated install form. Secret values are not stored in this manifest.
                                 </Alert>
                               </Stack>
                             </CardContent>
@@ -1442,7 +1443,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                             </Typography>
                             <Stack spacing={1} sx={{ mt: 1 }}>
                               <Typography variant="body2">
-                                Deployment targets: {contributionList(selectedVersionSummary?.compatibility.supportedDeploymentTargets ?? [])}
+                                {deploymentTerm.singular} targets: {contributionList(selectedVersionSummary?.compatibility.supportedDeploymentTargets ?? [])}
                               </Typography>
                               <Typography variant="body2">
                                 Auth modes: {contributionList(selectedVersionSummary?.compatibility.supportedAuthModes ?? [])}
@@ -1513,17 +1514,17 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                     <Stack direction="row" spacing={1} alignItems="center">
                       <LaunchRoundedIcon color="secondary" />
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Bootstrap deployment from template plugin
+                        Bootstrap {deploymentTerm.lowercase} from template plugin
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Template plugins create a new deployment through the standard control-plane create flow. They are not installed into an existing live deployment.
+                      Template plugins create a new {deploymentTerm.lowercase} through the standard control-plane create flow. They are not installed into an existing live {deploymentTerm.lowercase}.
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
-                          label="Deployment name"
+                          label={`${deploymentTerm.singular} name`}
                           value={templateName}
                           onChange={(event) => setTemplateName(event.target.value)}
                         />
@@ -1590,7 +1591,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                         }}
                         disabled={bootstrapMutation.isPending || !selectedPlugin}
                       >
-                        Bootstrap deployment
+                        Bootstrap {deploymentTerm.lowercase}
                       </Button>
                     </Stack>
                   </Stack>
@@ -1603,11 +1604,11 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                     <Stack direction="row" spacing={1} alignItems="center">
                       <ExtensionRoundedIcon color="primary" />
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Install into target deployment
+                        Install into target {deploymentTerm.lowercase}
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action, data, inference-profile, specialist, and integration plugins compile into the target deployment draft. Publish and apply are still required before they affect the live runtime.
+                      Action, data, inference-profile, specialist, and integration plugins compile into the target {deploymentTerm.lowercase} draft. Publish and apply are still required before they affect the live runtime.
                     </Typography>
                     {selectedPlugin?.pluginType === 'SPECIALIST' ? (
                       <Alert severity="info">
@@ -1616,13 +1617,13 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                     ) : null}
                     {selectedPlugin?.pluginType === 'INTEGRATION' ? (
                       <Alert severity="info">
-                        This installs a reviewed integration contract and allowlisted adapter. Provider credentials remain deployment-bound secret references and are never exposed to the browser.
+                        This installs a reviewed integration contract and allowlisted adapter. Provider credentials remain {deploymentTerm.lowercase}-bound secret references and are never exposed to the browser.
                       </Alert>
                     ) : null}
                     {!targetDeploymentId ? (
-                      <Alert severity="info">Choose a target deployment above to install or update this plugin.</Alert>
+                      <Alert severity="info">Choose a target {deploymentTerm.lowercase} above to install or update this plugin.</Alert>
                     ) : !canEdit ? (
-                      <Alert severity="warning">Your current assignment role is read-only for marketplace install changes on this deployment.</Alert>
+                      <Alert severity="warning">Your current assignment role is read-only for marketplace install changes on this {deploymentTerm.lowercase}.</Alert>
                     ) : null}
                     {targetDeploymentId ? (
                       draftQuery.isLoading ? (
@@ -1640,16 +1641,16 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                             </Button>
                           ) : undefined}
                         >
-                          Current deployment providers: LLM {providerSummary.llmProvider || 'Not configured'} · Embeddings {providerSummary.embeddingProvider || 'Not configured'}.
+                          Current {deploymentTerm.lowercase} providers: LLM {providerSummary.llmProvider || 'Not configured'} · Embeddings {providerSummary.embeddingProvider || 'Not configured'}.
                           {providerSummary.missingBaseline
-                            ? ' This deployment still needs provider configuration before non-inference plugins can compile into the draft.'
+                            ? ` This ${deploymentTerm.lowercase} still needs provider configuration before non-inference plugins can compile into the draft.`
                             : ' Provider baseline is present.'}
                         </Alert>
                       )
                     ) : null}
                     {selectedPlugin?.pluginType === 'INFERENCE_PROFILE' ? (
                       <Alert severity="info">
-                        Inference-profile plugins write deployment provider configuration themselves. Use this when you want the marketplace install to supply or override model endpoint settings.
+                        Inference-profile plugins write {deploymentTerm.lowercase} provider configuration themselves. Use this when you want the marketplace install to supply or override model endpoint settings.
                       </Alert>
                     ) : null}
                     {installFields.length > 0 ? (
@@ -1661,7 +1662,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                     <Alert severity={selectedVersionSummary?.pricing.requiresEntitlement ? 'warning' : 'info'}>
                       Pricing: {pricingLabel(selectedVersionSummary?.pricing)}.
                       {selectedVersionSummary?.pricing.requiresEntitlement
-                        ? ' Paid marketplace installs remain out of the deployment draft until entitlement is activated.'
+                        ? ` Paid marketplace installs remain out of the ${deploymentTerm.lowercase} draft until entitlement is activated.`
                         : ' Free marketplace installs are entitled immediately.'}
                     </Alert>
                     {installFieldErrors.length > 0 ? (
@@ -1933,12 +1934,12 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                   <CardContent>
                     <Stack spacing={2}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Deployment installs
+                        {deploymentTerm.singular} installs
                       </Typography>
                       {installsQuery.isLoading ? (
                         <Typography color="text.secondary">Loading install records…</Typography>
                       ) : (installsQuery.data ?? []).length === 0 ? (
-                        <Alert severity="info">No marketplace installs are recorded for the selected target deployment yet.</Alert>
+                        <Alert severity="info">No marketplace installs are recorded for the selected target {deploymentTerm.lowercase} yet.</Alert>
                       ) : (
                         <List disablePadding>
                           {(installsQuery.data ?? []).map((install) => (
@@ -1975,10 +1976,10 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                   <CardContent>
                     <Stack spacing={2}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Deployment marketplace impact
+                        {deploymentTerm.singular} marketplace impact
                       </Typography>
                       {impactQuery.isLoading ? (
-                        <Typography color="text.secondary">Loading deployment impact…</Typography>
+                        <Typography color="text.secondary">Loading {deploymentTerm.lowercase} impact…</Typography>
                       ) : impactQuery.data ? (
                         <>
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -2088,7 +2089,7 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
                           ) : null}
                         </>
                       ) : (
-                        <Alert severity="info">Impact preview will appear once a target deployment is selected.</Alert>
+                        <Alert severity="info">Impact preview will appear once a target {deploymentTerm.lowercase} is selected.</Alert>
                       )}
                     </Stack>
                   </CardContent>

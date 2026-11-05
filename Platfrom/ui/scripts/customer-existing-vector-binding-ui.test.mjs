@@ -252,7 +252,7 @@ test('scope change during bind preflight prevents a subsequent POST', async t =>
   await page.waitForFunction(() => document.querySelector('button') !== null)
   await until(() => state.calls.slice(before).some(call => call.path.endsWith('/workspace')), 'Binding preflight did not recheck workspace ownership')
   await page.getByRole('button', { name: 'Switch fixture deployment', exact: true }).click()
-  await page.getByRole('combobox', { name: 'Deployment dep-b', exact: true }).waitFor()
+  await page.getByRole('combobox', { name: 'Smart Brain dep-b', exact: true }).waitFor()
   release(); state.holdWorkspace = null
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).waitFor()
   await page.waitForTimeout(100)
@@ -309,7 +309,7 @@ for (const panel of ['Prompts', 'Actions']) test(`${panel} configuration has no 
 
 test('Connections cannot open a vector binding for a deployment outside the owned portfolio', async t => {
   const { page, state } = await fixture(t, { deploymentId: 'foreign' })
-  await page.getByText('The requested deployment is not available in this account.', { exact: false }).waitFor()
+  await page.getByText('The requested smart brain is not available in this account.', { exact: false }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Existing vector service', exact: true }).count(), 0)
   assert.equal(state.calls.some(call => call.path.includes('/existing-vector-binding')), false)
 })

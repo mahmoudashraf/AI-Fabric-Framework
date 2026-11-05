@@ -10,8 +10,10 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { CustomerConsoleTheme } from '../theme/CustomerConsoleTheme'
 import { experienceKitKeys, fetchPublicExperienceKits, type ExperienceKitDefinition } from '../api/experienceKitsApi'
 import { KitChooser } from '../components/kits/KitChooser'
-import { KitMark, KitProductLine, KitProductLinks, KitPublicHeader, KitSupportBand } from '../components/kits/KitIdentity'
+import { KitDeskMark, KitMark, KitProductLine, KitProductLinks, KitPublicHeader, KitSupportBand } from '../components/kits/KitIdentity'
 import { KitCapabilityIllustration, KitExperiencePreview } from '../components/kits/KitCapabilityPreview'
+import { KitDealershipOffer } from '../components/kits/KitCommercialPresentation'
+import { KitIntegrationJourney } from '../components/kits/KitIntegrationJourney'
 import { kitPreviewKind, safeKitExternalUrl } from '../components/kits/kitModels'
 import './ExperienceKits.css'
 
@@ -22,22 +24,27 @@ function KitPublicDetail({ definition, authenticated }: { definition: Experience
   const support = definition.code === 'ai-support-experience'
   const kind = kitPreviewKind(definition.code)
   const demo = safeKitExternalUrl(definition.demoUrl)
+  const getStartedPath = authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`
   return <>
     <Button component={Link} to="/experiences" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
-    <section className="ek-public-detail" aria-labelledby="ek-detail-title">
+    <section className="ek-public-detail ek-detail-refresh" aria-labelledby="ek-detail-title">
       <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1 id="ek-detail-title">{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} /></div></div>
       <div className="ek-public-detail-grid"><div><h2>Your customer experience</h2><KitCapabilityIllustration kind={kind} />
         <KitExperiencePreview kind={kind} name={definition.name} /></div>
         <div className="ek-detail-copy"><h2>{support ? 'Help customers solve problems and follow up.' : dealership ? 'Help buyers move from browsing to an enquiry.' : 'Make it easier to do business with you.'}</h2>
           <p className="ek-muted">{support ? 'Approved guidance, conversation-linked requests and optional human support.' : dealership ? 'For dealerships that want to help buyers choose with confidence.' : 'For businesses that want to help customers understand their services and take the next step.'}</p><p>{definition.description}</p>
           <ul>{definition.features.map(feature => <li key={feature}><CheckRounded />{feature}</li>)}</ul>
-          <div className="ek-detail-desk"><KitMark product="desk" /><div><strong>{support ? 'Request tracking and human support are separate choices' : 'Keep your team within reach'}</strong><p>{support ? 'Use Desk-managed tickets without turning on human takeover. Add your own agents separately when needed.' : 'Add your own support agents with LoomAI Desk. They can pick up the conversation when a customer needs a person.'}</p></div></div>
-          <Button component={Link} variant="contained" endIcon={<ArrowForwardRounded />} className="ek-primary-button"
-            to={authenticated ? `/kits/new/${definition.code}` : `/sign-up?kit=${definition.code}`}>Get started</Button>
-          {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try demo</Button>}
+          {dealership && <KitDealershipOffer />}
+          <div className="ek-detail-desk"><KitDeskMark /><div><strong>{support ? 'Request tracking and human support are separate choices' : 'Keep your team within reach'}</strong><p>{support ? 'Use Desk-managed tickets without turning on human takeover. Add your own agents separately when needed.' : 'Add your own support agents with LoomAI Desk. They can pick up the conversation when a customer needs a person.'}</p></div></div>
+          <div className="ek-detail-actions">
+            <Button component={Link} variant="contained" endIcon={<ArrowForwardRounded />} className="ek-primary-button"
+              to={getStartedPath}>Get started</Button>
+            {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try demo</Button>}
+          </div>
           {dealership && <p className="ek-muted">The available dealership demo uses fictional inventory and a simulated AutoTrader integration.</p>}
         </div>
       </div>
+      <KitIntegrationJourney kind={kind} getStartedPath={getStartedPath} />
     </section>
   </>
 }
@@ -52,7 +59,7 @@ function ExperienceKitsPublicContent({ code: selectedCode, authenticated: authen
   return <div className="ek-page ek-public-page" data-kit-theme={palette.mode}>
     <div className="ek-public-container"><KitPublicHeader authenticated={authenticated} selectedCode={selectedCode} consolePath={consolePath} />
       <main>
-        {!selectedCode && <section className="ek-public-intro"><h1>Choose your customer AI experience</h1><p>One connected experience. On your website, in a workspace, or at its own address.</p></section>}
+        {!selectedCode && <section className="ek-public-intro"><h1>Choose your AI experience</h1><p>Start with a kit. Make it yours.</p></section>}
         {catalogue.isPending && <div className="ek-query-state" role="status"><CircularProgress size={26} /><span>Loading experiences...</span></div>}
         {catalogue.isError && <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Experiences could not be loaded.'}</Alert>}
         {catalogue.isSuccess && (selectedCode ? definition ? <KitPublicDetail definition={definition} authenticated={authenticated} />

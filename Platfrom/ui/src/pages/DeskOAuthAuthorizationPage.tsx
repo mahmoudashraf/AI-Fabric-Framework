@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Typography } from '@mui/material'
 import { useEffect, useRef, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -97,7 +98,7 @@ export function DeskOAuthAuthorizationPage() {
           {selectedIdentity !== currentIdentity && <Button variant="contained" sx={{ overflowWrap: 'anywhere' }} disabled={busy || !authorizationId} onClick={() => {
             setSelectedIdentity(currentIdentity)
           }}>Continue as {auth.supabaseSession.user.email}</Button>}
-          {details && <Typography>Share your verified identity with LoomAI Desk ({details.scope}). Deployment access is managed separately.</Typography>}
+          {details && <Typography>Share your verified identity with LoomAI Desk ({details.scope}). {deploymentTerm.singular} access is managed separately.</Typography>}
           {(details || existingRedirect) && !error && <Typography>Opening your authorized Desk workspace...</Typography>}
           {details && <Button disabled={busy} onClick={() => { void cancel() }}>Cancel</Button>}
           <Button disabled={busy} onClick={() => { void useAnotherAccount() }}>Use another account</Button>

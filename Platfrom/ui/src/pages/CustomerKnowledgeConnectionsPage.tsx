@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
@@ -74,8 +75,8 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
       <Button variant="contained" startIcon={<SettingsOutlined />} disabled={!deployment || !release || (mode === 'human' && !context.data?.conversationHandoverConfigured)} onClick={() => configure()}>Manage</Button>
     </Stack>
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-      <TextField select size="small" label="Deployment" value={deployment?.deploymentId ?? ''} onChange={event => setParams({ deploymentId: event.target.value, releaseId: null, sourceId: null, connectionId: null, editor: null })} sx={{ minWidth: 260 }}>
-        <MenuItem value="">Select deployment</MenuItem>{(portfolio.data ?? []).map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
+      <TextField select size="small" label={deploymentTerm.singular} value={deployment?.deploymentId ?? ''} onChange={event => setParams({ deploymentId: event.target.value, releaseId: null, sourceId: null, connectionId: null, editor: null })} sx={{ minWidth: 260 }}>
+        <MenuItem value="">Select {deploymentTerm.lowercase}</MenuItem>{(portfolio.data ?? []).map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
       </TextField>
       <TextField select size="small" label="Target release" value={release?.id ?? ''} disabled={!deployment || releases.isPending} onChange={event => setParams({ releaseId: event.target.value, sourceId: null, connectionId: null, editor: null })} sx={{ minWidth: 260 }}>
         <MenuItem value="">Select target release</MenuItem>{availableReleases.map(item => <MenuItem key={item.id} value={item.id}>{item.targetProfileId} / {item.id}</MenuItem>)}
@@ -83,10 +84,10 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
     </Stack>
     {errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}
     {mode === 'connections' && deployment ? <CustomerExistingVectorBinding deploymentId={deployment.deploymentId} /> : null}
-    {deploymentId && portfolio.isSuccess && !deployment ? <Alert severity="error">The requested deployment is not available in this account. No alternative deployment was selected.</Alert> : null}
+    {deploymentId && portfolio.isSuccess && !deployment ? <Alert severity="error">The requested {deploymentTerm.lowercase} is not available in this account. No alternative {deploymentTerm.lowercase} was selected.</Alert> : null}
     {releaseId && releases.isSuccess && !release ? <Alert severity="error">The requested target release is not available. No alternative release was selected.</Alert> : null}
     {portfolio.isPending || (Boolean(deployment) && releases.isPending) || (Boolean(release) && context.isPending) ? <CircularProgress aria-label="Loading selected configuration" /> : null}
-    {!release && !releaseId ? <Alert severity="info">Select a deployment and target release to view its configuration.</Alert> : null}
+    {!release && !releaseId ? <Alert severity="info">Select a {deploymentTerm.lowercase} and target release to view its configuration.</Alert> : null}
     {context.data ? <Typography variant="caption" color="text.secondary">{context.data.environmentName} / {context.data.releaseStatus} / {context.data.releaseId}. Installed configuration is not a live health check.</Typography> : null}
     {mode === 'human' && release ? <CustomerDeskActivation key={`${target.deploymentId}:${target.targetProfileId}`} target={target}
       onReady={nextRelease => { if (nextRelease !== target.releaseId) setParams({ releaseId: nextRelease }) }} /> : null}
@@ -172,7 +173,7 @@ export function CustomerDeskActivation({ target, onReady }: { target: Deployment
     <Stack direction="row" alignItems="center" gap={1.5} flexWrap="wrap">
       <ForumOutlined color="primary" />
       <Box sx={{ flex: 1, minWidth: 220 }}><Typography variant="h6">LoomAI Desk</Typography>
-        <Typography variant="body2" color="text.secondary">Human conversations and action reviews, with registered agents assigned to this deployment.</Typography></Box>
+        <Typography variant="body2" color="text.secondary">Human conversations and action reviews, with registered agents assigned to this {deploymentTerm.lowercase}.</Typography></Box>
       {value ? <Chip size="small" label={value.status === 'NOT_ENABLED' ? 'Not enabled' : value.status.split('_').join(' ')}
         color={value.status === 'ENABLED' ? 'success' : value.status === 'FAILED' ? 'error' : 'default'} /> : null}
       {portal && value?.status === 'ENABLED' ? <Button component="a" href={portal} target="_blank" rel="noopener noreferrer"
@@ -183,7 +184,7 @@ export function CustomerDeskActivation({ target, onReady }: { target: Deployment
     {value?.status === 'NOT_ENABLED' ? <FormControlLabel sx={{ mt: 1 }}
       control={<Switch checked={enableReviews} disabled={busy} onChange={event => setEnableReviews(event.target.checked)} />}
       label="Enable action reviews for separately assigned reviewers" /> : null}
-    {busy ? <Alert severity="info" sx={{ mt: 2 }}>Applying and verifying the support integration. Your deployment and app address stay the same.</Alert> : null}
+    {busy ? <Alert severity="info" sx={{ mt: 2 }}>Applying and verifying the support integration. Your {deploymentTerm.lowercase} and app address stay the same.</Alert> : null}
     {value && !value.available ? <Alert severity="info" sx={{ mt: 2 }}>LoomAI Desk is not configured for this target environment yet.</Alert> : null}
     {error ? <Alert severity="error" sx={{ mt: 2 }}>{error instanceof Error ? error.message : 'Desk could not be loaded.'}</Alert> : null}
     {value?.errorMessage ? <Alert severity="error" sx={{ mt: 2 }}>{value.errorMessage}</Alert> : null}

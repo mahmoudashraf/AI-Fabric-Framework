@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import HubRoundedIcon from '@mui/icons-material/HubRounded'
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded'
@@ -883,7 +884,7 @@ export function ProductServicesPage() {
                           </Button>
                         ) : null}
                         <Button variant="outlined" onClick={() => setDeploymentHistoryDialogOpen(true)}>
-                          Inspect provider deployments
+                          Inspect provider rollouts
                         </Button>
                         <Button
                           variant="outlined"
@@ -947,7 +948,7 @@ export function ProductServicesPage() {
                     <Grid container spacing={2}>
                       {[
                         ['Environment', selectedService.environmentScope],
-                        ['Deployment mode', selectedService.deploymentMode],
+                        ['Rollout mode', selectedService.deploymentMode],
                         ['Tenant mode', selectedService.tenantMode],
                         ['Base URL', selectedService.baseUrl],
                         ['Health path', selectedService.healthPath],
@@ -1179,7 +1180,7 @@ export function ProductServicesPage() {
                                   <Chip size="small" label={store.widgetStatus} color={chipColor(store.widgetStatus)} />
                                 </Stack>
                                 <Typography variant="body2" color="text.secondary">
-                                  Customer {detailValue(store.customerName)} · Deployment {detailValue(store.deploymentName)} · Consumer {detailValue(store.consumerId)}
+                                  Customer {detailValue(store.customerName)} · {deploymentTerm.singular} {detailValue(store.deploymentName)} · Consumer {detailValue(store.consumerId)}
                                 </Typography>
                                 {store.latestRelease ? (
                                   <Typography variant="body2" color="text.secondary">
@@ -1223,7 +1224,7 @@ export function ProductServicesPage() {
                                 ) : null}
                                 {store.capabilities ? (
                                   <Typography variant="body2" color="text.secondary">
-                                    Deployment capabilities {store.capabilities.actionCount} actions · {store.capabilities.knowledgeSourceCount} knowledge sources · {store.capabilities.marketplaceDatasetCount} datasets · {store.capabilities.shellModuleCount} shell modules
+                                    {deploymentTerm.singular} capabilities {store.capabilities.actionCount} actions · {store.capabilities.knowledgeSourceCount} knowledge sources · {store.capabilities.marketplaceDatasetCount} datasets · {store.capabilities.shellModuleCount} shell modules
                                   </Typography>
                                 ) : null}
                                 {store.webhookDetail ? (
@@ -1278,7 +1279,7 @@ export function ProductServicesPage() {
                         <Chip size="small" label={healthQuery.data?.status ?? selectedService.status} color={chipColor(healthQuery.data?.status ?? selectedService.status)} />
                       </Stack>
                       <Typography variant="body2" color="text.secondary">
-                        This shared frontend serves exact verified AI app domains. Customer conversations and actions continue directly through each installation&apos;s assigned deployment.
+                        This shared frontend serves exact verified AI app domains. Customer conversations and actions continue directly through each installation&apos;s assigned {deploymentTerm.lowercase}.
                       </Typography>
                       <Typography variant="body2">
                         Shell URL {detailValue(selectedService.baseUrl)} · health {detailValue(selectedService.healthPath)}
@@ -1353,7 +1354,7 @@ export function ProductServicesPage() {
               </TextField>
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField label="Deployment mode" value={form.deploymentMode} onChange={(event) => setForm((current) => ({ ...current, deploymentMode: event.target.value }))} fullWidth />
+              <TextField label="Rollout mode" value={form.deploymentMode} onChange={(event) => setForm((current) => ({ ...current, deploymentMode: event.target.value }))} fullWidth />
               <TextField label="Tenant mode" value={form.tenantMode} onChange={(event) => setForm((current) => ({ ...current, tenantMode: event.target.value }))} fullWidth />
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -1700,7 +1701,7 @@ export function ProductServicesPage() {
                     </List>
                   </Alert>
                 ) : (
-                  <Alert severity="success">Customer, deployment, and consumer bindings are aligned.</Alert>
+                  <Alert severity="success">Customer, {deploymentTerm.lowercase}, and consumer bindings are aligned.</Alert>
                 )}
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
@@ -1728,7 +1729,7 @@ export function ProductServicesPage() {
                     <Card variant="outlined">
                       <CardContent>
                         <Stack spacing={1}>
-                          <Typography sx={{ fontWeight: 700 }}>Deployment</Typography>
+                          <Typography sx={{ fontWeight: 700 }}>{deploymentTerm.singular}</Typography>
                           <Typography variant="body2" color="text.secondary">
                             {detailValue(storeBindingQuery.data.deployment?.name)} · {detailValue(storeBindingQuery.data.deployment?.id)}
                           </Typography>
@@ -1763,7 +1764,7 @@ export function ProductServicesPage() {
                             Status {detailValue(storeBindingQuery.data.consumer?.status)} · customer {detailValue(storeBindingQuery.data.consumer?.customerId)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Bound deployment {detailValue(storeBindingQuery.data.consumer?.boundDeploymentName)} · {detailValue(storeBindingQuery.data.consumer?.boundDeploymentId)}
+                            Bound {deploymentTerm.lowercase} {detailValue(storeBindingQuery.data.consumer?.boundDeploymentName)} · {detailValue(storeBindingQuery.data.consumer?.boundDeploymentId)}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             Last bound {formatTimestamp(storeBindingQuery.data.consumer?.lastBoundAt)} · Updated {formatTimestamp(storeBindingQuery.data.consumer?.updatedAt)}
@@ -1793,17 +1794,17 @@ export function ProductServicesPage() {
       </Dialog>
 
       <Dialog open={deploymentHistoryDialogOpen} onClose={() => setDeploymentHistoryDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Provider Deployment History</DialogTitle>
+        <DialogTitle>Provider Rollout History</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               Service {detailValue(selectedServiceRef)}
             </Typography>
             {deploymentHistoryQuery.isLoading ? (
-              <Alert severity="info">Loading provider deployment history…</Alert>
+              <Alert severity="info">Loading provider rollout history…</Alert>
             ) : deploymentHistoryQuery.isError ? (
               <Alert severity="error">
-                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load provider deployment history.'}
+                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load provider rollout history.'}
               </Alert>
             ) : deploymentHistoryQuery.data ? (
               <Stack spacing={1.5}>
@@ -1841,18 +1842,18 @@ export function ProductServicesPage() {
                 ) : null}
                 <Divider />
                 <Stack spacing={1.5}>
-                  <Typography sx={{ fontWeight: 700 }}>Deployment logs</Typography>
+                  <Typography sx={{ fontWeight: 700 }}>Rollout logs</Typography>
                   {railwayLogsQuery.isLoading ? (
-                    <Alert severity="info">Loading provider deployment logs…</Alert>
+                    <Alert severity="info">Loading provider rollout logs…</Alert>
                   ) : railwayLogsQuery.isError ? (
                     <Alert severity="error">
-                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load provider deployment logs.'}
+                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load provider rollout logs.'}
                     </Alert>
                   ) : railwayLogsQuery.data ? (
                     <>
                       <Alert severity={railwayLogsQuery.data.available ? 'info' : 'warning'}>{railwayLogsQuery.data.message}</Alert>
                       <Typography variant="body2" color="text.secondary">
-                        Deployment {detailValue(railwayLogsQuery.data.railwayDeploymentId)} · Source {detailValue(railwayLogsQuery.data.source)} · Queried{' '}
+                        Rollout {detailValue(railwayLogsQuery.data.railwayDeploymentId)} · Source {detailValue(railwayLogsQuery.data.source)} · Queried{' '}
                         {formatTimestamp(railwayLogsQuery.data.queriedAt)}
                       </Typography>
                       {railwayLogsQuery.data.entries.length > 0 ? (
@@ -1886,7 +1887,7 @@ export function ProductServicesPage() {
                 </Stack>
               </Stack>
             ) : (
-              <Alert severity="info">Provider deployment history is not available for this service yet.</Alert>
+              <Alert severity="info">Provider rollout history is not available for this service yet.</Alert>
             )}
           </Stack>
         </DialogContent>

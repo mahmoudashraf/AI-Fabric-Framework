@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Stack, Typography } from '@mui/material'
 import SystemUpdateAltRounded from '@mui/icons-material/SystemUpdateAltRounded'
@@ -38,7 +39,7 @@ export function EngageDeploymentUpdatePanel({ installation, refresh }: {
   const observed = useQuery({ queryKey: ['engage-update-release', review?.deploymentId, release?.id],
     queryFn: async () => {
       const result = (await fetchDeploymentReleases(review!.deploymentId)).find(item => item.id === release!.id)
-      if (!result) throw new Error('The submitted release is unavailable. Review deployment history before retrying.')
+      if (!result) throw new Error(`The submitted release is unavailable. Review ${deploymentTerm.lowercase} history before retrying.`)
       return result
     }, enabled: Boolean(review && release && open), retry: false,
     refetchInterval: query => {
@@ -81,7 +82,7 @@ export function EngageDeploymentUpdatePanel({ installation, refresh }: {
         compatible: fetchCompatibleDeploymentSourceArtifacts, apply: applyDeploymentVersion,
       })
       setRelease(result)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The update was interrupted. Check deployment history before changing the request.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : `The update was interrupted. Check ${deploymentTerm.lowercase} history before changing the request.`) }
     finally { setPending(false) }
   }
   const connect = async () => {
@@ -102,10 +103,10 @@ export function EngageDeploymentUpdatePanel({ installation, refresh }: {
   if (!blocked && !release) return null
   return <>
     <Button startIcon={<SystemUpdateAltRounded />} size="small" disabled={pending} onClick={() => review || release ? setOpen(true) : void prepare()}>
-      {release ? 'View deployment update' : 'Apply required deployment update'}
+      {release ? `View ${deploymentTerm.lowercase} update` : `Apply required ${deploymentTerm.lowercase} update`}
     </Button>
     <Dialog open={open} onClose={pending ? undefined : () => setOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>Review deployment update</DialogTitle>
+      <DialogTitle>Review {deploymentTerm.lowercase} update</DialogTitle>
       <DialogContent dividers><Stack spacing={2}>
         {pending && !review ? <Typography>Preparing configuration review...</Typography> : null}
         {review ? <>
@@ -114,14 +115,14 @@ export function EngageDeploymentUpdatePanel({ installation, refresh }: {
           {review.changedSecurityFields.length ? <Typography variant="body2">Security settings: {review.changedSecurityFields.join(', ')}</Typography> : null}
           {review.addedOrigins.map(origin => <Typography key={origin} variant="body2" sx={{ overflowWrap: 'anywhere' }}>Allow website: {origin}</Typography>)}
           {review.removedOrigins.map(origin => <Typography key={origin} variant="body2" sx={{ overflowWrap: 'anywhere' }}>Remove website: {origin}</Typography>)}
-          {review.unrelatedChanges ? <Alert severity="warning">The draft also contains changes outside Engage origins and identity. These changes will be included in the deployment update.</Alert> : null}
-          <Button component="a" href={`/revisions?deploymentId=${encodeURIComponent(review.deploymentId)}`} target="_blank" rel="noopener noreferrer" size="small" sx={{ alignSelf: 'flex-start' }}>Inspect deployment changes</Button>
+          {review.unrelatedChanges ? <Alert severity="warning">The draft also contains changes outside Engage origins and identity. These changes will be included in the {deploymentTerm.lowercase} update.</Alert> : null}
+          <Button component="a" href={`/revisions?deploymentId=${encodeURIComponent(review.deploymentId)}`} target="_blank" rel="noopener noreferrer" size="small" sx={{ alignSelf: 'flex-start' }}>Inspect {deploymentTerm.lowercase} changes</Button>
           <Typography variant="body2">Apps using this runtime: {review.affectedApps.join(', ')}.</Typography>
           <Alert severity="info">Applying may restart this runtime. App activation remains separate. External OAuth or email-link redirect settings must be configured with your identity provider if used.</Alert>
-          {!release ? <FormControlLabel control={<Checkbox checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={pending} />} label="I approve publishing and applying these changes to this deployment." /> : null}
+          {!release ? <FormControlLabel control={<Checkbox checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={pending} />} label={`I approve publishing and applying these changes to this ${deploymentTerm.lowercase}.`} /> : null}
         </> : null}
         {currentRelease ? <Alert severity={verified ? 'success' : currentRelease.status === 'FAILED' ? 'error' : 'info'}>
-          {verified ? 'Deployment update verified. Use it for the shared app connection when ready.' : `${currentRelease.status} · ${currentRelease.currentStepDescription ?? 'Waiting for deployment verification.'}`}
+          {verified ? `${deploymentTerm.singular} update verified. Use it for the shared app connection when ready.` : `${currentRelease.status} · ${currentRelease.currentStepDescription ?? `Waiting for ${deploymentTerm.lowercase} verification.`}`}
         </Alert> : null}
         {error || observed.error ? <Alert severity="error">{error ?? (observed.error instanceof Error ? observed.error.message : 'Release status unavailable.')}</Alert> : null}
       </Stack></DialogContent>

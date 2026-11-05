@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type { CustomerDeploymentSummary, CustomerExternalIntegrationApprovalOption, CustomerExternalIntegrationProfile,
   CustomerExternalIntegrationScope, CustomerExternalIntegrationSummary, CustomerOfferSummary, DeploymentVersionSummary,
   PlatformAuthSessionSummary } from '../../api/platformApi'
@@ -21,7 +22,7 @@ export function externalConnectionProfile(authority: ExternalConnectionAuthority
     || version.status !== 'PUBLISHED' || !version.configHash || slot.length !== 1 || profiles.length !== 1
     || profiles[0].pluginId !== slot[0].pluginId || !slot[0].supportedProfileIds.includes(scope.selectedProfileId)
     || !offer.targets.some(item => item.id === scope.targetProfileId && item.capabilities.includes('READ'))) {
-    throw new Error('The current owned deployment and a published, reviewed connection profile are required.')
+    throw new Error(`The current owned ${deploymentTerm.lowercase} and a published, reviewed connection profile are required.`)
   }
   return profiles[0]
 }
@@ -38,7 +39,7 @@ export function checkedExternalBinding(deploymentId: string, scope: CustomerExte
   if (!binding.id || binding.deploymentId !== deploymentId || binding.versionId !== scope.versionId
     || binding.targetProfileId !== scope.targetProfileId || binding.bindingSlotId !== scope.bindingSlotId
     || binding.selectedProfileId !== scope.selectedProfileId || !Number.isSafeInteger(binding.revision) || binding.revision < 0) {
-    throw new Error('The connection binding does not match the selected deployment, version and target.')
+    throw new Error(`The connection binding does not match the selected ${deploymentTerm.lowercase}, version and target.`)
   }
   return binding
 }

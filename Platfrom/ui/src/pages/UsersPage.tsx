@@ -1,3 +1,4 @@
+import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import LockResetRoundedIcon from '@mui/icons-material/LockResetRounded'
@@ -244,7 +245,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
         throw new Error('Select a user first.')
       }
       if (selectedDeploymentId.length === 0) {
-        throw new Error('Select a deployment first.')
+        throw new Error(`Select a ${deploymentTerm.lowercase} first.`)
       }
       return upsertDeploymentAssignment(selectedDeploymentId, {
         userId: selectedUser.id,
@@ -252,7 +253,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
       })
     },
     onSuccess: async (assignment) => {
-      setNotice(`${assignment.userEmail} now has ${assignment.assignmentRole} access for ${workspace?.deployment.name ?? 'the selected deployment'}.`)
+      setNotice(`${assignment.userEmail} now has ${deploymentEnumLabel(assignment.assignmentRole)} access for ${workspace?.deployment.name ?? `the selected ${deploymentTerm.lowercase}`}.`)
       await invalidateUserAccess()
     },
   })
@@ -260,15 +261,15 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const removeAssignmentMutation = useMutation({
     mutationFn: () => {
       if (!selectedUser?.selectedDeploymentAssignment) {
-        throw new Error('The selected user does not have access to this deployment.')
+        throw new Error(`The selected user does not have access to this ${deploymentTerm.lowercase}.`)
       }
       if (selectedDeploymentId.length === 0) {
-        throw new Error('Select a deployment first.')
+        throw new Error(`Select a ${deploymentTerm.lowercase} first.`)
       }
       return deleteDeploymentAssignment(selectedDeploymentId, selectedUser.selectedDeploymentAssignment.assignmentId)
     },
     onSuccess: async () => {
-      setNotice(`Deployment access removed for ${selectedUser?.email ?? 'the selected user'}.`)
+      setNotice(`${deploymentTerm.singular} access removed for ${selectedUser?.email ?? 'the selected user'}.`)
       await invalidateUserAccess()
     },
   })
@@ -298,8 +299,8 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 1040 }}>
           {canManagePlatformUsers
-            ? 'Manage platform identity and deployment visibility from one workspace. Pick a deployment in the header to see which users can access it, adjust their deployment role, and inspect each operator\'s broader access footprint.'
-            : 'Manage customer-scoped administrator accounts inside your customer boundary. These users inherit deployment control from customer scope rather than per-deployment assignment.'}
+            ? `Manage platform identity and ${deploymentTerm.lowercase} visibility from one workspace. Pick a ${deploymentTerm.lowercase} in the header to see which users can access it, adjust their ${deploymentTerm.lowercase} role, and inspect each operator's broader access footprint.`
+            : `Manage customer-scoped administrator accounts inside your customer boundary. These users inherit ${deploymentTerm.lowercase} control from customer scope rather than per-${deploymentTerm.lowercase} assignment.`}
         </Typography>
       </Box> : null}
 
@@ -345,8 +346,8 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
             <CardContent>
               <Typography variant="overline" color="text.secondary">
                 {canManagePlatformUsers
-                  ? (workspace ? `${workspace.deployment.name} access` : 'Selected deployment access')
-                  : 'Selected deployment assignments'}
+                  ? (workspace ? `${workspace.deployment.name} access` : `Selected ${deploymentTerm.lowercase} access`)
+                  : `Selected ${deploymentTerm.lowercase} assignments`}
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>{metrics.selectedDeploymentUsers}</Typography>
             </CardContent>
@@ -464,7 +465,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                           <Chip label={`Customer: ${selectedUser.customerName}`} variant="outlined" />
                         ) : null}
                         <Chip label={selectedUser.status} color={statusChipColor(selectedUser.status)} variant="outlined" />
-                        <Chip label={`${selectedUser.assignmentCount} deployment assignments`} variant="outlined" />
+                        <Chip label={`${selectedUser.assignmentCount} ${deploymentTerm.lowercase} assignments`} variant="outlined" />
                       </Stack>
                     </Stack>
 
@@ -483,7 +484,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                       </Grid>
                       <Grid item xs={12} md={3}>
                         <Typography variant="caption" color="text.secondary">
-                          {canManagePlatformUsers ? 'Assignment split' : 'Deployment assignments'}
+                          {canManagePlatformUsers ? 'Assignment split' : `${deploymentTerm.singular} assignments`}
                         </Typography>
                         <Typography variant="body2">
                           {canManagePlatformUsers
@@ -520,7 +521,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                       <CardContent>
                         <Stack spacing={2}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                            {canManagePlatformUsers ? 'Selected deployment access' : 'Customer boundary access'}
+                            {canManagePlatformUsers ? `Selected ${deploymentTerm.lowercase} access` : 'Customer boundary access'}
                           </Typography>
                           {canManagePlatformUsers ? (
                             workspace ? (
@@ -532,7 +533,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                                   <Chip
                                     label={
                                       selectedUser.selectedDeploymentAssignment
-                                        ? `Current role: ${selectedUser.selectedDeploymentAssignment.assignmentRole}`
+                                        ? `Current role: ${deploymentEnumLabel(selectedUser.selectedDeploymentAssignment.assignmentRole)}`
                                         : 'No assignment yet'
                                     }
                                     color={selectedUser.selectedDeploymentAssignment ? roleChipColor(selectedUser.selectedDeploymentAssignment.assignmentRole) : 'default'}
@@ -542,15 +543,15 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
                                   <TextField
                                     select
-                                    label="Deployment role"
+                                    label={`${deploymentTerm.singular} role`}
                                     value={assignmentRole}
                                     onChange={(event) => setAssignmentRole(event.target.value)}
                                     sx={{ minWidth: 240 }}
                                   >
-                                    <MenuItem value="DEPLOYMENT_ADMIN">Deployment admin</MenuItem>
-                                    <MenuItem value="DEPLOYMENT_EDITOR">Deployment editor</MenuItem>
-                                    <MenuItem value="DEPLOYMENT_OPERATOR">Deployment operator</MenuItem>
-                                    <MenuItem value="DEPLOYMENT_VIEWER">Deployment viewer</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_ADMIN">{deploymentTerm.singular} admin</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_EDITOR">{deploymentTerm.singular} editor</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_OPERATOR">{deploymentTerm.singular} operator</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_VIEWER">{deploymentTerm.singular} viewer</MenuItem>
                                   </TextField>
                                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                     <Button
@@ -580,12 +581,12 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                               </>
                             ) : (
                               <Alert severity="info">
-                                Select a deployment in the workspace header to manage deployment-specific access from this user workspace.
+                                Select a {deploymentTerm.lowercase} in the workspace header to manage {deploymentTerm.lowercase}-specific access from this user workspace.
                               </Alert>
                             )
                           ) : (
                             <Alert severity="info">
-                              Customer-admin accounts already inherit deployment control across their own customer boundary. This workspace lets you manage the account itself, not per-deployment assignments.
+                              Customer-admin accounts already inherit {deploymentTerm.lowercase} control across their own customer boundary. This workspace lets you manage the account itself, not per-{deploymentTerm.lowercase} assignments.
                             </Alert>
                           )}
                         </Stack>
@@ -595,7 +596,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                     {canManagePlatformUsers ? (
                       <Stack spacing={1.5}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          Assigned deployments
+                          Assigned {deploymentTerm.pluralLowercase}
                         </Typography>
                         {selectedUser.assignedDeployments.map((assignment) => (
                           <Card key={assignment.assignmentId} variant="outlined" sx={{ borderRadius: 3 }}>
@@ -616,7 +617,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                                     </Typography>
                                   </Box>
                                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                    <Chip label={assignment.assignmentRole} color={roleChipColor(assignment.assignmentRole)} />
+                                    <Chip label={deploymentEnumLabel(assignment.assignmentRole)} color={roleChipColor(assignment.assignmentRole)} />
                                     <Chip label={assignment.deploymentStatus} variant="outlined" />
                                   </Stack>
                                 </Stack>
@@ -637,7 +638,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                                         variant="outlined"
                                         startIcon={<OpenInNewRoundedIcon />}
                                       >
-                                        Open deployment
+                                        Open {deploymentTerm.lowercase}
                                       </Button>
                                     </Stack>
                                   </Grid>
@@ -648,7 +649,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                         ))}
                         {selectedUser.assignedDeployments.length === 0 ? (
                           <Alert severity="info">
-                            This user does not have any explicit deployment assignments yet.
+                            This user does not have any explicit {deploymentTerm.lowercase} assignments yet.
                           </Alert>
                         ) : null}
                       </Stack>
@@ -706,7 +707,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                             <Chip label={`${user.assignmentCount} assignments`} variant="outlined" />
                             {user.selectedDeploymentAssignment ? (
                               <Chip
-                                label={`${workspace?.deployment.name ?? 'Selected deployment'}: ${user.selectedDeploymentAssignment.assignmentRole}`}
+                                label={`${workspace?.deployment.name ?? `Selected ${deploymentTerm.lowercase}`}: ${deploymentEnumLabel(user.selectedDeploymentAssignment.assignmentRole)}`}
                                 color={roleChipColor(user.selectedDeploymentAssignment.assignmentRole)}
                                 variant="outlined"
                               />
@@ -723,9 +724,9 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
                             <Typography variant="body2">{formatTimestamp(user.createdAt)}</Typography>
                           </Grid>
                           <Grid item xs={12} md={3}>
-                            <Typography variant="caption" color="text.secondary">Selected deployment</Typography>
+                            <Typography variant="caption" color="text.secondary">Selected {deploymentTerm.lowercase}</Typography>
                             <Typography variant="body2">
-                              {user.selectedDeploymentAssignment?.assignmentRole ?? 'No access'}
+                              {deploymentEnumLabel(user.selectedDeploymentAssignment?.assignmentRole ?? 'No access')}
                             </Typography>
                           </Grid>
                           <Grid item xs={12} md={3}>

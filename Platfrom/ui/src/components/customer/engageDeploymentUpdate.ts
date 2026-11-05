@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import type { AIWorkspaceDeploymentUpdateReview, DeploymentReleaseSummary, DeploymentVersionSummary } from '../../api/platformApi'
 
 type UpdateApi = {
@@ -17,7 +18,7 @@ export async function applyReviewedEngageUpdate(review: AIWorkspaceDeploymentUpd
   if (review.sourceArtifactId) {
     const compatible = await api.compatible(review.deploymentId, version.id)
     api.assertCurrent()
-    if (!compatible.some(item => item.id === review.sourceArtifactId)) throw new Error('The current runtime image cannot run this update. The version is published; select a compatible image in deployment settings.')
+    if (!compatible.some(item => item.id === review.sourceArtifactId)) throw new Error(`The current runtime image cannot run this update. The version is published; select a compatible image in ${deploymentTerm.lowercase} settings.`)
   }
   await api.authorize()
   const release = await api.apply(review.deploymentId, version.id, review.targetProfileId, review.sourceArtifactId ?? undefined, operationKey)

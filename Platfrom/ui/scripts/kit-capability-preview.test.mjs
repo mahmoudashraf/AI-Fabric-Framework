@@ -27,6 +27,7 @@ const supportConfig = await load('../../../experience-packs/support-experience/s
 const supportFixtures = await load('../../../experience-packs/support-experience/src/preview-fixtures.ts', { './config': supportConfig })
 const identity = {
   KitMark: ({ product }) => React.createElement('span', { 'data-product': product }),
+  KitDeskMark: () => React.createElement('span', { 'data-product': 'desk' }),
   kitAsset: name => `/products/${name}`,
 }
 const support = await load('../src/components/kits/SupportKitPreview.tsx', {

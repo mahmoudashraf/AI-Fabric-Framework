@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
@@ -99,7 +100,7 @@ export function HumanReviewPage({ title = 'Human Review', targetProfileId = '' }
       <Stack spacing={2}>
         <Typography variant="h4" sx={{ fontWeight: 800 }}>{title}</Typography>
         <Alert severity="info">
-          Sign in with a customer administrator session to access this deployment's review inbox.
+          Sign in with a customer administrator session to access this {deploymentTerm.lowercase}'s review inbox.
         </Alert>
       </Stack>
     )
@@ -126,7 +127,7 @@ export function HumanReviewPage({ title = 'Human Review', targetProfileId = '' }
         </Button>
       </Stack>
 
-      {!selectedDeploymentId ? <Alert severity="info">Select a deployment first.</Alert> : null}
+      {!selectedDeploymentId ? <Alert severity="info">Select a {deploymentTerm.lowercase} first.</Alert> : null}
       {selectedDeploymentId && !targetProfileId ? <Alert severity="info">Select an environment to view its review inbox.</Alert> : null}
       {inboxQuery.error instanceof Error ? <Alert severity="error">{inboxQuery.error.message}</Alert> : null}
       {detailQuery.error instanceof Error ? <Alert severity="error">{detailQuery.error.message}</Alert> : null}
@@ -138,7 +139,7 @@ export function HumanReviewPage({ title = 'Human Review', targetProfileId = '' }
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <TaskAltRoundedIcon color="success" sx={{ fontSize: 42 }} />
           <Typography variant="h6" sx={{ mt: 1 }}>Inbox clear</Typography>
-          <Typography color="text.secondary">No review tasks are visible for this customer and deployment.</Typography>
+          <Typography color="text.secondary">No review tasks are visible for this customer and {deploymentTerm.lowercase}.</Typography>
         </Paper>
       ) : tasks.length > 0 ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(280px, 0.38fr) minmax(0, 0.62fr)' }, gap: 2.5 }}>

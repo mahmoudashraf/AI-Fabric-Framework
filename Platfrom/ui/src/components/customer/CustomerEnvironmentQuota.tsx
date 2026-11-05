@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../../deploymentTerminology'
 import { Alert, Box, Chip, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import { useQuery } from '@tanstack/react-query'
@@ -29,7 +30,7 @@ export function CustomerEnvironmentQuota() {
         <Link component={RouterLink} to={`/revisions?${new URLSearchParams({ deploymentId: item.deploymentId, targetProfileId: item.targetProfileId })}`}>
           {item.deploymentName} · {item.environment || item.targetProfileId}
         </Link>
-        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{item.ownedResourcesPresent ? 'Infrastructure retained' : 'Deployment reserved'}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{item.ownedResourcesPresent ? 'Infrastructure retained' : `${deploymentTerm.singular} reserved`}</Typography>
       </Box>)}</Stack>
     </Box> : null}
   </Box>

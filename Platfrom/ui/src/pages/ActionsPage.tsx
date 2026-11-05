@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -581,8 +582,8 @@ export function ActionsPage() {
       dirty: draftDirty,
       label: 'Actions and routing',
       description: draftDirty
-        ? 'Action catalog or routing edits exist only in the current browser buffer until you save the deployment draft.'
-        : 'Actions and routing editors match the saved deployment draft.',
+        ? `Action catalog or routing edits exist only in the current browser buffer until you save the ${deploymentTerm.lowercase} draft.`
+        : `Actions and routing editors match the saved ${deploymentTerm.lowercase} draft.`,
     }),
     [draftDirty],
   )
@@ -930,9 +931,9 @@ export function ActionsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment workspace</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                The selected deployment now comes from the shared workspace header, so action and routing edits
+                The selected {deploymentTerm.lowercase} now comes from the shared workspace header, so action and routing edits
                 stay in one persistent context while you move across platform sections.
               </Typography>
             </Box>
@@ -947,7 +948,7 @@ export function ActionsPage() {
             ) : null}
             {!canEdit && workspace ? (
               <Alert severity="info">
-                Saving actions or routing config requires deployment editor access or higher.
+                Saving actions or routing config requires {deploymentTerm.lowercase} editor access or higher.
               </Alert>
             ) : null}
 
@@ -1394,11 +1395,11 @@ export function ActionsPage() {
 
                 {!workspace?.deployment.runtimeBaseUrl ? (
                   <Alert severity="info">
-                    Apply the deployment before expecting live webhook delivery operations. This panel reads the runtime admin surface.
+                    Apply the {deploymentTerm.lowercase} before expecting live webhook delivery operations. This panel reads the runtime admin surface.
                   </Alert>
                 ) : !canOperate ? (
                   <Alert severity="info">
-                    Viewing live webhook deliveries requires deployment operator access or higher.
+                    Viewing live webhook deliveries requires {deploymentTerm.lowercase} operator access or higher.
                   </Alert>
                 ) : webhookOverviewQuery.isLoading ? (
                   <Alert severity="info">Loading live webhook deliveries…</Alert>

@@ -160,7 +160,7 @@ async function fixture({ mode = 'DISABLED', statusFailure = null, publishFailure
     return json(route, { message: 'Unhandled fixture route' }, 500)
   })
   await page.goto(base+'operations-fixture', { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'My deployments' }).waitFor()
+  await page.getByRole('heading', { name: 'My smart brains' }).waitFor()
   return { state, page, async close() {
     if (state.errors.length) await page.screenshot({ path: output+'/failure.png', fullPage: true })
     await context.close(); assert.deepEqual(state.errors, []); assert.deepEqual(state.escaped, [])
@@ -168,8 +168,8 @@ async function fixture({ mode = 'DISABLED', statusFailure = null, publishFailure
 }
 
 async function createDeployment(f) {
-  await f.page.getByRole('textbox', { name: 'Deployment name', exact: true }).fill('Acme support workspace')
-  await f.page.getByRole('button', { name: 'Create staging deployment', exact: true }).click()
+  await f.page.getByRole('textbox', { name: 'Smart Brain name', exact: true }).fill('Acme support workspace')
+  await f.page.getByRole('button', { name: 'Create staging smart brain', exact: true }).click()
   await f.page.getByText('Customer staging configuration created from the reviewed product offer.', { exact: true }).waitFor()
 }
 async function publish(f) {
@@ -246,13 +246,13 @@ try {
     const f = await fixture({ statusFailure: failure })
     try {
       await f.page.getByRole('region', { name: 'Operations policy' }).getByText(failure.message, { exact: true }).waitFor()
-      await f.page.getByRole('textbox', { name: 'Deployment name', exact: true }).fill('Acme support workspace')
-      assert.equal(await f.page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), true)
+      await f.page.getByRole('textbox', { name: 'Smart Brain name', exact: true }).fill('Acme support workspace')
+      assert.equal(await f.page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), true)
       assert.equal(f.state.calls.some(c => c.method === 'POST' && c.path === `${offerPath}/deployments`), false)
       f.state.statusFailure = null
       await f.page.getByRole('button', { name: 'Refresh operations policy', exact: true }).click()
       await f.page.getByText('DISABLED · Manual team', { exact: true }).waitFor()
-      assert.equal(await f.page.getByRole('button', { name: 'Create staging deployment', exact: true }).isDisabled(), false)
+      assert.equal(await f.page.getByRole('button', { name: 'Create staging smart brain', exact: true }).isDisabled(), false)
       passed += 1; console.log(`Passed: ${failure.status} status failure is visible and recovers only after an authenticated read`)
     } finally { await f.close() }
   }
@@ -290,7 +290,7 @@ try {
     assert.equal(forbidden.state.versions.length, 0)
     assert.equal(await forbidden.page.getByRole('button', { name: 'Deploy to customer staging', exact: true }).isDisabled(), true)
     await forbidden.page.evaluate(() => window.__selectDeployment('foreign-deployment'))
-    await forbidden.page.getByText('The requested deployment is unavailable in your customer portfolio. Select an owned deployment to continue.', { exact: true }).waitFor()
+    await forbidden.page.getByText('The requested smart brain is unavailable in your customer portfolio. Select an owned smart brain to continue.', { exact: true }).waitFor()
     assert.equal(await forbidden.page.getByRole('button', { name: 'Publish current configuration', exact: true }).count(), 0)
     passed += 1; console.log('Passed: credential errors and foreign deployment scope never gain apply access')
   } finally { await forbidden.close() }

@@ -24,6 +24,7 @@ import { HostedDocumentStorageSetup } from '../documents/HostedDocumentStorageSe
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { connectableRelease } from '../customer/customerEngageConnection'
 import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
+import { deploymentTerm } from '../../deploymentTerminology'
 
 export function ExperienceKitOverview({ customerId, id }: { customerId: string; id: string }) {
   const kit = useQuery({ queryKey: experienceKitKeys.detail(customerId, id), queryFn: ({ signal }) => fetchExperienceKit(id, signal), retry: false })
@@ -92,12 +93,12 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       ].map(([label, done], index) => <div key={String(label)} data-complete={Boolean(done)}><span>{done ? <CheckCircleRounded /> : index + 1}</span><strong>{label}</strong></div>)}</div>
       <p className="ek-overview-intro">Your AI experience, connected to your business.</p>
       {missingChannel && <Alert severity="warning">An Engage app is missing. Review your apps to continue setup.<Button component={Link} to="/ai-workspaces">Open Engage apps</Button></Alert>}
-      {portfolio.isError && <Alert severity="error">Deployment details could not be loaded. <Button onClick={() => void portfolio.refetch()}>Retry</Button></Alert>}
-      {portfolio.isSuccess && !deployment && <Alert severity="warning">The linked deployment is not available in your portfolio.<Button component={Link} to="/deployments">Open deployments</Button></Alert>}
-      {releases.isError && <Alert severity="error">Deployment verification could not be loaded.<Button onClick={() => void releases.refetch()}>Retry</Button></Alert>}
-      {primary?.releaseId && releases.isSuccess && !release && <Alert severity="warning">Your app's assigned release is unavailable. Open the deployment to review it.</Alert>}
+      {portfolio.isError && <Alert severity="error">{deploymentTerm.singular} details could not be loaded. <Button onClick={() => void portfolio.refetch()}>Retry</Button></Alert>}
+      {portfolio.isSuccess && !deployment && <Alert severity="warning">The linked {deploymentTerm.lowercase} is not available in your portfolio.<Button component={Link} to="/deployments">Open {deploymentTerm.pluralLowercase}</Button></Alert>}
+      {releases.isError && <Alert severity="error">{deploymentTerm.singular} verification could not be loaded.<Button onClick={() => void releases.refetch()}>Retry</Button></Alert>}
+      {primary?.releaseId && releases.isSuccess && !release && <Alert severity="warning">Your app's assigned release is unavailable. Open the {deploymentTerm.lowercase} to review it.</Alert>}
       <div className="ek-product-resources">
-        <article className={`ek-product-resource${selected === 'deployment' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('deployment')} aria-label="Inspect AI deployment">
+        <article className={`ek-product-resource${selected === 'deployment' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('deployment')} aria-label={`Inspect AI ${deploymentTerm.lowercase}`}>
           <KitMark product="platform" large /><div><h2>Your AI assistant</h2><p>{deployment?.name ?? kit.name}</p></div></button>
           <div className="ek-resource-body"><span className="ek-inline-status"><i />{releases.isPending ? 'Checking setup' : releases.isError ? 'Status unavailable' : release ? connectableRelease(release) ? 'Tested and connected' : 'Checks needed' : latestAttempt ? 'Setup needs attention' : 'Not live yet'}</span>
             <p>Answers and next steps using your business information</p><Link to={deploymentPath}>Set up your assistant <ArrowForwardRounded /></Link></div>
@@ -156,11 +157,11 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
           <Button component={Link} to={kitEditorPath(kit, true)} endIcon={<OpenInNewRounded />}>See your customer experience</Button></section>}
         {activeUrl && <Button component="a" href={activeUrl} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open active app</Button>}
       </> : selected === 'deployment' ? <>
-        <section className="ek-inspector-section"><h3>Configuration</h3><dl className="ek-review-facts"><div><dt>Deployment</dt><dd>{kit.deploymentId}</dd></div><div><dt>State</dt><dd>{deployment?.status ?? 'Unavailable'}</dd></div>
-          <div><dt>Published version</dt><dd>{deployment?.activeVersionId ?? 'Not recorded'}</dd></div></dl><Button component={Link} to={deploymentPath} variant="outlined">Configure deployment</Button></section>
+        <section className="ek-inspector-section"><h3>Configuration</h3><dl className="ek-review-facts"><div><dt>{deploymentTerm.singular}</dt><dd>{kit.deploymentId}</dd></div><div><dt>State</dt><dd>{deployment?.status ?? 'Unavailable'}</dd></div>
+          <div><dt>Published version</dt><dd>{deployment?.activeVersionId ?? 'Not recorded'}</dd></div></dl><Button component={Link} to={deploymentPath} variant="outlined">Configure {deploymentTerm.lowercase}</Button></section>
         <section className="ek-inspector-section"><h3>App-assigned release</h3>{release ? <dl className="ek-review-facts"><div><dt>Status</dt><dd>{release.status}</dd></div><div><dt>Verification</dt><dd>{release.verificationStatus}</dd></div><div><dt>Release</dt><dd>{release.id}</dd></div></dl>
           : <p>Deploy and verify, then connect this app.</p>}{release?.errorMessage && <Alert severity="error">{release.errorMessage}</Alert>}
-          {!release && latestAttempt && <><h3>Latest deployment attempt</h3><p>{latestAttempt.status} / {latestAttempt.verificationStatus}</p><p className="ek-muted">Not yet connected to the app.</p>{latestAttempt.errorMessage && <Alert severity="warning">{latestAttempt.errorMessage}</Alert>}</>}
+          {!release && latestAttempt && <><h3>Latest {deploymentTerm.lowercase} attempt</h3><p>{latestAttempt.status} / {latestAttempt.verificationStatus}</p><p className="ek-muted">Not yet connected to the app.</p>{latestAttempt.errorMessage && <Alert severity="warning">{latestAttempt.errorMessage}</Alert>}</>}
           <Button component={Link} to={revisionPath}>Versions & updates</Button></section>
       </> : <>
         {supportExperience && channels.map(channel => channel.app && <KitSupportSpaceSetup key={`${channel.app.installationId}:${channel.app.rowVersion}:${channel.app.releaseId}`}

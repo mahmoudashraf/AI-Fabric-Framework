@@ -53,7 +53,7 @@ export function SupportKitIllustration({ compact = false, appUrl, layout = 'stan
   </figure>
 }
 
-export function SupportKitExperiencePreview({ name, children }: { name: string; children?: ReactNode }) {
+export function SupportKitExperiencePreview({ name, children, compact = false }: { name: string; children?: ReactNode; compact?: boolean }) {
   const [format, setFormat] = useState<KitPreviewFormat>('max')
   const [open, setOpen] = useState(false)
   const [tickets, setTickets] = useState(true)
@@ -63,12 +63,12 @@ export function SupportKitExperiencePreview({ name, children }: { name: string; 
   const titleId = useId()
   const show = (next: KitPreviewFormat) => { setFormat(next); setOpen(true) }
   return <>
-    <section className="ek-experience-formats" aria-label={`Ways to use ${name}`}><h3>Support on your website or in its own workspace</h3>
+    {!compact && <section className="ek-experience-formats" aria-label={`Ways to use ${name}`}><h3>Support on your website or in its own workspace</h3>
       <div className="ek-format-grid">{kitPreviewFormats.map(item => <button type="button" key={item.id} onClick={() => show(item.id)} aria-label={`Preview ${item.label} for ${name}`}>
         <span className={`ek-format-screen ek-support-format ek-format-${item.id}`} aria-hidden="true"><KitMark product="engage" /><DescriptionOutlined /><ConfirmationNumberOutlined /></span><strong>{item.label}</strong>
       </button>)}</div>
-    </section>
-    <div className="ek-cap-commands">{children}<Button variant="outlined" startIcon={<OpenInFullRounded />} onClick={() => show('max')}>Preview experience</Button></div>
+    </section>}
+    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={<OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview support' : 'Preview experience'}</Button></div>
     <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md" fullScreen={narrow} aria-labelledby={titleId}
       PaperProps={{ className: 'ek-page ek-experience-dialog', 'data-kit-theme': palette.mode } as React.HTMLAttributes<HTMLDivElement>}>
       <div className="ek-experience-dialog-header"><h2 id={titleId}>Support experience preview</h2><Tooltip title="Close preview"><IconButton aria-label="Close preview" onClick={() => setOpen(false)}><CloseRounded /></IconButton></Tooltip></div>

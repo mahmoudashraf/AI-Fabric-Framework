@@ -1,3 +1,4 @@
+import { deploymentTerm } from '../deploymentTerminology'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import DnsRoundedIcon from '@mui/icons-material/DnsRounded'
@@ -442,7 +443,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment target profiles</Typography>
+              <Typography variant="h6">{deploymentTerm.singular} target profiles</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Apply defaults and provider preflight are controlled here. Runtime apply uses the active runtime default unless a version apply explicitly chooses a profile.
               </Typography>
@@ -462,7 +463,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
               <Alert severity="error">
                 {targetProfilesQuery.error instanceof Error
                   ? targetProfilesQuery.error.message
-                  : 'Failed to load deployment target profiles'}
+                  : `Failed to load ${deploymentTerm.lowercase} target profiles`}
               </Alert>
             ) : (
               <Table size="small">
@@ -568,7 +569,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
             <Box>
               <Typography variant="h6">Provider resources</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Runtime and connector handles created by the active provider for this deployment.
+                Runtime and connector handles created by the active provider for this {deploymentTerm.lowercase}.
               </Typography>
             </Box>
 
@@ -581,7 +582,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
                   : 'Failed to load provider resources'}
               </Alert>
             ) : (resourcesQuery.data ?? []).length === 0 ? (
-              <Alert severity="info">No provider resources are recorded for the selected deployment.</Alert>
+              <Alert severity="info">No provider resources are recorded for the selected {deploymentTerm.lowercase}.</Alert>
             ) : (
               <Table size="small">
                 <TableHead>
