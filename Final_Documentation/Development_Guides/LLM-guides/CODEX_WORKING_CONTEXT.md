@@ -12616,3 +12616,29 @@ test is being called hosted acceptance. UI extraction remains last.
   Image preview is exec-c0aeb7d7-3021-4855-acfc-a29ce42e559d.png in the current
   Codex generated_images session directory. Await visual approval before changing
   detail-page layout; preserve existing kit content and routes.
+
+## 2026-11-05 All Three Kit Detail Pages Implemented And Live
+
+- Owner approved the detail proposal for all three kits. Shared KitDetailPage
+  now has photographic heroes with real HTML workspace examples, three clickable
+  format previews, kit-specific outcomes, optional people, product composition,
+  integration steps/scope, original catalogue features and working setup/demo links.
+- Adaptive CX, dealership and Support use distinct business value/copy/photography.
+  Only dealership carries3monthsfree/freeintegration/GBP500month/paywhenvaluestarts.
+  Support ticket tracking and human support remain independent choices. No new
+  commercial, integration or AI execution capability is implied by the previews.
+- CURRENT native Console UI on BOTH hosts:
+  9c8d4a7fde369cf88a701f9044c449dd27f117b2. Core CI42098044609 passed with
+  backend skipped; staging and production jobs finished healthy.
+- Build,22 focused tests,24 detail/theme/width states,24 catalogue browser states
+  and nine Support setup groups passed. Hosted checks on both hosts passed all
+  nine format entry points, scope expansion, signup/native-customer setup links,
+  product links, desktop/mobile/light/dark, assets, geometry and unclipped inputs.
+  No browser errors/overflow/customer writes; customer app configs and protected
+  backend/Desk/runtime image tags unchanged. No AI query or business action ran.
+- Three fictional hero photographs are bundled under UI public/products; prompts
+  and provenance in its README. Real customer data/indexing/branding unaffected.
+- Tracking010.62 and verification-support/kit-cards-01062/detail-pages/ contain
+  the approved mockup, local/hosted summaries and safe public screenshots.
+  The previous Await visual approval state is superseded. This work is complete.
+  Pre-existing unrelated worktree changes were preserved and not committed.

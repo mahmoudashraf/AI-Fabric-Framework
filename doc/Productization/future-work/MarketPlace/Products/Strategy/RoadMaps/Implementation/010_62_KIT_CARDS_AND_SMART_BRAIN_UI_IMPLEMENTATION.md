@@ -198,5 +198,27 @@ with the visual evidence for comparison.
 Local production build and focused tests pass, including all three detail pages,
 both themes, four viewport widths, exact-format dialog opening, setup/demo links,
 offer isolation, image/font loading, equal preview geometry and uncropped input
-areas. Catalogue and Support kit setup regressions also pass. Hosted verification
-is pending for this follow-up.
+areas. The 22 focused tests passed, including 24 detail/theme/width states;
+catalogue checks passed 24 states and Support kit setup passed nine scenario groups.
+
+### Detail-Page Rollout Completed
+
+Current native UI revision on staging and production:
+`9c8d4a7fde369cf88a701f9044c449dd27f117b2`. Core CI `42098044609` passed;
+the backend build was skipped. Both Console deployment jobs finished healthy.
+
+Live qualification on both environments passed all three detail pages, all nine
+format-preview entry points, the expandable integration scope, product links,
+anonymous signup links and authenticated customer setup links. Each kit was
+captured at desktop/mobile widths in light/dark mode. Images/fonts loaded,
+preview columns remained aligned, inputs were not clipped, and no horizontal
+page overflow or browser error was observed. The original catalogue's geometry,
+backgrounds, offer and portraits were also checked unchanged.
+
+Authenticated readback confirmed customer app configurations unchanged. Protected
+backend, Desk and customer runtime image tags were unchanged. No customer resource
+or persistent fixture was created and no real AI query or business action ran.
+
+Public screenshots and summaries are in
+`verification-support/kit-cards-01062/detail-pages/`. The implementation remains
+UI-only; there is no framework, deployment-template or commercial-contract change.

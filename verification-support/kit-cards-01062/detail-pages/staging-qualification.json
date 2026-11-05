@@ -1,0 +1,508 @@
+{
+  "env": "staging",
+  "observedAt": "2026-11-05T19:58:36.566Z",
+  "publicCatalogue": 3,
+  "dealershipOnlyOffer": true,
+  "deskChannelIcons": 3,
+  "previewFormats": 3,
+  "detailPages": 3,
+  "nativeCustomerAuth": true,
+  "smartBrainUiLabel": true,
+  "originalRoutesPreserved": true,
+  "customerSetupLinks": 3,
+  "detailSetupLinks": 3,
+  "detailPreviewFormats": 9,
+  "detailStates": [
+    {
+      "code": "ai-customer-experience",
+      "scheme": "dark",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1073.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1081.6875
+        },
+        {
+          "width": 477.34375,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1081.6875
+        }
+      ]
+    },
+    {
+      "code": "ai-customer-experience",
+      "scheme": "dark",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1037.28125,
+          "bottom": 1357.28125,
+          "inputBottom": 1339.28125
+        },
+        {
+          "width": 358,
+          "y": 1469.28125,
+          "bottom": 1789.28125,
+          "inputBottom": 1779.28125
+        },
+        {
+          "width": 358,
+          "y": 1919.28125,
+          "bottom": 2239.28125,
+          "inputBottom": 2229.28125
+        }
+      ]
+    },
+    {
+      "code": "ai-customer-experience",
+      "scheme": "light",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1073.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1081.6875
+        },
+        {
+          "width": 477.34375,
+          "y": 787.6875,
+          "bottom": 1091.6875,
+          "inputBottom": 1081.6875
+        }
+      ]
+    },
+    {
+      "code": "ai-customer-experience",
+      "scheme": "light",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1037.28125,
+          "bottom": 1357.28125,
+          "inputBottom": 1339.28125
+        },
+        {
+          "width": 358,
+          "y": 1469.28125,
+          "bottom": 1789.28125,
+          "inputBottom": 1779.28125
+        },
+        {
+          "width": 358,
+          "y": 1919.28125,
+          "bottom": 2239.28125,
+          "inputBottom": 2229.28125
+        }
+      ]
+    },
+    {
+      "code": "dealership-ai-experience",
+      "scheme": "dark",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1121.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1129.6875
+        },
+        {
+          "width": 477.34375,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1129.6875
+        }
+      ]
+    },
+    {
+      "code": "dealership-ai-experience",
+      "scheme": "dark",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1047.265625,
+          "bottom": 1367.265625,
+          "inputBottom": 1349.265625
+        },
+        {
+          "width": 358,
+          "y": 1479.265625,
+          "bottom": 1799.265625,
+          "inputBottom": 1789.265625
+        },
+        {
+          "width": 358,
+          "y": 1929.265625,
+          "bottom": 2249.265625,
+          "inputBottom": 2239.265625
+        }
+      ]
+    },
+    {
+      "code": "dealership-ai-experience",
+      "scheme": "light",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1121.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1129.6875
+        },
+        {
+          "width": 477.34375,
+          "y": 835.6875,
+          "bottom": 1139.6875,
+          "inputBottom": 1129.6875
+        }
+      ]
+    },
+    {
+      "code": "dealership-ai-experience",
+      "scheme": "light",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1047.265625,
+          "bottom": 1367.265625,
+          "inputBottom": 1349.265625
+        },
+        {
+          "width": 358,
+          "y": 1479.265625,
+          "bottom": 1799.265625,
+          "inputBottom": 1789.265625
+        },
+        {
+          "width": 358,
+          "y": 1929.265625,
+          "bottom": 2249.265625,
+          "inputBottom": 2239.265625
+        }
+      ]
+    },
+    {
+      "code": "ai-support-experience",
+      "scheme": "dark",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1103.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1118.1875
+        },
+        {
+          "width": 477.34375,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1118.1875
+        }
+      ]
+    },
+    {
+      "code": "ai-support-experience",
+      "scheme": "dark",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1108.984375,
+          "bottom": 1428.984375,
+          "inputBottom": 1410.984375
+        },
+        {
+          "width": 358,
+          "y": 1540.984375,
+          "bottom": 1860.984375,
+          "inputBottom": 1850.984375
+        },
+        {
+          "width": 358,
+          "y": 1990.984375,
+          "bottom": 2310.984375,
+          "inputBottom": 2300.984375
+        }
+      ]
+    },
+    {
+      "code": "ai-support-experience",
+      "scheme": "light",
+      "width": 1536,
+      "layout": [
+        {
+          "width": 477.328125,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1103.6875
+        },
+        {
+          "width": 477.328125,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1118.1875
+        },
+        {
+          "width": 477.34375,
+          "y": 817.6875,
+          "bottom": 1121.6875,
+          "inputBottom": 1118.1875
+        }
+      ]
+    },
+    {
+      "code": "ai-support-experience",
+      "scheme": "light",
+      "width": 390,
+      "layout": [
+        {
+          "width": 358,
+          "y": 1108.984375,
+          "bottom": 1428.984375,
+          "inputBottom": 1410.984375
+        },
+        {
+          "width": 358,
+          "y": 1540.984375,
+          "bottom": 1860.984375,
+          "inputBottom": 1850.984375
+        },
+        {
+          "width": 358,
+          "y": 1990.984375,
+          "bottom": 2310.984375,
+          "inputBottom": 2300.984375
+        }
+      ]
+    }
+  ],
+  "headsetPortraits": 3,
+  "geometry": [
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(22, 30, 35)",
+      "sceneBackground": "rgb(3, 39, 42)",
+      "headerBackground": "rgb(6, 56, 59)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(23, 31, 36)",
+      "sceneBackground": "rgb(18, 32, 42)",
+      "headerBackground": "rgb(20, 43, 61)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(25, 31, 36)",
+      "sceneBackground": "color(srgb 0.104 0.113255 0.10949)",
+      "headerBackground": "color(srgb 0.141333 0.140235 0.120941)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    }
+  ],
+  "appConfigurationsUnchanged": true,
+  "noCustomerWrites": true,
+  "errors": [],
+  "states": [
+    {
+      "name": "catalogue-desktop",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "ai-customer-experience-dark-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "ai-customer-experience-dark-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "ai-customer-experience-light-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "ai-customer-experience-light-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "dealership-ai-experience-dark-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "dealership-ai-experience-dark-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "dealership-ai-experience-light-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "dealership-ai-experience-light-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "ai-support-experience-dark-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "ai-support-experience-dark-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "ai-support-experience-light-1536",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "ai-support-experience-light-390",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "catalogue-light",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "catalogue-mobile",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "customer-smart-brains",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    }
+  ]
+}
