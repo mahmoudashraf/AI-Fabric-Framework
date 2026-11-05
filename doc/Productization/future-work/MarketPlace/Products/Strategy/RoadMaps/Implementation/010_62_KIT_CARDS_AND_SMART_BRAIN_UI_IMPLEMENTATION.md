@@ -222,3 +222,34 @@ or persistent fixture was created and no real AI query or business action ran.
 Public screenshots and summaries are in
 `verification-support/kit-cards-01062/detail-pages/`. The implementation remains
 UI-only; there is no framework, deployment-template or commercial-contract change.
+
+## Public Homepage Kit Cards
+
+The owner requested the approved kit cards on `https://loomai.pro/`. The public
+homepage and its shared `/experiences` catalogue now use three coordinated
+cards: AI Customer Experience, Dealership AI and AI Support. Explore links lead
+to the three new Console detail pages, rather than duplicating those details.
+
+The presentation retains the approved adaptive teal, dealership blue and Support
+amber identities, fictional photographic workspace scenes, capability rows,
+Platform/Engage/Human Desk composition and headset portrait with small channel
+symbols above it. The dealership alone has the existing approved offer: GBP500
+per month, Only pay when value starts, first three months free and free
+integration. The existing dealership live-demo link remains available.
+
+Each card opens a native, dismissible illustrative preview with website-chat,
+Max-workspace and standalone formats. Existing adaptive/dealership preview
+interactions are retained; Support gains a request/guidance/human example that
+cannot submit a ticket or contact an agent. Assets and Manrope are served
+locally with provenance/licences. The public site's light-mode default remains
+unchanged. A narrow-phone header sizing correction keeps theme/navigation
+controls within 320px bounds.
+
+This is a static public-site change only. No backend, runtime, template,
+customer assignment, AI prompt, billing or customer-data changes are required.
+Local production build, Astro checks (zero errors/warnings/hints), content graph
+and all 28 static route checks passed. The focused browser runner passed both
+catalogue routes, all nine preview formats, close/Escape/focus behavior, local
+images/font, offer isolation and ten width/theme layouts (320-1536px). The shared
+theme/navigation regression also passed. Evidence is in
+`verification-support/kit-cards-01062/homepage/local/`. Hosted rollout is pending.

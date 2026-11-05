@@ -9,6 +9,10 @@
   flex: 0 0 2.75rem;
 }
 
+@media (max-width: 23rem) {
+  .site-header .site-header__brand .loom-wordmark { width: 10rem; }
+}
+
 [data-theme-icon="light"],
 :root[data-theme="dark"] [data-theme-icon="dark"] {
   display: none;

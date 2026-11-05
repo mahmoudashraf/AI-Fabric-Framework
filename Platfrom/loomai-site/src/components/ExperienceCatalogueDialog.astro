@@ -1,11 +1,14 @@
 ---
 import { LockKeyhole, Menu, MessageSquare, X } from '@lucide/astro'
 import ExperienceCatalogueIllustration from './ExperienceCatalogueIllustration.astro'
+import HomeKitScene from './HomeKitScene.astro'
 import { catalogueExperiences, catalogueFormats, type CatalogueVariant } from './ExperienceCatalogueContent'
 
-interface Props { variant: CatalogueVariant }
+interface Props { variant: CatalogueVariant | 'support' }
 const { variant } = Astro.props
-const experience = catalogueExperiences[variant]
+const support = variant === 'support'
+const experience = support ? { title: 'AI Support', business: 'Your business', address: 'support.your-business.example',
+  websiteHeading: 'How can we help?', products: [{ image: '/assets/experiences/kit-support-team.webp' }] } : catalogueExperiences[variant]
 const id = `catalogue-preview-${variant}`
 ---
 
@@ -14,25 +17,25 @@ const id = `catalogue-preview-${variant}`
     <div><span class="catalogue-dialog__eyebrow">Illustrative preview</span><h3 id={`${id}-title`}>{experience.title}</h3></div>
     <button class="catalogue-dialog__close" type="button" data-catalogue-close aria-label="Close experience preview" title="Close experience preview"><X size={21} aria-hidden="true" /></button>
   </div>
-  <p class="catalogue-dialog__disclosure" id={`${id}-disclosure`}>Example content only. No messages are sent, enquiries submitted or bookings made.</p>
+  <p class="catalogue-dialog__disclosure" id={`${id}-disclosure`}>{support ? 'Example support guidance and requests. Nothing is submitted and no human agent is contacted.' : 'Example content only. No messages are sent, enquiries submitted or bookings made.'}</p>
   <div class="catalogue-dialog__formats" role="group" aria-label="Preview format">
     {catalogueFormats.map(format => <button type="button" data-catalogue-format={format.id} aria-pressed={format.id === 'workspace'} aria-controls={`${id}-stage`}>{format.label}</button>)}
   </div>
   <p class="catalogue-dialog__format-note">One connected experience. Max is a workspace layout, not a separate deployment.</p>
   <div class="catalogue-dialog__stage" id={`${id}-stage`}>
-    <div class="catalogue-dialog__browser-bar" aria-hidden="true"><span class="catalogue-dialog__dots"><i></i><i></i><i></i></span><span class="catalogue-dialog__address"><LockKeyhole size={12} /><span data-catalogue-address data-website-address={`${variant === 'dealership' ? 'www.northfieldmotors' : 'www.oakandco'}.example`} data-standalone-address={experience.address}>{experience.address}</span></span></div>
+    <div class="catalogue-dialog__browser-bar" aria-hidden="true"><span class="catalogue-dialog__dots"><i></i><i></i><i></i></span><span class="catalogue-dialog__address"><LockKeyhole size={12} /><span data-catalogue-address data-website-address={support ? 'www.your-business.example' : `${variant === 'dealership' ? 'www.northfieldmotors' : 'www.oakandco'}.example`} data-standalone-address={experience.address}>{experience.address}</span></span></div>
     <div class="catalogue-dialog__website" aria-hidden="true">
-      <div class="catalogue-dialog__website-nav"><Menu size={17} /><strong>{experience.business}</strong><span>{variant === 'dealership' ? 'Our vehicles' : 'Our collection'}</span></div>
+      <div class="catalogue-dialog__website-nav"><Menu size={17} /><strong>{experience.business}</strong><span>{support ? 'Support' : variant === 'dealership' ? 'Our vehicles' : 'Our collection'}</span></div>
       <img src={experience.products[0].image} alt="" width="640" height="420" loading="lazy" />
       <div class="catalogue-dialog__website-copy"><strong>{experience.websiteHeading}</strong><span>{variant === 'dealership' ? 'Fictional dealership website' : 'Illustrative business website'}</span></div>
       <span class="catalogue-dialog__launcher"><MessageSquare size={23} /></span>
     </div>
     <div class="catalogue-dialog__app" tabindex="0" role="region" aria-label="Illustrative customer workspace">
       <div class="catalogue-dialog__rail" aria-hidden="true"><MessageSquare size={21} /><span></span><span></span><span></span></div>
-      <ExperienceCatalogueIllustration variant={variant} expanded />
+      {variant === 'support' ? <HomeKitScene kind="support" expanded /> : <ExperienceCatalogueIllustration variant={variant} expanded />}
     </div>
   </div>
-  <div class="catalogue-dialog__footer"><p>{variant === 'dealership' ? 'Fictional simulator stock and example prices. Not live availability.' : 'Illustrative products and example prices. Your business supplies its own information.'} Human support is optional with LoomAI Desk.</p></div>
+  <div class="catalogue-dialog__footer"><p>{support ? 'Fictional support examples. Request tracking and human support are separate choices.' : variant === 'dealership' ? 'Fictional simulator stock and example prices. Not live availability.' : 'Illustrative products and example prices. Your business supplies its own information.'} Human support is optional with LoomAI Desk.</p></div>
 </dialog>
 
 <style>
@@ -57,6 +60,7 @@ const id = `catalogue-preview-${variant}`
   .catalogue-dialog__address > svg { flex-shrink: 0; }
   .catalogue-dialog__app { align-items: stretch; display: grid; grid-template-columns: 2.8rem minmax(0, 1fr); }
   .catalogue-dialog__app > :global(.catalogue-workspace) { border: 0; border-radius: 0; }
+  .catalogue-dialog__app > :global(.home-kit-scene) { border: 0; border-radius: 0; }
   .catalogue-dialog__rail { align-items: center; background: var(--loom-surface-soft); border-right: 1px solid var(--loom-border-default); color: var(--catalogue-ink); display: flex; flex-direction: column; gap: 1.3rem; padding-top: 1rem; }
   .catalogue-dialog__rail > span { background: var(--loom-border-strong); border-radius: 2px; height: 0.3rem; width: 1rem; }
   .catalogue-dialog__website { display: none; }

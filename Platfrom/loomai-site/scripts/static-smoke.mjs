@@ -80,6 +80,12 @@ for (const required of [
   'assets/experiences/demo-support-agent.webp',
   'assets/experiences/google-drive.png',
   'assets/experiences/slack.svg',
+  'assets/experiences/demo-support-agent-headset.webp',
+  'assets/experiences/example-electric-suv.webp',
+  'assets/experiences/kit-support-team.webp',
+  'assets/experiences/whatsapp.svg',
+  'assets/experiences/manrope-OFL.txt',
+  'assets/experiences/mui-icons-LICENSE.txt',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
@@ -100,17 +106,23 @@ for (const route of ['', 'experiences']) {
     'Optional with LoomAI Desk',
     'Fictional simulator stock, not live availability.',
     'Example content only. No messages are sent, enquiries submitted or bookings made.',
-    'href="/experiences/ai-customer-experience"',
-    'href="/experiences/dealership-ai-experience"',
+    'href="https://console.loomai.pro/experiences/ai-customer-experience"',
+    'href="https://console.loomai.pro/experiences/dealership-ai-experience"',
+    'href="https://console.loomai.pro/experiences/ai-support-experience"',
+    'Only pay when value starts',
+    'First 3 months free',
+    'Free integration',
     'href="/demos/dealership-ai"',
   ]) {
     if (!html.includes(expected)) errors.push(`Experience catalogue at /${route} is missing ${expected}`)
   }
-  for (const variant of ['generic', 'dealership']) {
+  for (const variant of ['generic', 'dealership', 'support']) {
     if (!html.includes(`id="catalogue-preview-${variant}"`)) errors.push(`Missing ${variant} native preview dialog at /${route}`)
+    const entry = new RegExp(`data-catalogue-preview="${variant}"[^>]+data-catalogue-initial-format="workspace"`)
+    if (!entry.test(html)) errors.push(`Missing ${variant} preview entry at /${route}`)
+    const dialog = html.match(new RegExp(`<dialog id="catalogue-preview-${variant}"[\\s\\S]*?</dialog>`))?.[0] ?? ''
     for (const format of ['website', 'workspace', 'standalone']) {
-      const miniature = new RegExp(`data-catalogue-preview="${variant}"[^>]+data-catalogue-initial-format="${format}"`)
-      if (!miniature.test(html)) errors.push(`Missing ${variant} ${format} preview control at /${route}`)
+      if (!dialog.includes(`data-catalogue-format="${format}"`)) errors.push(`Missing ${variant} ${format} preview control at /${route}`)
     }
   }
 }

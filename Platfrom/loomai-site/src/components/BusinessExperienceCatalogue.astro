@@ -1,68 +1,53 @@
 ---
-import { ArrowRight, Box, CarFront, Headphones, Maximize2, MessageSquare, Play } from '@lucide/astro'
+import { ArrowLeftRight, ArrowRight, Box, CalendarDays, CarFront, CircleCheck, Eye, FileText, Headphones, MessageSquare, Monitor, CirclePlay, Search, ShoppingBag, Smartphone, Store, Ticket, AppWindow, SquareArrowOutUpRight } from '@lucide/astro'
 import ExperienceCatalogueDialog from './ExperienceCatalogueDialog.astro'
-import ExperienceCatalogueIllustration from './ExperienceCatalogueIllustration.astro'
-import ExperienceCatalogueMiniature from './ExperienceCatalogueMiniature.astro'
-import { catalogueExperiences, catalogueFormats, type CatalogueVariant } from './ExperienceCatalogueContent'
+import HomeKitScene from './HomeKitScene.astro'
+import { homeKitCards, kitDetailUrl } from './HomeKitCardsContent'
+import '../styles/kit-cards.css'
 
-const variants: CatalogueVariant[] = ['generic', 'dealership']
+const icons = {
+  generic: [Search, ArrowLeftRight, ShoppingBag],
+  dealership: [CarFront, ArrowLeftRight, CalendarDays],
+  support: [FileText, Ticket, Headphones],
+}
 ---
 
 <experience-catalogue>
-  <section class="business-experiences" id="experiences" aria-labelledby="experiences-title">
+  <section class="business-experiences home-kits" id="experiences" aria-labelledby="experiences-title">
     <div class="loom-container">
-      <header class="business-experiences__heading"><h2 id="experiences-title">Choose your customer AI experience</h2><p>One connected experience. On your website, in a workspace, or at its own address.</p></header>
-      <div class="business-experiences__grid">
-        {variants.map(variant => {
-          const experience = catalogueExperiences[variant]
-          const Icon = variant === 'dealership' ? CarFront : MessageSquare
-          return (
-            <article class:list={['business-kit', 'experience-catalogue-theme', `business-kit--${variant}`, `experience-catalogue-theme--${variant}`]} aria-labelledby={`${variant}-kit-title`}>
-              <header class="business-kit__heading">
-                <Icon size={39} stroke-width={1.7} aria-hidden="true" />
-                <div><span class="business-kit__badge">{experience.badge}</span><h3 id={`${variant}-kit-title`}>{experience.title}</h3><p>{experience.description}</p></div>
-              </header>
-              <ExperienceCatalogueIllustration variant={variant} />
-              <div class="business-kit__formats">
-                <div class="business-kit__formats-heading"><h4>Three ways customers can use it</h4><span>Choose one or combine them.</span></div>
-                <div class="business-kit__miniatures">
-                  {catalogueFormats.map(format => (
-                    <button type="button" data-catalogue-preview={variant} data-catalogue-initial-format={format.id} aria-haspopup="dialog" aria-controls={`catalogue-preview-${variant}`} aria-label={`Preview ${experience.title}: ${format.label}`}>
-                      <ExperienceCatalogueMiniature variant={variant} format={format.id} />
-                      <span class="business-kit__format-label">{format.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div class="business-kit__powered">
-                <h4>Powered by</h4>
-                <ul>
-                  <li><Box size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Platform</strong><span>Connect your business</span></div></li>
-                  <li><MessageSquare size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Engage</strong><span>Brand the experience</span></div></li>
-                  <li><Headphones size={27} stroke-width={1.7} aria-hidden="true" /><div><strong>LoomAI Desk <b>Optional</b></strong><span>Bring your team</span></div></li>
-                </ul>
-              </div>
-              <div class="business-kit__actions">
-                <a class="business-kit__start" href={experience.detailUrl}>Get started<ArrowRight size={19} aria-hidden="true" /></a>
-                <button type="button" class="business-kit__preview" data-catalogue-preview={variant} data-catalogue-initial-format="workspace" aria-haspopup="dialog" aria-controls={`catalogue-preview-${variant}`}><Maximize2 size={17} aria-hidden="true" />Preview experience</button>
-              </div>
-              <div class="business-kit__footnote">{variant === 'dealership' ? <a href="/demos/dealership-ai"><Play size={12} aria-hidden="true" />Try the dealership simulator demo<ArrowRight size={13} aria-hidden="true" /></a> : <span>Make it yours with your information, branding and connections.</span>}</div>
+      <header class="home-kits__heading"><h2 id="experiences-title">Choose your AI experience</h2><p>Start with a kit. Make it yours.</p></header>
+      <div class="home-kits__grid">
+        {homeKitCards.map(kit => {
+          const Icon = kit.kind === 'dealership' ? CarFront : kit.kind === 'support' ? Headphones : Store
+          return <div class="home-kit-option" data-kind={kit.kind}>
+            {kit.kind === 'dealership' ? <aside class="home-kit-offer" aria-label="Dealership offer">
+              <span><CarFront size={22} />Dealership offer</span><div><span>£500 / month</span><strong>Only pay when value starts</strong></div>
+              <ul><li><CircleCheck size={17} />First 3 months free</li><li><CircleCheck size={17} />Free integration</li></ul>
+            </aside> : <div class="home-kit-offer-space" aria-hidden="true" />}
+            <article class={`business-kit home-kit experience-catalogue-theme experience-catalogue-theme--${kit.kind}`} aria-labelledby={`${kit.kind}-kit-title`}>
+              <header class="home-kit__identity"><span><Icon size={20} />{kit.scope}</span><h3 id={`${kit.kind}-kit-title`}>{kit.title}</h3><p>{kit.summary}</p></header>
+              <HomeKitScene kind={kit.kind} />
+              <div class="home-kit__capabilities">{kit.features.map((feature, index) => { const FeatureIcon = icons[kit.kind][index]; return <span><FeatureIcon size={18} />{feature}</span> })}</div>
+              <div class="home-kit__products"><div><span><Box size={25} />Platform</span><b>+</b><span><MessageSquare size={25} />Engage</span><b>+</b>
+                <span><span class="home-kit__desk" aria-hidden="true"><span><img src="/assets/experiences/whatsapp.svg" alt="" width="11" height="11" /><Smartphone size={11} /></span><img src="/assets/experiences/demo-support-agent-headset.webp" alt="" width="32" height="32" loading="lazy" /></span>Human Desk</span></div><small>Human support optional with Desk</small></div>
+              <a class="home-kit__explore" href={kitDetailUrl(kit.code)}>Explore kit<ArrowRight size={19} aria-hidden="true" /></a>
+              <div class="home-kit__commands"><button type="button" data-catalogue-preview={kit.kind} data-catalogue-initial-format="workspace" aria-haspopup="dialog" aria-controls={`catalogue-preview-${kit.kind}`}><Eye size={17} />{kit.preview}</button>
+                {kit.kind === 'dealership' && <a href="/demos/dealership-ai"><CirclePlay size={17} />Try live demo</a>}</div>
             </article>
-          )
+          </div>
         })}
       </div>
-      <p class="business-experiences__note">Illustrative previews. Platform + Engage are included in both experiences. Add your own support team with optional LoomAI Desk.</p>
+      <div class="home-kits__formats" aria-label="Ways to use your AI experience"><small>Choose one or combine them.</small><span><AppWindow size={24} />Website widget</span><span><Monitor size={24} />Max workspace</span><span><SquareArrowOutUpRight size={24} />Standalone app</span></div>
+      <p class="home-kits__note">Illustrative previews. Configure your own branding, knowledge and integrations.</p>
     </div>
   </section>
-  {variants.map(variant => <ExperienceCatalogueDialog variant={variant} />)}
+  {homeKitCards.map(kit => <ExperienceCatalogueDialog variant={kit.kind} />)}
 </experience-catalogue>
 
 <script>
   import type { CatalogueFormat } from './ExperienceCatalogueContent'
-
   class ExperienceCatalogue extends HTMLElement {
     private controller?: AbortController
-
     connectedCallback() {
       this.controller?.abort()
       this.controller = new AbortController()
@@ -88,14 +73,10 @@ const variants: CatalogueVariant[] = ['generic', 'dealership']
           if (startedOnBackdrop && event.target === dialog && outside(event)) dialog.close()
           startedOnBackdrop = false
         }, { signal })
-        for (const toggle of dialog.querySelectorAll<HTMLButtonElement>('[data-catalogue-format]')) {
-          toggle.addEventListener('click', () => this.setFormat(dialog, toggle.dataset.catalogueFormat as CatalogueFormat), { signal })
-        }
+        for (const toggle of dialog.querySelectorAll<HTMLButtonElement>('[data-catalogue-format]')) toggle.addEventListener('click', () => this.setFormat(dialog, toggle.dataset.catalogueFormat as CatalogueFormat), { signal })
       }
     }
-
     disconnectedCallback() { this.controller?.abort() }
-
     private setFormat(dialog: HTMLDialogElement, format: CatalogueFormat) {
       dialog.dataset.format = format
       for (const toggle of dialog.querySelectorAll<HTMLButtonElement>('[data-catalogue-format]')) toggle.setAttribute('aria-pressed', String(toggle.dataset.catalogueFormat === format))
@@ -103,84 +84,5 @@ const variants: CatalogueVariant[] = ['generic', 'dealership']
       if (address) address.textContent = format === 'website' ? address.dataset.websiteAddress ?? '' : address.dataset.standaloneAddress ?? ''
     }
   }
-
   if (!customElements.get('experience-catalogue')) customElements.define('experience-catalogue', ExperienceCatalogue)
 </script>
-
-<style>
-  experience-catalogue { display: block; }
-  :global(.experience-catalogue-theme) { --catalogue-accent: #79e9c7; --catalogue-ink: #086858; --catalogue-soft: #eaf9f3; --catalogue-border: #9cd9c8; }
-  :global(.experience-catalogue-theme--dealership) { --catalogue-accent: #ffd06a; --catalogue-ink: #805407; --catalogue-soft: #fff7e5; --catalogue-border: #e8c77f; }
-  :global([data-theme='dark'] .experience-catalogue-theme) { --catalogue-ink: #83e8ca; --catalogue-soft: #203a34; --catalogue-border: #467769; }
-  :global([data-theme='dark'] .experience-catalogue-theme--dealership) { --catalogue-ink: #f4cb72; --catalogue-soft: #3b3323; --catalogue-border: #786643; }
-  .business-experiences { padding-block: 1.4rem 0; scroll-margin-top: 6.5rem; }
-  .business-experiences__heading { margin-bottom: 1.3rem; }
-  h2 { font-size: 2rem; line-height: 1.2; margin-bottom: 0.5rem; }
-  .business-experiences__heading > p { font-size: 1rem; margin: 0; }
-  .business-experiences__grid { display: grid; gap: 1.2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .business-kit { background: var(--loom-surface); border: 1px solid var(--catalogue-border); border-top: 5px solid var(--catalogue-accent); border-radius: 8px; display: flex; flex-direction: column; gap: 1rem; min-width: 0; padding: 1.15rem; }
-  .business-kit__heading { align-items: center; display: grid; gap: 0.85rem; grid-template-columns: 2.8rem minmax(0, 1fr); min-height: 6.5rem; }
-  .business-kit__heading > svg { color: var(--catalogue-ink); }
-  .business-kit__heading > div { border-left: 1px solid var(--loom-border-default); padding-left: 0.85rem; }
-  .business-kit__badge { background: var(--catalogue-accent); border-radius: 4px; color: #142d2a; display: inline-block; font-size: 0.61rem; font-weight: 800; line-height: 1.3; padding: 0.25rem 0.5rem; text-transform: uppercase; }
-  h3 { font-size: 1.4rem; line-height: 1.2; margin: 0.45rem 0 0.35rem; text-wrap: initial; }
-  .business-kit__heading p { font-size: 0.78rem; line-height: 1.5; margin: 0; }
-  .business-kit > :global(.catalogue-workspace) { display: flex; flex: 1; flex-direction: column; }
-  .business-kit > :global(.catalogue-workspace .catalogue-workspace__input) { margin-top: auto; }
-  .business-kit > :global(.catalogue-workspace .catalogue-workspace__conversation) { padding-bottom: 0.25rem; }
-  .business-kit__formats-heading { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; justify-content: space-between; margin-bottom: 0.75rem; }
-  .business-kit h4 { font-size: 0.92rem; line-height: 1.3; margin: 0; text-wrap: initial; }
-  .business-kit__formats-heading > span { color: var(--loom-text-muted); font-size: 0.65rem; }
-  .business-kit__miniatures { display: grid; gap: 0.8rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .business-kit__miniatures button { align-items: start; background: none; border: 0; border-radius: 6px; cursor: pointer; display: grid; gap: 0.55rem; grid-template-rows: auto 2.3em; min-width: 0; padding: 0; text-align: center; }
-  .business-kit__miniatures button:hover { color: var(--catalogue-ink); }
-  .business-kit__miniatures button:hover :global(.catalogue-miniature) { outline: 2px solid var(--catalogue-ink); outline-offset: 2px; }
-  .business-kit__format-label { font-size: 0.7rem; font-weight: 700; line-height: 1.3; }
-  .business-kit__powered { border-block: 1px solid var(--loom-border-default); padding-block: 0.8rem; }
-  .business-kit__powered h4 { margin-bottom: 0.65rem; }
-  .business-kit__powered ul { display: grid; gap: 0.6rem; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
-  .business-kit__powered li { align-items: start; display: flex; gap: 0.45rem; min-width: 0; }
-  .business-kit__powered li > svg { color: var(--loom-blue-600); flex: 0 0 1.6rem; }
-  .business-kit__powered li:nth-child(2) > svg { color: var(--catalogue-ink); }
-  .business-kit__powered li:nth-child(3) > svg { color: var(--loom-warning); }
-  .business-kit__powered li > div { min-width: 0; }
-  .business-kit__powered strong { display: block; font-size: 0.73rem; line-height: 1.3; }
-  .business-kit__powered b { background: var(--loom-warning-soft); border-radius: 3px; color: var(--loom-text-primary); display: inline-block; font-size: 0.58rem; line-height: 1.4; margin-top: 0.2rem; padding: 0.05rem 0.25rem; }
-  .business-kit__powered li span { color: var(--loom-text-muted); display: block; font-size: 0.61rem; line-height: 1.4; margin-top: 0.3rem; }
-  .business-kit__actions { display: grid; gap: 0.7rem; grid-template-columns: 1fr 1fr; }
-  .business-kit__actions > * { align-items: center; border: 1px solid var(--loom-border-strong); border-radius: 5px; cursor: pointer; display: flex; font-size: 0.85rem; font-weight: 750; gap: 0.6rem; justify-content: center; line-height: 1.3; min-height: 2.7rem; padding: 0.55rem 0.65rem; text-decoration: none; }
-  .business-kit__actions svg { flex-shrink: 0; }
-  .business-kit__start { background: var(--catalogue-accent); border-color: var(--catalogue-accent); color: #142d2a; }
-  .business-kit__preview { background: var(--loom-surface); }
-  .business-kit__actions > *:hover { border-color: var(--catalogue-ink); }
-  .business-kit__footnote { color: var(--loom-text-muted); font-size: 0.66rem; line-height: 1.5; min-height: 1.5em; }
-  .business-kit__footnote a { align-items: center; color: var(--catalogue-ink); display: inline-flex; flex-wrap: wrap; gap: 0.35rem; text-decoration: none; }
-  .business-kit__footnote a:hover { text-decoration: underline; text-underline-offset: 3px; }
-  .business-experiences__note { color: var(--loom-text-muted); font-size: 0.74rem; line-height: 1.5; margin: 0.9rem 0 0; text-align: center; }
-  @media (min-width: 56rem) and (max-width: 78rem) {
-    .business-kit { padding: 0.85rem; }
-    .business-kit__heading { gap: 0.6rem; grid-template-columns: 2rem minmax(0, 1fr); min-height: 7.4rem; }
-    .business-kit__heading > div { padding-left: 0.6rem; }
-    h3 { font-size: 1.15rem; }
-    .business-kit__miniatures { gap: 0.55rem; }
-    .business-kit__powered li { flex-wrap: wrap; }
-    .business-kit__actions > * { font-size: 0.76rem; gap: 0.35rem; padding-inline: 0.4rem; }
-  }
-  @media (max-width: 56rem) { .business-experiences__grid { grid-template-columns: minmax(0, 1fr); } .business-kit { padding: 1rem; } .business-kit__heading { min-height: 0; } }
-  @media (max-width: 30rem) {
-    h2 { font-size: 1.6rem; }
-    .business-experiences__heading > p { font-size: 0.88rem; }
-    .business-kit { gap: 0.85rem; padding: 0.8rem; }
-    .business-kit__heading { gap: 0.5rem; grid-template-columns: 1.9rem minmax(0, 1fr); }
-    .business-kit__heading > div { padding-left: 0.6rem; }
-    h3 { font-size: 1.15rem; }
-    .business-kit__heading p { font-size: 0.72rem; }
-    .business-kit__badge { font-size: 0.56rem; }
-    .business-kit__miniatures { gap: 0.55rem; }
-    .business-kit__format-label { font-size: 0.63rem; }
-    .business-kit__powered ul { gap: 0.5rem; }
-    .business-kit__powered li { flex-direction: column; }
-    .business-kit__actions { gap: 0.5rem; }
-    .business-kit__actions > * { font-size: 0.73rem; gap: 0.35rem; padding-inline: 0.4rem; }
-  }
-</style>

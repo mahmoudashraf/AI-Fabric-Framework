@@ -1,0 +1,34 @@
+---
+import { ArrowLeftRight, CalendarDays, CircleCheck, FileText, MessageSquare, Send, Ticket, UserRound } from '@lucide/astro'
+import { catalogueExperiences } from './ExperienceCatalogueContent'
+import type { HomeKitKind } from './HomeKitCardsContent'
+interface Props { kind: HomeKitKind; expanded?: boolean }
+const { kind, expanded = false } = Astro.props
+const content = kind === 'support' ? null : catalogueExperiences[kind]
+const name = content?.assistant ?? 'Your support AI'
+const carImage = '/assets/experiences/example-electric-suv.webp'
+---
+<figure class:list={['home-kit-scene', { 'home-kit-scene--expanded': expanded }]} role="img" aria-label={`Illustrative ${name} workspace. Fictional example, not live AI or an assigned agent.`}>
+  <div aria-hidden="true">
+    <div class="home-kit-scene__header"><img src={kind === 'dealership' ? carImage : '/assets/experiences/' + (kind === 'support' ? 'kit-support-team.webp' : 'example-forma-chair.webp')} alt="" width="320" height="120" loading="lazy" /><MessageSquare size={24} /><strong>{name}</strong></div>
+    <div class="home-kit-scene__body">
+      <div class="home-kit-scene__question"><UserRound size={20} /><span>{kind === 'support' ? 'How do I connect my data source?' : kind === 'dealership' ? 'An electric SUV under £35,000?' : 'Which chair suits a small home office?'}</span></div>
+      <div class="home-kit-scene__answer"><MessageSquare size={20} /><span>{kind === 'support' ? 'Here are the steps from your setup guide.' : kind === 'dealership' ? 'Here is one from your current stock.' : 'Two compact options worth exploring.'}</span></div>
+      {kind === 'generic' && content && <>
+        <div class="home-kit-scene__chairs">{content.products.map(product => <div><img src={product.image} alt="" width="480" height="360" loading="lazy" /><strong>{product.name.replace(' Chair', '')}</strong></div>)}</div>
+        <div class="home-kit-scene__context"><span><ArrowLeftRight size={17} />Compare</span><span><FileText size={17} />Your approved knowledge</span></div>
+      </>}
+      {kind === 'dealership' && content && <>
+        <div class="home-kit-scene__stock"><img src={carImage} alt="" width="720" height="480" loading="lazy" /><div><strong>{content.products[0].name}</strong><span>{content.products[0].price.replace('GBP ', '£')}</span><small>Electric · 4,850 miles</small></div></div>
+        <div class="home-kit-scene__compare"><div><img src={carImage} alt="" width="96" height="64" loading="lazy" /><img src={content.products[1].image} alt="" width="96" height="64" loading="lazy" /></div><span><ArrowLeftRight size={18} />Compare vehicles</span></div>
+        <div class="home-kit-scene__next"><CalendarDays size={18} />Request a test drive</div><div class="home-kit-scene__live"><CircleCheck size={12} />Live inventory connected</div>
+      </>}
+      {kind === 'support' && <>
+        <div class="home-kit-scene__guide"><strong><FileText size={19} />Connection guide</strong><ol><li>Choose your data source.</li><li>Add your approved access details.</li><li>Test the connection with your team.</li></ol></div>
+        <div class="home-kit-scene__request"><Ticket size={18} /><strong>Request #1042</strong><span>Open</span></div>
+        <div class="home-kit-scene__human"><img src="/assets/experiences/demo-support-agent.webp" alt="" width="40" height="40" loading="lazy" /><strong>Alex · Support</strong><span>I can help with the next step.</span></div>
+      </>}
+      {kind !== 'dealership' && <div class="home-kit-scene__input"><span>{kind === 'support' ? 'Reply to your support team...' : 'Ask a follow-up...'}</span><Send size={19} /></div>}
+    </div>
+  </div>
+</figure>

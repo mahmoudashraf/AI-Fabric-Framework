@@ -22,3 +22,15 @@ assets. Google Drive's logo comes from Google's product branding; Slack's logo
 comes from Devicon v2.17.0 under the adjacent `devicon-LICENSE.txt`. Original
 source URLs and trademark notes are in the Console asset README. These illustrate
 external systems, not certified partnerships or preinstalled integrations.
+
+The homepage kit cards reuse `demo-support-agent-headset.webp`,
+`example-electric-suv.webp` and `kit-support-team.webp` from
+`Platfrom/ui/public/products/`. They are generated fictional examples; their
+source descriptions remain in that directory's README. The portrait does not
+represent an assigned or available agent.
+
+The locally served Manrope font is licensed under the SIL Open Font License in
+`manrope-OFL.txt`. `whatsapp.svg` uses the unmodified WhatsApp icon path from
+`@mui/icons-material` under the adjacent `mui-icons-LICENSE.txt`. The small
+WhatsApp and mobile symbols illustrate possible Desk channels, not an active
+integration or a claimed WhatsApp partnership.
