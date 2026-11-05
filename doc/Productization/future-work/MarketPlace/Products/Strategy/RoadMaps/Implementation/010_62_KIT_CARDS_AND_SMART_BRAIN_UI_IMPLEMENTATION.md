@@ -145,3 +145,16 @@ additional code change or repeated deployment was needed.
 Public-safe screenshots and qualification summaries are in
 `verification-support/kit-cards-01062/refinement/`. This is a presentation-only
 release; existing kit installation and AI execution behavior are unchanged.
+
+## Reference Background Colour Correction
+
+The owner identified that the adaptive/dealership preview backgrounds were too
+grey. Pixel inspection of the approved image confirmed deeper teal for adaptive
+and blue-charcoal for dealership. Explicit dark-mode card/scene/header tokens
+now reproduce those tones, rather than relying on a four-percent accent mix.
+AI Support and all light-mode backgrounds are unchanged. Layout, content and
+behavior are unchanged. The production build and 24 browser/theme states passed,
+including explicit computed-colour regressions. Hosted rollout is pending.
+
+The separate request for an improved kit detail page is a visual proposal only;
+no detail-page layout or commercial terms have been changed in this correction.

@@ -90,6 +90,20 @@ try {
         assert.equal(geometry.titleSize, '28px')
         assert.match(geometry.font, /LoomAI Catalogue/)
         results.push({ label: `${scheme}-reference-proportions`, ...geometry })
+        const backgrounds = await page.locator('.ek-kit-option').evaluateAll(cards => cards.map(card => ({
+          kind: card.getAttribute('data-kind'),
+          card: getComputedStyle(card.querySelector('.ek-catalogue-card')).backgroundColor,
+          scene: getComputedStyle(card.querySelector('.ek-card-scene')).backgroundColor,
+          header: getComputedStyle(card.querySelector('.ek-card-scene-header')).backgroundColor,
+        })))
+        if (scheme === 'dark') {
+          assert.deepEqual(backgrounds[0], { kind: 'adaptive', card: 'rgb(22, 30, 35)', scene: 'rgb(3, 39, 42)', header: 'rgb(6, 56, 59)' })
+          assert.deepEqual(backgrounds[1], { kind: 'dealership', card: 'rgb(23, 31, 36)', scene: 'rgb(18, 32, 42)', header: 'rgb(20, 43, 61)' })
+          assert.equal(backgrounds[2].card, 'rgb(25, 31, 36)')
+        } else {
+          assert.ok(backgrounds.every(card => card.card === 'rgb(255, 255, 255)'))
+        }
+        results.push({ label: `${scheme}-reference-backgrounds`, backgrounds })
       }
       if (width === 1536 || width === 390) await page.screenshot({ path: `${output}/catalogue-${scheme}-${width}.png`, fullPage: true })
     }
