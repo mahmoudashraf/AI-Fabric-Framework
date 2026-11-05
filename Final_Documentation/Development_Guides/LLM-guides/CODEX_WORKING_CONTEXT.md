@@ -12731,3 +12731,30 @@ test is being called hosted acceptance. UI extraction remains last.
   Private deployment/identity receipts ~/.codex/private/loomai-booking-panel/.
   Earlier external-tab-only booking notes are superseded. Unrelated dirty work
   is preserved; task-owned temporary preview/test servers have stopped.
+
+## 2026-11-05 Native Console Support Dock Live
+
+- Owner preferred the dealership-style dock instead of the narrow floating
+  support page. Ordinary customer pages now use the actual CompanionDock input,
+  expandable conversation and Max view. Clarity/teal follows Console light/dark.
+  Dedicated Support keeps roster,form,My Requests,diagnostics and lifecycle.
+- Generic Support pack adds opt-in trusted-host docked presentation. One pack
+  controller/frame retains draft,attachments and conversation across navigation,
+  Max,minimize and theme changes. Content clipping preserves background page
+  clicks. Shared dock history shrinks on short screens; default Support copy no
+  longer inherits shopping wording. No AI decisions/prompts/runtime config change.
+- Main source8569c565787b541f7f023ea03c4d09050e866f3e; final empty-state
+  copy/source615c27e7bb7929773cf09e203fd1f991ebb9d50b. CI42130548197 and
+  CI42131529333 passed. Staging/production Console and asset-serving Platform
+  backends are healthy on615c27e7,confirmed by native revision. Backend image
+  refresh serves widget assets only; no schema/framework/backend behavior change.
+- Local35 pack tests,11 Console Support groups,9 booking/CSP tests,types/builds
+  and viewport contract passed; the copy change passed focused dock regression.
+  Both hosted customer runs passed dock/Max/minimize,form cancel/My Requests,
+  retained frame/draft across navigation/themes and390/320px bounds. No AI query,
+  ticket,handover or API mutation in final live checks; both backend health UP.
+- Other application/runtime/Desk/site image tags unchanged. No resource,app
+  assignment,template or credentials changed. Safe evidence is in
+  verification-support/console-support-dock/; private screenshots/receipts in
+  ~/.codex/private/loomai-support-dock/. Guide: support-experience/docs/
+  CONSOLE_HOST_ADAPTER.md. Unrelated dirty work preserved; owned test servers stopped.

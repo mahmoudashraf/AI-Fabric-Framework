@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "environment": "staging",
+  "source": "615c27e7bb7929773cf09e203fd1f991ebb9d50b",
+  "checks": [
+    "native-dock-host-click-through-expanded-chat-max-close-draft",
+    "minimize-reopen-support-page-request-form-cancel-my-requests-chat",
+    "one-frame-and-draft-across-navigation-light-dark-matching-clarity-theme",
+    "390-and-320-mobile-dock-max-input-and-navigation-bounds"
+  ],
+  "mutations": [],
+  "errors": [],
+  "noAIQuery": true,
+  "noTicketSubmitted": true,
+  "noHandoverMutation": true
+}

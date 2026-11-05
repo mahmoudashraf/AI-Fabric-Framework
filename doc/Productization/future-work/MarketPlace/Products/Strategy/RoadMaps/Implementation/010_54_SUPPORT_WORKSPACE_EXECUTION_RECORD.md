@@ -317,3 +317,30 @@ Remaining critical path: deploy the narrow Console/readiness correction; finish 
 - The private adapter resolves a real ordinary Engage installation and its verified release assignment. It exposes only the registered case conversation routes and server-signs exact target assertions; no runtime key/assertion reaches the browser. First-message delivery uses the stored immutable body/key, with saved/uncertain/processing/completed states kept distinct.
 - Read-only host check: both control planes answered normally; staging load 0.61/1.34/1.31 and production 0.60/0.37/0.31 at 16:04 UTC. This is a point health observation, not capacity qualification or proof of the new support deployment.
 - No support production completion or second-customer reusable-product claim yet. Remaining phase work stays open until actual hosted evidence exists.
+
+## 2026-11-05 Native Console Support Dock
+
+The narrow global floating support page is replaced by the existing generic
+CompanionDock input, expandable chat and Max view. Console selects Clarity with
+a teal accent and its current light/dark mode. Support's dedicated page retains
+the roster, intake form, My Requests, diagnostics and ticket lifecycle.
+
+The generic pack's optional trusted-host docked presentation and isolated-frame
+content clipping preserve background interaction without remounting conversation
+state. Drafts/attachments survive navigation and theme changes. Short-screen dock
+history shrinks to keep controls accessible; Support supplies its own empty copy.
+No dealership coupling, AI prompts/routing/validation or runtime configuration
+changes. The standard widget/page/standalone defaults remain opt-in unchanged.
+
+Final source615c27e7bb7929773cf09e203fd1f991ebb9d50b is healthy on staging
+and production Console plus the existing asset-serving Platform backends. Native
+revisions, successful image jobs42131529333, HTTP200/UP backend health and hosted
+customer browser runs confirm rollout. Other apps/runtime images are unchanged.
+
+Local qualification:35 pack tests,11 Console scenario groups,9 booking/CSP
+regressions,types/builds and viewport contract; final copy additionally passed
+the focused real-engine dock test. Both live customer runs cover dock/Max/close,
+minimize/reopen,Support/request form cancel/My Requests,navigation/theme draft
+retention and390/320px bounds. They submitted no ticket,AI query or handover.
+Safe reports: verification-support/console-support-dock/. Host guide:
+experience-packs/support-experience/docs/CONSOLE_HOST_ADAPTER.md.

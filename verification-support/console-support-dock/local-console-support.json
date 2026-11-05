@@ -1,0 +1,22 @@
+{
+  "synthetic": true,
+  "scenarios": [
+    "real reusable support pack and protected roster, conversation-first bootstrap with no ticket or start",
+    "chat-first canonical message path does not create a tracked request",
+    "one iframe, unsent draft and attachment survive navigation, left dock, minimize and in-place theme changes",
+    "pack form saves and starts once with opaque version and no diagnostic permission in generic intake",
+    "owned resource picker and independent explicit consent grant/revoke preserve pack/frame and never change ticket lifecycle",
+    "the pack alone renders My Requests and versioned transitions without replay or changing human authority",
+    "deep links and reload select pack-owned detail with no start replay",
+    "current Console auth and pack-owned uncertain-create idempotency are reused without a host retry engine",
+    "compact desktop and mobile keep real pack/chat within the Console content bounds",
+    "identity loss destroys the old controller/frame and revokes protected portrait object URLs",
+    "staff shell remains separate and makes no customer support calls"
+  ],
+  "counts": {
+    "requests": 2,
+    "creates": 3,
+    "starts": 2
+  },
+  "errors": []
+}

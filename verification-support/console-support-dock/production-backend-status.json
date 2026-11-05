@@ -1,0 +1,15 @@
+{
+  "environment": "production",
+  "target": "backend",
+  "app": {
+    "uuid": "sbdv2pkkqrbsy9m59034hb5j",
+    "name": "loomai-platform-backend",
+    "tag": "615c27e7bb7929773cf09e203fd1f991ebb9d50b",
+    "status": "running:healthy"
+  },
+  "deploymentStatus": "finished",
+  "native": {
+    "revision": "615c27e7bb7929773cf09e203fd1f991ebb9d50b",
+    "status": "running"
+  }
+}
