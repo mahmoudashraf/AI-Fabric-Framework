@@ -16,7 +16,10 @@ export interface SupportExperienceConfig {
   }
   capabilities?: { tickets?: boolean; handover?: boolean; attachments?: boolean; currentPage?: boolean }
   copy?: { welcomeMessage?: string; placeholder?: string; emptyMessage?: string; starterSuggestions?: string[] }
-  theme?: { primaryColor?: string; logoUrl?: string; borderRadius?: string; fontFamily?: string; darkMode?: boolean | 'auto' }
+  theme?: {
+    stylePreset?: 'current' | 'clarity' | 'editorial' | 'obsidian' | 'botanical' | 'atelier' | 'kinetic' | 'frost' | 'workshop' | 'terminal' | 'pop' | 'gallery' | 'human'
+    primaryColor?: string; logoUrl?: string; borderRadius?: string; fontFamily?: string; darkMode?: boolean | 'auto'
+  }
   toolGroups?: Record<string, unknown>
   toolRail?: Record<string, unknown>
   requestContext?: Record<string, unknown>

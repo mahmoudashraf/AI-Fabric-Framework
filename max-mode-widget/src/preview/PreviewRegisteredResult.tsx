@@ -1,6 +1,8 @@
 import { createElement, useLayoutEffect, useRef, useState } from 'react';
 import type { MaxModeActionPresentationCommands, MaxModeActionPresentationComponentProps } from '@/actionPresentation';
 import type { PreviewPresentationFixture } from './fixtures';
+import { getWidgetConfig } from '@/config';
+import { resolveWorkspaceStylePreset } from '@/stylePresets';
 
 /** Use the registered pack element, with every command replaced by local feedback. */
 export function PreviewRegisteredResult({ fixture, feedback, attachmentsEnabled }: {
@@ -17,5 +19,6 @@ export function PreviewRegisteredResult({ fixture, feedback, attachmentsEnabled 
     };
     element.current.presentation = { ...fixture, selectedResultKeys: selected };
   }, [fixture, selected, feedback, attachmentsEnabled]);
-  return createElement(fixture.elementName, { ref: element, 'data-preview-renderer': fixture.rendererId });
+  return createElement(fixture.elementName, { ref: element, 'data-preview-renderer': fixture.rendererId,
+    'data-mxw-style': resolveWorkspaceStylePreset(getWidgetConfig().theme?.stylePreset).id });
 }

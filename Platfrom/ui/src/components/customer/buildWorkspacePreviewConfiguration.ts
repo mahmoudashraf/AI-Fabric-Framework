@@ -4,6 +4,7 @@ import { resolveSupportPresentation } from '../../../../../experience-packs/supp
 import type { SupportExperienceConfig } from '../../../../../experience-packs/support-experience/src/types'
 import { previewObject, sanitizeWorkspacePreview, type PreviewCapabilities, type PreviewInteractionPolicy } from '../../../../../max-mode-widget/src/preview/configuration'
 import type { WorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
+import { resolveWorkspaceStylePreset } from '../../../../../max-mode-widget/src/stylePresets'
 
 export type { PreviewCapabilities, PreviewInteractionPolicy }
 
@@ -63,6 +64,18 @@ export function buildWorkspacePreviewConfiguration({ configuration, packCode, in
   const theme = { ...resolved?.theme }
   if (appearance) Object.assign(theme, { primaryColor: appearance.primaryColor, logoUrl: appearance.logoUrl,
     darkMode: appearance.darkMode === 'auto' ? 'auto' : appearance.darkMode === 'dark' })
+  const stylePreset = resolveWorkspaceStylePreset(appearance?.stylePreset ?? previewObject(configuration.theme).stylePreset).id
+  if (stylePreset === 'current') delete (theme as Record<string, unknown>).stylePreset
+  else {
+    Object.assign(theme, { stylePreset })
+    // Pack defaults are not customer overrides of the selected visual identity.
+    const configuredTheme = previewObject(configuration.theme)
+    for (const key of ['fontFamily', 'borderRadius'] as const) {
+      if (!configuredTheme[key]) delete (theme as Record<string, unknown>)[key]
+    }
+    if (appearance?.primaryColorSource === 'preset' || appearance?.primaryColorSource === 'default'
+      || (!appearance && !configuredTheme.primaryColor)) delete (theme as Record<string, unknown>).primaryColor
+  }
   return sanitizeWorkspacePreview({
     packCode, assistantLabel: appearance?.assistantLabel || resolved?.assistantLabel || 'Your assistant', theme,
     copy: resolved?.copy, toolGroups: { initialScope: rawGroups.initialScope, default: projectGroup(rawGroups.default), contextual: projectGroup(rawGroups.contextual) },

@@ -16,6 +16,7 @@ import { ConversationHandoverDialog } from '@/components/Handover/ConversationHa
 import { PreviewRegisteredResult } from '@/preview/PreviewRegisteredResult';
 import { readPreviewScenario, sanitizeWorkspacePreview, type PreviewScenario, type WorkspacePreviewConfiguration } from '@/preview/configuration';
 import { applyThemeToElement } from '@/theme';
+import { ensureWorkspaceStyleFonts } from '@/styleFonts';
 import { setWidgetConfig } from '@/config';
 import type { MaxModeHostAuthenticationConfig, MaxModeToolScope } from '@/config';
 import type { MaxModeController, MaxModeResolvedToolGroup, MaxModeResolvedToolRailItem } from '@/hooks/useMaxModeController';
@@ -60,7 +61,11 @@ function AppearancePreview({ config, scenario }: { config: WorkspacePreviewConfi
   useEffect(() => { setCollapsed(config.toolRail.initiallyCollapsed); }, [config.toolRail.initiallyCollapsed]);
   useEffect(() => { if (!config.capabilities.handover.enabled) setHandoverOpen(false); }, [config.capabilities.handover.enabled]);
   useLayoutEffect(() => {
-    if (wrapper.current) applyThemeToElement(wrapper.current, config.theme);
+    if (wrapper.current) {
+      wrapper.current.classList.toggle('dark', scenario.dark);
+      applyThemeToElement(wrapper.current, config.theme);
+      ensureWorkspaceStyleFonts(document, config.theme.stylePreset);
+    }
     document.documentElement.classList.toggle('dark', scenario.dark);
   }, [config.theme, scenario.dark]);
   const attach = () => { if (config.capabilities.attachments) { setAttachment(true); setScope('contextual'); } showFeedback(); };

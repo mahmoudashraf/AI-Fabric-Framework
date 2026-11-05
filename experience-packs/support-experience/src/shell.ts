@@ -1,6 +1,7 @@
 import { resolveSupportPresentation } from './config'
 import { deliveryCopy, SupportStore } from './store'
 import { supportStyles } from './styles'
+import { applyThemeToElement, bindWidgetColorScheme, ensureWorkspaceStyleFonts } from './widget-theme.js'
 import type { RequestStatus, RequestTransition, SupportExperienceConfig, SupportExperienceState, SupportHostAdapter, SupportIntakeExtension, SupportPresentationMode, SupportRequest } from './types'
 
 export interface SupportShellCallbacks {
@@ -33,11 +34,12 @@ export class SupportShell {
   private expanded = false
   private mode: SupportPresentationMode = 'widget'
   private continuationAvailable = false
+  private releaseColorScheme?: () => void
   constructor(readonly config: SupportExperienceConfig, readonly store: SupportStore, readonly callbacks: SupportShellCallbacks, host: SupportHostAdapter) {
     const p = resolveSupportPresentation(config)
     this.signInAvailable = typeof host.requestSignIn === 'function'
     this.element.dataset.loomaiSupport = 'true'
-    this.element.dataset.dark = String(config.theme?.darkMode ?? 'auto')
+    this.setTheme(config.theme)
     if (config.theme?.primaryColor && CSS.supports('color', config.theme.primaryColor)) this.element.style.setProperty('--support-accent', config.theme.primaryColor)
     const style = document.createElement('style'); style.textContent = supportStyles; this.shadow.append(style)
     this.shadow.append(node('section', { class: 'shell', 'aria-label': p.title },
@@ -89,7 +91,8 @@ export class SupportShell {
   }
   showForm() { this.setExpanded(true); this.store.update({ view: 'form', error: null }); (this.form.elements.namedItem('subject') as HTMLElement).focus() }
   setMode(mode: SupportPresentationMode) {
-    this.mode = mode; this.element.className = mode
+    this.element.classList.remove(this.mode)
+    this.mode = mode; this.element.classList.add(mode)
     this.launcher.hidden = mode !== 'widget'
     ;(this.shadow.querySelector('[data-close]') as HTMLElement).hidden = mode !== 'widget'
     if (mode !== 'widget') this.expanded = true
@@ -196,7 +199,20 @@ export class SupportShell {
       button('Return to chat', this.callbacks.chat))
   }
   clearForm() { this.form.reset() }
-  destroy() { try { this.extension?.destroy() } finally { this.element.remove() } }
+  setTheme(theme: SupportExperienceConfig['theme']) {
+    this.releaseColorScheme?.()
+    this.releaseColorScheme = undefined
+    this.element.dataset.dark = String(theme?.darkMode ?? 'auto')
+    ensureWorkspaceStyleFonts(this.element.ownerDocument, theme?.stylePreset)
+    if (theme?.stylePreset && theme.stylePreset !== 'current') {
+      applyThemeToElement(this.element, theme)
+      this.releaseColorScheme = bindWidgetColorScheme(this.element, theme.darkMode ?? 'auto', theme)
+    } else {
+      applyThemeToElement(this.element, theme)
+      this.element.removeAttribute('data-mxw-style')
+    }
+  }
+  destroy() { try { this.releaseColorScheme?.(); this.extension?.destroy() } finally { this.element.remove() } }
 }
 function dateLabel(value?: string) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString() }
 function safeImage(value?: string, localBlob = false) { if (!value) return false; try { const url = new URL(value); return (url.protocol === 'https:' || (localBlob && url.protocol === 'blob:' && url.origin === location.origin)) && !url.username && !url.password } catch { return false } }

@@ -10,6 +10,7 @@ import type { RuntimeShellConfigSummary } from "@/types";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { MaxModeActionPresentationConfig } from "@/actionPresentation";
 import type { WorkspaceHostApi, WorkspaceHostSession } from "./workspaceHost";
+import type { WorkspaceStylePresetId } from "./stylePresets";
 
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
@@ -160,6 +161,8 @@ export interface MaxModeFeatures {
 }
 
 export interface MaxModeThemeConfig {
+  /** Presentation only. Omitted/current preserves the original workspace appearance. */
+  stylePreset?: WorkspaceStylePresetId;
   /** Primary brand color (CSS color value) */
   primaryColor?: string;
   /** Public HTTPS logo URL, at most 2048 characters, without userinfo or fragments; browser-only. */

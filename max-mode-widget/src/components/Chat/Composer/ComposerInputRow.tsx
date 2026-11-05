@@ -80,6 +80,7 @@ export function ComposerInputRow({
       <div className="flex md:hidden items-center gap-1.5 px-1">
         <ModeSelector currentMode={currentMode} availableModes={availableModes} onModeChange={onModeChange} />
         <span
+          data-mxw-position-label
           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
             currentPosition === "cart"
               ? "bg-orange-700 text-white"
@@ -142,6 +143,7 @@ export function ComposerInputRow({
         {hasAiSearch && <AISearchDisplay category={aiSearchCategory || "All Categories"} onRemove={onRemoveAiSearch} />}
 
         <Textarea
+          data-mxw-composer-input
           ref={chatInputRef}
           placeholder={
             oldConversationLocked
@@ -184,6 +186,7 @@ export function ComposerInputRow({
         <div className="hidden md:flex absolute right-3 bottom-16 items-center gap-1.5">
           <ModeSelector currentMode={currentMode} availableModes={availableModes} onModeChange={onModeChange} />
           <span
+            data-mxw-position-label
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
               currentPosition === "cart"
                 ? "bg-orange-700 text-white"
@@ -208,6 +211,7 @@ export function ComposerInputRow({
         </div>
 
         <Button
+          data-mxw-send
           size="icon"
           onClick={onSubmit}
           disabled={isLoading || !chatQuery.trim() || oldConversationLocked}

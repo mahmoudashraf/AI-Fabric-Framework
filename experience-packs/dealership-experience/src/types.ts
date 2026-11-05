@@ -140,6 +140,7 @@ export interface DealershipExperienceConfig {
   presentation?: DealershipPresentationConfig
   requestContext?: Record<string, unknown>
   theme?: {
+    stylePreset?: 'current' | 'clarity' | 'editorial' | 'obsidian' | 'botanical' | 'atelier' | 'kinetic' | 'frost' | 'workshop' | 'terminal' | 'pop' | 'gallery' | 'human'
     primaryColor?: string
     logoUrl?: string
     borderRadius?: string

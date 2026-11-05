@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test, { after } from 'node:test'
-import ts from 'typescript'
 import { createServer } from 'vite'
 import { fileURLToPath } from 'node:url'
 
@@ -11,8 +10,9 @@ after(() => server.close())
 async function moduleAt(path) {
   return server.ssrLoadModule(fileURLToPath(new URL(path, import.meta.url)))
 }
-const { readWorkspaceAppearance, applyWorkspaceAppearance, workspaceAppearanceError, workspacePreviewTools } = await moduleAt('../src/pages/aiWorkspaceAppearance.ts')
+const { readWorkspaceAppearance, selectWorkspaceAppearanceStyle, applyWorkspaceAppearance, workspaceAppearanceError, workspacePreviewTools } = await moduleAt('../src/pages/aiWorkspaceAppearance.ts')
 const { engagePreviewDocument } = await moduleAt('../src/components/customer/engagePreviewDocument.ts')
+const { WORKSPACE_STYLE_PRESETS } = await moduleAt('../../../max-mode-widget/src/stylePresets.ts')
 const configuration = () => ({ app: { assistantLabel: 'Support' },
   theme: { primaryColor: '#155eef', borderRadius: '8px', fontFamily: 'Inter', darkMode: false },
   copy: { welcomeMessage: 'Welcome', starterSuggestions: ['Help me'], companionModeLabel: 'Assistant' },
@@ -57,6 +57,76 @@ test('system appearance is preserved as an explicit configuration choice', () =>
   assert.equal(draft.darkMode, 'auto')
   assert.equal(applyWorkspaceAppearance(input, 'generic-workspace', draft).theme.darkMode, 'auto')
 })
+test('missing or unknown saved styles keep Current without adding a default override', () => {
+  for (const stylePreset of [undefined, null, '', 'future-style', { id: 'pop' }]) {
+    const input = configuration()
+    if (stylePreset !== undefined) input.theme.stylePreset = stylePreset
+    const draft = readWorkspaceAppearance(input, 'generic-workspace')
+    assert.equal(draft.stylePreset, 'current')
+    const output = applyWorkspaceAppearance(input, 'generic-workspace', draft)
+    assert.equal(Object.hasOwn(output.theme, 'stylePreset'), false)
+    assert.deepEqual(output.theme, configuration().theme)
+  }
+})
+test('every canonical style round trips independently of brand, scheme and capabilities', () => {
+  assert.equal(WORKSPACE_STYLE_PRESETS.length, 13)
+  assert.equal(WORKSPACE_STYLE_PRESETS[0].id, 'current')
+  for (const packCode of ['generic-workspace', 'dealership', 'support']) {
+    const input = { ...configuration(), dealer: { assistantLabel: 'Dealer AI', accountId: 'owned-account' },
+      auth: { policy: 'protected' }, apiConfig: { chatBaseUrl: 'https://runtime.example.test' },
+      actionPresentation: { renderer: 'registered' }, theme: { ...configuration().theme, darkMode: 'auto' } }
+    const before = structuredClone(input)
+    for (const preset of WORKSPACE_STYLE_PRESETS) {
+      const draft = { ...readWorkspaceAppearance(input, packCode), stylePreset: preset.id }
+      const output = applyWorkspaceAppearance(input, packCode, draft)
+      assert.equal(output.theme.stylePreset, preset.id === 'current' ? undefined : preset.id)
+      assert.equal(readWorkspaceAppearance(output, packCode).stylePreset, preset.id)
+      const expected = { ...before }
+      if (preset.id !== 'current') expected.theme = { ...before.theme, stylePreset: preset.id }
+      assert.deepEqual(output, expected, `${packCode}:${preset.id}`)
+      assert.deepEqual(input, before)
+    }
+  }
+})
+test('returning to Current removes only the preset and preserves the previous custom appearance', () => {
+  const input = configuration()
+  input.theme = { ...input.theme, logoUrl: 'https://example.test/logo.png', fontFamily: 'Custom font', borderRadius: '17px', darkMode: true }
+  const styled = applyWorkspaceAppearance(input, 'generic-workspace', { ...readWorkspaceAppearance(input, 'generic-workspace'), stylePreset: 'obsidian' })
+  const restored = applyWorkspaceAppearance(styled, 'generic-workspace', { ...readWorkspaceAppearance(styled, 'generic-workspace'), stylePreset: 'current' })
+  assert.deepEqual(restored, input)
+})
+test('unspecified branding follows preset metadata without persisting defaults and Current restores the pack colour', () => {
+  for (const packCode of ['generic-workspace', 'dealership', 'support']) {
+    const input = { app: { assistantLabel: 'Assistant' }, dealer: { assistantLabel: 'Dealer AI' }, theme: { darkMode: 'auto' } }
+    const original = readWorkspaceAppearance(input, packCode)
+    assert.equal(original.primaryColorSource, 'default')
+    for (const preset of WORKSPACE_STYLE_PRESETS) {
+      const draft = selectWorkspaceAppearanceStyle(original, preset.id)
+      assert.equal(draft.primaryColor, preset.id === 'current' ? original.primaryColor : preset.light.accent)
+      assert.equal(draft.darkMode, 'auto')
+      const saved = applyWorkspaceAppearance(input, packCode, draft)
+      assert.equal(Object.hasOwn(saved.theme, 'primaryColor'), false)
+      assert.equal(Object.hasOwn(saved.theme, 'fontFamily'), false)
+      assert.equal(Object.hasOwn(saved.theme, 'borderRadius'), false)
+      assert.equal(Object.hasOwn(saved.theme, 'primaryColorSource'), false)
+      assert.equal(Object.hasOwn(saved.theme, 'currentPrimaryColor'), false)
+      const restored = selectWorkspaceAppearanceStyle(draft, 'current')
+      assert.equal(restored.primaryColor, original.primaryColor)
+      assert.deepEqual(applyWorkspaceAppearance(input, packCode, restored), input)
+    }
+  }
+})
+test('preset selection leaves a saved or newly edited brand colour and colour scheme unchanged', () => {
+  const input = configuration()
+  const original = readWorkspaceAppearance(input, 'generic-workspace')
+  for (const preset of WORKSPACE_STYLE_PRESETS) {
+    const draft = selectWorkspaceAppearanceStyle(original, preset.id)
+    assert.equal(draft.primaryColor, input.theme.primaryColor)
+    assert.equal(draft.primaryColorSource, 'configured')
+    assert.equal(draft.darkMode, original.darkMode)
+    assert.equal(applyWorkspaceAppearance(input, 'generic-workspace', draft).theme.primaryColor, input.theme.primaryColor)
+  }
+})
 test('invalid execution fields and unsafe image locations cannot be saved', () => {
   const draft = readWorkspaceAppearance(configuration(), 'generic-workspace')
   for (const logoUrl of ['javascript:alert(1)', 'data:image/svg+xml,a', 'http://example.test/logo', 'https://user:password@example.test/logo',
@@ -83,14 +153,13 @@ test('preview document forbids network, forms and embedding active script data',
   assert.match(html, /connect-src 'none'/)
   assert.match(html, /form-action 'none'/)
   assert.match(html, /default-src 'none'/)
+  assert.match(html, /font-src data:;/)
   assert.equal((html.match(/<\/script>/gi) ?? []).length, 1)
   assert.equal(html.includes('allow-same-origin'), false)
 })
 
 test('widget colour scheme is local, tracks system mode and releases its listener', async () => {
-  const source = await readFile(new URL('../../../max-mode-widget/src/theme.ts', import.meta.url), 'utf8')
-  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
-  const { bindWidgetColorScheme } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
+  const { bindWidgetColorScheme } = await moduleAt('../../../max-mode-widget/src/theme.ts')
   const classes = new Set(); const listeners = new Set()
   const media = { matches: false, addEventListener: (_, listener) => listeners.add(listener), removeEventListener: (_, listener) => listeners.delete(listener) }
   const element = { ownerDocument: { defaultView: { matchMedia: () => media } }, classList: {

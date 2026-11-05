@@ -72,6 +72,7 @@ import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
 import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
 import { useWorkspaceHost } from "./useWorkspaceHost";
+import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
 const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
@@ -746,7 +747,7 @@ export function useMaxModeController({
   const [attachedItems, setAttachedItems] = useState<MaxModeHostAttachment[]>([]);
   const [contextDocuments, setContextDocuments] = useState<Document[]>([]);
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(() => !isEnhancedWorkspaceStyle(widgetConfig.theme?.stylePreset));
   const [expandedActions, setExpandedActions] = useState<{ [key: string]: number }>({});
   const [collectingItem, setCollectingItem] = useState<{ title: string; type: string } | null>(null);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);

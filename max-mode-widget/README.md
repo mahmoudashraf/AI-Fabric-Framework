@@ -228,6 +228,8 @@ interface MaxModeWidgetConfig {
     quickActions?: boolean;    // Quick action buttons (default: true)
   };
   theme?: {
+    stylePreset?: "current" | "clarity" | "editorial" | "obsidian" | "botanical" | "atelier"
+      | "kinetic" | "frost" | "workshop" | "terminal" | "pop" | "gallery" | "human";
     primaryColor?: string;     // Hex color (e.g. "#6366f1")
     borderRadius?: string;     // CSS value (default: "0.5rem")
     fontFamily?: string;       // CSS font stack
@@ -505,6 +507,37 @@ returned, a fresh bootstrap changes the runtime-issued session, or a typed
 conversation `ACCESS_DENIED` result is returned inside HTTP 200. It never
 replays the already-built request under a new identity. The user must send the
 request again after the runtime-issued session is ready.
+
+### Workspace Styles
+
+In Console, open an Engage app's configuration and choose **Workspace style**
+under Appearance. The isolated customer preview updates before you save. Styles
+apply to both website embedding and standalone delivery; they do not select AI
+models, tools, actions, authentication, sources or deployment connections.
+
+**Current** preserves the original appearance and remains the default when
+`theme.stylePreset` is omitted. The twelve opt-in styles are Clarity, Editorial,
+Obsidian, Botanical, Atelier, Kinetic, Frost, Workshop, Terminal, Pop, Gallery and
+Human. Each supports light, dark and system appearance. Explicit brand colours,
+fonts and radius overrides remain authoritative. Clear an override to use the
+preset's own defaults.
+
+```ts
+theme: { stylePreset: "editorial", darkMode: "auto" }
+```
+
+Script hosts can call `MaxMode.setTheme({ stylePreset: "current" })` without
+remounting the conversation. Other explicit theme overrides are retained; pass
+their replacement values when changing branding too. React hosts update the
+existing `theme` prop rather than changing the component key.
+
+New styles use quieter sources and expandable technical details. A long,
+successful informational answer with a structured result offers **Full answer**;
+its complete canonical text stays available. Confirmation, required-input,
+failure and human-message content is never collapsed by that presentation rule.
+Fonts are bundled under their included OFL licences; there are no third-party
+font-service requests. Custom renderers can inherit the `--mxw-style-*` raw CSS
+tokens, but remain responsible for their own layout and semantic status colours.
 
 ### Events
 

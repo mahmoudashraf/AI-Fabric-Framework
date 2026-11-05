@@ -23,7 +23,7 @@ export function QuickActionsDesktop({
   if (toolGroups.length === 0 && quickActions.length === 0) return null;
 
   return (
-    <div className="absolute left-0 right-0 top-0 z-10 hidden border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-800 dark:bg-gray-950 md:block">
+    <div data-mxw-tools className="absolute left-0 right-0 top-0 z-10 hidden border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-800 dark:bg-gray-950 md:block">
       {toolGroups.length > 0 && (
         <div className="mb-2 pr-48">
           <ToolGroupTabs

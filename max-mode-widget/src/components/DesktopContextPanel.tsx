@@ -9,6 +9,8 @@ import type { Document } from "@/types";
 import { CartView } from "./DesktopContextPanel/CartView";
 import { DocumentsView } from "./DesktopContextPanel/DocumentsView";
 import { ProductDetailsView } from "./DesktopContextPanel/ProductDetailsView";
+import { getWidgetConfig } from "@/config";
+import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
 export function DesktopContextPanel({
   contextDocuments,
@@ -59,11 +61,13 @@ export function DesktopContextPanel({
   onAttachProductToChat: (product: Document) => void;
   onAttachDocument: (doc: Document) => void;
 }) {
+  const enhancedStyle = isEnhancedWorkspaceStyle(getWidgetConfig().theme?.stylePreset);
   return (
     <>
       <AnimatePresence>
         {contextDocuments.length > 0 && isPanelVisible && (
           <motion.div
+            data-mxw-sources-panel
             initial={{ opacity: 0, x: 420 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 420 }}
@@ -72,11 +76,11 @@ export function DesktopContextPanel({
               selectedProduct || isCartView ? "w-[700px] max-w-[700px]" : "w-[420px] max-w-[420px]"
             } border-l-2 border-blue-500/30 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950 p-6 shadow-2xl z-10 flex-col transition-all duration-300`}
           >
-            <div className="bg-gradient-to-br from-blue-600 to-blue-500 backdrop-blur-md p-5 rounded-2xl mb-6 shadow-2xl border-2 border-white/20">
+            <div data-mxw-sources-heading className="bg-gradient-to-br from-blue-600 to-blue-500 backdrop-blur-md p-5 rounded-2xl mb-6 shadow-2xl border-2 border-white/20">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <motion.div
-                    animate={{ rotate: [0, 360] }}
+                    animate={enhancedStyle ? undefined : { rotate: [0, 360] }}
                     transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                     className="p-2 bg-white/20 rounded-lg backdrop-blur-sm"
                   >
@@ -84,7 +88,7 @@ export function DesktopContextPanel({
                   </motion.div>
                   <div>
                     <h2 className="font-bold text-lg text-white">
-                      {isCartView ? "Shopping Cart" : selectedProduct ? "Product Details" : "Context Panel"}
+                      {isCartView ? "Shopping Cart" : selectedProduct ? "Product Details" : enhancedStyle ? "Sources" : "Context Panel"}
                     </h2>
                     <p className="text-xs text-white/80">
                       {isCartView
@@ -120,7 +124,7 @@ export function DesktopContextPanel({
                   </Button>
                 </div>
               </div>
-              <div className="h-1 bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 rounded-full" />
+              <div data-mxw-source-decoration className="h-1 bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 rounded-full" />
             </div>
 
             {isCartView ? (
@@ -165,12 +169,13 @@ export function DesktopContextPanel({
             className="hidden md:block absolute top-16 right-4 z-20"
           >
             <Button
+              data-mxw-show-sources
               onClick={() => setIsPanelVisible(true)}
               size="lg"
               className="bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-2xl border-2 border-white/30 rounded-full px-6"
             >
               <Eye className="h-5 w-5 mr-2" />
-              Show Panel
+              {enhancedStyle ? 'Sources' : 'Show Panel'}
             </Button>
           </motion.div>
         )}

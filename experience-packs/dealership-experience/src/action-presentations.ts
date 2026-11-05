@@ -3,6 +3,7 @@ import type {
   DealershipPresentationConfig,
   MaxModeActionPresentationConfig,
 } from './types'
+import { enhancedDealershipStyles } from './presentation-styles'
 
 type SafeRecord = Record<string, unknown>
 
@@ -1154,6 +1155,7 @@ function createStyles() {
     @media (prefers-reduced-motion: reduce) {
       .button { transition: none; }
     }
+    ${enhancedDealershipStyles}
   `
   return style
 }

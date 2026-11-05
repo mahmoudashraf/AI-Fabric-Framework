@@ -30,7 +30,7 @@ export function SuggestionsPanel({
             exit={{ opacity: 0, y: -10 }}
             className="mb-3"
           >
-            <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-blue-400 shadow-lg">
+            <div data-mxw-tray className="p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-blue-400 shadow-lg">
               <div className="flex items-center gap-3 mb-3">
                 <Button
                   size="icon"
@@ -82,6 +82,7 @@ export function SuggestionsPanel({
       {suggestions.length > 0 && !showSuggestions && !isLoadingSuggestions && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
           <Button
+            data-mxw-tray
             size="sm"
             variant="outline"
             onClick={onShowSuggestions}
@@ -95,7 +96,7 @@ export function SuggestionsPanel({
 
       {isLoadingSuggestions && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-3">
-          <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border-2 border-blue-400 shadow-lg">
+          <div data-mxw-tray className="p-3 bg-white dark:bg-gray-800 rounded-lg border-2 border-blue-400 shadow-lg">
             <p className="text-xs text-purple-700 dark:text-purple-300 flex items-center gap-2">
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
                 <Sparkles className="h-3.5 w-3.5" />

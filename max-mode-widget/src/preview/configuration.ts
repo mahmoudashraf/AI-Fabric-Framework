@@ -1,3 +1,4 @@
+import { resolveWorkspaceStylePreset, type WorkspaceStylePresetId } from '../stylePresets';
 export type PreviewInteractionPolicy = 'public' | 'login-required' | 'public-with-protected-capabilities';
 export type PreviewCapabilities = {
   history: boolean;
@@ -17,7 +18,7 @@ export type PreviewRailItem = PreviewTool & {
 export type WorkspacePreviewConfiguration = {
   packCode: string;
   assistantLabel: string;
-  theme: { primaryColor: string; logoUrl: string; borderRadius: string; fontFamily: string; darkMode: boolean | 'auto' };
+  theme: { stylePreset?: WorkspaceStylePresetId; primaryColor: string; logoUrl: string; borderRadius: string; fontFamily: string; darkMode: boolean | 'auto' };
   copy: { welcomeMessage: string; placeholder: string; emptyMessage: string; companionModeLabel: string; starterSuggestions: string[] };
   toolGroups: { initialScope: 'default' | 'contextual'; default: PreviewGroup; contextual: PreviewGroup };
   toolRail: { initiallyCollapsed: boolean; items: PreviewRailItem[] };
@@ -64,13 +65,15 @@ export function sanitizeWorkspacePreview(value: unknown): WorkspacePreviewConfig
   };
   const limitations = Array.isArray(input.limitations) ? input.limitations.map(previewText).filter(Boolean) : [];
   const radius = previewText(theme.borderRadius), family = previewText(theme.fontFamily);
+  const preset = resolveWorkspaceStylePreset(theme.stylePreset);
+  const enhanced = preset.id !== 'current';
   if (radius && !/^(?:\d+(?:\.\d+)?)(?:px|rem|em|%)$/.test(radius)) limitations.push('Configured border radius is not supported in preview.');
   if (family && !/^[a-zA-Z0-9 ,"'_-]+$/.test(family)) limitations.push('Configured typography is not supported in preview.');
   return {
     packCode: previewText(input.packCode), assistantLabel: previewText(input.assistantLabel),
-    theme: { primaryColor: /^#[0-9a-f]{6}$/i.test(previewText(theme.primaryColor)) ? theme.primaryColor : '#155eef',
-      logoUrl: publicPreviewImage(theme.logoUrl), borderRadius: /^(?:\d+(?:\.\d+)?)(?:px|rem|em|%)$/.test(radius) ? radius : '0.5rem',
-      fontFamily: /^[a-zA-Z0-9 ,"'_-]+$/.test(family) ? family : 'Inter, system-ui, sans-serif', darkMode: theme.darkMode === 'auto' ? 'auto' : theme.darkMode === true },
+    theme: { stylePreset: preset.id, primaryColor: /^#[0-9a-f]{6}$/i.test(previewText(theme.primaryColor)) ? theme.primaryColor : enhanced ? preset.light.accent : '#155eef',
+      logoUrl: publicPreviewImage(theme.logoUrl), borderRadius: /^(?:\d+(?:\.\d+)?)(?:px|rem|em|%)$/.test(radius) ? radius : enhanced ? preset.radius : '0.5rem',
+      fontFamily: /^[a-zA-Z0-9 ,"'_-]+$/.test(family) ? family : enhanced ? '' : 'Inter, system-ui, sans-serif', darkMode: theme.darkMode === 'auto' ? 'auto' : theme.darkMode === true },
     copy: { welcomeMessage: previewText(copy.welcomeMessage), placeholder: previewText(copy.placeholder), emptyMessage: previewText(copy.emptyMessage),
       companionModeLabel: previewText(copy.companionModeLabel), starterSuggestions: Array.isArray(copy.starterSuggestions) ? copy.starterSuggestions.map(previewText) : [] },
     toolGroups: { initialScope: groups.initialScope === 'contextual' ? 'contextual' : 'default', default: group(groups.default, 'search'), contextual: group(groups.contextual, 'details') },

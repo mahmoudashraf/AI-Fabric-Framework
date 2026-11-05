@@ -7,7 +7,8 @@ import {
   type MaxModePresentationResultReference,
   type ResolvedActionPresentation,
 } from "@/actionPresentation";
-import { emitEvent } from "@/config";
+import { emitEvent, getWidgetConfig } from "@/config";
+import { resolveWorkspaceStylePreset } from '@/stylePresets';
 
 interface ActionPresentationSurfaceProps {
   presentation: ResolvedActionPresentation;
@@ -122,6 +123,7 @@ function CustomElementPresentation({
     },
     "data-max-mode-action-renderer": props.rendererId,
     "data-max-mode-action-schema": props.schemaVersion,
+    "data-mxw-style": resolveWorkspaceStylePreset(getWidgetConfig().theme?.stylePreset).id,
   });
 }
 

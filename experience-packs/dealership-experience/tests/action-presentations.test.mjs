@@ -11,6 +11,9 @@ const widgetCode = ts.transpileModule(widgetSource, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
 const { resolveActionPresentation } = await import(`data:text/javascript;base64,${Buffer.from(widgetCode).toString('base64')}`)
+const presetSource = await readFile(new URL('../../../max-mode-widget/src/stylePresets.ts', import.meta.url), 'utf8')
+const presetCode = ts.transpileModule(presetSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const { WORKSPACE_STYLE_PRESETS } = await import(`data:text/javascript;base64,${Buffer.from(presetCode).toString('base64')}`)
 const vehicle = {
   stockId: 'STOCK-42', make: 'Example', model: 'City EV', year: 2025,
   priceGbp: 24500, mileage: 4200, fuelType: 'Electric', transmission: 'Automatic',
@@ -79,10 +82,13 @@ test('real browser detail commands, public rendering and responsive layouts', as
         import { registerDealershipActionPresentationElements, dealershipActionPresentationConfig } from '/pack.js';
         import { resolveActionPresentation } from '/contract.js';
         registerDealershipActionPresentationElements();
-        window.renderResult = ({ actionName = 'dealership_search_inventory', data, config = {}, referencePatch, rejectAsk = false }) => {
+        window.renderResult = ({ actionName = 'dealership_search_inventory', data, config = {}, referencePatch, rejectAsk = false, stylePreset, styleTokens = {} }) => {
           const result = resolveActionPresentation({ config: dealershipActionPresentationConfig(config), actionName, actionData: data, messageId: 'message-42' });
           if (referencePatch) result.resultReferences = result.resultReferences.map(reference => ({ ...reference, ...referencePatch }));
           const element = document.createElement(result.renderer.elementName);
+          if (stylePreset) element.dataset.mxwStyle = stylePreset;
+          document.querySelector('main').removeAttribute('style');
+          for (const [name, value] of Object.entries(styleTokens)) document.querySelector('main').style.setProperty('--mxw-style-' + name, value);
           window.commandLog = [];
           element.commands = {
             async ask(input) { window.commandLog.push({ command: 'ask', ...input }); if (rejectAsk) throw new Error('Request rejected by runtime'); },
@@ -210,6 +216,63 @@ test('real browser detail commands, public rendering and responsive layouts', as
     assert.equal(await element.locator('img').evaluate(image => image.complete && image.naturalWidth > 0), true)
   })
 
+  await t.test('all enhanced inventory/detail/comparison/receipt styles inherit raw tokens; Current and status meaning stay unchanged', async () => {
+    const fixtures = [
+      { data: stock },
+      { actionName: 'dealership_get_vehicle', data: { vehicleRecord: vehicle } },
+      { actionName: 'dealership_compare_vehicles', data: { _items: [vehicle, { ...vehicle, stockId: 'STOCK-43' }] } },
+      { actionName: 'dealership_request_test_drive', data: { success: true, status: 'NEW', receiptCode: 'TEST-42', vehicle: 'Example City EV', message: 'Your request is saved.' }, config: { capabilities: { testDrive: true } } },
+    ]
+    const inspect = () => page.locator('main > *').evaluate(element => {
+      const root = element.shadowRoot
+      const style = selector => {
+        const node = root.querySelector(selector)
+        if (!node) return null
+        const value = getComputedStyle(node)
+        return { color: value.color, background: value.backgroundColor, radius: value.borderRadius, font: value.fontFamily }
+      }
+      return { host: { color: getComputedStyle(element).color, font: getComputedStyle(element).fontFamily },
+        workspace: style('.workspace'), heading: style('h2'), status: style('.request-marker'),
+        primary: style('.button--primary'), text: root.textContent }
+    })
+    for (const fixture of fixtures) {
+      await render(fixture)
+      const original = await inspect()
+      await render({ ...fixture, stylePreset: 'current', styleTokens: { surface: '#000000', text: '#ff00ff', accent: '#aabbcc', radius: '0px' } })
+      assert.deepEqual(await inspect(), original, `${fixture.actionName ?? 'inventory'} Current must ignore enhanced tokens`)
+      for (const style of WORKSPACE_STYLE_PRESETS.filter(style => style.id !== 'current')) {
+        for (const scheme of ['light', 'dark']) {
+          const palette = style[scheme]
+          const styleTokens = { ...palette, 'on-accent': '#ffffff', font: style.font, 'display-font': style.displayFont, radius: style.radius, elevation: style.elevation }
+          await render({ ...fixture, stylePreset: style.id, styleTokens })
+          const actual = await inspect()
+          assert.equal(actual.host.color, rgb(palette.text), `${style.id}/${scheme} host text`)
+          assert.equal(actual.workspace.background, rgb(palette.surface), `${style.id}/${scheme} surface`)
+          assert.equal(actual.workspace.radius, style.radius)
+          assert.equal(actual.heading.color, rgb(palette.text))
+          assert.equal(actual.host.font.includes(style.font.split(',')[0]), true)
+          if (original.status) {
+            assert.equal(actual.status.color, original.status.color, 'Success text remains semantic')
+            assert.equal(actual.status.background, original.status.background, 'Success is not recoloured to a theme accent')
+          }
+          assert.deepEqual(await commands(), [], 'Visual changes must not execute actions')
+        }
+      }
+    }
+    for (const style of WORKSPACE_STYLE_PRESETS.filter(style => style.id !== 'current')) {
+      await render({ data: stock })
+      await page.evaluate(stylePreset => {
+        const element = document.querySelector('main > *')
+        window.originalPresentation = element
+        element.dataset.mxwStyle = stylePreset
+      }, style.id)
+      await page.getByRole('button', { name: 'View details', exact: true }).click()
+      assert.equal(await page.evaluate(() => document.querySelector('main > *') === window.originalPresentation), true)
+      assert.deepEqual((await commands())[0].resultReferenceKeys, ['items-0'])
+      assert.equal((await commands()).length, 1)
+    }
+  })
+
   await t.test('narrow and desktop inventory/detail/comparison presentations fit and render without requests', async () => {
     const fixtures = [
       ['inventory', { data: stock }],
@@ -236,3 +299,7 @@ test('real browser detail commands, public rendering and responsive layouts', as
   })
   assert.deepEqual(errors, [])
 })
+
+function rgb(hex) {
+  return `rgb(${hex.slice(1).match(/../g).map(value => parseInt(value, 16)).join(', ')})`
+}

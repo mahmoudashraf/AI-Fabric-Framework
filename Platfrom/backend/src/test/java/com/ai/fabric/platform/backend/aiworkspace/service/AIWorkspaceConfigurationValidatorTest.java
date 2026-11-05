@@ -64,6 +64,75 @@ class AIWorkspaceConfigurationValidatorTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+        "current", "clarity", "editorial", "obsidian", "botanical", "atelier", "kinetic",
+        "frost", "workshop", "terminal", "pop", "gallery", "human"
+    })
+    void acceptsExactVisualStylePresetsForEveryExperienceWithoutChangingOtherConfiguration(String preset) throws Exception {
+        for (String experience : List.of("generic-workspace", "dealership", "support")) {
+            ObjectNode configuration = styleConfiguration(experience);
+            configuration.putObject("theme").put("stylePreset", preset).put("primaryColor", "#123b35")
+                .put("fontFamily", "Arial, sans-serif").put("borderRadius", "8px").put("darkMode", "auto")
+                .put("logoUrl", "https://cdn.example/logo.png");
+            ObjectNode original = configuration.deepCopy();
+
+            validateStyleExperience(configuration, experience);
+
+            assertThat(configuration).isEqualTo(original);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "null", "true", "123", "[]", "{}", "\"\"", "\"   \"", "\"unknown\"",
+        "\"Clarity\"", "\"current \"", "\" clarity\"", "\"https://example.test/style.css\""
+    })
+    void rejectsUnsupportedOrMistypedVisualStylePresetsForEveryExperience(String jsonValue) throws Exception {
+        for (String experience : List.of("generic-workspace", "dealership", "support")) {
+            ObjectNode configuration = styleConfiguration(experience);
+            configuration.putObject("theme").set("stylePreset", objectMapper.readTree(jsonValue));
+
+            assertThatThrownBy(() -> validateStyleExperience(configuration, experience))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("theme.stylePreset");
+        }
+    }
+
+    @Test
+    void keepsVisualStylePresetOptionalWithoutRewritingExistingAppearance() throws Exception {
+        for (String experience : List.of("generic-workspace", "dealership", "support")) {
+            ObjectNode configuration = styleConfiguration(experience);
+            ObjectNode original = configuration.deepCopy();
+            validateStyleExperience(configuration, experience);
+            assertThat(configuration).isEqualTo(original);
+
+            configuration.putObject("theme").put("primaryColor", "#123b35").put("darkMode", false);
+            original = configuration.deepCopy();
+            validateStyleExperience(configuration, experience);
+            assertThat(configuration).isEqualTo(original);
+            assertThat(configuration.path("theme").has("stylePreset")).isFalse();
+        }
+    }
+
+    private ObjectNode styleConfiguration(String experience) throws Exception {
+        if ("support".equals(experience)) {
+            return (ObjectNode) objectMapper.readTree("""
+                {"schemaVersion":"loomai-support-experience-config-v1",
+                 "app":{"assistantLabel":"Support assistant"},"support":{},"capabilities":{}}
+                """);
+        }
+        return brandingConfiguration("dealership".equals(experience));
+    }
+
+    private void validateStyleExperience(ObjectNode configuration, String experience) {
+        switch (experience) {
+            case "dealership" -> validator.validateDealershipConfiguration(configuration);
+            case "support" -> validator.validateSupportConfiguration(configuration);
+            default -> validator.validateGenericConfiguration(configuration);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
         "https://cdn.example/logo.png",
         "https://cdn.example/brand/logo.svg?version=2&size=small",
         "https://cdn.example/brand%20assets/mark?signature=a%2Fb%3D",

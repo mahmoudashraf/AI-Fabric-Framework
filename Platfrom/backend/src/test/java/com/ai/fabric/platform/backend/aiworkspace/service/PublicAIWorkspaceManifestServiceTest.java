@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -108,6 +109,45 @@ class PublicAIWorkspaceManifestServiceTest {
             .doesNotContain("allowedOrigins")
             .doesNotContain("customer-1")
             .doesNotContain("tenant-1");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {
+        "current", "clarity", "editorial", "obsidian", "botanical", "atelier", "kinetic",
+        "frost", "workshop", "terminal", "pop", "gallery", "human"
+    })
+    void preservesVisualStyleInEmbeddedAndStandaloneManifestsWithoutChangingConnection(String preset) throws Exception {
+        var installation = installation();
+        var configuration = (com.fasterxml.jackson.databind.node.ObjectNode)
+            objectMapper.readTree(installation.getConfigurationJson());
+        var theme = configuration.putObject("theme").put("primaryColor", "#123b35")
+            .put("fontFamily", "Arial, sans-serif").put("darkMode", "auto");
+        installation.setConfigurationJson(objectMapper.writeValueAsString(configuration));
+        stubReadyInstallation(installation);
+        var manifestService = service();
+        var baseline = manifestService.resolve(installation.getInstallationId(), "https://dealer.example").manifest();
+        if (preset != null) theme.put("stylePreset", preset);
+        installation.setConfigurationJson(objectMapper.writeValueAsString(configuration));
+
+        for (var delivery : com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.values()) {
+            installation.setDeliveryMode(delivery);
+            if (delivery == com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.STANDALONE) {
+                installation.setAppSlug("northfield");
+            }
+            var result = manifestService.resolve(installation.getInstallationId(), "https://dealer.example");
+            var serialized = objectMapper.readTree(objectMapper.writeValueAsString(result.manifest()));
+
+            assertThat(result.manifest().workspace().path("configuration")).isEqualTo(configuration);
+            assertThat(serialized.at("/workspace/configuration/theme")).isEqualTo(theme);
+            assertThat(result.manifest().connection()).isEqualTo(baseline.connection());
+            assertThat(result.manifest().authentication()).isEqualTo(baseline.authentication());
+            assertThat(result.manifest().assignmentRevision()).isEqualTo(baseline.assignmentRevision());
+            assertThat(serialized.at("/workspace/configuration/theme").has("stylePreset")).isEqualTo(preset != null);
+            if (preset != null) {
+                assertThat(result.manifest().manifestRevision()).isNotEqualTo(baseline.manifestRevision());
+            }
+        }
     }
 
     @Test

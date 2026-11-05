@@ -49,6 +49,8 @@ export type {
 } from "@/types";
 
 export type { SharedAttachment } from "@/context";
+export { WORKSPACE_STYLE_PRESETS, resolveWorkspaceStylePreset } from '../stylePresets';
+export type { WorkspaceStylePresetId } from '../stylePresets';
 
 export type {
   MaxModeActionPresentationCommands,

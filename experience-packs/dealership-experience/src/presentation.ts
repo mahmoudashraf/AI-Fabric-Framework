@@ -10,6 +10,7 @@ export type DealershipPresentationPage = {
 
 /** DOM inference stays in live mounting; previews use the configured page kind. */
 export function resolveDealershipPresentation(config: Partial<DealershipExperienceConfig>, inferredPage?: DealershipPresentationPage) {
+  const enhancedStyle = config.theme?.stylePreset && config.theme.stylePreset !== 'current'
   const page = inferredPage ?? {
     kind: config.page?.kind === 'vehicle-detail' ? 'vehicle-detail' : 'inventory',
     subjectLabel: config.page?.subjectLabel,
@@ -30,10 +31,11 @@ export function resolveDealershipPresentation(config: Partial<DealershipExperien
     assistantLabel: config.dealer?.assistantLabel ?? 'Your assistant',
     capabilities,
     theme: {
-      primaryColor: config.theme?.primaryColor ?? '#123b35',
+      ...config.theme,
+      primaryColor: config.theme?.primaryColor ?? (enhancedStyle ? undefined : '#123b35'),
       logoUrl: config.theme?.logoUrl,
-      borderRadius: config.theme?.borderRadius ?? '0.5rem',
-      fontFamily: config.theme?.fontFamily ?? 'Inter, system-ui, sans-serif',
+      borderRadius: config.theme?.borderRadius ?? (enhancedStyle ? undefined : '0.5rem'),
+      fontFamily: config.theme?.fontFamily ?? (enhancedStyle ? undefined : 'Inter, system-ui, sans-serif'),
       darkMode: config.theme?.darkMode ?? false,
     },
     toolGroups: config.toolGroups === undefined ? createDealershipToolGroups({ pageKind: page.kind, subjectLabel: page.subjectLabel, capabilities }) : config.toolGroups,

@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
 import type { Document } from "@/types";
 import { formatFieldName } from "@/utils";
 import { sourceContentPreview } from "@/sourcePresentation";
+import { getWidgetConfig } from "@/config";
+import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
 const getDocumentIcon = (type: string) => {
   switch (type.toLowerCase()) {
@@ -54,6 +56,7 @@ export function DocumentsView({
   onOpenProductDetails: (doc: Document) => void;
   onAttachDocument: (doc: Document) => void;
 }) {
+  const enhancedStyle = isEnhancedWorkspaceStyle(getWidgetConfig().theme?.stylePreset);
   const handleScrollUp = () => {
     contextPanelRef.current?.scrollBy({ top: -300, behavior: "smooth" });
   };
@@ -100,6 +103,7 @@ export function DocumentsView({
                 transition={{ delay: idx * 0.05 }}
               >
                 <Card
+                  data-mxw-source-card
                   onClick={() => onOpenProductDetails(doc)}
                   className={`relative group hover:shadow-2xl transition-all duration-300 border-2 cursor-pointer ${
                     isNewDoc
@@ -181,6 +185,8 @@ export function DocumentsView({
                     >
                       {sourceContentPreview(doc.content)}
                     </p>
+                    <details className="mxw-source-technical" open={enhancedStyle ? undefined : true} onClick={enhancedStyle ? event => event.stopPropagation() : undefined}>
+                    <summary hidden={!enhancedStyle}>Technical details</summary>
                     {(doc.similarity || doc.score) && (
                       <div className="mt-3">
                         <div className="flex items-center gap-2">
@@ -228,6 +234,7 @@ export function DocumentsView({
                         </div>
                       </div>
                     )}
+                    </details>
                   </CardContent>
                 </Card>
               </motion.div>

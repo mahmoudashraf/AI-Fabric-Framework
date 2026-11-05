@@ -21,6 +21,7 @@ import { MaxModeProvider, type SharedAttachment } from "@/context";
 import { MaxModePage } from "@/components/MaxModePage";
 import { ToastContainer } from "@/ui/toast-container";
 import { applyThemeToElement, bindWidgetColorScheme } from "@/theme";
+import { ensureWorkspaceStyleFonts } from '@/styleFonts';
 import { bindWidgetViewport } from "@/viewport";
 import type { WorkspaceHostApi, WorkspaceHostSession } from "../workspaceHost";
 import { resetRuntimeCredentialCache } from "../api/client";
@@ -102,11 +103,12 @@ export function MaxModeWidget({
   useEffect(() => {
     if (containerRef.current) {
       applyThemeToElement(containerRef.current, theme);
+      ensureWorkspaceStyleFonts(containerRef.current.ownerDocument, theme?.stylePreset);
     }
   }, [theme]);
   useLayoutEffect(() => {
-    if (containerRef.current) return bindWidgetColorScheme(containerRef.current, theme?.darkMode);
-  }, [theme?.darkMode]);
+    if (containerRef.current) return bindWidgetColorScheme(containerRef.current, theme?.darkMode, theme);
+  }, [theme]);
 
   return (
     <div ref={containerRef} className="max-mode-widget-root">

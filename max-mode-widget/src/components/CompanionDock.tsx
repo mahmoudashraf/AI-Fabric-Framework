@@ -79,7 +79,7 @@ export function CompanionDock({
       className="max-mode-companion-dock fixed z-[2147483645] -translate-x-1/2 pointer-events-auto text-gray-950 dark:text-gray-100"
     >
       {expanded && (
-        <div className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)] bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
+        <div data-mxw-dock-conversation className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)] bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
           <div className="flex items-center justify-between gap-4 border-b border-gray-200/80 bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.05)] px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.1)] text-primary ring-1 ring-[hsl(var(--mxw-primary,221.2_83.2%_53.3%)/0.2)]">
@@ -230,6 +230,7 @@ export function CompanionDock({
 
         <div className="flex items-end gap-2">
           <textarea
+            data-mxw-composer-input
             ref={controller.chatInputRef}
             data-max-mode-autofocus="false"
             rows={1}
@@ -271,6 +272,7 @@ export function CompanionDock({
           />
           <div className="flex flex-shrink-0 items-center gap-2 pb-1">
             <Button
+              data-mxw-open-max
               type="button"
               onClick={onOpenMax}
               className="h-12 rounded-2xl border border-fuchsia-300 bg-fuchsia-50 px-4 text-sm font-extrabold text-fuchsia-700 shadow-sm hover:bg-fuchsia-100 dark:border-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-200"
@@ -280,6 +282,7 @@ export function CompanionDock({
               MAX
             </Button>
             <Button
+              data-mxw-send
               type="button"
               onClick={submit}
               disabled={controller.isLoading || !controller.chatQuery.trim() || controller.oldConversationLocked}

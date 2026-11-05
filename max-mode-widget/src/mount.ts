@@ -8,7 +8,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { setWidgetConfig, getWidgetConfig, type MaxModeWidgetConfig } from "./config";
-import { bindWidgetColorScheme, buildThemeCSS } from "./theme";
+import { applyThemeToElement, bindWidgetColorScheme, buildThemeCSS } from "./theme";
+import { ensureWorkspaceStyleFonts } from './styleFonts';
 import { WidgetShell } from "./entries/WidgetShell";
 import { bindWidgetViewport } from "./viewport";
 import { updateWorkspaceHost, resetWorkspaceHostScope } from "./workspaceHost";
@@ -78,7 +79,9 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   container.className = "max-mode-widget-root";
   container.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;font-family:var(--mxw-font-family,Inter,system-ui,sans-serif);color:hsl(var(--mxw-foreground));line-height:1.5;";
   _shadowRoot.appendChild(container);
-  _releaseColorScheme = bindWidgetColorScheme(container, config.theme?.darkMode);
+  _releaseColorScheme = bindWidgetColorScheme(container, config.theme?.darkMode, config.theme);
+  applyThemeToElement(container, config.theme);
+  ensureWorkspaceStyleFonts(document, config.theme?.stylePreset);
 
   // Render widget
   _root = ReactDOM.createRoot(container);
@@ -161,7 +164,9 @@ export function setWidgetTheme(theme: MaxModeWidgetConfig['theme']): void {
   const container = _shadowRoot.getElementById(WIDGET_CONTAINER_ID);
   if (container) {
     _releaseColorScheme?.();
-    _releaseColorScheme = bindWidgetColorScheme(container, _currentConfig.theme?.darkMode);
+    _releaseColorScheme = bindWidgetColorScheme(container, _currentConfig.theme?.darkMode, _currentConfig.theme);
+    applyThemeToElement(container, _currentConfig.theme);
+    ensureWorkspaceStyleFonts(document, _currentConfig.theme?.stylePreset);
   }
   renderWidget();
 }

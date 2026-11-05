@@ -1,0 +1,325 @@
+{
+  "observedAt": "2026-11-05T12:54:58.370Z",
+  "checks": [
+    {
+      "style": "current",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "current",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "clarity",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "clarity",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "editorial",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "editorial",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "obsidian",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "obsidian",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "botanical",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "botanical",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "atelier",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "atelier",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "kinetic",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "kinetic",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "frost",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "frost",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "workshop",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "workshop",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "terminal",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "terminal",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "pop",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "pop",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "gallery",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "gallery",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "human",
+      "darkMode": false,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "human",
+      "darkMode": true,
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "style": "current",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "current",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "clarity",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "clarity",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "editorial",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "editorial",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "obsidian",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "obsidian",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "botanical",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "botanical",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "atelier",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "atelier",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "kinetic",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "kinetic",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "frost",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "frost",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "workshop",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "workshop",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "terminal",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "terminal",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "pop",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "pop",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "gallery",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "gallery",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "human",
+      "darkMode": false,
+      "width": 390,
+      "passed": true
+    },
+    {
+      "style": "human",
+      "darkMode": true,
+      "width": 390,
+      "passed": true
+    }
+  ],
+  "screenshots": 39,
+  "currentRestored": true,
+  "sameDraftNode": true,
+  "sameConversation": true,
+  "retainedAttachment": true,
+  "noStyleWrites": true,
+  "existingAttachmentSuggestionRequests": 1,
+  "errors": []
+}

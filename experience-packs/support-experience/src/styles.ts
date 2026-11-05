@@ -1,3 +1,5 @@
+import { enhancedSupportStyles } from './theme-styles'
+
 export const supportStyles = `
 :host{--support-accent:#08695c;--support-bg:#fff;--support-text:#17231f;--support-muted:#5b6861;--support-line:#d8e1dc;display:block;color:var(--support-text);font:14px/1.5 Inter,system-ui,sans-serif;letter-spacing:0;box-sizing:border-box}
 *{box-sizing:border-box}button,input,select,textarea{font:inherit;letter-spacing:0}button{cursor:pointer;border:1px solid var(--support-line);border-radius:6px;background:var(--support-bg);color:var(--support-text);padding:8px 12px;white-space:normal;overflow-wrap:anywhere}button:hover{background:#edf4ef}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--support-accent);outline-offset:2px}button:disabled{opacity:.5;cursor:default}.primary{background:var(--support-accent);color:white;border-color:var(--support-accent)}.primary:hover{filter:brightness(.94);background:var(--support-accent)}[hidden]{display:none!important}
@@ -26,4 +28,5 @@ export const supportStyles = `
 :host(.standalone) .footer{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
 .notification-toggle{flex-direction:row;align-items:center;gap:8px;min-height:32px}
 .notification-toggle input{flex:0 0 16px;width:16px;height:16px;padding:0;margin:0;accent-color:var(--support-accent)}
+${enhancedSupportStyles}
 `

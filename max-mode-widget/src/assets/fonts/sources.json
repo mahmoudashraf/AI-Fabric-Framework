@@ -1,0 +1,47 @@
+[
+  {
+    "file": "Manrope.woff2",
+    "conversion": "Original TTF compressed to WOFF2 with fonttools; licence and glyph data preserved.",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf"
+  },
+  {
+    "file": "manrope-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/OFL.txt"
+  },
+  {
+    "file": "InstrumentSerif.woff2",
+    "conversion": "Original TTF compressed to WOFF2 with fonttools; licence and glyph data preserved.",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentserif/InstrumentSerif-Regular.ttf"
+  },
+  {
+    "file": "instrumentserif-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentserif/OFL.txt"
+  },
+  {
+    "file": "SpaceGrotesk.woff2",
+    "conversion": "Original TTF compressed to WOFF2 with fonttools; licence and glyph data preserved.",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf"
+  },
+  {
+    "file": "spacegrotesk-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/OFL.txt"
+  },
+  {
+    "file": "IBMPlexMono.woff2",
+    "conversion": "Original TTF compressed to WOFF2 with fonttools; licence and glyph data preserved.",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexmono/IBMPlexMono-Regular.ttf"
+  },
+  {
+    "file": "ibmplexmono-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexmono/OFL.txt"
+  },
+  {
+    "file": "Nunito.woff2",
+    "conversion": "Original TTF compressed to WOFF2 with fonttools; licence and glyph data preserved.",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf"
+  },
+  {
+    "file": "nunito-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/OFL.txt"
+  }
+]

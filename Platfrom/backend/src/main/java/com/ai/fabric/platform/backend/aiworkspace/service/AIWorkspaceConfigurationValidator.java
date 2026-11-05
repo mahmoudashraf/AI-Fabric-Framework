@@ -27,6 +27,9 @@ public class AIWorkspaceConfigurationValidator {
     private static final Set<String> TOOL_ICONS = Set.of(
         "calendar", "compare", "details", "documents", "location", "phone", "search", "shield", "sparkles", "tools");
     private static final Set<String> TOOL_RAIL_TONES = Set.of("primary", "teal", "violet", "amber", "neutral");
+    private static final Set<String> STYLE_PRESETS = Set.of(
+        "current", "clarity", "editorial", "obsidian", "botanical", "atelier", "kinetic",
+        "frost", "workshop", "terminal", "pop", "gallery", "human");
 
     private final PlatformAIWorkspaceProperties properties;
 
@@ -397,7 +400,12 @@ public class AIWorkspaceConfigurationValidator {
     private void validateTheme(JsonNode theme) {
         if (theme.isMissingNode() || theme.isNull()) return;
         requireObjectNode(theme, "theme");
-        rejectUnknown(theme, Set.of("primaryColor", "logoUrl", "borderRadius", "fontFamily", "darkMode"), "theme");
+        rejectUnknown(theme, Set.of("stylePreset", "primaryColor", "logoUrl", "borderRadius", "fontFamily", "darkMode"), "theme");
+        // Exact IDs select supported frontend presentation tokens; omission retains the current appearance.
+        if (theme.has("stylePreset") && (!theme.path("stylePreset").isTextual()
+            || !STYLE_PRESETS.contains(theme.path("stylePreset").asText()))) {
+            throw badRequest("theme.stylePreset must be a supported visual style preset.");
+        }
         if (theme.has("logoUrl")) validateLogoUrl(theme.path("logoUrl"));
         if (theme.has("primaryColor") && !requireTextValue(theme.path("primaryColor"), "theme.primaryColor", 32).matches("#[0-9A-Fa-f]{6}")) {
             throw badRequest("theme.primaryColor must be a six-digit hex colour.");

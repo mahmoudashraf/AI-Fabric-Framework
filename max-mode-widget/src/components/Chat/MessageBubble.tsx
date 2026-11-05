@@ -48,6 +48,8 @@ import { isConfirmationActionable } from "@/confirmationState";
 import { clarificationDisplayValue, clarificationParameters, clarificationValuePresent,
   type ClarificationEdits } from "@/clarificationForm";
 import type { ClarificationState } from "@/clarificationState";
+import { getWidgetConfig } from "@/config";
+import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
 export type AiStyles = {
   icon: LucideIcon;
@@ -127,6 +129,13 @@ export function MessageBubble({
   const primaryActionName = extractActionName(sanitizedResultData);
   const additionalActionResults = extractActionResultCandidates(sanitizedResultData);
   const isHumanMessage = message.participantRole === "human";
+  const enhancedStyle = isEnhancedWorkspaceStyle(getWidgetConfig().theme?.stylePreset);
+  const SourcesContainer = enhancedStyle ? 'details' : 'div';
+  const SourcesHeading = enhancedStyle ? 'summary' : 'div';
+  const expandableAnswer = enhancedStyle && !isHumanMessage && message.resultType === 'INFORMATION_PROVIDED'
+    && message.success !== false && message.result?.success !== false && message.result?.sanitizedPayload?.success !== false
+    && Boolean(sanitizedResultData?.actionResult?.data || additionalActionResults.length)
+    && normalizeMessageContent(message.content).length > 900;
 
   return (
     <>
@@ -140,6 +149,7 @@ export function MessageBubble({
       className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
     >
       <div
+        data-mxw-message={message.type === 'user' ? 'user' : isHumanMessage ? 'human' : 'assistant'}
         className={`max-w-[85%] md:max-w-[90%] rounded-3xl overflow-hidden ${
           message.type === "user"
             ? "bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 text-white shadow-lg mr-16 md:mr-0"
@@ -157,7 +167,7 @@ export function MessageBubble({
           </div>
         )}
         {message.type === "ai" && !isHumanMessage && Icon && !aiStyles?.hideBadge && (
-          <div className="relative">
+          <div className="relative" data-mxw-message-heading>
             <div className={`px-4 md:px-5 py-2 md:py-2.5 flex items-center justify-between bg-gradient-to-r ${aiStyles?.bg}`}>
               <div className="flex items-center gap-2">
                 <div className={`p-1.5 rounded-lg ${aiStyles?.iconColor} bg-white/20`}>
@@ -182,7 +192,7 @@ export function MessageBubble({
           </div>
         )}
 
-        <div className={`p-4 md:p-5 ${message.type === "ai" && !isHumanMessage ? "bg-white dark:bg-gray-900" : ""}`}>
+        <div data-mxw-message-body className={`p-4 md:p-5 ${message.type === "ai" && !isHumanMessage ? "bg-white dark:bg-gray-900" : ""}`}>
           {message.type === "user" && message.searchCategory && (
             <div className="mb-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-white/20 border border-white/30 rounded-full text-[10px] sm:text-xs font-semibold">
@@ -262,8 +272,9 @@ export function MessageBubble({
               );
             }
 
-            return message.type === "ai" ? (
+            const narrative = message.type === "ai" ? (
               <div
+                data-mxw-prose
                 className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-p:leading-relaxed prose-strong:font-bold prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:list-disc prose-ol:list-decimal prose-li:marker:text-blue-600 dark:prose-li:marker:text-blue-400"
                 style={{
                   fontFamily:
@@ -283,6 +294,12 @@ export function MessageBubble({
                 {content}
               </p>
             );
+            return expandableAnswer ? (
+              <details className="mxw-full-answer">
+                <summary><FileText className="h-4 w-4" />Full answer<ChevronDown className="h-4 w-4" /></summary>
+                {narrative}
+              </details>
+            ) : narrative;
           })()}
 
           {message.type === "ai" && message.participantRole === "ai" && message.historyPresentationUnavailable && (
@@ -367,13 +384,13 @@ export function MessageBubble({
             message.documents &&
             message.documents.length > 0 &&
             (message.result as any)?.data?.answer == null && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-1.5 mb-1">
+              <SourcesContainer className="mt-4 space-y-2 mxw-message-sources">
+                <SourcesHeading className="flex items-center gap-1.5 mb-1">
                   <FileText className="h-3.5 w-3.5 text-purple-500" />
                   <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                    {message.documents.length} Result{message.documents.length !== 1 ? "s" : ""} Found
+                    {enhancedStyle ? `${message.documents.length} source${message.documents.length === 1 ? '' : 's'}` : `${message.documents.length} Result${message.documents.length !== 1 ? 's' : ''} Found`}
                   </span>
-                </div>
+                </SourcesHeading>
                 {message.documents.map((doc, idx) => {
                   const typeColors: Record<string, string> = {
                     review: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700",
@@ -423,7 +440,7 @@ export function MessageBubble({
                     </motion.button>
                   );
                 })}
-              </div>
+              </SourcesContainer>
             )}
 
           {message.resultType === "INFORMATION_PROVIDED" &&

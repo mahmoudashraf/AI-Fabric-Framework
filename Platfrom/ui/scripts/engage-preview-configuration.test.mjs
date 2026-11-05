@@ -9,6 +9,9 @@ after(() => server.close())
 const load = path => server.ssrLoadModule(fileURLToPath(new URL(path, import.meta.url)))
 const { buildWorkspacePreviewConfiguration: build, resolveWorkspacePackPresentation: resolve } = await load('../src/components/customer/buildWorkspacePreviewConfiguration.ts')
 const { sanitizeWorkspacePreview, publicPreviewImage } = await load('../../../max-mode-widget/src/preview/configuration.ts')
+const { WORKSPACE_STYLE_PRESETS } = await load('../../../max-mode-widget/src/stylePresets.ts')
+const { readWorkspaceAppearance, selectWorkspaceAppearanceStyle } = await load('../src/pages/aiWorkspaceAppearance.ts')
+const { workspaceStyleVariables } = await load('../../../max-mode-widget/src/theme.ts')
 const capabilities = () => ({ history: true, attachments: true, currentPage: true, sources: true,
   authentication: { signInAvailable: true }, handover: { enabled: true, runtimeConfigured: true, userCanCancelPending: true, userCanResumeAi: true } })
 const configuration = () => ({ app: { assistantLabel: 'Assistant' }, capabilities: { handover: true },
@@ -89,9 +92,57 @@ test('config-only handover samples require explicit enablement and visibly repor
 })
 test('appearance overlay preserves intentionally empty copy rather than re-enabling default welcome', () => {
   const output = build({ configuration: { copy: { welcomeMessage: '', placeholder: '' } }, packCode: 'generic-workspace',
-    interactionPolicy: 'public', capabilities: capabilities(), appearance: { assistantLabel: 'Assistant', primaryColor: '#155eef', logoUrl: '', darkMode: 'light', welcomeMessage: '', placeholder: '' } })
+    interactionPolicy: 'public', capabilities: capabilities(), appearance: { assistantLabel: 'Assistant', primaryColor: '#155eef', logoUrl: '', darkMode: 'light', stylePreset: 'current', welcomeMessage: '', placeholder: '' } })
   assert.equal(output.copy.welcomeMessage, '')
   assert.equal(output.copy.placeholder, '')
+})
+test('saved styles and unsaved changes reach the preview without changing its capabilities or other appearance', () => {
+  for (const packCode of ['generic-workspace', 'dealership', 'support']) {
+    const input = { ...configuration(), theme: { ...configuration().theme, primaryColor: '#147d64', darkMode: 'auto', stylePreset: 'editorial' } }
+    const before = structuredClone(input)
+    const initial = build({ configuration: input, packCode, interactionPolicy: 'public-with-protected-capabilities', capabilities: capabilities() })
+    assert.equal(initial.theme.stylePreset, 'editorial', packCode)
+    const appearance = readWorkspaceAppearance(input, packCode)
+    for (const preset of WORKSPACE_STYLE_PRESETS) {
+      const output = build({ configuration: input, packCode, interactionPolicy: 'public-with-protected-capabilities', capabilities: capabilities(),
+        appearance: { ...appearance, stylePreset: preset.id } })
+      assert.equal(output.theme.stylePreset, preset.id)
+      assert.equal(output.theme.darkMode, 'auto')
+      assert.equal(output.theme.primaryColor, '#147d64')
+      assert.equal(output.theme.fontFamily, initial.theme.fontFamily)
+      assert.equal(output.theme.borderRadius, initial.theme.borderRadius)
+      for (const key of ['toolGroups', 'toolRail', 'capabilities', 'interactionPolicy', 'rendererIds', 'rendererContext', 'currentPage', 'copy']) {
+        assert.deepEqual(output[key], initial[key], `${packCode}:${preset.id}:${key}`)
+      }
+    }
+    assert.deepEqual(input, before)
+  }
+})
+test('unknown saved styles are projected as Current, never arbitrary presentation code', () => {
+  const output = preview({ theme: { stylePreset: 'url(https://untrusted.test/theme.js)' } })
+  assert.equal(output.theme.stylePreset, 'current')
+  assert.equal(JSON.stringify(output).includes('untrusted.test'), false)
+})
+test('unspecified preset type, shape and palette reach the shared sanitizer rather than legacy pack defaults', () => {
+  for (const packCode of ['generic-workspace', 'dealership', 'support']) {
+    const input = { theme: { darkMode: 'auto' } }
+    const original = readWorkspaceAppearance(input, packCode)
+    for (const preset of WORKSPACE_STYLE_PRESETS.filter(preset => preset.id !== 'current')) {
+      const appearance = selectWorkspaceAppearanceStyle(original, preset.id)
+      const output = build({ configuration: input, packCode, interactionPolicy: 'public', capabilities: capabilities(), appearance })
+      assert.equal(output.theme.primaryColor, preset.light.accent, `${packCode}:${preset.id}:accent`)
+      assert.equal(output.theme.fontFamily, '', `${packCode}:${preset.id}:no-type-override`)
+      const variables = workspaceStyleVariables(output.theme, false)
+      assert.equal(variables['--mxw-style-font'], preset.font, `${packCode}:${preset.id}:font`)
+      assert.equal(variables['--mxw-style-display-font'], preset.displayFont, `${packCode}:${preset.id}:display-font`)
+      assert.equal(output.theme.borderRadius, preset.radius, `${packCode}:${preset.id}:radius`)
+      assert.equal(output.theme.darkMode, 'auto')
+    }
+    const restored = build({ configuration: input, packCode, interactionPolicy: 'public', capabilities: capabilities(),
+      appearance: selectWorkspaceAppearanceStyle(selectWorkspaceAppearanceStyle(original, 'editorial'), 'current') })
+    const current = build({ configuration: input, packCode, interactionPolicy: 'public', capabilities: capabilities(), appearance: original })
+    assert.deepEqual(restored.theme, current.theme)
+  }
 })
 test('anonymous, required-login and protected-capability policies remain distinct without auth configuration', () => {
   for (const policy of ['public', 'login-required', 'public-with-protected-capabilities']) assert.equal(preview({}, capabilities(), policy).interactionPolicy, policy)

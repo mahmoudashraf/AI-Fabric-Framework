@@ -4,6 +4,7 @@ import { Headphones, Loader2, LogIn, LogOut, UserRound, X } from "lucide-react";
 import type { ConversationControlState } from "@/types";
 import { emitEvent, getWidgetConfig, type MaxModeHostAuthenticationConfig } from "@/config";
 import { AssistantBrandMark } from "@/components/AssistantBrandMark";
+import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
 import { Button } from "@/ui/button";
 
@@ -26,8 +27,10 @@ export function MaxModeHeader({
   authentication?: MaxModeHostAuthenticationConfig;
   showCloseButton: boolean;
 }) {
+  const enhancedStyle = isEnhancedWorkspaceStyle(getWidgetConfig().theme?.stylePreset);
   return (
     <motion.div
+      data-mxw-header
       initial={{ opacity: 0, y: -20, x: 20 }}
       animate={{ opacity: 1, y: 0, x: 0 }}
       className="fixed top-3 right-3 md:top-4 md:right-4 z-50 flex max-w-[calc(100%-1.5rem)] items-center gap-2"
@@ -78,10 +81,10 @@ export function MaxModeHeader({
           <span className="hidden sm:inline">Sign out</span>
         </Button>
       )}
-      <div className="flex min-w-0 items-center gap-2 bg-primary rounded-full pl-3 pr-1 py-1 shadow-xl border-2 border-white/30">
+      <div data-mxw-brand className="flex min-w-0 items-center gap-2 bg-primary rounded-full pl-3 pr-1 py-1 shadow-xl border-2 border-white/30">
         <div className="flex min-w-0 items-center gap-2">
           <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
+            animate={enhancedStyle ? undefined : { scale: [1, 1.1, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             className="shrink-0 text-white"
           >

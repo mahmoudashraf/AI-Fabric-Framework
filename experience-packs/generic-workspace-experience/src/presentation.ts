@@ -2,15 +2,17 @@ import type { GenericWorkspaceConfig } from './types'
 
 /** Pure presentation shared by live mounting and the isolated Console preview. */
 export function resolveGenericWorkspacePresentation(config: Partial<GenericWorkspaceConfig>) {
+  const enhancedStyle = config.theme?.stylePreset && config.theme.stylePreset !== 'current'
   return {
     identityKey: 'app',
     limitations: [] as string[],
     assistantLabel: config.app?.assistantLabel ?? 'Your assistant',
     theme: {
-      primaryColor: config.theme?.primaryColor ?? '#155eef',
+      ...config.theme,
+      primaryColor: config.theme?.primaryColor ?? (enhancedStyle ? undefined : '#155eef'),
       logoUrl: config.theme?.logoUrl,
-      borderRadius: config.theme?.borderRadius ?? '0.5rem',
-      fontFamily: config.theme?.fontFamily ?? 'Inter, system-ui, sans-serif',
+      borderRadius: config.theme?.borderRadius ?? (enhancedStyle ? undefined : '0.5rem'),
+      fontFamily: config.theme?.fontFamily ?? (enhancedStyle ? undefined : 'Inter, system-ui, sans-serif'),
       darkMode: config.theme?.darkMode ?? false,
     },
     copy: {

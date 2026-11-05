@@ -1,6 +1,7 @@
 import { Alert, Button, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import RestartAltRounded from '@mui/icons-material/RestartAltRounded'
-import type { WorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
+import { selectWorkspaceAppearanceStyle, type WorkspaceAppearance } from '../../pages/aiWorkspaceAppearance'
+import { EngageStylePresetPicker } from './EngageStylePresetPicker'
 
 export function EngageAppearanceFields({ value, onChange, onReset, error }: {
   value: WorkspaceAppearance; onChange: (value: WorkspaceAppearance) => void; onReset: () => void; error: string | null
@@ -11,11 +12,12 @@ export function EngageAppearanceFields({ value, onChange, onReset, error }: {
       <Typography variant="subtitle2">Customer-facing appearance</Typography>
       <Button size="small" startIcon={<RestartAltRounded />} onClick={onReset}>Reset changes</Button>
     </Stack>
+    <EngageStylePresetPicker value={value.stylePreset} onChange={stylePreset => onChange(selectWorkspaceAppearanceStyle(value, stylePreset))} />
     <TextField label="Assistant name" value={value.assistantLabel} onChange={event => set('assistantLabel', event.target.value)} inputProps={{ maxLength: 128 }} />
     <TextField label="Logo image URL" type="url" value={value.logoUrl} placeholder="https://example.com/logo.png"
       helperText="Public HTTPS image. Clear to use the default assistant icon." onChange={event => set('logoUrl', event.target.value)} />
     <Stack direction="row" spacing={2}>
-      <TextField label="Brand colour" type="color" value={value.primaryColor} onChange={event => set('primaryColor', event.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 0 }} />
+      <TextField label="Brand colour" type="color" value={value.primaryColor} onChange={event => onChange({ ...value, primaryColor: event.target.value, primaryColorSource: 'configured' })} InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 0 }} />
       <TextField select label="Appearance" value={value.darkMode} onChange={event => set('darkMode', event.target.value)} sx={{ flex: 1, minWidth: 0 }}>
         <MenuItem value="light">Light</MenuItem><MenuItem value="dark">Dark</MenuItem><MenuItem value="auto">System</MenuItem>
       </TextField>

@@ -1,10 +1,14 @@
 import { resolveWorkspacePackPresentation } from '../components/customer/buildWorkspacePreviewConfiguration'
+import { resolveWorkspaceStylePreset, type WorkspaceStylePresetId } from '../../../../max-mode-widget/src/stylePresets'
 
 export type WorkspaceAppearance = {
   assistantLabel: string
   logoUrl: string
   primaryColor: string
+  primaryColorSource?: 'configured' | 'preset' | 'default'
+  currentPrimaryColor?: string
   darkMode: 'light' | 'dark' | 'auto'
+  stylePreset: WorkspaceStylePresetId
   welcomeMessage: string
   placeholder: string
 }
@@ -17,15 +21,28 @@ export function readWorkspaceAppearance(configuration: Record<string, unknown>, 
   const presentation = resolveWorkspacePackPresentation(configuration, packCode)
   const identity = object(configuration[presentation?.identityKey ?? ''])
   const theme = object(configuration.theme)
+  const style = resolveWorkspaceStylePreset(theme.stylePreset)
+  const currentPresentation = resolveWorkspacePackPresentation({ ...configuration, theme: { ...theme, primaryColor: undefined, stylePreset: 'current' } }, packCode)
+  const currentPrimaryColor = currentPresentation?.theme.primaryColor || '#155eef'
   const copy = object(configuration.copy)
   return {
     assistantLabel: text(identity.assistantLabel) || 'Your assistant',
     logoUrl: text(theme.logoUrl),
-    primaryColor: text(theme.primaryColor) || presentation?.theme.primaryColor || '#155eef',
+    primaryColor: text(theme.primaryColor) || (style.id === 'current' ? currentPrimaryColor : style.light.accent),
+    primaryColorSource: text(theme.primaryColor) ? 'configured' : style.id === 'current' ? 'default' : 'preset',
+    currentPrimaryColor,
     darkMode: theme.darkMode === 'auto' ? 'auto' : theme.darkMode === true ? 'dark' : 'light',
+    stylePreset: style.id,
     welcomeMessage: text(copy.welcomeMessage),
     placeholder: text(copy.placeholder),
   }
+}
+
+export function selectWorkspaceAppearanceStyle(value: WorkspaceAppearance, next: WorkspaceStylePresetId): WorkspaceAppearance {
+  const style = resolveWorkspaceStylePreset(next)
+  if (value.primaryColorSource === 'configured' || value.primaryColorSource === undefined) return { ...value, stylePreset: style.id }
+  return { ...value, stylePreset: style.id, primaryColorSource: style.id === 'current' ? 'default' : 'preset',
+    primaryColor: style.id === 'current' ? value.currentPrimaryColor || '#155eef' : style.light.accent }
 }
 
 export function workspaceAppearanceError(value: WorkspaceAppearance): string | null {
@@ -56,6 +73,10 @@ export function applyWorkspaceAppearance(
   result[identityKey] = { ...object(result[identityKey]), assistantLabel: value.assistantLabel.trim() }
   const theme = { ...object(result.theme), primaryColor: value.primaryColor,
     darkMode: value.darkMode === 'auto' ? 'auto' : value.darkMode === 'dark' }
+  if (value.primaryColorSource === 'default' || value.primaryColorSource === 'preset') delete (theme as Record<string, unknown>).primaryColor
+  const stylePreset = resolveWorkspaceStylePreset(value.stylePreset).id
+  if (stylePreset === 'current') delete (theme as Record<string, unknown>).stylePreset
+  else Object.assign(theme, { stylePreset })
   if (value.logoUrl.trim()) Object.assign(theme, { logoUrl: value.logoUrl.trim() })
   else delete (theme as Record<string, unknown>).logoUrl
   result.theme = theme

@@ -31,7 +31,7 @@ export function AttachmentsRow({
             exit={{ opacity: 0, y: -10 }}
             className="mb-3"
           >
-            <div className="p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-blue-400 shadow-lg">
+            <div data-mxw-tray className="p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-blue-400 shadow-lg">
               <div className="flex items-center gap-3 mb-3">
                 <Button
                   size="icon"
@@ -61,6 +61,7 @@ export function AttachmentsRow({
                         transition={{ type: "spring", damping: 20 }}
                       >
                         <Card
+                          data-mxw-attachment-chip
                           data-max-mode-current-page-chip={isCurrentPage ? "true" : undefined}
                           className={`border-2 shadow-lg hover:shadow-xl transition-all ${
                             isAISearch
@@ -122,6 +123,7 @@ export function AttachmentsRow({
       {items.length > 0 && !showAttachments && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
           <Button
+            data-mxw-tray
             size="sm"
             variant="outline"
             onClick={onShowAttachments}

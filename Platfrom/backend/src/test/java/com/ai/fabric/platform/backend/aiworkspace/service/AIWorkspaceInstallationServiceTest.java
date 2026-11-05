@@ -24,8 +24,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -41,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -176,6 +179,74 @@ class AIWorkspaceInstallationServiceTest {
             eq(consumer), eq(Operation.APP_CONFIGURE), isNull(), any());
         verify(access).requireCustomerManagementAccess("customer-1");
         verify(audit).record(any(), any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {
+        "current", "clarity", "editorial", "obsidian", "botanical", "atelier", "kinetic",
+        "frost", "workshop", "terminal", "pop", "gallery", "human"
+    })
+    void roundTripsVisualStyleThroughCreateUpdateAndStoredConfiguration(String preset) throws Exception {
+        var consumer = consumer();
+        when(customers.existsById("customer-1")).thenReturn(true);
+        when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "northfield-web"))
+            .thenReturn(Optional.of(consumer));
+        when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
+        when(repository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        when(readiness.evaluateLocal(any())).thenAnswer(call -> notReady(call.getArgument(0)));
+        when(readiness.evaluate(any())).thenAnswer(call -> notReady(call.getArgument(0)));
+        when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(domains.synchronize(any(), any(), any(), any(), any())).thenAnswer(call -> call.getArgument(4));
+        when(domains.summaries(any())).thenReturn(List.of());
+        doAnswer(call -> {
+            validator.validateDealershipConfiguration(call.getArgument(2));
+            return null;
+        }).when(packs).validateConfiguration(eq("dealership"), eq("1.1.0"), any());
+        var configuration = dealershipConfiguration();
+        var theme = configuration.putObject("theme").put("primaryColor", "#123b35")
+            .put("fontFamily", "Arial, sans-serif").put("darkMode", "auto");
+        if (preset != null) theme.put("stylePreset", preset);
+        var original = configuration.deepCopy();
+        var request = new CreateAIWorkspaceInstallationRequest(
+            "northfield-web", "Workspace", "dealership", "1.1.0",
+            "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
+            objectMapper.createObjectNode(), List.of("https://dealer.example"), configuration,
+            "embedded", null, List.of(), "public", "none", "1.0.0", objectMapper.createObjectNode());
+        var service = service();
+
+        var created = service.create("customer-1", objectMapper.readValue(
+            objectMapper.writeValueAsString(request), CreateAIWorkspaceInstallationRequest.class));
+
+        var saved = ArgumentCaptor.forClass(AIWorkspaceInstallationEntity.class);
+        verify(repository, times(2)).saveAndFlush(saved.capture());
+        var entity = saved.getValue();
+        assertThat(created.configuration()).isEqualTo(original);
+        assertThat(objectMapper.readTree(entity.getConfigurationJson())).isEqualTo(original);
+        assertThat(configuration).isEqualTo(original);
+        when(repository.findByCustomerIdAndInstallationId("customer-1", entity.getInstallationId()))
+            .thenReturn(Optional.of(entity));
+        assertThat(service.get("customer-1", entity.getInstallationId()).configuration()).isEqualTo(original);
+
+        entity.setStatus(AIWorkspaceInstallationStatus.DISABLED);
+        var updatedConfiguration = configuration.deepCopy();
+        updatedConfiguration.with("theme").put("primaryColor", "#654321");
+        var update = new UpdateAIWorkspaceInstallationRequest(
+            "northfield-web", "Updated workspace", "dealership", "1.1.0",
+            "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
+            objectMapper.createObjectNode(), List.of("https://dealer.example"), updatedConfiguration,
+            "embedded", null, List.of(), "public", "none", "1.0.0", objectMapper.createObjectNode(), 0L);
+
+        var result = service.update("customer-1", entity.getInstallationId(), objectMapper.readValue(
+            objectMapper.writeValueAsString(update), UpdateAIWorkspaceInstallationRequest.class));
+
+        assertThat(result.configuration()).isEqualTo(updatedConfiguration);
+        assertThat(objectMapper.readTree(entity.getConfigurationJson())).isEqualTo(updatedConfiguration);
+        assertThat(result.configuration().path("theme").has("stylePreset")).isEqualTo(preset != null);
+        assertThat(result.connectionMode()).isEqualTo(created.connectionMode());
+        assertThat(result.authConfiguration()).isEqualTo(created.authConfiguration());
+        verify(offerBoundary).profileId("theme", original.path("theme"));
+        verify(offerBoundary).profileId("theme", updatedConfiguration.path("theme"));
     }
 
     @Test

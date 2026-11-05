@@ -44,6 +44,7 @@ export type GenericWorkspaceConfig = {
   toolRail?: Record<string, unknown>
   requestContext?: Record<string, unknown>
   theme?: {
+    stylePreset?: 'current' | 'clarity' | 'editorial' | 'obsidian' | 'botanical' | 'atelier' | 'kinetic' | 'frost' | 'workshop' | 'terminal' | 'pop' | 'gallery' | 'human'
     primaryColor?: string
     logoUrl?: string
     borderRadius?: string

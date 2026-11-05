@@ -238,7 +238,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
       ensureActive()
       if (!['light', 'dark', 'auto'].includes(mode)) throw new Error('Unsupported support color scheme.')
       theme = { ...theme, darkMode: mode === 'auto' ? 'auto' : mode === 'dark' }
-      shell.element.dataset.dark = String(theme.darkMode)
+      shell.setTheme(theme)
       if (initialized) {
         if (!context.maxMode.setTheme) throw new Error('The chat engine cannot update its theme without remounting.')
         context.maxMode.setTheme(theme)
