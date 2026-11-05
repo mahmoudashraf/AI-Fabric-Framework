@@ -6,6 +6,7 @@ import ConfirmationNumberOutlined from '@mui/icons-material/ConfirmationNumberOu
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined'
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded'
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined'
 import PersonRounded from '@mui/icons-material/PersonRounded'
 import SendRounded from '@mui/icons-material/SendRounded'
 import { supportExperiencePreviewFixtures } from '../../../../../experience-packs/support-experience/src/preview-fixtures'
@@ -68,7 +69,7 @@ export function SupportKitExperiencePreview({ name, children, compact = false }:
         <span className={`ek-format-screen ek-support-format ek-format-${item.id}`} aria-hidden="true"><KitMark product="engage" /><DescriptionOutlined /><ConfirmationNumberOutlined /></span><strong>{item.label}</strong>
       </button>)}</div>
     </section>}
-    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={<OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview support' : 'Preview experience'}</Button></div>
+    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={compact ? <VisibilityOutlined /> : <OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview support' : 'Preview experience'}</Button></div>
     <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md" fullScreen={narrow} aria-labelledby={titleId}
       PaperProps={{ className: 'ek-page ek-experience-dialog', 'data-kit-theme': palette.mode } as React.HTMLAttributes<HTMLDivElement>}>
       <div className="ek-experience-dialog-header"><h2 id={titleId}>Support experience preview</h2><Tooltip title="Close preview"><IconButton aria-label="Close preview" onClick={() => setOpen(false)}><CloseRounded /></IconButton></Tooltip></div>

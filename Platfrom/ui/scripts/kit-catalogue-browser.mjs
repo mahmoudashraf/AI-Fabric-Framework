@@ -50,6 +50,8 @@ const base = server.resolvedUrls.local[0]
 const bounds = async label => {
   await page.evaluate(async () => {
     await Promise.all([...document.images].map(async img => { img.loading = 'eager'; await img.decode().catch(() => {}) }))
+    await document.fonts.ready
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   })
   const state = await page.evaluate(() => ({ viewport: innerWidth, width: document.documentElement.scrollWidth,
     broken: [...document.images].filter(img => !img.complete || !img.naturalWidth).map(img => img.src),
@@ -63,12 +65,32 @@ try {
     await page.goto(base + 'experiences')
     const current = await page.locator('.ek-page').getAttribute('data-kit-theme')
     if (current !== scheme) await page.getByRole('button', { name: `Switch to ${scheme} mode` }).click()
+    await page.locator('.ek-catalogue-card').first().waitFor()
     for (const width of [1536, 1280, 768, 390]) {
       await page.setViewportSize({ width, height: 1100 })
       await bounds(`${scheme}-${width}-catalogue`)
       assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
       assert.equal(await page.getByLabel('Dealership offer', { exact: true }).count(), 1)
       assert.equal(await page.getByText('Coming soon', { exact: true }).count(), 0)
+      if (width === 1536) {
+        const geometry = await page.evaluate(() => {
+          const rects = selector => [...document.querySelectorAll(selector)].map(element => {
+            const rect = element.getBoundingClientRect(); return { y: rect.y, height: rect.height, width: rect.width, bottom: rect.bottom }
+          })
+          return { cards: rects('.ek-catalogue-card'), buttons: rects('.ek-card-explore'), scenes: rects('.ek-card-scene'),
+            avatars: rects('.ek-card-products .ek-desk-mark > img'), channels: rects('.ek-card-products .ek-desk-channels'),
+            titleSize: getComputedStyle(document.querySelector('.ek-card-identity h2')).fontSize,
+            font: getComputedStyle(document.querySelector('.ek-catalogue-page')).fontFamily }
+        })
+        assert.ok(geometry.cards.every(card => card.y < 220 && card.height < 790), JSON.stringify(geometry))
+        assert.ok(Math.max(...geometry.buttons.map(rect => rect.y)) - Math.min(...geometry.buttons.map(rect => rect.y)) < 2, JSON.stringify(geometry))
+        assert.ok(Math.max(...geometry.scenes.map(rect => rect.y)) - Math.min(...geometry.scenes.map(rect => rect.y)) < 2, JSON.stringify(geometry))
+        assert.equal(geometry.avatars.length, 3)
+        assert.ok(geometry.channels.every((rect, index) => rect.bottom <= geometry.avatars[index].y + 1), JSON.stringify(geometry))
+        assert.equal(geometry.titleSize, '28px')
+        assert.match(geometry.font, /LoomAI Catalogue/)
+        results.push({ label: `${scheme}-reference-proportions`, ...geometry })
+      }
       if (width === 1536 || width === 390) await page.screenshot({ path: `${output}/catalogue-${scheme}-${width}.png`, fullPage: true })
     }
     await page.setViewportSize({ width: 1536, height: 1100 })

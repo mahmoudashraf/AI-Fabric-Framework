@@ -27,6 +27,26 @@ No text, logos, watermark, headset, border, collage or UI.
 
 The existing vehicle photographs and fictional stock labels remain demo assets.
 
+## Catalogue Fidelity Assets
+
+Generated with the built-in image tool on 2026-11-05, then encoded locally as WebP:
+
+- `demo-support-agent-headset.webp`: edited from the existing fictional portrait,
+  preserving his appearance and adding a slim professional headset/microphone.
+  Used only as an illustrative Human Desk mark, not a claimed assigned employee.
+- `example-electric-suv.webp`: a fictional, unbranded blue electric SUV outside
+  a glass-fronted showroom. The entire vehicle is framed for the kit preview.
+  It is not customer inventory or a real vehicle offer; live demo assets and
+  indexed data are unchanged.
+
+Portrait prompt: preserve the same fictional man, face, expression, clothing and
+soft office background; add a charcoal over-ear headset and subtle microphone;
+center the entire head/headset for a small circular avatar; no text or logos.
+
+Vehicle prompt: realistic wide three-quarter photograph of a complete fictional
+blue compact electric SUV outside a contemporary glass showroom; generous margin
+around all wheels/roof/bumper; no real maker logos, text, people or UI.
+
 ## Experience Catalogue Product Photos
 
 `example-forma-chair.webp` and `example-studio-chair.webp` were generated with the

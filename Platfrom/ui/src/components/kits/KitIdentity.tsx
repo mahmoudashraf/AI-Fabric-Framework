@@ -20,7 +20,8 @@ export function KitMark({ product, large = false }: { product: 'platform' | 'eng
 }
 
 export function KitDeskMark() {
-  return <span className="ek-desk-mark" aria-hidden="true"><span className="ek-desk-channels"><WhatsApp /><SmartphoneOutlined /></span><HeadsetMicOutlined /></span>
+  return <span className="ek-desk-mark" aria-hidden="true"><span className="ek-desk-channels"><WhatsApp /><SmartphoneOutlined /></span>
+    <img src={kitAsset('demo-support-agent-headset.webp')} width="32" height="32" alt="" loading="lazy" /></span>
 }
 
 export function KitProductLine({ dealership = false, support = false }: { dealership?: boolean; support?: boolean }) {
@@ -31,13 +32,14 @@ export function KitProductLine({ dealership = false, support = false }: { dealer
   </div>
 }
 
-export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/kits' }: { authenticated: boolean; selectedCode?: string; consolePath?: string }) {
+export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/kits', catalogue = false }: { authenticated: boolean; selectedCode?: string; consolePath?: string; catalogue?: boolean }) {
   const theme = useTheme()
   const { setPreference } = useCustomerColorPreference()
   const label = theme.palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
   const query = selectedCode ? `?kit=${encodeURIComponent(selectedCode)}` : ''
-  return <header className="ek-public-header">
-    <a href="https://loomai.pro/" className="ek-logo" aria-label="LoomAI home"><img src={kitAsset('box.svg')} width="32" height="32" alt="" />LoomAI</a>
+  return <header className={`ek-public-header${catalogue ? ' ek-catalogue-header' : ''}`}>
+    <a href="https://loomai.pro/" className="ek-logo" aria-label="LoomAI home"><img src={kitAsset('box.svg')} width="32" height="32" alt="" />LoomAI{catalogue && <span>Console</span>}</a>
+    {catalogue && <div className="ek-catalogue-title"><h1>Choose your AI experience</h1><p>Start with a kit. Make it yours.</p></div>}
     <div className="ek-header-actions"><Tooltip title={label}><IconButton aria-label={label}
       onClick={() => setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>
       {theme.palette.mode === 'dark' ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton></Tooltip>

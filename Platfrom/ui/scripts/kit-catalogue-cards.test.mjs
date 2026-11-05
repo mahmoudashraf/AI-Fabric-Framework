@@ -63,12 +63,13 @@ test('commercial offer is dealership-only, not billing or an entitlement change'
   assert.doesNotMatch(html, /checkout|stripe|Coming soon/)
 })
 
-test('Desk channel icons are small companions above the headset and optional everywhere', async () => {
+test('Desk channel icons sit above the headset-wearing agent portrait and remain optional everywhere', async () => {
   const html = render(identity.KitDeskMark)
   assert.match(html, /ek-desk-channels/)
   assert.match(html, /WhatsAppIcon/)
   assert.match(html, /SmartphoneOutlinedIcon/)
-  assert.match(html, /HeadsetMicOutlinedIcon/)
+  assert.match(html, /demo-support-agent-headset.webp/)
+  assert.doesNotMatch(html, /HeadsetMicOutlinedIcon/)
   const catalogue = render(chooser.KitChooser, { definitions })
   assert.equal((catalogue.match(/Human support optional with Desk/g) ?? []).length, 3)
   const css = await readFile(new URL('../src/components/kits/KitCatalogueCards.css', import.meta.url), 'utf8')
@@ -83,7 +84,7 @@ test('card examples show the correct assets without collecting messages or execu
     assert.doesNotMatch(html, /<button|<input|<form/)
   }
   assert.match(render(scene.KitCardScene, { kind: 'adaptive' }), /example-forma-chair.webp/)
-  assert.match(render(scene.KitCardScene, { kind: 'dealership' }), /demo-vehicle-01.webp/)
+  assert.match(render(scene.KitCardScene, { kind: 'dealership' }), /example-electric-suv.webp/)
   assert.match(render(scene.KitCardScene, { kind: 'support' }), /demo-support-agent.webp/)
 })
 

@@ -98,3 +98,28 @@ Public-safe qualification summaries and public catalogue screenshots are under
 `verification-support/kit-cards-01062/`. Authenticated screenshots, credentials
 and operational receipts remain private. Unrelated pre-existing worktree
 changes are not part of this release.
+
+## Approved-Image Fidelity Follow-Up
+
+The next UI-only refinement, 2026-11-05, brings the catalogue closer to the
+approved mockup rather than treating the first implementation as visually final:
+
+- Compact single-row desktop heading and aligned, shorter card composition.
+- Locally served, licensed Manrope typography with readable titles and examples.
+- Reduced whitespace, consistent separators, photo-header strips and aligned
+  scenes, product rows and primary commands.
+- A fictional headset-wearing support-agent portrait beside Human Desk, retaining
+  the small WhatsApp/mobile companion icons above it.
+- A full-vehicle fictional preview image instead of the tightly cropped bumper.
+- Removed the duplicate catalogue support band; optional Desk composition remains
+  visible on every card. Detail content and setup destinations are preserved.
+
+Generated illustrative assets and font licensing are documented with the UI
+assets. No live inventory photograph, indexed evidence or customer branding was
+replaced. Companion icons still do not implement the corresponding channels.
+
+Focused qualification passed: production build, 21 catalogue/preview/integration
+tests, 22 responsive/theme/browser states and all nine Support kit UI scenario
+groups. Geometry checks cover compact desktop card height, aligned scenes and
+commands, the local font, and companion icons above each portrait. No customer
+write or browser error was observed. Hosted rollout is pending for this follow-up.

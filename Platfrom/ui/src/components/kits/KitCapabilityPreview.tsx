@@ -11,6 +11,7 @@ import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined'
 import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined'
 import MoreHorizRounded from '@mui/icons-material/MoreHorizRounded'
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded'
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined'
 import PersonRounded from '@mui/icons-material/PersonRounded'
 import SearchRounded from '@mui/icons-material/SearchRounded'
 import SendRounded from '@mui/icons-material/SendRounded'
@@ -149,7 +150,7 @@ function ShoppingKitExperiencePreview({ kind, name, children, compact }: { kind:
         <FormatMiniature content={content} format={item.id} /><strong>{item.label}</strong></button>)}</div>
     </section>}
     {!compact && <KitIncludedProducts />}
-    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={<OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview workspace' : 'Preview experience'}</Button></div>
+    <div className="ek-cap-commands">{children}<Button variant={compact ? 'text' : 'outlined'} startIcon={compact ? <VisibilityOutlined /> : <OpenInFullRounded />} onClick={() => show('max')}>{compact ? 'Preview workspace' : 'Preview experience'}</Button></div>
     <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xl" fullScreen={narrow} aria-labelledby={titleId}
       PaperProps={{ className: 'ek-page ek-experience-dialog', 'data-kit-theme': palette.mode } as React.HTMLAttributes<HTMLDivElement>}>
       <div className="ek-experience-dialog-header"><div><KitMark product="platform" /><h2 id={titleId}>Workspace preview</h2><span>Illustrative experience</span></div>

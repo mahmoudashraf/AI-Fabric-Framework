@@ -10,7 +10,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { CustomerConsoleTheme } from '../theme/CustomerConsoleTheme'
 import { experienceKitKeys, fetchPublicExperienceKits, type ExperienceKitDefinition } from '../api/experienceKitsApi'
 import { KitChooser } from '../components/kits/KitChooser'
-import { KitDeskMark, KitMark, KitProductLine, KitProductLinks, KitPublicHeader, KitSupportBand } from '../components/kits/KitIdentity'
+import { KitDeskMark, KitMark, KitProductLine, KitProductLinks, KitPublicHeader } from '../components/kits/KitIdentity'
 import { KitCapabilityIllustration, KitExperiencePreview } from '../components/kits/KitCapabilityPreview'
 import { KitDealershipOffer } from '../components/kits/KitCommercialPresentation'
 import { KitIntegrationJourney } from '../components/kits/KitIntegrationJourney'
@@ -56,15 +56,14 @@ function ExperienceKitsPublicContent({ code: selectedCode, authenticated: authen
   const catalogue = useQuery({ queryKey: experienceKitKeys.public, queryFn: ({ signal }) => fetchPublicExperienceKits(signal), staleTime: 60_000, retry: false })
   const definition = catalogue.data?.find(item => item.code === selectedCode)
   useEffect(() => { window.scrollTo(0, 0) }, [selectedCode])
-  return <div className="ek-page ek-public-page" data-kit-theme={palette.mode}>
-    <div className="ek-public-container"><KitPublicHeader authenticated={authenticated} selectedCode={selectedCode} consolePath={consolePath} />
+  return <div className={`ek-page ek-public-page${!selectedCode ? ' ek-catalogue-page' : ''}`} data-kit-theme={palette.mode}>
+    <div className="ek-public-container"><KitPublicHeader authenticated={authenticated} selectedCode={selectedCode} consolePath={consolePath} catalogue={!selectedCode} />
       <main>
-        {!selectedCode && <section className="ek-public-intro"><h1>Choose your AI experience</h1><p>Start with a kit. Make it yours.</p></section>}
         {catalogue.isPending && <div className="ek-query-state" role="status"><CircularProgress size={26} /><span>Loading experiences...</span></div>}
         {catalogue.isError && <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Experiences could not be loaded.'}</Alert>}
         {catalogue.isSuccess && (selectedCode ? definition ? <KitPublicDetail definition={definition} authenticated={authenticated} />
           : <Alert severity="info" action={<Button component={Link} to="/experiences">Back to experiences</Button>}>This experience is not available.</Alert>
-          : catalogue.data.length ? <><KitChooser definitions={catalogue.data} authenticated={authenticated} /><KitSupportBand /></>
+          : catalogue.data.length ? <KitChooser definitions={catalogue.data} authenticated={authenticated} />
             : <Alert severity="info">No experiences are currently available.</Alert>)}
         <div className="ek-integration-help"><span>Need a hand getting started?</span><Link to="/support">Get setup help <ArrowForwardRounded /></Link></div>
         <KitProductLinks />
