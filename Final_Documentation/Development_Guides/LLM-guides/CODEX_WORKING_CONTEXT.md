@@ -12594,3 +12594,25 @@ test is being called hosted acceptance. UI extraction remains last.
 - Tracking010_62_KIT_CARDS_AND_SMART_BRAIN_UI_IMPLEMENTATION.md; safe evidence
   verification-support/kit-cards-01062/refinement/. No backend/framework change.
   Unrelated pre-existing dirty work preserved. Temporary local dev server stopped.
+
+## 2026-11-05 Kit Reference Backgrounds Corrected; Detail Proposal Only
+
+- Owner identified grey-biased adaptive/dealership backgrounds versus the approved
+  mockup. Image pixel inspection informed explicit dark-mode card/scene/header
+  colours: adaptive deep teal, dealership blue-charcoal. Support and light mode
+  remain unchanged. No layout, content, backend, widget or runtime behavior change.
+- Current native Console UI revision on BOTH hosts is
+  18ca81042b5efa0089326fca7960015853815f46. Core CI42090027303 passed with
+  backend skipped; staging and production deployment jobs finished healthy.
+- Build and24 browser/theme states passed, including exact computed-background
+  assertions. Hosted public/native customer checks passed on both environments:
+  colours, geometry, portraits/icons, previews/details/setup links and mobile.
+  No browser errors/customer writes; app configs and protected images unchanged.
+- Tracking010.62; safe evidence verification-support/kit-cards-01062/background-colours/.
+- Owner separately requested a better kit-detail design. Generated a dealership
+  visual proposal, not implemented: business value/AI-enabled website hero,
+  dealership-only three-month/free-integration offer, three customer experience
+  formats, discovery-to-enquiry journey and LoomAI-owned integration process.
+  Image preview is exec-c0aeb7d7-3021-4855-acfc-a29ce42e559d.png in the current
+  Codex generated_images session directory. Await visual approval before changing
+  detail-page layout; preserve existing kit content and routes.

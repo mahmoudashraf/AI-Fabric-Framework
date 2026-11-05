@@ -154,7 +154,15 @@ and blue-charcoal for dealership. Explicit dark-mode card/scene/header tokens
 now reproduce those tones, rather than relying on a four-percent accent mix.
 AI Support and all light-mode backgrounds are unchanged. Layout, content and
 behavior are unchanged. The production build and 24 browser/theme states passed,
-including explicit computed-colour regressions. Hosted rollout is pending.
+including explicit computed-colour regressions. Current native UI revision on
+both hosts is `18ca81042b5efa0089326fca7960015853815f46`. CI `42090027303`
+passed with the backend build skipped. Both Console deployments finished healthy.
+Live browser checks on staging and production confirmed the intended card,
+scene and header colours, unchanged geometry, local assets, preview/detail/setup
+links, customer authentication, light mode and mobile bounds. No browser errors,
+customer writes, app configuration changes or protected image-tag changes occurred.
+
+Safe evidence: `verification-support/kit-cards-01062/background-colours/`.
 
 The separate request for an improved kit detail page is a visual proposal only;
 no detail-page layout or commercial terms have been changed in this correction.

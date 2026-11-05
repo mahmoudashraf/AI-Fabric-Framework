@@ -1,0 +1,132 @@
+{
+  "env": "staging",
+  "observedAt": "2026-11-05T19:07:48.829Z",
+  "publicCatalogue": 3,
+  "dealershipOnlyOffer": true,
+  "deskChannelIcons": 3,
+  "previewFormats": 3,
+  "detailPages": 3,
+  "nativeCustomerAuth": true,
+  "smartBrainUiLabel": true,
+  "originalRoutesPreserved": true,
+  "customerSetupLinks": 3,
+  "headsetPortraits": 3,
+  "geometry": [
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(22, 30, 35)",
+      "sceneBackground": "rgb(3, 39, 42)",
+      "headerBackground": "rgb(6, 56, 59)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(23, 31, 36)",
+      "sceneBackground": "rgb(18, 32, 42)",
+      "headerBackground": "rgb(20, 43, 61)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "y": 187.59375,
+      "height": 715.125,
+      "background": "rgb(25, 31, 36)",
+      "sceneBackground": "color(srgb 0.104 0.113255 0.10949)",
+      "headerBackground": "color(srgb 0.141333 0.140235 0.120941)",
+      "scene": {
+        "y": 303.375,
+        "height": 377.5,
+        "bottom": 680.875
+      },
+      "button": {
+        "y": 804.71875,
+        "height": 46,
+        "bottom": 850.71875
+      },
+      "portrait": {
+        "y": 743.875,
+        "height": 32,
+        "bottom": 775.875
+      },
+      "channels": {
+        "y": 730.875,
+        "height": 11,
+        "bottom": 741.875
+      },
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    }
+  ],
+  "appConfigurationsUnchanged": true,
+  "noCustomerWrites": true,
+  "errors": [],
+  "states": [
+    {
+      "name": "catalogue-desktop",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "catalogue-light",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "catalogue-mobile",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "customer-smart-brains",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    }
+  ]
+}
