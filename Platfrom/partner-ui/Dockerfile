@@ -1,6 +1,7 @@
 # Provider-neutral Partner UI image.
 #
 # Build context: repo root
+# CI publishes this image; serving hosts pull it without running the Node build.
 FROM node:20-alpine AS build
 
 WORKDIR /workspace

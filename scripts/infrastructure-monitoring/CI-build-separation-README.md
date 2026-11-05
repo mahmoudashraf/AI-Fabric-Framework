@@ -115,6 +115,16 @@ See [GHCR authentication](https://docs.github.com/en/packages/working-with-a-git
 
 ## Host Updater
 
+The installed Coolify API's build-pack enum does not include `dockerimage` for
+PATCH conversions. Initial source-to-image conversion is therefore a one-time
+operator configuration change using Coolify's own Application model, with a
+private before snapshot and native source/health verification. Do not modify the
+Coolify API code or create replacement apps just to change build mode. Keep
+existing UUIDs, domains, volumes, environment values, health checks and limits.
+Disable the old source-push deployment trigger only when the image updater is
+installed as its replacement; otherwise each push can deploy the previous image
+before CI publishes the new one. The updater never performs this conversion.
+
 The fixed config path is `/etc/loomai/serving-images.json`, root-owned `0600`,
 regular file, not a symlink. Its complete schema is:
 
