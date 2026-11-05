@@ -1,12 +1,16 @@
 import configparser
 import copy
 import io
+import http.client
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
 import stat
 import subprocess
 import tempfile
+import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -178,6 +182,30 @@ class ConfigTests(unittest.TestCase):
 
 
 class PortTests(unittest.TestCase):
+    def test_normal_local_response_over_two_seconds_is_not_an_uncertain_mutation(self):
+        class Handler(BaseHTTPRequestHandler):
+            def do_PATCH(self):
+                time.sleep(2.2)
+                body = b'{"ok":true}'
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            def log_message(self, *_args):
+                pass
+        server = HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            def connection(_host, _port, timeout):
+                return http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=timeout)
+            api = updater.Coolify(CONFIG['apiKey'], updater.Budget(), connection)
+            self.assertEqual(api.patch_image('demo-1', BINDING['image'], TAG), {'ok': True})
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
     def connection(self, payload=None, status=200, raw=None):
         calls = []
         class Connection:
@@ -208,7 +236,7 @@ class PortTests(unittest.TestCase):
         for call in calls:
             if call[0] == 'connect':
                 self.assertEqual(call[1], ('127.0.0.1', 8000))
-                self.assertLessEqual(call[2]['timeout'], 2)
+                self.assertLessEqual(call[2]['timeout'], 10)
         for call in requests:
             self.assertEqual(call[2]['headers']['Authorization'], 'Bearer private-test-token')
         self.assertEqual(json.loads(requests[3][2]['body']), {

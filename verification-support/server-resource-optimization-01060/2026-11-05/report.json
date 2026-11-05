@@ -1,0 +1,396 @@
+{
+  "observedAt": "2026-11-05T03:57:47.187Z",
+  "status": "PASSED",
+  "applications": [
+    {
+      "environment": "production",
+      "app": "ecommerce-store",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-ecommerce-store:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-ecommerce-store",
+      "publicOrigin": "https://loomai-ecommerce-store.46.225.162.106.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "production",
+      "app": "loomai-site",
+      "buildMode": "dockerimage",
+      "source": "04445eefc6e23c7f6993ad8447dc7501298a4703",
+      "image": "ghcr.io/mahmoudashraf/loomai-public-site:04445eefc6e23c7f6993ad8447dc7501298a4703-loomai-site",
+      "publicOrigin": "https://loomai-public-site.46.225.162.106.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "production",
+      "app": "mcp-execution-gateway",
+      "buildMode": "dockerimage",
+      "source": "6ad1b284753744bcf13a8b11d5434304160c8c58",
+      "image": "ghcr.io/mahmoudashraf/loomai-mcp-execution-gateway:6ad1b284753744bcf13a8b11d5434304160c8c58-mcp-execution-gateway",
+      "publicOrigin": "https://mcp-execution-gateway.46.225.162.106.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "production",
+      "app": "partner-ui",
+      "buildMode": "dockerimage",
+      "source": "5b5bf2190915c6e94aa77bff89d4d66562958789",
+      "image": "ghcr.io/mahmoudashraf/loomai-partner-ui:5b5bf2190915c6e94aa77bff89d4d66562958789-partner-ui",
+      "publicOrigin": "https://loomai-partner-ui.46.225.162.106.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "running",
+      "containerCount": 1
+    },
+    {
+      "environment": "production",
+      "app": "shopify-bridge",
+      "buildMode": "dockerimage",
+      "source": "aa5a92e2743a92b7cbebc51565233bdb3b55d81c",
+      "image": "ghcr.io/mahmoudashraf/loomai-shopify-bridge:aa5a92e2743a92b7cbebc51565233bdb3b55d81c-shopify-bridge",
+      "publicOrigin": "https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "agentic-ai-action-resolver",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-agentic-action-resolver:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-agentic-ai-action-resolver",
+      "publicOrigin": "https://ai-fabric-agentic-action-resolver.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "ai-fabric-account-resolver",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-account-resolver:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-ai-fabric-account-resolver",
+      "publicOrigin": "https://ai-fabric-account-resolver.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "ai-fabric-live-data-sync",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-live-data-sync:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-ai-fabric-live-data-sync",
+      "publicOrigin": "https://ai-fabric-live-data-sync.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "behavior-churn-signals",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-behavior-churn-signals:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-behavior-churn-signals",
+      "publicOrigin": "https://behavior-churn-signals.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "chat-capabilities-demo",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-chat-capabilities-demo:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-chat-capabilities-demo",
+      "publicOrigin": "https://ai-fabric-chat-capabilities-demo.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "conversation-handover-demo",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-conversation-handover-demo:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-conversation-handover-demo",
+      "publicOrigin": "https://ai-fabric-conversation-handover.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "deployment-knowledge-guard",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-deployment-knowledge-guard:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-deployment-knowledge-guard",
+      "publicOrigin": "https://ai-fabric-deployment-knowledge-guard.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "document-ingestion-workbench",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-document-ingestion-workbench:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-document-ingestion-workbench",
+      "publicOrigin": "https://ai-fabric-document-knowledge-operations.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "external-vehicle-provider-simulator",
+      "buildMode": "dockerimage",
+      "source": "8c5339901faf3dcb8c9edd73c875738461d3330b",
+      "image": "ghcr.io/mahmoudashraf/loomai-serving-vehicle-simulator:8c5339901faf3dcb8c9edd73c875738461d3330b-external-vehicle-provider-simulator",
+      "publicOrigin": "https://external-vehicle-provider-simulator.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "incident-investigation-room",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-incident-investigation-room:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-incident-investigation-room",
+      "publicOrigin": "https://ai-fabric-incident-investigation.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "mcp-execution-gateway",
+      "buildMode": "dockerimage",
+      "source": "6ad1b284753744bcf13a8b11d5434304160c8c58",
+      "image": "ghcr.io/mahmoudashraf/loomai-mcp-execution-gateway:6ad1b284753744bcf13a8b11d5434304160c8c58-mcp-execution-gateway",
+      "publicOrigin": "https://mcp-execution-gateway.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "mcp-operations-assistant",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-mcp-operations-assistant:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-mcp-operations-assistant",
+      "publicOrigin": "https://ai-fabric-mcp-operations.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "mcp-operations-reference-server",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-mcp-operations-reference-server:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-mcp-operations-reference-server",
+      "publicOrigin": "https://ai-fabric-mcp-reference-server.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "partner-ui",
+      "buildMode": "dockerimage",
+      "source": "5b5bf2190915c6e94aa77bff89d4d66562958789",
+      "image": "ghcr.io/mahmoudashraf/loomai-partner-ui:5b5bf2190915c6e94aa77bff89d4d66562958789-partner-ui",
+      "publicOrigin": "https://loomai-partner-ui.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "running",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "privacy-first-customer-facing-support",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-privacy-first-customer-facing-support:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-privacy-first-customer-facing-support",
+      "publicOrigin": "https://ai-fabric-privacy-shield.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    },
+    {
+      "environment": "staging",
+      "app": "tenant-knowledge-portal",
+      "buildMode": "dockerimage",
+      "source": "c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1",
+      "image": "ghcr.io/mahmoudashraf/ai-fabric-tenant-knowledge-portal:c586e0733aacc96cdb24d6c23ae6fd23fc97b6b1-tenant-knowledge-portal",
+      "publicOrigin": "https://ai-fabric-tenant-guard.46.224.145.148.sslip.io",
+      "publicHealthStatus": 200,
+      "nativeHealth": "healthy",
+      "containerCount": 1
+    }
+  ],
+  "hosts": [
+    {
+      "controlPlane": "staging",
+      "remainingRunningSourceBuilds": 0,
+      "timers": {
+        "metrics": "active",
+        "images": "active"
+      }
+    },
+    {
+      "controlPlane": "production",
+      "remainingRunningSourceBuilds": 0,
+      "timers": {
+        "metrics": "active",
+        "images": "active"
+      }
+    }
+  ],
+  "customerMonitoringAccess": 403,
+  "quota": {
+    "limit": 2,
+    "used": 2
+  },
+  "suites": [
+    {
+      "environment": "staging",
+      "label": "baseline",
+      "queryCount": 4,
+      "durationsMs": [
+        4488,
+        7105,
+        5794,
+        13940
+      ]
+    },
+    {
+      "environment": "production",
+      "label": "baseline",
+      "queryCount": 4,
+      "durationsMs": [
+        2853,
+        4695,
+        11819,
+        12031
+      ]
+    },
+    {
+      "environment": "staging",
+      "label": "tuned",
+      "queryCount": 4,
+      "durationsMs": [
+        6198,
+        5793,
+        15820,
+        14281
+      ]
+    },
+    {
+      "environment": "production",
+      "label": "tuned",
+      "queryCount": 4,
+      "durationsMs": [
+        6779,
+        6759,
+        15457,
+        11696
+      ]
+    }
+  ],
+  "handover": [
+    {
+      "environment": "staging",
+      "persistedConversationReadback": true,
+      "cancelledWithoutWrite": true,
+      "confirmedReceipt": true,
+      "humanReplyVisible": true,
+      "aiPausedDuringHumanOwnership": true,
+      "explicitAiReturn": true
+    },
+    {
+      "environment": "production",
+      "persistedConversationReadback": true,
+      "cancelledWithoutWrite": true,
+      "confirmedReceipt": true,
+      "humanReplyVisible": true,
+      "aiPausedDuringHumanOwnership": true,
+      "explicitAiReturn": true
+    }
+  ],
+  "footprint": [
+    {
+      "environment": "staging",
+      "beforeWorkingSetBytes": 3739013120,
+      "afterWorkingSetBytes": 3303915520,
+      "interpretation": "Short observed snapshots, not a controlled long-duration capacity or latency guarantee."
+    },
+    {
+      "environment": "production",
+      "beforeWorkingSetBytes": 1991561216,
+      "afterWorkingSetBytes": 1704153088,
+      "interpretation": "Short observed snapshots, not a controlled long-duration capacity or latency guarantee."
+    }
+  ],
+  "telemetryOverhead": {
+    "at": "2026-11-05T04:00:35.858Z",
+    "hosts": [
+      {
+        "environment": "staging",
+        "rawSamples": 33,
+        "rollups": 657,
+        "tableBytes": 1482752,
+        "collector": {
+          "parentPeakRssBytes": 24903680,
+          "childPeakRssBytes": 33161216,
+          "processCpuSeconds": 0.6332720000000001,
+          "childCpuSeconds": 0.27905199999999997
+        }
+      },
+      {
+        "environment": "production",
+        "rawSamples": 43,
+        "rollups": 354,
+        "tableBytes": 1163264,
+        "collector": {
+          "parentPeakRssBytes": 24772608,
+          "childPeakRssBytes": 33161216,
+          "processCpuSeconds": 0.203588,
+          "childCpuSeconds": 0.13255299999999998
+        }
+      }
+    ]
+  },
+  "telemetryOutage": {
+    "productQueries": "PASSED",
+    "observed": [
+      {
+        "id": "staging",
+        "status": "STALE",
+        "observedAt": "2026-11-05T03:46:27.989231Z"
+      },
+      {
+        "id": "production",
+        "status": "FRESH",
+        "observedAt": "2026-11-05T03:49:16.870037Z"
+      }
+    ],
+    "timerRestored": true
+  },
+  "indexing": {
+    "bytes": 251,
+    "evidenceCount": 2,
+    "removedFromIndex": true,
+    "productionSelected": false
+  },
+  "limits": [
+    "No high-load or maximum-customer capacity claim.",
+    "No smaller hard memory/CPU ceiling was qualified.",
+    "Uncertain provider mutations still require explicit readback/review, never automatic replay."
+  ]
+}

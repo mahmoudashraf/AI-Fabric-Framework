@@ -200,7 +200,7 @@ support that **GET** deploy contract; newer upstream uses POST. A 405 fails
 closed with a receipt, never an invented method fallback. Verify compatibility
 before activation; see [Coolify deployment API](https://coolify.io/docs/api/endpoints/deployments/deploy-by-tag-or-uuid).
 
-Bounds: at most 25 explicitly configured apps, one pull at a time, two seconds
+Bounds: at most 25 explicitly configured apps, one pull at a time, ten seconds
 per entire HTTP exchange, 30 seconds per Docker registry command, one MiB response
 bounds and a ten-minute total tick. A file lock prevents overlap. The five-minute
 timer is low priority; its CPU/IO settings limit the worker, not the Docker daemon.

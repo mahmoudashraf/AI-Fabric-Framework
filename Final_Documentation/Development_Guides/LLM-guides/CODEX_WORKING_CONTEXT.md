@@ -12461,3 +12461,51 @@ test is being called hosted acceptance. UI extraction remains last.
   Actual desktop/mobile customer UI passed,2/2 target links, no errors/overflow.
   Fixture session signed out, temporary tab closed, viewport reset. Unrelated
   dirty worktree changes preserved; private credentials/receipts remain ignored.
+
+## 2026-11-05 Resource Optimization And Admin Monitoring Completed
+
+- Plan010.60 is implemented and hosted-qualified on staging and production.
+  Details: 010_60_SERVER_RESOURCE_OPTIMIZATION_EXECUTION_RECORD.md in the
+  Implementation directory; sanitized evidence under verification-support/
+  server-resource-optimization-01060/2026-11-05. Private auth/receipts remain
+  ignored under ~/.codex/private/loomai-resource-01060/.
+- Both control planes: Operations source8bdfd0fcb5988d65baad65bb200b7586b10d9075,
+  backend3d9a986f55c1c2936ca08629e57cd292d2628e6b,
+  Console9aa6a47653962116e3fd1c1136995041f785233a. Framework dependencies,
+  customer runtime artifacts, prompts, models, Engage assignments and Desk
+  service unchanged. Historical entries are not source proof.
+- Four staging/two production runtime-connector pairs now have empty CPU
+  affinity, runtime Xms64m/Xmx768m and connector Xms32m/Xmx512m. Existing CPU
+  quotas1/.25 and memory ceilings1GiB/768MiB unchanged. V234 persists reviewed
+  seed defaults while preserving administrator overrides. Short working-set
+  snapshots3566->3151MiB staging,1899->1625MiB production are not capacity or
+  sustained-memory guarantees. No OOM/restart observed in qualification.
+- Fixed once-per-minute collectors and independent scoped telemetry auth feed
+  existing Operations databases:24h raw/seven-day aggregates. Admin-only
+  /infrastructure/monitoring displays both hosts, freshness, history, top
+  consumers and ownership. Authenticated customer403; no extra DB service.
+  Paused staging collection became STALE while four product queries passed;
+  timer restored and both sources FRESH. Monitoring is not admission authority.
+- All21 formerly source-built serving apps migrated in place to CI images
+  (16staging/fiveproduction), preserving IDs/config/volumes/addresses. All
+  native/public HTTPS health checks passed. GitHub-hosted builds bounded2;
+  schedules check both Platform-V11 and framework main source families. Host
+  image-only updaters enabled every5min, one pull at a time, explicit bindings.
+  Framework demo sourcec586e0733aacc96cdb24d6c23ae6fd23fc97b6b1.
+- Actual staging updater adopted Partner UI5b5bf2190915c6e94aa77bff89d4d66562958789.
+  Production accepted the same job but lost2s API responses; exact job/native
+  image readback was acknowledged without replay. API budget now10s within
+  the same10min deadline; real2.2s HTTP regression passed. Unknown outcomes
+  still stop for readback/review. File-backed H2 demos use cold replacement,
+  not disabled locks. Only exact owned stopped predecessors removed, no volumes.
+- Verification:429Operations tests;94focused backend tests+real V234 PostgreSQL
+  test;17UI tests/build and actual hosted desktop/basic-mobile checks;46Python
+  collector/updater tests;17publisher tests with upstream inspection.16baseline/
+  tuned AI queries and four outage queries passed, including concurrent products.
+  Support both environments passed retained history, cancel/no write, confirmed
+  ticket receipt, real Desk human reply, AI pause and explicit return. A251byte
+  staging document passed upload/index/retrieval then derived deletion; original
+  private Acme fixture remains, not promoted. Quota remains2/2.
+- No framework release, AI lexical workaround, autoscaler, capacity/draining
+  redesign, customer quota increase or infrastructure purchase. Longer-duration
+  workload/capacity observation remains follow-up. Unrelated dirty work preserved.

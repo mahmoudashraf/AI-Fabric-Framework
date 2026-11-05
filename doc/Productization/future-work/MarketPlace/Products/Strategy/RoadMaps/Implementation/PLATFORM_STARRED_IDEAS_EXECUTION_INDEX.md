@@ -36,6 +36,10 @@ Run the `010.40` measurement phase in parallel with `010.35` and `010.36`. The s
 
 The order is a recommended allocation of work. It is not a dependency chain: the skill is not required to run a standalone workspace; the configuration assistant is not required to implement startup context or integrations.
 
+## Infrastructure Optimization
+
+- [010.60 Server Resource Optimization and Admin Monitoring](010_60_SERVER_RESOURCE_OPTIMIZATION_AND_ADMIN_MONITORING_SOLUTION_PLAN.md): Implemented and hosted-qualified on staging and production, 2026-11-05. Qualified initial-heap and CPU-affinity changes, independent host telemetry in the existing Operations service/database, admin monitoring, and CI image builds for 21 serving apps. Telemetry is not an admission or customer-journey dependency. No framework release, new database/server or quota increase. See the [execution record](010_60_SERVER_RESOURCE_OPTIMIZATION_EXECUTION_RECORD.md) for measured limits and verification.
+
 ## Completed Human In The Loop Baseline
 
 Human Review and Conversation Handover are implemented. `010.34` explicitly records H0-H7 as complete and hosted-verified. Its closure includes Basic LoomAI Inbox, participant messages, durable control, owner-bound routes, SSE replay, channel dispatch, recovery, and acknowledged return to AI.
