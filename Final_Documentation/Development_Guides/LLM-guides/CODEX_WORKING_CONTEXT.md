@@ -12540,3 +12540,34 @@ test is being called hosted acceptance. UI extraction remains last.
   verification-support/engage-styles-01061/{local,hosted}. No persistent canary
   app/infra added. Current apps remain Current; choose Engage app -> Appearance
   & preview -> Workspace style to opt in. Unrelated dirty work preserved.
+
+## 2026-11-05 Kit Cards And Smart Brain UI 010.62 Completed
+
+- Owner approved the final three-card mockup, dealership-only commercial offer,
+  small WhatsApp/mobile icons above Desk headsets without coming-soon wording,
+  and UI-only Deployment -> Smart Brain terminology. Confirmed LoomAI's team
+  handles integration; detail content and existing setup/preview/demo routes stay.
+- UI source e4d4fc2d5c568da459a95699006cc684cfbc133c is native verified healthy on
+  BOTH hosts. Core image CI42066513599 passed with backend skipped; storage
+  CI42066513781 and quota/Desk CI42066513671 passed. No backend/framework change.
+- Single rollback constant: Platfrom/ui/src/deploymentTerminology.ts,
+  DEPLOYMENT_TERMINOLOGY='smart-brain'; switch to 'deployment' and rebuild UI.
+  Routes, payload keys, enums, IDs, user names and server messages unchanged.
+  Existing SMART_BRAIN behavior displays Event-driven to distinguish it from
+  the new resource label, with execution unchanged.
+- Catalogue cards show adaptive CX, dealership and Support scenes, three surface
+  formats and Platform + Engage + optional Human Desk. Shared dealership offer:
+  GBP500/month, Only pay when value starts, first3monthsfree, free integration.
+  Pricing/channel icons are presentation, not new billing/WhatsApp/mobile logic.
+- TypeScript/build passed.448 Console tests passed in the broad run; its sole
+  concurrent production-server browser timeout passed independently.6 explicit
+  naming/rollback/API tests passed;20 catalogue and24 detail responsive/theme
+  states plus nine existing Support setup/edit/tracking/human groups passed.
+- Actual public + native Supabase customer UI on both hosts passed cards,
+  previews, details, names and three entitled setup links. No errors/overflow/
+  broken images/customer writes; normal API app configurations and protected
+  backend/Desk/runtime image tags unchanged. No persistent fixture created.
+- Tracking010_62_KIT_CARDS_AND_SMART_BRAIN_UI_IMPLEMENTATION.md; safe evidence
+  verification-support/kit-cards-01062/. Operational receipts stay ignored.
+  Pre-existing RuntimeArtifacts framework default edit and other dirty work
+  preserved, not included in this UI release.

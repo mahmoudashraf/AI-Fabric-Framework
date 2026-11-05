@@ -1,0 +1,30 @@
+{
+  "staging": {
+    "env": "staging",
+    "source": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+    "job": "frfiss9bmtwn88vy2wrh8g4l",
+    "status": "finished",
+    "app": {
+      "uuid": "u67gepsowf7oo90dwjdx018r",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui",
+      "tag": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+      "status": "running:healthy"
+    },
+    "nativeRevision": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+    "protectedImagesUnchanged": true
+  },
+  "production": {
+    "env": "production",
+    "source": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+    "job": "f100i0aw46ngde56208x7bju",
+    "status": "finished",
+    "app": {
+      "uuid": "a6fz2ncuzzulg6lrzzwrjshu",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui",
+      "tag": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+      "status": "running:healthy"
+    },
+    "nativeRevision": "e4d4fc2d5c568da459a95699006cc684cfbc133c",
+    "protectedImagesUnchanged": true
+  }
+}

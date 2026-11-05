@@ -1,0 +1,42 @@
+{
+  "env": "production",
+  "observedAt": "2026-11-05T16:51:45.482Z",
+  "publicCatalogue": 3,
+  "dealershipOnlyOffer": true,
+  "deskChannelIcons": 3,
+  "previewFormats": 3,
+  "detailPages": 3,
+  "nativeCustomerAuth": true,
+  "smartBrainUiLabel": true,
+  "originalRoutesPreserved": true,
+  "customerSetupLinks": 3,
+  "appConfigurationsUnchanged": true,
+  "noCustomerWrites": true,
+  "errors": [],
+  "states": [
+    {
+      "name": "catalogue-desktop",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "catalogue-light",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    },
+    {
+      "name": "catalogue-mobile",
+      "width": 390,
+      "scroll": 390,
+      "broken": []
+    },
+    {
+      "name": "customer-smart-brains",
+      "width": 1536,
+      "scroll": 1536,
+      "broken": []
+    }
+  ]
+}

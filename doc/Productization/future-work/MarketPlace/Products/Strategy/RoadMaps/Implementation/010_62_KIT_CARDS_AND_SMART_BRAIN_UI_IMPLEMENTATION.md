@@ -69,11 +69,32 @@ it from the new resource label; its backend code and execution remain unchanged.
 - Catalogue browser checks cover 20 light/dark and desktop/tablet/mobile states,
   all preview formats, comparison/human samples, detail links and source images.
 - Detail-page browser coverage checks all three kits, both themes and four widths.
+- The existing Support kit browser smoke passes all nine setup/edit/tracking/
+  human-support scenario groups. Its storage fixture was updated to the existing
+  hosted-storage response shape; no production storage implementation changed.
 - No real AI query, business action, customer resource mutation or storage change
   is needed to qualify this presentation-only change.
 
 ## Rollout
 
-UI-only hosted rollout and final native-source checks are pending. Backend,
-customer runtimes, Engage assignments and Desk service must remain unchanged.
-Unrelated pre-existing worktree changes are not part of this release.
+Completed on staging and production. Exact native UI image revision on both:
+`e4d4fc2d5c568da459a95699006cc684cfbc133c`. Both Coolify jobs finished and both
+applications are running healthy. The production `/health` endpoint returns UP.
+
+- Core image CI `42066513599` passed; the backend image job was explicitly skipped.
+- Document storage CI `42066513781` and environment quota/Desk CI `42066513671`
+  also passed. No framework or backend release was required.
+- Hosted public checks on both hosts verified three cards, dealership-only offer,
+  three Desk icon groups, three preview formats, all three detail pages, dark/
+  light rendering, local images and basic mobile bounds.
+- Real Supabase customer sessions on both hosts verified Smart Brains navigation
+  at the unchanged `/deployments` route and all three entitled kit setup links.
+  Normal authenticated reads before/after proved app configurations unchanged.
+- No browser errors or customer writes were observed. Existing backend, Desk and
+  customer runtime image names/tags were read back unchanged from the baseline.
+- No customer resources or persistent test fixtures were created.
+
+Public-safe qualification summaries and public catalogue screenshots are under
+`verification-support/kit-cards-01062/`. Authenticated screenshots, credentials
+and operational receipts remain private. Unrelated pre-existing worktree
+changes are not part of this release.
