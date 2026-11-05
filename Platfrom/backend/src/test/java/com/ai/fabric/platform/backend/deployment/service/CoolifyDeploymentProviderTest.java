@@ -67,6 +67,17 @@ class CoolifyDeploymentProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void explicitEmptyAffinityClearsRolePinWithoutFallingBackToGenericPin() throws Exception {
+        var defaults = objectMapper.readTree("{\"limitsCpuSet\":\"3\",\"runtimeLimitsCpuSet\":\"\"}");
+        CoolifyApplicationRuntimeSettings runtime = ReflectionTestUtils.invokeMethod(
+            provider(), "serviceRuntimeSettings", defaults, "runtime");
+        CoolifyApplicationRuntimeSettings connector = ReflectionTestUtils.invokeMethod(
+            provider(), "serviceRuntimeSettings", defaults, "connector");
+        assertThat(runtime.limitsCpuSet()).isEmpty();
+        assertThat(connector.limitsCpuSet()).isEqualTo("3");
+    }
+
+    @Test
     void everyJvmRoleReceivesAnExplicitBoundedStartupHealthBudget() throws Exception {
         var defaults = objectMapper.readTree("{\"runtimeHealthCheckStartPeriodSeconds\":240}");
         for (String role : List.of("runtime", "connector", "vectorization-runner")) {

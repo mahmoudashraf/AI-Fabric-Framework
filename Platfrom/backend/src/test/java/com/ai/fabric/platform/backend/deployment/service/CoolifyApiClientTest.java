@@ -23,6 +23,19 @@ class CoolifyApiClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Test
+    void emptyCpuAffinityIsSentWhileAbsentAffinityIsNotManaged() {
+        var client = new CoolifyApiClient(objectMapper);
+        for (String affinity : new String[] { null, "", "3" }) {
+            var body = objectMapper.createObjectNode();
+            var settings = new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                "1g", null, null, "1", affinity);
+            org.springframework.test.util.ReflectionTestUtils.invokeMethod(client, "writeRuntimeSettings", body, settings);
+            assertThat(body.has("limits_cpuset")).isEqualTo(affinity != null);
+            if (affinity != null) assertThat(body.path("limits_cpuset").asText()).isEqualTo(affinity);
+        }
+    }
+
 
     @ParameterizedTest
     @ValueSource(strings = {"{\"count\":2,\"deployments\":[]}", "{\"deployments\":[]}",

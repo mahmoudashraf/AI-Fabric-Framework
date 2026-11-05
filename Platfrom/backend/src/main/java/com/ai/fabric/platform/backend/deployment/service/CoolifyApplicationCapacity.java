@@ -26,8 +26,8 @@ final class CoolifyApplicationCapacity {
                 && sameMemory(expected.limitsMemorySwap(), observedMemorySwap)
                 && sameMemory(expected.limitsMemoryReservation(), observedMemoryReservation)
                 && new BigDecimal(expected.limitsCpus()).compareTo(new BigDecimal(observedCpu)) == 0;
-            if (expected.limitsCpuSet() != null && !expected.limitsCpuSet().isBlank()) {
-                matches = matches && expected.limitsCpuSet().trim().equals(observedCpuSet);
+            if (expected.limitsCpuSet() != null) {
+                matches = matches && expected.limitsCpuSet().trim().equals(observedCpuSet == null ? "" : observedCpuSet.trim());
             }
         } catch (RuntimeException ex) {
             matches = false;

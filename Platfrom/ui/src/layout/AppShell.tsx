@@ -74,6 +74,7 @@ const navItems = [
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
+  { label: 'Servers & Resources', path: '/infrastructure/monitoring', icon: <InsightsRoundedIcon />, monitoringAdminOnly: true },
   { label: 'Partner Privileges', path: '/partner-privileges', icon: <ManageAccountsRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Profiles', path: '/shopify-package-profiles', icon: <TuneRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Launch', path: '/shopify-launch-readiness', icon: <RocketLaunchRoundedIcon />, platformAdminOnly: true },
@@ -122,6 +123,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const customerWorkspace = session?.role === 'CUSTOMER_ADMIN'
   const visibleNavItems = navItems.filter((item) => {
     if (customerWorkspace && !customerNavigation.includes(item.path)) return false
+    if (item.monitoringAdminOnly) return session?.authenticated === true && session.role === 'PLATFORM_ADMIN' && !session.customerId
     if (item.behaviorOperationsOnly) {
       return ['AGENTIC_SPECIALIST_TEAM', 'SMART_BRAIN'].includes(
         workspace.selectedDeploymentSummary?.behaviorType ?? '',

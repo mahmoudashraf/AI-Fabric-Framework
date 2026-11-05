@@ -48,6 +48,7 @@ import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
 import { RevisionsPage } from './pages/RevisionsPage'
 import { RuntimeArtifactsPage } from './pages/RuntimeArtifactsPage'
+import { InfrastructureMonitoringPage } from './pages/InfrastructureMonitoringPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
@@ -215,6 +216,7 @@ export default function App() {
               <Route path="/vectorization" element={<VectorizationPage />} />
               <Route path="/revisions" element={<RevisionsPage />} />
               <Route path="/runtime-artifacts" element={<RuntimeArtifactsPage />} />
+              <Route path="/infrastructure/monitoring" element={<InfrastructureMonitoringPage />} />
               <Route path="/diagnostics" element={<DiagnosticsPage />} />
               <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />
               <Route path="/users" element={<UsersPage />} />

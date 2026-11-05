@@ -2816,8 +2816,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemorySwap", "limitsMemorySwap"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemoryReservation", "limitsMemoryReservation"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsCpus", "limitsCpus"),
-            serviceSetting(resourceDefaults, serviceRole, "LimitsCpuSet", "limitsCpuSet")
+            cpuSetSetting(resourceDefaults, serviceRole)
         );
+    }
+
+    private String cpuSetSetting(JsonNode defaults, String role) {
+        for (String field : List.of(serviceRolePrefix(role) + "LimitsCpuSet", "limitsCpuSet")) {
+            JsonNode value = defaults.get(field);
+            if (value != null && value.isTextual()) return value.textValue().trim();
+        }
+        return null;
     }
 
     private Integer positiveIntegerSetting(JsonNode resourceDefaults,

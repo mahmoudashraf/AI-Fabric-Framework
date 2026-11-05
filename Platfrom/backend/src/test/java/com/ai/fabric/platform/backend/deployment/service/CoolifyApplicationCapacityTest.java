@@ -22,6 +22,17 @@ class CoolifyApplicationCapacityTest {
     }
 
     @Test
+    void explicitUnpinnedReadbackRejectsAnOldPin() {
+        var unpinned = new CoolifyApplicationRuntimeSettings(null, null, null, null,
+            "256M", "256M", "64M", "0.250", "");
+        var application = application("256M", "256M", "64M", "0.250");
+        CoolifyApplicationCapacity.requireReadback(application, unpinned, "CAPACITY_DRIFT");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) application.raw()).put("limits_cpuset", "3");
+        assertThatThrownBy(() -> CoolifyApplicationCapacity.requireReadback(application, unpinned, "CAPACITY_DRIFT"))
+            .hasMessageContaining("CAPACITY_DRIFT");
+    }
+
+    @Test
     void rejectsMissingOrDifferentProviderReadback() {
         assertThatThrownBy(() -> CoolifyApplicationCapacity.requireReadback(
             application("0", "0", "0", "0"),

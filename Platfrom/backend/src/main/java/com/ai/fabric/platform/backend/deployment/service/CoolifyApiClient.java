@@ -1328,7 +1328,7 @@ public class CoolifyApiClient {
         put(body, "limits_memory_swap", settings.limitsMemorySwap());
         put(body, "limits_memory_reservation", settings.limitsMemoryReservation());
         put(body, "limits_cpus", settings.limitsCpus());
-        put(body, "limits_cpuset", settings.limitsCpuSet());
+        putCpuSet(body, settings.limitsCpuSet());
     }
 
     private void writeDatabaseRuntimeSettings(ObjectNode body, CoolifyDatabaseRuntimeSettings settings) {
@@ -1339,7 +1339,12 @@ public class CoolifyApiClient {
         put(body, "limits_memory_swap", settings.limitsMemorySwap());
         put(body, "limits_memory_reservation", settings.limitsMemoryReservation());
         put(body, "limits_cpus", settings.limitsCpus());
-        put(body, "limits_cpuset", settings.limitsCpuSet());
+        putCpuSet(body, settings.limitsCpuSet());
+    }
+
+    private void putCpuSet(ObjectNode body, String value) {
+        // Empty explicitly clears an old affinity; null leaves an unmanaged setting untouched.
+        if (value != null) body.put("limits_cpuset", value.trim());
     }
 
     private void put(ObjectNode body, String field, Integer value) {

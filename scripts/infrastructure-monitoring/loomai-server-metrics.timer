@@ -1,0 +1,12 @@
+[Unit]
+Description=Observe LoomAI host resources once per minute
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+RandomizedDelaySec=3s
+Persistent=false
+Unit=loomai-server-metrics.service
+
+[Install]
+WantedBy=timers.target
