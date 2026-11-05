@@ -6,6 +6,7 @@ import '../styles/color-scheme.css'
 import themeBootstrap from '../scripts/color-scheme-bootstrap.js?raw'
 import SiteFooter from '../components/SiteFooter.astro'
 import SiteHeader from '../components/SiteHeader.astro'
+import IntegrationCallPanel from '../components/IntegrationCallPanel.astro'
 import { site } from '../data/content'
 
 type Props = {
@@ -80,5 +81,6 @@ const defaultJsonLd = {
       <slot />
     </main>
     <SiteFooter />
+    <IntegrationCallPanel />
   </body>
 </html>

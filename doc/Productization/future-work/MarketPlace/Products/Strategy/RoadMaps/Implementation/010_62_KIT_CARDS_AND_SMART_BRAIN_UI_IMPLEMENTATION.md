@@ -352,3 +352,31 @@ Safe evidence is in `verification-support/kit-cards-01062/navigation/`. Future
 target-profile changes must revalidate/republish affected public defaults through
 the same normal workflow. Do not hide composition drift with hash edits, SQL
 updates to immutable records or relaxed validation.
+
+## In-Page Integration Booking Panel
+
+Follow-up request: Book integration call and Start a project should open a
+floating, dismissible scheduler rather than take the visitor away from the
+current page. This supersedes the external-tab-only booking behavior above.
+
+- Console uses the shared IntegrationCallButton to open a theme-aware dialog.
+  The public website uses one native modal dialog in its existing base layout.
+- Both load the approved Calendly event in an iframe only after a normal click.
+  There is no scheduling script on the host page, automatic account prefill,
+  token forwarding, customer-resource context or new scheduling backend.
+- The visitor can choose a date/time and continue Calendly's booking flow inside
+  the panel. Close, Escape and backdrop dismissal retain the current route and
+  page state; the scheduler is removed on close. Existing link destinations
+  remain usable for modified clicks and an explicit Open in new tab option.
+- CSP frame access adds only https://calendly.com, preserving the existing
+  self/YouTube permissions and script-source restrictions. The site's fictional
+  dealership visitor pages remain outside LoomAI integration-team booking.
+- Focused Console tests cover lazy loading, iframe-only URL parameters, retained
+  form draft/route, close/Escape/backdrop/focus restoration, and 320/390/1440px
+  layouts in both themes. The site checks include mobile-navigation modal
+  stacking, ten card/theme layouts and the existing nine preview formats.
+
+Reference: Calendly's official iframe embedding guide,
+https://calendly.com/help/how-to-embed-calendly-with-an-iframe.
+No appointment is submitted during verification. Hosted rollout and real
+calendar slot-selection results are recorded separately after qualification.

@@ -37,6 +37,11 @@ try {
   const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1536, height: 1200 } })
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
+  let bookingRequests = 0
+  await page.route('https://calendly.com/**', route => {
+    bookingRequests++
+    return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><h1>Scheduling fixture</h1><button>10:00</button></body></html>' })
+  })
   for (const route of ['/', '/experiences']) {
     await page.goto(origin + route)
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light')
@@ -46,7 +51,28 @@ try {
       assert.equal(await link.getAttribute('href'), bookingUrl)
       assert.equal(await link.getAttribute('target'), '_blank')
       assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
+      assert.equal(await link.getAttribute('aria-haspopup'), 'dialog')
     }
+    assert.equal(await page.locator('iframe[src*="calendly.com"]').count(), 0)
+    const bookingTrigger = page.locator('.home-kits').getByRole('link', { name: 'Start a project', exact: true })
+    const beforeBooking = bookingRequests
+    await bookingTrigger.click()
+    const bookingPanel = page.getByRole('dialog', { name: 'Book an integration call', exact: true })
+    await bookingPanel.waitFor()
+    await bookingPanel.frameLocator('iframe').getByRole('button', { name: '10:00' }).click()
+    assert.equal(bookingRequests, beforeBooking + 1)
+    assert.equal(page.url(), origin + route)
+    assert.equal(context.pages().length, 1)
+    await bookingPanel.getByRole('button', { name: 'Close booking' }).click()
+    await bookingPanel.waitFor({ state: 'hidden' })
+    await bookingPanel.locator('iframe').waitFor({ state: 'detached' })
+    assert.equal(await page.locator('iframe[src*="calendly.com"]').count(), 0)
+    assert.ok(await bookingTrigger.evaluate(el => el === document.activeElement))
+    await bookingTrigger.click()
+    await page.keyboard.press('Escape')
+    await bookingPanel.waitFor({ state: 'hidden' })
+    await bookingPanel.locator('iframe').waitFor({ state: 'detached' })
+    checks.push(`${route}:lazy-booking-panel-slot-close-escape-focus-page-retained`)
     const section = page.locator('.home-kits')
     assert.equal(await section.locator('.home-kit').count(), 3)
     for (const [kind, code] of Object.entries(kits)) {
@@ -142,7 +168,16 @@ try {
           await dialog.locator('[data-catalogue-close]').click()
         }
         await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-        assert.equal(await page.locator('[data-mobile-menu]').getByRole('link', { name: 'Book integration call', exact: true }).getAttribute('href'), bookingUrl)
+        const mobileBooking = page.locator('[data-mobile-menu]').getByRole('link', { name: 'Book integration call', exact: true })
+        assert.equal(await mobileBooking.getAttribute('href'), bookingUrl)
+        await mobileBooking.click()
+        const panel = page.getByRole('dialog', { name: 'Book an integration call', exact: true })
+        await panel.waitFor()
+        assert.equal(await panel.evaluate(el => el.scrollWidth > el.clientWidth), false)
+        await panel.getByRole('button', { name: 'Close booking' }).click()
+        await panel.waitFor({ state: 'hidden' })
+        await panel.locator('iframe').waitFor({ state: 'detached' })
+        assert.ok(await mobileBooking.evaluate(el => el === document.activeElement))
         await page.getByRole('button', { name: 'Close navigation', exact: true }).click()
       }
     }

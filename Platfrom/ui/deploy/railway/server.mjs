@@ -73,6 +73,7 @@ function securityHeaders(isStaticAsset, isAuthPage = false) {
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: http:",
+      "frame-src 'self' https://calendly.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",

@@ -119,7 +119,7 @@ function securityHeaders(isStaticAsset = false) {
       `img-src ${configuredImageSources()}`,
       "font-src 'self' data:",
       `connect-src ${configuredConnectSources()}`,
-      "frame-src 'self' https://www.youtube-nocookie.com",
+      "frame-src 'self' https://www.youtube-nocookie.com https://calendly.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self' mailto:",

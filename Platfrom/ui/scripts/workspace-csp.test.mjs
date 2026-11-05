@@ -39,6 +39,7 @@ for (const variant of ['container', 'railway']) {
         assert.equal(response.status, 200)
         const policy = response.headers.get('content-security-policy').split('; ')
         assert.equal(policy.find(value => value.startsWith('script-src ')), expected)
+        assert.equal(policy.find(value => value.startsWith('frame-src ')), "frame-src 'self' https://calendly.com")
         assert.ok(policy.includes("frame-ancestors 'none'"))
         assert.ok(policy.includes("object-src 'none'"))
         assert.equal(response.headers.get('x-frame-options'), 'DENY')

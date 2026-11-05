@@ -16,7 +16,7 @@ async function loadLocal(relative, dependencies = {}) {
   const exports = {}
   new Function('require', 'exports', compiled.outputText)(name => {
     if (name in dependencies) return dependencies[name]
-    if (name === 'react/jsx-runtime' || name.startsWith('@mui/')) return require(name)
+    if (name === 'react' || name === 'react/jsx-runtime' || name.startsWith('@mui/')) return require(name)
     throw new Error(`Unexpected booking dependency: ${name}`)
   }, exports)
   return exports
@@ -144,6 +144,7 @@ test('real detail pages retain offers, preview, demo, links and responsive light
       assert.equal(await link.getAttribute('href'), config.integrationTeam.bookingUrl)
       assert.equal(await link.getAttribute('target'), '_blank')
       assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
+      assert.equal(await link.getAttribute('aria-haspopup'), 'dialog')
     }
     assert.equal(await page.getByRole('link', { name: 'LoomAI website', exact: true }).getAttribute('href'), 'https://loomai.pro/')
     assert.equal(await page.locator('.ek-detail-outcome').count(), 3)

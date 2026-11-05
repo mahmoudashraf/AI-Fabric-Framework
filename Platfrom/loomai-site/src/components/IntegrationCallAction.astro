@@ -4,7 +4,7 @@ import { integrationTeam } from '../data/integrationTeam'
 interface Props { label?: string; class?: string }
 const { label = 'Book integration call', class: className = '' } = Astro.props
 ---
-<a class:list={['integration-call', className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer"><CalendarDays size={17} aria-hidden="true" />{label}</a>
+<a class:list={['integration-call', className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" aria-haspopup="dialog" data-integration-call><CalendarDays size={17} aria-hidden="true" />{label}</a>
 <style>
   .integration-call { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; font-size: 13px; font-weight: 650; color: var(--loom-blue-600); text-decoration: none; }
   .integration-call svg { flex-shrink: 0; }
