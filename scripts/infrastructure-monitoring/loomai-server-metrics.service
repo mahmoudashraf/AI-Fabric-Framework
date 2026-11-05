@@ -22,4 +22,3 @@ ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
 UMask=0077
-

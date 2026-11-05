@@ -42,6 +42,10 @@ class HostCollectorTest(unittest.TestCase):
         self.assertIn('index .Config.Labels "coolify.name"', collector.INSPECT)
         self.assertIn('if index .State "Health"', collector.INSPECT)
 
+    def test_ai_state_database_is_not_misclassified_as_its_runtime(self):
+        self.assertEqual(collector.role("ai-fabric-runtime-postgres-dep-a", "postgres:16-alpine"), "database")
+        self.assertEqual(collector.role("ai-fabric-connector-dep-a", "ghcr.io/example/ai-fabric-runtime:sha"), "connector")
+
     def test_stopped_resource_is_zero_and_unknown_limit_is_not_reserved_memory(self):
         data = {"id": "a" * 64, "name": "/db", "image": "postgres:16", "providerId": "db-id", "providerType": "database",
                 "resourceName": "database", "state": "exited", "pid": 0, "startedAt": "2026-11-05T00:00:00Z",

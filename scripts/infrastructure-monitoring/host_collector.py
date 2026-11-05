@@ -69,6 +69,8 @@ def memory_bytes(value):
 
 
 def role(name, image):
+    if image.rsplit("/", 1)[-1].split(":", 1)[0] in ["postgres", "pgvector"]:
+        return "database"
     for marker, result in [("vectorization", "vectorization-worker"), ("connector", "connector"),
                            ("ai-fabric-runtime", "runtime"), ("weaviate", "vector"),
                            ("milvus", "vector"), ("qdrant", "vector"), ("postgres", "database"),
