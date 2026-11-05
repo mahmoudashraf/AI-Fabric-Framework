@@ -1,0 +1,83 @@
+{
+  "observedAt": "2026-11-05T13:40:16.263Z",
+  "implementation": "8bf95331c11faeea7f4d532fbe1bd767e649b0ae",
+  "consolePolish": "2bba164cfd6056a4e31514796f14a532475e5286",
+  "ciRuns": [
+    42031788872,
+    42035989257
+  ],
+  "notes": [
+    "Live style switches are temporary browser-host API changes, not saved customer configuration.",
+    "Original app configurations are unchanged; normal-API temporary drafts were deleted.",
+    "Installed inventory and reference-bound details use real runtime routes; no business write action was executed."
+  ],
+  "reports": {
+    "staging-api": {
+      "env": "staging",
+      "observedAt": "2026-11-05T13:08:44.856Z",
+      "styles": 13,
+      "normalApiRoundTrip": true,
+      "existingAppsUnchanged": true,
+      "temporaryDraftDeleted": true
+    },
+    "production-api": {
+      "env": "production",
+      "observedAt": "2026-11-05T13:15:23.119Z",
+      "styles": 13,
+      "normalApiRoundTrip": true,
+      "existingAppsUnchanged": true,
+      "temporaryDraftDeleted": true
+    },
+    "staging-ui": {
+      "env": "staging",
+      "observedAt": "2026-11-05T13:34:41.579Z",
+      "nativeCustomerAuth": true,
+      "liveGallery": 13,
+      "unsavedPreview": true,
+      "currentRestored": true,
+      "noMutations": true,
+      "errors": []
+    },
+    "production-ui": {
+      "env": "production",
+      "observedAt": "2026-11-05T13:37:33.211Z",
+      "nativeCustomerAuth": true,
+      "liveGallery": 13,
+      "unsavedPreview": true,
+      "currentRestored": true,
+      "noMutations": true,
+      "errors": []
+    },
+    "production-installed-workspace": {
+      "observedAt": "2026-11-05T13:29:19.451Z",
+      "url": "https://northfield-console-live.apps.loomai.pro/",
+      "styles": [
+        "clarity",
+        "editorial",
+        "obsidian",
+        "pop",
+        "current"
+      ],
+      "sameDraftNode": true,
+      "sameConversation": true,
+      "inventoryPassed": true,
+      "referenceBoundDetailsPassed": true,
+      "providerImagesLoaded": true,
+      "handoverDialogOpened": true,
+      "noWriteActions": true,
+      "queryCount": 2,
+      "desktopAndMobile": true,
+      "assets": [
+        {
+          "path": "/api/public/ai-workspace/assets/dealership/1.1.0/dealership-experience.f4ca2085938f3359.iife.js",
+          "status": 200
+        },
+        {
+          "path": "/api/public/ai-workspace/assets/workspace/1.1.0/max-mode-widget.46efc7a983bc0c33.iife.js",
+          "status": 200
+        }
+      ],
+      "errors": []
+    }
+  }
+}

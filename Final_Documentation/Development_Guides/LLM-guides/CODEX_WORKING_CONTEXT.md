@@ -12509,3 +12509,34 @@ test is being called hosted acceptance. UI extraction remains last.
 - No framework release, AI lexical workaround, autoscaler, capacity/draining
   redesign, customer quota increase or infrastructure purchase. Longer-duration
   workload/capacity observation remains follow-up. Unrelated dirty work preserved.
+
+## 2026-11-05 Engage Styles 010.61 Implemented And Hosted
+
+- Owner approved implementation with the original theme preserved as Current.
+  Current / omitted stylePreset remains unchanged for existing apps. Twelve
+  opt-in styles: Clarity, Editorial, Obsidian, Botanical, Atelier, Kinetic,
+  Frost, Workshop, Terminal, Pop, Gallery, Human. No models, prompts, retrieval,
+  action/auth policies, framework release or customer runtime images changed.
+- Shared theme.stylePreset contract reaches backend persistence/manifests,
+  Console picker and unsaved isolated preview, React/script widget, generic /
+  dealership / Support packs. Licensed fonts are bundled locally; custom result
+  elements inherit raw tokens. Existing non-default branding stays explicit.
+  Selecting a new style replaces inherited legacy Inter / 0.5rem defaults;
+  Current restores original settings in the unsaved editor.
+- Native source/health verified on staging and production: backend8bf95331c,
+  Console2bba164cf. CI42031788872 and42035989257 passed; second was UI-only.
+  Normal API created/read/updated13style choices on both environments, deleted
+  exact temporary drafts and verified all original app configurations unchanged.
+- 40 Console tests, 34 Support tests, 17 shared-pack/dealership tests passed, plus
+  focused backend suites, theme contrast/token checks and existing host/history,
+  confirmation, request-context, semantic-boundary and compound/action smokes.
+  Actual widget52desktop/mobile/light/dark cases+13dockchecks;39screenshots.
+- Native Supabase customer UI on both hosts passed13style gallery, unsaved
+  preview and Current restoration with no app mutations. Real Northfield live
+  inventory and reference-bound detail queries/images passed; five temporary
+  style switches kept same input node/draft/conversation; basic mobile and human
+  support dialog passed. No business write action or browser error observed.
+- Tracking:010_61_ENGAGE_STYLE_IMPLEMENTATION_RECORD.md and public-safe evidence
+  verification-support/engage-styles-01061/{local,hosted}. No persistent canary
+  app/infra added. Current apps remain Current; choose Engage app -> Appearance
+  & preview -> Workspace style to opt in. Unrelated dirty work preserved.
