@@ -75,9 +75,9 @@ it from the new resource label; its backend code and execution remain unchanged.
 - No real AI query, business action, customer resource mutation or storage change
   is needed to qualify this presentation-only change.
 
-## Rollout
+## Initial Rollout
 
-Completed on staging and production. Exact native UI image revision on both:
+Initial release completed on staging and production. Native UI image revision:
 `e4d4fc2d5c568da459a95699006cc684cfbc133c`. Both Coolify jobs finished and both
 applications are running healthy. The production `/health` endpoint returns UP.
 
@@ -122,4 +122,26 @@ Focused qualification passed: production build, 21 catalogue/preview/integration
 tests, 22 responsive/theme/browser states and all nine Support kit UI scenario
 groups. Geometry checks cover compact desktop card height, aligned scenes and
 commands, the local font, and companion icons above each portrait. No customer
-write or browser error was observed. Hosted rollout is pending for this follow-up.
+write or browser error was observed.
+
+### Follow-Up Hosted Qualification
+
+Completed on staging, then production. Current native UI revision on both hosts:
+`637de00163f96690da236274370d19e282539ef4`. Core image CI `42078045833`
+passed with the backend image job skipped. Both Coolify jobs finished and both
+Console services are running healthy.
+
+Live browser checks verified all three cards, headset portraits, companion-icon
+positioning, the locally loaded font, aligned scenes/commands, light/dark and
+390px mobile bounds. At 1536px, cards measure about 715px high with 28px titles,
+matching the approved mockup's compact composition. All three preview formats,
+detail pages and native Supabase customer setup links passed. Customer app
+configurations and protected backend/Desk/runtime image tags remain unchanged.
+
+The first staging browser attempt started during image replacement and timed
+out. It passed after native revision and service health were confirmed; no
+additional code change or repeated deployment was needed.
+
+Public-safe screenshots and qualification summaries are in
+`verification-support/kit-cards-01062/refinement/`. This is a presentation-only
+release; existing kit installation and AI execution behavior are unchanged.

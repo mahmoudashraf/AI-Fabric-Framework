@@ -12571,3 +12571,26 @@ test is being called hosted acceptance. UI extraction remains last.
   verification-support/kit-cards-01062/. Operational receipts stay ignored.
   Pre-existing RuntimeArtifacts framework default edit and other dirty work
   preserved, not included in this UI release.
+
+## 2026-11-05 Kit Catalogue Approved-Image Fidelity Follow-Up
+
+- Owner requested closer matching to the approved image and a small human with
+  headset beside Human Desk, preserving tiny WhatsApp/mobile icons above it.
+- Current UI native revision on BOTH hosts is637de00163f96690da236274370d19e282539ef4.
+  Core CI42078045833 passed with backend skipped. Both Console jobs finished
+  healthy; backend/Desk/runtime image tags and customer app configs unchanged.
+- Compact header, aligned715px cards at1536px,28px titles, licensed local
+  Manrope, cleaner text/spacing, photo header strips and full fictional car
+  preview. Generated fictional headset portrait replaces each card Desk icon;
+  channel symbols remain presentation only. Duplicate catalogue support band
+  removed, with optional Desk information preserved inside every card.
+- Production build,21 focused tests,22 responsive/theme catalogue states,
+  24 detail states and nine Support UI scenario groups passed. Live public and
+  native Supabase customer checks on both hosts passed previews/details/setup
+  links, light/dark/mobile, image/font loading and icon/scene/button geometry.
+  No customer writes, broken images, overflow or browser errors observed.
+- Initial staging browser attempt overlapped rollout and timed out; passed
+  after native revision/health confirmation, without another code/deploy change.
+- Tracking010_62_KIT_CARDS_AND_SMART_BRAIN_UI_IMPLEMENTATION.md; safe evidence
+  verification-support/kit-cards-01062/refinement/. No backend/framework change.
+  Unrelated pre-existing dirty work preserved. Temporary local dev server stopped.
