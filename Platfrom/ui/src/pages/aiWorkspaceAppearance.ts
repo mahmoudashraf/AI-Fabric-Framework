@@ -76,7 +76,15 @@ export function applyWorkspaceAppearance(
   if (value.primaryColorSource === 'default' || value.primaryColorSource === 'preset') delete (theme as Record<string, unknown>).primaryColor
   const stylePreset = resolveWorkspaceStylePreset(value.stylePreset).id
   if (stylePreset === 'current') delete (theme as Record<string, unknown>).stylePreset
-  else Object.assign(theme, { stylePreset })
+  else {
+    Object.assign(theme, { stylePreset })
+    // Choosing a style replaces inherited legacy defaults, not genuinely custom branding.
+    if (resolveWorkspaceStylePreset(object(configuration.theme).stylePreset).id === 'current') {
+      const inherited = theme as Record<string, unknown>
+      if (inherited.fontFamily === 'Inter, system-ui, sans-serif') delete inherited.fontFamily
+      if (inherited.borderRadius === '0.5rem') delete inherited.borderRadius
+    }
+  }
   if (value.logoUrl.trim()) Object.assign(theme, { logoUrl: value.logoUrl.trim() })
   else delete (theme as Record<string, unknown>).logoUrl
   result.theme = theme

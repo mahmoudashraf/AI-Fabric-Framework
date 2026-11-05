@@ -57,6 +57,18 @@ test('system appearance is preserved as an explicit configuration choice', () =>
   assert.equal(draft.darkMode, 'auto')
   assert.equal(applyWorkspaceAppearance(input, 'generic-workspace', draft).theme.darkMode, 'auto')
 })
+test('opting into a style replaces only inherited legacy typography/shape, and Current restores them', () => {
+  const input = configuration()
+  input.theme = { primaryColor: '#123b35', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '0.5rem', darkMode: false }
+  const baseline = structuredClone(input)
+  const current = readWorkspaceAppearance(input, 'generic-workspace')
+  const selected = applyWorkspaceAppearance(input, 'generic-workspace', { ...current, stylePreset: 'editorial' })
+  assert.deepEqual(selected.theme, { primaryColor: '#123b35', darkMode: false, stylePreset: 'editorial' })
+  assert.deepEqual(applyWorkspaceAppearance(input, 'generic-workspace', current), baseline)
+  const savedCustom = { ...input, theme: { ...input.theme, stylePreset: 'pop' } }
+  assert.equal(applyWorkspaceAppearance(savedCustom, 'generic-workspace', { ...current, stylePreset: 'editorial' }).theme.fontFamily, 'Inter, system-ui, sans-serif')
+  assert.deepEqual(input, baseline)
+})
 test('missing or unknown saved styles keep Current without adding a default override', () => {
   for (const stylePreset of [undefined, null, '', 'future-style', { id: 'pop' }]) {
     const input = configuration()
