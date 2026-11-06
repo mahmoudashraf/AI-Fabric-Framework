@@ -32,6 +32,7 @@ import ViewInArRounded from '@mui/icons-material/ViewInArRounded'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import './PublicProductsPage.css'
 import { IntegrationCallButton } from '../components/IntegrationCallButton'
+import { ConsoleEntryButton } from '../components/ConsoleEntryButton'
 import { integrationTeam } from '../integrationTeam'
 
 export type PublicProduct = 'platform' | 'engage' | 'desk'
@@ -285,7 +286,7 @@ function PublicProductsContent({ product, authenticated = false, consolePath = '
   const themeLabel = palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
   const authActions = <div className="lp-auth-actions">
     <IntegrationCallButton size="small" />
-    {authenticated ? <Button component={RouterLink} to={consolePath} variant="contained" className="lp-account-button">Open console</Button> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
+    {authenticated ? <ConsoleEntryButton to={consolePath} /> : <><Button component={RouterLink} to={`/sign-in?product=${selectedProduct}`}>Sign in</Button><Button component={RouterLink} to={`/sign-up?product=${selectedProduct}`} variant="contained" className="lp-account-button">Create account</Button></>}
   </div>
   const themeToggle = <Tooltip title={themeLabel}><IconButton aria-label={themeLabel} onClick={() => setPreference(palette.mode === 'dark' ? 'light' : 'dark')} size="small">{palette.mode === 'dark' ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}</IconButton></Tooltip>
   useEffect(() => { window.scrollTo(0, 0) }, [product])

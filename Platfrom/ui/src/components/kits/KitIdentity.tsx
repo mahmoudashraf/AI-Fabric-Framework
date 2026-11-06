@@ -11,6 +11,7 @@ import SmartphoneOutlined from '@mui/icons-material/SmartphoneOutlined'
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import { Link } from 'react-router-dom'
 import { IntegrationCallButton } from '../IntegrationCallButton'
+import { ConsoleEntryButton } from '../ConsoleEntryButton'
 import { integrationTeam } from '../../integrationTeam'
 import { useCustomerColorPreference } from '../../theme/CustomerConsoleTheme'
 
@@ -47,7 +48,7 @@ export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/k
     <div className="ek-header-actions"><IntegrationCallButton size="small" /><Tooltip title={label}><IconButton aria-label={label}
       onClick={() => setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>
       {theme.palette.mode === 'dark' ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton></Tooltip>
-      <Button component={Link} to={authenticated ? consolePath : `/sign-in${query}`}>{authenticated ? 'Open Console' : 'Sign in'}</Button>
+      {authenticated ? <ConsoleEntryButton to={consolePath} /> : <Button component={Link} to={`/sign-in${query}`}>Sign in</Button>}
     </div>
   </header>
 }

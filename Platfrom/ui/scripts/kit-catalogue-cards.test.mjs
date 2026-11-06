@@ -24,9 +24,11 @@ async function load(relative, dependencies = {}) {
 }
 const integrationConfig = await load('../src/integrationTeam.ts')
 const integrationCall = await load('../src/components/IntegrationCallButton.tsx', { '../integrationTeam': integrationConfig })
+const consoleEntry = await load('../src/components/ConsoleEntryButton.tsx')
 const identity = await load('../src/components/kits/KitIdentity.tsx', {
   '../../theme/CustomerConsoleTheme': { useCustomerColorPreference: () => ({ setPreference() {} }) },
   '../IntegrationCallButton': integrationCall,
+  '../ConsoleEntryButton': consoleEntry,
   '../../integrationTeam': integrationConfig,
 })
 const content = await load('../src/components/kits/kitPreviewContent.ts')
