@@ -23,6 +23,8 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+customer-proposals/.private/
+customer-proposals/supabase/.temp/
 dev.env
 dev2.env
 dev*.env

@@ -2,6 +2,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createProposalGateway } from './proposals.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -238,9 +239,12 @@ function serveFile(request, response, targetPath, statusCode = 200) {
   createReadStream(targetPath).pipe(response)
 }
 
-const server = createServer((request, response) => {
+const proposalGateway = createProposalGateway()
+const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', 'http://127.0.0.1')
   const headOnly = request.method === 'HEAD'
+
+  if (await proposalGateway(request, response, requestUrl)) return
 
   if (!['GET', 'HEAD'].includes(request.method || 'GET')) {
     response.writeHead(405, { Allow: 'GET, HEAD', ...securityHeaders(false) })

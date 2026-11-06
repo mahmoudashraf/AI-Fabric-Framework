@@ -1,0 +1,4 @@
+project_id = "loomai-customer-proposals"
+
+[functions.customer-proposals]
+verify_jwt = false
