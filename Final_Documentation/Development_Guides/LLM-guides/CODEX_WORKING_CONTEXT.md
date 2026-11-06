@@ -12933,3 +12933,21 @@ test is being called hosted acceptance. UI extraction remains last.
   code entry/illustrations/details/contact-dismiss/lock-reopen PASS. Responsive
   390/320/820 no-overflow, no broken images/warnings; existing live proposal still
   renders LoomAI Team captions. No recipient email, booking or AutoTrader API call.
+
+## 2026-11-06 AutoTrader Lead-Creation Focus And Video Space Live
+
+- Owner requested stronger AutoTrader benefit. Headline now focuses on leads
+  created through AutoTrader, with a dedicated benefit section and four-stage
+  retailer visit -> AI assistance -> customer confirmation -> approved AutoTrader
+  Deal creation flow. Volume/visitor-to-Deal conversion are pilot measures, not a
+  claimed uplift. Data-processing/external-Deal approval qualifiers remain.
+- Prominent founder video space with actual existing Mo photo. No recording is
+  supplied, no fake playback. Optional video.youtubeId accepts only a valid ID;
+  playback is click-only through YouTube's privacy-enhanced host. Full web copy
+  and presentation backed up/CAS-updated together; same code/expiry/version.
+- Source129e45f0cddef9a4e0c27b0c0f24695416a60376, CI42256797874 PASS,
+  production pk52mu60xk9qu1ficav2o6it finished/native healthy.20 focused tests,
+  Astro check/build/static smoke and17 live HTTP checks PASS; desktop/390/320/820
+  no-overflow, four lead stages visible, pending video has no iframe, no browser
+  warnings. Ignored .private/autotrader/lead-focus-* proof. No external message,
+  booking, actual video playback or AutoTrader API request was submitted.

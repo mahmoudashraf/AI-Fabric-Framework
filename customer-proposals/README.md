@@ -197,3 +197,16 @@ The original proposal's database row/Word hash and live owner captions remained
 unchanged. This new proposal is explicitly web-only, with no fabricated download.
 Its source, screenshots, checks and invitation are retained only in `.private`.
 No recipient email or booking was submitted.
+
+The partnership lead-focus follow-up is live from source
+`129e45f0cddef9a4e0c27b0c0f24695416a60376`, CI `42256797874`, production
+`pk52mu60xk9qu1ficav2o6it` (finished/native healthy). Optional private
+`value.leadJourney` shows the four-step creation path and `video` reserves a
+founder introduction. A valid `video.youtubeId` enables click-only playback on
+the fixed YouTube privacy-enhanced host; without it, there is an explicitly
+pending non-playable space with the presenter's existing photo. No fabricated
+recording or duration. Twenty focused tests, check/build/static smoke, seventeen
+live HTTP checks and desktop/390px/320px/820px browser checks passed. Full web copy
+and presentation were backed up and compare-updated together, without changing
+technical scope, access grants, invitation expiry or version. Private lead-focus
+screenshots/reports are under `.private/autotrader`; no recording supplied yet.
