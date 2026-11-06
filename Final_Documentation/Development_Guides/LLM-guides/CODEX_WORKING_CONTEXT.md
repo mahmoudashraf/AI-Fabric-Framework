@@ -12779,3 +12779,26 @@ test is being called hosted acceptance. UI extraction remains last.
   submitted. Tracking010.62; safe evidence verification-support/integration-contact/.
   Full private receipts ~/.codex/private/loomai-integration-contact/. No remaining
   task-owned test server. Preserve unrelated existing dirty work.
+
+## 2026-11-06 Canonical Experience Navigation And Founder Value Copy
+
+- CURRENT: staging/production Console native339183006db094c5b942f1c6b83792560059b510;
+  production site native30a8b1170c087483fee7c158dbd7cd2aa15da85b; healthy/finished.
+  CI42145490354,42145490355,42146835060 PASS; no Platform backend build.
+- Founder card explicitly explains Smart Brains, branded engagement and Desk
+  handoff, ending Give your customers the AI experience they deserve. Metadata
+  parity and small-screen interactions passed. General/support offers were
+  discussed, NOT published; all prices/trial terms unchanged.
+- Homepage Explore experiences/Try dealership demo hero buttons removed.
+  Public-site desktop-header Talk to Mo removed, not content/mobile menu or
+  Console contact entries. Public /experiences and both old detail pages removed
+  with unused components; fixed301 aliases point to Console, no query forwarding.
+  Sitemap pruned; Products/menu links target Console directly. Demo retained.
+- Final live site5 groups PASS incl GET/HEAD aliases,405/404,10 theme/width states,
+  9 previews and contact/calendar/back/close/mobile. Actual clicks passed site
+  header->Console catalogue and Products->both Console details->personal card.
+  Both Console hosted8-observation runs PASS with real calendar and request form.
+  No AI query/booking/message/request submitted. Only frontend/static web routing
+  changed; no Platform/runtime/framework/auth/template change. Safe evidence
+  verification-support/integration-contact/; tracking010.62; private receipts
+  ~/.codex/private/loomai-integration-contact/. Unrelated dirty work preserved.

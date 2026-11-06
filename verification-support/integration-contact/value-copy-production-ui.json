@@ -1,0 +1,49 @@
+{
+  "status": "PASS",
+  "environment": "production",
+  "target": "ui",
+  "source": "339183006db094c5b942f1c6b83792560059b510",
+  "checks": [
+    {
+      "label": "ai-customer-experience",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "dealership-ai-experience",
+      "calendarProof": true,
+      "retainedPage": true
+    },
+    {
+      "label": "ai-support-experience",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "public-mobile",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "customer-support",
+      "calendarProof": true,
+      "retainedPage": true
+    },
+    {
+      "label": "customer-sidebar",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "customer-mobile",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "existing-request-form-entry-no-submit"
+    }
+  ],
+  "errors": [],
+  "mutations": [],
+  "noAppointmentOrMessageSubmitted": true
+}

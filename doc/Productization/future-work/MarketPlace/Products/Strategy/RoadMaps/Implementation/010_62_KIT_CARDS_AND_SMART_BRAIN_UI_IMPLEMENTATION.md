@@ -430,3 +430,22 @@ All final deployment jobs finished healthy. Eight hosted observations passed
 on each Console and eight on the site, including real calendar slots, back/close,
 the three kit entry points, public/mobile/theme and customer request-form entry.
 No appointment, contact message, support request or AI query was submitted.
+
+## Canonical Console Experiences And Value-Led Contact Copy
+
+Current Console native source is `339183006db094c5b942f1c6b83792560059b510`
+on staging and production; public-site source is
+`30a8b1170c087483fee7c158dbd7cd2aa15da85b`. Both are healthy and verified.
+The founder card now explicitly covers Smart Brains, branded engagement and
+Desk handoff. The public homepage no longer has Explore experiences or Try
+dealership demo hero buttons, and its desktop header no longer duplicates
+Talk to Mo. Content/mobile contact and the dealership demo remain available.
+
+The public catalogue and old general/dealership detail pages were removed.
+Fixed HTTP301 redirects retain old bookmarks; navigation and Products links
+go directly to the corresponding Console pages. Removed routes are not in
+the sitemap. Native previews and all existing offers remain unchanged.
+Live browser checks proved the Console catalogue, both detail destinations,
+Start a project card and return, plus redirect/theme/mobile regression.
+Safe results: `verification-support/integration-contact/`. No commercial
+terms or Platform/runtime API or AI contracts were changed by this follow-up.

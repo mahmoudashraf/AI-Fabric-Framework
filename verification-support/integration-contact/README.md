@@ -29,9 +29,9 @@ navigation. Signed-in request entry opened the existing form and cancelled it
 without submission. WhatsApp and telephone destinations were checked as links;
 no call or message was sent.
 
-The production public site is healthy on native source
+The initial production public-site qualification used native source
 `976c7515491dd4260001040f4ce14ea1df0e606c`. Both staging and production Console
-are healthy on native source `f64c2d4703d7908699944fda274a9d0c2ceb2d24`, which
+were qualified on native source `f64c2d4703d7908699944fda274a9d0c2ceb2d24`, which
 adds explicit opener focus restoration after the Support iframe interaction.
 Core CI `42142053210` and `42142883542` passed with backend builds skipped;
 site CI `42142053207` passed. All three final deployment jobs finished.
@@ -39,3 +39,34 @@ The first two staging checks exposed the focus issue and were not represented
 as passes; both final hosted Console runs passed after the focused correction.
 Credentials, sessions and customer-page screenshots remain in ignored private
 receipts. Public screenshots and safe summaries accompany this record.
+
+## Current Follow-Up State
+
+- Both Consoles are healthy on native source
+  `339183006db094c5b942f1c6b83792560059b510`. The production public site is
+  healthy on `30a8b1170c087483fee7c158dbd7cd2aa15da85b`. All final deployment
+  jobs finished. CI `42145490354`, `42145490355` and `42146835060` passed;
+  Platform backend builds were skipped.
+- The card now explains Smart Brains, branded AI engagement channels and
+  LoomAI Desk handoff, ending with Give your customers the AI experience they
+  deserve. Shared introduction/promise fields are checked for parity.
+- Explore experiences and Try dealership demo were removed from the homepage
+  hero. Talk to Mo remains in the content and mobile menu, not the public-site
+  desktop header. Console's own contact entry points remain available.
+- `/experiences` and the old general/dealership detail URLs now return fixed
+  HTTP301 redirects to their Console equivalents, including trailing slashes.
+  Request queries are not forwarded. The three duplicate pages and their three
+  unused components were deleted, removed from the sitemap, and Products/menu
+  links now point directly to Console. The existing demo remains available.
+- No new offer, price or trial terms were published. Discussion of offers on
+  the other kits remains a recommendation, not implemented commercial copy.
+
+Narrow follow-up checks passed: metadata/UI interaction tests, frontend types,
+Astro check/build, 28 static routes, HTTP GET/HEAD redirect destinations and
+method/unknown-path behavior, ten responsive theme states and all nine native
+preview formats. Final live site checks passed five scenario groups. Actual
+browser clicks also proved homepage navigation to the working Console catalogue
+and Products to both Console details, including Start a project and return.
+Both Console hosted runs again passed eight observations with the updated
+copy and real Calendly selection. No appointment, message or request submitted.
+No Platform/runtime/framework/auth/template change was made.
