@@ -145,6 +145,13 @@ test('real detail pages retain offers, preview, demo, links and responsive light
       assert.equal(await link.getAttribute('target'), '_blank')
       assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
       assert.equal(await link.getAttribute('aria-haspopup'), 'dialog')
+      await link.click()
+      const contact = page.getByRole('dialog', { name: "Let's connect your AI to your business.", exact: true })
+      await contact.waitFor()
+      await contact.getByRole('heading', { name: 'Mo.Elgammal', exact: true }).waitFor()
+      assert.equal(await contact.locator('iframe').count(), 0)
+      await contact.getByRole('button', { name: 'Close integration panel', exact: true }).click()
+      await contact.waitFor({ state: 'hidden' })
     }
     assert.equal(await page.getByRole('link', { name: 'LoomAI website', exact: true }).getAttribute('href'), 'https://loomai.pro/')
     assert.equal(await page.locator('.ek-detail-outcome').count(), 3)

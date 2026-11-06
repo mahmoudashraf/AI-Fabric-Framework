@@ -3,8 +3,9 @@ import assert from 'node:assert/strict'
 import { createServer } from 'vite'
 import { chromium } from 'playwright'
 import { fileURLToPath } from 'node:url'
+import { mkdir } from 'node:fs/promises'
 
-test('booking panel is lazy, dismissible, isolated and responsive in both Console themes', { timeout: 90_000 }, async t => {
+test('personal contact panel keeps booking lazy, dismissible, isolated and responsive in both Console themes', { timeout: 90_000 }, async t => {
   const root = fileURLToPath(new URL('..', import.meta.url))
   const server = await createServer({ root, configFile: false, envFile: false, logLevel: 'error', esbuild: { jsx: 'automatic' },
     cacheDir: `/private/tmp/loomai-booking-vite-${process.pid}`, server: { host: '127.0.0.1', port: 0 },
@@ -38,14 +39,32 @@ test('booking panel is lazy, dismissible, isolated and responsive in both Consol
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto(`${server.resolvedUrls.local[0]}booking-test?theme=${theme}`)
-      const trigger = page.getByRole('link', { name: 'Book integration call', exact: true })
+      const trigger = page.getByRole('link', { name: 'Talk to Mo', exact: true })
       await trigger.waitFor()
       assert.equal(await page.locator('iframe').count(), 0)
       const before = requests.length
       await page.getByRole('textbox', { name: 'Unsubmitted draft' }).fill('Untouched customer draft')
       const url = page.url()
       await trigger.click()
-      const dialog = page.getByRole('dialog', { name: 'Book an integration call' })
+      const contact = page.getByRole('dialog', { name: "Let's connect your AI to your business." })
+      await contact.waitFor()
+      assert.equal(await page.locator('iframe').count(), 0)
+      assert.equal(requests.length, before)
+      await contact.getByRole('heading', { name: 'Mo.Elgammal', exact: true }).waitFor()
+      await contact.getByText('Founder / AI Enablement Engineer', { exact: true }).waitFor()
+      await contact.getByText('United Kingdom', { exact: true }).waitFor()
+      assert.equal(await contact.getByRole('link', { name: 'Message me on WhatsApp', exact: true }).getAttribute('href'), 'https://wa.me/447729946319')
+      assert.equal(await contact.getByRole('link', { name: '+44 7729 946319', exact: true }).getAttribute('href'), 'tel:+447729946319')
+      assert.equal(await contact.getByRole('link', { name: 'Send an integration request', exact: true }).getAttribute('href'), '/support?new=1')
+      const contactBounds = await contact.boundingBox()
+      assert.ok(contactBounds.x >= 0 && contactBounds.x + contactBounds.width <= width + 1)
+      assert.equal(await contact.evaluate(element => element.scrollWidth > element.clientWidth + 1), false)
+      if (process.env.INTEGRATION_CONTACT_EVIDENCE_DIR) {
+        await mkdir(process.env.INTEGRATION_CONTACT_EVIDENCE_DIR, { recursive: true })
+        await contact.screenshot({ path: `${process.env.INTEGRATION_CONTACT_EVIDENCE_DIR}/console-contact-${theme}-${width}.png`, animations: 'disabled' })
+      }
+      await contact.getByRole('button', { name: 'Book a 30-min call', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'Book a call with Mo', exact: true })
       await dialog.waitFor()
       await page.frameLocator('iframe').getByRole('button', { name: '10:00' }).click()
       assert.equal(requests.length, before + 1)
@@ -60,19 +79,23 @@ test('booking panel is lazy, dismissible, isolated and responsive in both Consol
       const bounds = await dialog.boundingBox()
       assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= 901)
       assert.equal(await dialog.evaluate(element => element.scrollWidth > element.clientWidth), false)
-      await page.getByRole('button', { name: 'Close booking' }).click()
+      await page.getByRole('button', { name: "Back to Mo's details", exact: true }).click()
+      await contact.waitFor()
+      assert.equal(await page.locator('iframe').count(), 0)
+      await contact.getByRole('button', { name: 'Close integration panel', exact: true }).click()
       await dialog.waitFor({ state: 'hidden' })
       assert.equal(await page.locator('iframe').count(), 0)
       assert.equal(await trigger.evaluate(element => document.activeElement === element), true)
       assert.equal(await page.getByRole('textbox', { name: 'Unsubmitted draft' }).inputValue(), 'Untouched customer draft')
       await page.getByRole('link', { name: 'Start a project', exact: true }).click()
-      await dialog.waitFor()
+      await contact.waitFor()
+      assert.equal(await page.locator('iframe').count(), 0)
       await page.keyboard.press('Escape')
-      await dialog.waitFor({ state: 'hidden' })
+      await contact.waitFor({ state: 'hidden' })
       await trigger.click()
-      await dialog.waitFor()
+      await contact.waitFor()
       await page.mouse.click(2, 2)
-      await dialog.waitFor({ state: 'hidden' })
+      await contact.waitFor({ state: 'hidden' })
       assert.equal(await page.locator('iframe').count(), 0)
     }
   }

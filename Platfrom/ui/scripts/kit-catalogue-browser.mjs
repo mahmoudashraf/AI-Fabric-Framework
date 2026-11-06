@@ -144,7 +144,7 @@ try {
     }
     for (const product of ['platform', 'engage', 'desk']) {
       await page.goto(`${base}products/${product}`)
-      assert.equal(await page.getByRole('link', { name: 'Book integration call', exact: true }).getAttribute('href'), 'https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success')
+      assert.equal(await page.getByRole('link', { name: 'Talk to Mo', exact: true }).getAttribute('href'), 'https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success')
       assert.equal(await page.getByRole('link', { name: 'LoomAI home', exact: true }).getAttribute('href'), 'https://loomai.pro/')
       for (const width of [1440, 390, 320]) {
         await page.setViewportSize({ width, height: 1100 })

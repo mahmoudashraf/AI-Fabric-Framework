@@ -1,30 +1,73 @@
 ---
-import { CalendarDays, ExternalLink, X } from '@lucide/astro'
+import { ArrowLeft, ArrowRight, CalendarDays, Database, ExternalLink, Globe, MapPin, MessageCircle, Phone, X } from '@lucide/astro'
 import { integrationTeam } from '../data/integrationTeam'
 ---
 <dialog class="booking-panel" data-booking-panel aria-labelledby="booking-panel-title" data-booking-url={integrationTeam.bookingUrl}>
   <div class="booking-panel__surface">
     <header class="booking-panel__header">
-      <CalendarDays class="booking-panel__icon" size={24} aria-hidden="true" />
-      <div class="booking-panel__heading"><h2 id="booking-panel-title">Book an integration call</h2><p>LoomAI integration team</p></div>
-      <a class="booking-panel__external" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden="true" />Open in new tab</a>
-      <button type="button" class="icon-button" aria-label="Close booking" data-booking-close autofocus><X size={22} aria-hidden="true" /></button>
+      <button type="button" class="icon-button" aria-label="Back to Mo's details" data-booking-back hidden><ArrowLeft size={20} aria-hidden="true" /></button>
+      <strong class="booking-panel__brand">LoomAI</strong>
+      <a class="booking-panel__external" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" data-booking-external hidden><ExternalLink size={16} aria-hidden="true" />Open in new tab</a>
+      <button type="button" class="icon-button" aria-label="Close integration panel" data-booking-close autofocus><X size={22} aria-hidden="true" /></button>
     </header>
-    <div class="booking-panel__body"><p class="booking-panel__loading" role="status" data-booking-loading>Loading available times...</p><div class="booking-panel__frame" data-booking-frame></div></div>
+    <div class="booking-panel__contact" data-integration-profile>
+      <h2 id="booking-panel-title">Let's connect your AI to your business.</h2>
+      <p class="booking-panel__intro">Meet your AI integration engineer.</p>
+      <div class="booking-panel__profile">
+        <img src={integrationTeam.portraitUrl} width="112" height="112" alt={integrationTeam.name} />
+        <div><h3>{integrationTeam.name}</h3><p class="booking-panel__role">{integrationTeam.role}</p>
+          <p class="booking-panel__location"><MapPin size={15} aria-hidden="true" />{integrationTeam.location}</p>
+          <p class="booking-panel__welcome">Tell me what you want to build. I'll help you connect your systems and choose the right next step.</p>
+        </div>
+      </div>
+      <ul class="booking-panel__topics"><li><Globe size={22} aria-hidden="true" />Website & AI workspace</li><li><Database size={22} aria-hidden="true" />Data, tools & integrations</li></ul>
+      <button type="button" class="booking-panel__action booking-panel__action--primary" data-booking-start><CalendarDays size={21} aria-hidden="true" />Book a 30-min call</button>
+      <p class="booking-panel__caption">Choose a time that works for you.</p>
+      <a class="booking-panel__action booking-panel__action--whatsapp" href={integrationTeam.whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={22} aria-hidden="true" />Message me on WhatsApp</a>
+      <a class="booking-panel__phone" href={integrationTeam.phoneUrl}><Phone size={17} aria-hidden="true" />{integrationTeam.phone}</a>
+      <footer class="booking-panel__footer"><span>Prefer to write it down?</span><a href={integrationTeam.requestUrl}>Send an integration request<ArrowRight size={17} aria-hidden="true" /></a></footer>
+    </div>
+    <div class="booking-panel__calendar" data-booking-calendar hidden>
+      <h2 id="booking-calendar-title">Book a call with Mo</h2>
+      <div class="booking-panel__body"><p class="booking-panel__loading" role="status" data-booking-loading>Loading available times...</p><div class="booking-panel__frame" data-booking-frame></div></div>
+      <a class="booking-panel__mobile-external" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden="true" />Open in new tab</a>
+    </div>
   </div>
 </dialog>
 <script>
   const panel = document.querySelector<HTMLDialogElement>('[data-booking-panel]')
   const frame = panel?.querySelector<HTMLElement>('[data-booking-frame]')
   const loading = panel?.querySelector<HTMLElement>('[data-booking-loading]')
+  const profile = panel?.querySelector<HTMLElement>('[data-integration-profile]')
+  const calendar = panel?.querySelector<HTMLElement>('[data-booking-calendar]')
+  const back = panel?.querySelector<HTMLButtonElement>('[data-booking-back]')
+  const external = panel?.querySelector<HTMLElement>('[data-booking-external]')
+  const start = panel?.querySelector<HTMLButtonElement>('[data-booking-start]')
   let previousOverflow = ''
   let trigger: HTMLAnchorElement | null = null
+  const showProfile = () => {
+    if (!panel || !profile || !calendar || !back || !external) return
+    frame?.replaceChildren()
+    panel.classList.remove('booking-panel--calendar')
+    panel.setAttribute('aria-labelledby', 'booking-panel-title')
+    profile.hidden = false
+    calendar.hidden = true
+    back.hidden = true
+    external.hidden = true
+  }
   document.addEventListener('click', event => {
     const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('[data-integration-call]') : null
-    if (!link || !panel || !frame || !loading || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    if (!link || !panel || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault()
     if (panel.open) return
     trigger = link
+    showProfile()
+    previousOverflow = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    panel.showModal()
+  })
+  start?.addEventListener('click', () => {
+    if (!panel || !frame || !loading || !profile || !calendar || !back || !external) return
     const url = new URL(panel.dataset.bookingUrl!)
     url.searchParams.set('embed_domain', location.host)
     url.searchParams.set('embed_type', 'Inline')
@@ -34,42 +77,76 @@ import { integrationTeam } from '../data/integrationTeam'
     iframe.referrerPolicy = 'no-referrer'
     loading.hidden = false
     iframe.addEventListener('load', () => { loading.hidden = true }, { once: true })
+    profile.hidden = true
+    calendar.hidden = false
+    back.hidden = false
+    external.hidden = false
+    panel.classList.add('booking-panel--calendar')
+    panel.setAttribute('aria-labelledby', 'booking-calendar-title')
     frame.replaceChildren(iframe)
-    previousOverflow = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-    panel.showModal()
+    back.focus()
   })
+  back?.addEventListener('click', () => { showProfile(); start?.focus() })
   panel?.querySelector('[data-booking-close]')?.addEventListener('click', () => panel.close())
   panel?.addEventListener('click', event => { if (event.target === panel) panel.close() })
   panel?.addEventListener('close', () => {
-    frame?.replaceChildren()
+    showProfile()
     document.documentElement.style.overflow = previousOverflow
     trigger?.focus({ preventScroll: true })
     trigger = null
   })
 </script>
 <style>
-  .booking-panel { padding: 0; margin: auto; width: min(1100px, calc(100% - 48px)); max-width: none; height: min(860px, calc(100dvh - 48px)); max-height: none; border: 1px solid var(--loom-border-default); border-radius: 8px; background: var(--loom-surface); color: var(--loom-text-primary); box-shadow: 0 24px 100px rgb(0 0 0 / 30%); }
+  .booking-panel { padding: 0; margin: auto; width: min(650px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); border: 1px solid var(--loom-border-default); border-radius: 8px; background: var(--loom-surface); color: var(--loom-text-primary); box-shadow: 0 24px 100px rgb(0 0 0 / 30%); }
   .booking-panel::backdrop { background: rgb(10 16 24 / 65%); }
-  .booking-panel__surface { display: flex; flex-direction: column; height: 100%; }
-  .booking-panel__header { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--loom-border-default); }
-  .booking-panel__icon { flex-shrink: 0; color: var(--loom-blue-600); }
-  .booking-panel__heading { flex: 1; min-width: 0; }
-  .booking-panel__heading h2 { margin: 0; font-size: 17px; font-weight: 650; line-height: 1.4; }
-  .booking-panel__heading p { margin: 2px 0 0; font-size: 12px; color: var(--loom-text-muted); }
-  .booking-panel__external { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 12px; color: var(--loom-blue-600); text-decoration: none; }
-  .booking-panel__external:hover { text-decoration: underline; }
+  .booking-panel [hidden] { display: none !important; }
+  .booking-panel__surface { display: flex; flex-direction: column; min-height: 0; }
+  .booking-panel__header { display: flex; align-items: center; gap: 10px; padding: 16px 28px 8px; }
+  .booking-panel__brand { flex: 1; font-size: 18px; font-weight: 750; }
   .booking-panel__header button { flex-shrink: 0; }
+  .booking-panel__contact { padding: 8px 28px 28px; }
+  .booking-panel__contact h2 { margin: 0; font-size: 28px; line-height: 1.2; font-weight: 750; }
+  .booking-panel__intro { margin: 8px 0 0; font-size: 15px; color: var(--loom-text-muted); }
+  .booking-panel__profile { display: flex; align-items: center; gap: 20px; margin: 24px 0; }
+  .booking-panel__profile img { width: 112px; height: 112px; flex-shrink: 0; border-radius: 50%; object-fit: cover; }
+  .booking-panel__profile h3 { margin: 0; font-size: 23px; font-weight: 750; }
+  .booking-panel__role { margin: 4px 0 0; color: var(--loom-text-muted); font-size: 14px; }
+  .booking-panel__location { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--loom-text-muted); margin: 6px 0 0; }
+  .booking-panel__welcome { margin: 12px 0 0; font-size: 15px; line-height: 1.6; }
+  .booking-panel__topics { list-style: none; margin: 0 0 24px; padding: 24px 0 0; border-top: 1px solid var(--loom-border-default); display: grid; gap: 12px; }
+  .booking-panel__topics li { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+  .booking-panel__action { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 13px 14px; border: 1px solid transparent; border-radius: 6px; font: inherit; font-size: 15px; font-weight: 650; line-height: 1.5; text-align: center; text-decoration: none; cursor: pointer; }
+  .booking-panel__action--primary { background: #5468df; color: #fff; }
+  .booking-panel__action--primary:hover { background: #4355c4; }
+  .booking-panel__caption { text-align: center; font-size: 12px; margin: 8px 0 20px; color: var(--loom-text-muted); }
+  .booking-panel__action--whatsapp { color: var(--loom-text-primary); border-color: var(--loom-success); }
+  .booking-panel__action--whatsapp svg { color: var(--loom-success); }
+  .booking-panel__action--whatsapp:hover { background: var(--loom-surface-soft); }
+  .booking-panel__phone { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--loom-text-muted); padding: 10px 0; font-size: 13px; }
+  .booking-panel__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--loom-border-default); margin-top: 20px; padding-top: 20px; font-size: 13px; color: var(--loom-text-muted); }
+  .booking-panel__footer a { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; color: var(--loom-blue-600); text-decoration: none; }
+  .booking-panel--calendar { width: min(1100px, calc(100% - 48px)); height: min(860px, calc(100dvh - 48px)); }
+  .booking-panel--calendar .booking-panel__surface { height: 100%; }
+  .booking-panel__calendar { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .booking-panel__calendar h2 { padding: 0 28px 12px; margin: 0; font-size: 17px; font-weight: 650; }
+  .booking-panel__external, .booking-panel__mobile-external { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 12px; color: var(--loom-blue-600); text-decoration: none; }
+  .booking-panel__external:hover, .booking-panel__footer a:hover { text-decoration: underline; }
   .booking-panel__body { flex: 1; min-height: 0; position: relative; background: #fff; color-scheme: light; }
   .booking-panel__loading { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; font-size: 13px; color: #394652; pointer-events: none; }
-  .booking-panel__loading[hidden] { display: none; }
   .booking-panel__frame { position: relative; height: 100%; }
   .booking-panel__frame :global(iframe) { display: block; width: 100%; height: 100%; border: 0; }
+  .booking-panel__mobile-external { display: none; padding: 8px; border-top: 1px solid var(--loom-border-default); }
   @media (max-width: 600px) {
-    .booking-panel { width: calc(100% - 16px); height: calc(100dvh - 16px); }
-    .booking-panel__header { gap: 8px; padding: 12px; flex-wrap: wrap; }
-    .booking-panel__icon { display: none; }
-    .booking-panel__heading h2 { font-size: 16px; }
-    .booking-panel__external { order: 1; width: 100%; }
+    .booking-panel { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+    .booking-panel--calendar { height: calc(100dvh - 16px); }
+    .booking-panel__header { padding: 16px 16px 8px; }
+    .booking-panel__contact { padding: 8px 16px 20px; }
+    .booking-panel__contact h2 { font-size: 24px; }
+    .booking-panel__profile { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .booking-panel__profile img { width: 86px; height: 86px; }
+    .booking-panel__footer { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .booking-panel__external { display: none; }
+    .booking-panel__mobile-external { display: flex; }
+    .booking-panel__calendar h2 { padding-inline: 16px; }
   }
 </style>

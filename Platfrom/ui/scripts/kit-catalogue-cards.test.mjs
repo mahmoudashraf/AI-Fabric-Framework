@@ -103,6 +103,6 @@ test('integration calls use the approved real scheduling page without account co
   assert.ok(html.includes(`href="${integrationConfig.integrationTeam.bookingUrl}"`))
   assert.match(html, /target="_blank"/)
   assert.match(html, /rel="noopener noreferrer"/)
-  assert.match(html, /Book integration call/)
+  assert.match(html, /Talk to Mo/)
   assert.doesNotMatch(html, /\?email|customerId|deploymentId|iframe|<script/)
 })

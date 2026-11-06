@@ -81,6 +81,6 @@ export function KitDetailPage({ definition }: { definition: ExperienceKitDefinit
       <Button component={Link} to={getStartedPath} variant="contained" startIcon={<RocketLaunchOutlined />}>Install kit</Button>
       {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try the live demo</Button>}
       <IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
-    </div><p>Start a project with an integration call. No Console account is needed to book.</p><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
+    </div><p>Meet Mo to plan your project. Book a call, message on WhatsApp or send a request through Console.</p><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
   </article>
 }

@@ -1,13 +1,21 @@
 ---
-import { CalendarDays } from '@lucide/astro'
+import { ArrowRight } from '@lucide/astro'
 import { integrationTeam } from '../data/integrationTeam'
 interface Props { label?: string; class?: string }
-const { label = 'Book integration call', class: className = '' } = Astro.props
+const { label, class: className = '' } = Astro.props
 ---
-<a class:list={['integration-call', className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" aria-haspopup="dialog" data-integration-call><CalendarDays size={17} aria-hidden="true" />{label}</a>
+<a class:list={['integration-call', className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" aria-label={label || 'Talk to Mo'} aria-haspopup="dialog" data-integration-call>
+  <img src={integrationTeam.portraitUrl} width="34" height="34" alt="" />
+  <span><strong>{label || 'Talk to Mo'}</strong>{!label && <small>AI Enablement Engineer</small>}</span>
+  <ArrowRight size={17} aria-hidden="true" />
+</a>
 <style>
-  .integration-call { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; font-size: 13px; font-weight: 650; color: var(--loom-blue-600); text-decoration: none; }
-  .integration-call svg { flex-shrink: 0; }
-  .integration-call:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .integration-call { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--loom-border-default); border-radius: 8px; background: var(--loom-surface); color: var(--loom-text-primary); text-decoration: none; transition: border-color 160ms, background 160ms; }
+  .integration-call img { flex: 0 0 34px; width: 34px; height: 34px; object-fit: cover; border-radius: 50%; }
+  .integration-call span { display: grid; min-width: 0; gap: 2px; }
+  .integration-call strong { font-size: 13px; font-weight: 700; line-height: 1.3; }
+  .integration-call small { font-size: 10px; font-weight: 400; line-height: 1.3; color: var(--loom-text-muted); }
+  .integration-call svg { flex-shrink: 0; margin-left: auto; }
+  .integration-call:hover { border-color: var(--loom-success); background: var(--loom-surface-soft); text-decoration: none; }
   .integration-call:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
 </style>
