@@ -24,3 +24,10 @@ test('renderer uses safe DOM construction and no arbitrary external app URL', ()
   assert.match(source, /appDialog\.showModal\(\)/);
   assert.match(source, /youtube-nocookie\.com\/embed\//);
 });
+
+test('new integration symbols use a versioned sprite instead of an already-cached asset', () => {
+  const source = readFileSync(new URL('../../Platfrom/loomai-site/deploy/container/proposal-ui/presentation.js', import.meta.url), 'utf8');
+  assert.match(source, /icons-v2\.svg#/);
+  const sprite = readFileSync(new URL('../../Platfrom/loomai-site/public/assets/proposals/icons-v2.svg', import.meta.url), 'utf8');
+  for (const name of ['file-text', 'cloud-upload', 'database', 'plug', 'refresh-cw', 'rocket', 'lock']) assert.ok(sprite.includes(`id="${name}"`));
+});

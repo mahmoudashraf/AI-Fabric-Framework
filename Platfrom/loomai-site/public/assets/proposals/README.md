@@ -13,6 +13,10 @@ owner's local Codex generated-image directory; these JPEG copies are web assets.
 
 `icons.svg` is mechanically extracted from the installed `@lucide/astro` icon
 nodes, with no handwritten icon paths. Its license is `lucide-LICENSE.txt`.
+`icons-v2.svg` includes the integration-journey symbols. The renderer references
+this versioned filename because the public asset server uses long-lived caching;
+adding symbols to an already-cached sprite must not leave returning visitors
+with blank icons. Keep old asset names available for older open page versions.
 `inter-latin.woff2` is from the installed `@fontsource-variable/inter` package;
 its license is `inter-LICENSE.txt`.
 

@@ -18,7 +18,7 @@ function icon(name) {
   svg.classList.add('pv-icon');
   svg.setAttribute('aria-hidden', 'true');
   const use = document.createElementNS(svgNamespace, 'use');
-  use.setAttribute('href', `${assets}icons.svg#${name}`);
+  use.setAttribute('href', `${assets}icons-v2.svg#${name}`);
   svg.append(use);
   return svg;
 }
