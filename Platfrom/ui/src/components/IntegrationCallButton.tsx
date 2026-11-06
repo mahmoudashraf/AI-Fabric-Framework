@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Avatar, Box, Button, CircularProgress, Dialog, IconButton, Stack, Tooltip, Typography, type ButtonProps } from '@mui/material'
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
@@ -19,6 +19,7 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
   const [loaded, setLoaded] = useState(false)
   const [embedUrl, setEmbedUrl] = useState('')
   const titleId = useId()
+  const triggerRef = useRef<HTMLAnchorElement | null>(null)
   const book = () => {
     const url = new URL(integrationTeam.bookingUrl)
     url.searchParams.set('embed_domain', window.location.host)
@@ -31,6 +32,7 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
     aria-label={children || 'Talk to Mo'} aria-haspopup="dialog" onClick={event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
       event.preventDefault()
+      triggerRef.current = event.currentTarget
       setView('contact')
     }} {...props} sx={[{ textTransform: 'none', gap: 1, px: 1.25, py: 0.75, minHeight: 46, maxWidth: '100%',
       border: '1px solid', borderColor: 'divider', color: 'text.primary', borderRadius: '8px',
@@ -42,6 +44,7 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
     </Box><ArrowForwardRounded sx={{ fontSize: 17, ml: 'auto', flexShrink: 0 }} />
   </Button>
     <Dialog open={view !== null} onClose={() => setView(null)} aria-labelledby={titleId} maxWidth={false}
+      TransitionProps={{ onExited: () => triggerRef.current?.focus({ preventScroll: true }) }}
       PaperProps={{ sx: { m: { xs: 1, sm: 3 }, width: view === 'booking' ? 1100 : 650,
         maxWidth: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 48px)' },
         height: view === 'booking' ? { xs: 'calc(100dvh - 16px)', sm: 'min(860px, calc(100dvh - 48px))' } : 'auto',
