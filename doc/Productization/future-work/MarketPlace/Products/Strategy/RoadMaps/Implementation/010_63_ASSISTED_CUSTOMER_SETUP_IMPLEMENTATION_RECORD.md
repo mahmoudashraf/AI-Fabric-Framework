@@ -39,7 +39,9 @@ global administration.
   company clears the previous setup and suppresses late async responses.
 - Complete: final focused backend, persistence, browser and production-build
   verification. See exact scope below.
-- Not deployed: no hosted customer, service or production assignment changed.
+- Deployed and hosted-qualified on staging and production, 2026-11-06. See
+  the rollout and cleanup evidence below. Existing customer apps and runtime
+  assignments were not changed.
 
 ## Authentication Boundary
 
@@ -105,15 +107,17 @@ for setup and configuration. The backend uses
 customer-granted operators) and `/api/staff/customers/{customerId}/access`
 (global administrators only). Customer-facing Kit routes and payloads are unchanged.
 
-Implementation is locally qualified, **not committed, pushed or deployed** in
-this execution. Hosted staff/customer sign-in, real mailbox delivery and the
-hosted setup journey must be verified after normal backend/Console rollout.
-Existing authentication delivery/configuration was not modified here.
+Implementation is committed, pushed and hosted-qualified on staging and
+production. Hosted staff/customer sign-in and the configuration-only setup
+journey passed. No invitation feature was added, and no mailbox-delivery claim
+is made: test identities used the existing verified account-recovery contract
+without sending mail. Existing authentication delivery/configuration is unchanged.
 
 ## Follow-Up: Customer-Controlled Staff Collaboration
 
 2026-11-06 owner request: customers can give/revoke access for an existing
-LoomAI staff account/email. Implemented and locally qualified; not deployed.
+LoomAI staff account/email. Implemented and qualified locally and live on
+staging and production.
 
 - Customer **Account & team -> LoomAI staff access**: grant by exact existing
   operator email, list grants and confirm revocation. No staff account creation,
@@ -174,6 +178,62 @@ assignment or hosted account has been changed by this follow-up.
   integration tests. No claim of real hosted staff/customer qualification,
   delivered invitation mail, provider spend or live deployment is made.
 
-Source remains **uncommitted, unpushed and undeployed**. Rollout requires the
-normal Platform backend migration and Console release, followed by hosted
-customer/operator verification; no framework release is needed.
+The verification above describes the local qualification before source commit
+`431dddf55e899ceaa9fbbd7cdd869be4b5cf7ccd`. Hosted qualification follows.
+
+## Hosted Release And Verification
+
+2026-11-06, completed approximately 22:15 UTC:
+
+- Source committed and pushed on `Platform-V11`: **431dddf55**.
+- [Core image CI 42300386618](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42300386618)
+  passed for that exact source. Only Platform backend and Console images were
+  deployed. No framework/runtime, demo, model or prompt release was needed.
+- Platform database backups were taken on both hosts before migration, using
+  PostgreSQL custom-format dumps in restricted host backup directories. No
+  whole-Coolify backup or customer storage/data migration was performed.
+- Staging backend job `giumnmaocrmdyugrdi5i25i0` and Console job
+  `t3yzpha4anfertc8uabcdmwf` finished. Both containers are running/healthy and
+  their OCI revisions equal the source commit; migration **235:true**.
+- Production backend job `tnt2aixejsjr8zxeyh280rrm` and Console job
+  `qedvrl7tx3tr7hzzx6iw5c1j` finished with the same exact healthy images and
+  migration **235:true**. Both public backend health endpoints returned
+  **HTTP 200 / UP**.
+- Real browser qualification in each environment: ordinary staff sign-in,
+  explicit customer selection, access-preparation dialog, shared dealership
+  Kit setup, saved branding update, customer Supabase sign-in, same customer
+  Kit, Account & team grant/revoke/regrant controls, and operator Customer
+  workspaces navigation. No mocked browser API responses or page errors.
+- Real API checks in each environment: ungranted operator denied; granted
+  operator reads the customer's Kit, Brain draft and Engage installation;
+  unrelated customer and user directory denied; revoke blocks the same session
+  on those product routes; regrant reuses the record and restores access.
+  Brain denial returns 404 to avoid disclosing an inaccessible resource;
+  customer Kit/Engage routes return 403. Operator role remains unchanged.
+- Audit readback records Kit creation/update as the actual PLATFORM_ADMIN and
+  grant/revoke as CUSTOMER_ADMIN, not an impersonated customer principal.
+- At a 390px mobile viewport, the new staff-access panel ends at 374px and
+  fits correctly. The older Account/user-management page has a **4px document
+  overflow** and an overlapping legacy subheading. These cosmetic issues are
+  outside the new panel and recorded, not claimed fixed by this release.
+
+### Fixture Retirement And Boundaries
+
+Both exact temporary configuration-only Kits, Engage installations, consumers
+and Brain configurations were deleted through normal Platform APIs. Deletion
+operations succeeded without hard-delete or guard overrides. Their grants were
+revoked, fixture operators disabled, customer identity links revoked and the
+temporary Supabase identities deleted. No infrastructure or paid AI calls were
+created by this verification.
+
+Empty fixture customer/workspace metadata and immutable audit history remain.
+The existing last-customer-admin protection prevents disabling that final
+record; it was not bypassed. Its local password was generated and undisclosed,
+and its provider link/identity were revoked/deleted. No reusable login was
+published. Existing customer products, accounts and runtime assignments remain
+unchanged.
+
+Redacted evidence: [hosted verification](../../../../../../../../verification-support/assisted-customer-setup-01063/2026-11-06-hosted-verification.json).
+Detailed release responses, backups, fixture credentials and screenshots are
+retained only in restricted private qualification files. Other 010.63 AI
+behaviour/research/suggestion proposals remain unimplemented.

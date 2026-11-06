@@ -1,0 +1,66 @@
+{
+  "sourceCommit": "431dddf55e899ceaa9fbbd7cdd869be4b5cf7ccd",
+  "branch": "Platform-V11",
+  "ciRun": 42300386618,
+  "ciConclusion": "success",
+  "completedDateUtc": "2026-11-06",
+  "scope": ["platform-backend", "console-ui", "migration-235"],
+  "environments": {
+    "staging": {
+      "backendDeployment": "giumnmaocrmdyugrdi5i25i0",
+      "uiDeployment": "t3yzpha4anfertc8uabcdmwf",
+      "jobsFinished": true,
+      "exactSourceImagesHealthy": true,
+      "migration": "235:true",
+      "publicHealth": "200 UP",
+      "apiChecksPassed": true,
+      "browserChecksPassed": true,
+      "browserPageErrors": [],
+      "mobile": {"viewportWidth": 390, "documentWidth": 394, "staffPanelRight": 374},
+      "fixtureRetiredAt": "2026-11-06T22:14:27.726Z"
+    },
+    "production": {
+      "backendDeployment": "tnt2aixejsjr8zxeyh280rrm",
+      "uiDeployment": "qedvrl7tx3tr7hzzx6iw5c1j",
+      "jobsFinished": true,
+      "exactSourceImagesHealthy": true,
+      "migration": "235:true",
+      "publicHealth": "200 UP",
+      "apiChecksPassed": true,
+      "browserChecksPassed": true,
+      "browserPageErrors": [],
+      "mobile": {"viewportWidth": 390, "documentWidth": 394, "staffPanelRight": 374},
+      "fixtureRetiredAt": "2026-11-06T22:14:51.953Z"
+    }
+  },
+  "verifiedJourneys": [
+    "staff-real-customer-access-preparation",
+    "staff-create-and-edit-customer-owned-kit-through-shared-ui",
+    "customer-supabase-sign-in-and-same-kit",
+    "customer-ui-grant-revoke-regrant",
+    "operator-customer-workspace-navigation",
+    "operator-authorized-kit-brain-draft-and-engage-reads",
+    "same-session-revocation-denies-product-access",
+    "unrelated-customer-and-user-directory-denied",
+    "regrant-restores-same-relationship-without-role-promotion",
+    "actual-staff-and-customer-audit-identities"
+  ],
+  "networkMocking": false,
+  "customerInfrastructureCreated": false,
+  "paidAiCalls": 0,
+  "mailSent": false,
+  "fixtureCleanup": {
+    "kitsBrainsAppsConsumersDeleted": true,
+    "grantsRevoked": true,
+    "operatorsDisabled": true,
+    "customerIdentityLinksRevoked": true,
+    "temporaryProviderIdentitiesDeleted": true,
+    "emptyCustomerMetadataAndAuditRetained": true,
+    "lastAdminProtectionPreserved": true
+  },
+  "remainingCosmeticIssues": [
+    "Existing Account/user-management page has 4px horizontal overflow at 390px; the new staff-access panel fits.",
+    "Existing Account/user-management subheading overlaps the page title."
+  ],
+  "notClaimed": ["invitation-email-delivery", "new-runtime-release", "paid-infrastructure-apply", "other-01063-ai-optimization-proposals"]
+}

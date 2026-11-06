@@ -42,7 +42,7 @@ The order is a recommended allocation of work. It is not a dependency chain: the
 
 ## Customer Experience Optimization Proposals
 
-- [010.63 Assisted Customer Setup, AI Behaviour And Dealership Optimization](010_63_ASSISTED_CUSTOMER_SETUP_AI_BEHAVIOUR_AND_DEALERSHIP_OPTIMIZATION_PROPOSAL.md): The simpler customer-owned setup and customer-controlled staff grant/revoke flows are implemented and locally qualified; see the [execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md). Global administration remains separate. Voice/source/research controls, next suggestions and dealership optimization remain proposals. No hosted rollout or framework release is claimed.
+- [010.63 Assisted Customer Setup, AI Behaviour And Dealership Optimization](010_63_ASSISTED_CUSTOMER_SETUP_AI_BEHAVIOUR_AND_DEALERSHIP_OPTIMIZATION_PROPOSAL.md): The simpler customer-owned setup and customer-controlled staff grant/revoke flows are committed and live-qualified on staging and production (431dddf55, 2026-11-06); see the [execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md). Global administration remains separate. Voice/source/research controls, next suggestions and dealership optimization remain proposals. No framework release was needed.
 
 
 ## Completed Human In The Loop Baseline

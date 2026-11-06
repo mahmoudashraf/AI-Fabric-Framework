@@ -13000,3 +13000,30 @@ test is being called hosted acceptance. UI extraction remains last.
 - Source NOT committed/pushed/deployed. Existing 01063 execution record/guide
   updated. Hosted backend migration +Console rollout +realcustomer/staff proof
   remain before calling this live. Other01063 AI optimization items unimplemented.
+
+## 2026-11-06 Assisted Setup And Staff Access Hosted Closeout
+
+- Supersedes the undeployed status in the two preceding 01063 entries. Source
+  431dddf55e899ceaa9fbbd7cdd869be4b5cf7ccd committed/pushed Platform-V11;
+  core CI42300386618 PASS. Backend and Console only, no framework/runtime/model/
+  prompt change. Unrelated dirty worktree changes excluded.
+- Platform DB custom-format backups on both hosts before migration235. Stage
+  backend giumnmaocrmdyugrdi5i25i0 /UI t3yzpha4anfertc8uabcdmwf; production
+  backend tnt2aixejsjr8zxeyh280rrm /UI qedvrl7tx3tr7hzzx6iw5c1j all finished,
+  native exact-source OCI revisions healthy; both schemas235:true and public
+  backend health200/UP. Normal CI image flow, no remote serving-app builds.
+- Hosted browser/API checks PASS on both: staff access preparation, create/edit
+  customer-owned dealership Kit via shared form, customer Supabase sign-in and
+  same Kit, customer grant/revoke/regrant UI, operator Customer workspaces and
+  existing scoped Kit/Brain/Engage reads. Same-session revoke denied, cross-
+  customer/user-directory denied, operator role unchanged, actual actor audited.
+  No mocked live routes, invitation email, infrastructure or paid AI calls.
+- Temporary Kit/Brain/app/consumer configurations removed through normal APIs;
+  grants revoked, operators disabled, customer provider links revoked and exact
+  temporary Supabase identities deleted. Empty customer metadata/audit retained;
+  last-admin guard preserved, local generated password never disclosed.
+- New staff panel fits390px viewport; existing Account/user-management document
+  has4px overflow and overlapping legacy subheading, recorded not fixed. Existing
+  customer products/runtime assignments unchanged. Other01063 proposals deferred.
+- 01063 execution record and redacted verification-support/assisted-customer-
+  setup-01063/2026-11-06-hosted-verification.json contain release/evidence details.
