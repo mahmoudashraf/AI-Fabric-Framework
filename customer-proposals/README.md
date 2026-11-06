@@ -162,3 +162,14 @@ production HTTP checks passed; the page was inspected live at desktop, 390px
 and 320px widths. Returning-browser verification caught a cached SVG sprite;
 the versioned `icons-v2.svg` fixes it without asking visitors to clear caches.
 The original invitation, protected Word attachment and access model are unchanged.
+
+The readability follow-up is live from source
+`de3c89f00834f9d852c6ea30f3f267b45d5a45d1` (CI `42241864945`, production
+`fv2xjxozk8hnsr6oi1sf1bcm`, finished/native healthy). Stage 3/4 owner badges
+now read "LoomAI Team" through private presentation content, at 13px/700 instead
+of 9px/400. Inter is retained, with larger explanatory text, stronger contrast
+and less diffuse video-title shadows. Tablet document labels have their own row.
+Eighteen focused tests, Astro check/build/static smoke and live desktop, 390px,
+320px and 820px no-overflow checks passed. The branded preview opens/dismisses;
+no browser warnings or errors. Private proof: `qualification/typography-*`.
+The presentation update was backed up; invitation and Word content are unchanged.

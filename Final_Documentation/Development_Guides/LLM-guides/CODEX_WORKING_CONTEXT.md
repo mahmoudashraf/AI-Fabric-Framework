@@ -12902,3 +12902,15 @@ test is being called hosted acceptance. UI extraction remains last.
 - Private screenshot/proof in customer-proposals/.private/qualification/. Existing
   code, expiry, Word document and auth unchanged. No bucket/customer deployment,
   Platform/runtime/framework or third-party integration was created or changed.
+
+## 2026-11-06 Proposal Typography Readability Live
+
+- Stage 3/4 private owner captions now "LoomAI Team"; 13px bold badges replace
+  9px regular. Retained local Inter, enlarged key explanatory copy and improved
+  contrast; tablet document labels separated. No proposal scope/access change.
+- Source de3c89f00834f9d852c6ea30f3f267b45d5a45d1, site-only CI42241864945
+  PASS; production fv2xjxozk8hnsr6oi1sf1bcm finished/native OCI healthy.18 focused
+  tests, Astro check/build/static smoke PASS. Live desktop/390/320/820 checks
+  pass without horizontal overflow or badge clipping; app preview/Escape pass,
+  browser warnings/errors empty. Screenshots/report: ignored private qualification
+  typography-* files. Presentation backed up; invitation and Word unchanged.
