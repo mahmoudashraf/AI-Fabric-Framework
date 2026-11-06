@@ -12758,3 +12758,24 @@ test is being called hosted acceptance. UI extraction remains last.
   verification-support/console-support-dock/; private screenshots/receipts in
   ~/.codex/private/loomai-support-dock/. Guide: support-experience/docs/
   CONSOLE_HOST_ADAPTER.md. Unrelated dirty work preserved; owned test servers stopped.
+
+## 2026-11-06 Personal Integration Engineer Card Live
+
+- Shared Console/site contact buttons now show the supplied real portrait and
+  Talk to Mo. All Start a project actions open the same personal card first.
+  Profile: Mo.Elgammal, Founder / AI Enablement Engineer, United Kingdom.
+  Calendly loads only after Book a 30-min call; WhatsApp/phone and existing
+  Console request entry are separate choices. No auto contact/prefill/backend,
+  runtime, AI, auth or template changes. Portrait and metadata parity tested.
+- Production site native source976c7515491dd4260001040f4ce14ea1df0e606c;
+  staging/production Console native sourcef64c2d4703d7908699944fda274a9d0c2ceb2d24.
+  Final jobs healthy/finished. CI42142053210,42142053207,42142883542 passed;
+  backend builds skipped. A real Support iframe focus-restoration issue found
+  during qualification was fixed in the shared Console dialog and reverified.
+- Local21 focused tests,9 Support groups,types/builds,28 static routes and site
+  kit/theme/mobile-menu checks passed. Final hosted:8 observations per Console,
+  8 site observations; actual calendar date/time/back/close,3 kits,customer/nav/
+  mobile and existing request form/cancel. No AI query,booking,message or request
+  submitted. Tracking010.62; safe evidence verification-support/integration-contact/.
+  Full private receipts ~/.codex/private/loomai-integration-contact/. No remaining
+  task-owned test server. Preserve unrelated existing dirty work.

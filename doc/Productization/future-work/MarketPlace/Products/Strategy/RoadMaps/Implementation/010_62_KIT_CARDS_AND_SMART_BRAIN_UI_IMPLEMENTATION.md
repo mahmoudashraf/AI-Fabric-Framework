@@ -396,3 +396,37 @@ panel; closing returns to the same page and restores focus after the closing
 transition. No appointment, AI query or customer-resource mutation was made.
 Non-frontend application image tags remain unchanged. Safe reports and public
 screenshots are in `verification-support/kit-cards-01062/booking-panel/`.
+
+## Personal Integration Engineer Invitation
+
+The owner approved a personal contact card and portrait-based opener rather
+than an anonymous team booking control. This supersedes the immediate-calendar
+behavior above: default actions now say Talk to Mo, with the supplied real
+portrait and AI Enablement Engineer subtitle. Every existing Start a project
+entry also opens this card first, including all three Console kit details and
+the public-site kit entry points.
+
+The card identifies Mo.Elgammal as Founder / AI Enablement Engineer, United
+Kingdom, and offers the unchanged approved 30-minute Calendly event, WhatsApp,
+telephone and the existing Console integration-request route. The calendar
+loads only after the visitor selects Book a 30-min call. Back returns to the
+card; closing retains the current page. External-tab fallback remains explicit.
+No automatic contact message, booking, third-party prefill, backend, runtime,
+authentication, AI prompt or template configuration change is introduced.
+
+Both frontends keep public contact metadata in their existing integrationTeam
+module, with a focused parity check and identical bundled portrait bytes. Local
+checks passed frontend types/builds, 21 focused tests, nine Support setup groups,
+28 static routes and the site's kit/theme/mobile-menu regression. A hosted
+Console check also identified focus being restored into the Support iframe;
+the shared dialog now explicitly restores its opening control after closing.
+Rollout receipts and final live checks: `verification-support/integration-contact/`.
+
+Personal-contact rollout completed: public-site native source
+`976c7515491dd4260001040f4ce14ea1df0e606c`, staging/production Console native
+source `f64c2d4703d7908699944fda274a9d0c2ceb2d24`. CI `42142053210`,
+`42142053207`, `42142883542` passed; backend images were skipped.
+All final deployment jobs finished healthy. Eight hosted observations passed
+on each Console and eight on the site, including real calendar slots, back/close,
+the three kit entry points, public/mobile/theme and customer request-form entry.
+No appointment, contact message, support request or AI query was submitted.

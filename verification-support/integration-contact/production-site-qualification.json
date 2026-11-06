@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "environment": "production",
+  "target": "site",
+  "source": "976c7515491dd4260001040f4ce14ea1df0e606c",
+  "checks": [
+    {
+      "label": "/-header",
+      "calendarProof": true,
+      "retainedPage": true
+    },
+    {
+      "label": "/experiences-header",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "/products-header",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "/connect-header",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "kit-start-project",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "mobile-390",
+      "calendarProof": true,
+      "retainedPage": true
+    },
+    {
+      "label": "mobile-320",
+      "calendarProof": false,
+      "retainedPage": true
+    },
+    {
+      "label": "dark-header",
+      "calendarProof": false,
+      "retainedPage": true
+    }
+  ],
+  "errors": [],
+  "mutations": [],
+  "noAppointmentOrMessageSubmitted": true
+}
