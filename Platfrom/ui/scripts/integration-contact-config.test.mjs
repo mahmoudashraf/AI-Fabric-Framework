@@ -13,10 +13,12 @@ async function loadConfig(relative) {
 test('Console and website use the same approved public engineer and contact destinations', async () => {
   const ui = await loadConfig('../src/integrationTeam.ts')
   const site = await loadConfig('../../loomai-site/src/data/integrationTeam.ts')
-  for (const key of ['name', 'role', 'location', 'bookingUrl', 'phone', 'phoneUrl', 'whatsappUrl']) assert.equal(ui[key], site[key], key)
+  for (const key of ['name', 'role', 'location', 'introduction', 'promise', 'bookingUrl', 'phone', 'phoneUrl', 'whatsappUrl']) assert.equal(ui[key], site[key], key)
   assert.equal(ui.name, 'Mo.Elgammal')
   assert.equal(ui.role, 'Founder / AI Enablement Engineer')
   assert.equal(ui.location, 'United Kingdom')
+  assert.match(ui.introduction, /Smart Brains.*branded AI engagement channels.*LoomAI Desk/)
+  assert.equal(ui.promise, 'Give your customers the AI experience they deserve.')
   assert.equal(ui.whatsappUrl, 'https://wa.me/447729946319')
   assert.equal(ui.phoneUrl, 'tel:+447729946319')
   assert.equal(new URL(ui.requestUrl, 'https://console.loomai.pro').href, site.requestUrl)

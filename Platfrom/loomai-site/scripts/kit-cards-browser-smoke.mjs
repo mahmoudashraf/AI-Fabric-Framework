@@ -69,6 +69,7 @@ try {
     assert.equal(await contactPanel.locator('iframe').count(), 0)
     await contactPanel.getByText('Founder / AI Enablement Engineer', { exact: true }).waitFor()
     await contactPanel.getByText('United Kingdom', { exact: true }).waitFor()
+    await contactPanel.getByText('Give your customers the AI experience they deserve.', { exact: true }).waitFor()
     assert.equal(await contactPanel.getByRole('link', { name: 'Message me on WhatsApp', exact: true }).getAttribute('href'), 'https://wa.me/447729946319')
     await contactPanel.getByRole('button', { name: 'Book a 30-min call', exact: true }).click()
     const bookingPanel = page.getByRole('dialog', { name: 'Book a call with Mo', exact: true })

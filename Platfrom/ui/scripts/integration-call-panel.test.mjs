@@ -53,6 +53,7 @@ test('personal contact panel keeps booking lazy, dismissible, isolated and respo
       await contact.getByRole('heading', { name: 'Mo.Elgammal', exact: true }).waitFor()
       await contact.getByText('Founder / AI Enablement Engineer', { exact: true }).waitFor()
       await contact.getByText('United Kingdom', { exact: true }).waitFor()
+      await contact.getByText('Give your customers the AI experience they deserve.', { exact: true }).waitFor()
       assert.equal(await contact.getByRole('link', { name: 'Message me on WhatsApp', exact: true }).getAttribute('href'), 'https://wa.me/447729946319')
       assert.equal(await contact.getByRole('link', { name: '+44 7729 946319', exact: true }).getAttribute('href'), 'tel:+447729946319')
       assert.equal(await contact.getByRole('link', { name: 'Send an integration request', exact: true }).getAttribute('href'), '/support?new=1')

@@ -65,7 +65,8 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
           <Box sx={{ minWidth: 0 }}><Typography component="h3" sx={{ fontSize: 23, fontWeight: 750 }}>{integrationTeam.name}</Typography>
             <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.5 }}>{integrationTeam.role}</Typography>
             <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary', mt: 0.5 }}><LocationOnOutlined sx={{ fontSize: 15 }} /><Typography sx={{ fontSize: 12 }}>{integrationTeam.location}</Typography></Stack>
-            <Typography sx={{ mt: 1.5, fontSize: 15, lineHeight: 1.6 }}>Tell me what you want to build. I'll help you connect your systems and choose the right next step.</Typography>
+            <Typography sx={{ mt: 1.5, fontSize: 15, lineHeight: 1.6 }}>{integrationTeam.introduction}</Typography>
+            <Typography sx={{ mt: 1.5, fontSize: 14, fontWeight: 650, lineHeight: 1.5 }}>{integrationTeam.promise}</Typography>
           </Box>
         </Stack>
         <Stack spacing={1.5} sx={{ py: 2.5, mb: 2.5, borderTop: 1, borderColor: 'divider' }}>
