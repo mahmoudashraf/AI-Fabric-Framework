@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {safeAsset} from '../../Platfrom/loomai-site/deploy/container/proposal-ui/presentation.js';
+import {videoEmbedUrl} from '../../Platfrom/loomai-site/deploy/container/proposal-ui/partnership.js';
 
 test('visual media stays on the existing same-origin asset boundary', () => {
   assert.equal(safeAsset('/assets/proposals/founder-video-preview.jpg'), '/assets/proposals/founder-video-preview.jpg');
@@ -24,6 +25,11 @@ test('partnership presentation uses the existing safe renderer and fixed public 
   assert.match(source, /createWorkspace\(data\.workspace\)/);
   assert.match(source, /appendDocument\(documentBody\)/);
   assert.match(source, /publicLink\(data\.experience\.demoLabel, '\/demos\/dealership-ai\//);
+});
+
+test('partnership video accepts only a video identifier on the fixed privacy-enhanced host', () => {
+  assert.equal(videoEmbedUrl('abcdefghijk'), 'https://www.youtube-nocookie.com/embed/abcdefghijk?autoplay=1&rel=0');
+  for (const input of [undefined, null, '', 'https://example.com/video', '//evil.example', 'abcdefghijk?x=1', 'abcdefghijk/../x', '<script>x</script>']) assert.equal(videoEmbedUrl(input), null);
 });
 
 test('renderer uses safe DOM construction and no arbitrary external app URL', () => {

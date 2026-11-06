@@ -7,6 +7,26 @@
 .pp-request strong { display: block; font-size: 19px; line-height: 1.4; }
 .pp-request p { font-size: 15px; margin-top: 7px !important; color: #344860; }
 .pp-status, .pp-caption { color: #40516b; font-size: 13px; line-height: 1.7; margin-top: 16px !important; }
+.pp-video { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 210px; align-items: center; gap: 28px; padding: 34px; margin-block: 0 34px; border: 1px solid #cbdaf0; border-radius: 8px; background: #f2f6fc; }
+.pp-video-copy { max-width: 720px; }
+.pp-video-copy h2 { font-size: 29px; font-weight: 740; line-height: 1.3; text-wrap: balance; }
+.pp-video-copy > p { font-size: 16px; line-height: 1.7; color: #40516b; margin-top: 14px !important; }
+.pp-video-pending { display: inline-flex; align-items: center; gap: 9px; margin-top: 22px; font-size: 14px; font-weight: 650; color: #344860; }
+.pp-video-pending .pv-icon { color: #075bff; }
+.pp-video-presenter { display: grid; justify-items: center; gap: 14px; font-size: 15px; text-align: center; }
+.pp-video-presenter img { width: 144px; height: 144px; object-fit: cover; border-radius: 50%; border: 5px solid #fff; }
+.pp-video > figcaption { grid-column: 1 / -1; font-size: 12px; color: #40516b; border-top: 1px solid #d5dfec; padding-top: 15px; }
+.pp-video--playable { aspect-ratio: 16 / 9; }
+.pp-video-copy > .pv-button { margin-top: 22px; }
+.pp-video-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 7px; }
+.pp-lead-journey { margin-top: 30px; padding: 24px; background: #f2f8f5; border: 1px solid #c9e1d5; border-radius: 6px; }
+.pp-lead-journey > ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; padding: 0; margin: 24px 0; list-style: none; }
+.pp-lead-journey li { position: relative; min-width: 0; }
+.pp-lead-journey li + li::before { content: ''; position: absolute; left: -23px; top: 10px; width: 12px; height: 12px; border-top: 2px solid #659c87; border-right: 2px solid #659c87; transform: rotate(45deg); }
+.pp-lead-journey li > .pv-icon { width: 28px; height: 28px; color: #167858; }
+.pp-lead-journey li > strong { display: block; font-size: 16px; line-height: 1.5; margin-top: 12px; }
+.pp-lead-journey li > p { font-size: 14px; line-height: 1.7; color: #345a4b; margin-top: 8px !important; }
+.pp-lead-destination { font-size: 16px; font-weight: 650; color: #174c36; border-top: 1px solid #c9e1d5; padding-top: 18px; line-height: 1.7; }
 .pp-section { padding-block: 36px; border-top: 1px solid #dce4ed; scroll-margin-top: 90px; }
 .pp-section .pv-section-heading { max-width: 850px; }
 .pp-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 28px; }
@@ -65,6 +85,10 @@
 .pp-next { background: #edf4ff; padding: 30px; margin-top: 8px; border: 1px solid #d3e1f6; border-radius: 6px; }
 .pp-next-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 @media (max-width: 1000px) {
+  .pp-video { grid-template-columns: minmax(0, 1fr) 150px; padding: 28px; }
+  .pp-video-presenter img { width: 120px; height: 120px; }
+  .pp-lead-journey > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 36px; }
+  .pp-lead-journey li:nth-child(3)::before { display: none; }
   .pp-flow { gap: 10px; grid-template-columns: 1fr 18px 1.25fr 18px 1fr; }
   .pp-flow-source, .pp-flow-runtime, .pp-flow-channels { padding: 18px; }
   .pp-experience { grid-template-columns: 1fr; gap: 24px; }
@@ -73,6 +97,15 @@
   .pp-phases { grid-template-columns: 1fr; gap: 24px; }
 }
 @media (max-width: 760px) {
+  .pp-video { grid-template-columns: 1fr; padding: 24px 20px; gap: 22px; }
+  .pp-video-copy h2 { font-size: 24px; }
+  .pp-video-presenter { display: flex; gap: 14px; text-align: left; }
+  .pp-video-presenter img { width: 64px; height: 64px; }
+  .pp-video--playable { aspect-ratio: auto; min-height: 440px; }
+  .pp-video--playable:has(.pp-video-frame) { min-height: 0; aspect-ratio: 16 / 9; }
+  .pp-lead-journey { padding: 22px 18px; }
+  .pp-lead-journey > ol { grid-template-columns: 1fr; gap: 28px; }
+  .pp-lead-journey li + li::before { display: none; }
   .pp-intro h1 { font-size: 32px; }
   .pp-lead { font-size: 17px; }
   .pp-request { padding: 18px 16px; gap: 10px; }

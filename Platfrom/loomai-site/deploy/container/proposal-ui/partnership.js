@@ -1,5 +1,31 @@
 import { node, icon, photo, button, publicLink, sectionHeading, createWorkspace } from './presentation.js';
 
+export function videoEmbedUrl(id) {
+  return typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id)
+    ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0` : null;
+}
+
+function introductionVideo(data, presenterImage, presenter) {
+  if (!data) return null;
+  const figure = node('figure', 'pp-video');
+  const copy = node('div', 'pp-video-copy', node('span', 'pp-eyebrow', data.eyebrow), node('h2', '', data.title), node('p', '', data.description));
+  const embed = videoEmbedUrl(data.youtubeId);
+  if (embed) {
+    figure.classList.add('pp-video--playable');
+    copy.append(button(data.playLabel, 'play', () => {
+      const frame = node('iframe', 'pp-video-frame');
+      frame.title = data.title;
+      frame.src = embed;
+      frame.referrerPolicy = 'no-referrer';
+      frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      frame.allowFullscreen = true;
+      figure.replaceChildren(frame);
+    }, 'pv-button--blue'));
+  } else copy.append(node('span', 'pp-video-pending', icon('play'), data.pendingLabel));
+  figure.append(copy, node('div', 'pp-video-presenter', photo(presenterImage, presenter), node('strong', '', presenter)), node('figcaption', '', data.caption));
+  return figure;
+}
+
 export function renderPartnership(root, data, { openContact, appendDocument }) {
   const section = (id, eyebrow, title, subtitle) => {
     const result = node('section', 'pp-section');
@@ -18,6 +44,10 @@ export function renderPartnership(root, data, { openContact, appendDocument }) {
 
   const value = section('partnership-value', data.value.eyebrow, data.value.title, data.value.subtitle);
   value.append(node('div', 'pp-values', data.value.items.map((item, index) => node('div', '', icon(['search', 'book-open', 'circle-check'][index]), node('h3', '', item.title), node('p', '', item.text)))));
+  if (data.value.leadJourney) {
+    const journey = data.value.leadJourney;
+    value.append(node('div', 'pp-lead-journey', node('h3', '', journey.title), node('ol', '', journey.steps.map((step, index) => node('li', '', icon(['monitor', 'message-square', 'shield-check', 'file-check'][index]), node('strong', '', step.title), node('p', '', step.text)))), node('p', 'pp-lead-destination', journey.destination)), node('p', 'pp-caption', journey.measurement));
+  }
 
   const experience = section('retailer-experience', data.experience.eyebrow, data.experience.title, data.experience.subtitle);
   const workspace = createWorkspace(data.workspace);
@@ -57,5 +87,6 @@ export function renderPartnership(root, data, { openContact, appendDocument }) {
   const documentBody = node('div', 'pv-full-details-body');
   appendDocument(documentBody);
   details.append(node('summary', '', data.detailsLabel), documentBody);
-  root.replaceChildren(intro, value, experience, flow, technical, pilot, commercial, next, details);
+  const video = introductionVideo(data.video, data.presenterImage, data.presenter);
+  root.replaceChildren(intro, ...(video ? [video] : []), value, experience, flow, technical, pilot, commercial, next, details);
 }
