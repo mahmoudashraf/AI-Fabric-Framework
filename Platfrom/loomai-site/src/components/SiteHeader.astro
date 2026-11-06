@@ -5,9 +5,9 @@ import LoomWordmark from './LoomWordmark.astro'
 import IntegrationCallAction from './IntegrationCallAction.astro'
 
 const currentPath = Astro.url.pathname
-const businessPage = currentPath === '/' || currentPath.startsWith('/experiences')
+const businessPage = currentPath === '/'
 const links = businessPage ? [
-  { label: 'Experiences', href: '/experiences', activePatterns: ['/experiences'] },
+  { label: 'Experiences', href: 'https://console.loomai.pro/experiences', activePatterns: [] },
   { label: 'Products', href: '/products', activePatterns: ['/products'] },
   { label: 'Live demos', href: '/experiments', activePatterns: ['/experiments'] },
 ] : navigation
@@ -33,7 +33,6 @@ const isActive = (patterns: string[]) =>
     </nav>
 
     <div class="site-header__actions">
-    <span class="site-header__booking"><IntegrationCallAction /></span>
     <button
       class="icon-button site-theme-toggle"
       type="button"

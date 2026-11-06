@@ -95,7 +95,7 @@ for (const required of [
   }
 }
 
-for (const route of ['', 'experiences']) {
+for (const route of ['']) {
   const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
   if (route === '' && html.includes('class="experience-montage"')) {
     errors.push('Homepage still contains the removed document/consultation montage')
@@ -159,8 +159,8 @@ for (const expected of [
   'With optional LoomAI Desk', 'Policies.pdf', 'Product guide',
   '/assets/experiences/google-drive.png', '/assets/experiences/slack.svg',
   '/assets/experiences/demo-support-agent.webp',
-  'href="/experiences/ai-customer-experience"',
-  'href="/experiences/dealership-ai-experience"',
+  'href="https://console.loomai.pro/experiences/ai-customer-experience"',
+  'href="https://console.loomai.pro/experiences/dealership-ai-experience"',
   'href="https://console.loomai.pro/products/engage"',
   'href="https://console.loomai.pro/products/desk"',
   'href="/products/loomai-platform"',
@@ -191,6 +191,10 @@ for (const expected of [
 }
 
 const sitemap = readFileSync(path.join(dist, 'sitemap.xml'), 'utf8')
+for (const route of ['experiences', 'experiences/ai-customer-experience', 'experiences/dealership-ai-experience']) {
+  if (existsSync(path.join(dist, route, 'index.html'))) errors.push(`Obsolete public experience page still rendered: /${route}`)
+  if (sitemap.includes(`https://loomai.pro/${route}</loc>`)) errors.push(`Redirect-only route is still indexed: /${route}`)
+}
 for (const route of indexedRoutes) {
   const expected = `https://loomai.pro/${route}`
   if (!sitemap.includes(expected)) {

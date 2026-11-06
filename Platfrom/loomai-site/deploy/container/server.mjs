@@ -25,6 +25,11 @@ const aiWorkspaceReady = Boolean(aiWorkspacePlatformBaseUrl && aiWorkspaceInstal
 const aiWorkspaceInstallUrl = aiWorkspaceReady
   ? `${aiWorkspacePlatformBaseUrl}/api/public/ai-workspace/install.js`
   : '/ai-workspace-unavailable.js'
+const experienceRedirects = new Map([
+  ['/experiences', 'https://console.loomai.pro/experiences'],
+  ['/experiences/ai-customer-experience', 'https://console.loomai.pro/experiences/ai-customer-experience'],
+  ['/experiences/dealership-ai-experience', 'https://console.loomai.pro/experiences/dealership-ai-experience'],
+])
 
 function normalizeHttpUrl(value) {
   const candidate = value?.trim()
@@ -271,6 +276,13 @@ const server = createServer((request, response) => {
       ready: Boolean(dealershipDemoApiBaseUrl),
       apiBaseUrl: dealershipDemoApiBaseUrl || null,
     }, headOnly)
+    return
+  }
+
+  const experienceDestination = experienceRedirects.get(requestUrl.pathname.replace(/\/+$/, ''))
+  if (experienceDestination) {
+    response.writeHead(301, { Location: experienceDestination, 'Cache-Control': 'public, max-age=3600', ...securityHeaders(false) })
+    response.end()
     return
   }
 

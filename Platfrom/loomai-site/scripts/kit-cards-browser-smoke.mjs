@@ -42,7 +42,19 @@ try {
     bookingRequests++
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><h1>Scheduling fixture</h1><button>10:00</button></body></html>' })
   })
-  for (const route of ['/', '/experiences']) {
+  for (const suffix of ['', '/ai-customer-experience', '/dealership-ai-experience']) {
+    for (const trailingSlash of ['', '/']) {
+      for (const method of ['GET', 'HEAD']) {
+        const response = await page.request.fetch(`${origin}/experiences${suffix}${trailingSlash}?source=old-link`, { method, maxRedirects: 0 })
+        assert.equal(response.status(), 301)
+        assert.equal(response.headers().location, `https://console.loomai.pro/experiences${suffix}`)
+      }
+    }
+  }
+  assert.equal((await page.request.post(`${origin}/experiences`, { maxRedirects: 0 })).status(), 405)
+  assert.equal((await page.request.get(`${origin}/experiences/not-a-kit`, { maxRedirects: 0 })).status(), 404)
+  checks.push('obsolete-experience-urls-redirect-to-canonical-console-pages')
+  for (const route of ['/']) {
     await page.goto(origin + route)
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light')
     if (route === '/') {
@@ -50,6 +62,8 @@ try {
       assert.equal(await hero.getByRole('link', { name: 'Explore experiences', exact: true }).count(), 0)
       assert.equal(await hero.getByRole('link', { name: 'Try dealership demo', exact: true }).count(), 0)
       assert.equal(await hero.getByRole('link', { name: 'Talk to Mo', exact: true }).count(), 1)
+      assert.equal(await page.locator('.site-header').getByRole('link', { name: 'Talk to Mo', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Experiences', exact: true }).getAttribute('href'), 'https://console.loomai.pro/experiences')
     }
     const bookingLinks = await page.locator('a.integration-call').all()
     assert.ok(bookingLinks.length >= 3)

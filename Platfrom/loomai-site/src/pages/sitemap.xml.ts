@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro'
 import { experiments, products, research, site } from '../data/content'
 
-const staticPaths = ['/', '/experiences', '/experiences/ai-customer-experience', '/experiences/dealership-ai-experience',
-  '/products', '/experiments', '/research', '/about', '/connect', '/demos/dealership-ai']
+const staticPaths = ['/', '/products', '/experiments', '/research', '/about', '/connect', '/demos/dealership-ai']
 const paths = [
   ...staticPaths,
   ...products.map((item) => `/products/${item.slug}`),
