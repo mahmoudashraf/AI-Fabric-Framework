@@ -61,6 +61,9 @@ not command-line credential arguments. Set `SUPABASE_ACCESS_TOKEN` and
 3. `deploy-function`: set the dedicated secret and deploy only this Edge Function.
 4. `publish`: read the owner-approved local Markdown and matching DOCX. Set
    `PROPOSAL_SOURCE`, `PROPOSAL_SLUG`, `PROPOSAL_RECIPIENT`, `PROPOSAL_DATE`.
+   A web-only proposal can explicitly set `PROPOSAL_WEB_ONLY=true` without a
+   matching DOCX; its download control is hidden. Set `PROPOSAL_PRESENTATION` to
+   include a supported private visual layout during initial publication.
 
 The initial publisher issues a 30-day invitation without emailing it. The raw
 code, gateway key, source/file hashes and expiry are saved only in ignored
@@ -68,6 +71,9 @@ code, gateway key, source/file hashes and expiry are saved only in ignored
 file in the private operational backup; normal Git is not its backup. Publishing
 an existing slug deliberately requires reconciliation instead of overwriting it.
 Changing content/version is a separate reviewed administrative operation.
+New proposals are recorded independently under `proposals[slug]` in that private
+file. The original legacy `proposal` entry remains readable and unchanged; a new
+invitation never replaces another recipient's code.
 
 ### Visual Presentation
 
@@ -77,6 +83,12 @@ expanded-workspace scenes, distinct standalone-app address/preview, integration
 flow, business outcomes and pilot call to action. The original approved scope
 and protected Word download remain in an expandable section. All recipient
 copy still comes from private Supabase JSON, not the static shell or image.
+
+The `partnership-v1` layout presents the partnership intent, immediate access
+request, interactive retailer illustration, scoped data/return flow, API scope,
+proof-of-concept phases and proposed commercial routes. It uses the same safe
+DOM helpers, fixed public demo link, contact panel and protected full-document
+renderer. Recipient copy and endpoints are private content, not public assets.
 
 The optional `presentation.integrationProcess` replaces the smaller integration
 diagram and appears immediately after customer outcomes, before the pilot offer.

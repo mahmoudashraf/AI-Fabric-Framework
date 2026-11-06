@@ -13,6 +13,7 @@ mkdirSync(privateDirectory,{recursive:true,mode:0o700})
 const stateFile = path.join(privateDirectory,'access.private.json')
 const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile,'utf8')) : {gatewayKey:randomBytes(32).toString('base64url')}
 const save = () => writeFileSync(stateFile,JSON.stringify(state,null,2)+'\n',{mode:0o600})
+const accessFor = slug => state.proposals?.[slug] || (state.proposal?.slug === slug ? state.proposal : undefined)
 const projectRef = process.env.SUPABASE_PROJECT_REF
 const managementToken = process.env.SUPABASE_ACCESS_TOKEN
 assert.match(projectRef || '',/^[a-z]{20}$/)
@@ -56,29 +57,38 @@ if(mode === 'migrate') {
   assert.match(slug || '',/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   assert.ok(source.endsWith('.md') && existsSync(source))
   const content=proposalToContent(readFileSync(source,'utf8'),{recipient:process.env.PROPOSAL_RECIPIENT,date:process.env.PROPOSAL_DATE,version:1})
-  const docx=readFileSync(source.replace(/\.md$/,'.docx')).toString('base64')
+  if(process.env.PROPOSAL_PRESENTATION) {
+    const visual=JSON.parse(readFileSync(process.env.PROPOSAL_PRESENTATION,'utf8'))
+    assert.ok(['buying-workspace-v1','partnership-v1'].includes(visual.layout),'SUPPORTED_LAYOUT_REQUIRED')
+    assert.equal(typeof visual.title,'string')
+    content.presentation=visual
+  }
+  const docxPath=source.replace(/\.md$/,'.docx')
+  assert.ok(existsSync(docxPath) || process.env.PROPOSAL_WEB_ONLY === 'true','DOCX_OR_EXPLICIT_WEB_ONLY_REQUIRED')
+  const docx=existsSync(docxPath) ? readFileSync(docxPath).toString('base64') : null
   const existing=await sql(`select id,version,status from loomai_customer_proposals.customer_proposals where slug=${literal(slug)}`,true)
   if(existing.length) {
-    assert.ok(state.proposal?.slug===slug,'RECONCILE_EXISTING_PROPOSAL_BEFORE_OVERWRITE')
+    assert.ok(accessFor(slug),'RECONCILE_EXISTING_PROPOSAL_BEFORE_OVERWRITE')
     console.log(JSON.stringify({proposal:slug,status:'Already published; no content or code changed'}))
   } else {
     const code=randomBytes(32).toString('base64url')
     const record=await sql(`with p as (
       insert into loomai_customer_proposals.customer_proposals(slug,recipient_label,status,content,docx_base64)
-      values(${literal(slug)},${literal(content.recipient)},'published',${literal(JSON.stringify(content))}::jsonb,${literal(docx)}) returning id,version
+      values(${literal(slug)},${literal(content.recipient)},'published',${literal(JSON.stringify(content))}::jsonb,${docx === null ? 'null' : literal(docx)}) returning id,version
     ) insert into loomai_customer_proposals.customer_proposal_codes(proposal_id,proposal_version,code_digest,label,expires_at)
       select id,version,${literal(sha(code))},'Owner review and customer invitation',now()+interval '30 days' from p returning id,proposal_id,expires_at`)
-    state.proposal={slug,code,id:record[0].proposal_id,codeId:record[0].id,expiresAt:record[0].expires_at,
-      sourceSha256:sha(readFileSync(source)),docxSha256:sha(Buffer.from(docx,'base64')),
+    const access={slug,code,id:record[0].proposal_id,codeId:record[0].id,expiresAt:record[0].expires_at,
+      sourceSha256:sha(readFileSync(source)),docxSha256:docx === null ? null : sha(Buffer.from(docx,'base64')),
       url:`https://loomai.pro/proposals/${slug}?code=${code}`}
-    save(); console.log(JSON.stringify({proposal:slug,published:true,expiresAt:state.proposal.expiresAt,privateAccessRecord:stateFile}))
+    state.proposals={...state.proposals,[slug]:access}
+    save(); console.log(JSON.stringify({proposal:slug,published:true,expiresAt:access.expiresAt,privateAccessRecord:stateFile}))
   }
 } else if(mode === 'update-presentation') {
   // Presentation-only change: keep the approved Word document and access lifecycle intact.
   const slug=process.env.PROPOSAL_SLUG
-  assert.equal(slug,state.proposal?.slug,'OWNED_PROPOSAL_REQUIRED')
+  assert.ok(accessFor(slug),'OWNED_PROPOSAL_REQUIRED')
   const visual=JSON.parse(readFileSync(process.env.PROPOSAL_PRESENTATION,'utf8'))
-  assert.equal(visual.layout,'buying-workspace-v1')
+  assert.ok(['buying-workspace-v1','partnership-v1'].includes(visual.layout),'SUPPORTED_LAYOUT_REQUIRED')
   assert.equal(typeof visual.title,'string')
   const records=await sql(`select id,version,status,content from loomai_customer_proposals.customer_proposals where slug=${literal(slug)}`,true)
   assert.equal(records.length,1)

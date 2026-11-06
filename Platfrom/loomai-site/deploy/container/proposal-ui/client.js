@@ -1,4 +1,5 @@
 import { renderPresentation } from './presentation.js';
+import { renderPartnership } from './partnership.js';
 
 (() => {
   'use strict';
@@ -263,8 +264,9 @@ import { renderPresentation } from './presentation.js';
     addNavigation('proposal-public-demo', 'LoomAI in action', index++);
     addNavigation('proposal-next-conversation', 'Talk with Mo', index);
     downloadButton.hidden = content.downloadAvailable !== true;
-    if (content.presentation?.layout === 'buying-workspace-v1') {
-      renderPresentation(presentation, content.presentation, {
+    const presentationRenderer = new Map([['buying-workspace-v1', renderPresentation], ['partnership-v1', renderPartnership]]).get(content.presentation?.layout);
+    if (presentationRenderer) {
+      presentationRenderer(presentation, content.presentation, {
         openContact,
         appendDocument: (target) => {
           target.append(sections);

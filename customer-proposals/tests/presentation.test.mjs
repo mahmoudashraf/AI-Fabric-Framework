@@ -11,10 +11,19 @@ test('visual media stays on the existing same-origin asset boundary', () => {
 });
 
 test('public visual template contains no recipient or invitation content', () => {
-  for (const name of ['index.html', 'client.js', 'presentation.js', 'presentation.css', 'integration.css']) {
+  for (const name of ['index.html', 'client.js', 'presentation.js', 'presentation.css', 'integration.css', 'partnership.js', 'partnership.css']) {
     const source = readFileSync(new URL(`../../Platfrom/loomai-site/deploy/container/proposal-ui/${name}`, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /Paul Rigby|paulrigbygroup|EakBVN|gatewayKey|sbp_|github_pat_/);
+    assert.doesNotMatch(source, /Paul Rigby|paulrigbygroup|AutoTrader|autotrader\.co\.uk|EakBVN|gatewayKey|sbp_|github_pat_/);
   }
+});
+
+test('partnership presentation uses the existing safe renderer and fixed public demo only', () => {
+  const source = readFileSync(new URL('../../Platfrom/loomai-site/deploy/container/proposal-ui/partnership.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|fetch\(|window\.open/);
+  assert.match(source, /from '\.\/presentation\.js'/);
+  assert.match(source, /createWorkspace\(data\.workspace\)/);
+  assert.match(source, /appendDocument\(documentBody\)/);
+  assert.match(source, /publicLink\(data\.experience\.demoLabel, '\/demos\/dealership-ai\//);
 });
 
 test('renderer uses safe DOM construction and no arbitrary external app URL', () => {

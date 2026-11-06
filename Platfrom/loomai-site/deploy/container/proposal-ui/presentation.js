@@ -6,14 +6,14 @@ export function safeAsset(value) {
     && !value.includes('//') ? value : null;
 }
 
-function node(tag, className, ...children) {
+export function node(tag, className, ...children) {
   const result = document.createElement(tag);
   if (className) result.className = className;
   for (const child of children.flat()) if (child != null) result.append(typeof child === 'string' ? document.createTextNode(child) : child);
   return result;
 }
 
-function icon(name) {
+export function icon(name) {
   const svg = document.createElementNS(svgNamespace, 'svg');
   svg.classList.add('pv-icon');
   svg.setAttribute('aria-hidden', 'true');
@@ -23,7 +23,7 @@ function icon(name) {
   return svg;
 }
 
-function photo(src, alt, className = '', eager = false) {
+export function photo(src, alt, className = '', eager = false) {
   const image = node('img', className);
   const path = safeAsset(src);
   if (path) image.src = path;
@@ -33,14 +33,14 @@ function photo(src, alt, className = '', eager = false) {
   return image;
 }
 
-function button(label, iconName, click, className = '') {
+export function button(label, iconName, click, className = '') {
   const result = node('button', `pv-button ${className}`, iconName ? icon(iconName) : null, label);
   result.type = 'button';
   result.addEventListener('click', click);
   return result;
 }
 
-function publicLink(label, href, iconName = 'arrow-up-right', className = '') {
+export function publicLink(label, href, iconName = 'arrow-up-right', className = '') {
   const result = node('a', `pv-button ${className}`, icon(iconName), label);
   // Preview actions use fixed site routes, not unverified proposal URLs.
   result.href = href;
@@ -54,7 +54,7 @@ function windowTop(label) {
   return node('div', 'pv-window-top', node('span', 'pv-traffic', node('i'), node('i'), node('i')), node('span', '', label));
 }
 
-function sectionHeading(title, subtitle) {
+export function sectionHeading(title, subtitle) {
   return node('div', 'pv-section-heading', node('h2', '', title), subtitle ? node('p', '', subtitle) : null);
 }
 
@@ -67,7 +67,7 @@ function vehicleTiles(data, compact = false) {
     node('div', 'pv-vehicle', photo(vehicle.image, vehicle.label), node('strong', '', vehicle.label))));
 }
 
-function createWorkspace(data, compact = false) {
+export function createWorkspace(data, compact = false) {
   const preview = node('div', `pv-workspace ${compact ? 'pv-workspace--compact' : ''}`);
   const body = node('div', 'pv-workspace-body');
   const response = node('div', 'pv-response');
