@@ -45,6 +45,12 @@ try {
   for (const route of ['/', '/experiences']) {
     await page.goto(origin + route)
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light')
+    if (route === '/') {
+      const hero = page.locator('.business-hero')
+      assert.equal(await hero.getByRole('link', { name: 'Explore experiences', exact: true }).count(), 0)
+      assert.equal(await hero.getByRole('link', { name: 'Try dealership demo', exact: true }).count(), 0)
+      assert.equal(await hero.getByRole('link', { name: 'Talk to Mo', exact: true }).count(), 1)
+    }
     const bookingLinks = await page.locator('a.integration-call').all()
     assert.ok(bookingLinks.length >= 3)
     for (const link of bookingLinks) {

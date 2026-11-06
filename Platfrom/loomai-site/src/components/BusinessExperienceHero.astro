@@ -1,5 +1,5 @@
 ---
-import { ArrowRight, Play } from '@lucide/astro'
+import { ArrowRight } from '@lucide/astro'
 import IntegrationCallAction from './IntegrationCallAction.astro'
 ---
 
@@ -19,11 +19,6 @@ import IntegrationCallAction from './IntegrationCallAction.astro'
           Help customers find answers, choose confidently and take the next step.
         </p><p>Your business information. Your brand. Your team when they need a person.</p>
       </div><div class="business-hero__actions">
-        <a class="business-button" href="#experiences"
-          >Explore experiences<ArrowRight size={17} aria-hidden="true" /></a
-        ><a class="business-demo" href="/demos/dealership-ai"
-          ><Play size={18} aria-hidden="true" />Try dealership demo</a
-        >
         <IntegrationCallAction />
       </div>
     </div>
@@ -81,36 +76,6 @@ import IntegrationCallAction from './IntegrationCallAction.astro'
     flex-wrap: wrap;
     gap: 1.2rem;
   }
-  .business-button {
-    align-items: center;
-    background: #096bfa;
-    border: 1px solid #096bfa;
-    border-radius: 6px;
-    color: white;
-    display: inline-flex;
-    font-size: 0.85rem;
-    font-weight: 650;
-    gap: 0.65rem;
-    justify-content: center;
-    min-height: 2.75rem;
-    padding: 0.65rem 1.1rem;
-    text-decoration: none;
-  }
-  .business-button:hover {
-    background: #0057d9;
-  }
-  .business-demo {
-    align-items: center;
-    color: var(--loom-text-primary);
-    display: inline-flex;
-    font-size: 0.85rem;
-    font-weight: 650;
-    gap: 0.45rem;
-    text-decoration: none;
-  }
-  .business-demo svg {
-    color: var(--loom-blue-600);
-  }
   @media (max-width: 75rem) {
     .business-hero__intro {
       align-items: start;
@@ -131,10 +96,6 @@ import IntegrationCallAction from './IntegrationCallAction.astro'
     }
     .business-hero__actions {
       gap: 1rem;
-    }
-    .business-button,
-    .business-demo {
-      font-size: 0.8rem;
     }
   }
 </style>
