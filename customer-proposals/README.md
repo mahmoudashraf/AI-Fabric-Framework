@@ -133,3 +133,15 @@ twelve production HTTP checks passed. Actual browser code entry, protected Word
 download, responsive phone layout, lock/reopen, personal contact and real calendar
 availability were checked. No recipient email, enquiry or booking was sent.
 Customer content, invitation links, downloads and screenshots remain private.
+
+The approved visual replacement was qualified later on 6 November, from source
+`e0477eb4e2c10efae8ccdf03ec06b3236db19ac2`. Site-only CI `42227703771` passed;
+production deployment `auu1biwmo3c9957ok0l5dnej` finished, and its native OCI
+revision and healthy state were verified. Seventeen focused tests, Astro check,
+the site build and content/static smoke passed. Sixteen production HTTP checks
+passed, including the unchanged invitation, identical protected Word document,
+anonymous denial and logout revocation. Live comparison/policy/enquiry/human
+illustrations, standalone preview, booking panel, Word download, wrong-code
+handling and lock/reopen passed. Desktop, 390px and 320px layouts had no
+horizontal overflow or broken visible images; Escape dismissed the preview.
+The actual introduction recording is still owner-supplied, not fabricated.
