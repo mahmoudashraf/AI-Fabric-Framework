@@ -78,6 +78,14 @@ flow, business outcomes and pilot call to action. The original approved scope
 and protected Word download remain in an expandable section. All recipient
 copy still comes from private Supabase JSON, not the static shell or image.
 
+The optional `presentation.integrationProcess` replaces the smaller integration
+diagram and appears immediately after customer outcomes, before the pilot offer.
+It distinguishes customer uploads in Console from LoomAI-provided private S3
+storage, and customer inventory authorization from LoomAI connector setup. Two
+input lanes feed the Smart Brain and the three branded customer channels, with
+optional Desk and a joint review before launch. These are proposal illustrations,
+not live upload controls or evidence of an approved third-party connection.
+
 The illustrative controls switch between comparison, policy and human-support
 explanations without calling an AI deployment or submitting an enquiry. The
 proposed app address opens a local preview dialog, never an unconfigured domain.
@@ -145,3 +153,12 @@ illustrations, standalone preview, booking panel, Word download, wrong-code
 handling and lock/reopen passed. Desktop, 390px and 320px layouts had no
 horizontal overflow or broken visible images; Escape dismissed the preview.
 The actual introduction recording is still owner-supplied, not fabricated.
+
+The integration-journey addition is live immediately after customer outcomes.
+Final source `acfde3ec6dea3274c8c532c7259d9321a6b3c926`, site-only CI
+`42237033638`, production deployment `zjhunf0qzatvx2taybx11dpx`: passed and
+healthy with native source verification. Eighteen focused tests and twelve
+production HTTP checks passed; the page was inspected live at desktop, 390px
+and 320px widths. Returning-browser verification caught a cached SVG sprite;
+the versioned `icons-v2.svg` fixes it without asking visitors to clear caches.
+The original invitation, protected Word attachment and access model are unchanged.

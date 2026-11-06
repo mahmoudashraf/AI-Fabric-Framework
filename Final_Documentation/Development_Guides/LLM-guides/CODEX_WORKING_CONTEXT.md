@@ -12886,3 +12886,19 @@ test is being called hosted acceptance. UI extraction remains last.
   panel, wrong code, lock/reopen, desktop/390/320 no-overflow and Escape dismissal
   PASS. Private screenshots/proof under customer-proposals/.private/. No booking
   or recipient message sent. No Platform/runtime/framework/deployment changes.
+
+## 2026-11-06 Proposal Integration Journey Live
+
+- Approved visual integration journey now follows customer outcomes and precedes
+  the pilot offer, replacing the smaller old diagram. Customer uploads in Console
+  -> LoomAI-managed private S3; customer authorises inventory -> LoomAI configures
+  AutoTrader adaptor OR dealer API -> sync -> Smart Brain -> three branded channels,
+  optional Desk and joint acceptance. All copy remains protected Supabase content.
+- Final source acfde3ec6dea3274c8c532c7259d9321a6b3c926; CI42237033638 PASS,
+  production zjhunf0qzatvx2taybx11dpx finished/native healthy.18 focused tests,
+  Astro check/build/static smoke and12 production HTTP checks PASS. Desktop,
+  390px/320px live checks PASS; local820px also checked. Cached old sprite caught
+  in returning browser and fixed with versioned icons-v2.svg plus regression test.
+- Private screenshot/proof in customer-proposals/.private/qualification/. Existing
+  code, expiry, Word document and auth unchanged. No bucket/customer deployment,
+  Platform/runtime/framework or third-party integration was created or changed.
