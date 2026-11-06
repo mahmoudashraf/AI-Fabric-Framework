@@ -85,6 +85,8 @@
 .ek-detail-intro-band > span > svg { width: 23px; height: 23px; color: var(--ek-detail-accent); }
 .ek-detail-intro-band .ek-mark { width: 24px; height: 24px; }
 .ek-detail-intro-band .ek-mark svg { width: 23px; height: 23px; }
+.ek-detail-intro-band > strong { color: var(--ek-detail-accent); font-size: 15px; white-space: nowrap; }
+.ek-page .ek-detail-offer-terms { color: var(--ek-muted); font-size: 11px; line-height: 1.6; padding: 12px 0; max-width: 1040px; }
 .ek-detail-band { padding: 30px 0; border-bottom: 1px solid var(--ek-line); }
 .ek-page .ek-detail-story h2 { font-size: 28px; line-height: 1.3; font-weight: 750; text-wrap: pretty; }
 .ek-detail-lead { color: var(--ek-muted); font-size: 15px; margin-top: 7px !important; max-width: 860px; }

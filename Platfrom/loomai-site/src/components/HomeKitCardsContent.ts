@@ -10,3 +10,11 @@ export const homeKitCards = [
 ] as const
 
 export const kitDetailUrl = (code: string) => `https://console.loomai.pro/experiences/${code}`
+
+export const homeKitLaunchOffers = {
+  generic: { label: 'Customer experience launch offer', price: 'Tailored pricing', value: 'Integration included', benefits: ['Built around your business'] },
+  dealership: { label: 'Dealership offer', price: '\u00a3500 / month', value: 'Only pay when value starts', benefits: ['First 3 months free', 'Free integration'] },
+  support: { label: 'Support launch offer', price: 'Tailored pricing', value: 'Setup included', benefits: ['Knowledge onboarding included'] },
+} as const
+
+export const kitOfferTerms = 'Your proposal confirms the agreed integration scope, included AI usage, storage and agent seats, plus any third-party charges. Work outside that scope is quoted separately.'

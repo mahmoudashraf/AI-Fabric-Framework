@@ -110,7 +110,11 @@ try {
     for (const [kind, code] of Object.entries(kits)) {
       const option = section.locator(`.home-kit-option[data-kind="${kind}"]`)
       assert.equal(await option.locator('.home-kit__explore').getAttribute('href'), `https://console.loomai.pro/experiences/${code}`)
-      assert.equal(await option.locator('.home-kit-offer').count(), kind === 'dealership' ? 1 : 0)
+      assert.equal(await option.locator('.home-kit-offer').count(), 1)
+      if (kind !== 'dealership') {
+        assert.equal(await option.getByText('Tailored pricing', { exact: true }).count(), 1)
+        assert.doesNotMatch(await option.locator('.home-kit-offer').innerText(), /£|months free|Only pay when value starts/)
+      }
       assert.equal(await option.locator('.home-kit__desk > span img').getAttribute('src'), '/assets/experiences/whatsapp.svg')
       const portrait = option.locator('.home-kit__desk > img')
       const channels = option.locator('.home-kit__desk > span')
@@ -120,8 +124,11 @@ try {
     assert.equal(await section.getByText('Only pay when value starts', { exact: true }).count(), 1)
     assert.equal(await section.getByText('First 3 months free', { exact: true }).count(), 1)
     assert.equal(await section.getByText('Free integration', { exact: true }).count(), 1)
+    assert.equal(await section.getByText('Integration included', { exact: true }).count(), 1)
+    assert.equal(await section.getByText('Knowledge onboarding included', { exact: true }).count(), 1)
+    await section.getByText(/Your proposal confirms the agreed integration scope/).waitFor()
     assert.equal(await section.getByRole('link', { name: 'Try live demo', exact: true }).getAttribute('href'), '/demos/dealership-ai')
-    checks.push(`${route}:three-kits-detail-links-dealership-only-offer-channel-icons`)
+    checks.push(`${route}:three-launch-offers-dealership-only-fixed-price-and-trial-channel-icons`)
 
     for (const kind of Object.keys(kits)) {
       const trigger = section.locator(`[data-catalogue-preview="${kind}"]`)
@@ -176,7 +183,7 @@ try {
           return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, buttonY: button.y, buttonHeight: button.height }
         }),
         overflow: [...el.querySelectorAll('h3,p,.home-kit__capabilities > span,.home-kit__products > div,.home-kit-offer')]
-          .filter(el => el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
+          .filter(el => el.scrollWidth > el.clientWidth + 1 || (el.classList.contains('home-kit-offer') && el.scrollHeight > el.clientHeight + 1)).map(el => el.textContent),
       }))
       assert.ok(metrics.font.includes('LoomAI Kit Cards'))
       assert.deepEqual(metrics.overflow, [], `${width} ${theme} text overflow`)

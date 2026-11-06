@@ -18,7 +18,7 @@ import type { ExperienceKitDefinition } from '../../api/experienceKitsApi'
 import { KitDeskMark, KitMark } from './KitIdentity'
 import { KitExperiencePreview } from './KitCapabilityPreview'
 import { KitCardScene } from './KitCardScene'
-import { KitDealershipOffer } from './KitCommercialPresentation'
+import { KitLaunchOffer, kitOfferTerms } from './KitCommercialPresentation'
 import { kitPreviewKind, safeKitExternalUrl } from './kitModels'
 import './KitCatalogueCards.css'
 
@@ -49,7 +49,7 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
     const demo = safeKitExternalUrl(definition.demoUrl)
     const copy = cardContent[kind]
     return <div className="ek-kit-option" data-kind={kind} key={definition.code}>
-      {dealership ? <KitDealershipOffer compact /> : <div className="ek-offer-placeholder" aria-hidden="true" />}
+      <KitLaunchOffer kind={kind} />
       <article className="ek-catalogue-card" aria-labelledby={`ek-choice-${definition.code}`}>
         <div className="ek-card-identity"><span className="ek-card-scope"><copy.Icon />{copy.scope}</span>
           <h2 id={`ek-choice-${definition.code}`}>{copy.title}</h2><p>{copy.summary}</p></div>
@@ -64,5 +64,6 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
     </div>
   })}</div><div className="ek-catalogue-formats" aria-label="Ways to use your AI experience">
     <small>Choose one or combine them.</small><span><WebAssetOutlined />Website widget</span><span><DesktopWindowsOutlined />Max workspace</span><span><OpenInBrowserOutlined />Standalone app</span>
-  </div><p className="ek-catalogue-disclosure">Illustrative previews. Configure your own branding, knowledge and integrations.</p></>
+  </div><p className="ek-catalogue-disclosure">Illustrative previews. Configure your own branding, knowledge and integrations.</p>
+    <p className="ek-catalogue-offer-terms">{kitOfferTerms}</p></>
 }

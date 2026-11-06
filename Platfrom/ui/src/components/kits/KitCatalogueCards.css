@@ -27,15 +27,17 @@
 .ek-page[data-kit-theme='light'] .ek-kit-option[data-kind='support'] { --ek-card-accent: #8a590b; }
 .ek-page[data-kit-theme='dark'] .ek-kit-option[data-kind='adaptive'] { --ek-card-surface: #161e23; --ek-scene-surface: #03272a; --ek-scene-header: #06383b; }
 .ek-page[data-kit-theme='dark'] .ek-kit-option[data-kind='dealership'] { --ek-card-surface: #171f24; --ek-scene-surface: #12202a; --ek-scene-header: #142b3d; }
-.ek-dealership-offer { min-width: 0; border: 1px solid var(--ek-blue); border-radius: 8px; padding: 9px 16px; background: color-mix(in srgb, var(--ek-blue) 11%, var(--ek-bg)); color: var(--ek-text); }
-.ek-offer-title { display: flex; align-items: center; gap: 9px; color: var(--ek-blue); text-transform: uppercase; font-size: 13px; font-weight: 700; line-height: 1.25; }
+.ek-launch-offer { min-width: 0; border: 1px solid color-mix(in srgb, var(--ek-card-accent) 65%, var(--ek-line)); border-radius: 8px; padding: 9px 16px; background: color-mix(in srgb, var(--ek-card-accent) 9%, var(--ek-bg)); color: var(--ek-text); }
+.ek-offer-title { display: flex; align-items: center; gap: 9px; color: var(--ek-card-accent); text-transform: uppercase; font-size: 13px; font-weight: 700; line-height: 1.25; }
 .ek-offer-title svg { width: 24px; height: 24px; }
 .ek-offer-value { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; margin: 2px 0 7px; gap: 14px; }
 .ek-offer-value > span { font-size: 20px; font-weight: 650; text-align: center; }
 .ek-offer-value > strong { border-left: 1px solid var(--ek-line); padding-left: 14px; font-size: 15px; font-weight: 650; line-height: 1.2; text-align: center; }
-.ek-dealership-offer ul { display: flex; justify-content: space-around; gap: 10px; border-top: 1px solid var(--ek-line); padding: 6px 0 0; margin: 0; list-style: none; }
-.ek-dealership-offer li { display: inline-flex; gap: 7px; align-items: center; font-size: 12px; line-height: 1.3; }
-.ek-dealership-offer li svg { color: var(--ek-blue); width: 18px; height: 18px; flex-shrink: 0; }
+.ek-launch-offer:not(.ek-dealership-offer) .ek-offer-value > span { font-size: 16px; }
+.ek-launch-offer ul { display: flex; justify-content: space-around; gap: 10px; border-top: 1px solid var(--ek-line); padding: 6px 0 0; margin: 0; list-style: none; }
+.ek-launch-offer li { display: inline-flex; gap: 7px; align-items: center; font-size: 12px; line-height: 1.3; }
+.ek-launch-offer li svg { color: var(--ek-card-accent); width: 18px; height: 18px; flex-shrink: 0; }
+.ek-page .ek-catalogue-offer-terms { color: var(--ek-muted); font-size: 11px; line-height: 1.6; text-align: center; max-width: 900px; margin: 8px auto 0; }
 .ek-catalogue-card { border: 1px solid var(--ek-line); border-radius: 8px; background: var(--ek-card-surface, var(--ek-surface)); padding: 15px 17px 10px; min-width: 0; display: flex; flex-direction: column; }
 .ek-catalogue-card:hover, .ek-catalogue-card:focus-within { border-color: var(--ek-card-accent); }
 .ek-card-scope { display: flex; gap: 10px; align-items: center; color: var(--ek-card-accent); text-transform: uppercase; font-size: 13px; font-weight: 700; line-height: 1.35; }
@@ -137,7 +139,6 @@
 @media (max-width: 1180px) {
   .ek-catalogue-grid, .ek-console-page .ek-catalogue-grid { grid-template-columns: minmax(0, 1fr); max-width: 680px; margin-inline: auto; }
   .ek-kit-option { grid-template-rows: auto 1fr; }
-  .ek-offer-placeholder { display: none; }
   .ek-catalogue-page .ek-catalogue-header { grid-template-columns: minmax(0, 1fr) auto; gap: 16px; margin-bottom: 24px; }
   .ek-catalogue-header .ek-logo { border: 0; padding: 0; }
   .ek-catalogue-title { grid-column: 1 / -1; grid-row: 2; }
@@ -177,7 +178,7 @@
   .ek-card-human strong, .ek-card-human span { font-size: 9px; }
   .ek-offer-value > span { font-size: 18px; }
   .ek-offer-value > strong { font-size: 13px; }
-  .ek-dealership-offer li { font-size: 11px; }
+  .ek-launch-offer li { font-size: 11px; }
   .ek-catalogue-formats { justify-content: flex-start; gap: 14px; padding: 14px; }
   .ek-catalogue-formats > span { font-size: 11px; }
 }

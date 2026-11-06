@@ -73,6 +73,10 @@ try {
       await bounds(`${scheme}-${width}-catalogue`)
       assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
       assert.equal(await page.getByLabel('Dealership offer', { exact: true }).count(), 1)
+      assert.equal(await page.locator('.ek-launch-offer').count(), 3)
+      assert.equal(await page.getByText('Tailored pricing', { exact: true }).count(), 2)
+      assert.deepEqual(await page.locator('.ek-launch-offer').evaluateAll(offers => offers.filter(offer =>
+        offer.scrollHeight > offer.clientHeight + 1 || offer.scrollWidth > offer.clientWidth + 1).map(offer => offer.textContent)), [], 'Offer content must fit within its strip')
       assert.equal(await page.getByText('Coming soon', { exact: true }).count(), 0)
       if (width === 1536) {
         const geometry = await page.evaluate(() => {

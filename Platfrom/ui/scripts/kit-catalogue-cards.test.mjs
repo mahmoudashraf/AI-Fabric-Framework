@@ -56,7 +56,7 @@ test('catalogue keeps three distinct kits and existing detail destinations', () 
   for (const label of ['Website widget', 'Max workspace', 'Standalone app']) assert.ok(html.includes(label))
 })
 
-test('commercial offer is dealership-only, not billing or an entitlement change', () => {
+test('each kit has a launch offer, with fixed pricing and a trial only on Dealership', () => {
   const html = render(chooser.KitChooser, { definitions })
   assert.equal((html.match(/aria-label="Dealership offer"/g) ?? []).length, 1)
   assert.ok(html.includes(commercial.dealershipOffer.price))
@@ -64,9 +64,24 @@ test('commercial offer is dealership-only, not billing or an entitlement change'
   assert.ok(html.includes('First 3 months free'))
   assert.ok(html.includes('Free integration'))
   for (const definition of [definitions[0], definitions[2]]) {
-    assert.doesNotMatch(render(chooser.KitChooser, { definitions: [definition] }), /\u00a3500|Free integration|aria-label="Dealership offer"/)
+    const kit = render(chooser.KitChooser, { definitions: [definition] })
+    assert.match(kit, /Tailored pricing/)
+    assert.match(kit, definition.code === 'ai-support-experience' ? /Knowledge onboarding included/ : /Integration included/)
+    assert.doesNotMatch(kit, /\u00a3500|First 3 months free|Only pay when value starts|Free integration|aria-label="Dealership offer"/)
   }
+  assert.match(html, /agreed integration scope, included AI usage, storage and agent seats/)
+  assert.match(html, /Work outside that scope is quoted separately/)
   assert.doesNotMatch(html, /checkout|stripe|Coming soon/)
+})
+
+test('website and Console publish identical offers and scope without inventing prices', async () => {
+  const site = await load('../../loomai-site/src/components/HomeKitCardsContent.ts')
+  for (const [kind, siteKind] of [['adaptive', 'generic'], ['dealership', 'dealership'], ['support', 'support']]) {
+    assert.deepEqual(commercial.kitLaunchOffers[kind], site.homeKitLaunchOffers[siteKind])
+  }
+  assert.equal(commercial.kitOfferTerms, site.kitOfferTerms)
+  assert.match(commercial.dealershipPilotTerms, /pilot acceptance milestone/)
+  assert.match(commercial.dealershipPilotTerms, /when billing begins/)
 })
 
 test('Desk channel icons sit above the headset-wearing agent portrait and remain optional everywhere', async () => {

@@ -3,7 +3,7 @@ import { ArrowLeftRight, ArrowRight, Box, CalendarDays, CarFront, CircleCheck, E
 import ExperienceCatalogueDialog from './ExperienceCatalogueDialog.astro'
 import HomeKitScene from './HomeKitScene.astro'
 import IntegrationCallAction from './IntegrationCallAction.astro'
-import { homeKitCards, kitDetailUrl } from './HomeKitCardsContent'
+import { homeKitCards, homeKitLaunchOffers, kitDetailUrl, kitOfferTerms } from './HomeKitCardsContent'
 import '../styles/kit-cards.css'
 
 const icons = {
@@ -20,11 +20,12 @@ const icons = {
       <div class="home-kits__grid">
         {homeKitCards.map(kit => {
           const Icon = kit.kind === 'dealership' ? CarFront : kit.kind === 'support' ? Headphones : Store
+          const offer = homeKitLaunchOffers[kit.kind]
           return <div class="home-kit-option" data-kind={kit.kind}>
-            {kit.kind === 'dealership' ? <aside class="home-kit-offer" aria-label="Dealership offer">
-              <span><CarFront size={22} />Dealership offer</span><div><span>£500 / month</span><strong>Only pay when value starts</strong></div>
-              <ul><li><CircleCheck size={17} />First 3 months free</li><li><CircleCheck size={17} />Free integration</li></ul>
-            </aside> : <div class="home-kit-offer-space" aria-hidden="true" />}
+            <aside class="home-kit-offer" aria-label={offer.label}>
+              <span><Icon size={22} />{kit.kind === 'dealership' ? offer.label : 'Launch offer'}</span><div><span>{offer.price}</span><strong>{offer.value}</strong></div>
+              <ul>{offer.benefits.map(benefit => <li><CircleCheck size={17} />{benefit}</li>)}</ul>
+            </aside>
             <article class={`business-kit home-kit experience-catalogue-theme experience-catalogue-theme--${kit.kind}`} aria-labelledby={`${kit.kind}-kit-title`}>
               <header class="home-kit__identity"><span><Icon size={20} />{kit.scope}</span><h3 id={`${kit.kind}-kit-title`}>{kit.title}</h3><p>{kit.summary}</p></header>
               <HomeKitScene kind={kit.kind} />
@@ -40,6 +41,7 @@ const icons = {
       </div>
       <div class="home-kits__formats" aria-label="Ways to use your AI experience"><small>Choose one or combine them.</small><span><AppWindow size={24} />Website widget</span><span><Monitor size={24} />Max workspace</span><span><SquareArrowOutUpRight size={24} />Standalone app</span></div>
       <p class="home-kits__note">Illustrative previews. Configure your own branding, knowledge and integrations.</p>
+      <p class="home-kits__offer-terms">{kitOfferTerms}</p>
       <div class="home-kits__team"><span>Prefer to start with our AI integration team?</span><IntegrationCallAction label="Start a project" /></div>
     </div>
   </section>

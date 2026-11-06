@@ -115,6 +115,10 @@ for (const route of ['']) {
     'Only pay when value starts',
     'First 3 months free',
     'Free integration',
+    'Tailored pricing',
+    'Integration included',
+    'Knowledge onboarding included',
+    'Your proposal confirms the agreed integration scope',
     'href="/demos/dealership-ai"',
   ]) {
     if (!html.includes(expected)) errors.push(`Experience catalogue at /${route} is missing ${expected}`)

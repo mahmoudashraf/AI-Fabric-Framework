@@ -181,8 +181,12 @@ test('real detail pages retain offers, preview, demo, links and responsive light
       assert.equal(await demo.getAttribute('rel'), 'noopener noreferrer')
     } else {
       assert.doesNotMatch(detailText, /£500|Only pay when value starts|First 3 months free|Free integration/)
+      assert.match(detailText, /Tailored pricing/)
+      assert.match(detailText, definition.code === 'ai-support-experience' ? /Knowledge onboarding included/ : /Integration included/)
       assert.equal(await page.getByRole('link', { name: 'Try the live demo', exact: true }).count(), 0)
     }
+    assert.match(detailText, /Your proposal confirms the agreed integration scope/)
+    if (definition.code === 'dealership-ai-experience') assert.match(detailText, /pilot acceptance milestone/)
     await page.getByRole('button', { name: 'Preview experience', exact: true }).click()
     await page.getByRole('dialog').waitFor()
     await page.getByRole('button', { name: 'Close preview', exact: true }).click()

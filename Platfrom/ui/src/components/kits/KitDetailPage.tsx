@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom'
 import { IntegrationCallButton } from '../IntegrationCallButton'
 import type { ExperienceKitDefinition } from '../../api/experienceKitsApi'
 import { KitExperiencePreview } from './KitCapabilityPreview'
-import { dealershipOffer } from './KitCommercialPresentation'
+import { dealershipOffer, dealershipPilotTerms, kitLaunchOffers, kitOfferTerms } from './KitCommercialPresentation'
 import { KitDetailWorkspace, KitOutcomeScene } from './KitDetailScenes'
 import { KitDeskMark, KitMark, kitAsset } from './KitIdentity'
 import { KitIntegrationJourney } from './KitIntegrationJourney'
@@ -22,6 +22,7 @@ export function KitDetailPage({ definition }: { definition: ExperienceKitDefinit
   const kind = kitPreviewKind(definition.code)
   const copy = kitDetailContent[kind]
   const dealership = kind === 'dealership'
+  const offer = kitLaunchOffers[kind]
   const demo = safeKitExternalUrl(definition.demoUrl)
   const getStartedPath = `/kits/new/${definition.code}`
   return <article className="ek-public-detail ek-detail-story" data-kind={kind} aria-labelledby="ek-detail-title">
@@ -50,8 +51,9 @@ export function KitDetailPage({ definition }: { definition: ExperienceKitDefinit
       <div><CalendarMonthOutlined /><span><strong>3 months free</strong><small>{dealershipOffer.benefits[0]}</small></span></div>
       <div><SupportAgentRounded /><span><strong>{dealershipOffer.benefits[1]}</strong><small>LoomAI's technical team handles the setup.</small></span></div>
       <div className="ek-detail-offer-price"><span>{dealershipOffer.price}</span><strong><CheckRounded />{dealershipOffer.value}</strong></div>
-    </aside> : <div className="ek-detail-intro-band"><span><KitMark product="platform" />Connected to your business</span><span><KitMark product="engage" />Built around your brand</span>
-      <span><SupportAgentRounded />Integration handled by LoomAI</span></div>}
+    </aside> : <aside className="ek-detail-intro-band" aria-label={offer.label}><span><SupportAgentRounded />{offer.value}</span>
+      <span><CheckRounded />{offer.benefits[0]}</span><strong>{offer.price}</strong></aside>}
+    <p className="ek-detail-offer-terms">{kitOfferTerms}{dealership && <> {dealershipPilotTerms}</>}</p>
 
     <section id="ek-detail-experience" className="ek-detail-band ek-detail-delivery" aria-labelledby="ek-detail-delivery-title">
       <h2 id="ek-detail-delivery-title">{copy.transformation}</h2><p className="ek-detail-lead">{copy.introduction}</p>
