@@ -12914,3 +12914,22 @@ test is being called hosted acceptance. UI extraction remains last.
   pass without horizontal overflow or badge clipping; app preview/Escape pass,
   browser warnings/errors empty. Screenshots/report: ignored private qualification
   typography-* files. Presentation backed up; invitation and Word unchanged.
+
+## 2026-11-06 AutoTrader Partnership Proposal Live
+
+- New independent protected proposal: /proposals/autotrader-partnership. Main
+  request is scoped sandbox access/test advertiser for a POC. Partnership routes
+  are a possible AutoTrader retailer-package option or separate approved service.
+  Includes retailer workspace illustration, index/live-fact data flow, confirmed
+  Deal return path, auth/data limits and acceptance evidence. Commercial and
+  external-Deal/indexing permissions are explicitly proposed, not approved.
+- Uses shared safe partnership-v1 renderer and independent 30-day code. Content
+  and source are private Supabase JSON plus ignored .private/autotrader files;
+  invitation in .private/access.private.json under proposals[slug]. Legacy Paul
+  Rigby entry and database/Word content unchanged. Web-only, no new DOCX/PDF.
+- Source efb38d69fa10b4faef81c36fe4b054989ad0180b; CI42249198989 PASS,
+  production y115g9yjfqgqwlwsopsrwl0s finished/native healthy.19 focused tests,
+  Astro check/build/static smoke,14 live HTTP access checks and real browser
+  code entry/illustrations/details/contact-dismiss/lock-reopen PASS. Responsive
+  390/320/820 no-overflow, no broken images/warnings; existing live proposal still
+  renders LoomAI Team captions. No recipient email, booking or AutoTrader API call.

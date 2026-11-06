@@ -185,3 +185,15 @@ Eighteen focused tests, Astro check/build/static smoke and live desktop, 390px,
 320px and 820px no-overflow checks passed. The branded preview opens/dismisses;
 no browser warnings or errors. Private proof: `qualification/typography-*`.
 The presentation update was backed up; invitation and Word content are unchanged.
+
+The second, independently code-scoped partnership proposal is published using
+`partnership-v1`. Source `efb38d69fa10b4faef81c36fe4b054989ad0180b`, site-only
+CI `42249198989`, production `y115g9yjfqgqwlwsopsrwl0s`: passed/finished and
+native healthy. Nineteen focused tests, Astro check/build/static smoke and
+fourteen live HTTP access checks passed. Actual manual code entry, interactive
+illustrations, full details, contact-panel dismiss and lock/reopen passed, with
+390px/320px/820px no-overflow checks and no broken images or browser warnings.
+The original proposal's database row/Word hash and live owner captions remained
+unchanged. This new proposal is explicitly web-only, with no fabricated download.
+Its source, screenshots, checks and invitation are retained only in `.private`.
+No recipient email or booking was submitted.
