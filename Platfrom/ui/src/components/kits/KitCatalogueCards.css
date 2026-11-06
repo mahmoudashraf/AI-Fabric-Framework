@@ -152,6 +152,11 @@
   .ek-card-stock { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .ek-card-input { margin-top: 0; }
 }
+@media (max-width: 760px) {
+  .ek-catalogue-page .ek-catalogue-header { grid-template-columns: minmax(0, 1fr); }
+  .ek-catalogue-header .ek-header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; margin-left: 0; }
+  .ek-catalogue-header .ek-catalogue-title { grid-column: 1; grid-row: 3; }
+}
 @media (max-width: 450px) {
   .ek-catalogue-card { padding: 15px 13px 9px; }
   .ek-catalogue-page .ek-logo { font-size: 21px; }

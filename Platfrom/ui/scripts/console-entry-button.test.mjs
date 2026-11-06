@@ -22,7 +22,7 @@ test('Open Console keeps branded styling and existing routes across public surfa
           import{PublicProductsPage}from'/src/pages/PublicProductsPage.tsx';
           import'/src/pages/ExperienceKits.css';import'/src/components/kits/KitCatalogueCards.css';
           const q=new URLSearchParams(location.search),authenticated=q.get('authenticated')!=='false',surface=q.get('surface');
-          function Kits(){const theme=useTheme();return React.createElement('div',{className:'ek-page ek-public-page','data-kit-theme':theme.palette.mode},
+          function Kits(){const theme=useTheme();return React.createElement('div',{className:'ek-page ek-public-page ek-catalogue-page','data-kit-theme':theme.palette.mode},
             React.createElement('div',{className:'ek-public-container'},React.createElement(KitPublicHeader,
               {authenticated,selectedCode:'ai-customer-experience',consolePath:'/kits',catalogue:true})))}
           const view=surface==='kits'?React.createElement(CustomerConsoleTheme,null,React.createElement(Kits)):
@@ -46,7 +46,7 @@ test('Open Console keeps branded styling and existing routes across public surfa
   for (const mode of ['dark', 'light']) {
     await page.addInitScript(mode => localStorage.setItem('loomai-customer-console-color-scheme', mode), mode)
     for (const surface of ['kits', 'detail', 'products']) {
-      for (const width of [1440, 390, 320]) {
+      for (const width of [1440, 768, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 })
         await page.goto(`${base}entry-test?surface=${surface}`)
         const button = page.getByRole('link', { name: 'Open Console', exact: true })
@@ -66,6 +66,14 @@ test('Open Console keeps branded styling and existing routes across public surfa
         assert.equal(state.fontSize, '16px')
         assert.ok(state.height >= 44 && state.left >= 0 && state.right <= width, JSON.stringify({ surface, width, state }))
         assert.ok(state.scrollWidth <= width && state.textWidth <= state.width + 1, JSON.stringify({ surface, width, state }))
+        if (surface === 'kits') {
+          const overlap = await page.locator('.ek-public-header').evaluate(header => {
+            const bounds = [...header.children].map(element => element.getBoundingClientRect())
+            return bounds.some((a, i) => bounds.slice(i + 1).some(b =>
+              Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1))
+          })
+          assert.equal(overlap, false, `${mode} ${width}: header controls overlap`)
+        }
         await button.hover()
         assert.match(await button.evaluate(element => getComputedStyle(element).backgroundImage), /linear-gradient/)
         assert.equal(await button.evaluate(element => getComputedStyle(element).textDecorationLine), 'none')
