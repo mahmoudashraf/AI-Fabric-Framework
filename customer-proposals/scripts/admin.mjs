@@ -73,9 +73,29 @@ if(mode === 'migrate') {
       url:`https://loomai.pro/proposals/${slug}?code=${code}`}
     save(); console.log(JSON.stringify({proposal:slug,published:true,expiresAt:state.proposal.expiresAt,privateAccessRecord:stateFile}))
   }
+} else if(mode === 'update-presentation') {
+  // Presentation-only change: keep the approved Word document and access lifecycle intact.
+  const slug=process.env.PROPOSAL_SLUG
+  assert.equal(slug,state.proposal?.slug,'OWNED_PROPOSAL_REQUIRED')
+  const visual=JSON.parse(readFileSync(process.env.PROPOSAL_PRESENTATION,'utf8'))
+  assert.equal(visual.layout,'buying-workspace-v1')
+  assert.equal(typeof visual.title,'string')
+  const records=await sql(`select id,version,status,content from loomai_customer_proposals.customer_proposals where slug=${literal(slug)}`,true)
+  assert.equal(records.length,1)
+  const before=records[0]
+  assert.equal(before.status,'published')
+  const digest=sha(JSON.stringify(before.content))
+  assert.equal(digest,process.env.PROPOSAL_EXPECTED_CONTENT_SHA256,'EXPECTED_CONTENT_HASH_REQUIRED')
+  const backup=path.join(privateDirectory,`content-before-presentation-${Date.now()}.json`)
+  writeFileSync(backup,JSON.stringify(before,null,2)+'\n',{mode:0o600})
+  const result=await sql(`update loomai_customer_proposals.customer_proposals set content=jsonb_set(content,'{presentation}',${literal(JSON.stringify(visual))}::jsonb) where id=${literal(before.id)} and version=${before.version} and status='published' and content=${literal(JSON.stringify(before.content))}::jsonb returning id,version`)
+  assert.equal(result.length,1,'PROPOSAL_CHANGED_DURING_UPDATE')
+  state.presentation={sha256:sha(JSON.stringify(visual)),updatedAt:new Date().toISOString(),version:before.version,backup}
+  save()
+  console.log(JSON.stringify({presentation:'UPDATED',version:before.version,wordDocumentUnchanged:true,codesUnchanged:true,backup}))
 } else if(mode === 'qualify-database') {
   const query=readFileSync(path.join(directory,'tests/database-qualification.sql'),'utf8')
   await sql(query)
   state.databaseQualification='PASS'; save()
   console.log(JSON.stringify({databaseQualification:'PASS',cases:['code','scope','revocation','expiry','withdrawal','version','rate-limit'],fixturesRolledBack:true}))
-} else throw new Error('Use migrate, deploy-function, publish or qualify-database')
+} else throw new Error('Use migrate, deploy-function, publish, update-presentation or qualify-database')

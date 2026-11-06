@@ -2,14 +2,14 @@ import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
 const cookieToken = /^[A-Za-z0-9_-]{32,128}$/
-const assets = new Map([['client.js','text/javascript; charset=utf-8'],['styles.css','text/css; charset=utf-8']])
+const assets = new Map([['client.js','text/javascript; charset=utf-8'],['presentation.js','text/javascript; charset=utf-8'],['styles.css','text/css; charset=utf-8'],['presentation.css','text/css; charset=utf-8']])
 const protectedHeaders = {
   'Cache-Control': 'private, no-store',
   'Referrer-Policy': 'no-referrer',
   'X-Robots-Tag': 'noindex, nofollow, noarchive',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://calendly.com; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://calendly.com https://www.youtube-nocookie.com; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'",
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
   'Cross-Origin-Opener-Policy': 'same-origin',
 }

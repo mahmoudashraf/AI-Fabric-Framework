@@ -9,7 +9,8 @@
     <meta name="color-scheme" content="light">
     <title>Protected proposal | Loom AI Labs</title>
     <link rel="stylesheet" href="/proposals/assets/styles.css">
-    <script src="/proposals/assets/client.js" defer></script>
+    <link rel="stylesheet" href="/proposals/assets/presentation.css">
+    <script src="/proposals/assets/client.js" type="module"></script>
   </head>
   <body class="proposal-app" data-proposal-app data-state="loading">
     <a class="proposal-skip" href="#proposal-main">Skip to content</a>
@@ -62,6 +63,7 @@
         <a href="/" class="proposal-brand" aria-label="Loom AI Labs homepage">
           <img src="/assets/reference/loom-wordmark.png" alt="Loom AI Labs" width="260" height="64">
         </a>
+        <span class="proposal-prepared-for" data-proposal-prepared-for hidden></span>
         <span class="proposal-privacy"><svg class="proposal-icon" aria-hidden="true"><use href="#proposal-icon-lock"/></svg>Private proposal</span>
         <div class="proposal-header__actions" data-proposal-session-actions hidden>
           <button class="proposal-button proposal-button--quiet" type="button" data-proposal-logout aria-label="Lock proposal and exit">
@@ -109,6 +111,8 @@
       </section>
 
       <div data-proposal-viewer hidden>
+        <div class="proposal-visual proposal-container" data-proposal-presentation hidden></div>
+        <div data-proposal-document-view>
         <header class="proposal-document-header proposal-container">
           <span class="proposal-eyebrow">Prepared for your next chapter</span>
           <h1 data-proposal-title tabindex="-1"></h1>
@@ -119,7 +123,7 @@
               <svg class="proposal-icon" aria-hidden="true"><use href="#proposal-icon-download"/></svg><span data-proposal-download-label>Download DOCX</span>
             </button>
           </div>
-          <div class="proposal-download-feedback" aria-live="polite">
+          <div class="proposal-download-feedback" data-proposal-download-feedback aria-live="polite">
             <p class="proposal-message" data-proposal-download-message role="status"></p>
             <button class="proposal-text-link" type="button" data-proposal-download-retry hidden>Retry download<svg class="proposal-icon" aria-hidden="true"><use href="#proposal-icon-retry"/></svg></button>
           </div>
@@ -154,6 +158,7 @@
               <button class="proposal-button proposal-button--primary" type="button" data-proposal-contact-open aria-haspopup="dialog" aria-controls="proposal-contact-panel"><svg class="proposal-icon" aria-hidden="true"><use href="#proposal-icon-calendar"/></svg>Talk with Mo</button>
             </section>
           </article>
+        </div>
         </div>
       </div>
 

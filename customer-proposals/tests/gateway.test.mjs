@@ -34,6 +34,19 @@ test('direct content/download need authorization and never cache', async t=>{
   }
   assert.equal(calls.length,0)
 })
+test('new visual assets remain generic and retain the strict proposal CSP', async t=>{
+  const {base}=await fixture(t)
+  for(const [name,type] of [['presentation.js','javascript'],['presentation.css','text/css']]) {
+    const response=await fetch(`${new URL(base).origin}/proposals/assets/${name}`)
+    assert.equal(response.status,200)
+    assert.ok(response.headers.get('content-type').includes(type))
+    assert.equal(response.headers.get('cache-control'),'private, no-store')
+    assert.doesNotMatch(await response.text(),/Paul Rigby|paulrigbygroup|Private fixture/)
+    const csp=response.headers.get('content-security-policy')
+    assert.match(csp,/script-src 'self';/)
+    assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval/)
+  }
+})
 test('manual entry requires same-origin JSON and issues HttpOnly scoped cookie', async t=>{
   const {base} = await fixture(t)
   const post = (origin,body=JSON.stringify({code}),type='application/json')=>fetch(`${base}/access`,{method:'POST',headers:{Origin:origin,'Content-Type':type},body})

@@ -69,6 +69,33 @@ file in the private operational backup; normal Git is not its backup. Publishing
 an existing slug deliberately requires reconciliation instead of overwriting it.
 Changing content/version is a separate reviewed administrative operation.
 
+### Visual Presentation
+
+An authorized document may additionally contain a `presentation` object using
+the `buying-workspace-v1` layout. It adds the founder-video area, website and
+expanded-workspace scenes, distinct standalone-app address/preview, integration
+flow, business outcomes and pilot call to action. The original approved scope
+and protected Word download remain in an expandable section. All recipient
+copy still comes from private Supabase JSON, not the static shell or image.
+
+The illustrative controls switch between comparison, policy and human-support
+explanations without calling an AI deployment or submitting an enquiry. The
+proposed app address opens a local preview dialog, never an unconfigured domain.
+The separate public-demo button opens the existing fictional dealership demo.
+
+Until the actual recording is supplied, the video cover is explicitly labelled
+as illustrative and forthcoming, without a fake play action or duration. Set
+`presentation.video.youtubeId` to the owner's actual recording ID to enable
+click-only playback through YouTube's privacy-enhanced embed. No third-party
+video or calendar request is made before its corresponding explicit click.
+
+For an owner-approved visual-only update, use `update-presentation` with
+`PROPOSAL_SLUG`, a private JSON file in `PROPOSAL_PRESENTATION`, and the current
+JSON content SHA256 in `PROPOSAL_EXPECTED_CONTENT_SHA256`. The command backs up
+the previous row and compares its full content before updating. It leaves the
+document version, Word attachment, invitation expiry and access grants intact.
+Changing substantive contractual scope still requires a document/version review.
+
 Staff can revoke a code by setting its `revoked_at`, or withdraw a proposal by
 setting its status to `withdrawn`, through the Supabase SQL Editor. Existing
 sessions then fail their next protected request; previously viewed/downloaded

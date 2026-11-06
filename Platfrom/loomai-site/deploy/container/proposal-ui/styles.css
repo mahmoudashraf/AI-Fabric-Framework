@@ -22,7 +22,7 @@ body.proposal-app {
 .proposal-app [hidden] { display: none !important; }
 .proposal-app :is(h1, h2, h3, p, figure, dl, dd) { margin: 0; }
 .proposal-app :is(h1, h2, h3) { line-height: 1.2; font-weight: 700; letter-spacing: 0; }
-.proposal-app :is(button, input) { font: inherit; letter-spacing: 0; }
+.proposal-app :is(button, input) { font-family: inherit; letter-spacing: 0; }
 .proposal-app button { cursor: pointer; }
 .proposal-app button:disabled { cursor: wait; opacity: 0.65; }
 .proposal-app a { color: var(--proposal-blue); text-underline-offset: 4px; }

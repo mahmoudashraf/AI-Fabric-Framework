@@ -1,3 +1,5 @@
+import { renderPresentation } from './presentation.js';
+
 (() => {
   'use strict';
 
@@ -13,7 +15,10 @@
   const submit = find('submit');
   const navigation = find('navigation');
   const sections = find('sections');
+  const presentation = find('presentation');
+  const documentView = find('document-view');
   const downloadButton = find('download');
+  const downloadFeedback = find('download-feedback');
   const panel = find('contact-panel');
   const bookingUrl = 'https://calendly.com/mahmoud-elgammal-loomai/loomai-integration-customer-success';
   let endpoint = null;
@@ -112,6 +117,17 @@
     sectionObserver?.disconnect();
     sectionObserver = null;
     sections.replaceChildren();
+    if (!documentView.contains(sections)) documentView.querySelector('article').prepend(sections);
+    if (presentation.contains(downloadButton)) {
+      documentView.querySelector('.proposal-document-header__bottom').append(downloadButton);
+      documentView.querySelector('.proposal-document-header').append(downloadFeedback);
+    }
+    presentation.replaceChildren();
+    presentation.hidden = true;
+    documentView.hidden = false;
+    find('prepared-for').textContent = '';
+    find('prepared-for').hidden = true;
+    app.classList.remove('proposal-app--visual');
     navigation.replaceChildren();
     find('title').textContent = '';
     find('subtitle').textContent = '';
@@ -247,6 +263,22 @@
     addNavigation('proposal-public-demo', 'LoomAI in action', index++);
     addNavigation('proposal-next-conversation', 'Talk with Mo', index);
     downloadButton.hidden = content.downloadAvailable !== true;
+    if (content.presentation?.layout === 'buying-workspace-v1') {
+      renderPresentation(presentation, content.presentation, {
+        openContact,
+        appendDocument: (target) => {
+          target.append(sections);
+          if (content.downloadAvailable === true) {
+            target.append(downloadButton, downloadFeedback);
+          }
+        },
+      });
+      presentation.hidden = false;
+      documentView.hidden = true;
+      app.classList.add('proposal-app--visual');
+      find('prepared-for').textContent = `Prepared for ${content.recipient}`;
+      find('prepared-for').hidden = false;
+    }
     find('session-actions').hidden = false;
     find('contact-trigger').hidden = false;
     setView('viewer');
@@ -268,7 +300,7 @@
     for (const link of links) link.addEventListener('click', () => markCurrent(link.getAttribute('href').slice(1)));
     if (focus) {
       window.scrollTo({ top: 0, behavior: 'instant' });
-      find('title').focus({ preventScroll: true });
+      (presentation.hidden ? find('title') : presentation.querySelector('h1')).focus({ preventScroll: true });
     }
   }
 
