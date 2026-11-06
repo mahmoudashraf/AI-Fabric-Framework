@@ -36,7 +36,7 @@ test('direct content/download need authorization and never cache', async t=>{
 })
 test('new visual assets remain generic and retain the strict proposal CSP', async t=>{
   const {base}=await fixture(t)
-  for(const [name,type] of [['presentation.js','javascript'],['presentation.css','text/css']]) {
+  for(const [name,type] of [['presentation.js','javascript'],['presentation.css','text/css'],['integration.css','text/css']]) {
     const response=await fetch(`${new URL(base).origin}/proposals/assets/${name}`)
     assert.equal(response.status,200)
     assert.ok(response.headers.get('content-type').includes(type))

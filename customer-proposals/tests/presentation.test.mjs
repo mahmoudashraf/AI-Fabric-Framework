@@ -11,7 +11,7 @@ test('visual media stays on the existing same-origin asset boundary', () => {
 });
 
 test('public visual template contains no recipient or invitation content', () => {
-  for (const name of ['index.html', 'client.js', 'presentation.js', 'presentation.css']) {
+  for (const name of ['index.html', 'client.js', 'presentation.js', 'presentation.css', 'integration.css']) {
     const source = readFileSync(new URL(`../../Platfrom/loomai-site/deploy/container/proposal-ui/${name}`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /Paul Rigby|paulrigbygroup|EakBVN|gatewayKey|sbp_|github_pat_/);
   }

@@ -109,6 +109,45 @@ function websiteScene(data, expand) {
   return site;
 }
 
+function integrationProcess(data) {
+  const p = data.integrationProcess;
+  const stepHeading = (number, title, owner) => node('div', 'pi-heading', node('span', 'pi-number', number), node('h3', '', title), owner ? node('span', 'pi-owner', icon('monitor'), owner) : null);
+  const role = (text, ours = false) => node('span', `pi-role ${ours ? 'pi-role--loomai' : ''}`, icon(ours ? 'plug' : 'user-round'), text);
+  const section = node('section', 'pv-integration-process');
+  section.id = 'proposal-integration-journey';
+  section.setAttribute('aria-labelledby', 'proposal-integration-journey-title');
+  const heading = sectionHeading(p.title, p.subtitle);
+  heading.querySelector('h2').id = 'proposal-integration-journey-title';
+  section.append(node('span', 'pi-eyebrow', p.eyebrow), heading);
+
+  const documents = node('div', 'pi-documents', p.documents.labels.map((label, index) => node('div', 'pi-document', node('div', 'pi-document-page', icon('file-text'), node('strong', index === 1 ? 'pi-file-type pi-file-type--word' : 'pi-file-type', index === 1 ? 'W' : 'PDF')), node('span', '', label))));
+  const upload = node('div', 'pi-upload', windowTop(p.documents.consoleTitle), icon('cloud-upload'), node('span', 'pi-upload-label', p.documents.uploadLabel), node('div', 'pi-upload-file', icon('file-text'), node('i'), icon('circle-check')), node('div', 'pi-upload-file', icon('file-text'), node('i'), icon('circle-check')));
+  const bucket = node('div', 'pi-storage', node('span', 'pi-aws', 'AWS S3'), icon('database'), node('strong', '', p.documents.storageTitle), node('span', '', p.documents.storageOwner));
+  const docs = node('div', 'pi-source pi-source--documents', stepHeading('1', p.documents.title), node('div', 'pi-roles', role(p.documents.customerRole), role(p.documents.loomaiRole, true)), node('div', 'pi-document-flow', documents, icon('arrow-right'), upload, icon('arrow-right'), bucket), node('strong', 'pi-note', p.documents.reassurance), node('p', 'pi-note', p.documents.indexing), node('p', 'pi-optional', p.documents.optional));
+
+  const alternatives = node('div', 'pi-alternatives', node('div', '', icon('plug'), p.inventory.sources[0]), node('span', 'pi-or', p.inventory.orLabel), node('div', '', icon('car-front'), p.inventory.sources[1]));
+  const sync = node('div', 'pi-sync', icon('refresh-cw'), node('strong', '', p.inventory.syncLabel), node('p', '', p.inventory.syncNote));
+  const stock = node('div', 'pi-stock', data.vehicles.map(vehicle => photo(vehicle.image, '')));
+  const inventory = node('div', 'pi-source pi-source--inventory', stepHeading('2', p.inventory.title), node('div', 'pi-roles', role(p.inventory.customerRole), role(p.inventory.loomaiRole, true)), node('div', 'pi-inventory-flow', alternatives, icon('arrow-right'), sync, stock), node('p', 'pi-optional', p.inventory.qualification));
+
+  const brain = node('div', 'pi-brain', stepHeading('3', p.brain.title, p.owner), node('div', 'pi-brain-mark', icon('brain-circuit'), node('strong', '', p.brain.label)), node('ul', 'pi-brain-capabilities', p.brain.capabilities.map((label, index) => node('li', '', icon(['book-open', 'search', 'shield-check'][index]), label))), node('p', 'pi-brain-note', p.brain.note));
+
+  const channels = node('div', 'pi-channels', stepHeading('4', p.channels.title, p.owner));
+  const webMiniature = node('div', 'pi-channel-screen pi-channel-screen--website', node('strong', '', data.brand), photo(data.vehicles[0].image, ''), node('div', 'pi-mini-composer', icon('message-square'), data.composer, icon('send')));
+  const expandedMiniature = node('div', 'pi-channel-screen pi-channel-screen--expanded', node('strong', '', data.brand), vehicleTiles(data, true), node('div', 'pi-mini-options', data.compareLabel, node('i'), data.deliveryLabel));
+  const appMiniature = node('div', 'pi-channel-screen pi-channel-screen--app', node('div', 'pi-mini-address', icon('lock'), data.standalone.address), node('strong', '', data.brand), photo(data.vehicles[0].image, ''), node('div', 'pi-mini-composer', data.composer, icon('send')));
+  for (const [index, miniature] of [webMiniature, expandedMiniature, appMiniature].entries()) {
+    const label = node('div', 'pi-channel-label', icon(['monitor', 'message-square', 'smartphone'][index]), node('strong', '', p.channels.labels[index]));
+    if (index === 2) label.append(node('span', 'pi-channel-domain', data.standalone.address), node('small', '', data.standalone.status));
+    channels.append(node('div', 'pi-channel', miniature, label));
+  }
+  channels.append(node('div', 'pi-desk', icon('headset'), photo(data.agentImage, ''), node('strong', '', p.channels.desk)));
+
+  const review = node('div', 'pi-review', node('h3', '', icon('circle-check'), p.review.title), node('ul', '', p.review.checks.map((label, index) => node('li', '', icon(['search', 'message-square', 'rocket'][index]), label))));
+  section.append(node('div', 'pi-grid', node('div', 'pi-inputs', docs, inventory), brain, channels), review, node('p', 'pi-reassurance', p.reassurance));
+  return section;
+}
+
 export function renderPresentation(root, data, { openContact, appendDocument }) {
   const d = data;
   const intro = node('header', 'pv-intro');
@@ -183,5 +222,5 @@ export function renderPresentation(root, data, { openContact, appendDocument }) 
   const detailsBody = node('div', 'pv-full-details-body');
   appendDocument(detailsBody);
   details.append(detailsBody);
-  root.replaceChildren(intro, video, scenes, standalone, journey, integration, outcomes, offer, details);
+  root.replaceChildren(intro, video, scenes, standalone, journey, ...(!d.integrationProcess ? [integration] : []), outcomes, ...(d.integrationProcess ? [integrationProcess(d)] : []), offer, details);
 }

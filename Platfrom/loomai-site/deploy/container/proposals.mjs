@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
 const cookieToken = /^[A-Za-z0-9_-]{32,128}$/
-const assets = new Map([['client.js','text/javascript; charset=utf-8'],['presentation.js','text/javascript; charset=utf-8'],['styles.css','text/css; charset=utf-8'],['presentation.css','text/css; charset=utf-8']])
+const assets = new Map([['client.js','text/javascript; charset=utf-8'],['presentation.js','text/javascript; charset=utf-8'],['styles.css','text/css; charset=utf-8'],['presentation.css','text/css; charset=utf-8'],['integration.css','text/css; charset=utf-8']])
 const protectedHeaders = {
   'Cache-Control': 'private, no-store',
   'Referrer-Policy': 'no-referrer',
