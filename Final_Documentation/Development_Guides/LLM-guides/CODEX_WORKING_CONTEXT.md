@@ -12865,3 +12865,24 @@ test is being called hosted acceptance. UI extraction remains last.
   or customer deployment changed. Existing homepage remains available. Private
   HTTP/browser evidence is under customer-proposals/.private/. The local design
   document CUSTOMER_PROPOSAL_CODE_ACCESS_DESIGN.md now records implementation.
+
+## 2026-11-06 Visual Customer Proposal Replacement
+
+- Owner-approved visual page replaces the document-first view on the same
+  protected proposal URL. Company attribution is LoomAI Labs, presented by Mo.
+  Video-first layout, website widget and expanded workspace, distinct branded
+  standalone app with proposed address/working preview, integration diagram,
+  business outcomes and three-month pilot offer. Original full scope and Word
+  download remain expandable. Illustrations submit no real enquiry; the actual
+  introduction recording is still to be supplied by the owner.
+- Source e0477eb4e2c10efae8ccdf03ec06b3236db19ac2 pushed Platform-V11;
+  site-only CI42227703771 PASS. Production auu1biwmo3c9957ok0l5dnej finished;
+  native OCI matches and healthy. Existing invitation/expiry and approved Word
+  unchanged; presentation-only Supabase update backed up and compare-checked.
+  All recipient copy remains private JSON, no static customer bundle or code.
+-17 focused tests, Astro check/build and content/static smoke PASS.16 production
+  HTTP checks PASS incl identical Word hash, anonymous denial and revocation.
+  Actual live UI controls, standalone preview, protected Word download, booking
+  panel, wrong code, lock/reopen, desktop/390/320 no-overflow and Escape dismissal
+  PASS. Private screenshots/proof under customer-proposals/.private/. No booking
+  or recipient message sent. No Platform/runtime/framework/deployment changes.
