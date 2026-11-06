@@ -113,7 +113,7 @@ class SupportFixture {
     settings = new SupportSettings(env, deployments, targets);
     requesters =
         new SupportRequesterService(
-            users, links, new PlatformCustomerAccessService(users, customers));
+            users, links, new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)));
     resources =
         new SupportResourceService(
             deployments, releases, apps, consumers, readiness, connections, plans, runs, documents);

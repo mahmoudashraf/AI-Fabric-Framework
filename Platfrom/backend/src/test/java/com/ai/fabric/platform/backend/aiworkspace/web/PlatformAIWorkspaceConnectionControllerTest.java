@@ -49,7 +49,7 @@ class PlatformAIWorkspaceConnectionControllerTest {
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
     @ParameterizedTest
-    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN"})
+    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_OPERATOR"})
     void authorizedRolesReceiveTheExistingConsumerSummaryWithOptionalRelease(PlatformRole role) throws Exception {
         authenticate(role);
         var result = new PlatformConsumerSummary("engage-server-id", "customer", "Engage app", null, "ACTIVE",
@@ -109,7 +109,7 @@ class PlatformAIWorkspaceConnectionControllerTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_OPERATOR"}, mode = EnumSource.Mode.EXCLUDE)
     void previewCapabilitiesRejectsOtherRoles(PlatformRole role) {
         authenticate(role);
         assertThatThrownBy(() -> mvc.perform(get(PATH + "/engage-server-id/preview-capabilities")))
@@ -127,7 +127,7 @@ class PlatformAIWorkspaceConnectionControllerTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = PlatformRole.class, names = {"CUSTOMER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_OPERATOR"}, mode = EnumSource.Mode.EXCLUDE)
     void otherRolesCannotEnterTheComposition(PlatformRole role) {
         authenticate(role);
         assertThatThrownBy(() -> mvc.perform(post(PATH).contentType("application/json").content(PAYLOAD)))

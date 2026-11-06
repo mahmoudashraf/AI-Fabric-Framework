@@ -58,7 +58,7 @@ class DeploymentHumanReviewServiceTest {
     private final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
     private final PlatformUserRepository users = mock(PlatformUserRepository.class);
     private final PlatformCustomerRepository customers = mock(PlatformCustomerRepository.class);
-    private final PlatformCustomerAccessService customerAccess = new PlatformCustomerAccessService(users, customers);
+    private final PlatformCustomerAccessService customerAccess = new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class));
     private final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final HttpClient http = mock(HttpClient.class);

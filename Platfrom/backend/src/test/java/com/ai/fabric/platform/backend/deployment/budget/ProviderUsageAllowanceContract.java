@@ -108,7 +108,7 @@ abstract class ProviderUsageAllowanceContract {
 
     ProviderUsageAllowanceService instance(Instant time) {
         return new ProviderUsageAllowanceService(source, new DataSourceTransactionManager(source), mapper, deployments, targets, versions,
-            customers, new PlatformCustomerAccessService(users, customers), deploymentAccess, secrets, Clock.fixed(time, ZoneOffset.UTC));
+            customers, new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)), deploymentAccess, secrets, Clock.fixed(time, ZoneOffset.UTC));
     }
 
     ProviderUsageGrant grant() { return new ProviderUsageGrant("grant", "campaign", "customer", "target", "staging",

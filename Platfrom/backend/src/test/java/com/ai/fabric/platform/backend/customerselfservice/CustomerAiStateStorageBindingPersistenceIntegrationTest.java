@@ -109,6 +109,7 @@ import static org.mockito.Mockito.*;
     CustomerSelfServiceAuthorizationService.class, CustomerReviewedCompositionService.class,
     CustomerWorkspaceProfileValidator.class, CustomerOfferCodec.class, DeploymentAiStateStorageBindingService.class,
     PlatformSecretService.class, PlatformAuditService.class, PlatformCustomerAccessService.class,
+    com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class,
     DeploymentAccessService.class, DeploymentTargetMutationService.class, DeploymentDocumentBindingResolver.class,
     ManagedDependencyArtifactPolicy.class,
     DeploymentSourceCapabilityManifestService.class, ExternalIntegrationPolicy.class, ExternalIntegrationEndpointPolicy.class,
@@ -202,8 +203,8 @@ class CustomerAiStateStorageBindingPersistenceIntegrationTest {
     @Test
     void getOpensARealWritableTransactionAndReadsTheCommittedRetainedBinding() {
         assertThat(jdbc.queryForObject("select version()", String.class)).startsWith("PostgreSQL");
-        assertThat(jdbc.queryForObject("select version from flyway_schema_history where success order by installed_rank desc limit 1", String.class))
-            .isEqualTo("213");
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history where success and version='213'", Integer.class))
+            .isEqualTo(1);
         assertThat(AopUtils.isAopProxy(service)).isTrue();
         var result = service.bind(offerId, deploymentId, request("bind-and-get", PASSWORD));
         assertCommittedBinding(result, "bind-and-get");

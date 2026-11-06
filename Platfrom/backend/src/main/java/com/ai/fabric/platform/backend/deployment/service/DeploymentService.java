@@ -2246,6 +2246,10 @@ public class DeploymentService {
             return;
         }
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal != null && principal.role() == PlatformRole.PLATFORM_OPERATOR && StringUtils.hasText(customerId)) {
+            deploymentAccessService.requireStaffCustomerAccess(customerId.trim());
+            return;
+        }
         if (principal != null
             && principal.role() != PlatformRole.PLATFORM_ADMIN
             && principal.role() != PlatformRole.CUSTOMER_ADMIN) {

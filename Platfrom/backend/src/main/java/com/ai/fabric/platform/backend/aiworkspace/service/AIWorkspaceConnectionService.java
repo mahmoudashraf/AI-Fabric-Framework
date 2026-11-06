@@ -60,7 +60,7 @@ public class AIWorkspaceConnectionService {
     }
 
     @Transactional
-    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public PlatformConsumerSummary create(String customerId, CreateAIWorkspaceConnectionRequest request) {
         validate(customerId, request);
         String consumerId = "engage-" + UUID.nameUUIDFromBytes(
@@ -90,7 +90,7 @@ public class AIWorkspaceConnectionService {
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public PreviewCapabilities previewCapabilities(String customerId, String consumerId) {
         if (invalidText(customerId, 64) || invalidText(consumerId, 128)) {
             throw new ResponseStatusException(BAD_REQUEST, "An exact customer and consumer are required.");

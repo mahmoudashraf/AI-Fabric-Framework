@@ -650,6 +650,12 @@ export function CustomersPage() {
                                 <Chip size="small" label={`${customer.tenantCount} tenant(s)`} variant="outlined" />
                                 <Chip size="small" label={`${customer.deploymentCount} ${customer.deploymentCount === 1 ? deploymentTerm.lowercase : deploymentTerm.pluralLowercase}`} variant="outlined" />
                                 <Chip size="small" label={`${customer.consumerCount} consumer(s)`} variant="outlined" />
+                                {auth.session?.authenticated && auth.session.role === 'PLATFORM_ADMIN' && <Button
+                                  component={RouterLink}
+                                  to={`/customers/${encodeURIComponent(customer.id)}/kits`}
+                                  variant="outlined"
+                                  startIcon={<AddRoundedIcon />}
+                                >Set up kit</Button>}
                                 {!customer.platformManaged ? (
                                   <Button
                                     variant="outlined"

@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 
@@ -21,11 +22,14 @@ public class PlatformCustomerAccessService {
 
     private final PlatformUserRepository platformUserRepository;
     private final PlatformCustomerRepository platformCustomerRepository;
+    private final CustomerStaffAccessPolicy staffAccess;
 
     public PlatformCustomerAccessService(PlatformUserRepository platformUserRepository,
-                                         PlatformCustomerRepository platformCustomerRepository) {
+                                         PlatformCustomerRepository platformCustomerRepository,
+                                         CustomerStaffAccessPolicy staffAccess) {
         this.platformUserRepository = platformUserRepository;
         this.platformCustomerRepository = platformCustomerRepository;
+        this.staffAccess = staffAccess;
     }
 
     public boolean canManageCustomers() {
@@ -76,6 +80,11 @@ public class PlatformCustomerAccessService {
     }
 
     public List<PlatformCustomerEntity> filterVisibleCustomers(List<PlatformCustomerEntity> customers) {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal != null && principal.role() == PlatformRole.PLATFORM_OPERATOR) {
+            var ids = staffAccess.visibleCustomerIds(principal);
+            return customers.stream().filter(customer -> ids.contains(customer.getId())).toList();
+        }
         CustomerScopeSummary scope = currentScope();
         if (scope == null) {
             return customers;
@@ -93,9 +102,25 @@ public class PlatformCustomerAccessService {
         requireCustomerScope(customerId, "Deployment access is restricted to the authenticated customer boundary.");
     }
 
+    public Optional<Boolean> staffCustomerAccessDecision(String customerId) {
+        return staffAccess.decision(customerId, PlatformSecurityContext.currentPrincipal());
+    }
+
+    public void requireStaffCustomerAccess(String customerId) {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN) return;
+        if (!staffCustomerAccessDecision(customerId).orElse(false)) {
+            throw new ResponseStatusException(FORBIDDEN, "Active customer-granted staff access is required.");
+        }
+    }
+
     private void requireCustomerScope(String customerId, String message) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN) {
+            return;
+        }
+        if (principal.role() == PlatformRole.PLATFORM_OPERATOR) {
+            requireStaffCustomerAccess(customerId);
             return;
         }
         if (principal.role() != PlatformRole.CUSTOMER_ADMIN) {

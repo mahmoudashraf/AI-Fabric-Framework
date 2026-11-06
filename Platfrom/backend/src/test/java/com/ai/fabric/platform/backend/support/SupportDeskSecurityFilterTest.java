@@ -372,7 +372,7 @@ class SupportDeskSecurityFilterTest {
           verifier,
           f.links,
           f.users,
-          new PlatformCustomerAccessService(f.users, f.customers),
+          new PlatformCustomerAccessService(f.users, f.customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)),
           mock(PlatformAuditService.class));
     }
 

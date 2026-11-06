@@ -64,7 +64,7 @@ class CustomerOfferEntitlementServiceTest {
             CustomerEntitlementCommandEntity command = call.getArgument(0);
             receipts.put(command.getEntitlementId() + ":" + command.getOperationKey(), command); return command;
         });
-        service = new CustomerOfferEntitlementService(offers, entitlements, commands, new PlatformCustomerAccessService(users, customers),
+        service = new CustomerOfferEntitlementService(offers, entitlements, commands, new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)),
             customers, users, codec, composition, placement, profiles, audit);
         CustomerOfferTestFixtures.authenticate("admin-key", PlatformRole.PLATFORM_ADMIN, "API_KEY");
     }
@@ -94,6 +94,34 @@ class CustomerOfferEntitlementServiceTest {
         verify(entitlements, never()).saveAndFlush(any());
         CustomerOfferTestFixtures.authenticate("admin-key", PlatformRole.PLATFORM_ADMIN, "API_KEY");
         assertCode(ACTIVE_CUSTOMER_SCOPE_REQUIRED, () -> service.enrollPublicTemplates(List.of("offer")));
+    }
+
+    @Test void staffPreparesPublicTemplatesForRealCustomerWithoutChangingPrincipalOrExistingGrants() {
+        when(users.findByCustomerIdAndRoleIgnoreCaseAndStatusIgnoreCase("customer", "CUSTOMER_ADMIN", "ACTIVE"))
+            .thenReturn(List.of(owner));
+        service.enrollPublicTemplatesForCustomer("customer", List.of("offer"));
+        assertThat(saved.getCustomerId()).isEqualTo("customer");
+        assertThat(saved.getOwnerUserId()).isEqualTo("owner");
+        assertThat(saved.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
+        assertThat(receipts.values()).allSatisfy(receipt -> assertThat(receipt.getActorId()).isEqualTo("admin-key"));
+        saved.setStatus(EntitlementStatus.REVOKED);
+        service.enrollPublicTemplatesForCustomer("customer", List.of("offer"));
+        assertThat(saved.getStatus()).isEqualTo(EntitlementStatus.REVOKED);
+        verify(entitlements, times(1)).saveAndFlush(any());
+    }
+
+    @Test void assistedSetupRequiresRealCustomerAdministratorInsteadOfCreatingTemporaryIdentity() {
+        assertThatThrownBy(() -> service.enrollPublicTemplatesForCustomer("customer", List.of("offer")))
+            .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+                error -> assertThat(error.getReason()).contains("real email"));
+        verifyNoInteractions(offers, entitlements, commands);
+        verify(users, never()).save(any());
+    }
+
+    @Test void customerCannotPrepareTemplatesForAnotherCustomerThroughStaffMethod() {
+        CustomerOfferTestFixtures.authenticate(owner.getEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+        assertCode(OPERATION_FORBIDDEN, () -> service.enrollPublicTemplatesForCustomer("customer", List.of("offer")));
+        verifyNoInteractions(offers, entitlements, commands);
     }
 
     @Test void newOfferCannotPublishRetiredInboxPermissionsOrBindingDefaults() throws Exception {

@@ -3,6 +3,7 @@ import { Alert, Box, Button, Divider, Stack, Typography } from '@mui/material'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { UsersPage } from './UsersPage'
+import { CustomerStaffAccessPanel } from '../components/customer/CustomerStaffAccessPanel'
 
 export function CustomerAccountPage() {
   const { session, supabaseSession } = usePlatformAuth()
@@ -19,6 +20,8 @@ export function CustomerAccountPage() {
       ].map(([label,value]) => <Box key={label}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" sx={{ m: 0, mt: 0.5, overflowWrap: 'anywhere' }}>{value}</Typography></Box>)}
     </Box>
     {supabaseSession && <Box><Button variant="outlined" href="/auth/recovery">Change password</Button></Box>}
+    <Divider />
+    <CustomerStaffAccessPanel />
     <Divider />
     {session.canManageUserDirectory ? <UsersPage embedded /> : <Alert severity="info">Team administration is not enabled for this account. Your own sign-in and {deploymentTerm.lowercase} access are unchanged.</Alert>}
   </Stack>

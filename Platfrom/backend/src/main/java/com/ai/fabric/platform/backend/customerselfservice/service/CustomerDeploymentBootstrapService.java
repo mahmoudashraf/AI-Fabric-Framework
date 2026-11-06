@@ -66,16 +66,33 @@ public class CustomerDeploymentBootstrapService {
 
     @Transactional
     public Result bootstrap(String offerId, Request request) {
+        validateRequest(request);
+        var actor = entitlements.requireCustomerActor();
+        return bootstrap(actor.customerId(), actor.userId(), offerId, request);
+    }
+
+    @Transactional
+    public Result bootstrapForCustomer(String customerId, String offerId, Request request) {
+        validateRequest(request);
+        entitlements.requireStaffCustomerAccess(customerId);
+        entitlements.requireActiveCustomer(customerId);
+        return bootstrap(customerId, null, offerId, request);
+    }
+
+    private void validateRequest(Request request) {
         if (request == null || request.targetProfileId() == null || request.targetProfileId().isBlank()
             || request.targetProfileId().length() > 64 || request.name() == null || request.name().isBlank()
             || !request.name().equals(request.name().trim()) || request.name().length() > 255
             || request.expectedEntitlementRevision() < 0) throw invalid();
+    }
+
+    private Result bootstrap(String customerId, String ownerUserId, String offerId, Request request) {
         entitlements.requireOperationKey(request.operationKey());
-        var actor = entitlements.requireCustomerActor();
-        var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
+        var grant = entitlements.requireEntitlement(customerId, offerId, ownerUserId, true);
         String actorId = PlatformSecurityContext.currentPrincipal().actorId();
         String fingerprint = codec.hash(Map.of("command", COMMAND, "offerId", offerId,
-            "request", request, "customerId", actor.customerId(), "ownerId", actor.userId(), "actor", actorId));
+            "request", request, "customerId", customerId,
+            "ownerId", ownerUserId == null ? grant.getOwnerUserId() : ownerUserId, "actor", actorId));
         var previous = commands.findByEntitlementIdAndOperationKey(grant.getId(), request.operationKey()).orElse(null);
         if (previous != null) {
             if (!COMMAND.equals(previous.getCommandType()) || !fingerprint.equals(previous.getRequestFingerprint())
@@ -91,7 +108,7 @@ public class CustomerDeploymentBootstrapService {
             } catch (RuntimeException error) { throw invalid(); }
             changedSettings.put(Setting.AI_STATE_STORAGE_MODE, TextNode.valueOf(request.aiStateStorageMode()));
         }
-        var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
+        var approved = authorization.authorize(customerId, new AuthorizationRequest(offerId,
             request.targetProfileId(), null, null, null, Operation.BOOTSTRAP_CONFIGURATION,
             request.operationKey(), changedSettings.keySet(), null, null, null));
         authorization.validateSettings(approved, new SettingsPatch(changedSettings));
@@ -105,9 +122,10 @@ public class CustomerDeploymentBootstrapService {
             throw conflict(REVIEWED_COMPOSITION_CHANGED);
         }
         var created = templates.bootstrapConfiguration(pin.pluginId(), new CreateMarketplaceTemplateBootstrapRequest(
-            version.getVersion(), request.name(), "staging", definition.templateId(), null, null, null));
+            version.getVersion(), request.name(), "staging", definition.templateId(), null,
+            ownerUserId == null ? customerId : null, null));
         var deployment = deployments.findById(created.id()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
-        if (!actor.customerId().equals(deployment.getCustomerId()) || !"DRAFT".equals(deployment.getStatus())
+        if (!customerId.equals(deployment.getCustomerId()) || !"DRAFT".equals(deployment.getStatus())
             || !"staging".equals(deployment.getEnvironmentName()) || deployment.getActiveVersionId() != null) {
             throw deny(RESOURCE_SCOPE_MISMATCH);
         }
@@ -132,7 +150,7 @@ public class CustomerDeploymentBootstrapService {
         commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), grant.getId(),
             request.operationKey(), fingerprint, COMMAND, actorId, codec.write(result), Instant.now()));
         audit.record("CUSTOMER_OFFER_CONFIGURATION_BOOTSTRAPPED", "DEPLOYMENT", deployment.getId(),
-            Map.of("offerId", offerId, "customerId", actor.customerId(), "targetProfileId", request.targetProfileId(),
+            Map.of("offerId", offerId, "customerId", customerId, "targetProfileId", request.targetProfileId(),
                 "operationKey", request.operationKey(), "creationStatus", result.creationStatus()));
         return result;
     }

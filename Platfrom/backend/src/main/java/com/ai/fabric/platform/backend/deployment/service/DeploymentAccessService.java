@@ -47,6 +47,14 @@ public class DeploymentAccessService {
             return List.of();
         }
 
+        if (principal.role() == PlatformRole.PLATFORM_OPERATOR) {
+            return deployments.stream().filter(deployment -> {
+                var grant = platformCustomerAccessService.staffCustomerAccessDecision(deployment.getCustomerId());
+                if (grant.isPresent()) return grant.get();
+                return legacyAssignment(principal, deployment) != null;
+            }).toList();
+        }
+
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
             Set<String> allowedDeploymentIds = publicApiDeploymentRepository.findByClientId(principal.actorId())
                 .stream()
@@ -114,6 +122,12 @@ public class DeploymentAccessService {
             throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
         }
 
+        var staffGrant = platformCustomerAccessService.staffCustomerAccessDecision(deployment.getCustomerId());
+        if (staffGrant.isPresent()) {
+            if (!staffGrant.get()) throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
+            return deployment;
+        }
+
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
             boolean clientOwnsDeployment = publicApiDeploymentRepository
                 .findByClientIdAndDeploymentId(principal.actorId(), deployment.getId())
@@ -157,6 +171,14 @@ public class DeploymentAccessService {
         return currentUserId(PlatformSecurityContext.currentPrincipal());
     }
 
+    public void requireStaffCustomerAccess(String customerId) {
+        platformCustomerAccessService.requireStaffCustomerAccess(customerId);
+    }
+
+    public boolean hasStaffCustomerAccessRecord(String customerId) {
+        return platformCustomerAccessService.staffCustomerAccessDecision(customerId).isPresent();
+    }
+
     public DeploymentWorkspaceAccessSummary summarizeAccess(DeploymentEntity deployment) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         String globalRole = globalPlatformDeploymentRole(principal);
@@ -171,6 +193,13 @@ public class DeploymentAccessService {
         }
         if (principal == null) {
             return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+        }
+
+        var staffGrant = platformCustomerAccessService.staffCustomerAccessDecision(deployment.getCustomerId());
+        if (staffGrant.isPresent()) {
+            return staffGrant.get()
+                ? new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true)
+                : new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
         }
 
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
@@ -237,6 +266,11 @@ public class DeploymentAccessService {
         }
         PlatformUserEntity user = PlatformUserRepository.findForPrincipal(platformUserRepository, principal).orElse(null);
         return user == null ? null : user.getId();
+    }
+
+    private DeploymentAssignmentEntity legacyAssignment(PlatformPrincipal principal, DeploymentEntity deployment) {
+        String userId = currentUserId(principal);
+        return userId == null ? null : deploymentAssignmentRepository.findByUserIdAndDeploymentId(userId, deployment.getId()).orElse(null);
     }
 
     private int assignmentRoleRank(String assignmentRole) {

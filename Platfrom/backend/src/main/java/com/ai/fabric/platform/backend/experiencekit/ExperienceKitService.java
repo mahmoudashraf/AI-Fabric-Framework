@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerStagingConsumerConfigurationContracts;
 import com.ai.fabric.platform.backend.customerselfservice.service.*;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
@@ -69,7 +70,16 @@ public class ExperienceKitService {
     @Transactional(readOnly=true)
     public List<CatalogueEntry> customerCatalogue() {
         access.requireCustomerActor();
-        var offers = catalogue.catalogue();
+        return catalogue(catalogue.catalogue());
+    }
+
+    @Transactional(readOnly=true)
+    public List<CatalogueEntry> customerCatalogueForStaff(String customerId) {
+        requireStaffCustomer(customerId);
+        return catalogue(catalogue.catalogueForCustomer(customerId));
+    }
+
+    private List<CatalogueEntry> catalogue(List<OfferSummary> offers) {
         return definitions.findAllByOrderBySortOrderAsc().stream()
             .map(d -> new CatalogueEntry(definition(d), offers.stream().filter(o -> matches(d,o)).toList(),
                 ticketProviders(definition(d).experiencePackCode()))).toList();
@@ -78,7 +88,17 @@ public class ExperienceKitService {
     @Transactional(readOnly=true)
     public List<Summary> list() {
         var actor=access.requireCustomerActor();
-        return kits.findByCustomerIdOrderByCreatedAtDesc(actor.customerId()).stream().map(this::summary).toList();
+        return list(actor.customerId());
+    }
+
+    @Transactional(readOnly=true)
+    public List<Summary> listForStaff(String customerId) {
+        requireStaffCustomer(customerId);
+        return list(customerId);
+    }
+
+    private List<Summary> list(String customerId) {
+        return kits.findByCustomerIdOrderByCreatedAtDesc(customerId).stream().map(this::summary).toList();
     }
 
     @Transactional(readOnly=true)
@@ -87,20 +107,36 @@ public class ExperienceKitService {
         return summary(kits.findByCustomerIdAndId(actor.customerId(),id).orElseThrow(this::notFound));
     }
 
+    @Transactional(readOnly=true)
+    public Summary getForStaff(String customerId, String id) {
+        requireStaffCustomer(customerId);
+        return summary(kits.findByCustomerIdAndId(customerId,id).orElseThrow(this::notFound));
+    }
+
     @Transactional
     public Summary create(CreateRequest request) {
         var actor=access.requireCustomerActor();
+        return create(actor.customerId(), actor.userId(), request, false);
+    }
+
+    @Transactional
+    public Summary createForStaff(String customerId, CreateRequest request) {
+        requireStaffCustomer(customerId);
+        return create(customerId, "staff:"+PlatformSecurityContext.currentPrincipal().actorId(), request, true);
+    }
+
+    private Summary create(String customerId, String actorId, CreateRequest request, boolean assisted) {
         // Serialize configuration-only creation per owner boundary, including duplicate concurrent requests.
-        var customer=entityManager.find(PlatformCustomerEntity.class,actor.customerId(),LockModeType.PESSIMISTIC_WRITE);
+        var customer=entityManager.find(PlatformCustomerEntity.class,customerId,LockModeType.PESSIMISTIC_WRITE);
         if(customer==null || !"ACTIVE".equals(customer.getStatus())) throw notFound();
-        String fingerprint=codec.hash(Map.of("request",request,"ownerUserId",actor.userId()));
-        var previous=kits.findByCustomerIdAndOperationKey(actor.customerId(),request.operationKey()).orElse(null);
+        String fingerprint=codec.hash(Map.of("request",request,"ownerUserId",actorId));
+        var previous=kits.findByCustomerIdAndOperationKey(customerId,request.operationKey()).orElse(null);
         if(previous!=null) {
             if(!fingerprint.equals(previous.getRequestFingerprint())) throw conflict("This operation key belongs to another kit setup.");
             return summary(previous);
         }
         var definition=definitions.findById(request.kitCode()).orElseThrow(this::notFound);
-        var offer=catalogue.offer(request.offerId());
+        var offer=assisted ? catalogue.offerForCustomer(customerId,request.offerId()) : catalogue.offer(request.offerId());
         if(!matches(definition,offer)) throw badRequest("Select a template belonging to this experience.");
         if(offer.targets().stream().noneMatch(t->request.targetProfileId().equals(t.id()) && t.intent()==TargetIntent.CUSTOMER_STAGING))
             throw badRequest("Start this kit on one of its available customer-staging targets.");
@@ -111,23 +147,27 @@ public class ExperienceKitService {
             throw badRequest("The workspace profile does not match this kit.");
         validateTicketing(d.experiencePackCode(),request.ticketingEnabled(),request.ticketProvider());
         String id="kit-"+UUID.randomUUID();
-        var created=bootstrap.bootstrap(request.offerId(),new CustomerDeploymentBootstrapContracts.Request(
-            request.targetProfileId(),request.name().trim(),offer.entitlement().revision(),id,request.aiStateStorageMode()));
-        var consumer=consumers.createConsumer(actor.customerId(),new CreatePlatformConsumerRequest(
+        var bootstrapRequest=new CustomerDeploymentBootstrapContracts.Request(
+            request.targetProfileId(),request.name().trim(),offer.entitlement().revision(),id,request.aiStateStorageMode());
+        var created=assisted ? bootstrap.bootstrapForCustomer(customerId,request.offerId(),bootstrapRequest)
+            : bootstrap.bootstrap(request.offerId(),bootstrapRequest);
+        var consumer=consumers.createConsumer(customerId,new CreatePlatformConsumerRequest(
             id,request.workspaceName().trim(),"AI experience kit configuration",null,null));
-        stagingConsumers.configure(request.offerId(),created.deploymentId(),new CustomerStagingConsumerConfigurationContracts.Request(
-            consumer.consumerId(),consumer.bindingRevision(),request.targetProfileId(),id+"-bind",List.of()));
+        var bindingRequest=new CustomerStagingConsumerConfigurationContracts.Request(
+            consumer.consumerId(),consumer.bindingRevision(),request.targetProfileId(),id+"-bind",List.of());
+        if(assisted) stagingConsumers.configureForCustomer(customerId,request.offerId(),created.deploymentId(),bindingRequest);
+        else stagingConsumers.configure(request.offerId(),created.deploymentId(),bindingRequest);
         String mode=primaryMode(request.deliveryMode());
         String slug="embedded".equals(mode)?null:slug(request.appSlug(),id);
         var input=profileRequest(consumer.consumerId(),profile,request.workspaceName(),request.brandColor(),
             mode,slug,request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled());
-        var app=workspaces.create(actor.customerId(),input,id+"-app");
+        var app=workspaces.create(customerId,input,id+"-app");
         AIWorkspaceInstallationSummary embedded=null;
-        if("both".equals(request.deliveryMode())) embedded=workspaces.create(actor.customerId(),
+        if("both".equals(request.deliveryMode())) embedded=workspaces.create(customerId,
             profileRequest(consumer.consumerId(),profile,request.workspaceName(),request.brandColor(),
                 "embedded",null,request.websiteOrigin(),request.humanSupportEnabled(),request.ticketingEnabled()),id+"-embed");
         var now=Instant.now(); var kit=new CustomerExperienceKitEntity();
-        kit.setId(id); kit.setCustomerId(actor.customerId()); kit.setKitCode(d.code()); kit.setKitVersion(d.version());
+        kit.setId(id); kit.setCustomerId(customerId); kit.setKitCode(d.code()); kit.setKitVersion(d.version());
         kit.setName(request.name().trim()); kit.setDeploymentId(created.deploymentId()); kit.setConsumerId(consumer.consumerId());
         kit.setInstallationEntityId(app.id()); kit.setEmbeddedInstallationEntityId(embedded==null?null:embedded.id());
         kit.setDeliveryMode(request.deliveryMode()); kit.setOfferId(request.offerId()); kit.setTargetProfileId(request.targetProfileId());
@@ -137,14 +177,25 @@ public class ExperienceKitService {
         kits.saveAndFlush(kit);
         audit.record("CUSTOMER_EXPERIENCE_KIT_CREATED","EXPERIENCE_KIT",id,Map.of(
             "kitCode",d.code(),"deploymentId",created.deploymentId(),"consumerId",consumer.consumerId(),
-            "installationId",app.installationId(),"deliveryMode",request.deliveryMode(),"creationStatus","CONFIGURATION_ONLY"));
+            "installationId",app.installationId(),"deliveryMode",request.deliveryMode(),"creationStatus","CONFIGURATION_ONLY",
+            "customerId",customerId,"assisted",assisted));
         return summary(kit);
     }
 
     @Transactional
     public Summary update(String id,UpdateRequest request) {
         var actor=access.requireCustomerActor();
-        var kit=kits.findOwnedForUpdate(actor.customerId(),id).orElseThrow(this::notFound);
+        return update(actor.customerId(),id,request);
+    }
+
+    @Transactional
+    public Summary updateForStaff(String customerId,String id,UpdateRequest request) {
+        requireStaffCustomer(customerId);
+        return update(customerId,id,request);
+    }
+
+    private Summary update(String customerId,String id,UpdateRequest request) {
+        var kit=kits.findOwnedForUpdate(customerId,id).orElseThrow(this::notFound);
         if(kit.getRevision()!=request.expectedRevision()) throw conflict("This experience changed. Reload before saving.");
         var current=workspace(kit.getCustomerId(),kit.getInstallationEntityId());
         if(current==null) throw conflict("The linked Engage draft was removed. Open Engage apps to review its configuration.");
@@ -182,6 +233,11 @@ public class ExperienceKitService {
         }
         saveMetadata(kit,request);
         return summary(kit);
+    }
+
+    private void requireStaffCustomer(String customerId) {
+        access.requireStaffCustomerAccess(customerId);
+        access.requireActiveCustomer(customerId);
     }
 
     private void saveMetadata(CustomerExperienceKitEntity kit,UpdateRequest request) {

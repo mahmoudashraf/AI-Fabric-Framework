@@ -12951,3 +12951,52 @@ test is being called hosted acceptance. UI extraction remains last.
   no-overflow, four lead stages visible, pending video has no iframe, no browser
   warnings. Ignored .private/autotrader/lead-focus-* proof. No external message,
   booking, actual video playback or AutoTrader API request was submitted.
+
+## 2026-11-06 Simple Staff Assisted Customer Kit Setup
+
+- Approved only the simplified item1 workflow from01063, not AI behaviour,
+  suggestions, public research or dealership optimization. Source implemented:
+  staff Customers -> Set up kit -> shared customer-owned Kit/Brain/Engage setup;
+  explicit customer-scoped backend wrappers reuse normal bootstrap, staging
+  consumer binding and app creation. Actual staff principal retained in audit,
+  no impersonation/ownership transfer/email rename/new role model or schema.
+- Give customer access prepares real-email CUSTOMER_ADMIN using existing user
+  service with undisclosed random password, or reuses active samecustomer user.
+  Foreign/staff/disabled/revoked/conflicting links rejected. Manual signup(ifnew)
+  -> existing verified email recovery -> sign-in; no new invitation/email send,
+  provider identity, secret sharing or automatic same-email JWT attachment.
+- Final16backend suites338PASS/0FAIL/0SKIP, including PostgreSQL, ownership/audit,
+  staging binding and existing recovery regressions. UI9unit+19browser scenarios
+  PASS, desktop/mobile screenshots inspected; TypeScript/production build PASS.
+  BrowserAPI and recovery provider exchanges are local fixtures, not live proof.
+- Source NOT committed/pushed/deployed. No hosted account/resource, actual email,
+  model/framework/runtime image or deployment changed. Execution and guide:
+  010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md and
+  Final_Documentation/External_User_Guides/LOOMAI_ASSISTED_CUSTOMER_KIT_SETUP_GUIDE.md.
+
+## 2026-11-06 Customer-Controlled Staff Collaboration
+
+- Owner requested reverse access: Account & team -> LoomAI staff access grants/
+  revokes existing active PLATFORM_OPERATOR email for own workspace products.
+  New V235 relationship table in existing Platform Postgres; no new service/DB,
+  role promotion, impersonation, invitation engine or ownership transfer.
+- Staff own session -> Customer workspaces -> existing Kit/Brain/Engage editors.
+  Active grant authorizes scoped product management and existing permitted
+  release operations. Actual staff audit identity retained. Customer-account/
+  user-directory/global-secret/admin endpoints are not delegated.
+- Live authorization check per request; retained REVOKED entry overrides that
+  operator's prior deployment assignments. No global staff logout or rollback
+  of saved configuration/running work. Independent legacy assignments with no
+  grant history retain prior scope; global admin/machine authority is separate.
+- 593 backend checks/27suites PASS in final reports (17-storage-suite targeted
+  rerun after replacing stale latest-migration213 assertion with prerequisite
+  verification). Actual localPostgres/cookie API grant->access->revoke denial->
+  regrant proof, plus operator bootstrap/replay/ownership regression.
+- 37UI unit/auth/API +31browser scenarios PASS, desktop/mobile inspected;
+  TypeScript/build PASS. Browser test caught shared API cancellation gap while
+  credentials awaited: platformApi now checks abort before/after credentials;
+  cancelled grant cannot dispatch with next customer's token. Local fixtures,
+  not hosted verification. No framework/prompt/runtime/model change.
+- Source NOT committed/pushed/deployed. Existing 01063 execution record/guide
+  updated. Hosted backend migration +Console rollout +realcustomer/staff proof
+  remain before calling this live. Other01063 AI optimization items unimplemented.

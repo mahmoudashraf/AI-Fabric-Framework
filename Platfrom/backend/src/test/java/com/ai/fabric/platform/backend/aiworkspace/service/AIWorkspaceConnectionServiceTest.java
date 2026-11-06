@@ -129,7 +129,7 @@ class AIWorkspaceConnectionServiceTest {
         workspaceGuard = mock(AIWorkspaceBindingGuard.class);
         var mapper = new ObjectMapper().findAndRegisterModules();
         var codec = new CustomerOfferCodec(mapper);
-        var access = new PlatformCustomerAccessService(users, customers);
+        var access = new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class));
         var audit = mock(PlatformAuditService.class);
         var entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
             access, customers, users, codec, composition, placement, profiles, audit);
@@ -347,11 +347,12 @@ class AIWorkspaceConnectionServiceTest {
     }
 
     @Test
-    void platformAdminCanCreateButCustomerApiKeysAndOperatorsCannot() {
+    void platformAdminCanCreateButCustomerApiKeysAndUnscopedOperatorKeysCannot() {
         authenticate(PlatformRole.CUSTOMER_ADMIN, owner.getEmail(), "API_KEY");
         assertThatThrownBy(() -> service.create("customer", request(null))).isInstanceOf(CustomerSelfServiceException.class);
         authenticate(PlatformRole.PLATFORM_OPERATOR, "operator-key", "API_KEY");
-        assertThatThrownBy(() -> service.create("customer", request(null))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(() -> service.create("customer", request(null))).isInstanceOfSatisfying(ResponseStatusException.class,
+            error -> assertThat(error.getStatusCode().value()).isEqualTo(403));
         assertEmpty();
         authenticate(PlatformRole.PLATFORM_ADMIN, "admin-key", "API_KEY");
         assertThat(service.create("customer", request(null)).boundTargetProfileId()).isEqualTo("target");

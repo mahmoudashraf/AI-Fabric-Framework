@@ -46,6 +46,7 @@ public class PlatformCustomerTenantController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public List<PlatformCustomerSummary> listCustomers() {
         return platformCustomerTenantService.listCustomers();
     }
@@ -77,11 +78,13 @@ public class PlatformCustomerTenantController {
     }
 
     @GetMapping("/{customerId}/consumers")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public List<PlatformConsumerSummary> listConsumers(@PathVariable String customerId) {
         return platformCustomerConsumerService.listConsumers(customerId);
     }
 
     @PostMapping("/{customerId}/consumers")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public PlatformConsumerSummary createConsumer(@PathVariable String customerId,
                                                   @Valid @RequestBody CreatePlatformConsumerRequest request) {
@@ -89,6 +92,7 @@ public class PlatformCustomerTenantController {
     }
 
     @PutMapping("/{customerId}/consumers/{consumerId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public PlatformConsumerSummary updateConsumer(@PathVariable String customerId,
                                                   @PathVariable String consumerId,
                                                   @Valid @RequestBody UpdatePlatformConsumerRequest request) {
@@ -96,6 +100,7 @@ public class PlatformCustomerTenantController {
     }
 
     @PutMapping("/{customerId}/consumers/{consumerId}/binding")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public PlatformConsumerSummary updateConsumerBinding(@PathVariable String customerId,
                                                          @PathVariable String consumerId,
                                                          @RequestBody UpdatePlatformConsumerBindingRequest request) {
@@ -109,6 +114,7 @@ public class PlatformCustomerTenantController {
     }
 
     @GetMapping("/{customerId}/consumers/{consumerId}/history")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public List<PlatformConsumerBindingHistorySummary> listConsumerBindingHistory(@PathVariable String customerId,
                                                                                   @PathVariable String consumerId) {
         return platformCustomerConsumerService.listBindingHistory(customerId, consumerId);

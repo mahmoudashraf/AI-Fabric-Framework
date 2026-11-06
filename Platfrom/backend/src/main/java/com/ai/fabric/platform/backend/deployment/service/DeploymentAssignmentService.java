@@ -133,6 +133,12 @@ public class DeploymentAssignmentService {
         if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN) {
             return;
         }
+        // A workspace grant must never leave a permanent creator assignment after revocation.
+        if (principal.role() == PlatformRole.PLATFORM_OPERATOR
+            && deploymentAccessService.hasStaffCustomerAccessRecord(deployment.getCustomerId())) {
+            deploymentAccessService.requireStaffCustomerAccess(deployment.getCustomerId());
+            return;
+        }
 
         PlatformUserEntity user = PlatformUserRepository.findForPrincipal(platformUserRepository, principal).orElse(null);
         if (user == null) {

@@ -9,37 +9,63 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentTerm } from '../../deploymentTerminology'
 import { Link, useNavigate } from 'react-router-dom'
 import { enrollPublicCustomerTemplates, type AiStateStorageMode, type CustomerOfferSummary } from '../../api/platformApi'
-import { createExperienceKit, experienceKitKeys, fetchExperienceKitCatalogue, type CreateExperienceKitRequest, type ExperienceKitCatalogueEntry } from '../../api/experienceKitsApi'
+import { createExperienceKit, experienceKitKeys, fetchExperienceKitCatalogue, type CreateExperienceKitRequest, type ExperienceKitCatalogueEntry, type ExperienceKitSummary } from '../../api/experienceKitsApi'
 import { aiStateStorageLabels, aiStateStorageModes } from '../customer/customerAiStateStorage'
 import { KitExperienceFields } from './KitExperienceFields'
 import { KitMark, KitProductLine } from './KitIdentity'
 import { KitWorkspacePreview } from './KitWorkspacePreview'
 import { kitAppAddressPreview, kitDeliveryMode, kitExperienceErrors, kitStagingTargets, type KitExperienceForm } from './kitModels'
 
-export function ExperienceKitSetup({ customerId, actorId, code }: { customerId: string; actorId: string; code: string }) {
+export type ExperienceKitSetupTransport = {
+  prepare: () => Promise<unknown>
+  fetchCatalogue: (signal?: AbortSignal) => Promise<ExperienceKitCatalogueEntry[]>
+  create: (body: CreateExperienceKitRequest) => Promise<ExperienceKitSummary>
+  queryScope: readonly string[]
+}
+
+type SetupProps = {
+  customerId: string; actorId: string; code: string; transport?: ExperienceKitSetupTransport; basePath?: string; preparationRevision?: number
+}
+
+export function ExperienceKitSetup(props: SetupProps) {
+  return <PreparedKitSetup key={JSON.stringify([props.customerId, props.actorId, props.code, props.basePath, props.transport?.queryScope])} {...props} />
+}
+
+function PreparedKitSetup({ customerId, actorId, code, transport, basePath = '/kits', preparationRevision = 0 }: SetupProps) {
   const [prepared, setPrepared] = useState(false)
   const [prepareError, setPrepareError] = useState<Error | null>(null)
   const [attempt, setAttempt] = useState(0)
   const enrollment = useRef<Promise<unknown> | null>(null)
+  const accessRevision = useRef(preparationRevision)
   const queryClient = useQueryClient()
   useEffect(() => {
     let current = true
-    if (!enrollment.current) enrollment.current = enrollPublicCustomerTemplates()
+    if (accessRevision.current !== preparationRevision) {
+      accessRevision.current = preparationRevision
+      enrollment.current = null
+      setPrepareError(null)
+    }
+    if (transport) {
+      if (!enrollment.current) enrollment.current = transport.prepare()
+    } else {
+      if (!enrollment.current) enrollment.current = enrollPublicCustomerTemplates()
+    }
     enrollment.current.then(async () => {
       if (!current) return
-      await queryClient.invalidateQueries({ queryKey: experienceKitKeys.catalogue(customerId) })
+      await queryClient.invalidateQueries({ queryKey: transport ? [...transport.queryScope, 'catalogue'] : experienceKitKeys.catalogue(customerId) })
       if (current) setPrepared(true)
     }).catch(error => { if (current) setPrepareError(error instanceof Error ? error : new Error('Template access could not be prepared.')) })
     return () => { current = false }
-  }, [customerId, code, attempt, queryClient])
-  const catalogue = useQuery({ queryKey: experienceKitKeys.catalogue(customerId), queryFn: ({ signal }) => fetchExperienceKitCatalogue(signal), retry: false, enabled: prepared })
+  }, [customerId, code, attempt, queryClient, transport, preparationRevision])
+  const catalogue = useQuery({ queryKey: transport ? [...transport.queryScope, 'catalogue'] : experienceKitKeys.catalogue(customerId),
+    queryFn: ({ signal }) => transport ? transport.fetchCatalogue(signal) : fetchExperienceKitCatalogue(signal), retry: false, enabled: prepared })
   const entry = catalogue.data?.find(item => item.definition.code === code)
-  if (prepareError) return <Alert severity="error" action={<Button onClick={() => { enrollment.current = null; setPrepareError(null); setAttempt(value => value + 1) }}>Retry</Button>}>{prepareError.message}<Button component={Link} to="/support">Request integration help</Button></Alert>
+  if (prepareError) return <Alert severity="error" action={<Button onClick={() => { enrollment.current = null; setPrepareError(null); setAttempt(value => value + 1) }}>Retry</Button>}>{prepareError.message}<Button component={Link} to={transport ? basePath : '/support'}>{transport ? 'Back to customer kits' : 'Request integration help'}</Button></Alert>
   if (!prepared) return <div className="ek-query-state" role="status"><CircularProgress size={24} />Preparing your selected kit...</div>
   if (catalogue.isPending) return <div className="ek-query-state" role="status"><CircularProgress size={24} />Loading kit setup...</div>
   if (catalogue.isError) return <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Kit setup could not be loaded.'}</Alert>
-  if (!entry) return <Alert severity="info" action={<Button component={Link} to="/support">Get setup help</Button>}>This experience is not available for your account yet. Nothing has been created.</Alert>
-  return <KitSetupForm key={`${code}:${entry.definition.version}`} customerId={customerId} actorId={actorId} entry={entry} />
+  if (!entry) return <Alert severity="info" action={<Button component={Link} to={transport ? basePath : '/support'}>{transport ? 'Back to customer kits' : 'Get setup help'}</Button>}>This experience is not available for this account yet. Nothing has been created.</Alert>
+  return <KitSetupForm key={`${code}:${entry.definition.version}`} customerId={customerId} actorId={actorId} entry={entry} transport={transport} basePath={basePath} />
 }
 
 function initialOffer(offers: CustomerOfferSummary[]) {
@@ -51,7 +77,9 @@ function storageChoices(offer?: CustomerOfferSummary) {
   catch (error) { return { modes: null, error: error instanceof Error ? error.message : 'AI-state storage choices could not be loaded.' } }
 }
 
-function KitSetupForm({ customerId, actorId, entry }: { customerId: string; actorId: string; entry: ExperienceKitCatalogueEntry }) {
+function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
+  customerId: string; actorId: string; entry: ExperienceKitCatalogueEntry; transport?: ExperienceKitSetupTransport; basePath: string
+}) {
   const { definition, offers } = entry
   const supportExperience = definition.code === 'ai-support-experience'
   const navigate = useNavigate()
@@ -77,10 +105,10 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
   const [previewLayout, setPreviewLayout] = useState<'standalone' | 'embedded'>('standalone')
   const [error, setError] = useState<string | null>(null)
   const operation = useRef<{ signature: string; key: string } | null>(null)
-  const operationStorageKey = `loomai:kit-create:${customerId}:${actorId}:${definition.code}`
+  const operationStorageKey = `${transport ? 'loomai:staff-kit-create' : 'loomai:kit-create'}:${customerId}:${actorId}:${definition.code}`
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  const create = useMutation({ mutationFn: createExperienceKit })
+  const create = useMutation({ mutationFn: transport?.create ?? createExperienceKit })
   const { modes, error: storageError } = storageChoices(offer)
   const targets = kitStagingTargets(offer)
   const workspaceProfile = offer?.workspaceProfiles.find(profile => profile.id === workspaceProfileId)
@@ -136,18 +164,18 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
       if (!mounted.current) return
       try { sessionStorage.removeItem(operationStorageKey) } catch { /* No kit data is persisted in browser storage. */ }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: experienceKitKeys.customer(customerId) }),
+        queryClient.invalidateQueries({ queryKey: transport?.queryScope ?? experienceKitKeys.customer(customerId) }),
         queryClient.invalidateQueries({ queryKey: ['customer-deployment-portfolio', customerId] }),
         queryClient.invalidateQueries({ queryKey: ['ai-workspace-installations', customerId] }),
       ])
-      if (mounted.current) navigate(`/kits/${encodeURIComponent(kit.id)}`)
+      if (mounted.current) navigate(`${basePath}/${encodeURIComponent(kit.id)}`)
     } catch (failure) {
       if (mounted.current) setError(failure instanceof Error ? failure.message : 'The kit could not be created. Retry to check the same operation.')
     }
   }
   const dealership = definition.code === 'dealership-ai-experience'
   return <form className="ek-setup" noValidate onSubmit={event => void submit(event)}>
-    <Button component={Link} to="/kits" startIcon={<ArrowBackRounded />} className="ek-back">Back to experiences</Button>
+    <Button component={Link} to={basePath} startIcon={<ArrowBackRounded />} className="ek-back">{transport ? 'Back to customer kits' : 'Back to experiences'}</Button>
     <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1>{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} support={form.humanSupportEnabled} /></div><span className="ek-badge">Not live yet</span></div>
     <ol className="ek-setup-steps" aria-label="Kit setup progress">{['Choose your starting point', 'Make it yours', 'Review your setup'].map((label, index) => <li key={label} data-step-state={index === step ? 'current' : index < step ? 'done' : 'next'}>
       <button type="button" disabled={index > step || create.isPending} onClick={() => { setStep(index); setError(null) }} aria-current={index === step ? 'step' : undefined}>
@@ -210,8 +238,8 @@ function KitSetupForm({ customerId, actorId, entry }: { customerId: string; acto
           </>}
         <div className="ek-setup-actions">{step > 0 && <Button type="button" onClick={() => { setStep(value => value - 1); setError(null) }} disabled={create.isPending} startIcon={<ArrowBackRounded />}>Back</Button>}
           <Button type="submit" variant="contained" className="ek-primary-button" disabled={create.isPending || (step === 0 && !offers.length)} endIcon={create.isPending ? <CircularProgress size={16} color="inherit" /> : <ArrowForwardRounded />}>
-            {create.isPending ? 'Creating workspace...' : step === 2 ? 'Create my workspace' : 'Continue setup'}</Button></div>
-        <Link className="ek-help-link" to="/support">Get setup help <ArrowForwardRounded /></Link>
+            {create.isPending ? 'Creating workspace...' : step === 2 ? transport ? 'Create customer workspace' : 'Create my workspace' : 'Continue setup'}</Button></div>
+        {!transport && <Link className="ek-help-link" to="/support">Get setup help <ArrowForwardRounded /></Link>}
       </aside>
     </div>
   </form>

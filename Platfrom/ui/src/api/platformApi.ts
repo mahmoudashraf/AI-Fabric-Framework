@@ -4624,8 +4624,11 @@ export function clearStoredPlatformApiKey() {
 }
 
 async function request<T>(path: string, init?: RequestInit, policy: 'default' | 'local' | 'none' = 'default'): Promise<T> {
+  init?.signal?.throwIfAborted()
   const apiKey = getStoredPlatformApiKey()
   const credential = await platformCredentials(path, apiKey, policy)
+  // Account switches may cancel a command while its credentials are resolving.
+  init?.signal?.throwIfAborted()
   const baseHeaders: HeadersInit = {
     'Content-Type': 'application/json',
     ...credential.headers,

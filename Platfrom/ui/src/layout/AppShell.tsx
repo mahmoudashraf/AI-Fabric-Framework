@@ -68,6 +68,7 @@ const navItems = [
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
+  { label: 'Customer workspaces', path: '/customer-workspaces', icon: <ApartmentRoundedIcon />, staffOperatorOnly: true },
   { label: 'AI Workspaces', customerLabel: 'My Engage Apps', path: '/ai-workspaces', icon: <WidgetsRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'Document Knowledge', customerLabel: 'Knowledge', path: '/document-knowledge', icon: <DescriptionRoundedIcon />, documentKnowledgeOnly: true },
@@ -123,6 +124,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
     && workspace.unresolvedRequestedDeploymentId != null
   const customerWorkspace = session?.role === 'CUSTOMER_ADMIN'
   const visibleNavItems = navItems.filter((item) => {
+    if (item.staffOperatorOnly) return session?.authenticated === true && session.role === 'PLATFORM_OPERATOR'
     if (customerWorkspace && !customerNavigation.includes(item.path)) return false
     if (item.monitoringAdminOnly) return session?.authenticated === true && session.role === 'PLATFORM_ADMIN' && !session.customerId
     if (item.behaviorOperationsOnly) {
@@ -147,6 +149,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
       return session?.enabled ? session.canManageUsers : true
     }
     if (item.customerManagement) {
+      if (item.path === '/ai-workspaces' && session?.role === 'PLATFORM_OPERATOR') return true
       return customerWorkspace || (session?.enabled ? session.canManageCustomers : true)
     }
     if (item.userDirectory) {

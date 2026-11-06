@@ -60,22 +60,37 @@ public class CustomerOfferEntitlementService {
     @Transactional
     public void enrollPublicTemplates(List<String> publicOfferIds) {
         var actor = requireCustomerActor();
+        enrollPublicTemplates(actor.customerId(), actor.userId(), publicOfferIds);
+    }
+
+    @Transactional
+    public void enrollPublicTemplatesForCustomer(String customerId, List<String> publicOfferIds) {
+        requireStaffCustomerAccess(customerId);
+        requireActiveCustomer(customerId);
+        var owner = users.findByCustomerIdAndRoleIgnoreCaseAndStatusIgnoreCase(customerId, "CUSTOMER_ADMIN", "ACTIVE")
+            .stream().min(java.util.Comparator.comparing(PlatformUserEntity::getId))
+            .orElseThrow(() -> new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "Add a customer administrator with their real email before setting up a kit."));
+        enrollPublicTemplates(customerId, owner.getId(), publicOfferIds);
+    }
+
+    private void enrollPublicTemplates(String customerId, String ownerUserId, List<String> publicOfferIds) {
         // Only operator-selected public bootstrap offers may be self-enrolled; never accept an offer ID from the caller.
         for (String offerId : publicOfferIds.stream().distinct().sorted().toList()) {
             var offer = offers.findByIdForUpdate(offerId).orElseThrow(() -> deny(ENTITLEMENT_REQUIRED));
-            if (entitlements.findForUpdate(actor.customerId(), offerId).isPresent()) continue;
+            if (entitlements.findForUpdate(customerId, offerId).isPresent()) continue;
             composition.validate(definition(offer));
             var now = Instant.now();
             var entity = new CustomerOfferEntitlementEntity();
-            entity.setId("cse-" + UUID.randomUUID()); entity.setCustomerId(actor.customerId());
-            entity.setOwnerUserId(actor.userId()); entity.setOfferId(offerId);
+            entity.setId("cse-" + UUID.randomUUID()); entity.setCustomerId(customerId);
+            entity.setOwnerUserId(ownerUserId); entity.setOfferId(offerId);
             entity.setInvitationReference("PUBLIC_SELF_SERVICE"); entity.setStatus(EntitlementStatus.ACTIVE);
             entity.setRevision(1); entity.setCreatedAt(now); entity.setUpdatedAt(now);
             // Public bootstrap access is not a timed trial. Existing explicit revocation still applies.
             entity.setExpiresAt(Instant.parse("9999-12-31T23:59:59Z"));
             entitlements.saveAndFlush(entity);
             record(entity, "ENROLL", "enroll-" + UUID.randomUUID(), codec.hash(Map.of("offerId", offerId)),
-                "Customer selected a publicly available bootstrap template.");
+                "Publicly available bootstrap template enabled for the customer workspace.");
         }
     }
 
@@ -210,6 +225,12 @@ public class CustomerOfferEntitlementService {
         var principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() != PlatformRole.PLATFORM_ADMIN) throw deny(STAFF_ADMIN_REQUIRED);
         requireActiveStaff(principal);
+    }
+
+    public void requireStaffCustomerAccess(String customerId) {
+        requireActiveStaff(PlatformSecurityContext.currentPrincipal());
+        customerAccess.requireStaffCustomerAccess(customerId);
+        requireActiveCustomer(customerId);
     }
 
     public void requireActiveStaff(PlatformPrincipal principal) {

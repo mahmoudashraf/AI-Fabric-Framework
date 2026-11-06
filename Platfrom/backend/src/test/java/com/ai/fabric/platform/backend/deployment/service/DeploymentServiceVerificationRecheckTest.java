@@ -83,7 +83,7 @@ class DeploymentServiceVerificationRecheckTest {
         var users = mock(PlatformUserRepository.class);
         var customers = mock(PlatformCustomerRepository.class);
         var access = new DeploymentAccessService(mock(DeploymentAssignmentRepository.class),
-            mock(PublicApiDeploymentRepository.class), users, new PlatformCustomerAccessService(users, customers));
+            mock(PublicApiDeploymentRepository.class), users, new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)));
         var owner = new PlatformUserEntity();
         owner.setCustomerId("customer-1");
         owner.setRole("CUSTOMER_ADMIN");

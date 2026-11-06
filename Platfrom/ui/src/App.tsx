@@ -13,6 +13,7 @@ import { kitSetupCode, productStartPath } from './auth/customerAuthReturn'
 import { PublicProductsPage } from './pages/PublicProductsPage'
 import { ExperienceKitsPublicPage } from './pages/ExperienceKitsPublicPage'
 import { ExperienceKitsPage } from './pages/ExperienceKitsPage'
+import { StaffCustomerWorkspacesPage, StaffExperienceKitsPage } from './pages/StaffExperienceKitsPage'
 import { CustomerOnboardingPage, CustomerProductStartPage, CustomerSignInPage } from './pages/CustomerOnboardingPage'
 import { AppShell } from './layout/AppShell'
 import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
@@ -187,12 +188,18 @@ export default function App() {
               <Route path="/overview" element={<OverviewPage />} />
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/actions" element={<ActionsPage />} />
-              <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
+              <Route path="/ai-workspaces" element={<AIWorkspacesPage key={location.search}
+                initialCustomerId={new URLSearchParams(location.search).get('customerId') ?? undefined}
+                initialInstallationId={new URLSearchParams(location.search).get('installationId') ?? undefined} />} />
               <Route path="/behavior" element={<BehaviorPage />} />
               <Route path="/behavior-operations" element={<BehaviorOperationsPage />} />
               <Route path="/human-review" element={<HumanReviewPage />} />
               <Route path="/approvals" element={<ApprovalsPage />} />
               <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/customer-workspaces" element={<StaffCustomerWorkspacesPage />} />
+              <Route path="/customers/:customerId/kits" element={<StaffExperienceKitsPage />} />
+              <Route path="/customers/:customerId/kits/new/:code" element={<StaffExperienceKitsPage />} />
+              <Route path="/customers/:customerId/kits/:id" element={<StaffExperienceKitsPage />} />
               <Route path="/access" element={<AccessPage />} />
               <Route path="/knowledge" element={<KnowledgePage />} />
               <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />

@@ -193,7 +193,7 @@ public class CustomerSelfServiceAuthorizationService {
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
             if (!entitlements.requireCustomerActor().customerId().equals(consumer.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
-        } else entitlements.requireStaffAdmin();
+        } else entitlements.requireStaffCustomerAccess(consumer.getCustomerId());
         entitlements.requireActiveCustomer(consumer.getCustomerId());
         if (operationKey != null) entitlements.requireOperationKey(operationKey);
         return new Authorization(new AdmissionContext(consumer.getCustomerId(), null, null, null, null, null,
@@ -211,7 +211,7 @@ public class CustomerSelfServiceAuthorizationService {
             if (!actor.customerId().equals(customerId)) throw deny(RESOURCE_SCOPE_MISMATCH);
             ownerId = actor.userId();
         } else {
-            entitlements.requireActiveStaff(principal);
+            entitlements.requireStaffCustomerAccess(customerId);
         }
         var entitlement = entitlements.requireEntitlement(customerId, request.offerId(), ownerId, true);
         var offer = entitlements.requireOffer(request.offerId());
@@ -253,8 +253,8 @@ public class CustomerSelfServiceAuthorizationService {
             && request.operation() != Operation.BOOTSTRAP_CONFIGURATION) {
             throw deny(RESOURCE_SCOPE_MISMATCH);
         } else if (principal.role() != PlatformRole.CUSTOMER_ADMIN) {
-            // An assigned operator has no authority to create a new unassigned customer's deployment.
-            entitlements.requireStaffAdmin();
+            // New configuration requires a customer-wide grant, not an assignment on a different deployment.
+            entitlements.requireStaffCustomerAccess(customerId);
         }
         if (!blank(request.tenantId())) {
             tenants.findById(request.tenantId()).filter(tenant -> customerId.equals(tenant.getCustomerId())
@@ -420,7 +420,7 @@ public class CustomerSelfServiceAuthorizationService {
             var actor = entitlements.requireCustomerActor();
             if (!context.customerId().equals(actor.customerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
             ownerId = actor.userId();
-        } else entitlements.requireStaffAdmin();
+        } else entitlements.requireStaffCustomerAccess(context.customerId());
         var offer = entitlements.requireOffer(context.offerId());
         if (!context.offerFingerprint().equals(offer.getFingerprint())
             || !authorization.definition().equals(entitlements.definition(offer))) throw conflict(REVIEWED_COMPOSITION_CHANGED);

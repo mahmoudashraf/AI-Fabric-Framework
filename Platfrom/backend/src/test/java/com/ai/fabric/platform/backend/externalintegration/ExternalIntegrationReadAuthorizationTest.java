@@ -436,7 +436,7 @@ class ExternalIntegrationReadAuthorizationTest {
                 .put("pluginId", pin.pluginId()).put("pluginVersionId", pin.versionId()).put("manifestSha256", "sha256:" + pin.manifestSha256())
                 .put("pluginType", pin.pluginId().equals(f.definition.template().pluginId()) ? "TEMPLATE" : "ACTION");
             f.version.setCompositionProvenanceJson(provenance.toString());
-            var customerAccess = new PlatformCustomerAccessService(users, customers);
+            var customerAccess = new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class));
             var entitlements = new CustomerOfferEntitlementService(offers, grants, f.commands, customerAccess, customers, users,
                 f.codec, composition, placement, f.targets, f.audit);
             var access = new DeploymentAccessService(mock(DeploymentAssignmentRepository.class), mock(PublicApiDeploymentRepository.class), users, customerAccess);

@@ -38,7 +38,7 @@ public class PlatformAIWorkspaceController {
     }
 
     @PostMapping("/customers/{customerId}/ai-workspaces/connections")
-    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public PlatformConsumerSummary createConnection(@PathVariable String customerId,
                                                      @Valid @RequestBody CreateAIWorkspaceConnectionRequest request) {
@@ -46,7 +46,7 @@ public class PlatformAIWorkspaceController {
     }
 
     @GetMapping("/customers/{customerId}/ai-workspaces/connections/{consumerId}/preview-capabilities")
-    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public AIWorkspaceConnectionService.PreviewCapabilities previewCapabilities(@PathVariable String customerId,
                                                                                @PathVariable String consumerId) {
         return connections.previewCapabilities(customerId, consumerId);

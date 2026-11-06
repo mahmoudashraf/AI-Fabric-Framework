@@ -104,6 +104,18 @@ class CustomerSelfServiceCatalogueServiceTest {
         verify(access, never()).requireOffer(anyString());
     }
 
+    @Test void staffCatalogueUsesExplicitCustomerAndExistingGrantWithoutImpersonatingOwner() {
+        var grant = grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer")).thenReturn(List.of(grant));
+        when(access.requireEntitlement("customer", "offer", null, false)).thenReturn(grant);
+
+        assertThat(catalogue.catalogueForCustomer("customer")).extracting(OfferSummary::id).containsExactly("offer");
+        verify(access).requireStaffCustomerAccess("customer");
+        verify(access).requireActiveCustomer("customer");
+        verify(access).requireEntitlement("customer", "offer", null, false);
+        verify(access, never()).requireCustomerActor();
+    }
+
     private CustomerOfferEntitlementEntity grant(String offerId, EntitlementStatus status, String owner, Instant expiresAt) {
         var entity = new CustomerOfferEntitlementEntity();
         entity.setCustomerId("customer"); entity.setOfferId(offerId); entity.setOwnerUserId(owner);

@@ -40,6 +40,11 @@ The order is a recommended allocation of work. It is not a dependency chain: the
 
 - [010.60 Server Resource Optimization and Admin Monitoring](010_60_SERVER_RESOURCE_OPTIMIZATION_AND_ADMIN_MONITORING_SOLUTION_PLAN.md): Implemented and hosted-qualified on staging and production, 2026-11-05. Qualified initial-heap and CPU-affinity changes, independent host telemetry in the existing Operations service/database, admin monitoring, and CI image builds for 21 serving apps. Telemetry is not an admission or customer-journey dependency. No framework release, new database/server or quota increase. See the [execution record](010_60_SERVER_RESOURCE_OPTIMIZATION_EXECUTION_RECORD.md) for measured limits and verification.
 
+## Customer Experience Optimization Proposals
+
+- [010.63 Assisted Customer Setup, AI Behaviour And Dealership Optimization](010_63_ASSISTED_CUSTOMER_SETUP_AI_BEHAVIOUR_AND_DEALERSHIP_OPTIMIZATION_PROPOSAL.md): The simpler customer-owned setup and customer-controlled staff grant/revoke flows are implemented and locally qualified; see the [execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md). Global administration remains separate. Voice/source/research controls, next suggestions and dealership optimization remain proposals. No hosted rollout or framework release is claimed.
+
+
 ## Completed Human In The Loop Baseline
 
 Human Review and Conversation Handover are implemented. `010.34` explicitly records H0-H7 as complete and hosted-verified. Its closure includes Basic LoomAI Inbox, participant messages, durable control, owner-bound routes, SSE replay, channel dispatch, recovery, and acknowledged return to AI.

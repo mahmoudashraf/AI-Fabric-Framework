@@ -145,6 +145,18 @@ class CustomerStagingConsumerConfigurationPostgresTest {
     private Request request(){return new Request(consumerId,2,"staging-target","configure-existing",List.of(new DraftWorkspaceExpectation(appId,0)));}
     private PlatformConsumerSummary configure(){return service.configure(offerId,depId,request());}
 
+    @Test void staffConfiguresSameCustomerResourcesWithoutSwitchingToCustomerIdentity() {
+        CustomerOfferTestFixtures.authenticate("staff-setup-key",PlatformRole.PLATFORM_ADMIN,"API_KEY");
+        var result=service.configureForCustomer(customerId,offerId,depId,request());
+        assertThat(result.customerId()).isEqualTo(customerId);
+        assertThat(result.boundDeploymentId()).isEqualTo(depId);
+        assertThat(result.boundReleaseId()).isNull();
+        assertThat(com.ai.fabric.platform.backend.security.PlatformSecurityContext.currentPrincipal().actorId())
+            .isEqualTo("staff-setup-key");
+        authenticate();
+        assertThat(genericConsumers.listConsumers(customerId)).extracting(PlatformConsumerSummary::consumerId).contains(consumerId);
+    }
+
     @Test void configurationOnlyAssignmentProjectsExactOriginsAndPreservesEveryAppField() throws Exception {
         String original=appRow();String offer=offers.findById(offerId).orElseThrow().getDefinitionJson();
         var result=configure();

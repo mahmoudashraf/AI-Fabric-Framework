@@ -34,6 +34,7 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(properties = {"spring.flyway.enabled=false", "spring.jpa.hibernate.ddl-auto=create-drop"}, showSql = false)
 @Import({CustomerOfferEntitlementService.class, PlatformCustomerAccessService.class, CustomerOfferCodec.class,
+    com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class,
     CustomerOfferEntitlementConcurrencyIntegrationTest.JsonConfiguration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class CustomerOfferEntitlementConcurrencyIntegrationTest {

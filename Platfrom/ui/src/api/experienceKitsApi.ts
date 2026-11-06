@@ -83,6 +83,29 @@ export const experienceKitKeys = {
   supportSpace: (customerId: string, installationId: string, targetProfileId: string, releaseId: string) => ['experience-kits', customerId, 'support-space', installationId, targetProfileId, releaseId] as const,
 }
 
+export const staffExperienceKitKeys = {
+  customer: (actorId: string, customerId: string) => ['staff-experience-kits', actorId, customerId] as const,
+  catalogue: (actorId: string, customerId: string) => ['staff-experience-kits', actorId, customerId, 'catalogue'] as const,
+  list: (actorId: string, customerId: string) => ['staff-experience-kits', actorId, customerId, 'list'] as const,
+  detail: (actorId: string, customerId: string, id: string) => ['staff-experience-kits', actorId, customerId, 'detail', id] as const,
+}
+
+const staffCollection = (customerId: string) => `/api/staff/customers/${encodeURIComponent(customerId)}/experience-kits`
+const staffItemPath = (customerId: string, id: string) => `${staffCollection(customerId)}/${encodeURIComponent(id)}`
+
+export const fetchStaffExperienceKitCatalogue = (customerId: string, signal?: AbortSignal) =>
+  platformRequest<ExperienceKitCatalogueEntry[]>(`${staffCollection(customerId)}/catalogue`, { signal })
+export const prepareStaffExperienceKits = (customerId: string) =>
+  platformRequest<unknown>(`${staffCollection(customerId)}/prepare`, { method: 'POST' })
+export const fetchStaffExperienceKits = (customerId: string, signal?: AbortSignal) =>
+  platformRequest<ExperienceKitSummary[]>(staffCollection(customerId), { signal })
+export const fetchStaffExperienceKit = (customerId: string, id: string, signal?: AbortSignal) =>
+  platformRequest<ExperienceKitSummary>(staffItemPath(customerId, id), { signal })
+export const createStaffExperienceKit = (customerId: string, body: CreateExperienceKitRequest) =>
+  platformRequest<ExperienceKitSummary>(staffCollection(customerId), { method: 'POST', body: JSON.stringify(body) })
+export const updateStaffExperienceKit = (customerId: string, id: string, body: UpdateExperienceKitRequest) =>
+  platformRequest<ExperienceKitSummary>(staffItemPath(customerId, id), { method: 'PUT', body: JSON.stringify(body) })
+
 export type KitSupportSpaceStatus = {
   status: 'NOT_CONFIGURED' | 'CONFIGURED'
   assignmentRevision: string

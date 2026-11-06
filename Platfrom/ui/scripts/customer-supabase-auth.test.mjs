@@ -10,7 +10,7 @@ async function load(path) {
 }
 const { isCustomerSession, isCustomerAuthenticationMode } = await load('../src/auth/customerSession.ts')
 globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'https://api.example.test' } }
-const { platformCredentials, setPlatformAccessTokenProvider } = await load('../src/api/platformApi.ts')
+const { platformCredentials, platformRequest, setPlatformAccessTokenProvider } = await load('../src/api/platformApi.ts')
 delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
@@ -66,6 +66,49 @@ test('an expired customer SDK session must not fall back to a staff credential',
   setPlatformAccessTokenProvider(async () => null)
   await assert.rejects(platformCredentials('/api/deployments', 'staff-key'), /Customer session expired/)
   setPlatformAccessTokenProvider(null)
+})
+
+test('an already-cancelled Platform command never resolves credentials or dispatches', async () => {
+  const originalFetch = globalThis.fetch
+  let credentials = 0, dispatched = 0
+  setPlatformAccessTokenProvider(async () => { credentials++; return 'customer-token' })
+  globalThis.fetch = async () => { dispatched++; throw new Error('Unexpected network dispatch') }
+  const controller = new AbortController(); controller.abort()
+  try {
+    await assert.rejects(platformRequest('/api/customer/staff-access', { method: 'POST', signal: controller.signal }), { name: 'AbortError' })
+    assert.equal(credentials, 0); assert.equal(dispatched, 0)
+  } finally { globalThis.fetch = originalFetch; setPlatformAccessTokenProvider(null) }
+})
+
+test('cancellation while credentials resolve cannot dispatch with the next customer token', async () => {
+  const originalFetch = globalThis.fetch
+  let release, started, dispatched = 0
+  const waiting = new Promise(resolve => { release = resolve })
+  const ready = new Promise(resolve => { started = resolve })
+  setPlatformAccessTokenProvider(async () => { started(); await waiting; return 'next-customer-token' })
+  globalThis.fetch = async () => { dispatched++; throw new Error('Unexpected network dispatch') }
+  const controller = new AbortController()
+  try {
+    const pending = platformRequest('/api/customer/staff-access', { method: 'POST', body: '{}', signal: controller.signal })
+    await ready; controller.abort(); release()
+    await assert.rejects(pending, { name: 'AbortError' })
+    assert.equal(dispatched, 0)
+  } finally { release(); globalThis.fetch = originalFetch; setPlatformAccessTokenProvider(null) }
+})
+
+test('an uncancelled Platform request still uses its resolved credential and completes', async () => {
+  const originalFetch = globalThis.fetch
+  const controller = new AbortController()
+  setPlatformAccessTokenProvider(async () => 'current-customer-token')
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, 'https://api.example.test/api/customer/staff-access')
+    assert.equal(init.headers.Authorization, 'Bearer current-customer-token')
+    assert.equal(init.credentials, 'omit'); assert.equal(init.signal.aborted, false)
+    return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  try {
+    assert.deepEqual(await platformRequest('/api/customer/staff-access', { signal: controller.signal }), [])
+  } finally { globalThis.fetch = originalFetch; setPlatformAccessTokenProvider(null) }
 })
 
 test('Desk authorization uses exact client, request and callback bindings and only identity scopes', () => {

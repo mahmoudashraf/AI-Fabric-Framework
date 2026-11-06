@@ -66,18 +66,30 @@ public class CustomerStagingConsumerConfigurationService {
     @Transactional
     @PreAuthorize("hasRole('CUSTOMER_ADMIN')")
     public PlatformConsumerSummary configure(String offerId, String deploymentId, Request request) {
-        if (blank(deploymentId, 64) || request == null) throw invalid();
         var actor = entitlements.requireCustomerActor();
+        return configure(actor.customerId(), offerId, deploymentId, request);
+    }
+
+    @Transactional
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public PlatformConsumerSummary configureForCustomer(String customerId, String offerId, String deploymentId, Request request) {
+        entitlements.requireStaffCustomerAccess(customerId);
+        entitlements.requireActiveCustomer(customerId);
+        return configure(customerId, offerId, deploymentId, request);
+    }
+
+    private PlatformConsumerSummary configure(String customerId, String offerId, String deploymentId, Request request) {
+        if (blank(deploymentId, 64) || request == null) throw invalid();
         // Same order as workspace configuration and existing staging activation: consumer -> D -> entitlement.
-        var consumer = consumers.findBindingForUpdate(actor.customerId(), request.consumerId())
+        var consumer = consumers.findBindingForUpdate(customerId, request.consumerId())
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         entityManager.refresh(consumer);
-        if (!actor.customerId().equals(consumer.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        if (!customerId.equals(consumer.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
         var deployment = deployments.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         entityManager.refresh(deployment);
-        if (!actor.customerId().equals(deployment.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
-        var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
+        if (!customerId.equals(deployment.getCustomerId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var approved = authorization.authorize(customerId, new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null,
             Operation.APP_CONFIGURE, request.operationKey(), Set.of(), null, null, null));
         if (approved == null || approved.context() == null || approved.context().intent() != TargetIntent.CUSTOMER_STAGING) {
@@ -85,7 +97,7 @@ public class CustomerStagingConsumerConfigurationService {
         }
         if (deploymentId.equals(consumer.getBoundDeploymentId())
             && request.targetProfileId().equals(consumer.getBoundTargetProfileId()) && consumer.getBoundReleaseId() == null) {
-            return consumerService.updateBindingForTrustedPromotion(actor.customerId(), consumer.getConsumerId(),
+            return consumerService.updateBindingForTrustedPromotion(customerId, consumer.getConsumerId(),
                 deploymentId, null, request.targetProfileId(), "Customer configured an existing unbound staging consumer.",
                 request.expectedBindingRevision(), request.operationKey());
         }
@@ -93,12 +105,12 @@ public class CustomerStagingConsumerConfigurationService {
         if (!"ACTIVE".equals(consumer.getStatus()) || consumer.getBoundDeploymentId() != null
             || consumer.getBoundReleaseId() != null || consumer.getBoundTargetProfileId() != null) throw conflict(RESOURCE_SCOPE_MISMATCH);
         requireUnusedDraft(deployment);
-        requireDraftWorkspaces(actor.customerId(), consumer, deployment, offerId,
+        requireDraftWorkspaces(customerId, consumer, deployment, offerId,
             request.targetProfileId(), request);
-        var result = consumerService.updateBindingForTrustedPromotion(actor.customerId(), consumer.getConsumerId(),
+        var result = consumerService.updateBindingForTrustedPromotion(customerId, consumer.getConsumerId(),
             deploymentId, null, request.targetProfileId(),
             "Customer configured an existing unbound staging consumer.", request.expectedBindingRevision(), request.operationKey());
-        requireResult(result, consumer.getConsumerId(), actor.customerId(), deploymentId,
+        requireResult(result, consumer.getConsumerId(), customerId, deploymentId,
             request.targetProfileId(), request.expectedBindingRevision());
         return result;
     }

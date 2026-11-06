@@ -35,17 +35,40 @@ public class CustomerSelfServiceCatalogueService {
     @Transactional(readOnly = true)
     public List<OfferSummary> catalogue() {
         var actor = access.requireCustomerActor();
+        return catalogue(actor.customerId(), actor.userId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<OfferSummary> catalogueForCustomer(String customerId) {
+        access.requireStaffCustomerAccess(customerId);
+        access.requireActiveCustomer(customerId);
+        return catalogue(customerId, null);
+    }
+
+    private List<OfferSummary> catalogue(String customerId, String ownerUserId) {
         var now = Instant.now();
-        return entitlements.findByCustomerIdOrderByCreatedAtAsc(actor.customerId()).stream()
-            .filter(entity -> entity.getStatus() == EntitlementStatus.ACTIVE && actor.userId().equals(entity.getOwnerUserId()))
+        return entitlements.findByCustomerIdOrderByCreatedAtAsc(customerId).stream()
+            .filter(entity -> entity.getStatus() == EntitlementStatus.ACTIVE
+                && (ownerUserId == null || ownerUserId.equals(entity.getOwnerUserId())))
             .filter(entity -> entity.getExpiresAt() != null && entity.getExpiresAt().isAfter(now))
-            .map(entity -> offer(entity.getOfferId())).toList();
+            .map(entity -> offer(customerId, ownerUserId, entity.getOfferId())).toList();
     }
 
     @Transactional(readOnly = true)
     public OfferSummary offer(String offerId) {
         var actor = access.requireCustomerActor();
-        var entitlement = access.requireEntitlement(actor.customerId(), offerId, actor.userId(), false);
+        return offer(actor.customerId(), actor.userId(), offerId);
+    }
+
+    @Transactional(readOnly = true)
+    public OfferSummary offerForCustomer(String customerId, String offerId) {
+        access.requireStaffCustomerAccess(customerId);
+        access.requireActiveCustomer(customerId);
+        return offer(customerId, null, offerId);
+    }
+
+    private OfferSummary offer(String customerId, String ownerUserId, String offerId) {
+        var entitlement = access.requireEntitlement(customerId, offerId, ownerUserId, false);
         var offer = access.requireOffer(offerId);
         var definition = access.definition(offer);
         List<String> blockers = new ArrayList<>();

@@ -153,6 +153,24 @@ class CustomerDeploymentBootstrapServiceTest {
         verify(audit).record(eq("CUSTOMER_OFFER_CONFIGURATION_BOOTSTRAPPED"), eq("DEPLOYMENT"), eq("deployment"), anyMap());
     }
 
+    @Test void staffBootstrapPassesExplicitCustomerToExistingFactoryAndRecordsActualStaffActor() {
+        CustomerOfferTestFixtures.authenticate("engineer", PlatformRole.PLATFORM_ADMIN, "API_KEY");
+        grant.setOwnerUserId("owner");
+        when(entitlements.requireEntitlement("customer", "offer", null, true)).thenReturn(grant);
+
+        var result = service.bootstrapForCustomer("customer", "offer", request);
+
+        assertThat(result.deploymentId()).isEqualTo("deployment");
+        verify(entitlements).requireStaffCustomerAccess("customer");
+        verify(entitlements).requireActiveCustomer("customer");
+        verify(entitlements, never()).requireCustomerActor();
+        verify(templates).bootstrapConfiguration("template-plugin", new CreateMarketplaceTemplateBootstrapRequest(
+            "1.0.0", request.name(), "staging", "reviewed-template", null, "customer", null));
+        var receipt = ArgumentCaptor.forClass(CustomerEntitlementCommandEntity.class);
+        verify(commands).saveAndFlush(receipt.capture());
+        assertThat(receipt.getValue().getActorId()).isEqualTo("engineer");
+    }
+
     @Test void exactReplayUsesTheStoredResultBeforeCheckingTheNowStaleRevision() {
         Result stored = new Result("original-deployment", "original-tenant", "offer", "original-fingerprint",
             "staging-target", 2, "CONFIGURATION_ONLY");

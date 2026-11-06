@@ -68,11 +68,13 @@ import static org.mockito.Mockito.*;
     com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy.class,
     com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationEndpointPolicy.class,
     CustomerSelfServiceAuthorizationService.class, CustomerReviewedCompositionService.class,
-    PlatformCustomerAccessService.class, DeploymentAccessService.class, CustomerOfferCodec.class,
+    PlatformCustomerAccessService.class, com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class,
+    DeploymentAccessService.class, CustomerOfferCodec.class,
     PlatformAuditService.class, CustomerDeploymentBootstrapPersistenceIntegrationTest.Configuration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class CustomerDeploymentBootstrapPersistenceIntegrationTest {
     @Autowired CustomerDeploymentBootstrapService service;
+    @Autowired DeploymentAccessService deploymentAccess;
     @Autowired CustomerReviewedCompositionService composition;
     @Autowired CustomerOfferCodec codec;
     @Autowired CustomerOfferRepository offers;
@@ -83,6 +85,7 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
     @Autowired PlatformCustomerRepository customers;
     @Autowired PlatformTenantRepository tenants;
     @Autowired PlatformUserRepository users;
+    @Autowired com.ai.fabric.platform.backend.security.repository.CustomerStaffAccessRepository staffGrants;
     @Autowired DeploymentRepository deployments;
     @Autowired DeploymentReleaseRepository releases;
     @Autowired DeploymentVersionRepository deploymentVersions;
@@ -144,6 +147,52 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
         verify(templates).bootstrapConfiguration(pluginId, new CreateMarketplaceTemplateBootstrapRequest(
             "1.0.0", "Reviewed workspace", "staging", definition.templateId(), null, null, null));
         verify(templates, never()).bootstrap(anyString(), any());
+        assertNoRuntimeRecords(result.deploymentId());
+    }
+
+    @Test void assistedBootstrapPersistsCustomerOwnershipWhileAuditAndCommandRetainRealStaffActor() {
+        CustomerOfferTestFixtures.authenticate("staff-setup", PlatformRole.PLATFORM_ADMIN, "API_KEY");
+        var result = service.bootstrapForCustomer(customerId, offerId, request("staff-setup"));
+
+        assertThat(deployments.findById(result.deploymentId()).orElseThrow().getCustomerId()).isEqualTo(customerId);
+        assertThat(associations.findById(result.deploymentId()).orElseThrow().getCustomerId()).isEqualTo(customerId);
+        assertThat(grantCommands()).singleElement().satisfies(command -> assertThat(command.getActorId()).isEqualTo("staff-setup"));
+        assertThat(auditEvents.findAll()).filteredOn(event -> result.deploymentId().equals(event.getTargetId()))
+            .isNotEmpty().allSatisfy(event -> {
+                assertThat(event.getActorId()).isEqualTo("staff-setup");
+                assertThat(event.getActorRole()).isEqualTo("PLATFORM_ADMIN");
+            });
+        verify(templates).bootstrapConfiguration(pluginId, new CreateMarketplaceTemplateBootstrapRequest(
+            "1.0.0", "Reviewed workspace", "staging", definition.templateId(), null, customerId, null));
+        authenticate();
+        assertThat(deploymentAccess.requireDeploymentAdminAccess(deployments.findById(result.deploymentId()).orElseThrow())
+            .getId()).isEqualTo(result.deploymentId());
+        assertNoRuntimeRecords(result.deploymentId());
+    }
+
+    @Test void customerGrantedOperatorCanBootstrapButRevocationBlocksEvenStoredReplay() {
+        var operator = new PlatformUserEntity();
+        operator.setId("staff-" + UUID.randomUUID()); operator.setEmail(operator.getId() + "@example.test");
+        operator.setDisplayName("Integration engineer"); operator.setRole("PLATFORM_OPERATOR");
+        operator.setStatus("ACTIVE"); operator.setPasswordHash("unused-test-hash");
+        operator.setCreatedAt(Instant.now()); operator.setUpdatedAt(Instant.now());
+        users.saveAndFlush(operator);
+        var staffGrant = new com.ai.fabric.platform.backend.security.entity.CustomerStaffAccessEntity();
+        staffGrant.setId("csa-" + UUID.randomUUID()); staffGrant.setCustomerId(customerId); staffGrant.setUserId(operator.getId());
+        staffGrant.setStatus("ACTIVE"); staffGrant.setGrantedBy(email); staffGrant.setGrantedAt(Instant.now());
+        staffGrants.saveAndFlush(staffGrant);
+        CustomerOfferTestFixtures.authenticate(operator.getEmail(), PlatformRole.PLATFORM_OPERATOR, "SESSION");
+
+        var result = service.bootstrapForCustomer(customerId, offerId, request("operator-bootstrap"));
+        assertThat(deployments.findById(result.deploymentId()).orElseThrow().getCustomerId()).isEqualTo(customerId);
+        assertThat(grantCommands()).singleElement().satisfies(command -> assertThat(command.getActorId()).isEqualTo(operator.getEmail()));
+        staffGrant.setStatus("REVOKED"); staffGrant.setRevokedBy(email); staffGrant.setRevokedAt(Instant.now());
+        staffGrants.saveAndFlush(staffGrant);
+
+        assertThatThrownBy(() -> service.bootstrapForCustomer(customerId, offerId, request("operator-bootstrap")))
+            .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+                error -> assertThat(error.getStatusCode().value()).isEqualTo(403));
+        verify(templates, times(1)).bootstrapConfiguration(eq(pluginId), any());
         assertNoRuntimeRecords(result.deploymentId());
     }
 

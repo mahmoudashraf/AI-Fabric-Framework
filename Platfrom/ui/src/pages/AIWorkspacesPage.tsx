@@ -148,8 +148,8 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId }: {
-  initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
+export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId }: {
+  initialCustomerId?: string; initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
   initialDeliveryMode?: 'embedded' | 'standalone'
   autoPreview?: boolean
   connectDeploymentId?: string; connectInstallationId?: string
@@ -159,7 +159,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId, sou
   const customerScopeLocked = auth.session?.role === 'CUSTOMER_ADMIN'
   const detailSection = useCustomerEditorSection()
   const focused = Boolean(initialInstallationId && customerScopeLocked && detailSection)
-  const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : '')
+  const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : initialCustomerId ?? '')
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(defaultForm)

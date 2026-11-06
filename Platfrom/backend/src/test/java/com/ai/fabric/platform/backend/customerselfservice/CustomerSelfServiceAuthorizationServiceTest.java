@@ -103,7 +103,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         reviewedVersion.setId("version"); reviewedVersion.setDeploymentId("deployment"); reviewedVersion.setStatus("PUBLISHED");
         reviewedVersion.setConfigHash("published-config-hash");
         when(versions.findById("version")).thenReturn(Optional.of(reviewedVersion));
-        var customerAccess = new PlatformCustomerAccessService(users, customers);
+        var customerAccess = new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class));
         entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
             customerAccess, customers, users, codec, composition, placement, profiles, mock(PlatformAuditService.class));
         var access = new DeploymentAccessService(assignments, mock(PublicApiDeploymentRepository.class), users, customerAccess);
