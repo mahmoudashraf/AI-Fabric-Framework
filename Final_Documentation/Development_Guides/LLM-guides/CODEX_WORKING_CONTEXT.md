@@ -12835,3 +12835,33 @@ test is being called hosted acceptance. UI extraction remains last.
   Evidence: verification-support/kit-launch-offers/. No customer resources,
   appointments or enquiries created. User asked Paul Rigby chat trials/proposal
   AFTER this rollout; website opened but no chat queries sent yet.
+
+## 2026-11-06 Protected Customer Proposal Live
+
+- Generic proposal feature source4361d92241e97926523b6d82a6ac33cc6b01f37e
+  pushed on Platform-V11. Site-only CI42211529977 PASS; production Coolify job
+  i3mghyb0t1azg7a98bvyhmp2 finished healthy. Native OCI revision matches. The
+  existing /health is UP but retains its older pinned commit/build-time metadata;
+  this was not used as deployment identity proof or changed as unrelated work.
+- loomai.pro/proposals/paul-rigby uses Supabase private content and protected
+  DOCX, random hashed invitation codes, expiring/revocable four-hour sessions,
+  secure HttpOnly scoped cookies and a server-only Edge gateway credential.
+  The initial invitation expires6 December2026. Raw access details are ONLY in
+  ignored customer-proposals/.private/access.private.json. No private proposal
+  content or code was pushed; no recipient email or booking was submitted.
+- Existing site Node server serves a generic access shell and safe structured
+  document renderer. No static proposal bundle, visit tracker or AI widget on
+  this route. Personal Mo panel and click-only embedded Calendly keep the page.
+  Only three proposal-specific runtime envs added; unrelated settings preserved.
+  Production proxy access logging is disabled. See customer-proposals/README.md.
+-13 focused tests PASS; real transactional database qualification PASS and
+  rolled back.12 production HTTP checks PASS incl exact content/DOCX identity,
+  direct/anonymous/RPC/CSRF denial, cross-proposal isolation and old-token denial
+  after logout. Code-entry, wrong-code, reload, phone layout, protected download,
+  lock/reopen, loaded media and calendar availability exercised in actual UI.
+  Independent review found retryable logout cleared its retry cookie; corrected
+  and regression-tested before deployment. No critical bypass found.
+- No Platform backend, runtime, framework, auth configuration, vector resource
+  or customer deployment changed. Existing homepage remains available. Private
+  HTTP/browser evidence is under customer-proposals/.private/. The local design
+  document CUSTOMER_PROPOSAL_CODE_ACCESS_DESIGN.md now records implementation.

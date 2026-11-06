@@ -91,3 +91,18 @@ builds and source control contain no customer proposal or secret.
 To disable access, withdraw the proposal or remove only the site's gateway
 configuration. Do not weaken authorization or expose static content as a recovery
 path. Public website operation, analytics and all AI deployments are independent.
+
+## Initial Hosted Qualification
+
+On 6 November 2026, source `4361d92241e97926523b6d82a6ac33cc6b01f37e`
+was built by site-only CI run `42211529977` and deployed healthy on the production
+site. Native OCI image identity was checked independently of the site's existing
+pinned health metadata. The dedicated Edge Function is ACTIVE; public browser
+roles have no schema/RPC access. Existing authentication and analytics remained
+unchanged.
+
+Thirteen focused tests, the transactional database lifecycle qualification and
+twelve production HTTP checks passed. Actual browser code entry, protected Word
+download, responsive phone layout, lock/reopen, personal contact and real calendar
+availability were checked. No recipient email, enquiry or booking was sent.
+Customer content, invitation links, downloads and screenshots remain private.
