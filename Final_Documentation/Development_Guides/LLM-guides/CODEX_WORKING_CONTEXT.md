@@ -12802,3 +12802,19 @@ test is being called hosted acceptance. UI extraction remains last.
   changed; no Platform/runtime/framework/auth/template change. Safe evidence
   verification-support/integration-contact/; tracking010.62; private receipts
   ~/.codex/private/loomai-integration-contact/. Unrelated dirty work preserved.
+
+## 2026-11-06 Branded Open Console Entry
+
+- UI-only source `5fee2718f70c10ac76627b8320e1487f1f390f67` is live on both
+  staging and production Console. Native revisions match; both deployment jobs
+  finished healthy. CI42150288499 passed, backend image skipped. Public-site
+  source remains unchanged from the preceding entry.
+- Open Console now matches the website's branded gradient, northeast arrow,
+  white text, spacing and shadow. Shared component covers public kit/product
+  surfaces without changing authentication or existing destinations. Mobile
+  catalogue header rows prevent contact/entry controls overlapping the logo.
+- UI build and7 focused tests passed; final local24-state browser check and
+  staging/production32-state checks each PASS at1440/768/390/320 in both themes.
+  Authenticated navigation and anonymous kit sign-in verified. No browser errors,
+  AI calls or customer-resource mutations. Evidence under
+  verification-support/integration-contact/console-entry-{local,live}/.

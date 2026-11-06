@@ -70,3 +70,23 @@ and Products to both Console details, including Start a project and return.
 Both Console hosted runs again passed eight observations with the updated
 copy and real Calendly selection. No appointment, message or request submitted.
 No Platform/runtime/framework/auth/template change was made.
+
+## Branded Console Entry Button
+
+Both Consoles are now healthy on native frontend source
+`5fee2718f70c10ac76627b8320e1487f1f390f67`. CI `42150288499` passed,
+with the backend image skipped. The public site was not redeployed.
+
+Signed-in Open Console links on the kit and product pages now use the public
+website's blue-to-violet fill, northeast arrow, white typography, 8px corners
+and subtle shadow. A shared presentation component keeps the existing role-
+and page-specific destinations. Anonymous sign-in/registration stays unchanged.
+The narrow catalogue header uses separate rows so the larger entry button and
+personal contact action cannot overlap the logo or heading.
+
+The UI production build and seven focused tests passed. The final browser
+regression covers 24 local theme/surface/width states; live staging and
+production each passed 32 states at 1440/768/390/320px, plus authenticated
+navigation and anonymous selected-kit sign-in. Screenshots were inspected.
+No browser errors or customer-resource mutations occurred. Safe reports are
+in `console-entry-local/report.json` and `console-entry-live/{staging,production}.json`.
