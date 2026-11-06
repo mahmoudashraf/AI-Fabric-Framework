@@ -1,0 +1,343 @@
+{
+  "status": "PASS",
+  "source": "92cd86778d07b7b37d05dbebfdac0ee3fb964b7d",
+  "views": [
+    {
+      "surface": "site",
+      "mode": "dark",
+      "links": [
+        "https://console.loomai.pro/experiences/ai-customer-experience",
+        "https://console.loomai.pro/experiences/dealership-ai-experience",
+        "https://console.loomai.pro/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingIntegration included    Built around your business "
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "    Dealership offer£500 / monthOnly pay when value starts    First 3 months free   Free integration "
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingSetup included    Knowledge onboarding included "
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "site",
+      "mode": "dark",
+      "links": [
+        "https://console.loomai.pro/experiences/ai-customer-experience",
+        "https://console.loomai.pro/experiences/dealership-ai-experience",
+        "https://console.loomai.pro/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingIntegration included    Built around your business "
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "    Dealership offer£500 / monthOnly pay when value starts    First 3 months free   Free integration "
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingSetup included    Knowledge onboarding included "
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    },
+    {
+      "surface": "site",
+      "mode": "light",
+      "links": [
+        "https://console.loomai.pro/experiences/ai-customer-experience",
+        "https://console.loomai.pro/experiences/dealership-ai-experience",
+        "https://console.loomai.pro/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingIntegration included    Built around your business "
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "    Dealership offer£500 / monthOnly pay when value starts    First 3 months free   Free integration "
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingSetup included    Knowledge onboarding included "
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "site",
+      "mode": "light",
+      "links": [
+        "https://console.loomai.pro/experiences/ai-customer-experience",
+        "https://console.loomai.pro/experiences/dealership-ai-experience",
+        "https://console.loomai.pro/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingIntegration included    Built around your business "
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "    Dealership offer£500 / monthOnly pay when value starts    First 3 months free   Free integration "
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "    Launch offerTailored pricingSetup included    Knowledge onboarding included "
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    },
+    {
+      "surface": "production-console",
+      "mode": "dark",
+      "links": [
+        "/experiences/ai-customer-experience",
+        "/experiences/dealership-ai-experience",
+        "/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "production-console",
+      "mode": "dark",
+      "links": [
+        "/experiences/ai-customer-experience",
+        "/experiences/dealership-ai-experience",
+        "/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    },
+    {
+      "surface": "production-console",
+      "mode": "light",
+      "links": [
+        "/experiences/ai-customer-experience",
+        "/experiences/dealership-ai-experience",
+        "/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "production-console",
+      "mode": "light",
+      "links": [
+        "/experiences/ai-customer-experience",
+        "/experiences/dealership-ai-experience",
+        "/experiences/ai-support-experience"
+      ],
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    },
+    {
+      "surface": "staging-console",
+      "mode": "dark",
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "staging-console",
+      "mode": "dark",
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    },
+    {
+      "surface": "staging-console",
+      "mode": "light",
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 1425,
+      "width": 1440
+    },
+    {
+      "surface": "staging-console",
+      "mode": "light",
+      "offers": [
+        {
+          "label": "Customer experience launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingIntegration includedBuilt around your business"
+        },
+        {
+          "label": "Dealership offer",
+          "overflow": false,
+          "text": "Dealership offer£500 / monthOnly pay when value startsFirst 3 months freeFree integration"
+        },
+        {
+          "label": "Support launch offer",
+          "overflow": false,
+          "text": "Launch offerTailored pricingSetup includedKnowledge onboarding included"
+        }
+      ],
+      "scrollWidth": 375,
+      "width": 390
+    }
+  ],
+  "detailChecks": [
+    {
+      "code": "ai-customer-experience",
+      "offer": "Integration includedBuilt around your businessTailored pricing",
+      "terms": "Your proposal confirms the agreed integration scope, included AI usage, storage and agent seats, plus any third-party charges. Work outside that scope is quoted separately.",
+      "personalIntegrationCard": true
+    },
+    {
+      "code": "dealership-ai-experience",
+      "offer": "Dealership launch offer3 months freeFirst 3 months freeFree integrationLoomAI's technical team handles the setup.£500 / monthOnly pay when value starts",
+      "terms": "Your proposal confirms the agreed integration scope, included AI usage, storage and agent seats, plus any third-party charges. Work outside that scope is quoted separately. Before launch, we agree in writing the pilot acceptance milestone, the start of the three-month free period and when billing begins.",
+      "personalIntegrationCard": true
+    },
+    {
+      "code": "ai-support-experience",
+      "offer": "Setup includedKnowledge onboarding includedTailored pricing",
+      "terms": "Your proposal confirms the agreed integration scope, included AI usage, storage and agent seats, plus any third-party charges. Work outside that scope is quoted separately.",
+      "personalIntegrationCard": true
+    }
+  ],
+  "noAppointmentOrCustomerResourceCreated": true
+}

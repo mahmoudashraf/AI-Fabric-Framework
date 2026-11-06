@@ -12818,3 +12818,20 @@ test is being called hosted acceptance. UI extraction remains last.
   Authenticated navigation and anonymous kit sign-in verified. No browser errors,
   AI calls or customer-resource mutations. Evidence under
   verification-support/integration-contact/console-entry-{local,live}/.
+
+## 2026-11-06 Launch Offers On All Kits
+
+- Source92cd86778d07b7b37d05dbebfdac0ee3fb964b7d live/healthy on both Consoles
+  and production public site; native revisions match. Core CI42154355391 and
+  serving CI42154355394 PASS, backend skipped. Site auto-deployed.
+- Customer Experience: Integration included, Tailored pricing. Support: Setup
+  included, Knowledge onboarding included, Tailored pricing. Dealership keeps
+  its existing GBP500/month, three months free and Free integration offer.
+  Scope/allowance wording and written pilot/billing milestones added to details.
+  No billing implementation, runtime/framework or entitlement change.
+- Local12 focused tests, both builds, Astro check,28-route static smoke,
+  Console42 responsive/theme states and site10 layout states PASS. Live12
+  theme/width/surface states and all3 detail/personal-contact journeys PASS.
+  Evidence: verification-support/kit-launch-offers/. No customer resources,
+  appointments or enquiries created. User asked Paul Rigby chat trials/proposal
+  AFTER this rollout; website opened but no chat queries sent yet.

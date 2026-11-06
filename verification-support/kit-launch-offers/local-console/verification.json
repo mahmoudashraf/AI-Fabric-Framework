@@ -1,0 +1,562 @@
+{
+  "results": [
+    {
+      "label": "dark-1536-catalogue",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-reference-proportions",
+      "cards": [
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        },
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        },
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        }
+      ],
+      "buttons": [
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        },
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        },
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        }
+      ],
+      "scenes": [
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        },
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        },
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        }
+      ],
+      "avatars": [
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        },
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        },
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        }
+      ],
+      "channels": [
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        },
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        },
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        }
+      ],
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "label": "dark-reference-backgrounds",
+      "backgrounds": [
+        {
+          "kind": "adaptive",
+          "card": "rgb(22, 30, 35)",
+          "scene": "rgb(3, 39, 42)",
+          "header": "rgb(6, 56, 59)"
+        },
+        {
+          "kind": "dealership",
+          "card": "rgb(23, 31, 36)",
+          "scene": "rgb(18, 32, 42)",
+          "header": "rgb(20, 43, 61)"
+        },
+        {
+          "kind": "support",
+          "card": "rgb(25, 31, 36)",
+          "scene": "color(srgb 0.104 0.113255 0.10949)",
+          "header": "color(srgb 0.141333 0.140235 0.120941)"
+        }
+      ]
+    },
+    {
+      "label": "dark-1280-catalogue",
+      "viewport": 1280,
+      "width": 1280,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-768-catalogue",
+      "viewport": 768,
+      "width": 768,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-catalogue",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1536-ai-customer-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-ai-customer-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1536-dealership-ai-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-dealership-ai-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1536-ai-support-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-ai-support-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1440-platform-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-platform-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-320-platform-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1440-engage-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-engage-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-320-engage-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-1440-desk-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-390-desk-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "dark-320-desk-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1536-catalogue",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-reference-proportions",
+      "cards": [
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        },
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        },
+        {
+          "y": 187.59375,
+          "height": 715.125,
+          "width": 480,
+          "bottom": 902.71875
+        }
+      ],
+      "buttons": [
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        },
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        },
+        {
+          "y": 804.71875,
+          "height": 46,
+          "width": 444,
+          "bottom": 850.71875
+        }
+      ],
+      "scenes": [
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        },
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        },
+        {
+          "y": 303.375,
+          "height": 377.5,
+          "width": 444,
+          "bottom": 680.875
+        }
+      ],
+      "avatars": [
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        },
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        },
+        {
+          "y": 743.875,
+          "height": 32,
+          "width": 32,
+          "bottom": 775.875
+        }
+      ],
+      "channels": [
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        },
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        },
+        {
+          "y": 730.875,
+          "height": 11,
+          "width": 32,
+          "bottom": 741.875
+        }
+      ],
+      "titleSize": "28px",
+      "font": "\"LoomAI Catalogue\", sans-serif"
+    },
+    {
+      "label": "light-reference-backgrounds",
+      "backgrounds": [
+        {
+          "kind": "adaptive",
+          "card": "rgb(255, 255, 255)",
+          "scene": "color(srgb 0.931137 0.957333 0.958118)",
+          "header": "color(srgb 0.893647 0.938196 0.935843)"
+        },
+        {
+          "kind": "dealership",
+          "card": "rgb(255, 255, 255)",
+          "scene": "color(srgb 0.93349 0.954196 0.972235)",
+          "header": "color(srgb 0.898353 0.931922 0.964078)"
+        },
+        {
+          "kind": "support",
+          "card": "rgb(255, 255, 255)",
+          "scene": "color(srgb 0.951529 0.951373 0.942902)",
+          "header": "color(srgb 0.934431 0.926274 0.905412)"
+        }
+      ]
+    },
+    {
+      "label": "light-1280-catalogue",
+      "viewport": 1280,
+      "width": 1280,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-768-catalogue",
+      "viewport": 768,
+      "width": 768,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-catalogue",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1536-ai-customer-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-ai-customer-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1536-dealership-ai-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-dealership-ai-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1536-ai-support-experience",
+      "viewport": 1536,
+      "width": 1536,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-ai-support-experience",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1440-platform-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-platform-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-320-platform-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1440-engage-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-engage-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-320-engage-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-1440-desk-booking",
+      "viewport": 1440,
+      "width": 1440,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-390-desk-booking",
+      "viewport": 390,
+      "width": 390,
+      "broken": [],
+      "overflow": []
+    },
+    {
+      "label": "light-320-desk-booking",
+      "viewport": 320,
+      "width": 320,
+      "broken": [],
+      "overflow": []
+    }
+  ],
+  "calls": [
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    },
+    {
+      "method": "GET",
+      "url": "/api/public/experience-kits"
+    }
+  ],
+  "errors": [],
+  "note": "Actual React components, synthetic public catalogue, read-only. Not live provider qualification."
+}

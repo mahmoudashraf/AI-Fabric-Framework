@@ -1,0 +1,334 @@
+{
+  "status": "PASS",
+  "origin": "http://127.0.0.1:61781",
+  "checks": [
+    "obsolete-experience-urls-redirect-to-canonical-console-pages",
+    "/:lazy-booking-panel-slot-close-escape-focus-page-retained",
+    "/:three-launch-offers-dealership-only-fixed-price-and-trial-channel-icons",
+    "/:all-nine-preview-formats-close-escape-focus",
+    "ten-responsive-theme-layouts-images-fonts-offers-and-all-mobile-previews"
+  ],
+  "layouts": [
+    {
+      "width": 1536,
+      "theme": "light",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 68,
+          "y": 325.828125,
+          "width": 453.328125,
+          "height": 710.78125,
+          "buttonY": 938.609375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 541.328125,
+          "y": 325.828125,
+          "width": 453.328125,
+          "height": 710.78125,
+          "buttonY": 938.609375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 1014.65625,
+          "y": 325.828125,
+          "width": 453.34375,
+          "height": 710.78125,
+          "buttonY": 938.609375,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 64,
+          "y": 325.828125,
+          "width": 370.65625,
+          "height": 722.46875,
+          "buttonY": 950.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 454.65625,
+          "y": 325.828125,
+          "width": 370.671875,
+          "height": 722.46875,
+          "buttonY": 950.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 845.328125,
+          "y": 325.828125,
+          "width": 370.65625,
+          "height": 722.46875,
+          "buttonY": 950.296875,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 44,
+          "y": 324.21875,
+          "width": 680,
+          "height": 769.671875,
+          "buttonY": 995.890625,
+          "buttonHeight": 46
+        },
+        {
+          "x": 44,
+          "y": 1229.578125,
+          "width": 680,
+          "height": 776.921875,
+          "buttonY": 1908.5,
+          "buttonHeight": 46
+        },
+        {
+          "x": 44,
+          "y": 2138.890625,
+          "width": 680,
+          "height": 736.875,
+          "buttonY": 2777.765625,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 20,
+          "y": 345.984375,
+          "width": 350,
+          "height": 729.28125,
+          "buttonY": 978.265625,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 1213.765625,
+          "width": 350,
+          "height": 734.53125,
+          "buttonY": 1851.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 2080.6875,
+          "width": 350,
+          "height": 737.484375,
+          "buttonY": 2721.171875,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 20,
+          "y": 404.875,
+          "width": 280,
+          "height": 824.21875,
+          "buttonY": 1132.09375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 1394.46875,
+          "width": 280,
+          "height": 801.875,
+          "buttonY": 2099.34375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 2355.125,
+          "width": 280,
+          "height": 804.828125,
+          "buttonY": 3062.953125,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 1536,
+      "theme": "dark",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 68,
+          "y": 263.828125,
+          "width": 453.328125,
+          "height": 710.78125,
+          "buttonY": 876.609375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 541.328125,
+          "y": 263.828125,
+          "width": 453.328125,
+          "height": 710.78125,
+          "buttonY": 876.609375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 1014.65625,
+          "y": 263.828125,
+          "width": 453.34375,
+          "height": 710.78125,
+          "buttonY": 876.609375,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 64,
+          "y": 263.828125,
+          "width": 370.65625,
+          "height": 722.46875,
+          "buttonY": 888.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 454.65625,
+          "y": 263.828125,
+          "width": 370.671875,
+          "height": 722.46875,
+          "buttonY": 888.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 845.328125,
+          "y": 263.828125,
+          "width": 370.65625,
+          "height": 722.46875,
+          "buttonY": 888.296875,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 44,
+          "y": 324.21875,
+          "width": 680,
+          "height": 769.671875,
+          "buttonY": 995.890625,
+          "buttonHeight": 46
+        },
+        {
+          "x": 44,
+          "y": 1229.578125,
+          "width": 680,
+          "height": 776.921875,
+          "buttonY": 1908.5,
+          "buttonHeight": 46
+        },
+        {
+          "x": 44,
+          "y": 2138.890625,
+          "width": 680,
+          "height": 736.875,
+          "buttonY": 2777.765625,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 20,
+          "y": 345.984375,
+          "width": 350,
+          "height": 729.28125,
+          "buttonY": 978.265625,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 1213.765625,
+          "width": 350,
+          "height": 734.53125,
+          "buttonY": 1851.296875,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 2080.6875,
+          "width": 350,
+          "height": 737.484375,
+          "buttonY": 2721.171875,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "font": "\"LoomAI Kit Cards\", sans-serif",
+      "cards": [
+        {
+          "x": 20,
+          "y": 404.875,
+          "width": 280,
+          "height": 824.21875,
+          "buttonY": 1132.09375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 1394.46875,
+          "width": 280,
+          "height": 801.875,
+          "buttonY": 2099.34375,
+          "buttonHeight": 46
+        },
+        {
+          "x": 20,
+          "y": 2355.125,
+          "width": 280,
+          "height": 804.828125,
+          "buttonY": 3062.953125,
+          "buttonHeight": 46
+        }
+      ],
+      "overflow": []
+    }
+  ],
+  "errors": []
+}
