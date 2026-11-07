@@ -5,6 +5,13 @@ The customer-wide 010.65 design expansion was rejected and rolled back on
 workspace. Do not restore the removed customer shell/task redesign or its design
 guide without a new owner request.
 
+The separately approved account follow-up uses `/account/profile`,
+`/account/team`, `/account/loomai-access` and `/account/security` in a single
+resource workspace. Customer `/users` redirects there; staff `/users` remains
+unchanged. Account permissions are workspace-wide, never scoped by a Brain
+navigation query. See `verification-support/customer-account-workspace/README.md`
+for the preserved authentication/team contracts and verification evidence.
+
 The staging-only developer presentation is retained independently of that
 redesign. It uses the same existing UI and staging Platform backend, not a
 separate product, backend, authentication role or authorization bypass.

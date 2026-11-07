@@ -4,7 +4,11 @@ import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
 
 async function load(path) {
-  const source = await readFile(new URL(path, import.meta.url), 'utf8')
+  let source = await readFile(new URL(path, import.meta.url), 'utf8')
+  if (path.endsWith('/customerAuthReturn.ts')) {
+    const navigation = ts.transpileModule(await readFile(new URL('../src/account/accountNavigation.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+    source = source.replace("'../account/accountNavigation'", `'data:text/javascript;base64,${Buffer.from(navigation).toString('base64')}'`)
+  }
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 }
@@ -197,6 +201,31 @@ test('kit selection survives same-device and email-link return without allowing 
     window.location.search = '?kit=..%2Fforeign'
     assert.equal(productStartPath(window.location.search), '/start')
     assert.equal(consumeCustomerAuthReturn(), '/')
+  } finally { delete globalThis.window }
+})
+
+test('account sections survive email-link return with safe Brain context but no arbitrary destination', () => {
+  const storage = new Map()
+  const destination = '/account/team?fromBrain=dep-a&targetProfileId=staging'
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/sign-in', search: `?account_return=${encodeURIComponent(destination)}` },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    rememberCustomerAuthReturn(false)
+    assert.equal(customerAuthReturn().accountReturn, destination)
+    const redirect = new URL(identityEmailRedirect())
+    assert.equal(redirect.searchParams.get('account_return'), destination)
+    window.location.pathname = '/auth/callback'
+    window.location.search = redirect.search
+    assert.equal(consumeCustomerAuthReturn(), destination)
+    assert.equal(consumeCustomerAuthReturn(), destination, 'cross-device callback uses only validated local account route')
+    for (const value of ['https://evil.test/account/team', '//evil.test/account/team', '/account/team/extra']) {
+      window.location.search = `?account_return=${encodeURIComponent(value)}`
+      rememberCustomerAuthReturn(false)
+      assert.equal(customerAuthReturn().accountReturn, undefined)
+      assert.equal(consumeCustomerAuthReturn(), '/start')
+    }
+    storage.set('loomai-console-auth-return', JSON.stringify({ purpose: 'customer', createdAt: Date.now(), accountReturn: 'https://evil.test' }))
+    assert.equal(customerAuthReturn(), null)
   } finally { delete globalThis.window }
 })
 

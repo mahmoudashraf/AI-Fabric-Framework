@@ -13256,3 +13256,28 @@ test is being called hosted acceptance. UI extraction remains last.
 - Local/stage/prod fixtures observed signed out; agent-created tabs closed,
   viewport reset. Evidence:verification-support/smart-brain-release-journey/
   README.md,live/qualification.json and screenshots. Unrelated dirty work kept.
+
+## 2026-11-07 Customer Account Workspace Implementation
+
+- Owner-approved narrow Account/Team redesign; not a restoration of 010.65.
+  Canonical customer routes /account/profile,/account/team,/account/loomai-access,
+  /account/security. Legacy /users retains safe Brain return context, not Brain
+  permission scope. Staff /users remains UsersPage unchanged.
+- Single resource frame with workspace-wide team list/details, search/status,
+  focused member drawers and separate LoomAI collaboration grant/revoke. Same
+  customer APIs, fixed existing CUSTOMER_ADMIN role and owner scope. No backend,
+  database, runtime, framework or AI configuration changes.
+- Existing local Console user/password vs Supabase identity distinction explicit;
+  no invented invitations or roles. Own security reuses recovery/email-link flow.
+  Safe account destination retained through email callback. Concurrent snapshot
+  preflight prevents stale name/status overwrites; background refresh not busy.
+- Build PASS;104 focused regressions PASS. Actual read-only local UI checks on
+  authorized support fixture PASS: team/filter/details, add/edit/password drawers,
+  discard/dirty navigation, collaboration/profile/security and light/dark desktop
+  /390px layout. Read-only proxy rejected attempted name save before upstream;
+  form retained input. No live member/access/password/email mutation.
+- Native browser prompt interruption resolved via in-page discard dialogs and
+  clean-reload repetition. Fixture signed out, temporary tabs closed/viewport reset.
+- Evidence:verification-support/customer-account-workspace/README.md +local/.
+  Hosted UI-only staging then production rollout pending exact-source CI and
+  hosted browser verification. Preserve unrelated dirty work and developer profile.

@@ -42,7 +42,7 @@ const navigation = [
   { path: '/integrations', label: 'Connections', icon: CableOutlined },
   { path: '/human-support', label: 'Human support', icon: SupportAgentOutlined },
   { path: '/human-review', label: 'Action reviews', icon: FactCheckOutlined },
-  { path: '/users', label: 'Account & team', icon: PeopleOutline },
+  { path: '/account/team', label: 'Account & team', icon: PeopleOutline },
   { path: '/support', label: 'Help & requests', icon: HelpOutlineRounded },
 ] as const
 
@@ -109,7 +109,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         <Typography sx={{ fontSize: 10 }} color="text.secondary">Customer workspace</Typography></Box>
     </Stack>
     <List component="nav" aria-label="Customer navigation" disablePadding>
-      {navigation.filter(item => (expandedNavigation || ['/home', '/kits', '/deployments', '/ai-workspaces', '/users', '/support'].includes(item.path))
+      {navigation.filter(item => (expandedNavigation || ['/home', '/kits', '/deployments', '/ai-workspaces', '/account/team', '/support'].includes(item.path))
         && (item.path !== '/human-support' || humanSupportAvailable)).map(item => <ListItemButton key={item.path} component={Link}
         to={isDeploymentWorkspacePath(item.path) ? buildWorkspacePath(item.path) : item.path}
         selected={active?.path === item.path} onClick={() => setMenuOpen(false)}

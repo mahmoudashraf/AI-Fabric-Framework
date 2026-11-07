@@ -147,3 +147,17 @@ controls and explicit production/readiness UI passed without changing customer
 configuration, releases or app bindings. The test account was signed out on both
 hosts. The verification record preserves the observed transient Support iframe
 cleanup warning; it was not hidden or expanded into a separate transport rewrite.
+
+## Approved Account Workspace Follow-Up
+
+The owner separately approved redesigning customer Account / Team & access after
+reviewing its visual proposal. Use the same restrained resource-frame concepts,
+but give it its own `/account/...` hierarchy: My account, Your team, LoomAI
+collaboration and Sign-in & security. Team and staff-collaboration access are
+workspace-wide, not selected-Brain permissions. Preserve a Back to Smart Brain
+link without inheriting its environment/draft/release controls. The staff-wide
+Users administration page remains unchanged. This does not reinstate the rejected
+customer-wide redesign.
+
+Implementation, existing authentication limitations and qualification are tracked
+in `verification-support/customer-account-workspace/README.md`.

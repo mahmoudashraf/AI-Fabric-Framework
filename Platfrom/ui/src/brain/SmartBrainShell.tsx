@@ -29,6 +29,7 @@ import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { BrainEditorContext, BrainWorkspaceContext, type BrainEditorState } from './BrainWorkspaceContext'
 import { brainIdFromPath, brainPath, brainSections, currentBrainSection, isUsableRelease, retainEditingRelease } from './brainNavigation'
 import { deploymentTerm } from '../deploymentTerminology'
+import { accountPath } from '../account/accountNavigation'
 
 const sectionIcons = [HomeOutlined, LayersOutlined, AutoAwesomeOutlined, ChatBubbleOutlineRounded,
   AccountTreeOutlined, HeadsetMicOutlined, PlayArrowOutlined, SystemUpdateAltOutlined, SettingsOutlined]
@@ -160,7 +161,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
         <Tooltip title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}><IconButton aria-label="Switch color theme" onClick={() => color.setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>
           {theme.palette.mode === 'dark' ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}</IconButton></Tooltip>
         {!compact && <Tooltip title="Help and integration support"><IconButton component={RouterLink} to={customer ? '/support' : '/customer-workspaces'} aria-label="Help and integration support"><HelpOutlineRounded fontSize="small" /></IconButton></Tooltip>}
-        {!compact && <Tooltip title={session?.displayName ?? 'Account'}><Avatar component={RouterLink} to="/users" sx={{ width: 29, height: 29, fontSize: 12, bgcolor: 'action.selected', color: 'text.primary', textDecoration: 'none' }}>{session?.displayName?.[0] ?? 'A'}</Avatar></Tooltip>}
+        {!compact && <Tooltip title={session?.displayName ?? 'Account'}><Avatar component={RouterLink} to={customer ? accountPath('team', new URLSearchParams({ fromBrain: brainId, targetProfileId: requestedTarget }).toString()) : '/users'} sx={{ width: 29, height: 29, fontSize: 12, bgcolor: 'action.selected', color: 'text.primary', textDecoration: 'none' }}>{session?.displayName?.[0] ?? 'A'}</Avatar></Tooltip>}
         <Tooltip title="Sign out"><IconButton aria-label="Sign out" onClick={() => { void onSignOut() }}><LogoutRounded sx={{ fontSize: 18 }} /></IconButton></Tooltip>
       </Stack>
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
