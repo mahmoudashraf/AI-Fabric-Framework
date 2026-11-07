@@ -1,0 +1,32 @@
+{
+  "at": "2026-11-07T14:27:49.106Z",
+  "source": "a126e2f27009ad1a56fcc242d5903e8f6f7c379c",
+  "ci": 42381210896,
+  "ui": {
+    "name": "/u67gepsowf7oo90dwjdx018r-142343640152",
+    "running": true,
+    "health": "healthy",
+    "image": "ghcr.io/mahmoudashraf/loomai-platform-ui:a126e2f27009ad1a56fcc242d5903e8f6f7c379c",
+    "revision": "a126e2f27009ad1a56fcc242d5903e8f6f7c379c"
+  },
+  "deploymentId": "zhf96n4oy76b1t1oxs0t670z",
+  "domain": "https://developer.loomai.pro",
+  "httpsHealth": 200,
+  "runtimeConfig": {
+    "apiBaseUrl": "https://loomai-platform-backend.46.224.145.148.sslip.io",
+    "environment": "staging",
+    "uiProfile": "developer"
+  },
+  "runtimeConfigCache": "no-store",
+  "cors": {
+    "status": 200,
+    "origin": "https://developer.loomai.pro",
+    "credentials": "true"
+  },
+  "stagingBackend": "baf6ea3328a1ef72d83d01552ffbc02da1582105 Up 9 minutes (healthy)",
+  "productionUI": {
+    "source": "bb672a85748bcc61039deb259630f3868a8f72b0",
+    "status": "running:healthy"
+  },
+  "backendSourceChanged": false
+}

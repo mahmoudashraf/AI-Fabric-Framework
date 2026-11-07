@@ -10,6 +10,7 @@ import { KitChooser } from '../components/kits/KitChooser'
 import { KitProductLinks, KitPublicHeader } from '../components/kits/KitIdentity'
 import { KitDetailPage } from '../components/kits/KitDetailPage'
 import { IntegrationCallButton } from '../components/IntegrationCallButton'
+import { PersonalContactContent } from '../uiProfile'
 import './ExperienceKits.css'
 
 export type ExperienceKitsPublicPageProps = { code?: string; authenticated?: boolean; consolePath?: string }
@@ -30,8 +31,8 @@ function ExperienceKitsPublicContent({ code: selectedCode, authenticated: authen
           : <Alert severity="info" action={<Button component={Link} to="/experiences">Back to experiences</Button>}>This experience is not available.</Alert>
           : catalogue.data.length ? <KitChooser definitions={catalogue.data} authenticated={authenticated} />
             : <Alert severity="info">No experiences are currently available.</Alert>)}
-        <div className="ek-integration-help"><span>Work with our AI integration team.</span><IntegrationCallButton />
-          {authenticated && <Link to="/support?new=1">Submit an integration request <ArrowForwardRounded /></Link>}</div>
+        <PersonalContactContent><div className="ek-integration-help"><span>Work with our AI integration team.</span><IntegrationCallButton />
+          {authenticated && <Link to="/support?new=1">Submit an integration request <ArrowForwardRounded /></Link>}</div></PersonalContactContent>
         {!selectedCode && <KitProductLinks />}
       </main>
       <footer className="ek-public-footer">One account. Your connected AI products.</footer>

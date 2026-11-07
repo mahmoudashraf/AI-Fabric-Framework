@@ -3,6 +3,8 @@
 interface Window {
   __PLATFORM_RUNTIME_CONFIG__?: {
     apiBaseUrl?: string
+    environment?: 'staging' | 'production'
+    uiProfile?: 'standard' | 'developer'
   }
   MaxMode?: {
     init: (config: {

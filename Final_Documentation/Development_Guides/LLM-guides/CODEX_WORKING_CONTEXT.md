@@ -13162,3 +13162,26 @@ test is being called hosted acceptance. UI extraction remains last.
 - Record: 010_64_SMART_BRAIN_WORKSPACE_IMPLEMENTATION_RECORD.md;
   evidence: verification-support/smart-brain-workspace-01064/README.md.
   Unrelated existing dirty worktree files remain untouched. UI rollout complete.
+
+## 2026-11-07 Customer-Wide UI Rollback, Developer Profile Preserved
+
+- Owner rejected the later 010.65 customer-wide redesign and explicitly asked
+  for reset/force-push while retaining the developer profile. Restored branch
+  baseline0aa83b968 (beforebb672a857); earlier010.64 Smart Brain workspace stays.
+  Removed010.65 shared shell/task/page changes, tests and canonical design guide.
+  Do not restore them without a new request. Root AGENTS and operating context
+  now point only to PLATFORM_UI_PROFILES.md for the retained presentation flag.
+- Saved original tip2f2bb5a5d locally at
+  codex/backup-before-customer-ui-rollback-20261107. Unrelated tracked work was
+  stashed separately;947 pre-existing untracked files inventoried/no base-path
+  collisions. Developer profile soft-reset/stashed/hard-reset/reapplied; only
+  rejected redesign documentation conflicts discarded. Profile source files
+  are byte-identical to the backed-up implementation.
+- Profile still uses staging-only runtime flags, shared commercial/contact
+  wrappers, clean offer-free catalogue and normal backend authorization. Keep
+  developer.loomai.pro DNS/HTTPS/CORS/Supabase redirect configuration unchanged.
+  Production normal view must use the restored baseline; no backend/runtime/AI
+  code/configuration needs to be rolled back.
+- Restored build and72 focused tests PASS. Production old verified UI image
+  3013df7f4 queued for rollback; preserved profile source publication and staging
+  qualification pending. Final identities/evidence will supersede this entry.

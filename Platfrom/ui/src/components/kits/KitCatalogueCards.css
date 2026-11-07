@@ -20,6 +20,7 @@
 .ek-catalogue-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; font-family: 'LoomAI Catalogue', sans-serif; }
 .ek-catalogue-grid .MuiButton-root { font-family: inherit; }
 .ek-kit-option { --ek-card-accent: #31d8bd; --ek-card-button: #13c8b5; display: grid; grid-template-rows: 104px 1fr; gap: 10px; min-width: 0; }
+.ek-kit-option.ek-kit-option-without-offer { grid-template-rows: 1fr; gap: 0; }
 .ek-kit-option[data-kind='dealership'] { --ek-card-accent: #5bb4ff; --ek-card-button: #328bff; }
 .ek-kit-option[data-kind='support'] { --ek-card-accent: #ffc262; --ek-card-button: #ffb64f; }
 .ek-page[data-kit-theme='light'] .ek-kit-option { --ek-card-accent: #087f6c; }

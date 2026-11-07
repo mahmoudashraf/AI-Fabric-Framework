@@ -20,6 +20,7 @@ import { KitExperiencePreview } from './KitCapabilityPreview'
 import { KitCardScene } from './KitCardScene'
 import { KitLaunchOffer, kitOfferTerms } from './KitCommercialPresentation'
 import { kitPreviewKind, safeKitExternalUrl } from './kitModels'
+import { CommercialContent, isDeveloperUI } from '../../uiProfile'
 import './KitCatalogueCards.css'
 
 const cardContent = {
@@ -48,7 +49,7 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
     const kind = kitPreviewKind(definition.code)
     const demo = safeKitExternalUrl(definition.demoUrl)
     const copy = cardContent[kind]
-    return <div className="ek-kit-option" data-kind={kind} key={definition.code}>
+    return <div className={`ek-kit-option${isDeveloperUI() ? ' ek-kit-option-without-offer' : ''}`} data-kind={kind} key={definition.code}>
       <KitLaunchOffer kind={kind} />
       <article className="ek-catalogue-card" aria-labelledby={`ek-choice-${definition.code}`}>
         <div className="ek-card-identity"><span className="ek-card-scope"><copy.Icon />{copy.scope}</span>
@@ -65,5 +66,5 @@ export function KitChooser({ definitions, authenticated = false, detailLinks = t
   })}</div><div className="ek-catalogue-formats" aria-label="Ways to use your AI experience">
     <small>Choose one or combine them.</small><span><WebAssetOutlined />Website widget</span><span><DesktopWindowsOutlined />Max workspace</span><span><OpenInBrowserOutlined />Standalone app</span>
   </div><p className="ek-catalogue-disclosure">Illustrative previews. Configure your own branding, knowledge and integrations.</p>
-    <p className="ek-catalogue-offer-terms">{kitOfferTerms}</p></>
+    <CommercialContent><p className="ek-catalogue-offer-terms">{kitOfferTerms}</p></CommercialContent></>
 }

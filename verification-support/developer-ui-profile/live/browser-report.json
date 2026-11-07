@@ -1,0 +1,72 @@
+{
+  "at": "2026-11-07T14:20:59.162Z",
+  "domain": "https://developer.loomai.pro",
+  "checks": [
+    {
+      "page": "catalogue",
+      "offers": 0,
+      "commercialTerms": 0,
+      "personalTriggers": 0,
+      "kitCards": 3
+    },
+    {
+      "page": "dealership-detail",
+      "offers": 0,
+      "personalStartProject": 0,
+      "installKit": 2
+    },
+    {
+      "page": "support",
+      "chat": 1,
+      "requestHelp": 1,
+      "personalTriggers": 0
+    },
+    {
+      "page": "customer-home",
+      "personalTriggers": 0,
+      "heading": "Your workspace",
+      "apiEnvironment": "Existing staging customer/resources"
+    },
+    {
+      "page": "final-desktop-catalogue",
+      "cards": [
+        {
+          "rows": "728.523px",
+          "withoutOffer": true
+        },
+        {
+          "rows": "728.523px",
+          "withoutOffer": true
+        },
+        {
+          "rows": "728.523px",
+          "withoutOffer": true
+        }
+      ],
+      "height": 900,
+      "horizontalOverflow": -15,
+      "offers": 0,
+      "width": 1280,
+      "personalTriggers": 0
+    },
+    {
+      "page": "final-mobile-catalogue",
+      "cards": 3,
+      "height": 844,
+      "horizontalOverflow": -15,
+      "offers": 0,
+      "width": 390
+    }
+  ],
+  "authentication": "Existing staging customer signed in and signed out on developer hostname",
+  "source": "a126e2f27009ad1a56fcc242d5903e8f6f7c379c",
+  "production": {
+    "source": "bb672a85748bcc61039deb259630f3868a8f72b0",
+    "offers": 3,
+    "personalContactTriggers": 2,
+    "unchanged": true
+  },
+  "consoleErrors": [],
+  "completedAt": "2026-11-07T14:27:29.829Z",
+  "scope": "UI rendering and existing staging password sign-in; no resources created, config saved, ticket submitted or AI query sent"
+}

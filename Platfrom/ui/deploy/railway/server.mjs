@@ -10,6 +10,8 @@ const distDir = path.join(__dirname, 'dist')
 const indexPath = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const apiBaseUrl = (process.env.PLATFORM_UI_API_BASE_URL || process.env.VITE_PLATFORM_API_BASE_URL || '').trim()
+const environment = process.env.PLATFORM_UI_ENVIRONMENT === 'staging' ? 'staging' : 'production'
+const uiProfile = environment === 'staging' && process.env.PLATFORM_UI_PROFILE === 'developer' ? 'developer' : 'standard'
 const workspaceScriptSource = workspaceAssetSource(apiBaseUrl)
 
 function workspaceAssetSource(base) {
@@ -48,7 +50,7 @@ function writeJson(response, statusCode, payload) {
 }
 
 function runtimeConfigScript() {
-  return `window.__PLATFORM_RUNTIME_CONFIG__ = Object.freeze({ apiBaseUrl: ${JSON.stringify(apiBaseUrl)} });\n`
+  return `window.__PLATFORM_RUNTIME_CONFIG__ = Object.freeze(${JSON.stringify({ apiBaseUrl, environment, uiProfile })});\n`
 }
 
 function resolveStaticPath(urlPathname) {
