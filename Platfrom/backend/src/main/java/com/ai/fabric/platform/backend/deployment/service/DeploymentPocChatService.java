@@ -908,7 +908,7 @@ public class DeploymentPocChatService {
     private RuntimeQueryTarget runtimeQueryTarget(DeploymentEntity deployment,
                                                   ObjectNode body,
                                                   boolean promptPreview) {
-        if (!conversationHandoverEnabled(deployment)) {
+        if (!canonicalConversationsEnabled(deployment)) {
             return new RuntimeQueryTarget("/api/chat/me/query", queryScopes(promptPreview), Map.of());
         }
         String conversationId = trimToNull(textOrNull(body, "conversationId"));
@@ -926,15 +926,15 @@ public class DeploymentPocChatService {
         );
     }
 
-    private boolean conversationHandoverEnabled(DeploymentEntity deployment) {
+    private boolean canonicalConversationsEnabled(DeploymentEntity deployment) {
         String activeVersionId = trimToNull(deployment == null ? null : deployment.getActiveVersionId());
         if (!StringUtils.hasText(activeVersionId)) {
             return false;
         }
-        JsonNode behavior = deploymentVersionRepository.findById(activeVersionId)
-            .map(DeploymentVersionEntity::getBehaviorConfigJson)
-            .map(this::readJson)
-            .orElse(null);
+        DeploymentVersionEntity version = deploymentVersionRepository.findById(activeVersionId).orElse(null);
+        if (version == null) return false;
+        if (StandaloneConversationRuntimeArtifactGate.required(readJson(version.getProviderConfigJson()))) return true;
+        JsonNode behavior = readJson(version.getBehaviorConfigJson());
         if (behavior == null) {
             return false;
         }
