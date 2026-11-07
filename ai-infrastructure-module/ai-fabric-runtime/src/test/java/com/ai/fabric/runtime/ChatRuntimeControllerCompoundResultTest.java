@@ -3,6 +3,7 @@ package com.ai.fabric.runtime;
 import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.OrchestrationResultType;
+import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
@@ -10,15 +11,45 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ChatRuntimeControllerCompoundResultTest {
     private final ChatRuntimeController controller = mock(ChatRuntimeController.class, CALLS_REAL_METHODS);
+    private final StaticListableBeanFactory beans = new StaticListableBeanFactory();
+
+    @BeforeEach
+    void configureOptionalPromptProvider() {
+        ReflectionTestUtils.setField(controller, "deploymentPromptConfigServiceProvider",
+            beans.getBeanProvider(RuntimeDeploymentPromptConfigService.class));
+    }
+
+    @Test
+    void absentBehaviourProfilesRetainSanitizedCanonicalSuggestions() {
+        var suggestions = List.of(Map.of("query", "Explain the approved process."));
+        assertThat(project(compound(Map.of("suggestions", suggestions))).getSuggestions())
+            .containsExactlyElementsOf(suggestions);
+    }
+
+    @Test
+    void managedOffRemovesOptionalSuggestionsWithoutChangingCompoundAnswers() {
+        var prompts = mock(RuntimeDeploymentPromptConfigService.class);
+        when(prompts.currentManagedNextStepsEnabled()).thenReturn(false);
+        beans.addBean("managedPrompts", prompts);
+        var result = compound(Map.of("suggestions", List.of(Map.of("query", "Explain the approved process.")),
+            "children", List.of(Map.of("type", "INFORMATION_PROVIDED", "success", true, "message", "Approved facts."))));
+        var response = project(result);
+        assertThat(response.getSuggestions()).isEmpty();
+        assertThat(response.getAnswer()).isEqualTo("Some items need clarification.");
+        assertThat(response.getResults()).singleElement().satisfies(item -> assertThat(item.answer()).isEqualTo("Approved facts."));
+    }
 
     @Test
     void preservesSanitizedAnswersAndFailedChildStatusWithoutChangingParentOutcome() throws Exception {
