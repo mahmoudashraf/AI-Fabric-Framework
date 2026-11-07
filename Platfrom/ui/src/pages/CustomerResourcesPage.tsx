@@ -8,6 +8,7 @@ import { CustomerDeploymentConsole } from '../components/customer/CustomerDeploy
 import { CustomerResourceSurface } from '../components/customer/CustomerResourceSurface'
 import { CustomerSetupNavigationGuard } from '../components/customer/CustomerSetupNavigationGuard'
 import { CustomerEditorSections } from '../components/customer/CustomerDetailSections'
+import { CustomerReleaseSetupRedirect } from '../components/customer/CustomerReleaseSetupRedirect'
 import { AIWorkspacesPage } from './AIWorkspacesPage'
 
 export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' | 'apps' }) {
@@ -17,6 +18,12 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   const view = new URLSearchParams(location.search).get('view')
+  const params = new URLSearchParams(location.search)
+  const setupStep = params.get('step')
+  const setupBrainId = params.get('deploymentId')
+  if (mode !== 'apps' && view === 'setup' && setupBrainId && (setupStep === 'staging' || setupStep === 'production')) {
+    return <CustomerReleaseSetupRedirect customerId={session.customerId!} brainId={setupBrainId} step={setupStep} />
+  }
   if (view === 'manage' || view === 'setup') {
     if (mode === 'apps') {
       const params = new URLSearchParams(location.search)

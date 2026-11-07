@@ -15,11 +15,11 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion, fetchCompatibleDeploymentSourceArtifacts, fetchDeploymentAiBehaviourProfiles, fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft, fetchDeploymentReleases, fetchDeploymentTargetContext,
-  fetchDeploymentVerificationRuns, fetchDeploymentVersionManifest, fetchDeploymentVersions,
+  fetchDeploymentVerificationRuns, fetchDeploymentVersionManifest, fetchDeploymentVersions, fetchDeploymentTargetOptions,
   publishDeploymentDraft, reconcileDeploymentRelease, rerunDeploymentVerification, validateDeploymentDraft,
   type DeploymentConfigDiffCenterSummary, type DeploymentDraftResponse, type DeploymentReleaseSummary,
   type DeploymentVersionSummary, type AiBehaviourCatalogue,
@@ -29,6 +29,8 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { RevisionsPage } from '../pages/RevisionsPage'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useBrainEditor, useBrainWorkspace } from './BrainWorkspaceContext'
+import { BrainCustomerReleaseTasks } from './BrainCustomerReleaseTasks'
+import { brainPath } from './brainNavigation'
 
 const sections = [
   ['actionsConfig', 'AI capabilities', 'actions'],
@@ -146,8 +148,22 @@ function UpdatesWorkspace() {
   const auth = usePlatformAuth()
   const customer = auth.session?.role === 'CUSTOMER_ADMIN'
   const navigate = useNavigate()
+  const location = useLocation()
   const client = useQueryClient()
-  const [view, setView] = useState<'review' | 'history'>('review')
+  const requestedPanel = new URLSearchParams(location.search).get('panel')
+  const staging = targetProfile?.environmentName === 'staging'
+  const production = targetProfile?.environmentName === 'production'
+  const panelUnavailable = customer && Boolean(requestedPanel && (
+    (['connections', 'assignment'].includes(requestedPanel) && !staging)
+    || (requestedPanel === 'promotion' && !production)))
+  const view = requestedPanel === 'history' ? 'history'
+    : customer && !panelUnavailable && requestedPanel && ['connections', 'assignment', 'promotion'].includes(requestedPanel)
+      ? requestedPanel : 'review'
+  const changeView = (next: string) => {
+    const params = new URLSearchParams(location.search)
+    if (next === 'review') params.delete('panel'); else params.set('panel', next)
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true })
+  }
   const [review, setReview] = useState<Review | null>(null)
   const [published, setPublished] = useState<DeploymentVersionSummary | null>(null)
   const [sourceArtifactId, setSourceArtifactId] = useState('')
@@ -180,6 +196,9 @@ function UpdatesWorkspace() {
     queryFn: () => fetchDeploymentVersionManifest(brainId, candidate!.id), enabled: Boolean(candidate) })
   const sources = useQuery({ queryKey: ['compatible-deployment-source-artifacts', brainId, candidate?.id],
     queryFn: () => fetchCompatibleDeploymentSourceArtifacts(brainId, candidate!.id), enabled: Boolean(candidate && canOperate) })
+  const destinations = useQuery({ queryKey: ['brain-release-destinations', brainId],
+    queryFn: () => fetchDeploymentTargetOptions(brainId), enabled: customer })
+  const productionDestinations = (destinations.data ?? []).filter(item => item.active && item.environmentName === 'production')
   const sourceRequired = customer || candidate?.sourceCapabilityManifestRequired === true
   const selectedSource = sources.data?.find(item => item.id === sourceArtifactId) ?? null
   const targetReleases = (releases.data ?? []).filter(item => item.targetProfileId === targetProfileId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -274,7 +293,8 @@ function UpdatesWorkspace() {
         : comparisonReady && changed.length === 0 ? 'Saved shared draft matches the applied target.'
           : 'Saved shared draft; applied configuration is unchanged.', error,
   }
-  useBrainEditor(editor)
+  const customerTask = customer && ['connections', 'assignment', 'promotion'].includes(view)
+  useBrainEditor(customerTask ? null : view === 'history' ? { dirty: false, busy, message: 'Release history for the selected environment.' } : editor)
 
   const filteredHistory = targetReleases.filter(item => !search || [item.id, item.deploymentVersionId, item.status, item.currentStepDescription ?? ''].some(value => value.toLowerCase().includes(search.toLowerCase())))
   const visibleHistory = filteredHistory.slice(page * 6, page * 6 + 6)
@@ -304,13 +324,18 @@ function UpdatesWorkspace() {
       <Typography component="h1" sx={{ fontSize: 26, fontWeight: 650, lineHeight: 1.3 }}>Review and publish changes</Typography>
       <Tooltip title="Refresh saved draft and release status"><IconButton aria-label="Refresh updates" disabled={busy} onClick={() => void refresh()}><RefreshRounded /></IconButton></Tooltip>
     </Stack>
-    <Tabs value={view} onChange={(_, value) => setView(value)} aria-label="Updates views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
-      <Tab value="review" label="Review changes" /><Tab value="history" label="History" icon={<HistoryRounded sx={{ fontSize: 18 }} />} iconPosition="start" />
+    <Tabs value={view} variant="scrollable" scrollButtons="auto" aria-label="Updates views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
+      <Tab value="review" label={staging ? 'Prepare staging' : 'Review changes'} onClick={() => changeView('review')} disabled={busy} />
+      {customer && staging && <Tab value="connections" label="Connections" onClick={() => changeView('connections')} disabled={busy} />}
+      {customer && staging && <Tab value="assignment" label="Connect Engage app" onClick={() => changeView('assignment')} disabled={busy} />}
+      {customer && production && <Tab value="promotion" label="Promote staging" onClick={() => changeView('promotion')} disabled={busy} />}
+      <Tab value="history" label="History" onClick={() => changeView('history')} disabled={busy} icon={<HistoryRounded sx={{ fontSize: 18 }} />} iconPosition="start" />
     </Tabs>
     {busy && <LinearProgress aria-label="Update operation in progress" />}
     <Box sx={{ minHeight: 0, overflow: 'auto', flex: 1 }}>
       <Stack spacing={1.5}>
         {queryError && <Alert severity="error">{errorMessage(queryError)}</Alert>}
+        {panelUnavailable && <Alert severity="warning">The requested release task belongs to a different environment. Select the matching environment above; no release operation was started.</Alert>}
         {!targetReady && <Alert severity="info">Select an authorized active target in the workspace before updating. The shared draft can still be published as a version.</Alert>}
         {appliedEvidenceMissing && <Alert severity="warning">An applied release exists, but the workspace could not resolve its target evidence. Refresh before publishing an update.</Alert>}
         {!canEdit && !canOperate && <Alert severity="info">Read-only access. Publishing requires editor access; updating and verification require operator access.</Alert>}
@@ -334,7 +359,10 @@ function UpdatesWorkspace() {
             </Stack>
           </Stack>
         </Alert>}
-        {view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.35fr) minmax(280px, 1fr)' }, gap: 3 }}>
+        {customerTask ? !targetReady || (view === 'promotion' ? !production : !staging)
+          ? <Alert severity="warning">Choose the matching environment in the Smart Brain header to continue this release task.</Alert>
+          : <BrainCustomerReleaseTasks session={auth.session!} section={view as 'connections' | 'assignment' | 'promotion'} canEdit={canEdit} canOperate={canOperate} />
+        : view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.35fr) minmax(280px, 1fr)' }, gap: 3 }}>
           <Stack spacing={2} sx={{ minWidth: 0 }}>
             <Box><Typography component="h2" sx={{ fontSize: 19, fontWeight: 650 }}>Changes in this draft</Typography>
               <Typography variant="body2" color="text.secondary">{appliedRelease ? `Compared with ${environment} ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}` : `No applied release recorded for ${environment}`}</Typography>
@@ -371,6 +399,16 @@ function UpdatesWorkspace() {
             </Box>
             {candidate && <Alert severity="info">{candidate.versionLabel} is already published. Updating it does not publish the current shared draft again.</Alert>}
             <Typography variant="body2" color="text.secondary">Existing Brain and connected app identities are retained. Only the explicitly selected target is requested; no automatic rollback runs.</Typography>
+            {customer && staging && <Button sx={{ alignSelf: 'flex-start' }} onClick={() => changeView('connections')}>Review required connections</Button>}
+            {latestRelease?.status === 'APPLIED_VERIFIED' && latestRelease.verificationStatus === 'PASSED' && <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+              <Typography variant="subtitle2">Ready to try this release</Typography>
+              <Button variant="contained" component={RouterLink} to={`${href('try')}&releaseId=${encodeURIComponent(latestRelease.id)}`}>Try your AI</Button>
+              {customer && staging && <Button onClick={() => changeView('assignment')}>Connect or update the staging app</Button>}
+            </Stack>}
+            {customer && staging && productionDestinations.length > 0 && <Button component={RouterLink}
+              to={productionDestinations.length === 1 ? `${brainPath(brainId, 'updates', productionDestinations[0].id)}&panel=promotion`
+                : `/deployments?${new URLSearchParams({ view: 'setup', deploymentId: brainId, step: 'production' })}`} disabled={busy}>Review go-live</Button>}
+            {customer && staging && destinations.isError && <Alert severity="warning">Production destinations could not be loaded. Refresh before reviewing go-live.</Alert>}
             <Button startIcon={<SettingsOutlined />} sx={{ alignSelf: 'flex-start' }} onClick={() => setAdvanced(true)}>Advanced version actions</Button>
             {canOperate && appliedRelease?.status === 'APPLIED_VERIFIED' && <Button startIcon={<CheckCircleOutlineRounded />} sx={{ alignSelf: 'flex-start' }} disabled={busy || Boolean(inProgress)} onClick={() => {
               if (window.confirm(`Run verification for ${environment} (${targetProfileId}), release ${appliedRelease.id}?`)) verify.mutate(appliedRelease.id)

@@ -17,7 +17,7 @@ import { deploymentTerm } from '../../deploymentTerminology'
 export const customerSetupStages = [
   { id: 'template', label: 'Starting point', description: 'Choose what your AI will help customers do.' },
   { id: 'configure', label: 'Connect your business', description: 'Connect the information and services your AI needs.' },
-  { id: 'staging', label: 'Try in staging', description: 'Test your AI in a separate environment before customers use it.' },
+  { id: 'staging', label: 'Prepare staging', description: 'Publish, deploy and verify your setup, then open your AI to try it.' },
   { id: 'production', label: 'Go live', description: 'Review your tested setup and choose when customers can use it.' },
   { id: 'retention', label: 'Manage staging', description: 'Decide whether to keep your test environment after going live.' },
 ] as const

@@ -13,12 +13,14 @@ import { bindCustomerExternalIntegration, fetchCustomerDeploymentPortfolio, fetc
 import { checkedExternalApproval, checkedExternalBinding, externalConnectionProfile, requireFreshExternalAuthority,
   type ExternalConnectionAuthority } from './customerExternalIntegration'
 
-type Props = { session: PlatformAuthSessionSummary; offer: CustomerOfferSummary; deployment: CustomerDeploymentSummary; version: DeploymentVersionSummary | null }
+type Props = { session: PlatformAuthSessionSummary; offer: CustomerOfferSummary; deployment: CustomerDeploymentSummary; version: DeploymentVersionSummary | null
+  targetProfileId?: string; onEditorStateChange?: (state: { dirty: boolean; busy: boolean }) => void }
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'The connection operation failed.'
 
-export function CustomerExternalIntegrationBindings({ session, offer, deployment, version }: Props) {
+export function CustomerExternalIntegrationBindings({ session, offer, deployment, version, targetProfileId, onEditorStateChange }: Props) {
   const slots = offer.bindingSlots.filter(item => item.kind === 'EXTERNAL_SERVICE')
-  const [targetId, setTargetId] = useState(deployment.bootstrapTargetProfileId)
+  const [chosenTargetId, setTargetId] = useState(deployment.bootstrapTargetProfileId)
+  const targetId = targetProfileId ?? chosenTargetId
   const [slotId, setSlotId] = useState(slots[0]?.id ?? '')
   const [profileId, setProfileId] = useState('')
   if (!slots.length) return null
@@ -33,9 +35,9 @@ export function CustomerExternalIntegrationBindings({ session, offer, deployment
     {!version ? <Alert severity="info">No published version is available for connection setup.</Alert> : <>
       <Typography variant="caption" color="text.secondary">{version.versionLabel} / {version.id}</Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        <TextField select fullWidth label="Connection target" value={targetId} onChange={e => { setTargetId(e.target.value); setProfileId('') }}>
+        {targetProfileId === undefined && <TextField select fullWidth label="Connection target" value={targetId} onChange={e => { setTargetId(e.target.value); setProfileId('') }}>
           {offer.targets.filter(item => item.capabilities.includes('READ')).map(item => <MenuItem key={item.id} value={item.id}>{item.intent === 'CUSTOMER_STAGING' ? 'Customer staging' : 'Customer production'} / {item.id}</MenuItem>)}
-        </TextField>
+        </TextField>}
         <TextField select fullWidth label="Connection slot" value={slotId} onChange={e => { setSlotId(e.target.value); setProfileId('') }}>
           {slots.map(item => <MenuItem key={item.id} value={item.id}>{item.id}</MenuItem>)}
         </TextField>
@@ -43,13 +45,13 @@ export function CustomerExternalIntegrationBindings({ session, offer, deployment
           {profiles.map(item => <MenuItem key={item.id} value={item.id}>{item.id}</MenuItem>)}
         </TextField>
       </Stack>
-      {profile ? <ConnectionForm key={key} authority={{ session, offer, deployment, version, scope }} />
+      {profile ? <ConnectionForm key={key} authority={{ session, offer, deployment, version, scope }} onEditorStateChange={onEditorStateChange} />
         : <Alert severity="warning">No reviewed connection profile is selected for this target.</Alert>}
     </>}
   </Stack>
 }
 
-function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority }) {
+function ConnectionForm({ authority, onEditorStateChange }: { authority: ExternalConnectionAuthority; onEditorStateChange?: Props['onEditorStateChange'] }) {
   const alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const [credentials, setCredentials] = useState<Record<string, string>>({})
@@ -109,6 +111,11 @@ function ConnectionForm({ authority }: { authority: ExternalConnectionAuthority 
     setResult(current => current ? { ...current, binding } : null); setConfirmRevoke(false); setCredentials({}); operationKey.current = null
   } })
   const busy = review.isPending || bind.isPending || revoke.isPending
+  const dirty = Object.values(credentials).some(Boolean) || Boolean(approvalId) || confirmRevoke
+  useEffect(() => {
+    onEditorStateChange?.({ dirty, busy })
+    return () => onEditorStateChange?.({ dirty: false, busy: false })
+  }, [dirty, busy, onEditorStateChange])
   const selected = result?.options.find(item => item.id === approvalId)
   const bound = ['CONFIGURED', 'CONFIGURED_LOCAL_CREDENTIALS'].includes(result?.binding?.status ?? '')
   const can = (operation: 'BINDING_REPLACE' | 'BINDING_REVOKE') => offer.targets.some(target => target.id === scope.targetProfileId && target.capabilities.includes(operation))

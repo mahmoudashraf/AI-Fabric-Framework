@@ -1,7 +1,7 @@
 import { Alert, Button, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { bindCustomerAiStateStorage, fetchCustomerAiStateStorage,
   type CustomerDeploymentSummary, type CustomerOfferSummary, type DeploymentVersionSummary } from '../../api/platformApi'
 import { checkedAiStateBinding, customerAiStateBindingRequest, customerAiStateBindingScope, customerAiStateSlot,
@@ -10,12 +10,16 @@ import { checkedAiStateBinding, customerAiStateBindingRequest, customerAiStateBi
 const emptyForm = (): AiStateConnectionForm => ({ host: '', port: 5432, databaseName: '', runtimeSchema: '',
   connectorSchema: '', username: '', password: '', migrationAuthorized: false })
 
-export function CustomerAiStateStorageBinding({ actorId, customerId, offer, deployment, version }: {
+type EditorStateChange = (state: { dirty: boolean; busy: boolean }) => void
+
+export function CustomerAiStateStorageBinding({ actorId, customerId, offer, deployment, version, targetProfileId, onEditorStateChange }: {
   actorId: string; customerId: string; offer: CustomerOfferSummary
   deployment: CustomerDeploymentSummary; version: DeploymentVersionSummary
+  targetProfileId?: string; onEditorStateChange?: EditorStateChange
 }) {
   const targets = offer.targets.filter((target) => target.capabilities.includes('READ') && target.capabilities.includes('BINDING_REPLACE'))
-  const [targetId, setTargetId] = useState(deployment.bootstrapTargetProfileId)
+  const [chosenTargetId, setTargetId] = useState(deployment.bootstrapTargetProfileId)
+  const targetId = targetProfileId ?? chosenTargetId
   const selected = targets.find((target) => target.id === targetId)
   if (!customerAiStateSlot(offer)) return <Alert severity="warning">No reviewed customer PostgreSQL binding slot is available.</Alert>
   const scope: AiStateBindingScope = { customerId, offer, deployment, version, targetProfileId: selected?.id ?? '' }
@@ -23,14 +27,14 @@ export function CustomerAiStateStorageBinding({ actorId, customerId, offer, depl
     deployment.deploymentId, version.id, version.configHash, selected?.id])
   return <Stack spacing={2}>
     <Typography variant="subtitle2">Customer AI-state PostgreSQL</Typography>
-    <TextField select label="AI-state target" value={selected?.id ?? ''} onChange={(event) => setTargetId(event.target.value)}>
+    {targetProfileId === undefined && <TextField select label="AI-state target" value={selected?.id ?? ''} onChange={(event) => setTargetId(event.target.value)}>
       {targets.map((target) => <MenuItem key={target.id} value={target.id}>{target.id} · {target.intent}</MenuItem>)}
-    </TextField>
-    {selected ? <BindingForm key={key} scope={scope} scopeKey={key} /> : <Alert severity="warning">Select an entitled binding target.</Alert>}
+    </TextField>}
+    {selected ? <BindingForm key={key} scope={scope} scopeKey={key} onEditorStateChange={onEditorStateChange} /> : <Alert severity="warning">The selected environment has no entitled AI-state binding target.</Alert>}
   </Stack>
 }
 
-function BindingForm({ scope, scopeKey }: { scope: AiStateBindingScope; scopeKey: string }) {
+function BindingForm({ scope, scopeKey, onEditorStateChange }: { scope: AiStateBindingScope; scopeKey: string; onEditorStateChange?: EditorStateChange }) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState(emptyForm)
   const command = useRef<{ identity: string; key: string } | null>(null)
@@ -54,6 +58,11 @@ function BindingForm({ scope, scopeKey }: { scope: AiStateBindingScope; scopeKey
     },
   })
   const field = (name: keyof AiStateConnectionForm, value: string | number | boolean) => setForm((current) => ({ ...current, [name]: value }))
+  const dirty = Object.entries(form).some(([key, value]) => value !== emptyForm()[key as keyof AiStateConnectionForm])
+  useEffect(() => {
+    onEditorStateChange?.({ dirty, busy: save.isPending })
+    return () => onEditorStateChange?.({ dirty: false, busy: false })
+  }, [dirty, save.isPending, onEditorStateChange])
   return <Stack spacing={2}>
     <Typography variant="caption">{scope.version.versionLabel} · {scope.version.id}</Typography>
     {binding.data ? <Alert severity="success">PostgreSQL binding verified · {binding.data.bindingId} · retained externally</Alert> : null}

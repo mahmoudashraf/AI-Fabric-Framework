@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Tooltip, useTheme } from '@mui/material'
+import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Tooltip, useTheme } from '@mui/material'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded'
 import CloseRounded from '@mui/icons-material/CloseRounded'
@@ -161,7 +161,12 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
         <section className="ek-inspector-section"><h3>App-assigned release</h3>{release ? <dl className="ek-review-facts"><div><dt>Status</dt><dd>{release.status}</dd></div><div><dt>Verification</dt><dd>{release.verificationStatus}</dd></div><div><dt>Release</dt><dd>{release.id}</dd></div></dl>
           : <p>Deploy and verify, then connect this app.</p>}{release?.errorMessage && <Alert severity="error">{release.errorMessage}</Alert>}
           {!release && latestAttempt && <><h3>Latest {deploymentTerm.lowercase} attempt</h3><p>{latestAttempt.status} / {latestAttempt.verificationStatus}</p><p className="ek-muted">Not yet connected to the app.</p>{latestAttempt.errorMessage && <Alert severity="warning">{latestAttempt.errorMessage}</Alert>}</>}
-          <Button component={Link} to={revisionPath}>Versions & updates</Button></section>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button component={Link} to={deployment?.bootstrapTargetProfileId ? brainPath(kit.deploymentId, 'updates', deployment.bootstrapTargetProfileId) : revisionPath}>Prepare staging</Button>
+            <Button component={Link} to={brainPath(kit.deploymentId, 'try', release?.targetProfileId)}>Try your AI</Button>
+            <Button component={Link} to={`/deployments?${new URLSearchParams({ view: 'setup', deploymentId: kit.deploymentId, step: 'production' })}`}>Review go-live</Button>
+            <Button component={Link} to={revisionPath}>Versions & updates</Button>
+          </Stack></section>
       </> : <>
         {supportExperience && channels.map(channel => channel.app && <KitSupportSpaceSetup key={`${channel.app.installationId}:${channel.app.rowVersion}:${channel.app.releaseId}`}
           customerId={customerId} kit={kit} app={channel.app} releases={releases.data ?? []} onConfigured={() => void refresh()} />)}

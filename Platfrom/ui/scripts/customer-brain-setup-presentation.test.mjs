@@ -76,7 +76,7 @@ test('setup stages preserve existing URL IDs, and future steps require a created
   assert.match(html, /aria-current="step"/)
   assert.equal((html.match(/disabled=""/g) ?? []).length, 4)
   assert.match(html, /Connect your business/)
-  assert.match(html, /Try in staging/)
+  assert.match(html, /Prepare staging/)
   assert.match(html, /Go live/)
 })
 

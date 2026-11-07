@@ -94,3 +94,45 @@ The owner requested deployment and verification after local review. Rollout is U
 Hosted verification deliberately did not save Brain configuration, install capabilities, upload documents, publish/apply a Brain version, run business actions or send AI queries. The isolated browser harnesses above qualify those UI command flows without changing customer resources. This is a UI rollout qualification, not a new end-to-end runtime release gate.
 
 Hosted reports and screenshots: [live evidence](../../../../../../../../verification-support/smart-brain-workspace-01064/README.md#hosted-rollout).
+
+## Staging Preparation And Go-Live Consolidation
+
+Owner-approved follow-up on 7 November 2026: the old `step=staging` page is a
+release-preparation task, not an AI conversation test. Keep that distinction in
+the customer journey:
+
+1. Kit remains the project home. Its assistant links open the existing Smart
+   Brain workspace, not a second configuration or release system.
+2. Smart Brain **Updates / Prepare staging** owns shared-draft comparison,
+   explicit publication, compatible runtime selection, apply and verification.
+3. **Connections** reuses the existing customer external-service and AI-state
+   binding forms. They inherit the exact workspace target; no second environment
+   selector or implicit alternate target is introduced. Credentials and binding
+   operations participate in dirty/busy navigation protection.
+4. **Connect Engage app** reuses existing assignment creation/configuration and
+   exact verified-staging-release binding. Existing production assignments are
+   not silently moved back to staging.
+5. After a release is verified, **Try your AI** names that exact target/release.
+   Try it still requires an active, ready app assigned to that release; it does
+   not substitute a production app when staging has no app.
+6. **Review go-live** opens production Updates / **Promote staging**. The existing
+   practical-promotion APIs, reviewed candidate, document selection, readiness,
+   production verification, explicit activation and assignment rollback remain.
+   Publishing/updating a version is not the same action as activating an app.
+7. Old staging/production setup links resolve through the owned portfolio and
+   authorized target API. Missing targets remain visible errors. Multiple
+   production targets require an explicit choice instead of selecting the first.
+
+The focused panels reuse `CustomerDeploymentConsole` command logic without its
+old resource picker, setup stage bar, creation form or global navigation. The
+existing creation/configuration/retention views and staff version controls remain.
+No backend/runtime/framework, AI settings, permissions, infrastructure or database
+contract is changed. The rejected 010.65 global redesign is not reintroduced;
+the independent staging developer profile stays intact.
+
+Local verification covers the legacy staging redirect, scoped connections,
+assignment selection, absent exact-release test app, production selection and
+retained readiness/activation controls. Existing internal-support connection and
+readiness findings remain visible; this UI work does not claim to resolve them
+or qualify a fresh runtime promotion. Hosted rollout status and screenshots are
+recorded separately in `verification-support/smart-brain-release-journey/README.md`.

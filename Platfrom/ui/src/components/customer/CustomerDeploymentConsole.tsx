@@ -1,4 +1,6 @@
 import { deploymentTerm } from '../../deploymentTerminology'
+import { brainPath } from '../../brain/brainNavigation'
+import { useBrainEditor } from '../../brain/BrainWorkspaceContext'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import { isCustomerAuthenticationMode } from '../../auth/customerSession'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
@@ -198,7 +200,16 @@ function lifecycleStep(
 
 const journeySteps = customerSetupStages
 
-export function CustomerDeploymentConsole({ session, guided = false }: { session: PlatformAuthSessionSummary; guided?: boolean }) {
+export type CustomerReleaseWorkspace = {
+  brainId: string
+  targetProfileId: string
+  section: 'connections' | 'assignment' | 'promotion'
+}
+
+export function CustomerDeploymentConsole({ session, guided: guidedInput = false, releaseWorkspace }: {
+  session: PlatformAuthSessionSummary; guided?: boolean; releaseWorkspace?: CustomerReleaseWorkspace
+}) {
+  const guided = guidedInput || Boolean(releaseWorkspace)
   const queryClient = useQueryClient()
   const detailSection = useCustomerEditorSection()
   const location = useLocation()
@@ -206,8 +217,16 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const journeyParams = new URLSearchParams(location.search)
   const requestedOfferId = journeyParams.get('offerId') ?? ''
   const requestedStep = journeyParams.get('step')
-  const step = journeySteps.find(item => item.id === requestedStep)?.id ?? (journeyParams.has('deploymentId') ? 'configure' : 'template')
-  const selectStep = (id: string) => { const next = new URLSearchParams(location.search); next.set('step', id); navigate({ pathname: location.pathname, search: next.toString() }) }
+  const step = releaseWorkspace ? releaseWorkspace.section === 'promotion' ? 'production'
+    : releaseWorkspace.section === 'assignment' ? 'configure' : 'connections'
+    : journeySteps.find(item => item.id === requestedStep)?.id ?? (journeyParams.has('deploymentId') ? 'configure' : 'template')
+  const selectStep = (id: string) => {
+    if (releaseWorkspace) {
+      navigate(`${brainPath(releaseWorkspace.brainId, 'updates', stagingTargetProfileId)}&panel=assignment`)
+      return
+    }
+    const next = new URLSearchParams(location.search); next.set('step', id); navigate({ pathname: location.pathname, search: next.toString() })
+  }
   const showStep = (id: string) => !guided || step === id
   const { requestedDeploymentId, setSelectedDeploymentId } = useDeploymentWorkspace()
   const operationKeys = useRef(new Map<string, { identity: string; key: string }>())
@@ -238,6 +257,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const [notice, setNotice] = useState<Notice | null>(null)
   const [promotion, setPromotion] = useState<DeploymentPracticalPromotionSummary | null>(null)
   const [reviewedCandidateScope, setReviewedCandidateScope] = useState('')
+  const [connectionEditor, setConnectionEditor] = useState({ dirty: false, busy: false })
+  const [storageEditor, setStorageEditor] = useState({ dirty: false, busy: false })
   const configurationIntents = useRef(createAssignmentConfigurationIntents())
   const configurationBusy = useRef(false)
   const [reviewedRejection, setReviewedRejection] = useState<{ token: symbol; prepared: KnownAssignmentReconciliation } | null>(null)
@@ -259,7 +280,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const invitationsQuery = useQuery({
     queryKey: ['customer-self-service-invitations', customerId],
     queryFn: fetchCustomerSelfServiceInvitations,
-    enabled: Boolean(customerId),
+    enabled: Boolean(customerId && !releaseWorkspace),
   })
   const portfolioQuery = useQuery({
     queryKey: ['customer-deployment-portfolio', customerId],
@@ -274,7 +295,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
-    enabled: Boolean(customerId),
+    enabled: Boolean(customerId && !releaseWorkspace),
   })
   const saveSelection = useMutation({
     mutationFn: updatePlatformUserPreferences,
@@ -341,18 +362,18 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   }, [requestedOfferId])
 
   useEffect(() => {
-    if (guided && step === 'template') return
+    if (releaseWorkspace || (guided && step === 'template')) return
     if (requestedDeploymentId || !portfolioQuery.isSuccess || !deployments.length
       || !(preferencesQuery.isSuccess || preferencesQuery.isError)) return
     const preferred = preferencesQuery.data?.deploymentWorkspace?.lastDeploymentId
     const initial = deployments.find((deployment) => deployment.deploymentId === preferred)
       ?? deployments.find((deployment) => deployment.status !== 'DRAFT') ?? deployments[0]
     setSelectedDeploymentId(initial.deploymentId)
-  }, [guided, step, deployments, requestedDeploymentId, portfolioQuery.isSuccess, preferencesQuery.data,
+  }, [releaseWorkspace, guided, step, deployments, requestedDeploymentId, portfolioQuery.isSuccess, preferencesQuery.data,
     preferencesQuery.isSuccess, preferencesQuery.isError, setSelectedDeploymentId])
 
   useEffect(() => {
-    if (!selectedDeploymentId || persistedSelection.current === selectedDeploymentId
+    if (releaseWorkspace || !selectedDeploymentId || persistedSelection.current === selectedDeploymentId
       || !(preferencesQuery.isSuccess || preferencesQuery.isError)) return
     persistedSelection.current = selectedDeploymentId
     // /deployments is not an editor-scoped route, so persist its shared URL selection here.
@@ -360,7 +381,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       lastDeploymentId: selectedDeploymentId,
       lastSection: preferencesQuery.data?.deploymentWorkspace?.lastSection ?? null,
     } })
-  }, [selectedDeploymentId, preferencesQuery.isSuccess, preferencesQuery.isError, preferencesQuery.data, saveSelection])
+  }, [releaseWorkspace, selectedDeploymentId, preferencesQuery.isSuccess, preferencesQuery.isError, preferencesQuery.data, saveSelection])
 
   useEffect(() => {
     if (!creationOffer) return
@@ -395,7 +416,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
   const stagingArtifacts = useQuery({
     queryKey: ['compatible-deployment-source-artifacts', selectedDeploymentId, latestVersion?.id],
     queryFn: () => fetchCompatibleDeploymentSourceArtifacts(selectedDeploymentId, latestVersion!.id),
-    enabled: Boolean(selectedDeploymentId && latestVersion?.id), retry: false,
+    enabled: Boolean(!releaseWorkspace && selectedDeploymentId && latestVersion?.id), retry: false,
   })
   const stagingImage = useScopedOneTimeValue<string>(JSON.stringify([session.actorId, customerId, selectedDeploymentId, latestVersion?.id]))
   const selectedStagingImage = (stagingArtifacts.data ?? []).find(artifact => artifact.id === stagingImage.value)
@@ -412,8 +433,10 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     ? productionTargets.find((target) => target.id === productionTargetChoice.targetProfileId) : undefined
   const boundProductionTarget = selectedConsumer?.boundDeploymentId === selectedDeploymentId
     ? productionTargets.find((target) => target.id === selectedConsumer.boundTargetProfileId) : undefined
-  const selectedProductionTargetProfileId = (chosenProductionTarget ?? boundProductionTarget
-    ?? (productionTargets.length === 1 ? productionTargets[0] : undefined))?.id ?? ''
+  const selectedProductionTargetProfileId = releaseWorkspace?.section === 'promotion'
+    ? productionTargets.find(target => target.id === releaseWorkspace.targetProfileId)?.id ?? ''
+    : (chosenProductionTarget ?? boundProductionTarget
+      ?? (productionTargets.length === 1 ? productionTargets[0] : undefined))?.id ?? ''
   const productionRelease = releases.find((release) => release.targetProfileId === selectedProductionTargetProfileId) ?? null
   const assignmentCreationGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
@@ -482,7 +505,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     queryFn: () => fetchCustomerDeploymentGoLiveReadiness(
       selectedOffer!.id, selectedDeploymentId, productionRelease!.id, selectedConsumer!.consumerId,
     ),
-    enabled: Boolean(selectedOffer && selectedDeploymentId && productionRelease && selectedConsumer),
+    enabled: Boolean(selectedOffer && selectedDeploymentId && productionRelease && selectedConsumer
+      && (!releaseWorkspace || releaseWorkspace.section === 'promotion')),
     refetchInterval: (query) => query.state.data?.activationReady && query.state.data?.postActivationComplete ? false : 5000,
   })
   const goLiveReadiness = goLiveReadinessQuery.data ?? null
@@ -502,6 +526,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['brain-updates-target', selectedDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['ai-workspace-installations', customerId] }),
       queryClient.invalidateQueries({ queryKey: ['platform-consumers', customerId] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-operations-status'] }),
       queryClient.invalidateQueries({ queryKey: ['customer-go-live-readiness'] }),
@@ -871,8 +898,29 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     || (refreshProductionReadiness.variables?.token === readinessGuard.capture() ? refreshProductionReadiness.error : null)
     || activateProduction.error || rollbackProduction.error
 
+  useBrainEditor(releaseWorkspace ? {
+    dirty: connectionEditor.dirty || storageEditor.dirty,
+    busy: connectionEditor.busy || storageEditor.busy || configureAssignment.isPending || createConsumer.isPending || bindConsumerToStaging.isPending
+      || planPromotion.isPending || applyProduction.isPending || activateProduction.isPending || rollbackProduction.isPending,
+    message: releaseWorkspace.section === 'promotion' ? 'Production deployment and app activation are separate recorded actions.'
+      : releaseWorkspace.section === 'assignment' ? 'Only the verified staging release is connected when you confirm.'
+        : 'Connections are scoped to this Smart Brain. Publish changes in Review changes.',
+  } : null)
+
   if (catalogueQuery.isLoading || portfolioQuery.isLoading || invitationsQuery.isLoading) {
     return <Box sx={{ minHeight: 360, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
+  }
+
+  if (releaseWorkspace) {
+    const exactTarget = targetProfilesQuery.data?.find(target => target.id === releaseWorkspace.targetProfileId && target.active)
+    const expectedEnvironment = releaseWorkspace.section === 'promotion' ? 'production' : 'staging'
+    if (portfolioQuery.isError || targetProfilesQuery.isError) return <Alert severity="error">{errorText(portfolioQuery.error || targetProfilesQuery.error)}</Alert>
+    if (targetProfilesQuery.isLoading) return <CircularProgress aria-label="Loading release destination" />
+    if (selectedDeploymentId !== releaseWorkspace.brainId || !exactTarget || exactTarget.environmentName !== expectedEnvironment
+      || (expectedEnvironment === 'staging' && stagingTargetProfileId !== exactTarget.id)) {
+      return <Alert severity="warning">This release task is not available for the selected Smart Brain and environment. No other destination was selected.</Alert>
+    }
+    if (!selectedOffer) return <Alert severity="warning">The setup record for this Smart Brain is unavailable. Refresh your kit before continuing.</Alert>
   }
 
   const operationsPanel = <>
@@ -964,7 +1012,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   return (
     <Stack spacing={3}>
-      {guided ? <CustomerBrainSetupHeader step={step} hasDeployment={Boolean(selectedDeployment)} onStep={selectStep} /> : <>
+      {releaseWorkspace ? null : guided ? <CustomerBrainSetupHeader step={step === 'connections' ? 'staging' : step} hasDeployment={Boolean(selectedDeployment)} onStep={selectStep} /> : <>
         <Box>
           <Chip label="Customer workspace" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
           <Typography variant="h4" sx={{ fontWeight: 800 }}>My {deploymentTerm.pluralLowercase}</Typography>
@@ -975,7 +1023,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
         {operationsPanel}
       </>}
 
-      {guided ? <>
+      {guided && !releaseWorkspace ? <>
         {step !== 'template' && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
           <TextField select size="small" label={`${deploymentTerm.singular} being configured`} value={selectedDeploymentId} onChange={event => setSelectedDeploymentId(event.target.value)} sx={{ minWidth: 260 }}>
             <MenuItem value="">Choose an existing {deploymentTerm.lowercase}</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
@@ -986,6 +1034,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
       {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.message}</Alert> : null}
       {activeError ? <Alert severity="error">{errorText(activeError)}</Alert> : null}
+      {releaseWorkspace && !operationsReady && <Alert severity="warning">Release operations checks are unavailable. <Button onClick={() => void operationsStatusQuery.refetch()}>Refresh checks</Button></Alert>}
       {preferencesQuery.error || saveSelection.error ? (
         <Alert severity="warning" action={saveSelection.isError ? (
           <Button color="inherit" disabled={!selectedDeploymentId || saveSelection.isPending}
@@ -1000,7 +1049,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       ) : null}
       {!customerId ? <Alert severity="error">This account has no customer ownership scope.</Alert> : null}
 
-      {(invitationsQuery.data ?? []).filter((invitation) => invitation.status === 'INVITED').map((invitation) => (
+      {(!releaseWorkspace ? invitationsQuery.data ?? [] : []).filter((invitation) => invitation.status === 'INVITED').map((invitation) => (
         <Alert
           key={invitation.id}
           severity="info"
@@ -1115,7 +1164,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               ))}
             </Stepper> : null}
 
-            {guided && step === 'configure' ? <Box>
+            {guided && !releaseWorkspace && step === 'configure' ? <Box>
               <Typography variant="h6" sx={{ mb: 1.5 }}>Your knowledge and access</Typography>
               {selectedBindingSlots.filter(slot => slot.kind !== 'EXTERNAL_SERVICE').map(slot => <Stack key={slot.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
                 <Box><Typography variant="body2" fontWeight={600}>{({ CUSTOMER_S3: 'Documents and guides', CUSTOMER_IDENTITY: 'Customer sign-in', CUSTOMER_AI_PROVIDER: 'AI provider', CUSTOMER_AI_STATE: 'Conversation storage' } as Record<string, string>)[slot.kind] ?? slot.kind}</Typography>
@@ -1128,20 +1177,32 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>Connections are checked when you publish and verify your setup. Listed options are not a readiness result.</Typography>
             </Box> : null}
 
-            <Box sx={{ display: guided && !['configure', 'staging'].includes(step) ? 'none' : undefined }}>
+            {(!releaseWorkspace || releaseWorkspace.section === 'connections') && <Box sx={{ display: guided && !['configure', 'staging', 'connections'].includes(step) ? 'none' : undefined }}>
               <CustomerExternalIntegrationBindings key={JSON.stringify([session.actorId, customerId, selectedOffer.id,
                 selectedOffer.fingerprint, selectedOffer.entitlement.revision, selectedDeploymentId])}
-                session={session} offer={selectedOffer} deployment={selectedDeployment} version={latestVersion} />
-            </Box>
+                session={session} offer={selectedOffer} deployment={selectedDeployment} version={latestVersion}
+                targetProfileId={releaseWorkspace?.targetProfileId} onEditorStateChange={releaseWorkspace ? setConnectionEditor : undefined} />
+              {releaseWorkspace && savedStorageMode === 'CUSTOMER_POSTGRES' && latestVersion && <CustomerAiStateStorageBinding
+                key={`${selectedDeploymentId}:${latestVersion.id}`} actorId={session.actorId ?? ''} customerId={customerId}
+                offer={selectedOffer} deployment={selectedDeployment} version={latestVersion}
+                targetProfileId={releaseWorkspace.targetProfileId} onEditorStateChange={setStorageEditor} />}
+              {releaseWorkspace && (storageDraft.error || storedStorageError) && <Alert severity="error">{storedStorageError ?? errorText(storageDraft.error)}</Alert>}
+            </Box>}
 
-            <Box sx={{ display: showStep('production') ? undefined : 'none' }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
+            {(!releaseWorkspace || releaseWorkspace.section === 'promotion') && <Box component={releaseWorkspace ? 'details' : 'div'} sx={{ display: showStep('production') ? undefined : 'none' }}>
+              {releaseWorkspace && <Box component="summary" sx={{ cursor: 'pointer', py: 1 }}>
+                <Typography component="span" variant="subtitle2" sx={{ mr: 1.5 }}>Production checks</Typography>
+                <Chip size="small" variant="outlined" color={goLiveReadiness?.activationReady ? 'success' : 'warning'}
+                  label={!goLiveReadiness ? 'Not checked' : goLiveReadiness.activationReady ? 'Ready to activate'
+                    : `${readinessItems.filter(item => !['PASSED', 'NOT_APPLICABLE'].includes(item.status)).length} checks need attention`} />
+              </Box>}
+              {!releaseWorkspace && <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
                 <Typography variant="h6">Production readiness and go-live</Typography>
                 {goLiveReadiness ? (
                   <Chip size="small" label={productionActive ? 'Production active' : goLiveReadiness.activationReady ? 'Ready to activate' : 'Activation blocked'}
                     color={productionActive || goLiveReadiness.activationReady ? 'success' : 'warning'} />
                 ) : null}
-              </Stack>
+              </Stack>}
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Candidate-bound evidence is calculated by the Platform. It cannot be completed manually or reused for a different release.
               </Typography>
@@ -1194,11 +1255,11 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   ))}
                 </Grid>
               )}
-            </Box>
+            </Box>}
 
             {!guided ? <Divider /> : null}
-            <Grid container spacing={3}>
-              <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: showStep('staging') ? undefined : 'none' }}>
+            <Grid container spacing={3} sx={releaseWorkspace ? { m: 0, width: '100%', '& > .MuiGrid-item': { p: 0 } } : undefined}>
+              {!releaseWorkspace && <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: showStep('staging') ? undefined : 'none' }}>
                 <Stack spacing={2}>
                   <Typography variant="h6">Staging release</Typography>
                   {requiresStorageChoice ? <>
@@ -1254,9 +1315,9 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                     label="Verify staging release" onVerified={invalidateCustomerState} />
                   <Typography variant="caption" color="text.secondary">Automatic recovery is not configured. Contact your operator if a release needs recovery.</Typography>
                 </Stack>
-              </Grid>
+              </Grid>}
 
-              <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: showStep('configure') ? undefined : 'none' }}>
+              {(!releaseWorkspace || releaseWorkspace.section === 'assignment' || releaseWorkspace.section === 'promotion') && <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: releaseWorkspace || showStep('configure') ? undefined : 'none' }}>
                 <Stack spacing={2}>
                   <Typography variant="h6">Engage assignment</Typography>
                   {deploymentConsumers.length > 0 ? (
@@ -1364,7 +1425,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                           Configure existing assignment
                         </Button>
                       </> : null}
-                      {releaseReady(stagingRelease) && selectedConsumer.boundReleaseId !== stagingRelease?.id && !productionActive ? (
+                      {releaseWorkspace?.section !== 'promotion' && releaseReady(stagingRelease) && selectedConsumer.boundReleaseId !== stagingRelease?.id && !productionActive ? (
                         <>
                         <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
                           disabled={!operationsReady || bindConsumerToStaging.isPending}
@@ -1376,16 +1437,17 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                     </Stack>
                   ) : null}
                 </Stack>
-              </Grid>
+              </Grid>}
             </Grid>
 
             {!guided ? <Divider /> : null}
-            <Stack spacing={2} sx={{ display: showStep('production') ? undefined : 'none' }}>
+            {(!releaseWorkspace || releaseWorkspace.section === 'promotion') && <Stack spacing={2} sx={{ display: showStep('production') ? undefined : 'none' }}>
               <Typography variant="h6">Production promotion</Typography>
               <Typography variant="body2" color="text.secondary">
-                The app remains on staging until the production release passes verification and you explicitly activate it.
+                {productionActive ? 'Your selected app already uses production. A new promotion does not switch it until you explicitly activate the verified candidate.'
+                  : 'The app remains on staging until the production release passes verification and you explicitly activate it.'}
               </Typography>
-              {productionTargets.length > 1 ? (
+              {!releaseWorkspace && productionTargets.length > 1 ? (
                 <TextField select label="Production target" value={selectedProductionTargetProfileId}
                   onChange={(event) => { setProductionTargetChoice({ scope: productionTargetScope, targetProfileId: event.target.value }); setPromotion(null) }}>
                   {productionTargets.map((target) => (
@@ -1449,7 +1511,7 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                 label="Verify production release" onVerified={invalidateCustomerState} /> : null}
               {reviewedPromotion ? <Alert severity={reviewedPromotion.status.includes('FAILED') ? 'error' : 'info'}>{reviewedPromotion.message}</Alert> : null}
               <ReleaseOperationsAssessment release={productionRelease} />
-            </Stack>
+            </Stack>}
 
             {!guided ? <Divider /> : null}
             <Stack spacing={2} sx={{ display: showStep('retention') ? undefined : 'none' }}>
@@ -1484,11 +1546,11 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
       {deployments.length === 0 && offers.length === 0 ? (
         <Alert severity="warning">No active reviewed product offer is available for this customer.</Alert>
       ) : null}
-      {guided && step !== 'template' ? <Stack direction="row" justifyContent="space-between" spacing={2}>
+      {guided && !releaseWorkspace && step !== 'template' ? <Stack direction="row" justifyContent="space-between" spacing={2}>
         <Button onClick={() => selectStep(journeySteps[Math.max(0, journeySteps.findIndex(item => item.id === step) - 1)].id)}>Previous</Button>
         <Button variant="outlined" disabled={!selectedDeployment || step === 'retention'} onClick={() => selectStep(journeySteps[Math.min(journeySteps.length - 1, journeySteps.findIndex(item => item.id === step) + 1)].id)}>Next stage</Button>
       </Stack> : null}
-      {guided && <Box component="details" sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+      {guided && !releaseWorkspace && <Box component="details" sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
         <Typography component="summary" variant="body2" color="text.secondary" sx={{ cursor: 'pointer' }}>Technical setup & resource limits</Typography>
         <Stack spacing={2} sx={{ pt: 2 }}>
           <CustomerEditorDepthSwitch label="Setup detail level" />

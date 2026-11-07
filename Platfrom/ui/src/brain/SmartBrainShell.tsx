@@ -191,9 +191,9 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
           </Box>
           {valid && <Box component="footer" ref={footerRef} aria-label="Workspace actions" sx={{ borderTop: 1, borderColor: 'divider', flexShrink: 0, px: { xs: 2, md: 3 }, py: 1.5, bgcolor: 'background.paper' }}>
             {editor?.error && <Alert severity="error" sx={{ mb: 1 }}>{editor.error}</Alert>}
-            <Stack direction="row" gap={2} alignItems="center" justifyContent="space-between">
+            <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
               <Typography variant="body2" color={dirty ? 'warning.main' : 'text.secondary'}>{editor?.message ?? (dirty ? 'Unsaved changes' : `Shared draft${workspace.workspace?.draft ? ` r${workspace.workspace.draft.revisionNumber}` : ''}. Applied configuration is unchanged.`)}</Typography>
-              <Stack direction="row" gap={1} sx={{ flexShrink: 0 }}>
+              <Stack direction="row" gap={1} sx={{ flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {editor?.discard && <Button disabled={busy} variant="outlined" onClick={() => editor.discard?.()}>{editor.secondaryLabel ?? 'Discard'}</Button>}
                 {editor?.save ? <Button variant="contained" disabled={busy || editor.canSave === false} onClick={() => { void editor.save?.() }}>{busy ? 'Working...' : editor.primaryLabel ?? 'Save draft'}</Button>
                   : section !== 'updates' && <Button component={RouterLink} to={href('updates')} variant="outlined">Review & publish</Button>}

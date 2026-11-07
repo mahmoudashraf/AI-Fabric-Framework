@@ -41,7 +41,10 @@ const dependencies = {
   './BrainWorkspaceContext': { useBrainWorkspace: () => ({ brainId: 'brain-1', targetProfileId: 'target-1',
     targetProfile: { id: 'target-1', active: true, environmentName: 'Staging', name: 'London staging' },
     release, target: { deploymentId: 'brain-1', targetProfileId: 'target-1', releaseId: 'release-12' }, href: section => `/smart-brains/brain-1/${section}` }), useBrainEditor: state => { registered = state } },
-  'react-router-dom': { useNavigate: () => () => {} },
+  './BrainCustomerReleaseTasks': { BrainCustomerReleaseTasks: () => null },
+  './brainNavigation': { brainPath: (id, section, target) => `/smart-brains/${id}/${section}?targetProfileId=${target}` },
+  'react-router-dom': { useNavigate: () => () => {}, useLocation: () => ({ pathname: '/smart-brains/brain-1/updates', search: '?targetProfileId=target-1' }),
+    Link: ({ to, children }) => React.createElement('a', { href: to }, children) },
   '@tanstack/react-query': {
     useQuery: options => ({ data: queryData[options.queryKey[0]], isSuccess: true, isLoading: false, isError: false }),
     useQueryClient: () => ({ invalidateQueries: async () => {} }),
