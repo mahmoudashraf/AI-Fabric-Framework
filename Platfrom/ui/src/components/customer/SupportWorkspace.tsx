@@ -89,6 +89,7 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
         getIdentityAccessToken: token,
         fetchWorkspace, onRequestSelected: request => { if (active) selectedRequest(request?.id ?? null) } }
       const context: SupportMountContext = {
+        signal: abort.signal,
         installationId: initial.installationId, assignmentRevision: initial.assignmentRevision,
         deliveryMode: 'embedded', connectionMode: 'backend-mediated-private-runtime',
         configuration: { ...initial.configuration, theme: { ...(initial.configuration.theme as object), stylePreset: 'clarity', primaryColor: '#16776c', darkMode: latestTheme.current } },

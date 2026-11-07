@@ -87,6 +87,9 @@ and the tested pages remained usable. This task does not claim to fix that
 separate widget lifecycle issue.
 
 The initial source's separate document-storage CI run `42421128098` failed at
-**Browser installation**, before running its tests. No storage/backend code was
-changed here. The final UI-image workflow is green; this is not a claim that
-every unrelated repository workflow passed.
+**Browser installation**. Follow-up log inspection corrected the initial report:
+the backend completed 302 tests with no failures (three PostgreSQL checks skipped),
+and all 15 UI contract tests passed. Only the browser journeys did not run.
+The runner was Ubuntu 26.04, unsupported by pinned Playwright 1.58.2. No
+storage/backend code was changed by the management redesign. Follow-up fixes are
+tracked in `verification-support/support-lifecycle-ci/README.md`.

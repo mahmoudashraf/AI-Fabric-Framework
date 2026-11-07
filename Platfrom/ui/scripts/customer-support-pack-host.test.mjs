@@ -10,6 +10,7 @@ test('Console mounts shared pack and isolated helper, not a custom transcript or
   assert.match(workspace, /installer\/isolatedHost/)
   assert.match(workspace, /mountInstallation\(context\)/)
   assert.match(workspace, /mounted\.setVisible/)
+  assert.match(workspace, /signal: abort\.signal/)
   assert.match(workspace, /\.setTheme\(/)
   assert.doesNotMatch(workspace, /srcDoc|postMessage|supportWorkspaceDocument|participantMessages|completedTurns/)
 })

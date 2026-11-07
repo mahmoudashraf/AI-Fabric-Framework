@@ -155,6 +155,8 @@ export interface SupportHostAdapter {
   requestSignIn?: () => Promise<void> | void
 }
 export interface SupportMountContext {
+  /** Abort disposes the controller and its owned frame, including during initialization. */
+  signal?: AbortSignal
   installationId: string
   assignmentRevision: string
   deliveryMode: 'embedded' | 'standalone'

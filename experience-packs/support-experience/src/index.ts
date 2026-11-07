@@ -14,6 +14,8 @@ export const version = '1.0.0'
 let activeController: SupportExperienceController | undefined
 
 export async function mountInstallation(context: SupportMountContext): Promise<SupportExperienceController> {
+  const signal = context.signal
+  signal?.throwIfAborted()
   const config = validateConfig(context.configuration)
   if (activeController) throw new Error('Only one support experience can be mounted per document. Reuse its controller.')
   if (!context.workspaceFrame) throw new Error('The support experience requires an isolated workspace frame host.')
@@ -38,7 +40,7 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
   if (['page', 'docked'].includes(mode) && (!container?.isConnected || container === document.body || container === document.documentElement)) {
     throw new Error('Page presentation requires a connected local container.')
   }
-  const ensureActive = () => { if (destroyed) throw new Error('This support experience has been destroyed.') }
+  const ensureActive = () => { signal?.throwIfAborted(); if (destroyed) throw new Error('This support experience has been destroyed.') }
   const layout = () => {
     if (destroyed) return
     context.workspaceFrame.setContentClipping?.(mode === 'docked' && store.getState().view === 'chat')
@@ -261,7 +263,8 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     onStateChange(listener) { ensureActive(); return store.subscribe(listener) },
     destroy() {
       if (destroyed) return
-      destroyed = true; activity.destroy(); clearInterval(poll); observer.disconnect(); releaseStore(); releaseChat?.()
+      destroyed = true; signal?.removeEventListener('abort', onAbort)
+      activity.destroy(); clearInterval(poll); observer.disconnect(); releaseStore(); releaseChat?.()
       removeEventListener('resize', onResize)
       store.destroy()
       try { shell.destroy() } finally {
@@ -270,7 +273,10 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
     },
   }
   activeController = controller
+  const onAbort = () => controller.destroy()
+  signal?.addEventListener('abort', onAbort, { once: true })
   try {
+    ensureActive()
     shell.setMode(mode)
     store.update({ presentation: mode })
     place()
@@ -282,11 +288,13 @@ export async function mountInstallation(context: SupportMountContext): Promise<S
       if (shell.visible() && (view === 'requests' || view === 'detail')) void refresh()
     }, 15000)
     if (requesterEnabled && context.credentials?.getIdentity?.()?.status !== 'anonymous') await store.run(() => store.loadSession())
+    ensureActive()
     try {
       if (host.fetchWorkspace) {
         const bootstrap = fromWorkspace(await host.fetchWorkspace())
         ensureActive(); initializeChat(bootstrap)
         if (bootstrap.conversationId) await context.maxMode.openConversation(bootstrap.conversationId, { open: mode !== 'docked' })
+        ensureActive()
         host.onRequestSelected?.(null)
       } else if (context.widgetConfig.apiConfig?.chatBaseUrl) initializeChat({ widgetConfig: context.widgetConfig, hostSession: context.hostSession })
     } catch (error) {

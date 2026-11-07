@@ -47,6 +47,7 @@ export class SupportStore {
   }
   async loadSession() {
     const session = await this.api.session()
+    if (!this.active) return
     if (session.space.providerBindingId !== this.config.support?.ticketProviderBindingId || session.space.spaceId !== this.config.support.spaceId) throw new SupportApiError(409, 'BINDING_CHANGED', 'The request provider changed. Reload this support page.')
     this.update({ session })
     if (session.authenticated && this.config.support?.teamVisible && this.config.capabilities?.handover === true && session.space.humanHandoverEnabled) this.update({ team: await this.api.team() })

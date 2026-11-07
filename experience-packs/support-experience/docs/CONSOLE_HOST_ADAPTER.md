@@ -86,7 +86,9 @@ The following is a composition sketch. `loadOwnedWorkspace`, token/session
 functions and `frame` belong to the host's authenticated, integrity-checked setup:
 
 ```ts
+const lifetime = new AbortController()
 const controller = await mountInstallation({
+  signal: lifetime.signal,
   installationId,
   assignmentRevision,
   deliveryMode: 'embedded',
@@ -108,6 +110,16 @@ const controller = await mountInstallation({
   refreshAssignment,
 })
 ```
+
+Register the host's unmount/account-change cleanup to call `lifetime.abort()`
+**before awaiting the mount**. Cancellation synchronously disposes pack observers,
+subscriptions and its owned frame even while session/bootstrap/history reads are
+pending. The mount rejects with the abort reason; late responses cannot reattach
+the old controller or start follow-up roster/bootstrap reads. Hosts should also
+abort their own network adapter and keep their existing identity checks.
+Do not destroy a mounting controller's frame independently without cancelling
+its lifetime first. After a normal mount, explicit `controller.destroy()` remains
+supported and idempotent; calls on a disposed controller remain errors.
 
 `apiBaseUrl` is the **collection root** used verbatim. It does not receive an
 extra Desk prefix. `getIdentity()` returns authenticated status plus an opaque,
