@@ -56,4 +56,37 @@ hidden or claimed fixed by this scoped management-navigation change.
 
 ## Rollout
 
-Pending UI-only CI image publication, staging-first deployment and hosted checks.
+- Final UI source: `31bfde9abb61e22814aeecd0d68e9fafaf15bd51`, following
+  implementation commit `869a0e8467c92c4164f98fd1acd0478f256ebbf0`.
+- [UI image CI 42421539309](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42421539309)
+  passed; backend build skipped. The focused independent review found three
+  status/CTA cases, all corrected and rechecked without further findings.
+- Staging Coolify job `u7ovg7c8dz6r2pf4v08nddyw`: finished. Native UI container
+  healthy on the exact final source. Developer profile retained.
+- Production Coolify job `z9gddxetu4ah0s01pp5tz6ei`: finished. Native UI container
+  healthy on the exact final source. Standard profile retained.
+- Both backends remain healthy on
+  `baf6ea3328a1ef72d83d01552ffbc02da1582105`; no backend/runtime rollout occurred.
+- Hosted staging passed the old management redirect and next-action route into
+  the existing Prepare staging / Connections / Connect Engage app / History tabs.
+- Hosted production passed old management and release-only redirects, canonical
+  reload, all five outcome sections, retained production target, Updates,
+  light/dark desktop and basic mobile drawer navigation. No horizontal overflow;
+  all overview sections fit at 1280x720. Screenshots are in `live/`.
+- Verification used authorized owned support fixtures, not the owner's personal
+  Brain. No AI query, business write, draft save, publication, infrastructure
+  apply, app assignment change or member/credential change was performed.
+- Test sessions were observed signed out before closing; temporary browser tabs
+  were closed and viewport override reset.
+
+## Remaining Observations
+
+The previously recorded Support iframe disposal/state-listener warning also
+appeared in production during full shell changes. Steady-state Brain navigation
+and the tested pages remained usable. This task does not claim to fix that
+separate widget lifecycle issue.
+
+The initial source's separate document-storage CI run `42421128098` failed at
+**Browser installation**, before running its tests. No storage/backend code was
+changed here. The final UI-image workflow is green; this is not a claim that
+every unrelated repository workflow passed.

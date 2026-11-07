@@ -13303,3 +13303,30 @@ test is being called hosted acceptance. UI extraction remains last.
   automation clicks didnotnavigate; directstaff/users passed. Existingglobal
   navigation timing notrewritten by thisnarrow account UI task. Same auth/team
   productconstraints remain, no invented invitation or Supabase provisioning.
+
+### Smart Brain Management Workspace Closeout - 7 November 2026
+
+- Owner approved implementing the management-page proposal. Customer legacy
+  `/deployments?view=manage&deploymentId=...` now opens `/smart-brains/:id` after
+  owned-portfolio validation. Unscoped links open the list; missing/foreign
+  resources remain errors. Explicit target/release context is retained, including
+  resolving release-only links to that owned release's target.
+- Compact overview: five outcome sections, one status-driven next task, saved
+  draft versus verified environment, exact-release active Engage access. Blocked
+  and in-progress updates lead to Updates; website-only apps lead to Channels,
+  not a standalone preview. Existing filtered setup/release commands remain.
+- Final UI source `31bfde9abb61e22814aeecd0d68e9fafaf15bd51`; CI `42421539309`
+  passed/backend skipped. Staging job `u7ovg7c8dz6r2pf4v08nddyw` and production
+  job `z9gddxetu4ah0s01pp5tz6ei` finished; exact-source native UI containers healthy.
+  Both backends unchanged/healthy on `baf6ea3328a1ef72d83d01552ffbc02da1582105`.
+- 121 focused UI checks and build passed. Local read-only and hosted owned-fixture
+  checks covered redirects, outcome navigation, target retention, Updates,
+  dark/light desktop and basic mobile. Desktop overview fits 1280x720. No customer
+  configuration, runtime, app-assignment, business-action or AI-query mutation.
+- Developer staging / standard production profiles retained. Test sessions signed
+  out; temporary tabs closed and viewport reset. Preserve unrelated dirty files.
+- Known separate observations remain: Support iframe disposal/state-listener
+  warning on full shell transitions, and initial source document-storage workflow
+  `42421128098` failed at browser installation before tests. Do not claim all
+  repository CI green or Support lifecycle fixed. Evidence and rollout details:
+  `verification-support/smart-brain-management/README.md`.
