@@ -48,6 +48,8 @@ test('focused release tasks reuse existing ownership, storage, assignment and pr
   assert.ok(source.includes("releaseWorkspace.section === 'promotion'"))
   assert.ok(source.includes('productionTargets.find(target => target.id === releaseWorkspace.targetProfileId)'))
   assert.ok(source.includes('if (releaseWorkspace || !selectedDeploymentId'))
+  const connections = await readFile(new URL('../src/components/customer/CustomerExternalIntegrationBindings.tsx', import.meta.url), 'utf8')
+  assert.ok(connections.includes('Boolean(approvalId && !result?.binding)'), 'a completed binding must not retain a false unsaved-approval state')
 })
 
 test('Try your AI requires verified evidence and names the exact release; promotion remains explicit', async () => {

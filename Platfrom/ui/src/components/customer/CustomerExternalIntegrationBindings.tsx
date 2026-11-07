@@ -111,7 +111,7 @@ function ConnectionForm({ authority, onEditorStateChange }: { authority: Externa
     setResult(current => current ? { ...current, binding } : null); setConfirmRevoke(false); setCredentials({}); operationKey.current = null
   } })
   const busy = review.isPending || bind.isPending || revoke.isPending
-  const dirty = Object.values(credentials).some(Boolean) || Boolean(approvalId) || confirmRevoke
+  const dirty = Object.values(credentials).some(Boolean) || Boolean(approvalId && !result?.binding) || confirmRevoke
   useEffect(() => {
     onEditorStateChange?.({ dirty, busy })
     return () => onEditorStateChange?.({ dirty: false, busy: false })
