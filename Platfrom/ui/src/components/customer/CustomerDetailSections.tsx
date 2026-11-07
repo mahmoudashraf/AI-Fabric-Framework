@@ -32,20 +32,21 @@ export function CustomerDetailSections({ preferenceKey, overview, configuration,
   </>
 }
 
-export function CustomerEditorSections({ scopeKey, initialSection = 'configuration', children, notices }: {
+export function CustomerEditorSections({ scopeKey, initialSection = 'configuration', children, notices, showDepthSwitch = true }: {
   scopeKey: string
   initialSection?: CustomerEditorSection
   children: ReactNode
   notices?: ReactNode
+  showDepthSwitch?: boolean
 }) {
-  return <EditorSections key={scopeKey} initialSection={initialSection} notices={notices}>{children}</EditorSections>
+  return <EditorSections key={scopeKey} initialSection={initialSection} notices={notices} showDepthSwitch={showDepthSwitch}>{children}</EditorSections>
 }
 
-function EditorSections({ initialSection, children, notices }: { initialSection: CustomerEditorSection; children: ReactNode; notices?: ReactNode }) {
+function EditorSections({ initialSection, children, notices, showDepthSwitch }: { initialSection: CustomerEditorSection; children: ReactNode; notices?: ReactNode; showDepthSwitch: boolean }) {
   const [section, setSection] = useState<CustomerEditorSection>(initialSection)
   return <EditorSection.Provider value={{ section, setSection, notices }}>
     <CustomerEditorNotices />
-    <CustomerEditorDepthSwitch />
+    {showDepthSwitch && <CustomerEditorDepthSwitch />}
     {children}
   </EditorSection.Provider>
 }

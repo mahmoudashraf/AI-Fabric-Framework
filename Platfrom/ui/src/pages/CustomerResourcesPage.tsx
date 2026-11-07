@@ -28,7 +28,7 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
         connectInstallationId={params.get('connectInstallationId') ?? undefined}
         initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} /></CustomerEditorSections>
     }
-    return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
+    return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`} showDepthSwitch={false}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
       : <CustomerDeploymentConsole session={session} />
   }
   return <CustomerResourceReads mode={mode} session={session} />
