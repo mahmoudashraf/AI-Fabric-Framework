@@ -215,7 +215,10 @@ export function canonicalChatResult(payload: any): ChatResult | undefined {
   if (documents.length > 0) {
     data.documents = documents;
   }
-  const nextSteps = success && Array.isArray(payload.suggestions) ? payload.suggestions.flatMap((value: unknown) => {
+  const awaitingInteraction = ["CONFIRMATION_REQUIRED", "CLARIFICATION_REQUIRED"].includes(resultType)
+    || (Array.isArray(payload.results) && payload.results.some((item: any) =>
+      ["CONFIRMATION_REQUIRED", "CLARIFICATION_REQUIRED"].includes(item?.type)));
+  const nextSteps = success && !awaitingInteraction && Array.isArray(payload.suggestions) ? payload.suggestions.flatMap((value: unknown) => {
     const suggestion = objectValue(value);
     const query = trimToNull(suggestion.query);
     if (!query) return [];
