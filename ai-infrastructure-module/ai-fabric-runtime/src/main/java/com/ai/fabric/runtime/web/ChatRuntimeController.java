@@ -456,7 +456,8 @@ public class ChatRuntimeController {
             .actions(actions)
             .results("COMPOUND_HANDLED".equals(resultType)
                 ? canonicalResultItems(sanitizedPayload, sanitizedData) : List.of())
-            .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
+            .suggestions(Boolean.FALSE.equals(managedNextStepsEnabled()) ? List.of()
+                : firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
             .authenticationRequirement(WorkspaceAuthenticationRequirementSupport.resolve(result, identity))
             .providerRequestId(providerRequestId)
@@ -879,6 +880,17 @@ public class ChatRuntimeController {
         n = Math.max(1, Math.min(n, 10));
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
+
+        Boolean managedNextSteps = managedNextStepsEnabled();
+        if (managedNextSteps != null) {
+            return okWithAuthHeaders(SuggestionsResponse.builder()
+                .success(true)
+                .message(managedNextSteps ? "Next-step suggestions are included with conversation answers."
+                    : "Optional next-step suggestions are disabled.")
+                .suggestions(List.of())
+                .authContext(toResponseAuthContext(identity))
+                .build(), identity, requestPath);
+        }
 
         RuntimeBudgetTurnScopes.Turn budgetTurn;
         try {
@@ -1560,6 +1572,11 @@ public class ChatRuntimeController {
         }
         Map<String, String> configured = service.currentPromptOverlay();
         return configured == null ? Map.of() : configured;
+    }
+
+    private Boolean managedNextStepsEnabled() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        return service == null ? null : service.currentManagedNextStepsEnabled();
     }
 
     private Double deploymentRagSimilarityThreshold() {

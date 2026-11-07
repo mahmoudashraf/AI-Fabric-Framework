@@ -43,6 +43,24 @@ import static org.mockito.Mockito.when;
 class ChatRuntimeControllerSuggestionsTest {
 
     @Test
+    void configuredProfilesUseSameTurnRecommendationsWithoutIndependentGeneration() {
+        for (boolean enabled : List.of(false, true)) {
+            var prompts = mock(RuntimeDeploymentPromptConfigService.class);
+            when(prompts.currentManagedNextStepsEnabled()).thenReturn(enabled);
+            var core = mock(AICoreService.class);
+            var controller = instantiateController(provider(null), mock(RuntimeConversationGateway.class),
+                provider(core), provider(null), provider(prompts), provider(null), strictAuthResolver());
+            var servlet = new MockHttpServletRequest(); addVerifiedAuthHeaders(servlet, "user", "session");
+            var request = new SuggestionsRequest(); request.setContent("show ideas");
+            var response = controller.suggestions(request, servlet).getBody();
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(response.getSuggestions()).isEmpty();
+            assertThat(response.getMessage()).contains(enabled ? "conversation answers" : "disabled");
+            org.mockito.Mockito.verifyNoInteractions(core);
+        }
+    }
+
+    @Test
     void guardedSuggestionsNeverHideProviderFailureWithSuccessfulFallbackOptions() {
         AICoreService core = mock(AICoreService.class);
         when(core.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))

@@ -84,7 +84,7 @@ const navItems = [
   { label: 'Shopify Stores', path: '/shopify-stores', icon: <StoreRoundedIcon />, platformAdminOnly: true },
   { label: 'Thinker Resolver', path: '/thinker-resolver', icon: <PsychologyAltRoundedIcon />, platformAdminOnly: true },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
-  { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
+  { label: 'AI behaviour', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
   { label: 'Runtime Artifacts', path: '/runtime-artifacts', icon: <Inventory2RoundedIcon />, platformAdminOnly: true },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },

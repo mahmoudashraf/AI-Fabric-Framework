@@ -22,6 +22,35 @@ class DeploymentConfigCompilerTest {
     private final DeploymentConfigCompiler compiler = new DeploymentConfigCompiler(objectMapper);
 
     @Test
+    void aiBehaviourPublishesExpandedImmutablePromptsWithoutChangingTheEditableDraft() throws Exception {
+        var baseline = new DeploymentCuratedModuleCatalogService(objectMapper, new org.springframework.core.io.DefaultResourceLoader()).promptPreset("default");
+        var prompts = DeploymentAiBehaviourProfiles.select(baseline,
+            objectMapper.valueToTree(java.util.Map.of("tone", "warm", "answerBreadth", "advisory", "nextSteps", "contextual")));
+        var draft = draft("{\"actions\":[]}", "{}", "{}");
+        draft.setPromptConfigJson(prompts.toString());
+        draft.setKnowledgeSourceConfigJson("{\"sources\":[{\"id\":\"policies\",\"entityType\":\"document\",\"enabled\":true,\"attributionLabel\":\"Approved policies\"}]}");
+        String original = draft.getPromptConfigJson();
+        String providers = draft.getProviderConfigJson();
+        var compiled = compiler.compile(deployment(), draft, "v1", "Profiles", false);
+        JsonNode artifact = objectMapper.readTree(compiled.promptArtifactJson());
+        JsonNode manifest = objectMapper.readTree(compiled.manifestJson());
+        assertThat(artifact.at("/aiBehaviour/tone/presetId").asText()).isEqualTo("warm");
+        assertThat(artifact.at("/aiBehaviour/answerBreadth/revision").asInt()).isEqualTo(1);
+        assertThat(artifact.path("answerGenerationPrompt").asText()).contains("general model knowledge", "Business-specific facts");
+        assertThat(artifact.at("/aiBehaviour/sourcePrompts/answerGenerationPrompt")).isEqualTo(baseline.path("answerGenerationPrompt"));
+        assertThat(manifest.path("promptConfig")).isEqualTo(artifact);
+        assertThat(draft.getPromptConfigJson()).isEqualTo(original);
+        assertThat(draft.getProviderConfigJson()).isEqualTo(providers);
+        assertThat(compiler.compilePromptConfig(artifact, objectMapper.readTree(providers),
+            objectMapper.readTree(draft.getKnowledgeSourceConfigJson()))).isEqualTo(artifact);
+        ((ObjectNode) prompts.at("/aiBehaviour/tone")).put("instructions", "Our custom professional voice.");
+        draft.setPromptConfigJson(prompts.toString());
+        var changed = compiler.compile(deployment(), draft, "v2", "Custom tone", false);
+        assertThat(changed.configHash()).isNotEqualTo(compiled.configHash());
+        assertThat(objectMapper.readTree(changed.promptArtifactJson()).at("/aiBehaviour/tone/presetId").asText()).isEqualTo("custom");
+    }
+
+    @Test
     void publicationCompilesSpecialistsIntoImmutableBehaviorAndManifestWithoutMutatingDraft() throws Exception {
         var authority = org.mockito.Mockito.mock(SpecialistAssistanceAuthorityService.class);
         var compiler = new DeploymentConfigCompiler(objectMapper, new EntityConfigContractService(objectMapper), null, "0.8.41", authority);

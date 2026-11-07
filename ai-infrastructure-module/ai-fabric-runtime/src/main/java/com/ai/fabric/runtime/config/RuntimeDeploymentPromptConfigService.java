@@ -30,6 +30,7 @@ public class RuntimeDeploymentPromptConfigService {
     private volatile Integer ragMaxDocumentsUsedForContext;
     private volatile Integer ragMaxContextChars;
     private volatile Boolean smartSuggestionsEnabled;
+    private volatile Boolean managedNextStepsEnabled;
     private volatile Integer responseGenerationMaxTokensConcise;
     private volatile Integer responseGenerationMaxTokensStandard;
     private volatile Integer responseGenerationMaxTokensDeep;
@@ -52,6 +53,7 @@ public class RuntimeDeploymentPromptConfigService {
             ragMaxDocumentsUsedForContext = null;
             ragMaxContextChars = null;
             smartSuggestionsEnabled = null;
+            managedNextStepsEnabled = null;
             responseGenerationMaxTokensConcise = null;
             responseGenerationMaxTokensStandard = null;
             responseGenerationMaxTokensDeep = null;
@@ -71,6 +73,9 @@ public class RuntimeDeploymentPromptConfigService {
             ragMaxDocumentsUsedForContext = sanitizePositiveInteger(root, "ragMaxDocumentsUsedForContext");
             ragMaxContextChars = sanitizePositiveInteger(root, "ragMaxContextChars");
             smartSuggestionsEnabled = sanitizeSmartSuggestionsEnabled(root);
+            JsonNode behaviour = root.path("aiBehaviour");
+            managedNextStepsEnabled = "loomai-ai-behaviour-v1".equals(behaviour.path("schemaVersion").asText())
+                ? !"off".equals(behaviour.path("nextSteps").path("presetId").asText()) : null;
             responseGenerationMaxTokensConcise = sanitizePositiveInteger(root, "responseGenerationMaxTokensConcise");
             responseGenerationMaxTokensStandard = sanitizePositiveInteger(root, "responseGenerationMaxTokensStandard");
             responseGenerationMaxTokensDeep = sanitizePositiveInteger(root, "responseGenerationMaxTokensDeep");
@@ -109,6 +114,10 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Boolean currentSmartSuggestionsEnabled() {
         return smartSuggestionsEnabled;
+    }
+
+    public Boolean currentManagedNextStepsEnabled() {
+        return managedNextStepsEnabled;
     }
 
     public Integer currentResponseGenerationMaxTokensConcise() {

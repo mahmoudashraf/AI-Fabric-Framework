@@ -1,11 +1,15 @@
 import { deploymentTerm } from '../deploymentTerminology'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
@@ -28,6 +32,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   applyDeploymentCuratedModule,
   clearDeploymentPocPromptSession,
+  composeDeploymentAiBehaviour,
   createDeploymentPromptRevision,
   fetchDeploymentCuratedModules,
   fetchDeploymentDraft,
@@ -41,6 +46,8 @@ import {
   type DeploymentCuratedModuleSummary,
   updateDeploymentDraft,
 } from '../api/platformApi'
+import { AiBehaviourEditor } from '../components/AiBehaviourEditor'
+import { effectiveAiBehaviourPreview, promptConfigIdentity, promptConfigRecord, readAiBehaviour } from '../aiBehaviourProfiles'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
@@ -293,18 +300,6 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
 }
 
-function createPromptPreviewPayload(formState: PromptFormState) {
-  const payload: Record<string, string> = {}
-  for (const field of PROMPT_FIELDS) {
-    const value = formState[field.key].trim()
-    if (!value) {
-      continue
-    }
-    payload[field.key] = value
-  }
-  return payload
-}
-
 function parseRagSimilarityThreshold(value: string): number | null {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -332,8 +327,12 @@ function parsePositiveInteger(value: string): number | null {
   return parsed
 }
 
-function createPromptConfigPayload(formState: PromptFormState) {
-  const payload: Record<string, string | number | boolean> = createPromptPreviewPayload(formState)
+function createPromptConfigPayload(formState: PromptFormState, preservedConfig: Record<string, unknown>) {
+  const payload: Record<string, unknown> = { ...preservedConfig }
+  for (const field of PROMPT_FIELDS) payload[field.key] = formState[field.key]
+  for (const key of ['ragSimilarityThreshold', 'ragMaxDocumentsUsedForContext', 'ragMaxContextChars',
+    'responseGenerationMaxTokensConcise', 'responseGenerationMaxTokensStandard', 'responseGenerationMaxTokensDeep',
+    'smartSuggestionsEnabled']) delete payload[key]
   const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
   if (ragSimilarityThreshold !== null) {
     payload.ragSimilarityThreshold = ragSimilarityThreshold
@@ -413,6 +412,9 @@ export function PromptsPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<PromptFormState>(defaultPromptState())
+  const [preservedConfig, setPreservedConfig] = useState<Record<string, unknown>>({})
+  const [behaviourPending, setBehaviourPending] = useState(false)
+  const [behaviourReset, setBehaviourReset] = useState(0)
   const [revisionLabel, setRevisionLabel] = useState('')
   const [revisionSummary, setRevisionSummary] = useState('')
   const [previewQuery, setPreviewQuery] = useState('')
@@ -448,10 +450,17 @@ export function PromptsPage() {
   })
 
   useEffect(() => {
+    setFormState(defaultPromptState())
+    setPreservedConfig({})
+    setBehaviourPending(false)
+  }, [selectedDeploymentId])
+
+  useEffect(() => {
     if (!draftQuery.data) {
       return
     }
     setFormState(normalizePromptState(draftQuery.data.promptConfig))
+    setPreservedConfig(promptConfigRecord(draftQuery.data.promptConfig))
   }, [draftQuery.data])
 
   const savedState = useMemo(
@@ -476,7 +485,10 @@ export function PromptsPage() {
     [baselineState, savedState],
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
-  const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
+  const editorPromptConfig = useMemo(() => createPromptConfigPayload(formState, preservedConfig), [formState, preservedConfig])
+  const draftDirty = useMemo(() => !statesEqual(formState, savedState) ||
+    promptConfigIdentity(editorPromptConfig) !== promptConfigIdentity(createPromptConfigPayload(savedState, promptConfigRecord(draftQuery.data?.promptConfig))),
+  [formState, savedState, editorPromptConfig, draftQuery.data?.promptConfig])
   const parsedRagSimilarityThreshold = useMemo(
     () => parseRagSimilarityThreshold(formState.ragSimilarityThreshold),
     [formState.ragSimilarityThreshold],
@@ -537,13 +549,13 @@ export function PromptsPage() {
   )
   const editorState = useMemo(
     () => ({
-      dirty: draftDirty,
+      dirty: draftDirty || behaviourPending,
       label: 'Prompt editor',
-      description: draftDirty
+      description: behaviourPending ? 'Behaviour choices are not yet applied to the editor.' : draftDirty
         ? `Prompt edits exist only in the current browser buffer until you save the ${deploymentTerm.lowercase} draft or use a session-scoped hot apply.`
         : `Prompt editor matches the saved ${deploymentTerm.lowercase} draft.`,
     }),
-    [draftDirty],
+    [draftDirty, behaviourPending],
   )
   useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
   const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
@@ -568,14 +580,25 @@ export function PromptsPage() {
   const currentResponseGenerationMaxTokensDeep = formState.responseGenerationMaxTokensDeep.trim() || '—'
   const savedResponseGenerationMaxTokensDeep = savedState.responseGenerationMaxTokensDeep.trim() || '—'
   const publishedResponseGenerationMaxTokensDeep = baselineState.responseGenerationMaxTokensDeep.trim() || '—'
-  const currentSmartSuggestionsMode = formatSmartSuggestionsMode(formState.smartSuggestionsMode)
-  const savedSmartSuggestionsMode = formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
-  const publishedSmartSuggestionsMode = formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
+  const currentSmartSuggestionsMode = readAiBehaviour(editorPromptConfig) ? 'Profile controlled' : formatSmartSuggestionsMode(formState.smartSuggestionsMode)
+  const savedSmartSuggestionsMode = readAiBehaviour(draftQuery.data?.promptConfig) ? 'Profile controlled' : formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
+  const publishedSmartSuggestionsMode = readAiBehaviour(baselineQuery.data?.promptConfig) ? 'Profile controlled' : formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
-  const previewPayload = useMemo(() => createPromptPreviewPayload(formState), [formState])
   const promptSession = promptSessionQuery.data
+  const savedCompositionQuery = useQuery({
+    queryKey: ['deployment-ai-behaviour-effective', selectedDeploymentId, draftQuery.data?.promptConfig],
+    queryFn: () => composeDeploymentAiBehaviour(selectedDeploymentId, { promptConfig: promptConfigRecord(draftQuery.data?.promptConfig) }),
+    enabled: Boolean(selectedDeploymentId && draftQuery.data && readAiBehaviour(draftQuery.data.promptConfig)),
+  })
+  const releasePreviewState = readAiBehaviour(draftQuery.data?.promptConfig)
+    ? normalizePromptState(savedCompositionQuery.data?.effectivePromptConfig) : savedState
+
+  async function compileEditorPreview() {
+    const composed = await composeDeploymentAiBehaviour(selectedDeploymentId, { promptConfig: editorPromptConfig })
+    return effectiveAiBehaviourPreview(composed.effectivePromptConfig)
+  }
 
   const baselinePreviewMutation = useMutation({
     mutationFn: () =>
@@ -585,10 +608,10 @@ export function PromptsPage() {
   })
 
   const overlayPreviewMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: async () =>
       queryDeploymentPocChat(selectedDeploymentId, {
         query: previewQuery.trim(),
-        promptPreview: previewPayload,
+        promptPreview: await compileEditorPreview(),
       }),
   })
 
@@ -597,7 +620,8 @@ export function PromptsPage() {
       if (!draftQuery.data) {
         throw new Error('No active draft available.')
       }
-      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: createPromptConfigPayload(formState) })
+      const composed = await composeDeploymentAiBehaviour(selectedDeploymentId, { promptConfig: editorPromptConfig })
+      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: composed.promptConfig })
     },
     onSuccess: async () => {
       await Promise.all([
@@ -635,6 +659,8 @@ export function PromptsPage() {
     mutationFn: (revisionId: string) => restoreDeploymentPromptRevision(selectedDeploymentId, revisionId),
     onSuccess: async (draft) => {
       setFormState(normalizePromptState(draft.promptConfig))
+      setPreservedConfig(promptConfigRecord(draft.promptConfig))
+      setBehaviourReset(previous => previous + 1)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
@@ -643,10 +669,10 @@ export function PromptsPage() {
   })
 
   const activatePromptSessionMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: async () =>
       updateDeploymentPocPromptSession(selectedDeploymentId, {
         sessionLabel: hotApplyLabel.trim() || 'POC hot apply session',
-        promptPreview: previewPayload,
+        promptPreview: await compileEditorPreview(),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -666,8 +692,17 @@ export function PromptsPage() {
 
   return (
     <Stack spacing={3}>
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      {draftQuery.isError && <Alert severity="error">Could not load the prompt draft. Reload before editing.</Alert>}
+      <AiBehaviourEditor key={`${selectedDeploymentId}-${behaviourReset}`} deploymentId={selectedDeploymentId}
+        promptConfig={editorPromptConfig} canEdit={canEdit && Boolean(draftQuery.data) && !saveMutation.isPending}
+        onPendingChange={setBehaviourPending} onApply={config => {
+          setPreservedConfig(config)
+          setFormState(normalizePromptState(config))
+        }} />
+
+      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced draft and live status</Typography></AccordionSummary>
+        <AccordionDetails>
           <Stack spacing={2.5}>
             <Box>
               <Typography variant="h6">Prompt posture</Typography>
@@ -866,8 +901,8 @@ export function PromptsPage() {
               </Alert>
             )}
           </Stack>
-        </CardContent>
-      </Card>
+        </AccordionDetails>
+      </Accordion>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
@@ -880,6 +915,10 @@ export function PromptsPage() {
               </Typography>
             </Box>
 
+            <Accordion disableGutters sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
+              <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced prompts and settings</Typography></AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2.5}>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Change type: Versioned config" color="primary" variant="outlined" />
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
@@ -1109,6 +1148,7 @@ export function PromptsPage() {
                         select
                         label="Smart suggestions"
                         fullWidth
+                        disabled={!canEdit || Boolean(readAiBehaviour(editorPromptConfig))}
                         value={formState.smartSuggestionsMode}
                         onChange={(event) =>
                           setFormState((previous) => ({
@@ -1116,7 +1156,9 @@ export function PromptsPage() {
                             smartSuggestionsMode: event.target.value as SmartSuggestionsMode,
                           }))
                         }
-                        helperText="Controls whether the orchestrator runs the extra smart-suggestion enrichment step. Use framework default to inherit the mode-level baseline."
+                        helperText={readAiBehaviour(editorPromptConfig)
+                          ? 'Next steps are controlled by the behaviour profile. This legacy enrichment setting is retained unchanged.'
+                          : 'Controls the extra smart-suggestion enrichment step. Use framework default to inherit the mode-level baseline.'}
                       >
                         <MenuItem value="inherit">Use framework default</MenuItem>
                         <MenuItem value="enabled">Enabled</MenuItem>
@@ -1135,6 +1177,7 @@ export function PromptsPage() {
                     minRows={7}
                     fullWidth
                     value={formState[field.key]}
+                    disabled={!canEdit}
                     onChange={(event) =>
                       setFormState((previous) => ({
                         ...previous,
@@ -1145,6 +1188,15 @@ export function PromptsPage() {
                 </Grid>
               ))}
             </Grid>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            <Alert severity={draftDirty || behaviourPending ? 'warning' : 'info'}>
+              {behaviourPending ? 'Behaviour choices have not been applied to the editor. Review and apply them, or discard them before saving or testing.'
+                : draftDirty ? 'Unsaved editor changes. Saving updates the draft only; the live experience changes after publish and apply.'
+                  : 'Editor matches the saved draft. The live experience uses the applied release.'}
+            </Alert>
 
             {saveMutation.isError ? (
               <Alert severity="error">
@@ -1153,11 +1205,11 @@ export function PromptsPage() {
             ) : null}
             {saveMutation.isSuccess ? <Alert severity="success">Prompt draft saved.</Alert> : null}
 
-            <Stack direction="row" spacing={1.5}>
+            <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
               <Button
                 variant="contained"
                 startIcon={<SaveRoundedIcon />}
-                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || promptConfigHasValidationErrors}
+                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || behaviourPending || promptConfigHasValidationErrors}
                 onClick={() => saveMutation.mutate()}
               >
                 {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}
@@ -1166,6 +1218,8 @@ export function PromptsPage() {
                 variant="outlined"
                 onClick={() => {
                   setFormState(savedState)
+                  setPreservedConfig(promptConfigRecord(draftQuery.data?.promptConfig))
+                  setBehaviourReset(previous => previous + 1)
                 }}
               >
                 Reset to saved
@@ -1175,14 +1229,15 @@ export function PromptsPage() {
         </CardContent>
       </Card>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced baseline comparison</Typography></AccordionSummary>
+        <AccordionDetails>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Prompt baseline comparison</Typography>
+              <Typography variant="h6">Base prompt baseline comparison</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Compare the saved draft prompt bundle with the most recently published version. This view helps you
-                understand what will change before publishing.
+                Compare the seven base prompts with the published version. Behaviour profile instructions are shown
+                separately in Advanced compiled release prompts.
               </Typography>
             </Box>
 
@@ -1266,17 +1321,17 @@ export function PromptsPage() {
               </Alert>
             )}
           </Stack>
-        </CardContent>
-      </Card>
+        </AccordionDetails>
+      </Accordion>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced compiled release prompts</Typography></AccordionSummary>
+        <AccordionDetails>
           <Stack spacing={2.5}>
             <Box>
               <Typography variant="h6">Release prompt preview</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                This view renders the saved draft prompt bundle exactly as it would ship with the next publish. Use it
-                to scan for tone, missing guidance, or gaps before creating a release.
+                Compiled prompts for the saved draft, including applied behaviour profiles. Unsaved editor changes are not included.
               </Typography>
             </Box>
 
@@ -1287,14 +1342,16 @@ export function PromptsPage() {
             ) : null}
 
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={`Preview prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              <Chip label={`Preview prompts: ${countPopulatedPrompts(releasePreviewState)}/${PROMPT_FIELDS.length}`} variant="outlined" />
               <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
             </Stack>
 
+            {savedCompositionQuery.isError && <Alert severity="error">Could not compile the saved behaviour profiles. Retry after checking the configuration.</Alert>}
+            {savedCompositionQuery.isFetching && <Typography variant="body2">Compiling saved behaviour...</Typography>}
             <Grid container spacing={2}>
               {PROMPT_FIELDS.map((field) => {
-                const value = savedState[field.key]
+                const value = releasePreviewState[field.key]
                 return (
                   <Grid item xs={12} md={6} key={field.key}>
                     <Card variant="outlined">
@@ -1312,7 +1369,7 @@ export function PromptsPage() {
                           <Typography
                             variant="body2"
                             color={value.trim().length > 0 ? 'text.primary' : 'text.secondary'}
-                            sx={{ whiteSpace: 'pre-wrap' }}
+                            sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
                           >
                             {value.trim().length > 0 ? value : 'Not set yet.'}
                           </Typography>
@@ -1324,11 +1381,12 @@ export function PromptsPage() {
               })}
             </Grid>
           </Stack>
-        </CardContent>
-      </Card>
+        </AccordionDetails>
+      </Accordion>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced POC session hot apply</Typography></AccordionSummary>
+        <AccordionDetails>
           <Stack spacing={2.5}>
             <Box>
               <Typography variant="h6">POC session hot apply</Typography>
@@ -1362,7 +1420,8 @@ export function PromptsPage() {
             ) : (
               <Alert severity="info">
                 Session hot apply is operator-scoped and secured with the runtime admin key. It only affects the
-                platform POC console for this {deploymentTerm.lowercase} until you clear it.
+                platform POC console for this {deploymentTerm.lowercase} until you clear it. Only prompts are overridden;
+                runtime recommendation controls remain those of the applied release.
               </Alert>
             )}
 
@@ -1445,7 +1504,10 @@ export function PromptsPage() {
                         disabled={
                           !canOperate ||
                           runtimeUnavailable ||
-                          Object.keys(previewPayload).length === 0 ||
+                          !draftQuery.data ||
+                          behaviourPending ||
+                          promptConfigHasValidationErrors ||
+                          (populatedPromptCount === 0 && !readAiBehaviour(editorPromptConfig)) ||
                           activatePromptSessionMutation.isPending
                         }
                         onClick={() => activatePromptSessionMutation.mutate()}
@@ -1466,20 +1528,24 @@ export function PromptsPage() {
               </Card>
             </Stack>
           </Stack>
-        </CardContent>
-      </Card>
+        </AccordionDetails>
+      </Accordion>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Prompt preview console</Typography>
+              <Typography variant="h6">Try a conversation</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
-                Run the currently applied {deploymentTerm.lowercase} through the embedded POC path, then compare it with an
-                operator-only request-scoped preview overlay built from the prompt editor. Preview runs do not save,
-                publish, or apply anything.
+                Compare the current live conversation with an editor-only prompt preview. Neither run saves or
+                publishes configuration.
               </Typography>
             </Box>
+
+            <Alert severity="info">
+              Only the seven managed prompt strings are previewed. Runtime recommendation controls, provider settings
+              and deployed state require publish/apply; a live Off setting can still suppress Contextual suggestions.
+            </Alert>
 
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Change type: Operator preview" color="secondary" variant="outlined" />
@@ -1533,7 +1599,7 @@ export function PromptsPage() {
                 variant="contained"
                 color="secondary"
                 startIcon={<AutoFixHighRoundedIcon />}
-                disabled={!canOperate || runtimeUnavailable || previewQuery.trim().length === 0 || overlayPreviewMutation.isPending}
+                disabled={!canOperate || runtimeUnavailable || !draftQuery.data || behaviourPending || promptConfigHasValidationErrors || previewQuery.trim().length === 0 || overlayPreviewMutation.isPending}
                 onClick={() => overlayPreviewMutation.mutate()}
               >
                 {overlayPreviewMutation.isPending ? 'Running preview...' : 'Run preview overlay'}
@@ -1638,8 +1704,9 @@ export function PromptsPage() {
         </CardContent>
       </Card>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced prompt revisions</Typography></AccordionSummary>
+        <AccordionDetails>
           <Stack spacing={2.5}>
             <Box>
               <Typography variant="h6">Prompt revisions</Typography>
@@ -1707,6 +1774,7 @@ export function PromptsPage() {
               </Alert>
             ) : null}
 
+            <Box sx={{ overflowX: 'auto', maxWidth: '100%' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -1759,9 +1827,10 @@ export function PromptsPage() {
                 ) : null}
               </TableBody>
             </Table>
+            </Box>
           </Stack>
-        </CardContent>
-      </Card>
+        </AccordionDetails>
+      </Accordion>
     </Stack>
   )
 }

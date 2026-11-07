@@ -86,6 +86,23 @@ fallbacks. READ actions do not require indexed vector spaces unless their own
 declared contract or actual retrieval needs them. Measure semantic quality
 separately; acceptance tolerance never relaxes authorization or confirmation.
 
+## AI Behaviour Profiles And Closer Removal (2026-11-07)
+
+The owner rejected keeping phrase-based generic-closer removal as an advanced
+option. Remove that matcher, its phrase lists and its configuration property
+from the framework; no Platform switch or active generated setting remains
+after the fixed framework is adopted. Preserve PII/redaction and safe projection.
+The temporary false environment override must not be deleted from an older
+runtime before its framework upgrade, because the old library defaults it on.
+
+Implement domain-neutral conversation-tone, answer-breadth, answer-length and
+next-step profiles through the existing draft, managed prompts and release path.
+Profile instructions and technical configuration belong in Advanced. Exact
+configuration identity may identify Custom settings; never interpret prompt or
+user meaning through phrase matching. Wider advice is not web access, sampling
+temperature, authority to invent business facts, or an action permission.
+Other audited narrative/fallback defects and public web search remain deferred.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

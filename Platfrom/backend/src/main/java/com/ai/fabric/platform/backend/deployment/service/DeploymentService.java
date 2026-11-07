@@ -1311,7 +1311,7 @@ public class DeploymentService {
             draft.setSecurityConfigJson(writeJson(request.securityConfig()));
         }
         if (request.promptConfig() != null) {
-            draft.setPromptConfigJson(writeJson(request.promptConfig()));
+            draft.setPromptConfigJson(writeJson(DeploymentAiBehaviourProfiles.normalize(request.promptConfig())));
         }
         if (request.knowledgeSourceConfig() != null) {
             draft.setKnowledgeSourceConfigJson(writeJson(request.knowledgeSourceConfig()));
@@ -2524,7 +2524,8 @@ public class DeploymentService {
     }
 
     private JsonNode defaultPromptConfig(String curatedModuleId) {
-        return deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId);
+        return DeploymentAiBehaviourProfiles.select(deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId),
+            objectMapper.createObjectNode());
     }
 
     private String resolveInitialVectorProvisioningMode(DeploymentTemplateSummary template, String requestedMode) {

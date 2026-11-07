@@ -215,9 +215,18 @@ export function canonicalChatResult(payload: any): ChatResult | undefined {
   if (documents.length > 0) {
     data.documents = documents;
   }
+  const nextSteps = success && Array.isArray(payload.suggestions) ? payload.suggestions.flatMap((value: unknown) => {
+    const suggestion = objectValue(value);
+    const query = trimToNull(suggestion.query);
+    if (!query) return [];
+    return [{ query, intent: trimToNull(suggestion.intent) ?? "INFORMATION",
+      rationale: trimToNull(suggestion.rationale) ?? "",
+      confidence: typeof suggestion.confidence === "number" && Number.isFinite(suggestion.confidence) ? suggestion.confidence : 0 }];
+  }).slice(0, 2) : [];
   return {
     type: resultType,
     success,
+    nextSteps,
     sanitizedPayload: {
       type: resultType,
       success,

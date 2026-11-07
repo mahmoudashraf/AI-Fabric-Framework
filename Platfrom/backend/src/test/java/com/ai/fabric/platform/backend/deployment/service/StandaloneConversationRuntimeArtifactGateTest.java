@@ -79,7 +79,7 @@ class StandaloneConversationRuntimeArtifactGateTest {
 
     private DeploymentVersionEntity version() {
         var version = new DeploymentVersionEntity(); version.setId("version"); version.setDeploymentId("deployment");
-        version.setAiFabricFrameworkVersion("0.8.45"); version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
+        version.setAiFabricFrameworkVersion("0.8.46"); version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
         return version;
     }
 
@@ -94,7 +94,7 @@ class StandaloneConversationRuntimeArtifactGateTest {
         artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setGitCommitSha("b".repeat(40));
         artifact.setBuildRunId("reviewed-build"); artifact.setPromotedAt(Instant.now()); artifact.setPromotionChannel("staging");
         var manifest = (ObjectNode) mapper.readTree("""
-            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.45",
+            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.46",
              "supportedBehaviorTypes":["CONVERSATIONAL"],"supportedActivationSources":[],
              "supportedChannelBindings":[],"supportedExecutionExtensions":["CONVERSATION_HANDOVER"],
              "capabilities":["conversation-control","canonical-conversation-orchestration-state"],

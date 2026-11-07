@@ -86,7 +86,7 @@ public class DeploymentConfigCompiler {
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
-            promptNode = compileKnowledgePrompt(promptNode, knowledgeSourceNode);
+            promptNode = compilePromptConfig(promptNode, providerNode, knowledgeSourceNode);
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
             JsonNode behaviorNode = objectMapper.readTree(draft.getBehaviorConfigJson());
@@ -232,6 +232,16 @@ public class DeploymentConfigCompiler {
             if (source.isObject() && source.path("enabled").asBoolean(true)) return true;
         }
         return false;
+    }
+
+    public JsonNode compilePromptConfig(JsonNode prompts, JsonNode providers, JsonNode knowledgeSources) throws JsonProcessingException {
+        JsonNode projected = prompts;
+        if (prompts.hasNonNull("aiBehaviour")) {
+            projected = DeploymentAiBehaviourProfiles.compile(prompts,
+                new DeploymentCuratedModuleCatalogService(objectMapper, new org.springframework.core.io.DefaultResourceLoader())
+                    .promptPreset(providers.path("curatedModuleId").asText("default")));
+        }
+        return DeploymentAiBehaviourProfiles.recordPublishedExpansion(compileKnowledgePrompt(projected, knowledgeSources));
     }
 
     private JsonNode compileKnowledgePrompt(JsonNode prompts, JsonNode knowledgeSources) throws JsonProcessingException {

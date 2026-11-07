@@ -237,3 +237,44 @@ Redacted evidence: [hosted verification](../../../../../../../../verification-su
 Detailed release responses, backups, fixture credentials and screenshots are
 retained only in restricted private qualification files. Other 010.63 AI
 behaviour/research/suggestion proposals remain unimplemented.
+
+## 2026-11-07 Approved Section 4 Implementation In Progress
+
+The owner replaced the default-off/advanced-toggle approach with complete
+removal of the framework closer matcher, its phrase lists and property. The
+two superseded Platform commits are dropped from the local branch, with a
+private/local recovery reference. Unrelated worktree diff content was preserved;
+only changed-base blob hashes differ. Final publication uses an exact guarded
+force-push lease, after replacement-source qualification.
+
+- [x] Preserve unrelated work and rebase the implementation on 8500671c0.
+- [x] Update the approved section 4 and operating rule: no closer toggle; other
+  audited defects and web search deferred.
+- [x] Implement canonical revisioned profile catalogue/composition and existing
+  draft/publication integration. Preserve raw customer instructions and controls.
+- [x] Implement bounded existing canonical next-step transport and explicit Off
+  policy; profiled deployments use same-turn recommendations rather than a
+  second attachment-triggered AI call. This does not fix other legacy fallbacks.
+- [x] Finish shared Console simple/Advanced editor and its browser qualification:
+  8 unit and 8 browser scenarios, TypeScript/build, desktop/mobile inspection.
+  Canonical backend composition/publication/access regressions: 146 passed;
+  runtime profile/suggestion/controller qualification: 52 passed before the
+  final released-library consumer rerun. Widget canonical transport checks and
+  embedded build passed. These local checks are not hosted adoption evidence.
+- [ ] Qualify/publish the bounded framework removal and managed-prompt conflict
+  correction, then consume immutable released artifacts in runtime builds.
+- [ ] Publish replacement source/images, deploy, remove obsolete runtime
+  environment entries after adoption, and qualify live customer configuration,
+  preview, save/reopen, publication/apply and representative conversations.
+
+No live completion is claimed by this checkpoint. Serving systems still run
+the earlier images with temporary default-off environment overrides until the
+new framework/runtime is qualified. Profile instructions are stored with the
+existing prompt JSON; no new database, provider-temperature rewrite, public
+research integration or semantic text-matching gate is introduced.
+
+Framework source/tag and GitHub release now exist at
+218730e5b18343576655fbd7108d63b4135f0cfc / ai-fabric-framework-v0.8.46.
+989 framework tests, 100 focused checks, 30-project compile, release guards and
+packaged-content inspection passed. Central workflow 42341190539 is running;
+do not treat this checkpoint as Central publication or live adoption.

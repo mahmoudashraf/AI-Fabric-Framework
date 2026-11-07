@@ -2847,6 +2847,12 @@ public class DeploymentDraftValidationService {
             return;
         }
 
+        try {
+            DeploymentAiBehaviourProfiles.normalize(promptNode);
+        } catch (org.springframework.web.server.ResponseStatusException invalid) {
+            issues.add(error("prompts", "AI_BEHAVIOUR_CONFIG_INVALID", "$.aiBehaviour", invalid.getReason()));
+        }
+
         List<String> promptKeys = List.of(
             "systemPrompt",
             "intentExtractionPrompt",
@@ -2937,7 +2943,8 @@ public class DeploymentDraftValidationService {
             && !conciseGenerationTokensConfigured
             && !standardGenerationTokensConfigured
             && !deepGenerationTokensConfigured
-            && !suggestionsConfigured) {
+            && !suggestionsConfigured
+            && !promptNode.path("aiBehaviour").isObject()) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",

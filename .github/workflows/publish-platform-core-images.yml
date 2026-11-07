@@ -54,7 +54,8 @@ jobs:
             exit 0
           fi
 
-          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]] || ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            echo "Previous revision is unavailable (including rewritten history); evaluate the full source inventory."
             changed_files="$(git ls-tree -r --name-only "$CURRENT_SHA")"
           else
             changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"

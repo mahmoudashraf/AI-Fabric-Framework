@@ -23,6 +23,19 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void aiBehaviourMetadataIsValidatedAsOperatorConfigurationNotModelOutput() {
+        var mapper = new ObjectMapper();
+        var configured = DeploymentAiBehaviourProfiles.select(mapper.createObjectNode(), mapper.createObjectNode());
+        var draft = draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", "{}", "{}");
+        draft.setPromptConfigJson(configured.toString());
+        assertThat(service.validate(draft).issues()).extracting("code")
+            .doesNotContain("AI_BEHAVIOUR_CONFIG_INVALID", "NO_PROMPTS_CONFIGURED");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) configured.path("aiBehaviour")).put("revision", 999);
+        draft.setPromptConfigJson(configured.toString());
+        assertThat(service.validate(draft).issues()).extracting("code").contains("AI_BEHAVIOUR_CONFIG_INVALID");
+    }
+
+    @Test
     void verifiedSupabaseEmailNeedsOnlyAnUnprivilegedProviderLookupKey() {
         var security = new ObjectMapper().createObjectNode().put("externalIdentityBrokerEnabled", true)
             .put("externalIdentityProvider", "SUPABASE").put("externalIdentityIssuer", "https://identity.example/auth/v1")

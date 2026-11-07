@@ -8704,3 +8704,40 @@ export function enableDeploymentDesk(target: DeploymentTargetReference, operatio
     body: JSON.stringify({ targetProfileId: target.targetProfileId, releaseId: target.releaseId, operationKey, enableReviews }),
   })
 }
+
+export type AiBehaviourGroupKey = 'tone' | 'answerBreadth' | 'answerLength' | 'nextSteps'
+export type AiBehaviourSelections = Partial<Record<AiBehaviourGroupKey, string>>
+export type AiBehaviourProfile = { presetId: string; revision: number; instructions: string }
+export type AiBehaviourMetadata = {
+  schemaVersion: 'loomai-ai-behaviour-v1'
+  revision: number
+} & Partial<Record<AiBehaviourGroupKey, AiBehaviourProfile>>
+export type AiBehaviourCatalogue = {
+  schemaVersion: 'loomai-ai-behaviour-v1'
+  revision: number
+  defaults: Record<AiBehaviourGroupKey, string>
+  groups: Array<{
+    key: AiBehaviourGroupKey
+    label: string
+    options: Array<{ id: string; label: string; description: string; instructions: string; examples?: string[] }>
+  }>
+}
+export type AiBehaviourComposition = {
+  promptConfig: Record<string, unknown>
+  effectivePromptConfig: Record<string, unknown>
+  changes: Array<{ key: string; before: unknown; after: unknown }>
+  customInstructionsPreserved: boolean
+}
+
+export function fetchDeploymentAiBehaviourProfiles() {
+  return request<AiBehaviourCatalogue>('/api/deployment-ai-behaviour-profiles')
+}
+
+export function composeDeploymentAiBehaviour(
+  deploymentId: string,
+  payload: { promptConfig: Record<string, unknown>; selections?: AiBehaviourSelections },
+) {
+  return request<AiBehaviourComposition>(`/api/deployments/${encodeURIComponent(deploymentId)}/ai-behaviour/compose`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}

@@ -5,6 +5,7 @@ import CableOutlined from '@mui/icons-material/CableOutlined'
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import ForumOutlined from '@mui/icons-material/ForumOutlined'
 import RocketLaunchOutlined from '@mui/icons-material/RocketLaunchOutlined'
+import PsychologyAltOutlined from '@mui/icons-material/PsychologyAltOutlined'
 import type { CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import { releaseEnvironment } from './customerResourceModels'
 
@@ -25,6 +26,7 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
     <Typography fontWeight={600} sx={{ mb: 1 }}>Product setup</Typography>
     <Stack alignItems="flex-start" spacing={0.5}>
       <Button component={RouterLink} to={setup('configure')} startIcon={<SettingsOutlined />}>Continue setup</Button>
+      <Button component={RouterLink} to={configure('/prompts')} startIcon={<PsychologyAltOutlined />}>AI behaviour</Button>
       {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={`${setup('configure')}#approved-connections`} startIcon={<CableOutlined />}>Configure data connection</Button> : null}
       {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={configure('/document-knowledge')} startIcon={<DescriptionOutlined />}>Connect document storage</Button> : null}
       <Button component={RouterLink} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', connectDeploymentId: deploymentId })}`} startIcon={<ForumOutlined />}>Connect Engage app</Button>

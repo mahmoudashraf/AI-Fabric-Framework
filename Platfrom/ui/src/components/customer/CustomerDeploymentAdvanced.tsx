@@ -8,7 +8,7 @@ import { useDeploymentWorkspace } from '../../workspace/DeploymentWorkspaceConte
 const editors = [
   ['/revisions', 'Versions & updates'],
   ['/actions', 'Actions'],
-  ['/prompts', 'Prompts'],
+  ['/prompts', 'AI behaviour'],
   ['/providers', 'Providers'],
   ['/plugins', 'Plugins'],
 ] as const
@@ -37,7 +37,7 @@ export function CustomerDeploymentAdvanced({ children }: { children: ReactNode }
       <Button component={RouterLink} startIcon={<ArrowBackOutlined />} to={`/deployments?${new URLSearchParams({
         resourceKind: 'deployment', resourceId: selectedDeploymentId, deploymentId: selectedDeploymentId,
       })}`}>Back to {deploymentTerm.lowercase}</Button>
-      <Typography variant="h5" sx={{ mt: 1, mb: 2 }}>{selectedDeploymentSummary?.name ?? deploymentTerm.singular} / Advanced</Typography>
+      <Typography variant="h5" sx={{ mt: 1, mb: 2 }}>{selectedDeploymentSummary?.name ?? deploymentTerm.singular} / {location.pathname === '/prompts' ? 'AI behaviour' : 'Advanced'}</Typography>
       <CustomerDeploymentAdvancedLinks deploymentId={selectedDeploymentId}
         targetProfileId={new URLSearchParams(location.search).get('targetProfileId')} />
     </Box>
