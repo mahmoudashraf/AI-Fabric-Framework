@@ -13205,3 +13205,54 @@ test is being called hosted acceptance. UI extraction remains last.
   intact. Local backup branch/stashes retained. Current profile guide only:
   PLATFORM_UI_PROFILES.md. Do not reintroduce rejected 010.65 redesign/guide.
 - Evidence: verification-support/developer-ui-profile/post-rollback/ and README.
+
+## 2026-11-07 Smart Brain Staging And Promotion Journey
+
+- Owner accepted consolidating the old staging setup page into Smart Brain
+  Updates, keeping Kit as project home and Try it as actual AI testing.
+  Source42f1cdc66 plus focused completed-binding guard follow-up e65525d4d
+  pushed on Platform-V11. Final source e65525d4d3f28c425526961aca53e6c2b664d2a3;
+  CI42390937952 in progress at this checkpoint (earlier42390699477 passed).
+- Canonical Updates reuses publish/apply/verify and target-specific comparison;
+  focused existing customer panels preserve external/AI-state bindings,
+  assignment creation/configuration, exact staging binding and practical
+  production candidate/apply/readiness/activation/rollback. No new release
+  engine, backend/runtime/framework/AI config or infrastructure changes.
+- Old staging links resolve owned bootstrap target; production links resolve
+  an authorized target or ask when multiple exist. Invalid targets stay errors.
+  Try CTA names exact verified release; no production app fallback for staging.
+  Binding forms inherit workspace target and dirty/busy guard. Production
+  readiness is a collapsed summary; activation remains explicit.
+- Build PASS,194 combined focused checks PASS; follow-up5 tests+TypeScript PASS.
+  Actual API-backed localhost read-only checks on owned supportdep79af290c:
+  redirect/connections/assignment/production selection/readiness/Try PASS;
+  existing missing connection profile and stale readiness remain visible.
+  Desktop+390px light/dark checked; moved Grid/footer overflow fixed.
+  No resource writes/releases/AI queries. Local fixture sign-out observed
+  completed; agent-created local tabs closed and viewport overrides reset.
+- Record01064 implementation section and
+  verification-support/smart-brain-release-journey/README.md. Hosted rollout
+  pending exact CI success, staging then production UI-only apply and browser
+  verification. Do not claim an actual customer runtime promotion was executed.
+
+### Staging And Promotion Journey Hosted Closeout
+
+- Supersedes the pending checkpoint above. Final UI sourcee65525d4d3f28c425526961aca53e6c2b664d2a3,
+  CI42390937952 PASS/backend SKIPPED. Staging jobo52vymi4c1oedu0qa9o50s2z and
+  production jobcbh762vpbt5vjd3wgrdd32s2 FINISHED; exact-source native UI
+  containers HEALTHY on both. Backend/runtime/framework and customer state
+  unchanged. Developer profile remains staging-only.
+- Hosted owned support fixtures: old staging deep link -> canonical Updates;
+  connections inherit target/no duplicate selector; Engage assignment remains
+  explicit; production assignment is not moved to staging; production target
+  choice -> scoped Promote staging; readiness expandable/activation blocked
+  for unqualified candidate. Staging Try requires exact active app, no fallback.
+  No customer publication/apply/activation/resource save or AI/business query.
+- Production main/pane horizontal overflow0. Support dock opens on bothhosts,
+  but shell transitions emitted transient disposed-frame/state-listener console
+  warnings. Recorded for focused cleanup, not suppressed/not fixed in this
+  navigation task. Existing missing support-reads profile/stale readiness
+  retained visible. No fresh runtime-promotion qualification claim.
+- Local/stage/prod fixtures observed signed out; agent-created tabs closed,
+  viewport reset. Evidence:verification-support/smart-brain-release-journey/
+  README.md,live/qualification.json and screenshots. Unrelated dirty work kept.

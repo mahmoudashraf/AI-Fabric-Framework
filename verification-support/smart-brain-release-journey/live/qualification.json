@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-07",
+  "source": "e65525d4d3f28c425526961aca53e6c2b664d2a3",
+  "ciRun": "42390937952",
+  "ciConclusion": "success",
+  "backendBuild": "skipped",
+  "staging": {
+    "url": "https://developer.loomai.pro",
+    "deploymentJob": "o52vymi4c1oedu0qa9o50s2z",
+    "nativeExactSourceHealthy": true,
+    "legacyStagingRedirect": true,
+    "inheritedConnectionTarget": true,
+    "explicitAssignmentPanel": true,
+    "tryRequiresExactReleaseApp": true,
+    "productionTargetChoice": true,
+    "signedOut": true
+  },
+  "production": {
+    "url": "https://console.loomai.pro",
+    "deploymentJob": "cbh762vpbt5vjd3wgrdd32s2",
+    "nativeExactSourceHealthy": true,
+    "legacyStagingRedirect": true,
+    "inheritedConnectionTarget": true,
+    "productionAssignmentNotReboundToStaging": true,
+    "productionTargetChoice": true,
+    "readinessDetailsExpandable": true,
+    "activationBlockedForUnqualifiedCandidate": true,
+    "documentHorizontalOverflow": false,
+    "updatesPaneHorizontalOverflow": false,
+    "signedOut": true
+  },
+  "qualificationScope": {
+    "customerResources": "authorized internal-support fixtures, not the owner's personal Brain",
+    "customerConfigurationWrites": 0,
+    "customerReleaseApplies": 0,
+    "appActivations": 0,
+    "aiQueries": 0,
+    "businessActions": 0,
+    "newInfrastructure": 0
+  },
+  "observations": [
+    "Existing internal-support connection-profile and stale production-readiness findings remain visible and unchanged.",
+    "Transient disposed Support iframe/state-listener errors occurred during shell transitions; the real dock subsequently reopened on both hosts. No Support message was sent."
+  ]
+}

@@ -37,4 +37,41 @@ the existing release and assignment APIs; no second versioning implementation.
 - `local/staging-prepare.png`
 - `local/staging-mobile-dark.png`
 
-Hosted rollout is not yet qualified in this checkpoint.
+## Hosted Rollout
+
+- Implementation commits: `42f1cdc66` and `e65525d4d`.
+- Deployed source: `e65525d4d3f28c425526961aca53e6c2b664d2a3`.
+- [CI 42390937952](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42390937952)
+  passed; UI image published, backend build skipped.
+- Staging job `o52vymi4c1oedu0qa9o50s2z`: finished; exact-source native UI
+  container healthy. Production job `cbh762vpbt5vjd3wgrdd32s2`: finished;
+  exact-source native UI container healthy.
+- Hosted customer sign-in, legacy staging redirect, scoped connection forms,
+  explicit Engage assignment and production destination choice passed on both
+  environments. Staging Try it retained its exact-release app requirement.
+- Production promotion retained the existing reviewed-candidate, readiness,
+  verification, activation and rollback commands. Readiness findings were
+  expandable; activation stayed disabled for the unqualified candidate.
+- Final production page and Updates pane had no horizontal overflow. Developer
+  presentation remained on staging; ordinary customer presentation remained on
+  production. Test identities signed out, temporary tabs closed and viewport
+  overrides reset.
+- No customer configuration/release/app binding was changed, no infrastructure
+  was created and no AI query/business action was sent. This is a UI rollout
+  qualification, not proof of a new customer runtime promotion.
+
+Hosted screenshots:
+
+- `live/staging-updates.png`
+- `live/production-staging-updates.png`
+- `live/production-promotion.png`
+
+### Observed Support Console Warning
+
+Navigation between the customer shell and Brain shell produced transient
+disposed-Support-frame/state-listener console errors in the verification tabs.
+The Support dock subsequently opened with its real composer on both hosts.
+No Support message was submitted. This cleanup warning is recorded, not treated
+as a passing chat/transport test or silently suppressed; its frame lifecycle
+needs a separate focused investigation. No Support transport rewrite was made
+as part of this release-navigation change.

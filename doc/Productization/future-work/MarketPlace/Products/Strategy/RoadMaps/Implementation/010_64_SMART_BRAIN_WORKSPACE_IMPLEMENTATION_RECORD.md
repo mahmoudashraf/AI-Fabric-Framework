@@ -136,3 +136,14 @@ retained readiness/activation controls. Existing internal-support connection and
 readiness findings remain visible; this UI work does not claim to resolve them
 or qualify a fresh runtime promotion. Hosted rollout status and screenshots are
 recorded separately in `verification-support/smart-brain-release-journey/README.md`.
+
+### Consolidation Hosted Closeout
+
+Source `e65525d4d3f28c425526961aca53e6c2b664d2a3` is published on
+`Platform-V11`; CI `42390937952` passed (UI only). Staging and production
+Coolify jobs finished, and both native UI containers were verified healthy on
+that exact source. Hosted customer navigation, target inheritance, assignment
+controls and explicit production/readiness UI passed without changing customer
+configuration, releases or app bindings. The test account was signed out on both
+hosts. The verification record preserves the observed transient Support iframe
+cleanup warning; it was not hidden or expanded into a separate transport rewrite.
