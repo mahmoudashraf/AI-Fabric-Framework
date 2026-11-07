@@ -79,17 +79,23 @@ hidden or claimed fixed by this scoped management-navigation change.
 - Test sessions were observed signed out before closing; temporary browser tabs
   were closed and viewport override reset.
 
-## Remaining Observations
+## Follow-up Resolution
 
-The previously recorded Support iframe disposal/state-listener warning also
-appeared in production during full shell changes. Steady-state Brain navigation
-and the tested pages remained usable. This task does not claim to fix that
-separate widget lifecycle issue.
+The previously recorded Support iframe disposal/state-listener warning was
+subsequently fixed by source `c311cdd0344c102c09c7623b636df95cb3e23595`.
+The host now cancels pending Support mounts before destroying their iframe.
+Repeated hosted shell navigation, Support readiness and sign-out passed on both
+staging and production with no captured console errors.
 
 The initial source's separate document-storage CI run `42421128098` failed at
 **Browser installation**. Follow-up log inspection corrected the initial report:
 the backend completed 302 tests with no failures (three PostgreSQL checks skipped),
 and all 15 UI contract tests passed. Only the browser journeys did not run.
 The runner was Ubuntu 26.04, unsupported by pinned Playwright 1.58.2. No
-storage/backend code was changed by the management redesign. Follow-up fixes are
-tracked in `verification-support/support-lifecycle-ci/README.md`.
+storage/backend code was changed by the management redesign. The follow-up pinned
+the storage workflow to Ubuntu 24.04. Run `42423903772` passed 302 backend tests
+with none skipped, all 15 UI checks and all 11 document-browser journeys.
+
+Both follow-up fixes are deployed on staging and production. Current evidence
+and exact-source rollout details are in
+[`../support-lifecycle-ci/README.md`](../support-lifecycle-ci/README.md).

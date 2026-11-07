@@ -13330,3 +13330,30 @@ test is being called hosted acceptance. UI extraction remains last.
   `42421128098` failed at browser installation before tests. Do not claim all
   repository CI green or Support lifecycle fixed. Evidence and rollout details:
   `verification-support/smart-brain-management/README.md`.
+
+### Support Lifecycle And Storage CI Closeout - 7 November 2026
+
+- Supersedes the two known observations in the preceding management closeout.
+  Owner requested fixes. Source `c311cdd0344c102c09c7623b636df95cb3e23595`
+  is pushed on `Platform-V11` and deployed to staging and production.
+- Generic Support mount accepts an optional host AbortSignal. Console cancels
+  its pending mount before removing the iframe; disposal releases observers,
+  listeners, store and controller slot. Late session/bootstrap/history reads
+  cannot revive the removed mount or affect its replacement. Strict destroyed
+  frame/controller guards, ownership, authentication and SRI checks remain.
+- Regression proved against pre-fix source. Pack typecheck, 27 unit tests,
+  38 focused Console/auth/Brain checks and UI build passed. Independent focused
+  review found no issues. No framework release or AI behavior/config changes.
+- Storage CI was failing because Ubuntu 26.04 is unsupported by pinned
+  Playwright 1.58.2. Workflow now uses Ubuntu 24.04. Run `42423903772` passed
+  302 backend tests (none skipped), 15 UI checks and 11 document-browser journeys.
+  Correction: the old run had passed backend/UI tests; only browser installation
+  and its dependent journeys failed, not all storage tests.
+- Core image CI `42423903778` passed. Both exact-source UI/backend containers
+  are healthy on both hosts; backend bundles the Support asset, with no Java or
+  schema changes. Backups completed first; migration state remains `235:true`.
+- Hosted staging/production passed repeated Home/Brain shell transitions,
+  ready dock and Support-page composer, then sign-out with zero captured errors.
+  No AI query, ticket submission or customer configuration/resource mutation.
+  Test sessions signed out and temporary tabs closed. Preserve unrelated dirt.
+- Evidence: `verification-support/support-lifecycle-ci/README.md` and screenshots.
