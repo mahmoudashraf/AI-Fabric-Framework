@@ -13097,3 +13097,31 @@ test is being called hosted acceptance. UI extraction remains last.
   baf6ea3328a1ef72d83d01552ffbc02da1582105 forcore and50d1b9ab5e615227169ddb9fc368e476840990ee forruntime must be passed explicitly even after
   later docs commits. Do not reset dirty sibling framework checkout; release
   source is in ~/.codex/worktrees/closer-removal-01063. No user input needed.
+
+## 2026-11-07 Customer Configuration Design Alignment
+
+- New request: make customer-accessible configuration pages consistent with
+  the recent Kit overview. Source commit `371f4d1ea0f33d8b9e702b6111c85f7a2c4ffdae`.
+- Shared Kit palette/light-dark theme, compact Brain header and scoped editor
+  navigation, organized AI profile fields, early draft save/reset controls,
+  restrained editor sections, bounded JSON inputs and customer drawer styling.
+- No backend/runtime/framework, AI prompt contents, API, permission or release
+  contract changes. Unrelated staff/admin layout is unchanged; shared editor
+  bodies inherit the updated presentation.
+- 19 focused presentation/profile tests PASS; production build PASS. Additional
+  customer navigation/product/Kit suite 36/37: pre-existing public Kit signup-link
+  source assertion fails in unchanged files. Recorded, not hidden or fixed here.
+- Local real-account browser checks: all five sections, light/dark, mobile
+  overflow, review/editor-only apply, knowledge drawer and close confirmation.
+  No configuration saved, no live Brain release applied by these checks.
+- CI `42353393194` PASS, UI image only; backend skipped. Staging UI deployment
+  `qxvo64chcr5yzyh5imuzflzx` and production `f6ercoxuux1jn3wc0ol30fcf` FINISHED.
+  Both native UI containers HEALTHY on exact image revision
+  `371f4d1ea0f33d8b9e702b6111c85f7a2c4ffdae`.
+- Hosted checks: staging existing staff sign-in/shared AI editor PASS; production
+  customer header/four profile controls/save/review dialog PASS. Review cancelled
+  and choices discarded, saved Consultative retained/save disabled. No AI query,
+  configuration save or Brain release used for this visual qualification.
+- Backend remains `baf6ea3328a1ef72d83d01552ffbc02da1582105`, runtime image and
+  framework unchanged. This scope is complete; no user input needed.
+- Evidence: `verification-support/customer-configuration-design/README.md`.
