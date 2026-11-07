@@ -63,7 +63,7 @@ function errorText(value: unknown): string {
   return value instanceof Error ? value.message : 'Integration operation failed.'
 }
 
-export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, lockReleaseSelection = false }: { initialReleaseId?: string; handoverOnly?: boolean; lockReleaseSelection?: boolean } = {}) {
+export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, lockReleaseSelection = false, workspaceView = false, onBusyChange }: { initialReleaseId?: string; handoverOnly?: boolean; lockReleaseSelection?: boolean; workspaceView?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const auth = usePlatformAuth()
   const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
@@ -152,6 +152,11 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
       await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
     },
   })
+  const operationBusy = reconcile.isPending || replay.isPending || retryDispatch.isPending || expireHandover.isPending
+  useEffect(() => {
+    onBusyChange?.(operationBusy)
+    return () => onBusyChange?.(false)
+  }, [onBusyChange, operationBusy])
 
   if (!releasesQuery.isLoading && availableReleases.length === 0
     && !(workspace?.externalIntegrationConfigured || workspace?.conversationHandoverConfigured)) {
@@ -179,7 +184,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
 
   return (
     <Stack spacing={3}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+      {!workspaceView && <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
           <Typography color="text.secondary">
@@ -206,9 +211,9 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
             </span>
           </Tooltip>
         </Stack>
-      </Stack>
+      </Stack>}
 
-      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+      {!workspaceView && <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
         <TextField
           select
           fullWidth
@@ -225,7 +230,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
             </MenuItem>
           ))}
         </TextField>
-      </Paper>
+      </Paper>}
 
       {releasesQuery.error ? <Alert severity="error">{errorText(releasesQuery.error)}</Alert> : null}
       {targetQuery.error ? <Alert severity="error">{errorText(targetQuery.error)}</Alert> : null}

@@ -23,13 +23,17 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchDeploymentWebhookOverview,
   fetchDeploymentDraft,
+  fetchDeploymentWorkspace,
   retryDeploymentWebhookDelivery,
   updateDeploymentDraft,
+  type DeploymentDraftResponse,
+  type DeploymentWorkspaceSummary,
 } from '../api/platformApi'
+import { useBrainEditor } from '../brain/BrainWorkspaceContext'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
@@ -413,9 +417,41 @@ function parseSuccessStatuses(value: string, actionName: string): number[] {
     })
 }
 
-export function ActionsPage() {
+type ActionsPageProps = { brainId?: string; actionName?: string; workspaceMode?: boolean }
+
+export function ActionsPage(props: ActionsPageProps = {}) {
+  return props.brainId ? <BrainActionsEditor {...props} brainId={props.brainId} /> : <LegacyActionsEditor />
+}
+
+function LegacyActionsEditor() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
+  return <ActionsEditor selectedDeploymentId={selectedDeploymentId} workspace={workspace} />
+}
+
+function BrainActionsEditor({ brainId, actionName }: ActionsPageProps & { brainId: string }) {
+  const workspace = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
+  if (workspace.isError) return <Alert severity="error">{workspace.error.message}</Alert>
+  if (!workspace.data) return <Typography color="text.secondary">Loading access...</Typography>
+  return <ActionsEditor key={brainId} selectedDeploymentId={brainId} workspace={workspace.data} workspaceMode actionName={actionName} />
+}
+
+function LegacyEditorRegistration({ state }: { state: Parameters<typeof useDeploymentWorkspaceEditorState>[0] }) {
+  useDeploymentWorkspaceEditorState(state)
+  return null
+}
+
+function BrainEditorRegistration({ state }: { state: Parameters<typeof useBrainEditor>[0] }) {
+  useBrainEditor(state)
+  return null
+}
+
+function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false, actionName }: {
+  selectedDeploymentId: string; workspace: DeploymentWorkspaceSummary | null; workspaceMode?: boolean; actionName?: string
+}) {
   const queryClient = useQueryClient()
+  const [technicalView, setTechnicalView] = useState('catalogue')
+  const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
+  const bufferDirty = useRef(false)
   const [editorValue, setEditorValue] = useState('{\n  "actions": []\n}')
   const [parseError, setParseError] = useState<string | null>(null)
   const [routingConfig, setRoutingConfig] = useState<Record<string, unknown>>(normalizeRoutingConfig(null))
@@ -437,6 +473,9 @@ export function ActionsPage() {
     if (!draftQuery.data) {
       return
     }
+    if (workspaceMode && loadedDraft && bufferDirty.current) return
+
+    setLoadedDraft(draftQuery.data)
 
     setEditorValue(JSON.stringify(draftQuery.data.actionsConfig, null, 2))
     setParseError(null)
@@ -456,7 +495,14 @@ export function ActionsPage() {
       draftWebhookTargets.some((target) => target.id === current) ? current : (draftWebhookTargets[0]?.id ?? ''),
     )
     setRoutingError(null)
-  }, [draftQuery.data])
+  }, [draftQuery.data, workspaceMode])
+
+  useEffect(() => {
+    if (actionName) {
+      setSelectedRouteActionName(actionName)
+      setSelectedPolicyActionName(actionName)
+    }
+  }, [actionName, draftQuery.data?.id])
 
   const actionPreview = useMemo(() => {
     try {
@@ -464,6 +510,10 @@ export function ActionsPage() {
     } catch {
       return []
     }
+  }, [editorValue])
+
+  const invalidActionJson = useMemo(() => {
+    try { JSON.parse(editorValue); return false } catch { return true }
   }, [editorValue])
 
   const routingActionNames = useMemo(() => {
@@ -558,8 +608,8 @@ export function ActionsPage() {
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
   const savedActionsJson = useMemo(
-    () => (draftQuery.data ? JSON.stringify(draftQuery.data.actionsConfig, null, 2) : ''),
-    [draftQuery.data],
+    () => ((workspaceMode ? loadedDraft : draftQuery.data) ? JSON.stringify((workspaceMode ? loadedDraft : draftQuery.data)?.actionsConfig, null, 2) : ''),
+    [draftQuery.data, loadedDraft, workspaceMode],
   )
   const actionsDraftDirty = useMemo(
     () => (draftQuery.data ? editorValue !== savedActionsJson : false),
@@ -570,14 +620,21 @@ export function ActionsPage() {
       return false
     }
     try {
+      if (workspaceMode && loadedDraft) {
+        const savedRouting = normalizeRoutingConfig(loadedDraft.routingConfig)
+        const savedEditors = buildRouteEditors(routingActionNames, savedRouting, loadedDraft.actionsConfig)
+        return JSON.stringify(routingConfig) !== JSON.stringify(savedRouting)
+          || JSON.stringify(routeEditors) !== JSON.stringify(savedEditors)
+      }
       const currentRouting = buildRoutingConfigForSave()
-      const savedRouting = normalizeRoutingConfig(draftQuery.data.routingConfig)
+      const savedRouting = normalizeRoutingConfig((workspaceMode ? loadedDraft : draftQuery.data)?.routingConfig)
       return JSON.stringify(currentRouting) !== JSON.stringify(savedRouting)
     } catch {
       return true
     }
-  }, [draftQuery.data, routeEditors, routingActionNames, routingConfig])
+  }, [draftQuery.data, loadedDraft, routeEditors, routingActionNames, routingConfig, workspaceMode])
   const draftDirty = actionsDraftDirty || routingDraftDirty
+  bufferDirty.current = draftDirty
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -588,7 +645,6 @@ export function ActionsPage() {
     }),
     [draftDirty],
   )
-  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, actionsConfig }: { draftId: string; actionsConfig: unknown }) =>
@@ -835,7 +891,7 @@ export function ActionsPage() {
 
   const buildRoutingConfigForSave = (): Record<string, unknown> => {
     const nextRoutingConfig = normalizeRoutingConfig(routingConfig)
-    const nextActions: Record<string, unknown> = {}
+    const nextActions: Record<string, unknown> = workspaceMode ? cloneJson(asRecord(nextRoutingConfig.actions)) : {}
 
     for (const actionName of routingActionNames) {
       const editor = routeEditors[actionName]
@@ -845,10 +901,13 @@ export function ActionsPage() {
 
       const target = editor.target.trim()
       if (!target) {
+        if (workspaceMode) delete nextActions[actionName]
         continue
       }
 
-      const existingRoute = cloneJson(routeRecordForAction(nextRoutingConfig, actionName))
+      const existingRoute = cloneJson(workspaceMode
+        ? resolvedRouteRecordForAction(nextRoutingConfig, effectiveActionsConfig, actionName)
+        : routeRecordForAction(nextRoutingConfig, actionName))
       existingRoute.method = editor.method.trim() || 'POST'
 
       if (editor.mode === 'url') {
@@ -915,18 +974,72 @@ export function ActionsPage() {
     setRoutingError(null)
   }
 
+  const restoreDraft = (draft: DeploymentDraftResponse) => {
+    bufferDirty.current = false
+    setLoadedDraft(draft)
+    setEditorValue(JSON.stringify(draft.actionsConfig, null, 2))
+    const routing = normalizeRoutingConfig(draft.routingConfig)
+    setRoutingConfig(routing)
+    setRouteEditors(buildRouteEditors(actionNamesFromConfig(draft.actionsConfig), routing, draft.actionsConfig))
+    setParseError(null)
+    setRoutingError(null)
+  }
+  const workspaceSave = useMutation({
+    mutationFn: async () => {
+      if (!canEdit || !loadedDraft) throw new Error('Editing this draft requires editor access.')
+      const actionsConfig: unknown = JSON.parse(editorValue)
+      const routingConfig = routingDraftDirty ? buildRoutingConfigForSave() : undefined
+      const current = await fetchDeploymentDraft(selectedDeploymentId)
+      if (current.id !== loadedDraft.id || current.revisionNumber !== loadedDraft.revisionNumber) {
+        queryClient.setQueryData(['deployment-draft', selectedDeploymentId], current)
+        throw new Error('The saved draft changed. Your edits are retained; discard to reload the latest draft before retrying.')
+      }
+      return updateDeploymentDraft(loadedDraft.id, {
+        ...(actionsDraftDirty ? { actionsConfig } : {}),
+        ...(routingDraftDirty ? { routingConfig } : {}),
+      })
+    },
+    onSuccess: async (draft) => {
+      restoreDraft(draft)
+      queryClient.setQueryData(['deployment-draft', selectedDeploymentId], draft)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+      ])
+    },
+  })
+  const brainEditor = useMemo(() => ({
+    dirty: draftDirty,
+    busy: workspaceSave.isPending,
+    canSave: canEdit && draftDirty && Boolean(loadedDraft),
+    save: canEdit ? () => workspaceSave.mutateAsync().then(() => undefined).catch(() => undefined) : undefined,
+    discard: canEdit ? () => {
+      if (draftQuery.data) restoreDraft(draftQuery.data)
+      workspaceSave.reset()
+    } : undefined,
+    message: workspaceSave.isSuccess && !draftDirty ? 'Draft saved; live configuration unchanged.' : undefined,
+    error: workspaceSave.error?.message,
+  }), [draftDirty, workspaceSave.isPending, workspaceSave.isSuccess, workspaceSave.error, canEdit, loadedDraft, draftQuery.data, editorValue, routeEditors, routingConfig])
+
   return (
-    <ConfigurationSurface><Stack spacing={3}>
-      <Box>
+    <ConfigurationSurface><Stack spacing={3} sx={workspaceMode ? {
+      '& .MuiCard-root': { border: 0, borderRadius: 0, boxShadow: 'none', background: 'none' },
+      '& .MuiCardContent-root': { p: '0 !important' },
+      '& .MuiGrid-item': { flexBasis: '100%', maxWidth: '100%' },
+      '& .MuiTable-root': { minWidth: 0 },
+    } : undefined}>
+      {workspaceMode ? <BrainEditorRegistration state={brainEditor} /> : <LegacyEditorRegistration state={selectedDeploymentId ? editorState : null} />}
+      {!workspaceMode ? <Box>
         <Typography variant="h4">
           Actions & connections
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Configure the actions your AI can use and the services that execute them.
         </Typography>
-      </Box>
+      </Box> : null}
 
-      <ConfigurationDetails label="Draft & access">
+      {!workspaceMode ? <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
@@ -958,11 +1071,24 @@ export function ActionsPage() {
               </Stack>
             ) : null}
           </Stack>
-      </ConfigurationDetails>
+      </ConfigurationDetails> : null}
+
+      {workspaceMode ? <>
+        <TextField select size="small" label="Technical view" value={technicalView} onChange={(event) => setTechnicalView(event.target.value)}>
+          <MenuItem value="catalogue">Action JSON & anonymous access</MenuItem>
+          <MenuItem value="routing">HTTP routes & connector</MenuItem>
+          <MenuItem value="webhooks">Webhook targets & policies</MenuItem>
+          <MenuItem value="deliveries">Live webhook deliveries</MenuItem>
+        </TextField>
+        {!canEdit ? <Alert severity="info">Read-only access. Editing requires Brain editor permission.</Alert> : null}
+        {technicalView === 'deliveries' ? <Alert severity="info">Delivery scope: the Brain's active runtime. This existing API does not select a target profile.</Alert> : null}
+        {invalidActionJson ? <Alert severity="warning">Action JSON is invalid. Routing and webhook previews show the saved draft until the JSON is repaired.</Alert> : null}
+        {workspaceSave.isError ? <Alert severity="error">{workspaceSave.error.message}</Alert> : null}
+      </> : null}
 
       {selectedDeploymentId ? (
-        <>
-          <Grid container spacing={2.5}>
+        <Box component="fieldset" disabled={workspaceMode && technicalView !== 'deliveries' && (!canEdit || workspaceSave.isPending || (technicalView !== 'catalogue' && invalidActionJson))} sx={{ border: 0, m: 0, p: 0, minWidth: 0, display: 'contents' }}>
+          <Grid container spacing={2.5} sx={{ display: workspaceMode && technicalView !== 'catalogue' ? 'none' : undefined }}>
             <Grid item xs={12} lg={7}>
               <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                 <CardContent>
@@ -988,6 +1114,7 @@ export function ActionsPage() {
                           multiline
                           minRows={16}
                           maxRows={24}
+                          disabled={!canEdit || workspaceSave.isPending}
                           inputProps={{ 'aria-label': 'Actions JSON configuration' }}
                           fullWidth
                           value={editorValue}
@@ -1012,7 +1139,7 @@ export function ActionsPage() {
                           <Alert severity="success">Actions draft saved.</Alert>
                         ) : null}
 
-                        <Stack direction="row" spacing={1.5}>
+                        {!workspaceMode ? <Stack direction="row" spacing={1.5}>
                           <Button
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
@@ -1032,7 +1159,7 @@ export function ActionsPage() {
                           >
                             Reset editor
                           </Button>
-                        </Stack>
+                        </Stack> : null}
                       </>
                     )}
                   </Stack>
@@ -1125,7 +1252,7 @@ export function ActionsPage() {
             </Grid>
           </Grid>
 
-          <Grid container spacing={2.5}>
+          <Grid container spacing={2.5} sx={{ display: workspaceMode && technicalView !== 'webhooks' ? 'none' : undefined }}>
             <Grid item xs={12} lg={6}>
               <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
                 <CardContent>
@@ -1361,14 +1488,14 @@ export function ActionsPage() {
                       >
                         Add webhook policy
                       </Button>
-                      <Button
+                      {!workspaceMode ? <Button
                         variant="contained"
                         startIcon={<SaveRoundedIcon />}
                         onClick={handleSaveActions}
                         disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                       >
                         {saveMutation.isPending ? 'Saving...' : 'Save webhook changes'}
-                      </Button>
+                      </Button> : null}
                     </Stack>
 
                     {webhookTargets.length === 0 ? (
@@ -1382,7 +1509,7 @@ export function ActionsPage() {
             </Grid>
           </Grid>
 
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', display: workspaceMode && technicalView !== 'deliveries' ? 'none' : undefined }}>
             <CardContent>
               <Stack spacing={2}>
                 <Box>
@@ -1508,7 +1635,7 @@ export function ActionsPage() {
             </CardContent>
           </Card>
 
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', display: workspaceMode && technicalView !== 'routing' ? 'none' : undefined }}>
             <CardContent>
               <Stack spacing={2.5}>
                 <Box>
@@ -1713,7 +1840,7 @@ export function ActionsPage() {
             </CardContent>
           </Card>
 
-          <Grid container spacing={2.5}>
+          <Grid container spacing={2.5} sx={{ display: workspaceMode && technicalView !== 'routing' ? 'none' : undefined }}>
             <Grid item xs={12} lg={5}>
               <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
                 <CardContent>
@@ -1901,7 +2028,7 @@ export function ActionsPage() {
                           <Alert severity="success">Routing config draft saved.</Alert>
                         ) : null}
 
-                        <Stack direction="row" spacing={1.5}>
+                        {!workspaceMode ? <Stack direction="row" spacing={1.5}>
                           <Button
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
@@ -1913,7 +2040,7 @@ export function ActionsPage() {
                           <Button variant="outlined" onClick={resetRoutingEditor}>
                             Reset routing editor
                           </Button>
-                        </Stack>
+                        </Stack> : null}
                       </>
                     ) : (
                       <Alert severity="info">Select an action to configure its route.</Alert>
@@ -1923,7 +2050,7 @@ export function ActionsPage() {
               </Card>
             </Grid>
           </Grid>
-        </>
+        </Box>
       ) : null}
     </Stack></ConfigurationSurface>
   )

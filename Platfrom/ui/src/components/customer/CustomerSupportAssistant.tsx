@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded'
@@ -9,11 +10,12 @@ import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRound
 import { useCustomerSupport } from './CustomerSupportContext'
 import { SupportWorkspace } from './SupportWorkspace'
 
-export function CustomerSupportAssistant() {
+export function CustomerSupportAssistant({ bottomOffset = 0, initiallyMinimized = false }: { bottomOffset?: number; initiallyMinimized?: boolean } = {}) {
   const support = useCustomerSupport()
   const location = useLocation()
   const inPage = location.pathname === '/support' || location.pathname.startsWith('/support/')
   const hidden = !inPage && support.minimized
+  useEffect(() => { if (initiallyMinimized) support.setMinimized(true) }, [initiallyMinimized, support.setMinimized])
   const controlPosition = support.side === 'left'
     ? { left: { xs: 8, md: 'calc(var(--customer-navigation-width, 0px) + 20px)' } }
     : { right: { xs: 8, md: 20 } }
@@ -21,11 +23,11 @@ export function CustomerSupportAssistant() {
   return <>
     {hidden && <Button variant="contained" startIcon={<ChatBubbleOutlineRounded />}
       onClick={() => support.setMinimized(false)} aria-label="Open LoomAI support"
-      sx={{ position: 'fixed', bottom: 20, ...controlPosition, zIndex: 1100, borderRadius: 1, boxShadow: 4, py: 1.25, textTransform: 'none' }}>LoomAI Support</Button>}
+      sx={{ position: 'fixed', bottom: bottomOffset + 20, ...controlPosition, zIndex: 1100, borderRadius: 1, boxShadow: 4, py: 1.25, textTransform: 'none' }}>LoomAI Support</Button>}
     <Box data-testid="customer-support-assistant" data-presentation={inPage ? 'page' : 'dock'}
       sx={{ display: hidden ? 'none' : 'flex', flexDirection: 'column', minWidth: 0, bgcolor: 'background.paper',
         ...(inPage ? { mt: 2, height: 'max(480px, calc(100dvh - 200px))', minHeight: 480 }
-          : { position: 'fixed', top: 76, bottom: 0,
+          : { position: 'fixed', top: 76, bottom: bottomOffset,
             left: { xs: support.side === 'left' ? 48 : 0, md: 'calc(var(--customer-navigation-width, 0px) + 52px)' },
             right: { xs: support.side === 'right' ? 48 : 0, md: 52 },
             zIndex: 1100, pointerEvents: 'none', bgcolor: 'transparent' }),
@@ -36,7 +38,7 @@ export function CustomerSupportAssistant() {
           {support.requestId && <Tooltip title="Configure diagnostics"><IconButton size="small" aria-label="Configure diagnostics" onClick={() => support.setDiagnosticsOpen(true)}><TuneRounded fontSize="small" /></IconButton></Tooltip>}
         </Stack>
       </Stack>}
-      {!inPage && <Stack data-testid="support-dock-controls" spacing={0.5} sx={{ position: 'fixed', bottom: 24, ...controlPosition,
+      {!inPage && <Stack data-testid="support-dock-controls" spacing={0.5} sx={{ position: 'fixed', bottom: bottomOffset + 24, ...controlPosition,
         zIndex: 1102, pointerEvents: 'auto', p: 0.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1, boxShadow: 2 }}>
         {support.requestId && <Tooltip title="Configure diagnostics"><IconButton size="small" aria-label="Configure diagnostics" onClick={() => support.setDiagnosticsOpen(true)}><TuneRounded fontSize="small" /></IconButton></Tooltip>}
         <Tooltip title="Support and requests"><IconButton component={Link} to={openFull} size="small" aria-label="Open support page"><OpenInFullRounded fontSize="small" /></IconButton></Tooltip>

@@ -11,6 +11,7 @@ import {
   type PlatformUserPreferences,
 } from '../api/platformApi'
 import type { DeploymentWorkspaceEditorBufferState } from './deploymentWorkspaceLifecycle'
+import { brainIdFromPath, brainPath, legacyBrainSections } from '../brain/brainNavigation'
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/overview',
@@ -66,7 +67,7 @@ function preferredDeploymentId(
 }
 
 export function isDeploymentWorkspacePath(pathname: string): boolean {
-  return DEPLOYMENT_WORKSPACE_PATHS.includes(pathname as (typeof DEPLOYMENT_WORKSPACE_PATHS)[number])
+  return Boolean(brainIdFromPath(pathname)) || DEPLOYMENT_WORKSPACE_PATHS.includes(pathname as (typeof DEPLOYMENT_WORKSPACE_PATHS)[number])
 }
 
 export function DeploymentWorkspaceProvider({ children }: { children: ReactNode }) {
@@ -89,8 +90,8 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   })
   const preferences: PlatformUserPreferences | null = preferencesQuery.data ?? null
   const requestedDeploymentId = useMemo(
-    () => new URLSearchParams(location.search).get('deploymentId') ?? '',
-    [location.search],
+    () => brainIdFromPath(location.pathname) || new URLSearchParams(location.search).get('deploymentId') || '',
+    [location.pathname, location.search],
   )
 
   const preferencesLoaded = preferencesQuery.isSuccess || preferencesQuery.isError
@@ -181,6 +182,10 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   })
 
   const setSelectedDeploymentId = (deploymentId: string) => {
+    if (brainIdFromPath(location.pathname)) {
+      navigate(brainPath(deploymentId, '', new URLSearchParams(location.search).get('targetProfileId')))
+      return
+    }
     const nextParams = new URLSearchParams(location.search)
     if (deploymentId.trim().length === 0) {
       nextParams.delete('deploymentId')
@@ -204,6 +209,9 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
     const deploymentIdForPath = selectedDeploymentId || unresolvedRequestedDeploymentId || ''
     if (deploymentIdForPath.length === 0) {
       return pathname
+    }
+    if (pathname in legacyBrainSections) {
+      return brainPath(deploymentIdForPath, legacyBrainSections[pathname], new URLSearchParams(location.search).get('targetProfileId'))
     }
     return `${pathname}?deploymentId=${encodeURIComponent(deploymentIdForPath)}`
   }

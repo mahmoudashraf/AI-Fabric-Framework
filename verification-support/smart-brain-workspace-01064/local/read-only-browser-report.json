@@ -1,0 +1,152 @@
+{
+  "at": "2026-11-07T10:24:59.481Z",
+  "localUiOnly": true,
+  "apiReadback": "existing authorized Platform API",
+  "brainId": "dep-3c4dbe4f",
+  "targetProfileId": "dtp-coolify-production-behavior",
+  "checks": [
+    {
+      "section": "overview",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "responses",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "capabilities",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "channels",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "human-support",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "try",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "updates",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "responses/instructions",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "responses/advanced",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "capabilities/actions",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "capabilities/add",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge/storage",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge/discover",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge/proof",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge/retention",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "knowledge/connections",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings/models",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings/storage",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings/technical-files",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings/access",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "section": "settings/delivery",
+      "pageOverflow": 0,
+      "horizontalOverflow": 0,
+      "footerVisible": true
+    },
+    {
+      "unsavedNavigation": "guarded-and-discarded"
+    }
+  ],
+  "resourceWrites": [],
+  "pageErrors": []
+}

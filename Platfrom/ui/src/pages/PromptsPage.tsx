@@ -29,7 +29,8 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   applyDeploymentCuratedModule,
   clearDeploymentPocPromptSession,
@@ -51,6 +52,7 @@ import { AiBehaviourEditor } from '../components/AiBehaviourEditor'
 import { effectiveAiBehaviourPreview, promptConfigIdentity, promptConfigRecord, readAiBehaviour } from '../aiBehaviourProfiles'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
+import { useBrainEditor, useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
 
 const PROMPT_FIELDS = [
   {
@@ -328,7 +330,7 @@ function parsePositiveInteger(value: string): number | null {
   return parsed
 }
 
-function createPromptConfigPayload(formState: PromptFormState, preservedConfig: Record<string, unknown>) {
+function createPromptConfigPayload(formState: PromptFormState, preservedConfig: Record<string, unknown>, changedOnly = false) {
   const payload: Record<string, unknown> = { ...preservedConfig }
   for (const field of PROMPT_FIELDS) payload[field.key] = formState[field.key]
   for (const key of ['ragSimilarityThreshold', 'ragMaxDocumentsUsedForContext', 'ragMaxContextChars',
@@ -363,7 +365,20 @@ function createPromptConfigPayload(formState: PromptFormState, preservedConfig: 
   } else if (formState.smartSuggestionsMode === 'disabled') {
     payload.smartSuggestionsEnabled = false
   }
-  return payload
+  if (!changedOnly) return payload
+  // Workspace edits leave untouched fields byte-for-byte intact, including absent overrides.
+  const original = normalizePromptState(preservedConfig)
+  const result = { ...preservedConfig }
+  const ownedFields = [...PROMPT_FIELDS.map(field => [field.key, field.key] as const),
+    ...(['ragSimilarityThreshold', 'ragMaxDocumentsUsedForContext', 'ragMaxContextChars',
+      'responseGenerationMaxTokensConcise', 'responseGenerationMaxTokensStandard', 'responseGenerationMaxTokensDeep'] as const).map(key => [key, key] as const),
+    ['smartSuggestionsMode', 'smartSuggestionsEnabled'] as const]
+  for (const [formKey, configKey] of ownedFields) {
+    if (formState[formKey] === original[formKey]) continue
+    if (configKey in payload) result[configKey] = payload[configKey]
+    else delete result[configKey]
+  }
+  return result
 }
 
 function formatSmartSuggestionsMode(mode: SmartSuggestionsMode) {
@@ -409,8 +424,9 @@ function readPreviewValue(result: unknown, key: string) {
   return typeof candidate === 'string' && candidate.trim().length > 0 ? candidate : null
 }
 
-export function PromptsPage() {
+export function PromptsPage({ workspaceView }: { workspaceView?: 'instructions' | 'advanced' } = {}) {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
+  const brainWorkspace = useOptionalBrainWorkspace()
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<PromptFormState>(defaultPromptState())
   const [preservedConfig, setPreservedConfig] = useState<Record<string, unknown>>({})
@@ -420,6 +436,11 @@ export function PromptsPage() {
   const [revisionSummary, setRevisionSummary] = useState('')
   const [previewQuery, setPreviewQuery] = useState('')
   const [hotApplyLabel, setHotApplyLabel] = useState('POC hot apply session')
+  const [advancedView, setAdvancedView] = useState('settings')
+  const [instructionKey, setInstructionKey] = useState('systemPrompt')
+  const [saveConflict, setSaveConflict] = useState(false)
+  const dirtyRef = useRef(false)
+  const loadedConfig = useRef<Record<string, unknown>>({})
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -430,24 +451,25 @@ export function PromptsPage() {
   const promptRevisionsQuery = useQuery({
     queryKey: ['deployment-prompt-revisions', selectedDeploymentId],
     queryFn: () => fetchDeploymentPromptRevisions(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: selectedDeploymentId.length > 0 && (!workspaceView || (workspaceView === 'advanced' && advancedView === 'revisions')),
   })
 
   const curatedModulesQuery = useQuery({
     queryKey: ['deployment-curated-modules'],
     queryFn: fetchDeploymentCuratedModules,
+    enabled: !workspaceView || (workspaceView === 'advanced' && ['curated', 'settings'].includes(advancedView)),
   })
 
   const baselineQuery = useQuery({
     queryKey: ['deployment-prompt-baseline', selectedDeploymentId],
     queryFn: () => fetchDeploymentPromptBaseline(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: selectedDeploymentId.length > 0 && (!workspaceView || (workspaceView === 'advanced' && ['comparison', 'status'].includes(advancedView))),
   })
 
   const promptSessionQuery = useQuery({
     queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
     queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: selectedDeploymentId.length > 0 && (!workspaceView || (workspaceView === 'advanced' && ['session', 'status'].includes(advancedView))),
   })
 
   useEffect(() => {
@@ -457,12 +479,13 @@ export function PromptsPage() {
   }, [selectedDeploymentId])
 
   useEffect(() => {
-    if (!draftQuery.data) {
+    if (!draftQuery.data || (workspaceView && dirtyRef.current)) {
       return
     }
     setFormState(normalizePromptState(draftQuery.data.promptConfig))
     setPreservedConfig(promptConfigRecord(draftQuery.data.promptConfig))
-  }, [draftQuery.data])
+    loadedConfig.current = promptConfigRecord(draftQuery.data.promptConfig)
+  }, [draftQuery.data, workspaceView])
 
   const savedState = useMemo(
     () => normalizePromptState(draftQuery.data?.promptConfig),
@@ -486,10 +509,12 @@ export function PromptsPage() {
     [baselineState, savedState],
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
-  const editorPromptConfig = useMemo(() => createPromptConfigPayload(formState, preservedConfig), [formState, preservedConfig])
-  const draftDirty = useMemo(() => !statesEqual(formState, savedState) ||
+  const editorPromptConfig = useMemo(() => createPromptConfigPayload(formState, preservedConfig, Boolean(workspaceView)), [formState, preservedConfig, workspaceView])
+  const draftDirty = useMemo(() => workspaceView
+    ? promptConfigIdentity(editorPromptConfig) !== promptConfigIdentity(loadedConfig.current)
+    : !statesEqual(formState, savedState) ||
     promptConfigIdentity(editorPromptConfig) !== promptConfigIdentity(createPromptConfigPayload(savedState, promptConfigRecord(draftQuery.data?.promptConfig))),
-  [formState, savedState, editorPromptConfig, draftQuery.data?.promptConfig])
+  [formState, savedState, editorPromptConfig, draftQuery.data?.promptConfig, workspaceView])
   const parsedRagSimilarityThreshold = useMemo(
     () => parseRagSimilarityThreshold(formState.ragSimilarityThreshold),
     [formState.ragSimilarityThreshold],
@@ -558,7 +583,8 @@ export function PromptsPage() {
     }),
     [draftDirty, behaviourPending],
   )
-  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
+  useDeploymentWorkspaceEditorState(selectedDeploymentId && !workspaceView ? editorState : null)
+  dirtyRef.current = draftDirty || behaviourPending
   const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
@@ -591,7 +617,8 @@ export function PromptsPage() {
   const savedCompositionQuery = useQuery({
     queryKey: ['deployment-ai-behaviour-effective', selectedDeploymentId, draftQuery.data?.promptConfig],
     queryFn: () => composeDeploymentAiBehaviour(selectedDeploymentId, { promptConfig: promptConfigRecord(draftQuery.data?.promptConfig) }),
-    enabled: Boolean(selectedDeploymentId && draftQuery.data && readAiBehaviour(draftQuery.data.promptConfig)),
+    enabled: Boolean(selectedDeploymentId && draftQuery.data && readAiBehaviour(draftQuery.data.promptConfig)) &&
+      (!workspaceView || (workspaceView === 'advanced' && advancedView === 'compiled')),
   })
   const releasePreviewState = readAiBehaviour(draftQuery.data?.promptConfig)
     ? normalizePromptState(savedCompositionQuery.data?.effectivePromptConfig) : savedState
@@ -621,10 +648,25 @@ export function PromptsPage() {
       if (!draftQuery.data) {
         throw new Error('No active draft available.')
       }
+      if (workspaceView) {
+        if (!canEdit) throw new Error('Response changes require editor permission.')
+        const latest = await fetchDeploymentDraft(selectedDeploymentId)
+        if (latest.id !== draftQuery.data.id || promptConfigIdentity(latest.promptConfig) !== promptConfigIdentity(loadedConfig.current)) {
+          setSaveConflict(true)
+          throw new Error('The saved response settings changed while you were editing. Reload the saved draft before saving again.')
+        }
+      }
       const composed = await composeDeploymentAiBehaviour(selectedDeploymentId, { promptConfig: editorPromptConfig })
       return updateDeploymentDraft(draftQuery.data.id, { promptConfig: composed.promptConfig })
     },
-    onSuccess: async () => {
+    onSuccess: async (draft) => {
+      if (workspaceView) {
+        dirtyRef.current = false
+        loadedConfig.current = promptConfigRecord(draft.promptConfig)
+        setFormState(normalizePromptState(draft.promptConfig))
+        setPreservedConfig(promptConfigRecord(draft.promptConfig))
+        queryClient.setQueryData(['deployment-draft', selectedDeploymentId], draft)
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
@@ -659,6 +701,8 @@ export function PromptsPage() {
   const restoreRevisionMutation = useMutation({
     mutationFn: (revisionId: string) => restoreDeploymentPromptRevision(selectedDeploymentId, revisionId),
     onSuccess: async (draft) => {
+      dirtyRef.current = false
+      loadedConfig.current = promptConfigRecord(draft.promptConfig)
       setFormState(normalizePromptState(draft.promptConfig))
       setPreservedConfig(promptConfigRecord(draft.promptConfig))
       setBehaviourReset(previous => previous + 1)
@@ -691,17 +735,98 @@ export function PromptsPage() {
     },
   })
 
+  const workspaceBusy = saveMutation.isPending || applyCuratedModuleMutation.isPending || restoreRevisionMutation.isPending ||
+    createRevisionMutation.isPending || activatePromptSessionMutation.isPending || clearPromptSessionMutation.isPending ||
+    baselinePreviewMutation.isPending || overlayPreviewMutation.isPending
+  function discardWorkspaceEdits() {
+    dirtyRef.current = false
+    loadedConfig.current = promptConfigRecord(draftQuery.data?.promptConfig)
+    setFormState(savedState); setPreservedConfig(loadedConfig.current)
+    setBehaviourPending(false); setBehaviourReset(previous => previous + 1); setSaveConflict(false); saveMutation.reset()
+  }
+  useBrainEditor(workspaceView ? {
+    dirty: draftDirty || behaviourPending, busy: workspaceBusy,
+    canSave: canEdit && Boolean(draftQuery.data) && draftDirty && !behaviourPending && !promptConfigHasValidationErrors && !saveConflict,
+    save: canEdit ? () => saveMutation.mutateAsync().catch(() => undefined) : undefined,
+    discard: canEdit ? discardWorkspaceEdits : undefined,
+    message: !canEdit ? 'Read-only access. Response changes require editor permission.'
+      : promptConfigHasValidationErrors ? 'Correct the highlighted fields before saving.'
+        : draftDirty ? 'Unsaved changes' : saveMutation.isSuccess || applyCuratedModuleMutation.isSuccess || restoreRevisionMutation.isSuccess
+          ? 'Draft saved; live configuration unchanged' : 'Editing shared draft',
+    error: saveMutation.isError ? saveMutation.error.message : null,
+  } : null)
+  const showAdvanced = (section: string) => !workspaceView || (workspaceView === 'advanced' && advancedView === section)
+  const profileMetadata = readAiBehaviour(editorPromptConfig)
+  const selectedPrompt = PROMPT_FIELDS.find(field => field.key === instructionKey)
+  const selectedProfile = profileMetadata?.[instructionKey as 'tone' | 'answerBreadth' | 'answerLength' | 'nextSteps']
+
   return (
-    <ConfigurationSurface><Stack spacing={3}>
+    <ConfigurationSurface><Stack spacing={3} sx={workspaceView ? {
+      '& .MuiCard-root': { border: 0, borderRadius: 0, bgcolor: 'transparent', boxShadow: 'none' },
+      '& .MuiCardContent-root': { px: 0 },
+      '& .MuiAccordion-root': { border: 0, borderRadius: '0 !important', bgcolor: 'transparent' },
+      '& .MuiAccordionDetails-root': { px: 0 },
+      '& .MuiAccordionSummary-root': { display: 'none' },
+    } : undefined}>
       {draftQuery.isError && <Alert severity="error">Could not load the prompt draft. Reload before editing.</Alert>}
-      <AiBehaviourEditor key={`${selectedDeploymentId}-${behaviourReset}`} deploymentId={selectedDeploymentId}
+      {workspaceView && draftQuery.isPending && <Typography role="status">Loading response settings...</Typography>}
+      {workspaceView && !canEdit && <Alert severity="info">Read-only access. Response changes require editor permission.</Alert>}
+      {workspaceView && saveConflict && <Alert severity="warning" action={<Button onClick={async () => {
+        const result = await draftQuery.refetch()
+        if (!result.data || result.isError) return
+        dirtyRef.current = false; loadedConfig.current = promptConfigRecord(result.data.promptConfig)
+        setFormState(normalizePromptState(result.data.promptConfig)); setPreservedConfig(loadedConfig.current)
+        setSaveConflict(false); saveMutation.reset()
+      }}>Reload saved draft</Button>}>Your edits are retained. Reloading replaces them with the latest saved settings.</Alert>}
+      {workspaceView === 'advanced' && <TextField select size="small" label="Advanced view" value={advancedView}
+        SelectProps={{ SelectDisplayProps: { 'aria-label': 'Advanced view', 'aria-labelledby': undefined } }}
+        onChange={event => setAdvancedView(event.target.value)} sx={{ maxWidth: 420 }}>
+        <MenuItem value="settings">Retrieval and generation settings</MenuItem>
+        <MenuItem value="curated">Curated baseline / reset</MenuItem>
+        <MenuItem value="comparison">Published baseline comparison</MenuItem>
+        <MenuItem value="compiled">Compiled release prompts</MenuItem>
+        <MenuItem value="session">Temporary test-session override</MenuItem>
+        <MenuItem value="preview">Explicit prompt preview</MenuItem>
+        <MenuItem value="revisions">Prompt snapshots</MenuItem>
+        <MenuItem value="status">Draft and test-session status</MenuItem>
+      </TextField>}
+      {workspaceView === 'advanced' && ['session', 'preview', 'status'].includes(advancedView) && <Alert severity="info"
+        action={brainWorkspace ? <Button component={RouterLink} to={brainWorkspace.href('try')}>Try it</Button> : undefined}>
+        These retained POC tools use the deployment test runtime, not the target selected in this workspace.
+        Only the seven managed prompt strings can be overlaid. Connections, actions, model settings and runtime controls are not simulated.
+        Explicit tests can incur provider usage; normal actions and confirmations remain in force.
+      </Alert>}
+      {workspaceView === 'advanced' && ['session', 'status'].includes(advancedView) && promptSessionQuery.isError &&
+        <Alert severity="error">{promptSessionQuery.error.message}</Alert>}
+      {workspaceView === 'advanced' && advancedView === 'revisions' && promptRevisionsQuery.isError &&
+        <Alert severity="error">{promptRevisionsQuery.error.message}</Alert>}
+      {workspaceView === 'advanced' && ['comparison', 'status'].includes(advancedView) && baselineQuery.isError &&
+        <Alert severity="error">{baselineQuery.error.message}</Alert>}
+      {workspaceView === 'instructions' && <Stack spacing={2}>
+        <TextField select size="small" label="Instruction set" value={instructionKey}
+          SelectProps={{ SelectDisplayProps: { 'aria-label': 'Instruction set', 'aria-labelledby': undefined } }}
+          onChange={event => setInstructionKey(event.target.value)} sx={{ maxWidth: 460 }}>
+          {PROMPT_FIELDS.map(field => <MenuItem key={field.key} value={field.key}>{field.label}</MenuItem>)}
+          {(['tone', 'answerBreadth', 'answerLength', 'nextSteps'] as const).filter(key => profileMetadata?.[key]).map(key =>
+            <MenuItem key={key} value={key}>Profile: {({ tone: 'Tone', answerBreadth: 'General advice', answerLength: 'Answer length', nextSteps: 'Helpful next steps' })[key]}</MenuItem>)}
+        </TextField>
+        {selectedPrompt ? <TextField label={selectedPrompt.label} helperText={selectedPrompt.description} multiline minRows={10} maxRows={18}
+          fullWidth value={formState[selectedPrompt.key]} disabled={!canEdit || !draftQuery.data || workspaceBusy}
+          onChange={event => { saveMutation.reset(); setFormState(previous => ({ ...previous, [selectedPrompt.key]: event.target.value })) }} />
+          : selectedProfile ? <TextField label="Profile instructions" helperText={`${selectedProfile.presetId} / revision ${selectedProfile.revision}. Edited instructions are identified as Custom by the server.`}
+            multiline minRows={8} maxRows={18} fullWidth value={selectedProfile.instructions} disabled={!canEdit || workspaceBusy}
+            onChange={event => { saveMutation.reset(); setPreservedConfig(previous => ({ ...previous,
+              aiBehaviour: { ...promptConfigRecord(previous.aiBehaviour), [instructionKey]: { ...selectedProfile, instructions: event.target.value } },
+            })) }} /> : null}
+      </Stack>}
+      {!workspaceView && <AiBehaviourEditor key={`${selectedDeploymentId}-${behaviourReset}`} deploymentId={selectedDeploymentId}
         promptConfig={editorPromptConfig} canEdit={canEdit && Boolean(draftQuery.data) && !saveMutation.isPending}
         onPendingChange={setBehaviourPending} onApply={config => {
           setPreservedConfig(config)
           setFormState(normalizePromptState(config))
-        }} />
+        }} />}
 
-      <Box component="section" aria-label="Prompt draft controls" sx={{ borderTop: 1, borderBottom: 1, borderColor: 'divider', py: 2 }}>
+      {!workspaceView && <Box component="section" aria-label="Prompt draft controls" sx={{ borderTop: 1, borderBottom: 1, borderColor: 'divider', py: 2 }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} gap={2} alignItems={{ lg: 'center' }} justifyContent="space-between">
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2">{draftDirty ? 'Unsaved changes' : 'Saved draft'}</Typography>
@@ -724,9 +849,9 @@ export function PromptsPage() {
         </Stack>
         {saveMutation.isError && <Alert severity="error" sx={{ mt: 2 }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Failed to save prompt draft'}</Alert>}
         {saveMutation.isSuccess && <Alert severity="success" sx={{ mt: 2 }}>Prompt draft saved.</Alert>}
-      </Box>
+      </Box>}
 
-      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('status') && <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced draft and live status</Typography></AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2.5}>
@@ -928,24 +1053,24 @@ export function PromptsPage() {
             )}
           </Stack>
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('settings') || showAdvanced('curated') ? <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Prompt bundle</Typography>
+              <Typography variant="h6">{workspaceView ? advancedView === 'settings' ? 'Retrieval and generation settings' : 'Curated baseline' : 'Prompt bundle'}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
                 Prompt changes are versioned {deploymentTerm.lowercase} config. Save the draft here, then publish and apply when you
                 want the revised prompt bundle to become part of a release.
               </Typography>
             </Box>
 
-            <Accordion disableGutters sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
+            <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
               <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced prompts and settings</Typography></AccordionSummary>
               <AccordionDetails>
                 <Stack spacing={2.5}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {!workspaceView && <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Change type: Versioned config" color="primary" variant="outlined" />
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
@@ -961,7 +1086,7 @@ export function PromptsPage() {
               {currentCuratedModule ? (
                 <Chip label={`Curated module: ${currentCuratedModule.name}`} color="secondary" variant="outlined" />
               ) : null}
-            </Stack>
+            </Stack>}
 
             <Alert severity={draftDirty ? 'warning' : 'info'}>
               {draftDirty
@@ -974,7 +1099,7 @@ export function PromptsPage() {
               </Alert>
             ) : null}
 
-            <Card variant="outlined">
+            {showAdvanced('curated') && <Card variant="outlined">
               <CardContent>
                 <Stack spacing={2}>
                   <Box>
@@ -1033,8 +1158,10 @@ export function PromptsPage() {
                               </Typography>
                               <Button
                                 variant={module.id === currentCuratedModuleId ? 'contained' : 'outlined'}
-                                disabled={!canEdit || applyCuratedModuleMutation.isPending || module.id === currentCuratedModuleId}
-                                onClick={() => applyCuratedModuleMutation.mutate(module.id)}
+                                disabled={!canEdit || applyCuratedModuleMutation.isPending || module.id === currentCuratedModuleId || Boolean(workspaceView && (draftDirty || workspaceBusy))}
+                                onClick={() => {
+                                  if (!workspaceView || window.confirm('Replace the saved prompt bundle with this curated baseline? This saves the shared draft, not a live release.')) applyCuratedModuleMutation.mutate(module.id)
+                                }}
                               >
                                 {module.id === currentCuratedModuleId ? 'Current module' : 'Apply baseline to draft'}
                               </Button>
@@ -1046,10 +1173,10 @@ export function PromptsPage() {
                   </Grid>
                 </Stack>
               </CardContent>
-            </Card>
+            </Card>}
 
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              {showAdvanced('settings') && <Grid item xs={12}>
                 <Card variant="outlined">
                   <CardContent>
                     <Stack spacing={1.5}>
@@ -1064,6 +1191,7 @@ export function PromptsPage() {
                       </Box>
                       <TextField
                         label="RAG similarity threshold"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.ragSimilarityThreshold}
@@ -1082,6 +1210,7 @@ export function PromptsPage() {
                       />
                       <TextField
                         label="Max context documents"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.ragMaxDocumentsUsedForContext}
@@ -1100,6 +1229,7 @@ export function PromptsPage() {
                       />
                       <TextField
                         label="Max context characters"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.ragMaxContextChars}
@@ -1118,6 +1248,7 @@ export function PromptsPage() {
                       />
                       <TextField
                         label="Concise generation max tokens"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.responseGenerationMaxTokensConcise}
@@ -1136,6 +1267,7 @@ export function PromptsPage() {
                       />
                       <TextField
                         label="Standard generation max tokens"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.responseGenerationMaxTokensStandard}
@@ -1154,6 +1286,7 @@ export function PromptsPage() {
                       />
                       <TextField
                         label="Deep generation max tokens"
+                        disabled={Boolean(workspaceView) && (!canEdit || !draftQuery.data || workspaceBusy)}
                         type="number"
                         fullWidth
                         value={formState.responseGenerationMaxTokensDeep}
@@ -1174,7 +1307,7 @@ export function PromptsPage() {
                         select
                         label="Smart suggestions"
                         fullWidth
-                        disabled={!canEdit || Boolean(readAiBehaviour(editorPromptConfig))}
+                        disabled={!canEdit || Boolean(readAiBehaviour(editorPromptConfig)) || Boolean(workspaceView && workspaceBusy)}
                         value={formState.smartSuggestionsMode}
                         onChange={(event) =>
                           setFormState((previous) => ({
@@ -1193,8 +1326,8 @@ export function PromptsPage() {
                     </Stack>
                   </CardContent>
                 </Card>
-              </Grid>
-              {PROMPT_FIELDS.map((field) => (
+              </Grid>}
+              {!workspaceView && PROMPT_FIELDS.map((field) => (
                 <Grid item xs={12} md={6} key={field.key}>
                   <TextField
                     label={field.label}
@@ -1221,9 +1354,9 @@ export function PromptsPage() {
 
           </Stack>
         </CardContent>
-      </Card>
+      </Card> : null}
 
-      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('comparison') && <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced baseline comparison</Typography></AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2.5}>
@@ -1316,9 +1449,9 @@ export function PromptsPage() {
             )}
           </Stack>
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
 
-      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('compiled') && <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced compiled release prompts</Typography></AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2.5}>
@@ -1376,9 +1509,9 @@ export function PromptsPage() {
             </Grid>
           </Stack>
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
 
-      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('session') && <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced POC session hot apply</Typography></AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2.5}>
@@ -1411,7 +1544,9 @@ export function PromptsPage() {
               <Alert severity="info">
                 POC hot apply is available to {deploymentTerm.lowercase} operators and above.
               </Alert>
-            ) : (
+            ) : workspaceView ? <Alert severity="info">
+              This is a temporary, session-scoped seven-string prompt overlay. It does not save the draft or update a release.
+            </Alert> : (
               <Alert severity="info">
                 Session hot apply is operator-scoped and secured with the runtime admin key. It only affects the
                 platform POC console for this {deploymentTerm.lowercase} until you clear it. Only prompts are overridden;
@@ -1523,9 +1658,9 @@ export function PromptsPage() {
             </Stack>
           </Stack>
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('preview') && <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
@@ -1563,7 +1698,9 @@ export function PromptsPage() {
               <Alert severity="info">
                 Prompt preview and live POC evaluation require {deploymentTerm.lowercase} operator access or higher.
               </Alert>
-            ) : (
+            ) : workspaceView ? <Alert severity="info">
+              Prompt preview overlays seven compiled prompt strings for this explicit request only. It is not a full-draft simulation or a sandbox.
+            </Alert> : (
               <Alert severity="info">
                 Prompt preview is secured with the runtime admin key and only affects this request. Use it to test
                 prompt behavior safely before deciding whether to save, publish, and apply.
@@ -1587,7 +1724,7 @@ export function PromptsPage() {
                 disabled={!canOperate || runtimeUnavailable || previewQuery.trim().length === 0 || baselinePreviewMutation.isPending}
                 onClick={() => baselinePreviewMutation.mutate()}
               >
-                {baselinePreviewMutation.isPending ? 'Running baseline...' : 'Run saved prompt bundle'}
+                {baselinePreviewMutation.isPending ? 'Running baseline...' : workspaceView ? 'Run applied runtime' : 'Run saved prompt bundle'}
               </Button>
               <Button
                 variant="contained"
@@ -1696,9 +1833,9 @@ export function PromptsPage() {
             </Grid>
           </Stack>
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {showAdvanced('revisions') && <Accordion expanded={workspaceView ? true : undefined} disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced prompt revisions</Typography></AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2.5}>
@@ -1802,8 +1939,10 @@ export function PromptsPage() {
                         variant="outlined"
                         size="small"
                         startIcon={<RestoreRoundedIcon />}
-                        disabled={!canEdit || restoreRevisionMutation.isPending}
-                        onClick={() => restoreRevisionMutation.mutate(revision.id)}
+                        disabled={!canEdit || restoreRevisionMutation.isPending || Boolean(workspaceView && (draftDirty || workspaceBusy))}
+                        onClick={() => {
+                          if (!workspaceView || window.confirm('Restore this prompt snapshot to the shared draft? This is not deployment rollback and does not update a live release.')) restoreRevisionMutation.mutate(revision.id)
+                        }}
                       >
                         Restore to draft
                       </Button>
@@ -1824,7 +1963,7 @@ export function PromptsPage() {
             </Box>
           </Stack>
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
     </Stack></ConfigurationSurface>
   )
 }

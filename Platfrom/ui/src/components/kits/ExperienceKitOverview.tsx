@@ -23,6 +23,7 @@ import { KitSupportSpaceSetup } from './KitSupportSpaceSetup'
 import { HostedDocumentStorageSetup } from '../documents/HostedDocumentStorageSetup'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { connectableRelease } from '../customer/customerEngageConnection'
+import { brainPath } from '../../brain/brainNavigation'
 import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
 import { deploymentTerm } from '../../deploymentTerminology'
 
@@ -69,13 +70,11 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
   const allReady = !missingChannel && appStates.every(state => state.ready)
   const allActive = allReady && appStates.every(state => state.active)
   const appearance = primary ? kitFormFromSummary(kit) : null
-  const deskPath = `/human-support?${new URLSearchParams({ deploymentId: kit.deploymentId,
-    ...(release?.targetProfileId ? { targetProfileId: release.targetProfileId, releaseId: release.id } : {}) })}`
+  const deskPath = brainPath(kit.deploymentId, 'human-support', release?.targetProfileId)
   const deploymentPath = kitDeploymentPath(kit)
-  const knowledgePath = `/document-knowledge?${new URLSearchParams({ deploymentId: kit.deploymentId })}`
-  const integrationPath = `/integrations?${new URLSearchParams({ deploymentId: kit.deploymentId })}`
-  const revisionPath = `/revisions?${new URLSearchParams({ deploymentId: kit.deploymentId,
-    ...(release?.targetProfileId ? { targetProfileId: release.targetProfileId } : {}) })}`
+  const knowledgePath = brainPath(kit.deploymentId, 'knowledge', release?.targetProfileId)
+  const integrationPath = brainPath(kit.deploymentId, 'knowledge/connections', release?.targetProfileId)
+  const revisionPath = brainPath(kit.deploymentId, 'updates', release?.targetProfileId)
   const refreshAll = () => { void refresh(); void portfolio.refetch(); void releases.refetch(); if (release?.targetProfileId) void desk.refetch() }
   const pending = portfolio.isFetching || releases.isFetching
   const activeUrl = primary?.status === 'ACTIVE' ? safeKitExternalUrl(primary.appUrl) : null

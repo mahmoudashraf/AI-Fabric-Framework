@@ -32,6 +32,7 @@ import {
   fetchDeploymentTargetOptions,
   fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
+  fetchDeploymentWorkspace,
   fetchDeploymentIntegrationSummary,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
@@ -472,12 +473,20 @@ function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
   return `${intent} · ${profile.name} · ${profile.providerType} · ${profile.environmentName}`
 }
 
-export function RevisionsPage() {
+export function RevisionsPage({ scope }: { scope?: { brainId: string; targetProfileId: string } } = {}) {
   const auth = usePlatformAuth()
   const location = useLocation()
   const isCustomerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
-  const requestedApplyTarget = new URLSearchParams(location.search).get('targetProfileId') ?? ''
-  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  const requestedApplyTarget = scope?.targetProfileId ?? new URLSearchParams(location.search).get('targetProfileId') ?? ''
+  const legacyWorkspace = useDeploymentWorkspace()
+  const selectedDeploymentId = scope?.brainId ?? legacyWorkspace.selectedDeploymentId
+  const scopedWorkspaceQuery = useQuery({
+    queryKey: ['deployment-workspace', selectedDeploymentId],
+    queryFn: () => fetchDeploymentWorkspace(selectedDeploymentId),
+    enabled: Boolean(scope && selectedDeploymentId),
+  })
+  const workspace = scope ? scopedWorkspaceQuery.data ?? null : legacyWorkspace.workspace
+  const selectedDeploymentSummary = scope ? null : legacyWorkspace.selectedDeploymentSummary
   const queryClient = useQueryClient()
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [templateResetPending, setTemplateResetPending] = useState(false)
@@ -542,6 +551,7 @@ export function RevisionsPage() {
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
+    enabled: !scope,
   })
   const updatePreferencesMutation = useMutation({
     mutationFn: updatePlatformUserPreferences,
@@ -612,7 +622,7 @@ export function RevisionsPage() {
     },
   })
 
-  const releaseHistory = releasesQuery.data ?? []
+  const releaseHistory = (releasesQuery.data ?? []).filter((release) => !scope || release.targetProfileId === scope.targetProfileId)
   const latestReleaseByVersion = useMemo(() => {
     const byVersion = new Map<string, DeploymentReleaseSummary>()
     releaseHistory.forEach((release) => {
@@ -635,7 +645,7 @@ export function RevisionsPage() {
   )
 
   useEffect(() => {
-    if (!preferencesQuery.isSuccess || !viewInitializedRef.current) {
+    if (scope || !preferencesQuery.isSuccess || !viewInitializedRef.current) {
       return
     }
     if (viewHydrationRef.current) {
@@ -654,6 +664,7 @@ export function RevisionsPage() {
     revisionsView,
     updatePreferencesMutation,
     viewMatchesSaved,
+    scope,
   ])
 
   const filteredVersions = useMemo(() => {
@@ -711,14 +722,16 @@ export function RevisionsPage() {
     enabled: selectedDeploymentId.length > 0,
     staleTime: 30_000,
   })
-  const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
+  const liveVersionId = scope
+    ? releaseHistory.find((release) => release.provisioningStatus === 'ACTIVE' && ['VERIFYING', 'APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED'].includes(release.status))?.deploymentVersionId ?? ''
+    : workspace?.lifecycle.liveVersionId ?? ''
   const liveProvisioningPlanQuery = useQuery({
     queryKey: ['deployment-provisioning-plan', selectedDeploymentId, liveVersionId],
     queryFn: () => fetchDeploymentProvisioningPlan(selectedDeploymentId, liveVersionId),
     enabled: !isCustomerWorkspace && selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
   })
   const latestRelease = releaseHistory[0] ?? null
-  const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
+  const inProgressRelease = (releasesQuery.data ?? []).find(isReleaseInProgress) ?? null
   const integrationSummary = integrationSummaryQuery.data
   const latestProviderConsoleUrl = latestRelease ? readProviderConsoleUrl(latestRelease.provisioningDetails) : null
   const latestProviderProjectName = latestRelease ? readProviderProjectName(latestRelease.provisioningDetails) : null
@@ -980,14 +993,14 @@ export function RevisionsPage() {
 
   return (
     <ConfigurationSurface><Stack spacing={3}>
-      <Box>
+      {!scope ? <Box>
         <Typography variant="h4">
           Versions & updates
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
           Review your draft, publish a version and update your live {deploymentTerm.lowercase}.
         </Typography>
-      </Box>
+      </Box> : null}
 
       <ConfigurationDetails label="Current version & source">
           <Stack spacing={2}>
@@ -1004,7 +1017,7 @@ export function RevisionsPage() {
                 <Chip label={selectedDeployment.environment} variant="outlined" />
                 <Chip label={selectedDeployment.status} color="primary" />
                 <Chip label="Direct apply" variant="outlined" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
+                <Chip label={`Applied: ${scope ? liveVersionId || 'Not applied to selected target' : selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
                 <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 <Chip label={`Source: ${selectedDeployment.source.branch}`} variant="outlined" />
                 {inProgressRelease ? (
@@ -1546,9 +1559,9 @@ export function RevisionsPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="h6">Configuration diff center</Typography>
+                  <Typography variant="h6">{scope ? 'Deployment-wide configuration diff center' : 'Configuration diff center'}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Compare the editable draft against the latest published version, current live state,
+                    Compare the editable draft against the latest published version, deployment-wide active state,
                     and the selected template/source inputs before you publish or apply.
                   </Typography>
                 </Box>
@@ -1710,7 +1723,7 @@ export function RevisionsPage() {
                                 ? `Runtime default: ${targetProfileLabel(defaultRuntimeTargetProfile)}`
                                 : 'Runtime default will be resolved by the platform.'
                           }
-                          disabled={targetProfilesQuery.isLoading}
+                          disabled={Boolean(scope) || targetProfilesQuery.isLoading}
                         >
                           <MenuItem value="">
                             {isCustomerWorkspace ? 'Select an environment' : `Runtime default${defaultRuntimeTargetProfile ? ` (${defaultRuntimeTargetProfile.name})` : ''}`}
@@ -1898,9 +1911,11 @@ export function RevisionsPage() {
                                 || Boolean(inProgressRelease)
                                 || (behaviorRequiresSourceArtifact && !applySourceArtifactId)
                                 || (isCustomerWorkspace && (!customerApplySelectionReady || version.id !== selectedVersionId))
+                                || (Boolean(scope) && !selectedApplyTargetProfile)
                               }
                               onClick={(event) => {
                                 event.stopPropagation()
+                                if (scope && !window.confirm(`Update ${selectedApplyTargetProfile?.environmentName} (${scope.targetProfileId}) with ${version.versionLabel} (${version.id})? This applies an existing published version; it does not restore the draft.`)) return
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
@@ -2068,7 +2083,7 @@ export function RevisionsPage() {
                     {activationUnconfirmed ? (
                       <Alert
                         severity="warning"
-                        action={canOperate ? (
+                        action={canOperate && (!scope || releasesQuery.data?.[0]?.id === latestRelease?.id) ? (
                           <Button
                             color="inherit"
                             size="small"

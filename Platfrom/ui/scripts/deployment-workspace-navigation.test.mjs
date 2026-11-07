@@ -5,6 +5,11 @@ import { execFileSync } from 'node:child_process'
 import vm from 'node:vm'
 import ts from 'typescript'
 
+const navigationSource = readFileSync(new URL('../src/brain/brainNavigation.ts', import.meta.url), 'utf8')
+const navigationCode = ts.transpileModule(navigationSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
+const navigation = {}
+new Function('exports', navigationCode)(navigation)
+
 function fixture() {
   let location = { pathname: '/deployments', search: '' }, hook = 0
   const memos = [], navigations = [], deployments = [{ id: 'dep-a', status: 'DRAFT' }]
@@ -35,6 +40,7 @@ function fixture() {
     if (id === '@tanstack/react-query') return queries
     if (id === 'react-router-dom') return { useLocation: () => location, useNavigate: () => navigate }
     if (id === '../api/platformApi') return api
+    if (id === '../brain/brainNavigation') return navigation
     throw new Error('Unexpected fixture import: ' + id)
   }
   vm.runInNewContext(compiled, { module, exports: module.exports, require, URLSearchParams })
@@ -70,4 +76,12 @@ test('clearing a selection preserves current setup and does not navigate to an o
   assert.deepEqual(JSON.parse(JSON.stringify(f.navigations.at(-1))), [
     { pathname: '/deployments', search: '?view=setup&step=configure' }, { replace: false },
   ])
+})
+
+test('a canonical resource path wins over stale query and saved selection', () => {
+  const f = fixture()
+  const value = f.render({ pathname: '/smart-brains/dep-a/responses', search: '?deploymentId=foreign-brain&targetProfileId=target-production' })
+  assert.equal(value.selectedDeploymentId, 'dep-a')
+  const next = value.buildWorkspacePath('/prompts')
+  assert.equal(next, '/smart-brains/dep-a/responses?targetProfileId=target-production')
 })

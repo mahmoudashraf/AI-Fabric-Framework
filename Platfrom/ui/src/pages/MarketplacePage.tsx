@@ -13,12 +13,21 @@ import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
   Alert,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   Grid,
   List,
   ListItemButton,
@@ -70,6 +79,8 @@ import {
   type PlatformManagedInferenceServiceSummary,
   type MarketplacePublisherSummary,
 } from '../api/platformApi'
+import { useBrainEditor } from '../brain/BrainWorkspaceContext'
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -177,6 +188,155 @@ function validateInstallFields(
     }
     return []
   })
+}
+
+function CapabilityMarketplace({ brainId, pluginId }: CapabilityMarketplaceView) {
+  const plugin = useQuery({ queryKey: ['marketplace-plugin', pluginId], queryFn: () => fetchMarketplacePlugin(pluginId) })
+  const installs = useQuery({ queryKey: ['deployment-marketplace-installs', brainId], queryFn: () => fetchDeploymentMarketplaceInstalls(brainId) })
+  const workspace = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
+  const error = plugin.error ?? installs.error ?? workspace.error
+  if (error) return <Alert severity="error">{error.message}</Alert>
+  if (!plugin.data || !installs.data || !workspace.data) return <Typography color="text.secondary">Loading connection...</Typography>
+  return <CapabilityInstallForm brainId={brainId} detail={plugin.data}
+    install={installs.data.find((install) => install.pluginId === pluginId) ?? null} canEdit={workspace.data.access.canEdit} />
+}
+
+function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
+  brainId: string; detail: MarketplacePluginDetailSummary; install: DeploymentMarketplaceInstallSummary | null; canEdit: boolean
+}) {
+  const client = useQueryClient()
+  const initialVersion = install?.pluginVersion ?? detail.versions[0]?.version ?? ''
+  const [version, setVersion] = useState(initialVersion)
+  const [config, setConfig] = useState<Record<string, unknown>>(() => asRecord(install?.config))
+  const [refs, setRefs] = useState<Record<string, unknown>>(() => asRecord(install?.secretRefs))
+  const [baseline, setBaseline] = useState(() => ({ version: initialVersion, config: prettifyJson(install?.config), refs: prettifyJson(install?.secretRefs), updatedAt: install?.updatedAt ?? null }))
+  const [rawConfig, setRawConfig] = useState<string | null>(null)
+  const [rawRefs, setRawRefs] = useState<string | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
+  const [message, setMessage] = useState<string>()
+  const selectedVersion = detail.versions.find((candidate) => candidate.version === version)
+  const fields = selectedVersion?.installForm ?? []
+  const fieldErrors = validateInstallFields(fields, config, refs)
+  const dirty = version !== baseline.version || (rawConfig ?? prettifyJson(config)) !== baseline.config || (rawRefs ?? prettifyJson(refs)) !== baseline.refs
+  const conflict = dirty && (install?.updatedAt ?? null) !== baseline.updatedAt
+  const supported = detail.plugin.pluginType === 'ACTION' || detail.plugin.pluginType === 'DATA' || detail.plugin.pluginType === 'INTEGRATION'
+
+  const adopt = (saved: DeploymentMarketplaceInstallSummary | null) => {
+    const nextVersion = saved?.pluginVersion ?? detail.versions[0]?.version ?? ''
+    setVersion(nextVersion)
+    setConfig(asRecord(saved?.config))
+    setRefs(asRecord(saved?.secretRefs))
+    setRawConfig(null)
+    setRawRefs(null)
+    setBaseline({ version: nextVersion, config: prettifyJson(saved?.config), refs: prettifyJson(saved?.secretRefs), updatedAt: saved?.updatedAt ?? null })
+  }
+  const refresh = async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['deployment-marketplace-installs', brainId] }),
+      client.invalidateQueries({ queryKey: ['deployment-marketplace-impact', brainId] }),
+      client.invalidateQueries({ queryKey: ['deployment-draft', brainId] }),
+      client.invalidateQueries({ queryKey: ['deployment-workspace', brainId] }),
+      client.invalidateQueries({ queryKey: ['deployment-validation'] }),
+    ])
+  }
+  const operation = useMutation({
+    mutationFn: async (command: 'save' | 'toggle' | 'resolve' | 'remove') => {
+      if (!canEdit || !supported) throw new Error('Editing this connection requires Brain editor permission.')
+      const currentInstalls = await fetchDeploymentMarketplaceInstalls(brainId)
+      const current = currentInstalls.find((candidate) => candidate.pluginId === detail.plugin.id) ?? null
+      if ((current?.updatedAt ?? null) !== baseline.updatedAt) {
+        client.setQueryData(['deployment-marketplace-installs', brainId], currentInstalls)
+        throw new Error('This connection changed. Your edits are retained; discard to load the current connection before retrying.')
+      }
+      if (command === 'save') {
+        if (!selectedVersion) throw new Error('Select an available plugin version before saving.')
+        const nextConfig = rawConfig === null ? config : parseJsonObject(rawConfig, 'Plugin configuration')
+        const nextRefs = rawRefs === null ? refs : parseJsonObject(rawRefs, 'Secret references')
+        const errors = validateInstallFields(fields, nextConfig, nextRefs)
+        if (errors.length) throw new Error(`Complete the required install fields: ${errors.join(', ')}`)
+        return current ? updateDeploymentMarketplaceInstall(brainId, current.id, { pluginVersion: version, status: current.status, config: nextConfig, secretRefs: nextRefs })
+          : createDeploymentMarketplaceInstall(brainId, { pluginId: detail.plugin.id, pluginVersion: version, config: nextConfig, secretRefs: nextRefs })
+      }
+      if (!current) throw new Error('This connection is no longer installed.')
+      if (command === 'toggle') return updateDeploymentMarketplaceInstall(brainId, current.id, { status: current.status === 'ENABLED' ? 'DISABLED' : 'ENABLED' })
+      if (command === 'resolve') return resolveDeploymentMarketplaceInstall(brainId, current.id)
+      await deleteDeploymentMarketplaceInstall(brainId, current.id)
+      return null
+    },
+    onSuccess: async (saved, command) => {
+      // Every install command already persists the shared draft; no second draft save follows it.
+      if (command === 'save' || command === 'toggle') adopt(saved as DeploymentMarketplaceInstallSummary)
+      if (command === 'remove') adopt(null)
+      setMessage('Draft updated; live configuration unchanged.')
+      setRemoveOpen(false)
+      await refresh()
+    },
+  })
+  useEffect(() => {
+    if (!dirty && install && install.updatedAt !== baseline.updatedAt && !operation.isPending) adopt(install)
+  }, [install?.updatedAt])
+  useBrainEditor({ dirty, busy: operation.isPending,
+    canSave: canEdit && supported && Boolean(selectedVersion) && !conflict && (dirty || !install),
+    save: canEdit && supported ? () => operation.mutateAsync('save').catch(() => undefined) : undefined,
+    discard: canEdit ? () => { adopt(install); operation.reset(); setMessage(undefined) } : undefined,
+    primaryLabel: install ? 'Save connection' : 'Add capability',
+    message: message && !dirty ? message : !canEdit ? 'Read-only access. Brain editor permission is required to make changes.' : undefined,
+    error: operation.error?.message,
+  })
+  const disabled = !canEdit || operation.isPending || !supported
+  const editField = (field: MarketplaceInstallField, value: string) => {
+    const next = updateInstallFieldValue(field, value, config, refs)
+    setConfig(next.config); setRefs(next.secretRefs)
+    setRawConfig(null); setRawRefs(null); setMessage(undefined)
+  }
+  return <Stack spacing={2.5} sx={{ pb: 2 }}>
+    {!canEdit ? <Alert severity="info">Read-only access. Brain editor permission is required to make changes.</Alert> : null}
+    {!supported ? <Alert severity="info">This plugin is managed in its owning technical workspace.</Alert> : null}
+    {conflict ? <Alert severity="warning">This connection changed while you were editing. Discard to load its current settings.</Alert> : null}
+    {operation.isError ? <Alert severity="error">{operation.error.message}</Alert> : null}
+    <TextField select fullWidth size="small" label="Version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
+      {!selectedVersion && version ? <MenuItem value={version}>{version} (unavailable)</MenuItem> : null}
+      {detail.versions.map((candidate) => <MenuItem key={candidate.id} value={candidate.version}>{candidate.version}</MenuItem>)}
+    </TextField>
+    {!selectedVersion ? <Alert severity="warning">The selected version is not available in the catalogue. Existing configuration is retained.</Alert> : null}
+    <Typography variant="body2" color="text.secondary">{detail.plugin.publisherDisplayName} - {pricingLabel(selectedVersion?.pricing)}</Typography>
+    {selectedVersion?.pricing.requiresEntitlement ? <Alert severity="warning">Paid capabilities require an active entitlement before they can compile into the draft.</Alert> : null}
+    {fields.map((field) => field.type === 'boolean' ? <FormControlLabel key={field.id} label={field.label}
+      control={<Checkbox disabled={disabled || rawConfig !== null || rawRefs !== null} indeterminate={readInstallFieldValue(field, config, refs) === ''} checked={readInstallFieldValue(field, config, refs) === 'true'} onChange={(_, checked) => editField(field, String(checked))} />} /> :
+      <TextField key={field.id} fullWidth size="small" select={field.type === 'select'} required={field.required}
+        type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'} label={field.label}
+        value={readInstallFieldValue(field, config, refs)} onChange={(event) => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
+        helperText={field.description ?? (field.type === 'secretRef' ? 'Platform secret reference, never a raw credential.' : undefined)}>
+        {field.type === 'select' ? field.options.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>) : null}
+      </TextField>)}
+    {fields.length === 0 && selectedVersion ? <Typography variant="body2" color="text.secondary">No connection inputs are required by this version.</Typography> : null}
+    {fieldErrors.length && rawConfig === null && rawRefs === null ? <Alert severity="warning">Required inputs: {fieldErrors.join(', ')}</Alert> : null}
+    {install ? <>
+      <Divider />
+      <Typography variant="body2" color="text.secondary">Draft status: {install.status}. Readiness: {install.readinessStatus}. Entitlement: {install.entitlement.status}.</Typography>
+      {install.warnings.length ? <Alert severity="warning">{install.warnings.join(' ')}</Alert> : null}
+    </> : null}
+    <Accordion disableGutters sx={{ background: 'none', boxShadow: 'none', borderTop: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ px: 0 }}><Typography variant="subtitle2">Technical connection settings</Typography></AccordionSummary>
+      <AccordionDetails sx={{ px: 0 }}><Stack spacing={2}>
+        <TextField label="Plugin configuration JSON" multiline minRows={5} maxRows={12} value={rawConfig ?? prettifyJson(config)} disabled={disabled}
+          onChange={(event) => { setRawConfig(event.target.value); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
+        <TextField label="Secret references JSON" multiline minRows={3} maxRows={8} value={rawRefs ?? prettifyJson(refs)} disabled={disabled}
+          helperText="References only. Stored credentials are not displayed."
+          onChange={(event) => { setRawRefs(event.target.value); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
+        {install && canEdit ? <Stack direction="row" gap={1} flexWrap="wrap">
+          <Button variant="outlined" disabled={disabled || dirty} onClick={() => operation.mutate('toggle')}>{install.status === 'ENABLED' ? 'Disable' : 'Enable'}</Button>
+          <Button variant="outlined" startIcon={<SyncRoundedIcon />} disabled={disabled || dirty} onClick={() => operation.mutate('resolve')}>Recompile draft</Button>
+          <Button color="error" disabled={disabled || dirty} onClick={() => setRemoveOpen(true)}>Remove connection</Button>
+        </Stack> : null}
+      </Stack></AccordionDetails>
+    </Accordion>
+    <Dialog open={removeOpen} onClose={() => { if (!operation.isPending) setRemoveOpen(false) }}>
+      <DialogTitle>Remove {detail.plugin.displayName}?</DialogTitle>
+      <DialogContent>This removes the connection from the shared draft. Live configuration is unchanged until published and applied.</DialogContent>
+      <DialogActions><Button disabled={operation.isPending} onClick={() => setRemoveOpen(false)}>Cancel</Button><Button color="error" disabled={operation.isPending} onClick={() => operation.mutate('remove')}>Remove connection</Button></DialogActions>
+    </Dialog>
+  </Stack>
 }
 
 function providerDraftSummary(draft: DeploymentDraftResponse | undefined): {
@@ -344,7 +504,13 @@ function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): st
   return `${detail.plugin.displayName} Deployment`
 }
 
-export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped?: boolean }) {
+type CapabilityMarketplaceView = { brainId: string; pluginId: string }
+
+export function MarketplacePage({ deploymentScoped = false, capabilityView }: { deploymentScoped?: boolean; capabilityView?: CapabilityMarketplaceView }) {
+  return capabilityView ? <CapabilityMarketplace key={`${capabilityView.brainId}:${capabilityView.pluginId}`} {...capabilityView} /> : <LegacyMarketplacePage deploymentScoped={deploymentScoped} />
+}
+
+function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()

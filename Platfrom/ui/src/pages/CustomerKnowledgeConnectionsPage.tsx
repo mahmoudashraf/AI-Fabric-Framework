@@ -149,7 +149,7 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
   </Stack>
 }
 
-export function CustomerDeskActivation({ target, onReady }: { target: DeploymentTargetReference; onReady: (releaseId: string) => void }) {
+export function CustomerDeskActivation({ target, onReady, onBusyChange }: { target: DeploymentTargetReference; onReady: (releaseId: string) => void; onBusyChange?: (busy: boolean) => void }) {
   const queryClient = useQueryClient()
   const [enableReviews, setEnableReviews] = useState(false)
   const key = ['deployment-desk', target.deploymentId, target.targetProfileId, target.releaseId]
@@ -168,6 +168,10 @@ export function CustomerDeskActivation({ target, onReady }: { target: Deployment
     }
   }, [value?.status, value?.releaseId, target.releaseId, target.deploymentId, queryClient, onReady])
   const busy = activate.isPending || value?.status === 'PREPARING' || value?.status === 'APPLYING'
+  useEffect(() => {
+    onBusyChange?.(busy)
+    return () => onBusyChange?.(false)
+  }, [onBusyChange, busy])
   const error = activate.error ?? desk.error
   const portal = safeCustomerAppUrl(value?.portalUrl ?? null)
   return <Box component="section" aria-label="LoomAI Desk" sx={{ borderBottom: 1, borderColor: 'divider', py: 2.5, mb: 2 }}>

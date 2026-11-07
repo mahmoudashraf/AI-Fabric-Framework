@@ -84,6 +84,7 @@ import {
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useBrainEditor, useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
 import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope, hasReviewedDocumentStorageInstall,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
@@ -193,8 +194,12 @@ function sameTarget(target: DeploymentTargetReference | undefined, current: Depl
     && target?.releaseId === current.releaseId
 }
 
-export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId = '', lockReleaseSelection = false }: { initialReleaseId?: string; initialSourceId?: string; lockReleaseSelection?: boolean } = {}) {
+export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId = '', initialTargetProfileId = '', lockReleaseSelection = false, workspaceView }: {
+  initialReleaseId?: string; initialSourceId?: string; initialTargetProfileId?: string; lockReleaseSelection?: boolean
+  workspaceView?: 'storage' | 'discover' | 'source' | 'proof' | 'retention'
+} = {}) {
   const auth = usePlatformAuth()
+  const brainWorkspace = useOptionalBrainWorkspace()
   const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
@@ -203,6 +208,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
   const [useTargetBindingSlot, setUseTargetBindingSlot] = useState(false)
   const [customerStorageProfileId, setCustomerStorageProfileId] = useState('')
   const [bindingForm, setBindingForm] = useState<BindingForm>(emptyBindingForm)
+  const [bindingBaseline, setBindingBaseline] = useState<BindingForm>(emptyBindingForm)
+  const [hostedEditor, setHostedEditor] = useState({ dirty: false, busy: false })
+  const [storageEditorKey, setStorageEditorKey] = useState(0)
   const [selectedSourceId, setSelectedSourceId] = useState(initialSourceId)
   const [selectedReleaseId, setSelectedReleaseId] = useState(initialReleaseId)
   const releasesQuery = useQuery({
@@ -219,6 +227,12 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     targetProfileId: selectedRelease?.targetProfileId ?? '',
     releaseId: selectedRelease?.id ?? '',
   }
+  useEffect(() => {
+    if (!workspaceView || !(targetReference.targetProfileId || initialTargetProfileId)) return
+    const targetId = targetReference.targetProfileId || initialTargetProfileId
+    setBindingForm(previous => previous.targetProfileId ? previous : { ...previous, targetProfileId: targetId })
+    setBindingBaseline(previous => previous.targetProfileId ? previous : { ...previous, targetProfileId: targetId })
+  }, [workspaceView, targetReference.targetProfileId, initialTargetProfileId])
   const targetQuery = useQuery({
     queryKey: ['deployment-target-context', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId],
     queryFn: () => fetchDeploymentTargetContext(targetReference),
@@ -455,9 +469,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     },
     onSuccess: async (_, input) => {
       if (currentSelection.current.target.deploymentId === input.deploymentId && bindingAuthority.current.key === input.authorityKey) {
-        setBindingForm((current) => current === input.form
-          ? { ...current, accessKey: '', secretKey: '', sessionToken: '' }
-          : current)
+        const saved = { ...input.form, accessKey: '', secretKey: '', sessionToken: '' }
+        setBindingBaseline(saved)
+        setBindingForm((current) => current === input.form ? saved : current)
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', input.deploymentId] }),
@@ -577,6 +591,19 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     && commandMutation.variables?.sourceId === selectedSourceId
   const retrievalCurrent = documentLive && sameTarget(retrievalMutation.variables?.target, targetReference)
   const retentionCurrent = documentLive && sameTarget(retentionMutation.variables?.target, targetReference)
+  const bindingDirty = workspaceView === 'storage' && JSON.stringify(bindingForm) !== JSON.stringify(bindingBaseline)
+  const dialogDirty = Boolean(registrationSelection || removalSelection)
+  const operationBusy = saveBindingMutation.isPending || deleteBindingMutation.isPending || registerMutation.isPending
+    || commandMutation.isPending || removeMutation.isPending || retentionMutation.isPending || hostedEditor.busy
+  useBrainEditor(workspaceView ? {
+    dirty: Boolean(bindingDirty || hostedEditor.dirty || dialogDirty), busy: operationBusy,
+    message: dialogDirty ? 'Finish or cancel the document confirmation before changing its context.' : bindingDirty || hostedEditor.dirty ? 'Unsaved storage form changes. Use the relevant storage command or discard.'
+      : 'Storage and indexing use their own explicit commands; uploading does not publish a release.',
+    discard: bindingDirty || hostedEditor.dirty || dialogDirty ? () => {
+      setBindingForm(bindingBaseline); setStorageEditorKey(value => value + 1); setHostedEditor({ dirty: false, busy: false })
+      setRegistrationSelection(null); setRemovalSelection(null)
+    } : undefined,
+  } : null)
 
   if (!selectedDeploymentId) {
     return <Alert severity="info">Select a {deploymentTerm.lowercase} to open Document Knowledge.</Alert>
@@ -599,7 +626,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
 
   return (
     <Stack spacing={3}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+      {!workspaceView && <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>Document Knowledge</Typography>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
@@ -610,9 +637,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
           <Chip label={documentLive ? 'Live capability' : 'Configuration pending release'} color={documentLive ? 'success' : 'warning'} />
           <Chip label={datasetId} variant="outlined" />
         </Stack>
-      </Stack>
+      </Stack>}
 
-      <TextField select fullWidth size="small" label="Target release" value={selectedReleaseId} disabled={lockReleaseSelection}
+      {!workspaceView && <TextField select fullWidth size="small" label="Target release" value={selectedReleaseId} disabled={lockReleaseSelection}
         onChange={(event) => {
           if (lockReleaseSelection) return
           setSelectedReleaseId(event.target.value)
@@ -626,7 +653,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             {release.targetProfileId} · {release.id} · {release.status}
           </MenuItem>
         ))}
-      </TextField>
+      </TextField>}
       {targetQuery.error ? <Alert severity="error">{errorText(targetQuery.error)}</Alert> : null}
 
       {!documentLive ? (
@@ -635,7 +662,10 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
         </Alert>
       ) : null}
 
-      <HostedDocumentStorageSetup deploymentId={selectedDeploymentId} targetProfiles={matchingProfiles}
+      {(!workspaceView || workspaceView === 'storage') && <HostedDocumentStorageSetup deploymentId={selectedDeploymentId} targetProfiles={matchingProfiles} key={storageEditorKey}
+        lockTargetSelection={Boolean(workspaceView)}
+        indexingHref={workspaceView ? brainWorkspace?.href('knowledge/discover') : undefined}
+        onEditorStateChange={workspaceView ? setHostedEditor : undefined}
         initialTargetProfileId={bindingForm.targetProfileId || targetReference.targetProfileId} canManage={canAdmin} defaultMode="byo"
         bindings={bindingsQuery.data ?? []}
         runtime={documentLive ? { ...targetReference, datasetId } : undefined}
@@ -685,7 +715,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
           ) : null}
 
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            {!workspaceView && <Grid item xs={12} md={4}>
               <TextField
                 select fullWidth size="small" label="Target profile"
                 value={bindingForm.targetProfileId}
@@ -696,7 +726,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
                   <MenuItem key={profile.id} value={profile.id}>{profile.name} · {profile.providerType}</MenuItem>
                 ))}
               </TextField>
-            </Grid>
+            </Grid>}
             {bindingForm.connectorType === 'S3_COMPATIBLE_OBJECT_STORAGE' ? (
               <>
                 <Grid item xs={12} md={8}>
@@ -791,9 +821,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </Stack>
           ))}
         </Stack>
-      </Paper>} />
+      </Paper>} />}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {(!workspaceView || workspaceView === 'discover') && <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
             <Box>
@@ -853,19 +883,19 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </TableContainer>
           ) : null}
         </Stack>
-      </Paper>
+      </Paper>}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {(!workspaceView || workspaceView === 'source') && <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          {!workspaceView && <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 750 }}>Registered sources</Typography>
               <Typography variant="body2" color="text.secondary">Queue acceptance and completed vector indexing remain distinct states.</Typography>
             </Box>
             <Tooltip title="Refresh sources"><span><IconButton disabled={!documentLive} onClick={() => sourcesQuery.refetch()}><RefreshRoundedIcon /></IconButton></span></Tooltip>
-          </Stack>
+          </Stack>}
           {sourcesQuery.isError ? <Alert severity="error">{errorText(sourcesQuery.error)}</Alert> : null}
-          <TableContainer>
+          {!workspaceView && <TableContainer>
             <Table size="small">
               <TableHead><TableRow><TableCell>Source</TableCell><TableCell>Status</TableCell><TableCell>Type</TableCell><TableCell>Size</TableCell><TableCell>Active</TableCell><TableCell>Candidate</TableCell><TableCell>Updated</TableCell></TableRow></TableHead>
               <TableBody>
@@ -887,7 +917,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
                 {(sourcesQuery.data ?? []).length === 0 ? <TableRow><TableCell colSpan={7}>No registered document sources.</TableCell></TableRow> : null}
               </TableBody>
             </Table>
-          </TableContainer>
+          </TableContainer>}
 
           {selectedSource ? (
             <>
@@ -950,9 +980,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </>
           ) : null}
         </Stack>
-      </Paper>
+      </Paper>}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {(!workspaceView || workspaceView === 'proof') && <Paper variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 750 }}>Retrieval proof</Typography>
@@ -977,10 +1007,10 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </Stack>
           ) : null}
         </Stack>
-      </Paper>
+      </Paper>}
 
       {detailSection === 'configuration' && (retentionQuery.isError || (retentionCurrent && retentionMutation.isError)) ? <Alert severity="error">{errorText(retentionQuery.error || retentionMutation.error)}</Alert> : null}
-      <Paper variant="outlined" sx={{ p: 2.5, display: detailSection === 'configuration' ? 'none' : undefined }}>
+      {(!workspaceView || workspaceView === 'retention') && <Paper variant="outlined" sx={{ p: 2.5, display: detailSection === 'configuration' ? 'none' : undefined }}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
             <Box>
@@ -1015,7 +1045,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
             </Alert>
           ) : null}
         </Stack>
-      </Paper>
+      </Paper>}
 
       <Dialog
         open={registrationSource != null}

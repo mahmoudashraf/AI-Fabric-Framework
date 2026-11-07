@@ -23,12 +23,14 @@ export type HostedDocumentStorageSetupProps = {
   customerId?: string
   targetProfiles: TargetChoice[]
   initialTargetProfileId?: string
+  lockTargetSelection?: boolean
   bindings?: DocumentStorageBindingSummary[]
   runtime?: RuntimeTarget
   canManage?: boolean
   defaultMode?: 'hosted' | 'byo'
   byoStorage: ReactNode
   indexingHref?: string
+  onEditorStateChange?: (state: { dirty: boolean; busy: boolean }) => void
 }
 
 type Command = { identity: string; view: string; operationKey: string } & (
@@ -70,13 +72,14 @@ export function HostedDocumentStorageSetup(props: HostedDocumentStorageSetupProp
 }
 
 function StorageSetupScope({ deploymentId, targetProfiles, initialTargetProfileId = '', bindings = [], runtime,
-  canManage = true, defaultMode = 'hosted', byoStorage, indexingHref, scope }: HostedDocumentStorageSetupProps & { scope: string }) {
+  canManage = true, defaultMode = 'hosted', byoStorage, indexingHref, onEditorStateChange, lockTargetSelection = false, scope }: HostedDocumentStorageSetupProps & { scope: string }) {
   const client = useQueryClient()
   const fieldId = useId()
   const [mode, setMode] = useState(defaultMode)
   const [connectionId, setConnectionId] = useState('')
   const [name, setName] = useState('Knowledge files')
   const [prefix, setPrefix] = useState('public/')
+  const [committed, setCommitted] = useState({ name: 'Knowledge files', prefix: 'public/' })
   const [targetId, setTargetId] = useState(initialTargetProfileId)
   const [file, setFile] = useState<File | null>(null)
   const [fileIdentity, setFileIdentity] = useState('')
@@ -162,9 +165,17 @@ function StorageSetupScope({ deploymentId, targetProfiles, initialTargetProfileI
       if (currentView.current !== command.view) return
       if (command.kind === 'create' && 'id' in result) setConnectionId(result.id)
       if (command.kind === 'upload') { setFile(null); if (input.current) input.current.value = '' }
+      if (command.kind === 'create') setCommitted(previous => ({ ...previous, name: command.name }))
+      if (command.kind === 'bind' || command.kind === 'upload') setCommitted(previous => ({ ...previous, prefix: command.prefix }))
+      if (onEditorStateChange && command.kind === 'selection') { setSelectedIds([]); setPublicApproved(false) }
     },
   })
   const busy = mutation.isPending
+  const dirty = Boolean(file || selectedIds.length || name !== committed.name || prefix !== committed.prefix)
+  useEffect(() => {
+    onEditorStateChange?.({ dirty, busy })
+    return () => onEditorStateChange?.({ dirty: false, busy: false })
+  }, [onEditorStateChange, dirty, busy])
   const submit = (command: CommandInput, identity: unknown[]) => {
     if (!canManage || busy) return
     const fingerprint = JSON.stringify(identity)
@@ -225,12 +236,12 @@ function StorageSetupScope({ deploymentId, targetProfiles, initialTargetProfileI
               onChange={event => { setPrefix(event.target.value); setSelectedIds([]); setPublicApproved(false) }} error={Boolean(currentPrefixError)}
               helperText={currentPrefixError ?? `Relative to ${connection.rootPrefix || 'knowledge/'}; public approval is separate.`} />
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
-              <TextField select fullWidth size="small" id={`${fieldId}-target`} label="Storage target"
+              {!lockTargetSelection && <TextField select fullWidth size="small" id={`${fieldId}-target`} label="Storage target"
                 SelectProps={{ SelectDisplayProps: { 'aria-labelledby': `${fieldId}-target-label` } }} value={target ? targetId : ''} disabled={!canManage || busy} sx={{ flex: 1 }}
                 onChange={event => { setTargetId(event.target.value); setSelectedIds([]); setPublicApproved(false) }}>
                 <MenuItem value="">Select an allowed target</MenuItem>
                 {targetProfiles.map(profile => <MenuItem key={profile.id} value={profile.id}>{profile.name}</MenuItem>)}
-              </TextField>
+              </TextField>}
               <Button variant="outlined" startIcon={<LinkRounded />} sx={{ flexShrink: 0 }} disabled={!canManage || busy || !ready || !target || !catalogue.data.hostedAvailable || Boolean(currentPrefixError)}
                 onClick={() => submit({ kind: 'bind', connectionId, targetProfileId: targetId, prefix: purposePrefix }, ['bind', connectionId, targetId, purposePrefix])}>Bind storage</Button>
             </Stack>

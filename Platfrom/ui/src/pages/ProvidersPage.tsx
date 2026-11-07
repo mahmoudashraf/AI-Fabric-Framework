@@ -17,14 +17,17 @@ import {
   ListItemText,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchDeploymentProviderConnectivity,
   fetchDeploymentDraft,
+  fetchDeploymentWorkspace,
   fetchDeploymentSecretUsage,
   probeDeploymentProviderConnectivity,
   updateDeploymentDraft,
@@ -32,7 +35,10 @@ import {
   type DeploymentSecretResolutionSummary,
   type DeploymentSummary,
   type DeploymentSecretUsageItemSummary,
+  type DeploymentDraftResponse,
+  type DeploymentWorkspaceSummary,
 } from '../api/platformApi'
+import { useBrainEditor } from '../brain/BrainWorkspaceContext'
 import { DeploymentProviderOperationsPanel } from '../components/DeploymentProviderOperationsPanel'
 import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -960,7 +966,7 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
 
 function buildSharedVectorHandlePreview(
   form: ProviderFormState,
-  selectedDeploymentSummary: DeploymentSummary | null,
+  selectedDeploymentSummary: Pick<DeploymentSummary, 'binding'> | null,
 ): SharedVectorHandlePreview | null {
   const binding = selectedDeploymentSummary?.binding
   if (!binding) {
@@ -1522,6 +1528,7 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     isRecord(orchestrationModeOverrides.executor) ? orchestrationModeOverrides.executor : {},
   ) as Record<string, unknown>
   executorOverrides.semanticRecovery = {
+    ...(isRecord(executorOverrides.semanticRecovery) ? executorOverrides.semanticRecovery : {}),
     extractionFailure: form.semanticRecoveryExtractionFailure,
     missingTarget: form.semanticRecoveryMissingTarget,
     missingVectorSpace: form.semanticRecoveryMissingVectorSpace,
@@ -1596,6 +1603,26 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
   return nextConfig
 }
 
+// Apply only the form delta, not defaults or normalization of unrelated saved settings.
+function buildFocusedProviderConfigDraft(baseConfig: unknown, saved: ProviderFormState, form: ProviderFormState) {
+  const next = cloneJson(isRecord(baseConfig) ? baseConfig : {})
+  const before = buildProviderConfigDraft(baseConfig, saved)
+  const after = buildProviderConfigDraft(baseConfig, form)
+  const applyDelta = (target: Record<string, unknown>, previous: Record<string, unknown>, updated: Record<string, unknown>) => {
+    for (const key of new Set([...Object.keys(previous), ...Object.keys(updated)])) {
+      if (JSON.stringify(previous[key]) === JSON.stringify(updated[key])) continue
+      if (isRecord(previous[key]) && isRecord(updated[key])) {
+        const child = isRecord(target[key]) ? target[key] : {}
+        applyDelta(child, previous[key], updated[key])
+        target[key] = child
+      } else if (key in updated) target[key] = updated[key]
+      else delete target[key]
+    }
+  }
+  applyDelta(next, before, after)
+  return next
+}
+
 function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'success' | 'warning' {
   if (status === 'READY' || status === 'PASSED') {
     return 'success'
@@ -1646,10 +1673,61 @@ function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary):
   return null
 }
 
-export function ProvidersPage({ configurationOnly = false }: { configurationOnly?: boolean }) {
+export type ProviderSettingsView = 'all' | 'models' | 'storage' | 'technical-files'
+type ProvidersPageProps = { configurationOnly?: boolean; brainId?: string; view?: ProviderSettingsView }
+
+export function ProvidersPage({ configurationOnly = false, brainId, view = 'all' }: ProvidersPageProps) {
+  return brainId
+    ? <BrainProvidersEditor key={brainId} brainId={brainId} view={view} />
+    : <LegacyProvidersEditor configurationOnly={configurationOnly} />
+}
+
+function BrainProvidersEditor({ brainId, view }: { brainId: string; view: ProviderSettingsView }) {
+  const query = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
+  if (query.isError && !query.data) return <Alert severity="error">{query.error.message}</Alert>
+  if (!query.data) return <Typography color="text.secondary">Loading settings access...</Typography>
+  return <>
+    {query.isError && <Alert severity="error">{query.error.message}</Alert>}
+    <ProvidersEditor selectedDeploymentId={brainId} selectedDeploymentSummary={query.data.deployment}
+      workspace={query.data} configurationOnly scoped view={view} />
+  </>
+}
+
+function LegacyProvidersEditor({ configurationOnly }: { configurationOnly: boolean }) {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  return <ProvidersEditor key={selectedDeploymentId} selectedDeploymentId={selectedDeploymentId}
+    selectedDeploymentSummary={selectedDeploymentSummary} workspace={workspace} configurationOnly={configurationOnly} />
+}
+
+function LegacyProviderEditorRegistration({ state }: { state: Parameters<typeof useDeploymentWorkspaceEditorState>[0] }) {
+  useDeploymentWorkspaceEditorState(state)
+  return null
+}
+
+function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, workspace, configurationOnly,
+  scoped = false, view = 'all' }: {
+  selectedDeploymentId: string; selectedDeploymentSummary: Pick<DeploymentSummary, 'binding'> | null;
+  workspace: DeploymentWorkspaceSummary | null; configurationOnly: boolean; scoped?: boolean; view?: ProviderSettingsView
+}) {
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<ProviderFormState>(DEFAULT_PROVIDER_FORM_STATE)
+  const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
+  const [rawProviderValue, setRawProviderValue] = useState<string | null>(null)
+  const bufferDirty = useRef(false)
+  const [technicalView, setTechnicalView] = useState('wiring')
+  const [modelView, setModelView] = useState('models')
+  const showModels = view === 'all' || (view === 'models' && modelView === 'models')
+  const showModelRouting = view === 'all' || (view === 'models' && modelView === 'routing')
+  const showStorage = view === 'all' || view === 'storage'
+  const showWiring = view === 'all' || (view === 'technical-files' && technicalView === 'wiring')
+  const showRecovery = view === 'all' || (view === 'technical-files' && technicalView === 'recovery')
+  const showReadiness = view === 'all' || (view === 'technical-files' && technicalView === 'readiness')
+  const showProviderDetails = view === 'technical-files' && technicalView === 'providers'
+  const showRaw = view === 'technical-files' && technicalView === 'json'
+  const showLlmConfiguration = showModels || showProviderDetails
+  const showEmbeddingConfiguration = showStorage || showProviderDetails
+  const showProviderParameters = view === 'all' || showProviderDetails
+  const showProviderConnections = showProviderParameters || showStorage
   const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
@@ -1659,31 +1737,47 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
   })
 
   useEffect(() => {
-    if (draftQuery.data) {
+    if (draftQuery.data && !bufferDirty.current) {
+      setLoadedDraft(draftQuery.data)
+      setRawProviderValue(null)
       setFormState(readProviderForm(draftQuery.data.providerConfig))
     }
   }, [draftQuery.data])
 
   const summaryItems = useMemo(() => buildSummaryItems(formState), [formState])
-  const entityTypes = useMemo(() => readEntityTypes(draftQuery.data?.entityConfig), [draftQuery.data?.entityConfig])
+  const entityTypes = useMemo(() => readEntityTypes(loadedDraft?.entityConfig), [loadedDraft?.entityConfig])
   const managedVectorDraftSummary = useMemo(
     () => buildManagedVectorDraftSummary(formState, entityTypes),
     [entityTypes, formState],
   )
   const selectedLlmProviderSet = useMemo(() => new Set(selectedLlmProviders(formState)), [formState])
-  const usesOpenAiProvider = selectedLlmProviderSet.has('openai') || formState.embeddingProvider === 'openai'
-  const usesAzureProvider = selectedLlmProviderSet.has('azure') || formState.embeddingProvider === 'azure'
-  const usesAnthropicProvider = selectedLlmProviderSet.has('anthropic')
-  const usesCohereProvider = selectedLlmProviderSet.has('cohere') || formState.embeddingProvider === 'cohere'
-  const usesGeminiProvider = selectedLlmProviderSet.has('gemini') || formState.embeddingProvider === 'gemini'
+  const usesOpenAiProvider = (showLlmConfiguration && selectedLlmProviderSet.has('openai')) || (showEmbeddingConfiguration && formState.embeddingProvider === 'openai')
+  const usesAzureProvider = (showLlmConfiguration && selectedLlmProviderSet.has('azure')) || (showEmbeddingConfiguration && formState.embeddingProvider === 'azure')
+  const usesAnthropicProvider = showLlmConfiguration && selectedLlmProviderSet.has('anthropic')
+  const usesCohereProvider = (showLlmConfiguration && selectedLlmProviderSet.has('cohere')) || (showEmbeddingConfiguration && formState.embeddingProvider === 'cohere')
+  const usesGeminiProvider = (showLlmConfiguration && selectedLlmProviderSet.has('gemini')) || (showEmbeddingConfiguration && formState.embeddingProvider === 'gemini')
   const savedFormState = useMemo(
-    () => readProviderForm(draftQuery.data?.providerConfig),
-    [draftQuery.data?.providerConfig],
+    () => readProviderForm(loadedDraft?.providerConfig),
+    [loadedDraft?.providerConfig],
   )
-  const draftDirty = useMemo(
-    () => (draftQuery.data ? !providerFormsEqual(formState, savedFormState) : false),
-    [draftQuery.data, formState, savedFormState],
+  const structuredDirty = useMemo(
+    () => (loadedDraft ? !providerFormsEqual(formState, savedFormState) : false),
+    [loadedDraft, formState, savedFormState],
   )
+  const rawDirty = rawProviderValue !== null && rawProviderValue !== JSON.stringify(loadedDraft?.providerConfig, null, 2)
+  const rawProvider = useMemo(() => {
+    if (rawProviderValue === null) return { config: null, error: null }
+    try {
+      const config: unknown = JSON.parse(rawProviderValue)
+      // The draft API requires an object; semantic validation remains server-owned.
+      return isRecord(config) ? { config, error: null }
+        : { config: null, error: 'Provider configuration must be a JSON object.' }
+    } catch (error) {
+      return { config: null, error: error instanceof Error ? error.message : 'Invalid provider JSON.' }
+    }
+  }, [rawProviderValue])
+  const draftDirty = structuredDirty || rawDirty
+  bufferDirty.current = draftDirty
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -1694,18 +1788,17 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
     }),
     [draftDirty],
   )
-  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const secretUsageQuery = useQuery({
     queryKey: ['deployment-secret-usage', selectedDeploymentId],
     queryFn: () => fetchDeploymentSecretUsage(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: selectedDeploymentId.length > 0 && (showReadiness || showStorage),
   })
 
   const validationQuery = useQuery({
-    queryKey: ['deployment-validation', draftQuery.data?.id],
-    queryFn: () => validateDeploymentDraft(draftQuery.data!.id),
-    enabled: Boolean(draftQuery.data?.id),
+    queryKey: ['deployment-validation', loadedDraft?.id],
+    queryFn: () => validateDeploymentDraft(loadedDraft!.id),
+    enabled: Boolean(loadedDraft?.id) && showReadiness,
   })
 
   const connectivityMutation = useMutation({
@@ -1751,7 +1844,12 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
   const saveMutation = useMutation({
     mutationFn: ({ draftId, providerConfig }: { draftId: string; providerConfig: unknown }) =>
       updateDeploymentDraft(draftId, { providerConfig }),
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
+      bufferDirty.current = false
+      setLoadedDraft(data)
+      setRawProviderValue(null)
+      setFormState(readProviderForm(data.providerConfig))
+      queryClient.setQueryData(['deployment-draft', selectedDeploymentId], data)
       connectivityMutation.reset()
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
@@ -1764,6 +1862,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
   })
 
   const handleFieldChange = <K extends keyof ProviderFormState>(key: K, value: ProviderFormState[K]) => {
+    if (!canEdit || saveMutation.isPending || !loadedDraft) return
+    saveMutation.reset()
     setFormState((previous) => {
       if (key === 'vectorStrategy') {
         return syncVectorStrategy(previous, String(value))
@@ -1782,43 +1882,75 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
   }
 
   const handleSave = () => {
-    if (!draftQuery.data) {
+    if (!loadedDraft || !canEdit || !draftDirty || saveMutation.isPending) {
       return
     }
 
-    const nextConfig = buildProviderConfigDraft(draftQuery.data.providerConfig, formState)
+    if (rawProvider.error) return
+    const currentConfig = draftQuery.data?.id === loadedDraft.id ? draftQuery.data.providerConfig : loadedDraft.providerConfig
+    const nextConfig = rawDirty ? rawProvider.config : scoped
+      ? buildFocusedProviderConfigDraft(currentConfig, savedFormState, formState)
+      : buildProviderConfigDraft(loadedDraft.providerConfig, formState)
 
-    saveMutation.mutate({
-      draftId: draftQuery.data.id,
+    return saveMutation.mutateAsync({
+      draftId: loadedDraft.id,
       providerConfig: nextConfig,
     })
   }
+
+  const handleDiscard = () => {
+    const draft = draftQuery.data ?? loadedDraft
+    bufferDirty.current = false
+    setRawProviderValue(null)
+    if (draft) {
+      setLoadedDraft(draft)
+      setFormState(readProviderForm(draft.providerConfig))
+    }
+    saveMutation.reset()
+  }
+
+  useBrainEditor(scoped ? {
+    dirty: draftDirty, busy: saveMutation.isPending,
+    canSave: canEdit && Boolean(loadedDraft) && draftDirty && !rawProvider.error,
+    save: async () => { try { await handleSave() } catch { /* The mutation error is shown in the workspace footer. */ } },
+    discard: handleDiscard,
+    message: saveMutation.isSuccess && !draftDirty ? 'Provider settings saved to draft. Not applied.' : undefined,
+    error: rawProvider.error ?? (saveMutation.isError ? saveMutation.error.message : null),
+  } : null)
 
   const handleRunVendorProbes = () => {
     if (!selectedDeploymentId) {
       return
     }
-    if (draftDirty && canEdit && draftQuery.data) {
-      connectivityMutation.mutate(buildProviderConfigDraft(draftQuery.data.providerConfig, formState))
+    if (draftDirty && canEdit && loadedDraft) {
+      connectivityMutation.mutate(scoped
+        ? buildFocusedProviderConfigDraft(draftQuery.data?.id === loadedDraft.id ? draftQuery.data.providerConfig : loadedDraft.providerConfig, savedFormState, formState)
+        : buildProviderConfigDraft(loadedDraft.providerConfig, formState))
       return
     }
     connectivityMutation.mutate(undefined)
   }
 
   return (
-    <ConfigurationSurface><Stack spacing={3}>
-      <Box>
+    <ConfigurationSurface><Stack spacing={3} sx={scoped ? {
+      '& .MuiCard-root': { border: 0, borderRadius: 0, boxShadow: 'none', background: 'none' },
+      '& .MuiCardContent-root': { p: '0 !important', overflow: 'visible' },
+      '& > .MuiGrid-container': { m: 0, width: '100%' },
+      '& > .MuiGrid-container > .MuiGrid-item': { p: 0 },
+    } : undefined}>
+      {!scoped ? <LegacyProviderEditorRegistration state={selectedDeploymentId ? editorState : null} /> : null}
+      {!scoped ? <Box>
         <Typography variant="h4">
           AI providers
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Choose models and configure the providers connected to this {deploymentTerm.lowercase}.
         </Typography>
-      </Box>
+      </Box> : null}
 
-      <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} />
+      {showStorage ? <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} /> : null}
 
-      <ConfigurationDetails label="Draft & access">
+      {!scoped ? <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
@@ -1849,9 +1981,32 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
               </Stack>
             ) : null}
           </Stack>
-      </ConfigurationDetails>
+      </ConfigurationDetails> : null}
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      {scoped && !canEdit ? <Alert severity="info">Read-only access. Saving requires Brain editor permission.</Alert> : null}
+      {scoped && view === 'models' ? <Tabs value={modelView} onChange={(_event, value) => setModelView(value)}
+        variant="scrollable" scrollButtons="auto" aria-label="AI model views">
+        <Tab value="models" label="Models & fallback" />
+        <Tab value="routing" label="Purpose overrides" />
+      </Tabs> : null}
+      {scoped && view === 'technical-files' ? <Tabs value={technicalView} onChange={(_event, value) => setTechnicalView(value)}
+        variant="scrollable" scrollButtons="auto" aria-label="Provider technical views">
+        <Tab value="wiring" label="Runtime wiring" disabled={rawDirty || saveMutation.isPending} />
+        <Tab value="providers" label="Provider parameters" disabled={rawDirty || saveMutation.isPending} />
+        <Tab value="recovery" label="Recovery policy" disabled={rawDirty || saveMutation.isPending} />
+        <Tab value="readiness" label="Provider checks" disabled={rawDirty || saveMutation.isPending} />
+        <Tab value="json" label="Provider JSON" disabled={structuredDirty || saveMutation.isPending} />
+      </Tabs> : null}
+
+      {showRaw && loadedDraft ? <TextField label="Provider configuration JSON" multiline minRows={12} maxRows={24} fullWidth
+        value={rawProviderValue ?? JSON.stringify(loadedDraft.providerConfig, null, 2)}
+        onChange={(event) => { if (canEdit && !saveMutation.isPending) { setRawProviderValue(event.target.value); saveMutation.reset() } }}
+        error={Boolean(rawProvider.error)} helperText={rawProvider.error}
+        InputProps={{ readOnly: !canEdit || saveMutation.isPending, sx: { fontFamily: 'monospace', fontSize: 13 } }} /> : null}
+      {showRaw && draftQuery.isError ? <Alert severity="error">{draftQuery.error.message}</Alert> : null}
+      {showRaw && draftQuery.isLoading ? <Typography color="text.secondary">Loading provider configuration...</Typography> : null}
+
+      {showReadiness ? <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2}>
             <Box>
@@ -1907,11 +2062,11 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                         </ListItem>
                       ))}
                     </List>
-                  ) : (
+                  ) : validationQuery.data ? (
                     <Alert severity="success">
                       No provider-specific validation blockers were found in the saved {deploymentTerm.lowercase} draft.
                     </Alert>
-                  )}
+                  ) : <Typography color="text.secondary">Provider validation is not available yet.</Typography>}
                 </Stack>
               </Grid>
 
@@ -2119,26 +2274,26 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
             </Stack>
           </Stack>
         </CardContent>
-      </Card>
+      </Card> : null}
 
       {selectedDeploymentId && !configurationOnly ? (
         <DeploymentProviderOperationsPanel deploymentId={selectedDeploymentId} />
       ) : null}
 
-      {selectedDeploymentId ? (
+      {selectedDeploymentId && (!scoped || (!showReadiness && !showRaw)) ? (
         <Grid container spacing={2.5}>
-          <Grid item xs={12} lg={7}>
+          <Grid item xs={12} lg={scoped ? 12 : 7}>
             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
               <CardContent>
                 <Stack spacing={2.5}>
-                  <Box>
+                  {!scoped ? <Box>
                     <Typography variant="h6">Structured provider settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Platform-managed {deploymentTerm.pluralLowercase} now expose the full provider and vector matrix supported by the
                       framework on this branch. Secrets stay in the secret workspace; {deploymentTerm.lowercase}-specific non-secret
                       settings stay here.
                     </Typography>
-                  </Box>
+                  </Box> : null}
 
                   {draftQuery.isLoading ? (
                     <Typography color="text.secondary">Loading provider config...</Typography>
@@ -2148,9 +2303,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                         ? draftQuery.error.message
                         : 'Failed to load provider config'}
                     </Alert>
-                  ) : (
+                  ) : loadedDraft ? (
                     <>
-                      {providerSetupGuides.length > 0 ? (
+                      {showStorage && secretUsageQuery.isSuccess && providerSetupGuides.length > 0 ? (
+                        <ConfigurationDetails label="Provider setup">
                         <Stack spacing={1.25}>
                           {providerSetupGuides.map((guide) => (
                             <Alert key={guide.key} severity={guide.severity}>
@@ -2167,11 +2323,15 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             </Alert>
                           ))}
                         </Stack>
+                        </ConfigurationDetails>
                       ) : null}
 
+                      <Box component="fieldset" disabled={!canEdit || saveMutation.isPending}
+                        sx={{ border: 0, p: 0, pt: scoped ? 1 : 0, m: 0, minWidth: 0 }}>
                       <Grid container spacing={2}>
+                        {showModels ? <>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="LLM provider"
@@ -2186,8 +2346,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <MenuItem value="gemini">Gemini</MenuItem>
                           </TextField>
                         </Grid>
+                        </> : null}
+                        {showStorage ? <>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Embedding provider"
@@ -2203,7 +2365,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Vector strategy"
@@ -2220,7 +2382,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Vector provisioning mode"
@@ -2241,7 +2403,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </Alert>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Vector storage posture"
@@ -2261,7 +2423,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Tenant binding"
                             value={selectedDeploymentSummary?.binding
@@ -2287,8 +2449,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             </Alert>
                           </Grid>
                         ) : null}
+                        </> : null}
+                        {showWiring ? <>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Runtime profile"
@@ -2301,7 +2465,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Connector profile"
@@ -2313,10 +2477,12 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <MenuItem value="connector-passive">connector-passive</MenuItem>
                           </TextField>
                         </Grid>
+                        </> : null}
+                        {showLlmConfiguration ? <>
                         <Grid item xs={12}>
                           <FormControlLabel
                             control={(
-                              <Checkbox
+                              <Checkbox disabled={!canEdit || saveMutation.isPending}
                                 checked={formState.enableFallback}
                                 onChange={(event) => handleFieldChange('enableFallback', event.target.checked)}
                               />
@@ -2324,11 +2490,13 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             label="Enable provider fallback when the preferred LLM or embedding provider fails"
                           />
                         </Grid>
+                        </> : null}
+                        {showModelRouting ? <>
                         <Grid item xs={12}>
                           <Divider textAlign="left">Purpose-specific LLM routing</Divider>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Orchestration provider override"
@@ -2345,7 +2513,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Orchestration model override"
                             value={formState.orchestrationModel}
@@ -2354,7 +2522,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Orchestration temperature"
                             value={formState.orchestrationTemperature}
@@ -2363,7 +2531,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Orchestration max tokens"
                             value={formState.orchestrationMaxTokens}
@@ -2372,7 +2540,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Orchestration timeout (s)"
                             value={formState.orchestrationTimeout}
@@ -2380,6 +2548,8 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             helperText="Optional request timeout for orchestration."
                           />
                         </Grid>
+                        </> : null}
+                        {showRecovery ? <>
                         <Grid item xs={12}>
                           <Divider textAlign="left">Semantic recovery policy</Divider>
                         </Grid>
@@ -2392,7 +2562,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                         </Grid>
                         {SEMANTIC_RECOVERY_FIELDS.map((field) => (
                           <Grid item xs={12} md={field.key === 'semanticRecoveryMissingTarget' ? 12 : 6} key={field.key}>
-                            <TextField
+                            <TextField disabled={!canEdit || saveMutation.isPending}
                               select
                               fullWidth
                               label={field.label}
@@ -2408,11 +2578,13 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             </TextField>
                           </Grid>
                         ))}
+                        </> : null}
+                        {showModelRouting ? <>
                         <Grid item xs={12}>
                           <Divider textAlign="left">Answer generation routing</Divider>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
                             label="Generation provider override"
@@ -2429,7 +2601,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Generation model override"
                             value={formState.generationModel}
@@ -2438,7 +2610,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={4}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Generation temperature"
                             value={formState.generationTemperature}
@@ -2447,7 +2619,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Generation max tokens"
                             value={formState.generationMaxTokens}
@@ -2456,7 +2628,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                          <TextField
+                          <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
                             label="Generation timeout (s)"
                             value={formState.generationTimeout}
@@ -2464,13 +2636,15 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             helperText="Optional request timeout for generation."
                           />
                         </Grid>
+                        </> : null}
 
                         {usesOpenAiProvider ? (
                           <>
+                            {showProviderConnections ? <>
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.openaiValidateOnStartup}
                                     onChange={(event) => handleFieldChange('openaiValidateOnStartup', event.target.checked)}
                                   />
@@ -2479,7 +2653,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="OpenAI base URL"
                                 value={formState.openaiBaseUrl}
@@ -2487,9 +2661,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional. Use for private gateways or OpenAI-compatible routed endpoints."
                               />
                             </Grid>
-                            {selectedLlmProviderSet.has('openai') ? (
+                            </> : null}
+                            {showLlmConfiguration && selectedLlmProviderSet.has('openai') ? (
                               <Grid item xs={12} md={6}>
-                                <TextField
+                                <TextField disabled={!canEdit || saveMutation.isPending}
                                   fullWidth
                                   label="OpenAI LLM model"
                                   value={formState.openaiModel}
@@ -2498,10 +2673,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 />
                               </Grid>
                             ) : null}
-                            {formState.embeddingProvider === 'openai' ? (
+                            {showEmbeddingConfiguration && formState.embeddingProvider === 'openai' ? (
                               <>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI embedding model"
                                     value={formState.openaiEmbeddingModel}
@@ -2510,7 +2685,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI embedding dimensions"
                                     value={formState.openaiEmbeddingDimensions}
@@ -2520,10 +2695,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 </Grid>
                               </>
                             ) : null}
-                            {selectedLlmProviderSet.has('openai') ? (
+                            {showProviderParameters && selectedLlmProviderSet.has('openai') ? (
                               <>
                                 <Grid item xs={12} md={3}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI max tokens"
                                     value={formState.openaiMaxTokens}
@@ -2532,7 +2707,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI temperature"
                                     value={formState.openaiTemperature}
@@ -2541,7 +2716,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI timeout (s)"
                                     value={formState.openaiTimeout}
@@ -2550,7 +2725,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="OpenAI priority"
                                     value={formState.openaiPriority}
@@ -2566,7 +2741,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                         {usesAnthropicProvider ? (
                           <>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic model"
                                 value={formState.anthropicModel}
@@ -2574,8 +2749,9 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional override. Defaults to claude-3-haiku-20240307."
                               />
                             </Grid>
+                            {showProviderParameters ? <>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic base URL"
                                 value={formState.anthropicBaseUrl}
@@ -2584,7 +2760,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic max tokens"
                                 value={formState.anthropicMaxTokens}
@@ -2593,7 +2769,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic temperature"
                                 value={formState.anthropicTemperature}
@@ -2602,7 +2778,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic timeout (s)"
                                 value={formState.anthropicTimeout}
@@ -2611,7 +2787,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Anthropic priority"
                                 value={formState.anthropicPriority}
@@ -2619,15 +2795,17 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional provider priority."
                               />
                             </Grid>
+                            </> : null}
                           </>
                         ) : null}
 
                         {usesAzureProvider ? (
                           <>
+                            {showProviderConnections ? <>
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.azureValidateOnStartup}
                                     onChange={(event) => handleFieldChange('azureValidateOnStartup', event.target.checked)}
                                   />
@@ -2636,7 +2814,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={8}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Azure endpoint"
                                 value={formState.azureEndpoint}
@@ -2645,7 +2823,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={4}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Azure API version"
                                 value={formState.azureApiVersion}
@@ -2653,9 +2831,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Default 2024-02-15-preview"
                               />
                             </Grid>
-                            {selectedLlmProviderSet.has('azure') ? (
+                            </> : null}
+                            {showLlmConfiguration && selectedLlmProviderSet.has('azure') ? (
                               <Grid item xs={12} md={6}>
-                                <TextField
+                                <TextField disabled={!canEdit || saveMutation.isPending}
                                   fullWidth
                                   label="Azure LLM deployment"
                                   value={formState.azureDeploymentName}
@@ -2664,9 +2843,9 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 />
                               </Grid>
                             ) : null}
-                            {formState.embeddingProvider === 'azure' ? (
+                            {showEmbeddingConfiguration && formState.embeddingProvider === 'azure' ? (
                               <Grid item xs={12} md={6}>
-                                <TextField
+                                <TextField disabled={!canEdit || saveMutation.isPending}
                                   fullWidth
                                   label="Azure embedding deployment"
                                   value={formState.azureEmbeddingDeploymentName}
@@ -2675,8 +2854,9 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 />
                               </Grid>
                             ) : null}
+                            {showProviderConnections ? <>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Azure timeout (s)"
                                 value={formState.azureTimeout}
@@ -2685,7 +2865,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Azure priority"
                                 value={formState.azurePriority}
@@ -2693,15 +2873,17 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional provider priority."
                               />
                             </Grid>
+                            </> : null}
                           </>
                         ) : null}
 
                         {usesCohereProvider ? (
                           <>
+                            {showProviderConnections ? <>
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.cohereValidateOnStartup}
                                     onChange={(event) => handleFieldChange('cohereValidateOnStartup', event.target.checked)}
                                   />
@@ -2710,7 +2892,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere base URL"
                                 value={formState.cohereBaseUrl}
@@ -2718,26 +2900,28 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional. Override when traffic must go through a private or regional gateway."
                               />
                             </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
+                            </> : null}
+                            {showLlmConfiguration && (view === 'all' || showProviderDetails || selectedLlmProviderSet.has('cohere')) ? <Grid item xs={12} md={6}>
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere LLM model"
                                 value={formState.cohereModel}
                                 onChange={(event) => handleFieldChange('cohereModel', event.target.value)}
                                 helperText="Optional override. Defaults to command-r7b-12-2024."
                               />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
+                            </Grid> : null}
+                            {showEmbeddingConfiguration && formState.embeddingProvider === 'cohere' ? <Grid item xs={12} md={6}>
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere embedding model"
                                 value={formState.cohereEmbeddingModel}
                                 onChange={(event) => handleFieldChange('cohereEmbeddingModel', event.target.value)}
                                 helperText="Optional override. Defaults to embed-english-v3.0."
                               />
-                            </Grid>
+                            </Grid> : null}
+                            {showProviderParameters ? <>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere max tokens"
                                 value={formState.cohereMaxTokens}
@@ -2746,7 +2930,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere temperature"
                                 value={formState.cohereTemperature}
@@ -2755,7 +2939,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere timeout (s)"
                                 value={formState.cohereTimeout}
@@ -2764,7 +2948,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Cohere priority"
                                 value={formState.coherePriority}
@@ -2772,15 +2956,17 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional provider priority."
                               />
                             </Grid>
+                            </> : null}
                           </>
                         ) : null}
 
                         {usesGeminiProvider ? (
                           <>
+                            {showProviderConnections ? <>
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.geminiValidateOnStartup}
                                     onChange={(event) => handleFieldChange('geminiValidateOnStartup', event.target.checked)}
                                   />
@@ -2789,7 +2975,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini base URL"
                                 value={formState.geminiBaseUrl}
@@ -2797,26 +2983,28 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional. Override when Gemini traffic must use a private or regional gateway."
                               />
                             </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
+                            </> : null}
+                            {showLlmConfiguration && (view === 'all' || showProviderDetails || selectedLlmProviderSet.has('gemini')) ? <Grid item xs={12} md={6}>
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini LLM model"
                                 value={formState.geminiModel}
                                 onChange={(event) => handleFieldChange('geminiModel', event.target.value)}
                                 helperText="Optional override. Defaults to gemini-1.5-flash."
                               />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
+                            </Grid> : null}
+                            {showEmbeddingConfiguration && formState.embeddingProvider === 'gemini' ? <Grid item xs={12} md={6}>
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini embedding model"
                                 value={formState.geminiEmbeddingModel}
                                 onChange={(event) => handleFieldChange('geminiEmbeddingModel', event.target.value)}
                                 helperText="Optional override. Defaults to gemini-embedding-2."
                               />
-                            </Grid>
+                            </Grid> : null}
+                            {showProviderParameters ? <>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini max tokens"
                                 value={formState.geminiMaxTokens}
@@ -2825,7 +3013,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini temperature"
                                 value={formState.geminiTemperature}
@@ -2834,7 +3022,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini timeout (s)"
                                 value={formState.geminiTimeout}
@@ -2843,7 +3031,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Gemini priority"
                                 value={formState.geminiPriority}
@@ -2851,13 +3039,14 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 helperText="Optional provider priority."
                               />
                             </Grid>
+                            </> : null}
                           </>
                         ) : null}
 
-                        {formState.embeddingProvider === 'onnx' ? (
+                        {showEmbeddingConfiguration && formState.embeddingProvider === 'onnx' ? (
                           <>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="ONNX model alias"
                                 value={formState.onnxModelAlias}
@@ -2866,7 +3055,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="ONNX max sequence length"
                                 value={formState.onnxMaxSequenceLength}
@@ -2875,7 +3064,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="ONNX model path"
                                 value={formState.onnxModelPath}
@@ -2884,7 +3073,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="ONNX tokenizer path"
                                 value={formState.onnxTokenizerPath}
@@ -2895,7 +3084,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.onnxUseGpu}
                                     onChange={(event) => handleFieldChange('onnxUseGpu', event.target.checked)}
                                   />
@@ -2906,7 +3095,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </>
                         ) : null}
 
-                        {formState.vectorStrategy === 'qdrant' ? (
+                        {showStorage && formState.vectorStrategy === 'qdrant' ? (
                           <>
                             {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
                               <>
@@ -2916,7 +3105,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   </Alert>
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     select
                                     fullWidth
                                     label="Qdrant Cloud provider"
@@ -2930,7 +3119,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   </TextField>
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant Cloud region"
                                     value={formState.qdrantCloudRegionId}
@@ -2939,7 +3128,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant Cloud account ID"
                                     value={formState.qdrantCloudAccountId}
@@ -2948,7 +3137,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant Cloud package ID"
                                     value={formState.qdrantCloudPackageId}
@@ -2957,7 +3146,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant cluster name override"
                                     value={formState.qdrantCloudClusterNameOverride}
@@ -2969,7 +3158,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             ) : (
                               <>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant host"
                                     value={formState.qdrantHost}
@@ -2978,7 +3167,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={2}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant port"
                                     value={formState.qdrantPort}
@@ -2987,7 +3176,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={2}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Qdrant gRPC port"
                                     value={formState.qdrantGrpcPort}
@@ -2998,7 +3187,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               </>
                             )}
                             <Grid item xs={12} md={2}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Qdrant timeout (s)"
                                 value={formState.qdrantTimeout}
@@ -3007,7 +3196,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={10}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Qdrant collection prefix"
                                 value={formState.qdrantCollectionPrefix}
@@ -3020,7 +3209,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.qdrantPreferGrpc}
                                     onChange={(event) => handleFieldChange('qdrantPreferGrpc', event.target.checked)}
                                   />
@@ -3034,7 +3223,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   <Checkbox
                                     checked={formState.qdrantManagedCollectionsEnabled}
                                     onChange={(event) => handleFieldChange('qdrantManagedCollectionsEnabled', event.target.checked)}
-                                    disabled={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' || formState.vectorStoragePosture === 'SHARED'}
+                                    disabled={!canEdit || saveMutation.isPending || (formState.vectorProvisioningMode === 'PLATFORM_MANAGED' || formState.vectorStoragePosture === 'SHARED')}
                                   />
                                 )}
                                 label={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
@@ -3047,10 +3236,10 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </>
                         ) : null}
 
-                        {formState.vectorStrategy === 'pinecone' ? (
+                        {showStorage && formState.vectorStrategy === 'pinecone' ? (
                           <>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Pinecone index"
                                 value={formState.pineconeIndexName}
@@ -3061,7 +3250,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={4}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Pinecone dimensions"
                                 value={formState.pineconeDimensions}
@@ -3079,7 +3268,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
                               <>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone cloud"
                                     value={formState.pineconeCloud}
@@ -3088,7 +3277,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone region"
                                     value={formState.pineconeRegion}
@@ -3097,7 +3286,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone metric"
                                     value={formState.pineconeMetric}
@@ -3106,7 +3295,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Resolved Pinecone API host"
                                     value={formState.pineconeApiHost}
@@ -3117,7 +3306,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 <Grid item xs={12}>
                                   <FormControlLabel
                                     control={(
-                                      <Checkbox
+                                      <Checkbox disabled={!canEdit || saveMutation.isPending}
                                         checked={formState.pineconeDeletionProtectionEnabled}
                                         onChange={(event) => handleFieldChange('pineconeDeletionProtectionEnabled', event.target.checked)}
                                       />
@@ -3129,7 +3318,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             ) : (
                               <>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone environment"
                                     value={formState.pineconeEnvironment}
@@ -3138,7 +3327,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone project ID"
                                     value={formState.pineconeProjectId}
@@ -3147,7 +3336,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Pinecone API host"
                                     value={formState.pineconeApiHost}
@@ -3158,7 +3347,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               </>
                             )}
                             <Grid item xs={12}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Pinecone namespace prefix"
                                 value={formState.pineconeNamespacePrefix}
@@ -3171,7 +3360,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </>
                         ) : null}
 
-                        {formState.vectorStrategy === 'weaviate' ? (
+                        {showStorage && formState.vectorStrategy === 'weaviate' ? (
                           <>
                             <Grid item xs={12}>
                               <Alert severity="info">
@@ -3179,7 +3368,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               </Alert>
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate scheme"
                                 value={formState.weaviateScheme}
@@ -3188,7 +3377,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate host"
                                 value={formState.weaviateHost}
@@ -3197,7 +3386,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate port"
                                 value={formState.weaviatePort}
@@ -3206,7 +3395,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate timeout (s)"
                                 value={formState.weaviateTimeout}
@@ -3217,7 +3406,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.weaviateConsistencyLevelStrong}
                                     onChange={(event) => handleFieldChange('weaviateConsistencyLevelStrong', event.target.checked)}
                                   />
@@ -3226,7 +3415,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate class prefix"
                                 value={formState.weaviateClassPrefix}
@@ -3237,7 +3426,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Weaviate tenant name"
                                 value={formState.weaviateTenantName}
@@ -3253,7 +3442,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   <Checkbox
                                     checked={formState.weaviateNativeMultiTenancyEnabled}
                                     onChange={(event) => handleFieldChange('weaviateNativeMultiTenancyEnabled', event.target.checked)}
-                                    disabled={formState.vectorStoragePosture === 'SHARED'}
+                                    disabled={!canEdit || saveMutation.isPending || (formState.vectorStoragePosture === 'SHARED')}
                                   />
                                 )}
                                 label={formState.vectorStoragePosture === 'SHARED'
@@ -3264,7 +3453,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </>
                         ) : null}
 
-                        {formState.vectorStrategy === 'milvus' ? (
+                        {showStorage && formState.vectorStrategy === 'milvus' ? (
                           <>
                             <Grid item xs={12}>
                               <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
@@ -3276,7 +3465,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
                               <>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Zilliz Cloud project ID"
                                     value={formState.zillizCloudProjectId}
@@ -3285,7 +3474,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Zilliz Cloud region ID"
                                     value={formState.zillizCloudRegionId}
@@ -3294,7 +3483,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     select
                                     fullWidth
                                     label="Zilliz cluster plan"
@@ -3309,7 +3498,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   </TextField>
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Zilliz cluster name override"
                                     value={formState.zillizCloudClusterNameOverride}
@@ -3318,7 +3507,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Resolved Milvus host"
                                     value={formState.milvusHost}
@@ -3329,7 +3518,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                 {['Standard', 'Enterprise'].includes(formState.zillizCloudClusterPlan.trim()) ? (
                                   <>
                                     <Grid item xs={12} md={3}>
-                                      <TextField
+                                      <TextField disabled={!canEdit || saveMutation.isPending}
                                         select
                                         fullWidth
                                         label="Zilliz CU type"
@@ -3342,7 +3531,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                       </TextField>
                                     </Grid>
                                     <Grid item xs={12} md={3}>
-                                      <TextField
+                                      <TextField disabled={!canEdit || saveMutation.isPending}
                                         fullWidth
                                         label="Zilliz CU size"
                                         value={formState.zillizCloudCuSize}
@@ -3353,7 +3542,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   </>
                                 ) : null}
                                 <Grid item xs={12} md={3}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Resolved Milvus port"
                                     value={formState.milvusPort}
@@ -3365,7 +3554,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             ) : (
                               <>
                                 <Grid item xs={12} md={6}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Milvus host"
                                     value={formState.milvusHost}
@@ -3374,7 +3563,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                                   />
                                 </Grid>
                                 <Grid item xs={12} md={2}>
-                                  <TextField
+                                  <TextField disabled={!canEdit || saveMutation.isPending}
                                     fullWidth
                                     label="Milvus port"
                                     value={formState.milvusPort}
@@ -3385,7 +3574,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               </>
                             )}
                             <Grid item xs={12} md={2}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Milvus database"
                                 value={formState.milvusDatabaseName}
@@ -3394,7 +3583,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Milvus timeout (s)"
                                 value={formState.milvusTimeout}
@@ -3403,7 +3592,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                               />
                             </Grid>
                             <Grid item xs={12} md={8}>
-                              <TextField
+                              <TextField disabled={!canEdit || saveMutation.isPending}
                                 fullWidth
                                 label="Milvus collection prefix"
                                 value={formState.milvusCollectionPrefix}
@@ -3416,7 +3605,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.milvusSecure}
                                     onChange={(event) => handleFieldChange('milvusSecure', event.target.checked)}
                                   />
@@ -3427,7 +3616,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
-                                  <Checkbox
+                                  <Checkbox disabled={!canEdit || saveMutation.isPending}
                                     checked={formState.milvusFlushOnWrite}
                                     onChange={(event) => handleFieldChange('milvusFlushOnWrite', event.target.checked)}
                                   />
@@ -3438,46 +3627,44 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                           </>
                         ) : null}
                       </Grid>
+                      </Box>
 
-                      {saveMutation.isError ? (
+                      {!scoped && saveMutation.isError ? (
                         <Alert severity="error">
                           {saveMutation.error instanceof Error
                             ? saveMutation.error.message
                             : 'Failed to save provider config'}
                         </Alert>
                       ) : null}
-                      {saveMutation.isSuccess ? (
+                      {!scoped && saveMutation.isSuccess ? (
                         <Alert severity="success">Provider config draft saved.</Alert>
                       ) : null}
 
-                      <Stack direction="row" spacing={1.5}>
+                      {!scoped ? <Stack direction="row" spacing={1.5}>
                         <Button
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
-                          onClick={handleSave}
+                          onClick={() => { void handleSave()?.catch(() => undefined) }}
                           disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save provider config'}
                         </Button>
                         <Button
                           variant="outlined"
-                          onClick={() => {
-                            if (draftQuery.data) {
-                              setFormState(readProviderForm(draftQuery.data.providerConfig))
-                            }
-                          }}
+                          onClick={handleDiscard}
+                          disabled={saveMutation.isPending}
                         >
                           Reset form
                         </Button>
-                      </Stack>
+                      </Stack> : null}
                     </>
-                  )}
+                  ) : null}
                 </Stack>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} lg={5}>
+          {!scoped ? <Grid item xs={12} lg={5}>
             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
               <CardContent>
                 <Stack spacing={2}>
@@ -3505,7 +3692,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
+          </Grid> : null}
         </Grid>
       ) : null}
     </Stack></ConfigurationSurface>

@@ -20,6 +20,7 @@ import { CustomerProductTasks } from './CustomerProductTasks'
 import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 import { CustomerDeskLink } from './CustomerDeskLink'
 import { CustomerEnvironmentQuota } from './CustomerEnvironmentQuota'
+import { brainPath } from '../../brain/brainNavigation'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -74,10 +75,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   }
   const title = props.mode === 'home' ? 'Your workspace' : props.mode === 'apps' ? 'Engage apps' : deploymentTerm.plural
   const openConfiguration = (section: CustomerEditorSection = 'configuration') => {
-    if (selected?.kind === 'deployment' && !offer) {
-      navigate({ pathname: '/revisions', search: new URLSearchParams({ deploymentId: selected.id,
-        ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
-      }).toString() })
+    if (selected?.kind === 'deployment') {
+      navigate(brainPath(selected.id, section === 'advanced' ? 'settings' : '', selectedRelease?.targetProfileId))
       return
     }
     const next = new URLSearchParams(location.search); next.set('editor', 'configuration')

@@ -146,7 +146,7 @@ export function kitEditorPath(kit: ExperienceKitSummary, preview = false, embedd
 }
 
 export function kitDeploymentPath(kit: ExperienceKitSummary) {
-  return `/deployments?${new URLSearchParams({ view: 'setup', step: 'configure', deploymentId: kit.deploymentId })}`
+  return `/smart-brains/${encodeURIComponent(kit.deploymentId)}`
 }
 
 export function safeKitExternalUrl(value: string | null | undefined) {
