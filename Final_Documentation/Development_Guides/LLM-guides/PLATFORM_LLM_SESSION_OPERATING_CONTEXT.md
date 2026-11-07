@@ -86,6 +86,16 @@ fallbacks. READ actions do not require indexed vector spaces unless their own
 declared contract or actual retrieval needs them. Measure semantic quality
 separately; acceptance tolerance never relaxes authorization or confirmation.
 
+## Explicit Stylistic Processing Choice (2026-11-07)
+
+The existing generic-assistance-closer phrase matcher must be **off by default**.
+The owner allows only an explicit advanced deployment choice to enable that
+existing output processing, with its content-removal risk visible. Tone/breadth
+presets and templates must not enable it automatically. Preserve PII/security
+sanitization. This narrow option is not permission for semantic text matching,
+new phrase filters or hidden answer/recovery substitution elsewhere. Raise
+similar defects for review. See 010.63 section 4, including the audit findings.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

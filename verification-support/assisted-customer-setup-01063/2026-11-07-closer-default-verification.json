@@ -1,0 +1,68 @@
+{
+  "sourceCommit": "8a49566c220e9b9631547ea3184d6dc7bd21cede",
+  "branch": "Platform-V11",
+  "ciRun": 42335616044,
+  "ciConclusion": "success",
+  "completedDateUtc": "2026-11-07",
+  "scope": ["platform-runtime-env-default", "advanced-console-setting", "section-4-proposal-revision"],
+  "runtimeProperty": "ai.response-sanitization.remove-generic-assistance-closers",
+  "runtimeEnvironmentKey": "AI_RESPONSESANITIZATION_REMOVEGENERICASSISTANCECLOSERS",
+  "defaultValue": false,
+  "promptConfigField": "removeGenericAssistanceClosers",
+  "frameworkVersionUnchanged": "0.8.45",
+  "frameworkSourceDefaultPatch": {
+    "qualifiedLocally": true,
+    "published": false,
+    "installedIntoProductBuilds": false,
+    "fullFrameworkGateClaimed": false
+  },
+  "tests": {
+    "platformProvisioningAndDraftValidation": {"passed": 132, "failed": 0},
+    "isolatedSanitizerAndPipelineAgainstReleasedDependencies": {"passed": 16, "failed": 0},
+    "uiMapping": {"passed": 3, "failed": 0},
+    "sharedPageBrowserFixtureScenarios": {"passed": 7, "failed": 0},
+    "typescriptAndProductionBuild": "passed"
+  },
+  "environments": {
+    "staging": {
+      "backendDeployment": "yyv11pbpesb91jb7hyuwza23",
+      "uiDeployment": "z7tngn978kwiijve24x5k63d",
+      "runtimeDeployments": ["wtb0a4gz50vgajo5g8upxqqz", "wu6i59da699kvz7ciehj5h1v", "q2ot25ggomrkbhrpl4q7bouq", "p13ca9ihq7mwy712p0kx2uxr"],
+      "allJobsFinished": true,
+      "exactSourceCoreImagesHealthy": true,
+      "migration": "235:true",
+      "publicBackendHealth": "200 UP",
+      "runtimesVerifiedDefaultOff": 4,
+      "runtimeImagesUnchanged": true,
+      "otherRuntimeEnvironmentPreserved": true,
+      "liveConsoleChecksPassed": true,
+      "consoleCheckedAt": "2026-11-07T04:02:46.402Z"
+    },
+    "production": {
+      "backendDeployment": "r994ijcloq9afj4oiq7jw07e",
+      "uiDeployment": "vxwn15y30ojzyn7iyxsixyyr",
+      "runtimeDeployments": ["ofkm4fcecgz1shz9ffiu4dgo", "ir3rwhje1y9yh1dvyve2fqru"],
+      "allJobsFinished": true,
+      "exactSourceCoreImagesHealthy": true,
+      "migration": "235:true",
+      "publicBackendHealth": "200 UP",
+      "runtimesVerifiedDefaultOff": 2,
+      "runtimeImagesUnchanged": true,
+      "otherRuntimeEnvironmentPreserved": true,
+      "liveConsoleChecksPassed": true,
+      "consoleCheckedAt": "2026-11-07T04:01:47.354Z"
+    }
+  },
+  "liveConsoleChecks": ["advanced-collapsed", "default-off", "explicit-opt-in-warning", "uncheck-without-save", "desktop-and-mobile-render", "visible-mobile-control-bounds", "no-page-errors"],
+  "qualificationFixtureCorrections": [
+    "Use staging-owned deployment for staging Console, not production control-plane deployment ID.",
+    "Measure visible MUI switch root rather than oversized invisible native input."
+  ],
+  "configurationWritesDuringLiveBrowserChecks": 0,
+  "networkMockingInLiveChecks": false,
+  "paidAiCalls": 0,
+  "piiAndSecuritySanitizationDisabled": false,
+  "stoppedHistoricalDeploymentsStarted": false,
+  "reviewOnlyFindings": ["widget-narrative-substitution", "read-generation-failure-evidence-substitution", "forced-post-action-deterministic-fallback", "empty-context-generation-failure-static-success"],
+  "notImplemented": ["tone-and-answer-breadth-presets", "public-web-search", "other-semantic-rewriting-or-recovery-fixes"]
+}

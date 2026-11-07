@@ -237,3 +237,77 @@ Redacted evidence: [hosted verification](../../../../../../../../verification-su
 Detailed release responses, backups, fixture credentials and screenshots are
 retained only in restricted private qualification files. Other 010.63 AI
 behaviour/research/suggestion proposals remain unimplemented.
+
+## 2026-11-07 Closer Default And Section 4 Review
+
+Owner approved named tone/answer-breadth presets with prompt/configuration
+details under Advanced, but requested the revised section for final review.
+Those presets remain **proposal-only**. Web search is deferred. Section 4.9
+raises four additional narrative-substitution/fallback findings; none was fixed
+under this bounded approval, and release-tag history guards are distinguished
+from the older local framework branch.
+
+The separately authorized immediate closer correction is implemented in Platform
+source **8a49566c220e9b9631547ea3184d6dc7bd21cede**:
+
+- Existing prompt configuration stores `removeGenericAssistanceClosers`, false
+  when absent. The shared Prompts page exposes an advanced-only off-by-default
+  switch with a warning when enabled. Save/reload and dirty-state tracking reuse
+  the existing editor and release mechanism; prompt-only preview does not claim
+  to apply this runtime setting.
+- Publication validation requires a real JSON boolean if supplied. This is an
+  operator configuration contract, not an LLM semantic validator. The existing
+  provisioning compiler always emits the explicit Spring environment property
+  `AI_RESPONSESANITIZATION_REMOVEGENERICASSISTANCECLOSERS`, false unless the
+  published configuration explicitly opts in. PII/sanitizer masters unchanged.
+- Framework checkout patch changes only the property default and its focused
+  tests. The checkout has an older POM/other unrelated dirty work; it is not
+  being released or installed into product builds. An isolated harness compiled
+  the sanitizer/property and their tests against released 0.8.45 dependencies:
+  **16 passed** across sanitizer and pipeline-step tests, including environment
+  binding, retained ordinary/compound model text, explicit opt-in and existing
+  PII checks. This is not a full framework release gate. The focused source patch
+  is retained privately for a future framework release; it is not published.
+- Platform provisioning/validation: **132 passed**. UI mapping: **3 passed**;
+  actual shared-page browser fixture: **7 scenarios passed**, including advanced
+  collapse/default off, enable warning, save/reload/disable, existing prompt
+  preservation and mobile rendering. TypeScript/production build passed.
+- Core image CI **42335616044 passed** for the committed Platform correction.
+  Backend and Console images at exact source 8a49566c2 are healthy on both hosts.
+  No new database migration: both schemas remain `235:true`.
+
+### Hosted Closeout
+
+Completed 2026-11-07, with all ten exact Coolify jobs finished:
+
+- Staging backend `yyv11pbpesb91jb7hyuwza23`, Console
+  `z7tngn978kwiijve24x5k63d`; production backend
+  `r994ijcloq9afj4oiq7jw07e`, Console `vxwn15y30ojzyn7iyxsixyyr`.
+  Native OCI revisions match the approved source and both backend public health
+  endpoints return HTTP 200 / UP. Images were built in CI, not on serving hosts.
+- Four serving staging runtimes and two production runtimes restarted using
+  their existing images. Native container inspection confirms the closer flag
+  is false on all six, one healthy serving container per application, and all
+  other Coolify environment values are unchanged. No stopped historical
+  deployment was started. Runtime image, prompt, model, source, integration and
+  app assignment choices are unchanged. No paid AI request was made.
+- Actual authenticated Console checks pass on both environments: advanced
+  section initially collapsed, switch off, explicit-enable warning visible,
+  then uncheck without saving; desktop/mobile and visible-control bounds
+  inspected, no browser page errors. No configuration writes occurred. Local
+  browser fixtures, not this live check, cover save/reload and prompt retention.
+- Qualification retries were test-fixture corrections, not safety bypasses:
+  the staging UI initially referenced a production-control-plane deployment;
+  it was corrected to the existing staging-owned Support deployment. A mobile
+  bounds assertion initially measured MUI's oversized invisible input rather
+  than its visible switch root; final checks use the visible control.
+
+The released framework remains **0.8.45**. LoomAI's explicit generated runtime
+setting fixes its live default without installing local artifacts or publishing
+a framework release. Standalone consumers of the unchanged published framework
+do not inherit the unreleased source-default patch.
+
+No other framework, retrieval, action or suggestion fix is included. Tone and
+answer-breadth presets await final implementation review; web search stays
+deferred. Four related findings are raised in proposal section 4.9, not fixed.
+Redacted evidence: [closer-default verification](../../../../../../../../verification-support/assisted-customer-setup-01063/2026-11-07-closer-default-verification.json).

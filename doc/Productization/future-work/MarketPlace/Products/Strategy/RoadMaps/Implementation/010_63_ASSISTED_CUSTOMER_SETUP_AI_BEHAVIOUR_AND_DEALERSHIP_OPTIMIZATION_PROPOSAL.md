@@ -3,14 +3,14 @@
 ## 1. Decision Summary
 
 - Date: 2026-11-06.
-- Status: **Items 2-4 remain proposals for review.** The owner subsequently approved the simpler customer-owned setup/access workflow for item 1; its bounded implementation is tracked in the [assisted setup execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md). This does not approve the broader invitation/transfer or AI optimization scope below.
-- Scope: assisted customer setup and handover, configurable answer behaviour and external research, contextual next suggestions, and a richer dealership experience.
+- Status: **Items 2-4 remain proposals for review**, except the separately approved default-off closer correction in section 4.6. Section 4 reflects the 2026-11-07 preset decisions; public web search is deferred. The owner previously approved the simpler customer-owned setup/access workflow for item 1; its bounded implementation is tracked in the [assisted setup execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md). This does not approve the broader invitation/transfer or AI optimization scope below.
+- Scope: assisted customer setup and handover, configurable answer behaviour, contextual next suggestions, and a richer dealership experience. External research is a deferred future option, not an active delivery item.
 - Baseline: Platform source `e82515ff0af3188a40213abb3c6cb31129dcf498`, including the existing local worktree; its framework dependency is `0.8.45`. Framework contracts were inspected from the immutable `ai-fabric-framework-v0.8.45` tag, not the older, dirty sibling checkout.
 - Evidence: source analysis, not a new live quality run or confirmation of every hosted customer's effective configuration.
 
 **Recommendation 1: create for the customer, then hand over access.** Staff can already create individual resources for a selected customer. A second login can belong to that customer. However, the complete Kit creation flow is customer-only, and there is no complete live cross-customer transfer workflow. Add an audited staff-assisted entry into the existing Kit orchestrator; do not start with a transfer engine.
 
-**Recommendation 2: separate voice, source access and research depth.** Tone and generation temperature have existing foundations. Temperature does not grant internet access or control search depth. Introduce a simple AI Behaviour editor over the existing prompt/provider configuration, then an optional governed public-research integration with explicit source permissions and bounds.
+**Recommendation 2: separate conversation tone and answer breadth.** Expose named presets with their generated prompt/configuration details in Advanced, using the existing editable draft and release path. Answer breadth is permission to offer general advice and inference, not provider sampling temperature or internet access. Public research waits until these optimizations have measured results.
 
 **Recommendation 3: connect existing next-step recommendations before generating more.** The runtime exposes sanitized `suggestions`, but the widget's canonical adapter drops them. The separate attachment-suggestions endpoint has different context, prompting and fallback behaviour. Repair the primary response path first and make suggestion origins honest.
 

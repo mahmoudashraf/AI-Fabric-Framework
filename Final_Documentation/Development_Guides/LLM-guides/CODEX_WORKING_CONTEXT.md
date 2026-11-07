@@ -13027,3 +13027,40 @@ test is being called hosted acceptance. UI extraction remains last.
   customer products/runtime assignments unchanged. Other01063 proposals deferred.
 - 01063 execution record and redacted verification-support/assisted-customer-
   setup-01063/2026-11-06-hosted-verification.json contain release/evidence details.
+
+## 2026-11-07 Closer Default Live And Behaviour Presets Final Review
+
+- Owner-approved immediate fix only: phrase-based generic-closer removal is
+  false by default; explicit advanced opt-in remains available with a warning.
+  Source 8a49566c220e9b9631547ea3184d6dc7bd21cede pushed Platform-V11;
+  CI42335616044 PASS. Backend/Console on staging and production verified healthy
+  at exact source. Existing schemas235:true; public backend health200/UP.
+- Shared Prompts page -> Prompt bundle -> Advanced response processing. Existing
+  promptConfig.removeGenericAssistanceClosers boolean maps at publish/apply to
+  AI_RESPONSESANITIZATION_REMOVEGENERICASSISTANCECLOSERS, false when absent.
+  Save/reload/dirty tracking reuse normal draft/release path. Not included in
+  prompt-only preview. No PII/sanitizer master disable or semantic hard validator.
+- All ten exact jobs finished: staging core yyv11pbpesb91jb7hyuwza23 /
+  z7tngn978kwiijve24x5k63d, production core r994ijcloq9afj4oiq7jw07e /
+  vxwn15y30ojzyn7iyxsixyyr, plus six same-image runtime setting restarts. Native
+  inspection: four serving staging/two production runtime flags false, healthy,
+  one serving container each, other environment unchanged. Stopped historical
+  apps not started. No runtime image/model/prompt/source/app-assignment change.
+- Focused checks:132 Platform,16 isolated sanitizer/pipeline,3 UI mapping,
+  7 shared-page browser fixture scenarios,TypeScript/build PASS. Actual signed-in
+  Console checks both environments PASS: advanced collapsed/off, opt-in warning,
+  desktop/mobile/control bounds, no page errors or saved configuration writes.
+  Initial staging-ID and invisible-input bounds fixture errors corrected, not
+  authorization overrides. No paid AI calls or new infrastructure.
+- Framework stays released0.8.45. Local source default/test patch qualified and
+  preserved privately; older dirty framework checkout NOT released/installed.
+  Live Platform uses the existing supported property. Standalone published
+  framework consumers do not inherit the unreleased default patch.
+- 01063 section4 now defines Conversation tone +Answer breadth presets with
+  prompt/config details Advanced; proposal-only pending final implementation
+  review. Provider sampling temperature separate. Web search explicitly deferred.
+- Four other source/tag-verified answer-substitution/fallback findings raised
+  for review in4.9, NOT fixed; release history guards accurately distinguished.
+  Existing suggestion findings remain tracked; relationship module deferred.
+  Execution record and redacted2026-11-07-closer-default-verification.json carry
+  exact evidence. Do not expand this fix into the rest of01063 without approval.
