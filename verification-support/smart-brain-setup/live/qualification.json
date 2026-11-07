@@ -1,0 +1,89 @@
+{
+  "date": "2026-11-07",
+  "source": "e8831995ebe8da331e32cb76c23c402726d16663",
+  "branch": "Platform-V11",
+  "ci": {
+    "run": "42386483439",
+    "conclusion": "success",
+    "uiImage": "published",
+    "backendImage": "skipped"
+  },
+  "focusedTestsPassed": 140,
+  "staging": {
+    "url": "https://developer.loomai.pro",
+    "deployment": "p94bavt90lpyea3ave7m1dfe",
+    "status": "finished",
+    "nativeContainerHealth": "healthy",
+    "revision": "e8831995ebe8da331e32cb76c23c402726d16663",
+    "uiProfile": "developer",
+    "environment": "staging",
+    "resourceUsed": "dep-a9d6d646",
+    "checks": [
+      "Existing customer sign-in",
+      "Starting point, connections, staging, production and retention navigation",
+      "Continue setup retains exact resource",
+      "Technical disclosure and Advanced references",
+      "Create another confirmation and removal of prior resource selection",
+      "Requested template follows URL changes",
+      "Dealership simulator selection and required name/storage controls",
+      "Create command enablement, without submission",
+      "Developer profile retained",
+      "Sign-out"
+    ]
+  },
+  "production": {
+    "url": "https://console.loomai.pro",
+    "deployment": "mcuey0z1uc90yf9mo62ydhfy",
+    "status": "finished",
+    "nativeContainerHealth": "healthy",
+    "revision": "e8831995ebe8da331e32cb76c23c402726d16663",
+    "uiProfile": "standard",
+    "environment": "production",
+    "resourceUsed": "dep-79af290c",
+    "checks": [
+      "Existing customer sign-in",
+      "Fresh starting-point page",
+      "Continue setup retains exact resource",
+      "Light and dark appearance",
+      "Canonical Smart Brain link with production target",
+      "Approved 010.64 Smart Brain overview retained",
+      "Earlier customer Home retained",
+      "Standard commercial presentation retained",
+      "Basic mobile fit and compact navigation",
+      "Sign-out"
+    ],
+    "desktop": {
+      "width": 1440,
+      "height": 900,
+      "documentWidth": 1440,
+      "documentHeight": 900,
+      "continueVisible": true,
+      "duplicateCreationForms": 0
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "documentWidth": 375,
+      "compactNavigationAvailable": true
+    },
+    "capturedFinalBrowserErrors": []
+  },
+  "boundaries": {
+    "backendRuntimeFrameworkOrAiConfigurationChanged": false,
+    "newInfrastructureCreated": false,
+    "customerResourceConfigurationSaved": false,
+    "customerReleaseApplied": false,
+    "customerAppAssignmentChanged": false,
+    "aiQueries": 0,
+    "optionalSelectionPreferencesPersisted": true,
+    "ownerResourceDepD173ba90DirectlyExercised": false,
+    "temporaryViewportReset": true,
+    "verificationAccountsSignedOut": true
+  },
+  "notes": [
+    "Existing authorized internal-support resources exercised the same generic setup component, not the owner's dep-d173ba90.",
+    "Old internal templates retain their pre-existing REVIEWED_COMPOSITION_CHANGED and missing staging-destination blockers. No fallback or template repair was introduced.",
+    "Support was minimized using its existing control for task screenshots; its presentation contract is unchanged.",
+    "This is a UI rollout verification, not a new full infrastructure-provisioning or AI-quality gate."
+  ]
+}

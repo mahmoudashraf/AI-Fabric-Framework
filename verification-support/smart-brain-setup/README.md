@@ -1,7 +1,7 @@
-# Outcome-Led Smart Brain Setup, Local Review
+# Outcome-Led Smart Brain Setup
 
 Date: 2026-11-07
-Status: owner approved publication and live verification after reviewing the local screenshots. Hosted results are recorded below after rollout.
+Status: committed, deployed to staging and production, and live UI verified.
 
 ## Scope
 
@@ -70,3 +70,43 @@ warnings. The owner subsequently authorized commit, deployment and live verifica
 - [Existing setup, light](local/existing-light.png)
 - [Existing setup, dark](local/existing-dark.png)
 - [New dealership starting point, dark](local/new-setup-dark.png)
+
+## Hosted Verification
+
+- Source `e8831995ebe8da331e32cb76c23c402726d16663` pushed on `Platform-V11`.
+  CI `42386483439` passed; UI image published, backend build skipped.
+- Staging deployment `p94bavt90lpyea3ave7m1dfe` and production deployment
+  `mcuey0z1uc90yf9mo62ydhfy` finished. Both native UI containers are healthy on
+  the exact source revision above. Backend, runtime and AI configuration unchanged.
+- Staging uses `https://developer.loomai.pro`, with runtime configuration
+  `staging/developer`; production uses `https://console.loomai.pro`, with
+  `production/standard`. Pricing/personal contact remains absent on developer
+  pages and present in production's normal catalogue.
+- Existing authorized staging/production verification accounts were used, not
+  the owner's `dep-d173ba90` resource. The same shared setup component was tested.
+  No new infrastructure, configuration save, release apply, app switch or AI query.
+- Staging: sign-in, all five stages, same-Brain Continue setup, technical
+  disclosure, Advanced references and return to Configuration passed. Create
+  another retains the explicit leave confirmation and removes the old Brain ID.
+  The chosen template follows the URL change. Public Dealership simulator,
+  required name/storage and the enabled/disabled create command passed without
+  submission. Old internal templates retain their existing composition/target
+  blockers; this UI rollout does not repair or requalify those templates.
+- Production: fresh setup page, same-Brain continuation, canonical Brain link,
+  retained 010.64 workspace, light/dark and basic mobile fit passed. At 1440x900
+  the existing starting-point page is 1440x900, has one heading, no second create
+  form and a visible Continue action. At 390x844 document width is 375; compact
+  navigation is available and there is no horizontal overflow.
+- The normal support dock was minimized through its existing control for task
+  screenshots. Its existing dock behavior was not changed. No final production
+  browser console errors were captured.
+- All 140 focused tests passed. Verification sessions were signed out and the
+  temporary viewport override reset. Unrelated local work remains uncommitted.
+
+Live evidence:
+
+- [Source, deployment and verification report](live/qualification.json)
+- [Production, dark](live/production-existing-dark.png)
+- [Production, light](live/production-existing-light.png)
+- [Production, basic mobile](live/production-mobile.png)
+- [Staging, new setup](live/staging-new-setup.png)
