@@ -376,6 +376,18 @@ public class DeploymentRuntimeAuthorityService {
             "target-proxy-" + snapshot.snapshotId(), true, grantedScopes, ttl);
     }
 
+    /** Server-derived session continuity only; the subject always comes from the actual Platform principal. */
+    @Transactional
+    public Map<String, String> issuePlatformProxyHeaders(String deploymentId, String targetProfileId, String releaseId,
+        String expectedFingerprint, String sessionId, List<String> grantedScopes, Duration ttl) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) throw new ResponseStatusException(FORBIDDEN, "An authenticated Platform operator is required.");
+        var snapshot = requireReleaseUnchanged(deploymentId, targetProfileId, releaseId, expectedFingerprint);
+        requireProvisioned(releases.findById(releaseId).orElseThrow());
+        return headers(snapshot.binding(), requiredIdentity(principal.actorId()), "INTERNAL_PLATFORM_USER",
+            requiredIdentity(sessionId), true, grantedScopes, ttl);
+    }
+
     /** Identity and scopes must come from the caller's verified session, never browser claims. */
     @Transactional
     public Map<String, String> issueBackendSessionHeaders(String deploymentId, String targetProfileId, String releaseId,

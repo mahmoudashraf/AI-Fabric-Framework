@@ -64,6 +64,32 @@ class ChatRuntimeControllerAuthContextTest {
     }
 
     @Test
+    void authContextAcceptsOnlyAuthContextScopeForStablePlatformProxyIdentity() {
+        ChatRuntimeController controller = instantiateController(strictAuthResolver());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        RuntimePrivateAssertionTestSupport.addPrivateRuntimeHeaders(request, authProperties(), RuntimeAuthContext.builder()
+            .subjectId("actual-customer-principal")
+            .subjectType(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER)
+            .authMode(RuntimeAuthMode.PLATFORM_PROXY_SESSION)
+            .callerType(RuntimeAuthCallerType.PLATFORM_PROXY)
+            .sessionId("platform-poc-dep-123-stable-session")
+            .deploymentId("dep-123")
+            .issuer("backend-test")
+            .audiences(List.of("dep-123"))
+            .grantedScopes(List.of("chat:auth-context"))
+            .expiresAt(Instant.now().plusSeconds(300))
+            .build());
+
+        RuntimeAuthContextResponse response = controller.authContext(request).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSubjectId()).isEqualTo("actual-customer-principal");
+        assertThat(response.getSessionId()).isEqualTo("platform-poc-dep-123-stable-session");
+        assertThat(response.getGrantedScopes()).containsExactly("chat:auth-context");
+        assertThat(response.getAuthMode()).isEqualTo("PLATFORM_PROXY_SESSION");
+    }
+
+    @Test
     void myAuthContextRejectsLegacyQueryParamsOnAuthAwareRoute() {
         ChatRuntimeController controller = instantiateController(strictAuthResolver());
 

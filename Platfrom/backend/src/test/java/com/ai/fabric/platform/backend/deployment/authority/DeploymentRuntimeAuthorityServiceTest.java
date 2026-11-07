@@ -190,6 +190,89 @@ class DeploymentRuntimeAuthorityServiceTest {
             "system", "session", List.of("documents:read"), Duration.ofMinutes(1))).hasMessageContaining("explicit deployment and target");
     }
 
+    @Test void explicitProxySessionPreservesActualPrincipalAndExactScopesWithTargetSigning() throws Exception {
+        var frozen = release("staging", "release-poc");
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);
+        clearInvocations(secrets, access);
+        String stableSession = "platform-poc-dep-1-server-derived-session";
+
+        var issued = service.issuePlatformProxyHeaders("dep-1", "staging", "release-poc", frozen.fingerprint(),
+            stableSession, List.of("chat:auth-context"), Duration.ofMinutes(5));
+
+        String token = issued.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7);
+        var claims = payload(token);
+        assertThat(claims.path("sub").asText()).isEqualTo("staff");
+        assertThat(claims.path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
+        assertThat(claims.path("authMode").asText()).isEqualTo("PLATFORM_PROXY_SESSION");
+        assertThat(claims.path("callerType").asText()).isEqualTo("PLATFORM_PROXY");
+        assertThat(claims.path("sessionId").asText()).isEqualTo(stableSession);
+        assertThat(claims.path("deploymentId").asText()).isEqualTo("dep-1");
+        assertThat(claims.path("customerId").asText()).isEqualTo("customer-1");
+        assertThat(claims.path("tenantId").asText()).isEqualTo("tenant-1");
+        assertThat(claims.path("iss").asText()).isEqualTo(frozen.binding().privateIssuer());
+        assertThat(claims.path("aud").asText()).isEqualTo(frozen.binding().privateAudience());
+        assertThat(claims.path("scopes")).hasSize(1);
+        assertThat(claims.path("scopes").get(0).asText()).isEqualTo("chat:auth-context");
+        assertThat(issued.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
+            .isEqualTo(key(frozen, TRUSTED_BACKEND_API_KEY)).isNotEqualTo("GLOBAL-TRUSTED-KEY");
+        assertThat(validHmac(token, key(frozen, PRIVATE_ASSERTION_SIGNING_KEY))).isTrue();
+        assertThat(validHmac(token, "GLOBAL-PRIVATE-KEY")).isFalse();
+        verify(access).requireDeploymentOperatorAccess(deployment);
+        verify(secrets, never()).findById(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME);
+        verify(secrets, never()).findById(RuntimePrivateAssertionSigningService.SECRET_NAME);
+
+        var unchangedSignature = service.issuePlatformProxyHeaders("dep-1", "staging", "release-poc", frozen.fingerprint(),
+            List.of("chat:query"), Duration.ofMinutes(5));
+        var oldClaims = payload(unchangedSignature.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(oldClaims.path("sessionId").asText()).isEqualTo("target-proxy-" + frozen.snapshotId());
+        assertThat(oldClaims.path("sub").asText()).isEqualTo(claims.path("sub").asText());
+        assertThat(oldClaims.path("scopes").get(0).asText()).isEqualTo("chat:query");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "NO_PRINCIPAL", "NO_SESSION", "INVALID_SESSION", "EMPTY_SCOPES", "INVALID_SCOPE", "INVALID_TTL",
+        "WRONG_TARGET", "STALE_FINGERPRINT", "MISSING_KEY", "KEY_DRIFT", "ACCESS_DENIED", "NOT_PROVISIONED"
+    })
+    void explicitProxySessionKeepsAllAuthorityAndSigningGuards(String boundary) {
+        var frozen = release("staging", "release-poc");
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);
+        String session = "platform-poc-dep-1-server-derived-session";
+        String target = "staging";
+        String fingerprint = frozen.fingerprint();
+        List<String> scopes = List.of("chat:auth-context");
+        Duration ttl = Duration.ofMinutes(5);
+        switch (boundary) {
+            case "NO_PRINCIPAL" -> org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            case "NO_SESSION" -> session = null;
+            case "INVALID_SESSION" -> session = "forged\nsession";
+            case "EMPTY_SCOPES" -> scopes = List.of();
+            case "INVALID_SCOPE" -> scopes = List.of("chat:auth-context\nchat:query");
+            case "INVALID_TTL" -> ttl = Duration.ofMinutes(11);
+            case "WRONG_TARGET" -> target = "production";
+            case "STALE_FINGERPRINT" -> fingerprint = "wrong-fingerprint";
+            case "MISSING_KEY" -> secretRows.remove(frozen.binding().secrets().get(PRIVATE_ASSERTION_SIGNING_KEY).reference());
+            case "KEY_DRIFT" -> secretRows.get(frozen.binding().secrets().get(PRIVATE_ASSERTION_SIGNING_KEY).reference())
+                .setSecretValue("changed-with-same-revision");
+            case "ACCESS_DENIED" -> doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Deployment not found"))
+                .when(access).requireDeploymentOperatorAccess(deployment);
+            case "NOT_PROVISIONED" -> releases.findById("release-poc").orElseThrow().setProvisioningStatus("QUEUED");
+            default -> throw new AssertionError(boundary);
+        }
+        clearInvocations(secrets);
+        String selectedSession = session;
+        String selectedTarget = target;
+        String selectedFingerprint = fingerprint;
+        List<String> selectedScopes = scopes;
+        Duration selectedTtl = ttl;
+
+        assertThatThrownBy(() -> service.issuePlatformProxyHeaders("dep-1", selectedTarget, "release-poc", selectedFingerprint,
+            selectedSession, selectedScopes, selectedTtl)).isInstanceOf(ResponseStatusException.class);
+
+        verify(secrets, never()).findById(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME);
+        verify(secrets, never()).findById(RuntimePrivateAssertionSigningService.SECRET_NAME);
+    }
+
     @Test void absenceAndRevisionOrValueDriftFailClosedDespiteGlobalKeys() {
         assertThatThrownBy(() -> service.requireReleaseUnchanged("dep-1", "staging", "missing-release", "fingerprint"))
             .isInstanceOf(ResponseStatusException.class);

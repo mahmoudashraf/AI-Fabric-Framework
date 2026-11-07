@@ -2,7 +2,9 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformPocProperties;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
@@ -18,10 +20,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQu
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,20 +52,18 @@ import java.util.Set;
 import java.util.UUID;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentPocChatService {
 
-    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
-    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
-    private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
-    private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     private static final String SCOPE_CHAT_QUERY = "chat:query";
     private static final String SCOPE_CHAT_MESSAGES = "chat:messages";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
     private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
+    private static final String SCOPE_CHAT_AUTH_CONTEXT = "chat:auth-context";
     private static final String SCOPE_DEPLOYMENT_KNOWLEDGE_SPECIALIST =
         "specialist:deployment-knowledge-specialist@1";
     private static final String SCOPE_DOCUMENT_VECTOR = "vector:document";
@@ -100,8 +99,10 @@ public class DeploymentPocChatService {
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final PlatformAuditService platformAuditService;
-    private final PlatformSecretService platformSecretService;
-    private final RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService;
+    private final DeploymentReleaseRepository deploymentReleaseRepository;
+    private final DeploymentTargetContextService deploymentTargetContextService;
+    private final DeploymentReleaseEndpointService deploymentReleaseEndpointService;
+    private final DeploymentRuntimeAuthorityService runtimeAuthority;
     private final RuntimePublicTokenSigningService runtimePublicTokenSigningService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -112,8 +113,10 @@ public class DeploymentPocChatService {
                                     DeploymentAccessService deploymentAccessService,
                                     DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                     PlatformAuditService platformAuditService,
-                                    PlatformSecretService platformSecretService,
-                                    RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService,
+                                    DeploymentReleaseRepository deploymentReleaseRepository,
+                                    DeploymentTargetContextService deploymentTargetContextService,
+                                    DeploymentReleaseEndpointService deploymentReleaseEndpointService,
+                                    DeploymentRuntimeAuthorityService runtimeAuthority,
                                     RuntimePublicTokenSigningService runtimePublicTokenSigningService,
                                     ObjectMapper objectMapper,
                                     PlatformPocProperties platformPocProperties) {
@@ -122,8 +125,10 @@ public class DeploymentPocChatService {
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.platformAuditService = platformAuditService;
-        this.platformSecretService = platformSecretService;
-        this.runtimePrivateAssertionSigningService = runtimePrivateAssertionSigningService;
+        this.deploymentReleaseRepository = deploymentReleaseRepository;
+        this.deploymentTargetContextService = deploymentTargetContextService;
+        this.deploymentReleaseEndpointService = deploymentReleaseEndpointService;
+        this.runtimeAuthority = runtimeAuthority;
         this.runtimePublicTokenSigningService = runtimePublicTokenSigningService;
         this.objectMapper = objectMapper;
         this.runtimeTimeout = platformPocProperties.runtimeTimeout();
@@ -226,15 +231,14 @@ public class DeploymentPocChatService {
 
         HttpResponse<String> runtimeResponse;
         try {
-            Map<String, String> authHeaders = runtimePrivateAuthHeaders(
+            RuntimeRequestAccess runtimeAccess = runtimePrivateAccess(
                 deployment,
-                runtimePrivateProxyIdentity(deployment),
                 List.of(
                     SCOPE_DEPLOYMENT_KNOWLEDGE_SPECIALIST,
                     SCOPE_DOCUMENT_VECTOR
                 )
             );
-            if (authHeaders.isEmpty()) {
+            if (runtimeAccess.headers().isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_REQUEST,
                     pocAuthPathUnavailableMessage(
@@ -245,12 +249,12 @@ public class DeploymentPocChatService {
             }
             runtimeResponse = sendRequest(
                 runtimeUri(
-                    deployment.getRuntimeBaseUrl(),
+                    runtimeAccess.runtimeBaseUrl(),
                     "/api/specialists/deployment-knowledge/query"
                 ),
                 "POST",
                 body,
-                authHeaders
+                runtimeAccess.headers()
             );
         } catch (ResponseStatusException ex) {
             throw ex;
@@ -612,18 +616,18 @@ public class DeploymentPocChatService {
                               List<String> grantedScopes,
                               Map<String, String> requestHeaders) {
         try {
-            Map<String, String> resolvedAuthHeaders = runtimeAuthHeaders(
+            RuntimeRequestAccess runtimeAccess = runtimeAccess(
                 deployment,
                 DeploymentPocAuthPath.defaultValue(authPath),
                 grantedScopes
             );
-            if (resolvedAuthHeaders.isEmpty()) {
+            if (runtimeAccess.headers().isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_REQUEST,
                     pocAuthPathUnavailableMessage(deployment, DeploymentPocAuthPath.defaultValue(authPath))
                 );
             }
-            Map<String, String> runtimeAuthHeaders = new LinkedHashMap<>(resolvedAuthHeaders);
+            Map<String, String> runtimeAuthHeaders = new LinkedHashMap<>(runtimeAccess.headers());
             if (requestHeaders != null) {
                 requestHeaders.forEach((name, value) -> {
                     if (StringUtils.hasText(name) && StringUtils.hasText(value)) {
@@ -632,7 +636,7 @@ public class DeploymentPocChatService {
                 });
             }
             HttpResponse<String> response = sendRequest(
-                runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery),
+                runtimeUri(runtimeAccess.runtimeBaseUrl(), pathWithQuery),
                 method,
                 body,
                 runtimeAuthHeaders
@@ -673,22 +677,23 @@ public class DeploymentPocChatService {
     private JsonNode sendAuthContextRequest(DeploymentEntity deployment,
                                             DeploymentPocAuthPath authPath) {
         try {
-            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(
+            RuntimeRequestAccess runtimeAccess = runtimeAccess(
                 deployment,
                 DeploymentPocAuthPath.defaultValue(authPath),
-                List.of()
+                DeploymentPocAuthPath.defaultValue(authPath).usesPublicRuntimeBearer()
+                    ? List.of() : List.of(SCOPE_CHAT_AUTH_CONTEXT)
             );
-            if (runtimeAuthHeaders.isEmpty()) {
+            if (runtimeAccess.headers().isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_REQUEST,
                     pocAuthPathUnavailableMessage(deployment, DeploymentPocAuthPath.defaultValue(authPath))
                 );
             }
             HttpResponse<String> response = sendRequest(
-                runtimeUri(deployment.getRuntimeBaseUrl(), "/api/chat/me/auth-context"),
+                runtimeUri(runtimeAccess.runtimeBaseUrl(), "/api/chat/me/auth-context"),
                 "GET",
                 null,
-                runtimeAuthHeaders
+                runtimeAccess.headers()
             );
             if (response.statusCode() == 404) {
                 throw new ResponseStatusException(
@@ -1305,26 +1310,14 @@ public class DeploymentPocChatService {
         return "platform-poc-" + deploymentId + "-" + shortSha(actorSource);
     }
 
-    private RuntimeAuthIdentity runtimePrivateProxyIdentity(DeploymentEntity deployment) {
+    private String privatePocSessionId(DeploymentEntity deployment) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        String subjectId = principal != null && StringUtils.hasText(principal.actorId())
-            ? principal.actorId().trim()
-            : actorKey(deployment.getId());
-        String subjectType = principal == null ? "SYSTEM_PROCESS" : "INTERNAL_PLATFORM_USER";
-        String issuer = principal == null
-            ? "platform-poc:SYSTEM"
-            : "platform-poc:" + normalizeIdentityValue(principal.authenticationMode(), "SESSION");
-        String sessionSeed = subjectId
-            + "|" + deployment.getId()
-            + "|" + (principal == null ? "SYSTEM" : normalizeIdentityValue(principal.authenticationMode(), "SESSION"));
-        return new RuntimeAuthIdentity(
-            subjectId,
-            subjectType,
-            "PLATFORM_PROXY_SESSION",
-            "PLATFORM_PROXY",
-            "platform-poc-" + deployment.getId() + "-" + shortSha(sessionSeed),
-            issuer
-        );
+        if (principal == null || !StringUtils.hasText(principal.actorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An authenticated Platform principal is required for POC chat.");
+        }
+        String sessionSeed = principal.actorId().trim() + "|" + deployment.getId() + "|"
+            + normalizeIdentityValue(principal.authenticationMode(), "SESSION");
+        return "platform-poc-" + deployment.getId() + "-" + shortSha(sessionSeed);
     }
 
     private RuntimeAuthIdentity publicAuthenticatedIdentity(DeploymentEntity deployment) {
@@ -1362,46 +1355,69 @@ public class DeploymentPocChatService {
         );
     }
 
-    private Map<String, String> runtimeAuthHeaders(DeploymentEntity deployment,
-                                                   DeploymentPocAuthPath authPath,
-                                                   List<String> grantedScopes) {
+    private RuntimeRequestAccess runtimeAccess(DeploymentEntity deployment,
+                                               DeploymentPocAuthPath authPath,
+                                               List<String> grantedScopes) {
         if (DeploymentPocAuthPath.defaultValue(authPath).usesPublicRuntimeBearer()) {
-            return runtimePublicAuthHeaders(deployment, DeploymentPocAuthPath.defaultValue(authPath), grantedScopes);
+            return new RuntimeRequestAccess(deployment.getRuntimeBaseUrl(),
+                runtimePublicAuthHeaders(deployment, DeploymentPocAuthPath.defaultValue(authPath), grantedScopes));
         }
-        return runtimePrivateAuthHeaders(deployment, runtimePrivateProxyIdentity(deployment), grantedScopes);
+        return runtimePrivateAccess(deployment, grantedScopes);
     }
 
-    private Map<String, String> runtimePrivateAuthHeaders(DeploymentEntity deployment,
-                                                          RuntimeAuthIdentity runtimeIdentity,
-                                                          List<String> grantedScopes) {
-        String trustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
-        String privateAssertionSigningKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME));
-        if (!StringUtils.hasText(trustedBackendApiKey)
-            || !StringUtils.hasText(privateAssertionSigningKey)
-            || runtimePrivateAssertionSigningService == null
-            || !runtimePrivateAssertionSigningService.isConfigured()) {
-            return Map.of();
+    private RuntimeRequestAccess runtimePrivateAccess(DeploymentEntity deployment, List<String> grantedScopes) {
+        // Discover only the serving target, then let the shared resolver validate its resource and endpoint.
+        Map<String, DeploymentReleaseEntity> currentByTarget = new LinkedHashMap<>();
+        for (DeploymentReleaseEntity release : deploymentReleaseRepository
+            .findByDeploymentIdOrderByCreatedAtDesc(deployment.getId())) {
+            if ("ACTIVE".equals(release.getProvisioningStatus())) {
+                currentByTarget.putIfAbsent(release.getTargetProfileId(), release);
+            }
         }
-        String privateAssertion = runtimePrivateAssertionSigningService.toAuthorizationHeaderValue(
-            new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
-                runtimeIdentity.subjectId(),
-                runtimeIdentity.subjectType(),
-                runtimeIdentity.authMode(),
-                runtimeIdentity.callerType(),
-                runtimeIdentity.sessionId(),
-                deployment.getId(),
-                trimToNull(deployment.getCustomerId()),
-                trimToNull(deployment.getTenantId()),
-                runtimeIdentity.issuer(),
-                java.time.Instant.now().plus(Duration.ofMinutes(5)),
-                List.of(deployment.getId()),
-                normalizeScopes(grantedScopes)
-            )
+        List<DeploymentReleaseEntity> matches = currentByTarget.values().stream()
+            .filter(release -> Objects.equals(deployment.getActiveVersionId(), release.getDeploymentVersionId()))
+            .filter(release -> sameRuntimeEndpoint(deployment.getRuntimeBaseUrl(),
+                deploymentReleaseEndpointService.runtimeBaseUrl(release)))
+            .toList();
+        if (matches.size() != 1) {
+            throw new ResponseStatusException(CONFLICT,
+                "POC runtime requires one unambiguous current target release matching the deployed version and endpoint.");
+        }
+        DeploymentReleaseEntity release = matches.get(0);
+        if (!StringUtils.hasText(release.getRuntimeAuthoritySnapshotId())
+            || !StringUtils.hasText(release.getRuntimeAuthorityFingerprint())) {
+            throw new ResponseStatusException(CONFLICT, "POC runtime release lacks frozen target authority.");
+        }
+        DeploymentTargetContextService.Context context = deploymentTargetContextService.resolve(
+            deployment.getId(), release.getTargetProfileId(), release.getId(), true);
+        if (!Objects.equals(deployment.getActiveVersionId(), context.version().getId())
+            || !sameRuntimeEndpoint(deployment.getRuntimeBaseUrl(), context.runtimeBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "POC runtime target changed; reload the deployment before retrying.");
+        }
+        return new RuntimeRequestAccess(
+            context.runtimeBaseUrl(),
+            runtimeAuthority.issuePlatformProxyHeaders(deployment.getId(), context.target().getId(),
+                context.release().getId(), context.release().getRuntimeAuthorityFingerprint(),
+                privatePocSessionId(deployment), normalizeScopes(grantedScopes), Duration.ofMinutes(5))
         );
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put(RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER, trustedBackendApiKey);
-        headers.put(RUNTIME_PRIVATE_AUTHORIZATION_HEADER, privateAssertion);
-        return Map.copyOf(headers);
+    }
+
+    private boolean sameRuntimeEndpoint(String left, String right) {
+        return normalizedRuntimeEndpoint(left).equals(normalizedRuntimeEndpoint(right));
+    }
+
+    private URI normalizedRuntimeEndpoint(String value) {
+        try {
+            String normalized = value == null ? "" : value.trim();
+            if (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
+            URI uri = URI.create(normalized);
+            if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))
+                || !StringUtils.hasText(uri.getHost()) || uri.getUserInfo() != null
+                || uri.getQuery() != null || uri.getFragment() != null) throw new IllegalArgumentException();
+            return uri;
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(CONFLICT, "POC runtime endpoint evidence is invalid.");
+        }
     }
 
     private Map<String, String> runtimePublicAuthHeaders(DeploymentEntity deployment,
@@ -1520,7 +1536,7 @@ public class DeploymentPocChatService {
 
     private String secureRuntimeAuthRequiredMessage(String deploymentId) {
         return "Secure POC runtime auth is not configured for deployment '" + deploymentId
-            + "'. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment onto the verified /api/chat/me/* runtime surface.";
+            + "'. Reconcile the current target release's frozen runtime authority and verified /api/chat/me/* runtime surface.";
     }
 
     private String publicRuntimeAuthNotConfiguredMessage(String deploymentId,
@@ -1675,6 +1691,13 @@ public class DeploymentPocChatService {
     }
 
     private record QueryPayload(ObjectNode body, ObjectNode promptPreview, String promptPreviewSource) {}
+
+    private record RuntimeRequestAccess(String runtimeBaseUrl, Map<String, String> headers) {
+        @Override
+        public String toString() {
+            return "RuntimeRequestAccess[headers=REDACTED]";
+        }
+    }
 
     private record RuntimeQueryTarget(
         String path,

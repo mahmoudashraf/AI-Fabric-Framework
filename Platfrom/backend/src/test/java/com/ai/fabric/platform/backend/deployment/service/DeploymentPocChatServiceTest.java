@@ -2,7 +2,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformPocProperties;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
@@ -11,10 +14,13 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +42,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,10 +55,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 
 class DeploymentPocChatServiceTest {
 
+    private static final String PRIVATE_POC_SESSION = "platform-poc-dep-123-94be86c6eab765a939cca815";
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @AfterEach
@@ -195,9 +210,9 @@ class DeploymentPocChatServiceTest {
             assertThat(assertion).containsEntry("deploymentId", "dep-123");
             assertThat(assertion).containsEntry("customerId", "cus-123");
             assertThat(assertion).containsEntry("tenantId", "ten-123");
-            assertThat(assertion).containsEntry("iss", "platform-poc:SESSION");
-            assertThat(assertion).containsEntry("aud", "dep-123");
-            assertThat(assertion.get("sessionId")).asString().startsWith("platform-poc-dep-123-");
+            assertThat(assertion).containsEntry("iss", "platform-target:authority-123:1");
+            assertThat(assertion).containsEntry("aud", "runtime-private:authority-123:1");
+            assertThat(assertion.get("sessionId")).isEqualTo(PRIVATE_POC_SESSION);
             assertThat(assertion.get("scopes")).isEqualTo(List.of("chat:query"));
             assertThat(assertion).containsKey("exp");
             assertThat(response.success()).isTrue();
@@ -1129,7 +1144,7 @@ class DeploymentPocChatServiceTest {
                           "tenantId": "ten-123",
                           "issuer": "platform-poc:SESSION",
                           "expiresAt": "2026-04-07T12:15:00Z",
-                          "grantedScopes": [],
+                          "grantedScopes": ["chat:auth-context"],
                           "warnings": []
                         }
                         """
@@ -1154,7 +1169,7 @@ class DeploymentPocChatServiceTest {
             assertThat(response.subjectId()).isEqualTo("operator@example.com");
             assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
-            assertThat(response.grantedScopes()).isEmpty();
+            assertThat(response.grantedScopes()).containsExactly("chat:auth-context");
             assertThat(response.warnings()).isEmpty();
         } finally {
             server.stop(0);
@@ -1314,6 +1329,197 @@ class DeploymentPocChatServiceTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"false,NONE", "false,REQUEST", "false,SESSION", "true,NONE", "true,REQUEST", "true,SESSION"})
+    void managedQueryReusesExactAuthorityHeadersAndPreviewScopes(boolean canonical, String previewSource) throws Exception {
+        AtomicReference<String> capturedKey = new AtomicReference<>();
+        AtomicReference<String> capturedAuthorization = new AtomicReference<>();
+        AtomicReference<String> capturedIdempotency = new AtomicReference<>();
+        AtomicReference<String> capturedPath = new AtomicReference<>();
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/", exchange -> {
+                capturedKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                capturedAuthorization.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
+                capturedIdempotency.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+                capturedPath.set(exchange.getRequestURI().getPath());
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(exchange, 200, "{\"success\":true,\"result\":{\"answer\":\"Approved answer\"}}");
+            });
+            server.start();
+            ObjectNode preview = objectMapper.createObjectNode().put("answerGenerationPrompt", "Explicit breadth guidance");
+            PocFixture fixture = fixtureFor(server, "SESSION".equals(previewSource) ? preview : null,
+                "unused-test-key", null, false, canonical);
+            List<String> scopes = canonical ? List.of("chat:query", "chat:messages") : List.of("chat:query");
+            if (!"NONE".equals(previewSource)) {
+                scopes = canonical ? List.of("chat:query", "chat:messages", "chat:prompt-preview")
+                    : List.of("chat:query", "chat:prompt-preview");
+            }
+            Map<String, String> issued = Map.of("X-AIFABRIC-RUNTIME-API-KEY", "exact-target-key",
+                "X-AIFABRIC-RUNTIME-AUTHORIZATION", "Bearer exact-target-assertion");
+            doReturn(issued).when(fixture.authority()).issuePlatformProxyHeaders("dep-123", "target-123", "rel-123",
+                "fingerprint-123", PRIVATE_POC_SESSION, scopes, Duration.ofMinutes(5));
+            authenticateOperator();
+
+            assertThat(fixture.service().query("dep-123", new DeploymentPocChatQueryRequest("Question", "chat-exact",
+                null, null, "REQUEST".equals(previewSource) ? preview : null, null)).success()).isTrue();
+
+            assertThat(capturedKey.get()).isEqualTo(issued.get("X-AIFABRIC-RUNTIME-API-KEY"));
+            assertThat(capturedAuthorization.get()).isEqualTo(issued.get("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
+            assertThat(capturedPath.get()).isEqualTo(canonical
+                ? "/api/chat/me/conversations/chat-exact/messages" : "/api/chat/me/query");
+            if (canonical) assertThat(capturedIdempotency.get()).startsWith("poc-message-");
+            JsonNode body = objectMapper.readTree(capturedBody.get());
+            assertThat(body.has("promptPreview")).isEqualTo(!"NONE".equals(previewSource));
+            if (body.has("promptPreview")) assertThat(body.path("promptPreview")).isEqualTo(preview);
+            verify(fixture.contexts()).resolve("dep-123", "target-123", "rel-123", true);
+            verify(fixture.authority()).issuePlatformProxyHeaders("dep-123", "target-123", "rel-123",
+                "fingerprint-123", PRIVATE_POC_SESSION, scopes, Duration.ofMinutes(5));
+            verifyNoInteractions(fixture.secrets());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"MISSING_RELEASE", "MISSING_AUTHORITY", "STALE_VERSION", "AMBIGUOUS_TARGET", "SUPERSEDED_RELEASE", "ENDPOINT_DRIFT", "RESOLVER_REJECTS", "AUTHORITY_REJECTS"})
+    void managedPrivateAuthFailsWithoutGlobalFallbackOrRuntimeDispatch(String boundary) throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/", exchange -> {
+                requests.incrementAndGet();
+                writeJson(exchange, 200, "{\"success\":true}");
+            });
+            server.start();
+            PocFixture fixture = fixtureFor(server, null, "available-target-key", null, false, true);
+            switch (boundary) {
+                case "MISSING_RELEASE" -> when(fixture.releases().findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+                    .thenReturn(List.of());
+                case "MISSING_AUTHORITY" -> fixture.release().setRuntimeAuthorityFingerprint(null);
+                case "STALE_VERSION" -> fixture.release().setDeploymentVersionId("ver-old");
+                case "AMBIGUOUS_TARGET" -> when(fixture.releases().findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+                    .thenReturn(List.of(runtimeRelease("rel-other", "target-other", "ver-123", fixture.deployment().getRuntimeBaseUrl()),
+                        fixture.release()));
+                case "SUPERSEDED_RELEASE" -> when(fixture.releases().findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+                    .thenReturn(List.of(runtimeRelease("rel-newer", "target-123", "ver-newer", fixture.deployment().getRuntimeBaseUrl()),
+                        fixture.release()));
+                case "ENDPOINT_DRIFT" -> when(fixture.contexts().resolve("dep-123", "target-123", "rel-123", true))
+                    .thenReturn(new DeploymentTargetContextService.Context(fixture.deployment(), fixture.context().target(),
+                        fixture.release(), fixture.version(), "http://unrelated.invalid", null));
+                case "RESOLVER_REJECTS" -> when(fixture.contexts().resolve("dep-123", "target-123", "rel-123", true))
+                    .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Resource generation changed"));
+                case "AUTHORITY_REJECTS" -> doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Target authority drifted"))
+                    .when(fixture.authority()).issuePlatformProxyHeaders(eq("dep-123"), eq("target-123"),
+                        eq("rel-123"), eq("fingerprint-123"), eq(PRIVATE_POC_SESSION), anyList(), eq(Duration.ofMinutes(5)));
+                default -> throw new AssertionError(boundary);
+            }
+            authenticateOperator();
+
+            assertThatThrownBy(() -> fixture.service().query("dep-123",
+                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null, null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+
+            assertThat(requests.get()).isZero();
+            verifyNoInteractions(fixture.secrets());
+            if (!"AUTHORITY_REJECTS".equals(boundary)) verifyNoInteractions(fixture.authority());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void managedQueryUsesServingReleaseNotNewerQueuedOrOtherTargetRelease() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> writeJson(exchange, 200, "{\"success\":true}"));
+            server.start();
+            PocFixture fixture = fixtureFor(server, null, "target-key", null, false, false);
+            DeploymentReleaseEntity queued = runtimeRelease("rel-queued", "target-123", "ver-next", "http://future.invalid");
+            queued.setProvisioningStatus("QUEUED");
+            DeploymentReleaseEntity other = runtimeRelease("rel-other", "target-other", "ver-123", "http://other.invalid");
+            when(fixture.releases().findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+                .thenReturn(List.of(queued, other, fixture.release()));
+            authenticateOperator();
+
+            assertThat(fixture.service().query("dep-123",
+                new DeploymentPocChatQueryRequest("Use serving runtime", null, null, null, null, null)).success()).isTrue();
+
+            verify(fixture.contexts()).resolve("dep-123", "target-123", "rel-123", true);
+            verifyNoInteractions(fixture.secrets());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void managedAuthContextSendsOnlyExactAuthContextScopeAndStableSession() throws Exception {
+        AtomicReference<Map<String, Object>> capturedClaims = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/auth-context", exchange -> {
+                Map<String, Object> claims = decodeAssertionPayload(
+                    exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
+                capturedClaims.set(claims);
+                ObjectNode response = objectMapper.createObjectNode();
+                response.set("grantedScopes", objectMapper.valueToTree(claims.get("scopes")));
+                writeJson(exchange, 200, response.toString());
+            });
+            server.start();
+            PocFixture fixture = fixtureFor(server, null, "target-key", null, false, true);
+            authenticateOperator();
+
+            assertThat(fixture.service().getRuntimeAuthContext("dep-123", null).grantedScopes())
+                .containsExactly("chat:auth-context");
+            assertThat(capturedClaims.get()).containsEntry("sub", "operator@example.com")
+                .containsEntry("sessionId", PRIVATE_POC_SESSION)
+                .containsEntry("scopes", List.of("chat:auth-context"));
+
+            verify(fixture.authority()).issuePlatformProxyHeaders("dep-123", "target-123", "rel-123",
+                "fingerprint-123", PRIVATE_POC_SESSION, List.of("chat:auth-context"), Duration.ofMinutes(5));
+            verifyNoInteractions(fixture.secrets());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void privatePocRetainsCustomerSubjectAndPriorSessionAcrossPromptPreview() throws Exception {
+        List<Map<String, Object>> claims = new ArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                claims.add(decodeAssertionPayload(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION")));
+                writeJson(exchange, 200, "{\"success\":true}");
+            });
+            server.start();
+            PocFixture fixture = fixtureFor(server, null, "target-key", null, false, false);
+            PlatformPrincipal principal = new PlatformPrincipal("acme-owner@example.test", PlatformRole.CUSTOMER_ADMIN,
+                "Acme Owner", "SUPABASE", "customer-user-123");
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null,
+                List.of(new SimpleGrantedAuthority(principal.role().authority()))));
+
+            fixture.service().query("dep-123", new DeploymentPocChatQueryRequest("Ordinary query", "existing-conversation",
+                null, null, null, null));
+            fixture.service().query("dep-123", new DeploymentPocChatQueryRequest("Preview query", "existing-conversation",
+                null, null, objectMapper.createObjectNode().put("answerGenerationPrompt", "Configured preview guidance"), null));
+
+            assertThat(claims).hasSize(2).allSatisfy(value -> assertThat(value)
+                .containsEntry("sub", principal.actorId())
+                .containsEntry("subjectType", "INTERNAL_PLATFORM_USER")
+                .containsEntry("authMode", "PLATFORM_PROXY_SESSION")
+                .containsEntry("callerType", "PLATFORM_PROXY")
+                .containsEntry("sessionId", "platform-poc-dep-123-b77b8ccd7d42bce223e55240"));
+            assertThat(claims.get(0).get("scopes")).isEqualTo(List.of("chat:query"));
+            assertThat(claims.get(1).get("scopes")).isEqualTo(List.of("chat:query", "chat:prompt-preview"));
+            verifyNoInteractions(fixture.secrets());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {
@@ -1348,12 +1554,25 @@ class DeploymentPocChatServiceTest {
                                                 String defaultConversationMode,
                                                 boolean conversationHandoverEnabled,
                                                 boolean canonicalConversationsEnabled) {
+        return fixtureFor(server, sessionPromptPreview, runtimeTrustedBackendApiKey, defaultConversationMode,
+            conversationHandoverEnabled, canonicalConversationsEnabled).service();
+    }
+
+    private PocFixture fixtureFor(HttpServer server,
+                                  JsonNode sessionPromptPreview,
+                                  String runtimeTrustedBackendApiKey,
+                                  String defaultConversationMode,
+                                  boolean conversationHandoverEnabled,
+                                  boolean canonicalConversationsEnabled) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
+        DeploymentTargetContextService contexts = mock(DeploymentTargetContextService.class);
+        DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
@@ -1363,6 +1582,7 @@ class DeploymentPocChatServiceTest {
         deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-123");
+        version.setDeploymentId("dep-123");
         version.setProviderConfigJson("{\"canonicalConversationsEnabled\":" + canonicalConversationsEnabled + "}");
         if (defaultConversationMode != null) {
             version.setShellConfigJson(
@@ -1395,26 +1615,43 @@ class DeploymentPocChatServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
-        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
-            .thenReturn(runtimeTrustedBackendApiKey);
-        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
-            .thenReturn(runtimeTrustedBackendApiKey == null ? null : "private-assertion-key");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"))
             .thenReturn("public-runtime-signing-key");
         when(deploymentPocPromptSessionService.effectivePromptPreview("dep-123"))
             .thenReturn(sessionPromptPreview == null ? null : (ObjectNode) sessionPromptPreview);
 
-        return new DeploymentPocChatService(
+        DeploymentReleaseEntity release = runtimeRelease("rel-123", "target-123", "ver-123", deployment.getRuntimeBaseUrl());
+        when(releases.findByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(List.of(release));
+        DeploymentTargetProfileEntity target = new DeploymentTargetProfileEntity();
+        target.setId("target-123");
+        DeploymentTargetContextService.Context context = new DeploymentTargetContextService.Context(
+            deployment, target, release, version, deployment.getRuntimeBaseUrl(), null);
+        when(contexts.resolve("dep-123", "target-123", "rel-123", true)).thenReturn(context);
+        when(authority.issuePlatformProxyHeaders(eq("dep-123"), eq("target-123"), eq("rel-123"),
+            eq("fingerprint-123"), org.mockito.ArgumentMatchers.anyString(), anyList(), eq(Duration.ofMinutes(5)))).thenAnswer(invocation -> {
+                if (runtimeTrustedBackendApiKey == null) return Map.of();
+                PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+                var claims = new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
+                    principal.actorId(), "INTERNAL_PLATFORM_USER", "PLATFORM_PROXY_SESSION", "PLATFORM_PROXY",
+                    invocation.getArgument(4), "dep-123", "cus-123", "ten-123",
+                    "platform-target:authority-123:1", Instant.now().plusSeconds(300),
+                    List.of("runtime-private:authority-123:1"), invocation.getArgument(5));
+                String token = new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper)
+                    .issueAssertionWithSigningKey(claims, "target-private-signing-key");
+                return Map.of("X-AIFABRIC-RUNTIME-API-KEY", runtimeTrustedBackendApiKey,
+                    "X-AIFABRIC-RUNTIME-AUTHORIZATION", "Bearer " + token);
+            });
+
+        DeploymentPocChatService service = new DeploymentPocChatService(
             deploymentRepository,
             deploymentVersionRepository,
             deploymentAccessService,
             deploymentPocPromptSessionService,
             platformAuditService,
-            platformSecretService,
-            new com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService(
-                platformSecretService,
-                objectMapper
-            ),
+            releases,
+            contexts,
+            new DeploymentReleaseEndpointService(objectMapper),
+            authority,
             new RuntimePublicTokenSigningService(
                 platformSecretService,
                 objectMapper
@@ -1422,7 +1659,29 @@ class DeploymentPocChatServiceTest {
             objectMapper,
             new PlatformPocProperties(Duration.ofSeconds(60))
         );
+        return new PocFixture(service, deployment, release, version, context, releases, contexts, authority,
+            platformSecretService);
     }
+
+    private DeploymentReleaseEntity runtimeRelease(String id, String targetId, String versionId, String baseUrl) {
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId(id);
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId(versionId);
+        release.setTargetProfileId(targetId);
+        release.setProvisioningStatus("ACTIVE");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setRuntimeAuthoritySnapshotId("snapshot-123");
+        release.setRuntimeAuthorityFingerprint("fingerprint-123");
+        release.setProvisioningDetailsJson(objectMapper.createObjectNode().put("runtimeBaseUrl", baseUrl).toString());
+        return release;
+    }
+
+    private record PocFixture(DeploymentPocChatService service, DeploymentEntity deployment,
+                              DeploymentReleaseEntity release, DeploymentVersionEntity version,
+                              DeploymentTargetContextService.Context context, DeploymentReleaseRepository releases,
+                              DeploymentTargetContextService contexts, DeploymentRuntimeAuthorityService authority,
+                              PlatformSecretService secrets) { }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> decodeAssertionPayload(String authorizationHeader) throws IOException {
