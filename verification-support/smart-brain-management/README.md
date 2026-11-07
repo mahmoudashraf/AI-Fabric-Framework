@@ -20,6 +20,9 @@ permission, infrastructure or AI configuration change is included.
 - Only active, ready Engage apps assigned to the exact selected release count
   as connected customer access. Missing/failed reads do not invent a next task.
 - Failed updates, required verification and unapplied draft changes stay visible.
+- Blocked preflight and in-progress provisioning/verification point to Updates,
+  not a second apply. Embedded-only apps point to their website installation;
+  only an active, ready standalone app offers the standalone Try preview.
 - Updates retains the filtered existing connection, assignment, publish, apply,
   verification, promotion, activation and rollback commands. Nothing is silently
   published/applied/activated by visiting this page.
@@ -28,7 +31,7 @@ permission, infrastructure or AI configuration change is included.
 
 ## Qualification
 
-**119 focused checks passed**, including the nine new management tests and
+**121 focused checks passed**, including the eleven new management tests and
 existing Brain, setup, account, collaboration, authentication, navigation and
 UI-profile regressions. `npm run build` passed. Existing runtime-config script
 and large-bundle warnings remain unsuppressed.

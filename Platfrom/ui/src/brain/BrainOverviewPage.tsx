@@ -35,7 +35,7 @@ export function BrainOverviewPage() {
   ]
   return <>
     <BrainPageHeader title="Your AI, connected to your business" description={selectedDeploymentSummary?.name}
-      action={<Button component={RouterLink} to={href(state.verified ? 'try' : 'updates')} variant="outlined" endIcon={<ArrowForwardRounded />} sx={{ flexShrink: 0 }}>{state.verified ? 'Try your AI' : 'Review setup'}</Button>} />
+      action={<Button component={RouterLink} to={href(state.verified ? state.standaloneApps.length ? 'try' : 'channels' : 'updates')} variant="outlined" endIcon={<ArrowForwardRounded />} sx={{ flexShrink: 0 }}>{state.verified ? state.standaloneApps.length ? 'Try your AI' : 'View channels' : 'Review setup'}</Button>} />
     <Box sx={{ ...brainPaneSx, flex: 1 }}>
       {unavailable && <Alert severity="error" sx={{ mb: 2 }}>Some status could not be loaded. {releases.error?.message ?? apps.error?.message}<Button onClick={() => { void releases.refetch(); if (apps.customerId) void apps.refetch() }}>Retry</Button></Alert>}
       {!workspaceLoading && !workspace && <Alert severity="warning" sx={{ mb: 2 }}>Saved configuration could not be loaded. Reopen this Smart Brain to try again.</Alert>}

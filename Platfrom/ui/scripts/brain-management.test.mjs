@@ -19,7 +19,7 @@ async function load(path, dependencies = {}) {
 const navigation = await load('../src/brain/brainNavigation.ts')
 const model = await load('../src/brain/brainOverview.ts')
 const release = { id: 'release-stage', deploymentId: 'brain', targetProfileId: 'stage', deploymentVersionId: 'v1', status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED' }
-const app = { deploymentId: 'brain', releaseId: release.id, status: 'ACTIVE', ready: true }
+const app = { deploymentId: 'brain', releaseId: release.id, status: 'ACTIVE', ready: true, deliveryMode: 'standalone' }
 const workspace = { lifecycle: { savedDraftMatchesLatestPublished: true }, latestVersion: { id: 'v1' } }
 const input = { workspace, release, latestRelease: release, apps: [app], loading: false, unavailable: false, hasTarget: true }
 const state = extra => model.brainOverviewState({ ...input, ...extra })
@@ -48,6 +48,27 @@ test('draft and verification are not presented as a working customer experience'
 
 test('unknown, loading or failed reads never invent a next action', () => {
   for (const extra of [{ loading: true }, { unavailable: true }, { hasTarget: false }, { workspace: null }]) assert.equal(state(extra).next, null)
+})
+
+test('blocked and in-progress updates take priority over setup or a working older experience', () => {
+  assert.equal(state({ latestRelease: { ...release, status: 'PRE_APPLY_BLOCKED' } }).next.label, 'Review update')
+  for (const progress of [
+    ...['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].map(status => ({ ...release, status })),
+    ...['QUEUED', 'RUNNING', 'AWAITING_CONFIRMATION'].map(provisioningStatus => ({ ...release, provisioningStatus })),
+    { ...release, verificationStatus: 'RUNNING' },
+  ]) {
+    assert.equal(state({ latestRelease: progress }).next.label, 'View progress')
+    assert.equal(state({ release: null, latestRelease: progress }).next.label, 'View progress')
+  }
+})
+
+test('embedded-only apps direct users to website installation, not an unavailable standalone preview', () => {
+  const embedded = state({ apps: [{ ...app, deliveryMode: 'embedded' }] })
+  assert.equal(embedded.activeApps.length, 1)
+  assert.equal(embedded.standaloneApps.length, 0)
+  assert.equal(embedded.next.section, 'channels')
+  assert.equal(embedded.next.label, 'View website installation')
+  assert.equal(state({ apps: [{ ...app, deliveryMode: 'embedded' }, app] }).next.section, 'try')
 })
 
 async function redirectFixture({ search = '', portfolio = { data: [{ deploymentId: 'brain' }] }, releases = { data: [] } } = {}) {
