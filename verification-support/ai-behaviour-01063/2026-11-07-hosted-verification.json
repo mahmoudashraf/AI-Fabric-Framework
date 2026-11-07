@@ -1,0 +1,255 @@
+{
+  "at": "2026-11-07T06:40:21.617Z",
+  "scope": "010.63 section 4; closer removal and domain-neutral AI behaviour presets",
+  "status": "VERIFIED_WITH_RECORDED_QUALITY_LIMITATIONS",
+  "source": {
+    "framework": "218730e5b18343576655fbd7108d63b4135f0cfc",
+    "frameworkVersion": "0.8.46",
+    "runtime": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+    "backend": "baf6ea3328a1ef72d83d01552ffbc02da1582105",
+    "console": "baf6ea3328a1ef72d83d01552ffbc02da1582105"
+  },
+  "releaseChecks": {
+    "centralWorkflow": 42341190539,
+    "runtimeImageWorkflow": 42343662497,
+    "runtimeImageTests": 609,
+    "centralOnlyConsumerTests": 68,
+    "frameworkJarCount": 20,
+    "finalCoreWorkflow": 42347245959,
+    "additionalAuthAndCallerTests": 116,
+    "finalRuntimeRegressionWorkflow": 42347246040
+  },
+  "coreContainers": [
+    {
+      "environment": "staging",
+      "kind": "backend",
+      "name": "/aa3dylvh4stfeg0ersfzdjjm-063344804928",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-backend:baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "revision": "baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "migration": "235:true"
+    },
+    {
+      "environment": "staging",
+      "kind": "ui",
+      "name": "/u67gepsowf7oo90dwjdx018r-063526821473",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui:baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "revision": "baf6ea3328a1ef72d83d01552ffbc02da1582105"
+    },
+    {
+      "environment": "production",
+      "kind": "backend",
+      "name": "/sbdv2pkkqrbsy9m59034hb5j-063642837267",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-backend:baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "revision": "baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "migration": "235:true"
+    },
+    {
+      "environment": "production",
+      "kind": "ui",
+      "name": "/a6fz2ncuzzulg6lrzzwrjshu-063753842981",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui:baf6ea3328a1ef72d83d01552ffbc02da1582105",
+      "revision": "baf6ea3328a1ef72d83d01552ffbc02da1582105"
+    }
+  ],
+  "runtimeReleases": [
+    {
+      "controlPlane": "production",
+      "environment": "staging",
+      "deploymentId": "dep-3c4dbe4f",
+      "versionId": "ver-5557856a",
+      "releaseId": "rel-c7415db7",
+      "artifactId": "dsa-34ef8a31",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    },
+    {
+      "controlPlane": "production",
+      "environment": "staging",
+      "deploymentId": "dep-79af290c",
+      "versionId": "ver-18864bc3",
+      "releaseId": "rel-ae47e09a",
+      "artifactId": "dsa-34ef8a31",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    },
+    {
+      "controlPlane": "staging",
+      "environment": "staging",
+      "deploymentId": "dep-b9a09c0a",
+      "versionId": "ver-d7b42655",
+      "releaseId": "rel-600d63a3",
+      "artifactId": "dsa-4568f108",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    },
+    {
+      "controlPlane": "staging",
+      "environment": "staging",
+      "deploymentId": "dep-a9d6d646",
+      "versionId": "ver-a7b6b55f",
+      "releaseId": "rel-5ca4039d",
+      "artifactId": "dsa-4568f108",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    },
+    {
+      "controlPlane": "production",
+      "environment": "production",
+      "deploymentId": "dep-3c4dbe4f",
+      "versionId": "ver-5557856a",
+      "releaseId": "rel-b329b925",
+      "artifactId": "dsa-34ef8a31",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    },
+    {
+      "controlPlane": "production",
+      "environment": "production",
+      "deploymentId": "dep-79af290c",
+      "versionId": "ver-18864bc3",
+      "releaseId": "rel-1f5533c5",
+      "artifactId": "dsa-34ef8a31",
+      "status": "APPLIED_VERIFIED",
+      "verification": "PASSED"
+    }
+  ],
+  "environmentRetirement": [
+    {
+      "at": "2026-11-07T06:17:18.901Z",
+      "environment": "staging",
+      "app": "l1x7v1rocjvaqin3bv3ftr0a",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    },
+    {
+      "at": "2026-11-07T06:20:28.045Z",
+      "environment": "staging",
+      "app": "dv6k2l6ylcue8i5uhiuj8yb2",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    },
+    {
+      "at": "2026-11-07T06:24:20.083Z",
+      "environment": "staging",
+      "app": "t13lod7vna43a9e9hgrbml3y",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    },
+    {
+      "at": "2026-11-07T06:27:50.300Z",
+      "environment": "staging",
+      "app": "m1b1egcayrsvia1wqckw59cb",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    },
+    {
+      "at": "2026-11-07T06:34:41.076Z",
+      "environment": "production",
+      "app": "od7j01d4woxshy2puf11u54d",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    },
+    {
+      "at": "2026-11-07T06:31:51.060Z",
+      "environment": "production",
+      "app": "dms30vacr6a3ni7lcvdxczex",
+      "source": "50d1b9ab5e615227169ddb9fc368e476840990ee",
+      "health": "healthy",
+      "obsoleteFlagAbsent": true,
+      "securityNotDisabled": true,
+      "allOtherDesiredEnvUnchanged": true
+    }
+  ],
+  "ui": {
+    "realLiveRoutes": true,
+    "profileGroups": 4,
+    "stagingSaveReopenCustomReapply": true,
+    "productionRead": true,
+    "customerOwnership": true,
+    "crossCustomerCompositionStatus": 404,
+    "freshTemplateDefaults": true,
+    "noInfrastructureCreatedByEditorTests": true
+  },
+  "promptPreview": {
+    "realPrivateCaller": true,
+    "appliedAndSevenStringPreview": true,
+    "providerOrRuntimePolicySimulationClaimed": false
+  },
+  "nextStepInteraction": {
+    "nativeButton": true,
+    "ordinaryMessageRoute": true,
+    "sameConversation": true,
+    "readOnlyQuerySucceeded": true
+  },
+  "handoverForm": {
+    "stagingAndProduction": true,
+    "uniqueFieldIds": true,
+    "correctTextEmailPhoneTypes": true,
+    "independentValues": true,
+    "configuredLimitsAndConsent": true,
+    "noHandoverSubmitted": true,
+    "requirednessQualification": "Local browser only; all live fixture fields are optional",
+    "widgetAsset": "f67a40e41aa0d383"
+  },
+  "actionSafety": {
+    "anonymousWriteDenied": true,
+    "missingTrustedSelectionNotBypassed": true,
+    "incompleteDraftCancelled": true,
+    "businessWriteExecuted": false,
+    "completedEnquiryOrFinalConfirmationClaimed": false
+  },
+  "quality": {
+    "method": "Manual review of real canonical anonymous multi-turn responses; no lexical semantic gates",
+    "baseline": "2 pass / 1 fail",
+    "advisoryStaging": "2 pass / 1 partial",
+    "limits": [
+      "Some same-turn suggestions repeat the current request",
+      "Hedged suitability reasoning may overinterpret marketing names"
+    ],
+    "webSearchAdded": false,
+    "hiddenSemanticRetryAdded": false
+  },
+  "exception": {
+    "broadFrameworkWorkflow": 42340697318,
+    "conclusion": "failure",
+    "knownIncidentRoomAuthorizationFailures": 14,
+    "hidden": false,
+    "changedInThisScope": false
+  },
+  "deferred": [
+    "Four separately audited narrative/fallback defects",
+    "Public web search",
+    "Result-aware recommendation generation redesign"
+  ],
+  "configurationPreservation": {
+    "customBasePrompts": true,
+    "credentialsAndBindings": true,
+    "existingSupportProfilesNotSilentlyChanged": true,
+    "schema": "235:true",
+    "vectorsCopied": false,
+    "newInfrastructure": false
+  }
+}

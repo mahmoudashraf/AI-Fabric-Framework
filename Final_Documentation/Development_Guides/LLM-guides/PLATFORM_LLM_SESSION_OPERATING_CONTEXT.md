@@ -130,12 +130,32 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.45` through:
+The current private product source target is AI Fabric `0.8.46` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.45`
-- Git tag `ai-fabric-framework-v0.8.45`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.46`
+- Git tag `ai-fabric-framework-v0.8.46`
 
-The bounded 0.8.45 patch removes keyword rejection of supplied action values
+The bounded 0.8.46 patch removes generic-closer phrase rewriting, its phrase
+lists and configuration properties entirely. Managed generation templates also
+honor explicitly configured answer breadth without relaxing business-fact or
+execution boundaries. No web research or other deferred semantic fallback fix
+is included. Source/tag 218730e5b18343576655fbd7108d63b4135f0cfc and Central
+workflow 42341190539 are published/successful. The isolated Central-only Java21
+consumer passed 68 focused tests and packaged all 20 framework JARs at 0.8.46;
+nested bytes match the Central cache and obsolete accessors are absent while
+PII/security accessors remain. The broad automatic framework build retains its
+known Incident Room authorization failures; it is not green. Section4 rollout
+and actual serving-image adoption are tracked in 01063 and CODEX_WORKING_CONTEXT;
+source pins and healthy core/UI containers alone do not prove runtime adoption.
+
+The 2026-11-07 section4 closeout verified all six managed runtime environments
+at the 0.8.46 serving digest recorded in 01063, then removed the dead closer
+setting from Coolify and the native processes. Core backend/Console source is
+baf6ea3328a1ef72d83d01552ffbc02da1582105; serving runtime source is
+50d1b9ab5e615227169ddb9fc368e476840990ee. These are distinct build identities,
+not a requirement that every image match the latest documentation commit.
+
+The prior bounded 0.8.45 patch removes keyword rejection of supplied action values
 and adds structured LLM cancellation of incomplete action drafts. Required
 types, trusted targets, ownership and final confirmation remain enforced.
 Framework affected-module tests and real-provider cases passed; the fresh
@@ -202,7 +222,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.45`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.46`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 

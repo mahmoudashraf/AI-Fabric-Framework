@@ -39,6 +39,14 @@ instructions makes it **Custom**. Reapplying a named preset restores only that
 profile. Separate customer base prompts and unrelated configuration remain
 preserved; review any warning about conflicting custom instructions.
 
+These instructions guide the model; they do not guarantee an exact length,
+sentence ending or identical response on every turn. Model text is not trimmed
+with phrase filters to make it appear compliant.
+
+Use the named **Off** preset to disable optional next steps. Custom next-step
+instructions guide the model; they are not a replacement for that explicit
+runtime policy.
+
 **Try a conversation** can compare the applied configuration with an editor-only
 prompt preview. The preview overrides only the seven managed prompt strings.
 It does not simulate new provider settings, runtime recommendation controls or

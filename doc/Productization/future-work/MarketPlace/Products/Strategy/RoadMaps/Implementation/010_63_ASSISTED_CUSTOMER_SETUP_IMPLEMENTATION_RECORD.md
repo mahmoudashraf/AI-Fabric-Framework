@@ -4,8 +4,10 @@
 
 2026-11-06: implement only the simplified account/setup workflow from
 [010.63](010_63_ASSISTED_CUSTOMER_SETUP_AI_BEHAVIOUR_AND_DEALERSHIP_OPTIMIZATION_PROPOSAL.md).
-The AI behaviour, suggestions, public research and dealership-quality proposals
-remain separate, unimplemented scope.
+At that initial checkpoint, the AI behaviour, suggestions, public research and
+dealership-quality proposals were separate, unimplemented scope. The owner's
+later section 4 approval and its implementation are recorded below; public
+research and the other audited semantic/fallback findings remain deferred.
 
 1. Create/select the intended customer workspace.
 2. Prepare its real customer administrator account.
@@ -238,7 +240,7 @@ Detailed release responses, backups, fixture credentials and screenshots are
 retained only in restricted private qualification files. Other 010.63 AI
 behaviour/research/suggestion proposals remain unimplemented.
 
-## 2026-11-07 Approved Section 4 Implementation In Progress
+## 2026-11-07 Approved Section 4 Implementation And Verification
 
 The owner replaced the default-off/advanced-toggle approach with complete
 removal of the framework closer matcher, its phrase lists and property. The
@@ -261,20 +263,153 @@ force-push lease, after replacement-source qualification.
   runtime profile/suggestion/controller qualification: 52 passed before the
   final released-library consumer rerun. Widget canonical transport checks and
   embedded build passed. These local checks are not hosted adoption evidence.
-- [ ] Qualify/publish the bounded framework removal and managed-prompt conflict
+- [x] Qualify/publish the bounded framework removal and managed-prompt conflict
   correction, then consume immutable released artifacts in runtime builds.
-- [ ] Publish replacement source/images, deploy, remove obsolete runtime
-  environment entries after adoption, and qualify live customer configuration,
-  preview, save/reopen, publication/apply and representative conversations.
+  Central workflow 42341190539 passed. Fresh Central-only Java21 consumer:
+  68 focused tests passed, all 20 framework JARs aligned to 0.8.46 with nested
+  bytes matching Central and closer accessors absent; security accessors remain.
+- [x] Publish replacement source using exact force-push lease against the old
+  376e72622 tip. Backend/widget source 10bfdc27f; UI polish fabdd6134;
+  runtime regression-fixture correction 50d1b9ab5. Core CIs 42342986880 and
+  42343261248 passed. Both hosts run healthy exact-source backend/UI containers,
+  schemas unchanged at 235:true. Runtime image CI 42343662497 passed all 609
+  runtime tests after a real-methods fixture was supplied its optional Spring
+  provider. This adds no production fallback or further framework change.
+- [x] Qualify actual staging UI review/cancel, save/reopen, Custom/reapply and
+  desktop/mobile controls without mocks. Real existing Supabase customer:
+  catalogue/compose/save round trip passed; cross-customer composition denied
+  with 404. Original prompts restored. Fresh configuration defaults passed,
+  never applied infrastructure, then exact fixture deleted normally. Production
+  read-only loaded/enabled editor and absent closer-toggle checks passed.
+- [x] Complete all four staging runtime releases with normal verification gates.
+  Existing Northfield received consultative/advisory/balanced/contextual;
+  neutral Acme received warm/grounded/balanced/contextual. Existing tuned Support
+  configurations received a library-only update, not a silent profile reset.
+- [x] Compare the same three real anonymous canonical-message turns before and
+  after adoption. Baseline: two pass, one fail; Advisory staging: two pass, one
+  partial. The mixed follow-up stopped asking for internal knowledge domains,
+  answered mileage, separated general motorway advice, and disclosed missing
+  specifications. Stock and delivery-policy facts remained correct. Residual
+  weak marketing-name inference and repeated suggestions remain visible. No
+  lexical quality gate, search-all expansion or hidden retry was added.
+- [x] Verify actual public workspace response-to-next-step rendering without
+  mocks; one canonical recommendation appeared as a native button. Clicking its
+  benign stock query submitted the exact query to the same conversation's
+  ordinary message route and completed another read-only search.
+- [x] Finish production adoption: Northfield rel-b329b925 / ver-5557856a and
+  Formal Support rel-1f5533c5 / ver-18864bc3 are APPLIED_VERIFIED / PASSED.
+  Existing consumer assignments were updated normally; app identities remained.
+- [x] Remove all 12 obsolete Coolify environment records across six runtimes,
+  only after each native image was upgraded. Normal same-image rolling updates
+  completed; all six processes are healthy with the flag absent, security not
+  disabled, and all other desired environment settings unchanged.
+- [x] Finish hosted applied/seven-string prompt-preview, handover-form and
+  bounded action-safety evidence; see final closeout below.
 
-No live completion is claimed by this checkpoint. Serving systems still run
-the earlier images with temporary default-off environment overrides until the
-new framework/runtime is qualified. Profile instructions are stored with the
+Approved section 4 is implemented and hosted-qualified on staging and
+production. Four staging and two production runtime releases passed. Temporary
+overrides were removed only after each native image was upgraded.
+Profile instructions are stored with the
 existing prompt JSON; no new database, provider-temperature rewrite, public
 research integration or semantic text-matching gate is introduced.
 
 Framework source/tag and GitHub release now exist at
 218730e5b18343576655fbd7108d63b4135f0cfc / ai-fabric-framework-v0.8.46.
 989 framework tests, 100 focused checks, 30-project compile, release guards and
-packaged-content inspection passed. Central workflow 42341190539 is running;
-do not treat this checkpoint as Central publication or live adoption.
+packaged-content inspection passed. Central publication succeeded. Broad
+Framework Build 42340697318 retains the known Incident Room authorization
+failures (14); provider-registry/vector jobs passed. This unrelated exception is
+not hidden or fixed here. The initial consumer/runtime CI attempts before Central
+availability failed resolution; another runtime attempt exposed six missing
+test-fixture provider errors. Those attempts remain recorded; the final image
+run is green, not a claim that every earlier attempt passed.
+
+Three existing integration sets rejected apply because their approved target
+fingerprints predated target-profile changes. Supported staff review and real
+customer binding APIs renewed the same endpoints/config/account scope and
+credentials for the new versions. Target-fingerprint changes were confirmed;
+no approval, ownership, credential or recipient check was bypassed.
+
+Actual preview qualification exposed a narrow existing caller defect: POC chose
+the legacy query route when canonical conversations were enabled independently
+of handover. Source bb73fb08f now chooses the canonical message route from the
+published provider flag before sending, retaining idempotency and exact scopes;
+there is no retry to another route. Seventy-two focused caller/compiler/access
+checks passed, CI 42345549889 passed, and both backends run that exact healthy
+image. A subsequent private-auth 401 was traced to obsolete global POC
+credentials; the runtime correctly required target-bound keys and its own
+issuer/audience. Source 0f92d9505 reuses the exact serving release, shared target
+resolver and authority service, retaining the actual principal, previous stable
+POC session, explicit scopes and endpoint ownership. No global fallback or
+broader accepted issuer was added. Auth-context requests only `chat:auth-context`.
+One narrow issuer overload preserves server-derived session continuity while
+the existing signature and all signing/access/expiry guards remain unchanged.
+Final focused verification: 107 backend tests (POC 40, prompt session 2, target
+context 22, authority 43) and 9 runtime auth/context checks passed. An unmatched
+private-assertion test selector contributed zero tests; no coverage claim is
+made for that selector.
+
+Live next-step button inspection also found an existing generic handover wire
+format mismatch: the manifest supplies `id` and lower-case field types, while
+the form expected `key` and upper-case types. Source baf6ea332 adds one formal
+adapter at the form boundary, preserving IDs, requiredness, consent, options and
+limits. Unsupported field contracts are visible and cannot silently submit
+incorrect contact data. Six unit and seven browser scenarios, TypeScript and
+widget build passed. Required-field behaviour is qualified locally; Northfield's
+live fields are optional. Final core-image/live qualification passed as recorded
+below. Runtime production code and framework artifacts are unchanged
+by these two caller/UI integration corrections.
+
+### Final Hosted Closeout
+
+Completed 2026-11-07, approximately 06:40 UTC:
+
+- Core source **baf6ea3328a1ef72d83d01552ffbc02da1582105**, CI
+  **42347245959** passed. Both backend and Console containers on both hosts are
+  healthy at that exact revision; backend schema remains **235:true**.
+- Staging backend/UI jobs: `g11g7w7oyr72yz9nd2fatdga` /
+  `j9fa47kjhdhbp8m08plhl8p9`. Production backend/UI jobs:
+  `q5ml24rkz69j2zx7yeb172pb` / `po2g4oqyurwk464xfqywazwl`; all finished.
+- Serving runtime source remains **50d1b9ab5e615227169ddb9fc368e476840990ee**,
+  digest `sha256:c1c28e3b8007981596d46a9b102c442d15f17cf20d9009545c8954c4ab47c5f7`.
+  All six release gates passed on framework **0.8.46**. Actual serving-image
+  inspection found all 20 framework JARs at 0.8.46; core/execution bytes match
+  Central. A helper initially counted two private accounting JARs as framework
+  JARs; the corrected classification distinguishes their private product version.
+- Additional auth regression CI **42347246040** passed after the final test-only
+  runtime change. No runtime production code changed, so its redundant newly
+  built image was not redeployed; the qualified serving digest remains above.
+- Real existing customer private auth-context passed with only its explicit
+  scope and stable POC session. Applied prompts and two seven-string previews
+  (Grounded/Brief and Exploratory/Detailed) returned successful model responses.
+  Preview does not simulate provider settings or a changed runtime Off policy.
+  Tone/length are guidance, not deterministic output guarantees. The neutral
+  Acme request correctly did not invent an official contact policy absent from
+  its evidence. One check during the rolling backend transition hit the old
+  caller; final checks ran after the exact deployment finished.
+- Fresh staging and production workspace forms load widget
+  `f67a40e41aa0d383`. Unique IDs, proper text/email/tel inputs, independent
+  values, 120/254/40 limits and configured email/phone consent passed. Both
+  panels closed without a handover submission; zero AI requests were used for
+  these form-only checks. Live fixture fields are optional; required-field
+  blocking is local browser evidence, not a claimed live required-field run.
+- Bounded production safety checks preserved the anonymous-write denial and
+  the trusted-selection boundary. A private POC request without a selected
+  attachment correctly remained unsubmitted; its incomplete draft cancelled.
+  No final enquiry confirmation or completed business write is claimed by this
+  sample. Existing focused runtime tests cover confirmation contracts.
+- Production's same three-turn conversation replay returned successful stock,
+  mileage/advice and policy answers. Manual assessment remains two pass / one
+  partial; suggestion relevance and weak suitability inference are documented,
+  not hidden by a filter or extra retry.
+- Final production Console desktop/mobile readback passed with the four selected
+  profiles, no closer toggle and no page errors. No new infrastructure/database,
+  model-temperature change, vector copying or template lock was introduced.
+
+Evidence: [hosted verification](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-07-hosted-verification.json),
+[Central consumer](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-07-central-consumer.json),
+[serving JAR identity](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-07-hosted-runtime-jars.json),
+[manual quality comparison](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-07-quality-comparison.md).
+The four other audited semantic/fallback defects and public web search remain
+deferred. The separately documented broad framework Incident Room failure is
+not relabelled green by these focused/product checks.

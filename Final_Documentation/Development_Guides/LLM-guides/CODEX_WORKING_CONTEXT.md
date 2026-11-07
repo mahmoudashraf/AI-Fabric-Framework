@@ -13027,3 +13027,73 @@ test is being called hosted acceptance. UI extraction remains last.
   customer products/runtime assignments unchanged. Other01063 proposals deferred.
 - 01063 execution record and redacted verification-support/assisted-customer-
   setup-01063/2026-11-06-hosted-verification.json contain release/evidence details.
+
+## 2026-11-07 AI Behaviour Section 4 Hosted Closeout
+
+- Owner approved complete closer matcher/property removal and all01063section4
+  profile work; other semantic rewriting/fallback findings and web search remain
+  deferred. Superseded8a49566c2/376e72622 dropped by guarded force-with-lease to
+  source10bfdc27f8bd76a642fda6d5c93b2e8e216f53e5. Unrelated work preserved,
+  local recovery ref codex/backup-closer-default-20261107 retains old tip.
+- Shared customer/staff AI behaviour editor uses the existing draft/version/
+  release mechanism. Tone4, breadth3, length3, next stepsOff/Contextual; generated
+  guidance/revision/provenance stored in prompt JSON. Custom/reset, diff review,
+  raw custom instruction retention and honest seven-string preview implemented.
+  Provider sampling and authorization unchanged; no new DB/schema/service.
+- Final Platform source tests146+41additional template/runtime-gate checks PASS;
+  runtime52 prior to released-library rerun; UI8unit+8browser, TypeScript/build,
+  widget transport/compound/typecheck/embedded build PASS. These are local
+  results, not hosted completion. Model text is not phrase-rewritten; canonical
+  optional next steps do not compete with structured pending interactions.
+- Framework0.8.46 source/tag/release218730e5b18343576655fbd7108d63b4135f0cfc;
+  Central42341190539 SUCCESS. 989affected-module tests,100focused checks,
+  30-project compile/packaging and68focused Central-only Java21 consumer tests
+  PASS. All20nested frameworkJARs matchCentral; obsoletecloseraccessors absent,
+  PII/securityaccessors preserved. Broad42340697318 stillfails14IncidentRoom
+  authorizationtests; provider/vectorjobsPASS. No unrelatedfix/greenclaim.
+- Finalcore backend+Console sourcebaf6ea3328a1ef72d83d01552ffbc02da1582105,
+  CI42347245959 SUCCESS, bothhosts4containershealthy exactsource. Schema235:true.
+  Stagejobs g11g7w7oyr72yz9nd2fatdga / j9fa47kjhdhbp8m08plhl8p9;
+  prodjobs q5ml24rkz69j2zx7yeb172pb / po2g4oqyurwk464xfqywazwl finished.
+  Earlier10bfd/fabdd/bb73images are superseded by this finalcoreimage.
+- Serving runtime remains50d1b9ab5e615227169ddb9fc368e476840990ee,
+  digestsha256:c1c28e3b8007981596d46a9b102c442d15f17cf20d9009545c8954c4ab47c5f7;
+  CI42343662497 SUCCESS609tests. Exactnative servingJAR inspected:20framework
+  modules0.8.46, core/executionbytesmatchCentral. Laterauthregression-only
+  CI42347246040 SUCCESS; no runtimeproductioncodechanged/noredundantredeploy.
+- All6runtime environmentsAPPLIED_VERIFIED/PASSED. ProdCPNorthfieldstage
+  rel-c7415db7/prodrel-b329b925 atver-5557856a; FormalSupportstage rel-ae47e09a/
+  prodrel-1f5533c5 atver-18864bc3. StageCPAcme rel-600d63a3/ver-d7b42655;
+  Supportrel-5ca4039d/ver-a7b6b55f. Existingconsumerassignmentsupdated normally.
+  Northfieldconsultative/advisory/balanced/contextual; Acmewarm/grounded/
+  balanced/contextual. ExistingSupportprompts retained/library-onlyupgrade.
+- All12deadCoolifyflagrowsremoved onlyafterlibraryupgrade, all6nativeprocesses
+  nowhealthy/flagabsent/PIInotdisabled/otherdesiredEnvunchanged. No newinfra,
+  database, vectorcopy, provider sampling change or template/offerlock.
+- Realstagingeditorreview/cancel/save/reopen/Custom/reapply andSupabasecustomer
+  ownershipPASS; foreigncompose404; originaltestpromptsrestored. Freshdefault
+  config4presetsPASS/deletedwithoutinfra. Finalprodread desktop/mobilePASS,
+  fourselectedprofilesvisible/no closer toggle/no page errors.
+- POCcanonical-onlyroute fixbb73 and finaltarget-boundauthfix0f92: no global
+  privatecredentials/fallback; exactcurrenttarget/releaseURL andauthority,
+  actualprincipal/stableoldsession/exactscopes preserved. 107backend+9runtime
+  focusedchecksPASS. Realprivateauthcontext+applied and2seven-stringpreviews
+  PASS afterrolloutsettled. PreviewdoesnotclaimruntimeOff/provider simulation.
+- Widgethandoverformalwireadapterbaf6 fixes id/lowercasetypes tokey/typedinput,
+  preservesrequiredness/limits/consent.6unit+7browser/TS/buildPASS. Freshlive
+  staging+prodformchecksPASS widgetf67a40e41aa0d383, independentfields/consents,
+  noAIcall/handoverPOST. Alllivefixturefieldsoptional; requiredblock localonly.
+- Livecanonicalrecommendationnativebutton+clicksameconversation/readroutePASS.
+  Same3turnstock/followup/policy: baseline2pass1fail; advisorystage/prod2pass
+  1partial. Internal-domainclarificationgone, residualweak suitability inference
+  andrepeatingrecommendationsrecorded/no lexicalfilter/retry. Boundedprod
+  actionchecks retained anonymousdenial/trustedcontextboundary; incomplete
+  draftcancelPASS, nobusinesswrite/finalconfirmed-enquiryclaim.
+- Completeapprovedsection4; other4semantic/fallbackfindings andwebsearch
+  remainDEFERRED. No furtherimplementationneededforthisapprovedscope.
+  Evidence verification-support/ai-behaviour-01063 and01063executionrecord.
+- Restricted helpers/state: ~/.codex/private/loomai-behaviour-01063; core rollout
+  helper ~/.codex/private/loomai-assisted-01063/rollout.mjs. Fixed image source
+  baf6ea3328a1ef72d83d01552ffbc02da1582105 forcore and50d1b9ab5e615227169ddb9fc368e476840990ee forruntime must be passed explicitly even after
+  later docs commits. Do not reset dirty sibling framework checkout; release
+  source is in ~/.codex/worktrees/closer-removal-01063. No user input needed.

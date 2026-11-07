@@ -182,7 +182,15 @@ Required correction:
 - Use focused tests and an immutable framework patch release; consume released artifacts in product builds. Remove the temporary false overrides from serving applications only after upgrading their runtime library.
 - Similar audit findings in section 4.9 are tracked but deferred, not part of this fix. Formal parsing, exact IDs, configuration provenance, security detectors and presentation-only labels are not semantic violations.
 
-The unchanged published framework still defaults the old mechanism on. Removing only the Platform environment override would reactivate it. Upgrade to the removal release first, then remove the obsolete runtime environment entry; do not switch off the whole sanitizer as a shortcut.
+At analysis time, the published `0.8.45` library defaulted the old mechanism on. Removing only the Platform override before upgrading would reactivate it. Adopt the removal release first, then remove the obsolete runtime entry; never switch off the whole sanitizer as a shortcut.
+
+**Implemented 2026-11-07:** framework `0.8.46` removes the matcher and property;
+all six managed runtime environments adopted it before the obsolete environment
+records and process values were removed. Section 4's shared profiles, Advanced
+editor, normal publication and hosted checks are complete. See the
+[execution record](010_63_ASSISTED_CUSTOMER_SETUP_IMPLEMENTATION_RECORD.md) and
+[customer guide](../../../../../../../../Final_Documentation/External_User_Guides/LOOMAI_AI_BEHAVIOUR_GUIDE.md).
+The four findings in 4.9 and public research remain deferred.
 
 ### 4.7 Public research is deferred
 

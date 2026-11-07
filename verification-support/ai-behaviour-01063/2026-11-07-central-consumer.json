@@ -1,0 +1,40 @@
+{
+  "at": "2026-11-07T05:41:27.309Z",
+  "frameworkVersion": "0.8.46",
+  "java": "21.0.9",
+  "maven": "3.9.11",
+  "repositoryPolicy": "Fresh separate cache; all external repositories mirrored to Maven Central. Only private product accounting modules installed from Platform source.",
+  "frameworkModules": [
+    "ai-fabric-provider-starter-0.8.46.jar",
+    "ai-fabric-core-0.8.46.jar",
+    "ai-fabric-curated-default-0.8.46.jar",
+    "ai-fabric-curated-commerce-0.8.46.jar",
+    "ai-fabric-curated-support-0.8.46.jar",
+    "ai-fabric-provider-spring-ai-0.8.46.jar",
+    "ai-fabric-onnx-starter-0.8.46.jar",
+    "ai-fabric-rag-0.8.46.jar",
+    "ai-fabric-vector-lucene-0.8.46.jar",
+    "ai-fabric-vector-qdrant-0.8.46.jar",
+    "ai-fabric-vector-pinecone-0.8.46.jar",
+    "ai-fabric-vector-memory-0.8.46.jar",
+    "ai-fabric-vector-weaviate-0.8.46.jar",
+    "ai-fabric-vector-milvus-0.8.46.jar",
+    "ai-fabric-chat-session-0.8.46.jar",
+    "ai-fabric-data-sync-0.8.46.jar",
+    "ai-fabric-actions-connector-0.8.46.jar",
+    "ai-fabric-retrieval-connector-0.8.46.jar",
+    "ai-fabric-execution-0.8.46.jar",
+    "ai-fabric-indexing-0.8.46.jar"
+  ],
+  "nestedBytesMatchCentral": true,
+  "removedCloserAccessorsAbsent": true,
+  "securityAccessorsPreserved": true,
+  "focusedRuntimeTests": {
+    "tests": 68,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "packageSha256": "01bd73c689e925cd0ddab74659f658117828815223fc714b7293f2786812afcc",
+  "initialResolutionAttempt": "Failed before Central publication; retained separately, no local framework workaround."
+}
