@@ -18,6 +18,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { CustomerConfigurationPanel } from '../components/customer/CustomerConfigurationPanel'
 import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
+import { ConfigurationSurface } from '../components/ConfigurationSurface'
 import { DocumentKnowledgePage } from './DocumentKnowledgePage'
 import { IntegrationsPage, ConversationHandoverOperations, ConversationHandoverDeliveryNotices } from './IntegrationsPage'
 import { safeCustomerAppUrl } from '../components/customer/customerResourceModels'
@@ -30,7 +31,7 @@ export function CustomerKnowledgeConnectionsPage({ mode }: { mode: 'knowledge' |
     return <Alert severity="error">A customer administrator session is required.</Alert>
   }
   if (new URLSearchParams(location.search).get('view') === 'manage') {
-    return mode === 'knowledge' ? <DocumentKnowledgePage /> : <IntegrationsPage handoverOnly={mode === 'human'} />
+    return <ConfigurationSurface>{mode === 'knowledge' ? <DocumentKnowledgePage /> : <IntegrationsPage handoverOnly={mode === 'human'} />}</ConfigurationSurface>
   }
   return <CustomerKnowledgeConnectionsReads key={`${session.actorId}:${session.customerId}`} mode={mode} customerId={session.customerId} />
 }

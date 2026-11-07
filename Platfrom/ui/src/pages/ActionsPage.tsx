@@ -1,4 +1,5 @@
 import { deploymentTerm } from '../deploymentTerminology'
+import { ConfigurationDetails, ConfigurationSurface } from '../components/ConfigurationSurface'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -915,20 +916,17 @@ export function ActionsPage() {
   }
 
   return (
-    <Stack spacing={3}>
+    <ConfigurationSurface><Stack spacing={3}>
       <Box>
-        <Chip label="Actions" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
-          Action catalog and connector routing
+        <Typography variant="h4">
+          Actions & connections
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          This screen now covers both sides of action enablement: the runtime action catalog and the
-          REST connector mapping that actually executes those actions against a customer app.
+          Configure the actions your AI can use and the services that execute them.
         </Typography>
       </Box>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
@@ -960,8 +958,7 @@ export function ActionsPage() {
               </Stack>
             ) : null}
           </Stack>
-        </CardContent>
-      </Card>
+      </ConfigurationDetails>
 
       {selectedDeploymentId ? (
         <>
@@ -989,7 +986,9 @@ export function ActionsPage() {
                       <>
                         <TextField
                           multiline
-                          minRows={24}
+                          minRows={16}
+                          maxRows={24}
+                          inputProps={{ 'aria-label': 'Actions JSON configuration' }}
                           fullWidth
                           value={editorValue}
                           onChange={(event) => setEditorValue(event.target.value)}
@@ -1858,6 +1857,7 @@ export function ActionsPage() {
                             <TextField
                               multiline
                               minRows={10}
+                              maxRows={20}
                               fullWidth
                               label="Query template JSON"
                               value={selectedRouteEditor?.queryJson ?? '{}'}
@@ -1874,6 +1874,7 @@ export function ActionsPage() {
                             <TextField
                               multiline
                               minRows={10}
+                              maxRows={20}
                               fullWidth
                               label="Body template JSON"
                               value={selectedRouteEditor?.bodyJson ?? 'null'}
@@ -1924,6 +1925,6 @@ export function ActionsPage() {
           </Grid>
         </>
       ) : null}
-    </Stack>
+    </Stack></ConfigurationSurface>
   )
 }

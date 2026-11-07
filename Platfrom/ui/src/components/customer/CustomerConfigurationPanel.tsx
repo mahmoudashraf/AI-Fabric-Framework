@@ -5,6 +5,7 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Drawer,
 import CloseRounded from '@mui/icons-material/CloseRounded'
 import { CustomerEditorSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerSpecialistAssistance } from './CustomerSpecialistAssistance'
+import { ConfigurationSurface } from '../ConfigurationSurface'
 
 export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, children, initialSection, notices, deploymentId }: {
   open: boolean
@@ -44,10 +45,10 @@ export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, chi
         <Typography fontWeight={600}>{title}</Typography><Tooltip title="Close configuration"><IconButton aria-label="Close configuration" onClick={requestClose}><CloseRounded /></IconButton></Tooltip>
       </Stack>
       <Box key={scopeKey} sx={{ p: { xs: 2, md: 3 }, minWidth: 0 }}>
-        <CustomerEditorSections scopeKey={scopeKey} initialSection={initialSection} notices={notices}>
+        <ConfigurationSurface><CustomerEditorSections scopeKey={scopeKey} initialSection={initialSection} notices={notices}>
           {deploymentId ? <Box sx={{ mb: 3 }}><CustomerSpecialistAssistance deploymentId={deploymentId} /></Box> : null}
           {children}
-        </CustomerEditorSections>
+        </CustomerEditorSections></ConfigurationSurface>
       </Box>
     </Drawer>
     <Dialog open={open && (confirmClose || blocker.state === 'blocked')} onClose={keepEditing} maxWidth="xs" fullWidth>

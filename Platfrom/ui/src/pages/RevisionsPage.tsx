@@ -1,4 +1,5 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
+import { ConfigurationDetails, ConfigurationSurface } from '../components/ConfigurationSurface'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
@@ -978,21 +979,17 @@ export function RevisionsPage() {
   )
 
   return (
-    <Stack spacing={3}>
+    <ConfigurationSurface><Stack spacing={3}>
       <Box>
-        <Chip label="Revisions" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
-          Draft, publish, apply
+        <Typography variant="h4">
+          Versions & updates
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
-          The release lifecycle now stores more than state transitions: publishing creates immutable
-          versions, applying produces provisioning evidence, and each release can point to a stored
-          verification run.
+          Review your draft, publish a version and update your live {deploymentTerm.lowercase}.
         </Typography>
       </Box>
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <ConfigurationDetails label="Current version & source">
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
@@ -1021,8 +1018,7 @@ export function RevisionsPage() {
               <Alert severity="info">Create a {deploymentTerm.lowercase} first to start managing revisions.</Alert>
             )}
           </Stack>
-        </CardContent>
-      </Card>
+      </ConfigurationDetails>
 
       {canAdmin && !isCustomerWorkspace && selectedDeployment ? (
         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -2520,6 +2516,6 @@ export function RevisionsPage() {
           </Card>
         </>
       ) : null}
-    </Stack>
+    </Stack></ConfigurationSurface>
   )
 }

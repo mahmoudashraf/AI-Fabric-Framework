@@ -1,4 +1,5 @@
 import { deploymentTerm } from '../deploymentTerminology'
+import { ConfigurationSurface } from '../components/ConfigurationSurface'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
@@ -691,7 +692,7 @@ export function PromptsPage() {
   })
 
   return (
-    <Stack spacing={3}>
+    <ConfigurationSurface><Stack spacing={3}>
       {draftQuery.isError && <Alert severity="error">Could not load the prompt draft. Reload before editing.</Alert>}
       <AiBehaviourEditor key={`${selectedDeploymentId}-${behaviourReset}`} deploymentId={selectedDeploymentId}
         promptConfig={editorPromptConfig} canEdit={canEdit && Boolean(draftQuery.data) && !saveMutation.isPending}
@@ -699,6 +700,31 @@ export function PromptsPage() {
           setPreservedConfig(config)
           setFormState(normalizePromptState(config))
         }} />
+
+      <Box component="section" aria-label="Prompt draft controls" sx={{ borderTop: 1, borderBottom: 1, borderColor: 'divider', py: 2 }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} gap={2} alignItems={{ lg: 'center' }} justifyContent="space-between">
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2">{draftDirty ? 'Unsaved changes' : 'Saved draft'}</Typography>
+            <Typography variant="body2" color={draftDirty || behaviourPending ? 'warning.main' : 'text.secondary'} sx={{ mt: 0.5 }}>
+              {behaviourPending ? 'Behaviour choices have not been applied to the editor. Review and apply them, or discard them before saving or testing.'
+                : draftDirty ? 'Unsaved editor changes. Saving updates the draft only; the live experience changes after publish and apply.'
+                  : 'Editor matches the saved draft. The live experience uses the applied release.'}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" sx={{ flexShrink: 0 }}>
+            <Button variant="outlined" startIcon={<RestoreRoundedIcon />} onClick={() => {
+              setFormState(savedState)
+              setPreservedConfig(promptConfigRecord(draftQuery.data?.promptConfig))
+              setBehaviourReset(previous => previous + 1)
+            }}>Reset to saved</Button>
+            <Button variant="contained" startIcon={<SaveRoundedIcon />}
+              disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || behaviourPending || promptConfigHasValidationErrors}
+              onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}</Button>
+          </Stack>
+        </Stack>
+        {saveMutation.isError && <Alert severity="error" sx={{ mt: 2 }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Failed to save prompt draft'}</Alert>}
+        {saveMutation.isSuccess && <Alert severity="success" sx={{ mt: 2 }}>Prompt draft saved.</Alert>}
+      </Box>
 
       <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle1">Advanced draft and live status</Typography></AccordionSummary>
@@ -1175,6 +1201,7 @@ export function PromptsPage() {
                     helperText={field.description}
                     multiline
                     minRows={7}
+                    maxRows={18}
                     fullWidth
                     value={formState[field.key]}
                     disabled={!canEdit}
@@ -1192,39 +1219,6 @@ export function PromptsPage() {
               </AccordionDetails>
             </Accordion>
 
-            <Alert severity={draftDirty || behaviourPending ? 'warning' : 'info'}>
-              {behaviourPending ? 'Behaviour choices have not been applied to the editor. Review and apply them, or discard them before saving or testing.'
-                : draftDirty ? 'Unsaved editor changes. Saving updates the draft only; the live experience changes after publish and apply.'
-                  : 'Editor matches the saved draft. The live experience uses the applied release.'}
-            </Alert>
-
-            {saveMutation.isError ? (
-              <Alert severity="error">
-                {saveMutation.error instanceof Error ? saveMutation.error.message : 'Failed to save prompt draft'}
-              </Alert>
-            ) : null}
-            {saveMutation.isSuccess ? <Alert severity="success">Prompt draft saved.</Alert> : null}
-
-            <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
-              <Button
-                variant="contained"
-                startIcon={<SaveRoundedIcon />}
-                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || behaviourPending || promptConfigHasValidationErrors}
-                onClick={() => saveMutation.mutate()}
-              >
-                {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setFormState(savedState)
-                  setPreservedConfig(promptConfigRecord(draftQuery.data?.promptConfig))
-                  setBehaviourReset(previous => previous + 1)
-                }}
-              >
-                Reset to saved
-              </Button>
-            </Stack>
           </Stack>
         </CardContent>
       </Card>
@@ -1831,6 +1825,6 @@ export function PromptsPage() {
           </Stack>
         </AccordionDetails>
       </Accordion>
-    </Stack>
+    </Stack></ConfigurationSurface>
   )
 }

@@ -1,4 +1,5 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
+import { ConfigurationSurface } from '../components/ConfigurationSurface'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
@@ -899,11 +900,11 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
   })
 
   return (
-    <Stack spacing={3}>
+    <ConfigurationSurface enabled={deploymentScoped}><Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
-            Marketplace
+          <Typography variant="h4" sx={{ fontWeight: deploymentScoped ? 650 : 800, letterSpacing: deploymentScoped ? 0 : -0.5 }}>
+            {deploymentScoped ? 'Plugins' : 'Marketplace'}
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 900 }}>
             {deploymentScoped ? `Manage plugins in this ${deploymentTerm.lowercase} draft. Publish and apply the draft to update the runtime.`
@@ -2450,6 +2451,6 @@ export function MarketplacePage({ deploymentScoped = false }: { deploymentScoped
           </Stack>
         </Grid>
       </Grid> : null}
-    </Stack>
+    </Stack></ConfigurationSurface>
   )
 }

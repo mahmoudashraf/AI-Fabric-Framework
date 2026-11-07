@@ -1,4 +1,5 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
+import { ConfigurationDetails, ConfigurationSurface } from '../components/ConfigurationSurface'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -1805,22 +1806,19 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
   }
 
   return (
-    <Stack spacing={3}>
+    <ConfigurationSurface><Stack spacing={3}>
       <Box>
-        <Chip label="Providers" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
-          Provider profile editor
+        <Typography variant="h4">
+          AI providers
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
-          Provider selection stays structured and versioned. This screen edits the bounded provider knobs
-          that later compile into runtime {deploymentTerm.lowercase} settings without storing credentials in the draft.
+          Choose models and configure the providers connected to this {deploymentTerm.lowercase}.
         </Typography>
       </Box>
 
       <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} />
 
-      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-        <CardContent>
+      <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">{deploymentTerm.singular} workspace</Typography>
@@ -1851,8 +1849,7 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
               </Stack>
             ) : null}
           </Stack>
-        </CardContent>
-      </Card>
+      </ConfigurationDetails>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
@@ -3511,6 +3508,6 @@ export function ProvidersPage({ configurationOnly = false }: { configurationOnly
           </Grid>
         </Grid>
       ) : null}
-    </Stack>
+    </Stack></ConfigurationSurface>
   )
 }
