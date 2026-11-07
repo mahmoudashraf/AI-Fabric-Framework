@@ -161,3 +161,23 @@ customer-wide redesign.
 
 Implementation, existing authentication limitations and qualification are tracked
 in `verification-support/customer-account-workspace/README.md`.
+
+## Approved Management Overview Follow-Up
+
+The owner approved replacing the legacy customer `view=manage` page with the
+resource-first Smart Brain overview. This retires a duplicate navigation surface,
+not its release/setup capabilities. Keep Brain creation at the portfolio entry;
+Knowledge, AI capabilities, Responses, Channels, Human support and Updates own
+their existing focused workflows. Updates continues to reuse the filtered
+customer command component; do not remove its connection, assignment, promotion
+or activation logic when retiring the full-page view.
+
+Show real draft/environment/app status and one contextual next task. Never infer
+verified readiness from a merely configured draft, or count a different release's
+Engage app as this environment's connected experience. Preserve explicit target
+and release context on legacy deep links; unknown ownership/targets are errors,
+not reasons to open a different resource. Keep the overview compact on desktop,
+with ordinary scroll access on small screens. No broader customer/staff shell
+redesign, backend contract or operational policy change is part of this follow-up.
+
+Qualification: `verification-support/smart-brain-management/README.md`.

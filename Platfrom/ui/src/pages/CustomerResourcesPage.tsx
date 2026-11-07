@@ -1,6 +1,6 @@
 import { Alert } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, type PlatformAuthSessionSummary } from '../api/platformApi'
@@ -9,6 +9,7 @@ import { CustomerResourceSurface } from '../components/customer/CustomerResource
 import { CustomerSetupNavigationGuard } from '../components/customer/CustomerSetupNavigationGuard'
 import { CustomerEditorSections } from '../components/customer/CustomerDetailSections'
 import { CustomerReleaseSetupRedirect } from '../components/customer/CustomerReleaseSetupRedirect'
+import { CustomerBrainManageRedirect } from '../components/customer/CustomerBrainManageRedirect'
 import { AIWorkspacesPage } from './AIWorkspacesPage'
 
 export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' | 'apps' }) {
@@ -21,6 +22,10 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
   const params = new URLSearchParams(location.search)
   const setupStep = params.get('step')
   const setupBrainId = params.get('deploymentId')
+  if (mode !== 'apps' && view === 'manage') {
+    return setupBrainId ? <CustomerBrainManageRedirect customerId={session.customerId!} brainId={setupBrainId} />
+      : <Navigate to="/deployments" replace />
+  }
   if (mode !== 'apps' && view === 'setup' && setupBrainId && (setupStep === 'staging' || setupStep === 'production')) {
     return <CustomerReleaseSetupRedirect customerId={session.customerId!} brainId={setupBrainId} step={setupStep} />
   }
@@ -35,8 +40,7 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
         connectInstallationId={params.get('connectInstallationId') ?? undefined}
         initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} /></CustomerEditorSections>
     }
-    return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`} showDepthSwitch={false}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
-      : <CustomerDeploymentConsole session={session} />
+    return <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`} showDepthSwitch={false}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
   }
   return <CustomerResourceReads mode={mode} session={session} />
 }

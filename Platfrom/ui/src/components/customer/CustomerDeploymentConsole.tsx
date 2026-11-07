@@ -1555,7 +1555,7 @@ export function CustomerDeploymentConsole({ session, guided: guidedInput = false
         <Stack spacing={2} sx={{ pt: 2 }}>
           <CustomerEditorDepthSwitch label="Setup detail level" />
           {operationsPanel}
-          <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to={`${location.pathname}?${new URLSearchParams({ view: 'manage', ...(selectedDeploymentId ? { deploymentId: selectedDeploymentId } : {}) })}`}>All setup controls</Button>
+          {selectedDeploymentId && <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to={brainPath(selectedDeploymentId)}>Open Smart Brain workspace</Button>}
         </Stack>
       </Box>}
       {detailSection && selectedDeployment ? <CustomerAdvancedSection><Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
