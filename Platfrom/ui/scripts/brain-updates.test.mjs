@@ -156,7 +156,9 @@ test('viewer has no publication or update command registered', () => {
 
 test('outcome summaries use declared names/counts, not raw action names or prompt content', () => {
   assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ name: 'domain_internal_name', displayName: 'Find stock' }] }), 'Find stock')
-  assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ name: 'domain_internal_name' }] }), '1 capabilities')
+  assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ name: 'domain_internal_name' }] }), '1 capability')
+  assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ displayName: 'Find stock' }, { name: 'unnamed' }] }), 'Find stock +1')
+  assert.equal(exports.outcomeSummary('knowledgeSourceConfig', { sources: [{}] }), '1 source')
   assert.equal(exports.outcomeSummary('promptConfig', { prompt: 'HIDDEN_PROMPT' }), 'Reply preferences and instructions')
   assert.ok(!exports.outcomeSummary('providerConfig', { token: 'HIDDEN_KEY' }).includes('HIDDEN_KEY'))
 })

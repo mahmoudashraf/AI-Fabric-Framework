@@ -145,8 +145,10 @@ export function outcomeSummary(key: string, value: unknown, catalogue?: AiBehavi
   const list = key === 'actionsConfig' ? value.actions : key === 'entityConfig' ? value.entities : key === 'knowledgeSourceConfig' ? value.sources : null
   if (Array.isArray(list)) {
     const names = list.filter(record).map(item => typeof item.displayName === 'string' ? item.displayName : '').filter(Boolean)
-    const noun = key === 'actionsConfig' ? 'capabilities' : key === 'entityConfig' ? 'collections' : 'sources'
-    return names.length ? `${names.slice(0, 2).join(', ')}${list.length > 2 ? ` +${list.length - 2}` : ''}` : `${list.length} ${noun}`
+    const noun = key === 'actionsConfig' ? list.length === 1 ? 'capability' : 'capabilities'
+      : key === 'entityConfig' ? list.length === 1 ? 'collection' : 'collections' : list.length === 1 ? 'source' : 'sources'
+    const remaining = list.length - Math.min(names.length, 2)
+    return names.length ? `${names.slice(0, 2).join(', ')}${remaining ? ` +${remaining}` : ''}` : `${list.length} ${noun}`
   }
   const labels: Record<string, string> = { providerConfig: 'AI models, embeddings and search', securityConfig: 'Access and conversation safeguards',
     routingConfig: 'Action destinations and connections', behaviorConfig: 'Conversation and execution settings', shellConfig: 'Customer workspace settings' }
