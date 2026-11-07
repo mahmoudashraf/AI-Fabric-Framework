@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-07",
+  "scope": "Owner-requested customer-wide UI rollback, retaining staging developer profile and earlier Smart Brain workspace",
+  "branch": "Platform-V11",
+  "source": "7b6a0112548e2d2988be6bc557891d2cc14f0968",
+  "baseline": "0aa83b9682aa26b2a85800b6e2d4fdc2cc0954d5",
+  "forcePushLease": "2f2bb5a5dd45f4204e8a2d64921173e52efe5694",
+  "ci": { "run": "42383253872", "conclusion": "success" },
+  "production": {
+    "url": "https://console.loomai.pro/home",
+    "imageRevision": "3013df7f433899da36bab743c81c5a7c9f8505f7",
+    "deployment": "wiw2j5qtsbnb2u0p3co89wgz",
+    "status": "finished",
+    "containerHealth": "healthy",
+    "presentation": "Restored customer pages, standard commercial view, earlier Smart Brain workspace retained",
+    "browserChecks": ["customer sign-in", "Home", "My kits", "Account & team", "canonical Smart Brain overview", "sign-out"]
+  },
+  "staging": {
+    "url": "https://developer.loomai.pro",
+    "imageRevision": "7b6a0112548e2d2988be6bc557891d2cc14f0968",
+    "deployment": "rx9xwhjqvkhckxq50d1kdmlv",
+    "status": "finished",
+    "containerHealth": "healthy",
+    "environment": "staging",
+    "uiProfile": "developer",
+    "validHttps": true,
+    "catalogueCards": 3,
+    "offerSections": 0,
+    "personalContactActions": 0,
+    "observedViewportWidth": 521,
+    "observedDocumentWidth": 506,
+    "browserChecks": ["public catalogue", "customer sign-in", "Home", "compact navigation", "sign-out"]
+  },
+  "localVerification": {
+    "build": "pass",
+    "focusedTestsPassed": 72,
+    "restoredPageFilesUnchanged": 5,
+    "profileSourceFilesPreserved": 13,
+    "preexistingUntrackedFilesUnchanged": 947
+  },
+  "backendRuntimeOrAiConfigurationChanged": false,
+  "hostedResourceMutations": false,
+  "aiQueries": 0,
+  "notes": [
+    "An initial browser verification used /overview, which is not the canonical Smart Brain route; following the visible Open overview link loaded the canonical root successfully.",
+    "This is rollback and presentation qualification, not a new full customer-provisioning, email-delivery, custom-domain or AI-quality gate.",
+    "Historical pre-rollback screenshots and reports are retained under live/ and are not evidence of the current customer layout."
+  ]
+}

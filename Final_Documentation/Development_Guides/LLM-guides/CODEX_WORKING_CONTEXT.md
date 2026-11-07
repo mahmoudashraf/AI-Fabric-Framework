@@ -13185,3 +13185,23 @@ test is being called hosted acceptance. UI extraction remains last.
 - Restored build and72 focused tests PASS. Production old verified UI image
   3013df7f4 queued for rollback; preserved profile source publication and staging
   qualification pending. Final identities/evidence will supersede this entry.
+
+### Customer UI Rollback Hosted Closeout
+
+- Supersedes the pending checkpoint above. Preserved-profile source
+  `7b6a0112548e2d2988be6bc557891d2cc14f0968` is force-pushed with the exact
+  original-tip lease; CI `42383253872` PASS. Staging UI job
+  `rx9xwhjqvkhckxq50d1kdmlv` FINISHED, exact-source native container HEALTHY.
+- Production UI rollback `wiw2j5qtsbnb2u0p3co89wgz` FINISHED on approved
+  pre-010.65 image `3013df7f4`, native container HEALTHY. Restored Home, kits and
+  account layouts; 010.64 Smart Brain workspace remains. No backend/runtime/AI
+  rollback or customer resource mutation. Production keeps standard commerce.
+- Browser: production customer sign-in/Home/kits/account/Brain/sign-out PASS;
+  developer domain HTTPS, staging profile, three offer-free catalogue cards,
+  no personal contact actions, customer sign-in/Home/navigation/sign-out PASS.
+  No AI query or resource save. Build/72 focused tests PASS; five baseline page
+  files and 13 preserved profile source files match expected source exactly.
+- Unrelated tracked work restored separately; 947 pre-existing untracked files
+  intact. Local backup branch/stashes retained. Current profile guide only:
+  PLATFORM_UI_PROFILES.md. Do not reintroduce rejected 010.65 redesign/guide.
+- Evidence: verification-support/developer-ui-profile/post-rollback/ and README.
