@@ -78,6 +78,7 @@ not a claim about hosted production behavior.
 - Production Coolify job `ce2za8bgmgsn0strvxadhit8` finished; exact-source native UI container healthy.
 - [Production account](https://console.loomai.pro/account/team) and [developer staging account](https://developer.loomai.pro/account/team) verified with the authorized owned support fixtures, not the owner's personal Brain/account.
 - Legacy customer `/users?deploymentId=...` redirects to the account workspace with safe return context. Actual team read, filters, own-member indicator/self-disable guard and add/edit drawers passed.
+- Fresh signed-out `/account/team` entry returned to that exact account page after real customer password sign-in; no intermediate Kit selection was required. Final production screenshot was refreshed after the desktop viewport settled.
 - Staging SPA back-navigation retained unsaved edits; Stay here and explicit discard passed. Collaboration drawer and own-identity email-link controls passed without granting access or sending email.
 - Production Back to Smart Brain and account-avatar return preserved the selected target after the Brain loaded. My account, security, dark/light desktop and basic mobile navigation passed. No horizontal page overflow; desktop page fits one viewport.
 - Staff direct `/users` still renders **Unified access administration**, with no customer account frame.
