@@ -22,10 +22,12 @@ export function AiBehaviourEditor({ deploymentId, promptConfig, canEdit, onApply
   const [selections, setSelections] = useState<AiBehaviourSelections>({})
   const [instructionEdits, setInstructionEdits] = useState<Partial<Record<AiBehaviourGroupKey, string>>>({})
   const [review, setReview] = useState<AiBehaviourComposition | null>(null)
+  const [promptChangesExpanded, setPromptChangesExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const requestSequence = useRef(0)
   const metadata = readAiBehaviour(promptConfig)
+  const reviewMetadata = readAiBehaviour(review?.promptConfig)
   const currentSelections = aiBehaviourPresetSelections(promptConfig)
   const pending = Object.keys(selections).length > 0 || Object.keys(instructionEdits).length > 0
   const configIdentity = promptConfigIdentity(promptConfig)
@@ -46,7 +48,10 @@ export function AiBehaviourEditor({ deploymentId, promptConfig, canEdit, onApply
     setBusy(true); setError('')
     try {
       const result = await composeDeploymentAiBehaviour(deploymentId, aiBehaviourReviewInput(promptConfig, selections, instructionEdits))
-      if (sequence === requestSequence.current) setReview(result)
+      if (sequence === requestSequence.current) {
+        setPromptChangesExpanded(false)
+        setReview(result)
+      }
     } catch (cause) {
       if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : 'Could not prepare behaviour changes.')
     } finally {
@@ -129,8 +134,27 @@ export function AiBehaviourEditor({ deploymentId, promptConfig, canEdit, onApply
       <DialogTitle id="ai-behaviour-review-title">Review AI behaviour changes</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
+          <Box component="section" aria-label="Selected behaviour profiles">
+            <Box component="dl" sx={{ m: 0, display: 'grid', gap: 2,
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' } }}>
+              {catalogue.data?.groups.map(group => {
+                const profile = reviewMetadata?.[group.key]
+                const label = profile?.presetId === 'custom' ? 'Custom'
+                  : group.options.find(option => option.id === profile?.presetId)?.label ?? 'Current instructions'
+                return <Box key={group.key} sx={{ minWidth: 0 }}>
+                  <Typography component="dt" variant="caption" color="text.secondary">{group.label}</Typography>
+                  <Typography component="dd" variant="body2" sx={{ m: 0, fontWeight: 700 }}>{label}</Typography>
+                </Box>
+              })}
+            </Box>
+          </Box>
           <Alert severity="info">Apply updates the editor only. Save the draft, then publish and apply a release to change the live experience.</Alert>
           {review?.customInstructionsPreserved && <Alert severity="warning">Your custom base instructions are preserved verbatim. Check that they agree with the selected behaviour profiles.</Alert>}
+          <Accordion disableGutters expanded={promptChangesExpanded} onChange={(_, expanded) => setPromptChangesExpanded(expanded)}
+            sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="subtitle2">Advanced prompt changes</Typography></AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
           {review?.changes.length === 0 && <Typography>No compiled prompt changes. Profile selections will still be recorded in the editor.</Typography>}
           {review?.changes.map((change, index) => <Box key={`${change.key}-${index}`} sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, overflowWrap: 'anywhere' }}>{change.key}</Typography>
@@ -142,6 +166,9 @@ export function AiBehaviourEditor({ deploymentId, promptConfig, canEdit, onApply
               </Box>)}
             </Box>
           </Box>)}
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap' }}>
