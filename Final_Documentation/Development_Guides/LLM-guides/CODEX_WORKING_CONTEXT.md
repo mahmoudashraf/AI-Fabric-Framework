@@ -13125,3 +13125,40 @@ test is being called hosted acceptance. UI extraction remains last.
 - Backend remains `baf6ea3328a1ef72d83d01552ffbc02da1582105`, runtime image and
   framework unchanged. This scope is complete; no user input needed.
 - Evidence: `verification-support/customer-configuration-design/README.md`.
+
+## 2026-11-07 Outcome-Led Smart Brain Workspace, Released
+
+- Owner approved 010.64 implementation, explicitly local before live. Existing
+  Home/Kit/Engage/Support/Account/authentication page designs remain; their
+  resource entry links open the new Brain workspace. Shared customer/staff
+  resource routes are `/smart-brains/:brainId/...` with exact target context.
+- Outcome sidebar, bounded panes, light/dark Kit palette, shared draft and
+  actual target-applied state, guarded Save/Discard and canonical updates UI.
+  Existing prompt/action/provider/version editors extracted into focused views;
+  advanced contracts retained. No backend/runtime/framework/prompt-content change.
+- Build and focused tests pass: 70 combined checks, two additional integration
+  regressions, 15 storage/scope and 26 support/auth checks; 19 Responses,
+  21 Capabilities and 14 Updates memory-only browser scenarios. Authorized local
+  customer/staff readback covered 23 routes, desktop containment/basic mobile,
+  no live resource writes or provider queries. Hosted write-flow proof remains.
+- Integration review fixes include role-specific target API, staff data router,
+  stable task state during background release changes, pre-runtime storage
+  preparation, owner-only Desk activation and correct staff app installation
+  links. Backend permissions were not bypassed. Support starts minimized in
+  Brain pages and stays above the measured task footer.
+- Local preview `http://127.0.0.1:4398`, normal sign-in. The preview helper blocks
+  resource writes/provider calls and does not embed live apps; external app/Desk
+  links remain live destinations outside that protection. Service started via
+  `Platfrom/ui/scripts/smart-brain-preview.mjs`, loopback only.
+- Owner then authorized deployment and verification. Source `3013df7f4`
+  committed/pushed; CI `42373316258` PASS (UI image only, backend skipped).
+  Staging `n7aey2g0yl0zr9t0hj6s2tf1` and production
+  `dys7pw6ca281h98ljd25xgpt` FINISHED, exact UI revision HEALTHY on both.
+- Final build/113 targeted regressions PASS. Hosted 55 routes PASS across
+  staging staff, production customer and production staff; light/dark, deep-link
+  reload, old customer route redirect, unsaved guard and basic mobile checked.
+  Backend stays healthy on `baf6ea3328a1ef72d83d01552ffbc02da1582105`.
+  No hosted Brain saves/releases, uploads, business actions or provider queries.
+- Record: 010_64_SMART_BRAIN_WORKSPACE_IMPLEMENTATION_RECORD.md;
+  evidence: verification-support/smart-brain-workspace-01064/README.md.
+  Unrelated existing dirty worktree files remain untouched. UI rollout complete.

@@ -1,0 +1,44 @@
+{
+  "at": "2026-11-07T12:47:48.829Z",
+  "source": "3013df7f433899da36bab743c81c5a7c9f8505f7",
+  "ciRun": "42373316258",
+  "jobs": [
+    {
+      "name": "Resolve affected images",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Publish Platform UI image",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Publish Platform backend image",
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "environments": [
+    {
+      "environment": "staging",
+      "deploymentId": "n7aey2g0yl0zr9t0hj6s2tf1",
+      "status": "finished",
+      "name": "/u67gepsowf7oo90dwjdx018r-123922069885",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui:3013df7f433899da36bab743c81c5a7c9f8505f7",
+      "revision": "3013df7f433899da36bab743c81c5a7c9f8505f7"
+    },
+    {
+      "environment": "production",
+      "deploymentId": "dys7pw6ca281h98ljd25xgpt",
+      "status": "finished",
+      "name": "/a6fz2ncuzzulg6lrzzwrjshu-124226956557",
+      "running": true,
+      "health": "healthy",
+      "image": "ghcr.io/mahmoudashraf/loomai-platform-ui:3013df7f433899da36bab743c81c5a7c9f8505f7",
+      "revision": "3013df7f433899da36bab743c81c5a7c9f8505f7"
+    }
+  ]
+}

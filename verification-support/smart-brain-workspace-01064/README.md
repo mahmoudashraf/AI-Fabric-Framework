@@ -1,6 +1,6 @@
-# Smart Brain Workspace Local Verification
+# Smart Brain Workspace Verification
 
-Scope: 010.64 UI redesign, local review before any hosted deployment.
+Scope: 010.64 UI redesign, local qualification followed by the owner-authorized hosted rollout.
 
 Main record: [implementation status](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_64_SMART_BRAIN_WORKSPACE_IMPLEMENTATION_RECORD.md).
 
@@ -34,4 +34,20 @@ The standalone browser harnesses use in-memory API fixtures; their screenshots a
 
 The initial checking cycle exposed and fixed staff data-router guard support and role-specific target-catalogue selection. Fresh successful runs supersede the initial failures. Existing backend/runtime connectivity warnings are preserved, not converted to successful states.
 
-No runtime/framework update, infrastructure apply, provider query or production UI deployment is part of this evidence.
+The local evidence above includes no runtime/framework update, infrastructure apply, provider query or production UI deployment.
+
+## Hosted Rollout
+
+Source `3013df7f433899da36bab743c81c5a7c9f8505f7` is healthy on both staging and production. CI `42373316258` published only the UI image. Both Coolify deployments finished; backend/runtime versions were not changed.
+
+- [Deployment identity readback](live/deployment-report.json)
+- [55 hosted route checks and verification boundaries](live/browser-report.json)
+- [Production dealership Responses](live/production-staff-dealership-responses.jpg)
+- [Production customer, light](live/production-customer-responses-light.jpg)
+- [Production customer, dark](live/production-customer-responses-dark.jpg)
+- [Production customer, mobile](live/production-customer-mobile.jpg)
+- [Staging staff Responses](live/staging-staff-responses-dark.jpg)
+
+Verified nine main sections and fourteen deeper tasks for staging staff and a production customer, plus the nine main production staff sections. Desktop containment, mobile navigation, deep-link reload, legacy customer redirect, unsaved-change protection and retained staff administration passed. No captured browser console errors were reported.
+
+Normal authentication and theme preferences were used. No hosted Brain save/publish/apply, capability install, upload, business action or provider query was executed. Write-workflow proof remains the isolated harness evidence above, not a claim of fresh live runtime execution.

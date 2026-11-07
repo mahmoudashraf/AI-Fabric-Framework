@@ -1,0 +1,563 @@
+{
+  "source": "3013df7f433899da36bab743c81c5a7c9f8505f7",
+  "at": "2026-11-07T12:41:17.527Z",
+  "checks": [
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI knows",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "capabilities",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI can do",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/capabilities?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "channels",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Where customers meet your AI",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/channels?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "human-support",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Bring your team into the conversation",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/human-support?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "try",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Try your AI before customers do",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/try?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "updates",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Review and publish changes",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/updates?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Technical settings",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "overview",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Your AI, connected to your business",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "responses",
+      "documentOverflow": 0,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/responses?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "responses/instructions",
+      "documentOverflow": 0,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/responses/instructions?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "responses/advanced",
+      "documentOverflow": 0,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/responses/advanced?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "capabilities/actions",
+      "documentOverflow": 0,
+      "heading": "Action configuration",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/capabilities/actions?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "capabilities/add",
+      "documentOverflow": 0,
+      "heading": "What your AI can do",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/capabilities/add?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge/storage",
+      "documentOverflow": 0,
+      "heading": "Upload documents & storage",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge/storage?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge/discover",
+      "documentOverflow": 0,
+      "heading": "Add approved documents",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge/discover?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge/proof",
+      "documentOverflow": 0,
+      "heading": "Check your knowledge",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge/proof?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge/retention",
+      "documentOverflow": 0,
+      "heading": "Indexing evidence retention",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge/retention?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "knowledge/connections",
+      "documentOverflow": 0,
+      "heading": "Live data connections",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/knowledge/connections?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings/models",
+      "documentOverflow": 0,
+      "heading": "AI models",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings/models?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings/storage",
+      "documentOverflow": 0,
+      "heading": "Storage & search",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings/storage?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings/technical-files",
+      "documentOverflow": 0,
+      "heading": "Technical files",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings/technical-files?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings/access",
+      "documentOverflow": 0,
+      "heading": "Access",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings/access?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "staging",
+      "role": "staff",
+      "section": "settings/delivery",
+      "documentOverflow": 0,
+      "heading": "Event delivery",
+      "horizontalOverflow": 0,
+      "url": "https://loomai-platform-ui.46.224.145.148.sslip.io/smart-brains/dep-b9a09c0a/settings/delivery?targetProfileId=dtp-coolify-staging-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "responses",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/responses?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI knows",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "capabilities",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI can do",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/capabilities?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "channels",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Where customers meet your AI",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/channels?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "human-support",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Bring your team into the conversation",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/human-support?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "try",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Try your AI before customers do",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/try?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "updates",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Review and publish changes",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/updates?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Technical settings",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "overview",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Your AI, connected to your business",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "responses/instructions",
+      "documentOverflow": 0,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/responses/instructions?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "responses/advanced",
+      "documentOverflow": 0,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/responses/advanced?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "capabilities/actions",
+      "documentOverflow": 0,
+      "heading": "Action configuration",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/capabilities/actions?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "capabilities/add",
+      "documentOverflow": 0,
+      "heading": "What your AI can do",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/capabilities/add?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge/storage",
+      "documentOverflow": 0,
+      "heading": "Upload documents & storage",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge/storage?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge/discover",
+      "documentOverflow": 0,
+      "heading": "Add approved documents",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge/discover?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge/proof",
+      "documentOverflow": 0,
+      "heading": "Check your knowledge",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge/proof?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge/retention",
+      "documentOverflow": 0,
+      "heading": "Indexing evidence retention",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge/retention?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "knowledge/connections",
+      "documentOverflow": 0,
+      "heading": "Live data connections",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/knowledge/connections?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings/models",
+      "documentOverflow": 0,
+      "heading": "AI models",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings/models?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings/storage",
+      "documentOverflow": 0,
+      "heading": "Storage & search",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings/storage?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings/technical-files",
+      "documentOverflow": 0,
+      "heading": "Technical files",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings/technical-files?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings/access",
+      "documentOverflow": 0,
+      "heading": "Access",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings/access?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "customer",
+      "section": "settings/delivery",
+      "documentOverflow": 0,
+      "heading": "Event delivery",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-79af290c/settings/delivery?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "responses",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "How your AI answers",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/responses?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "knowledge",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI knows",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/knowledge?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "capabilities",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "What your AI can do",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/capabilities?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "channels",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Where customers meet your AI",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/channels?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "human-support",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Bring your team into the conversation",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/human-support?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "try",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Try your AI before customers do",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/try?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "updates",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Review and publish changes",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/updates?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "settings",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Technical settings",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f/settings?targetProfileId=dtp-coolify-production-behavior"
+    },
+    {
+      "environment": "production",
+      "role": "staff",
+      "section": "overview",
+      "documentOverflow": 0,
+      "footerVisible": true,
+      "heading": "Your AI, connected to your business",
+      "horizontalOverflow": 0,
+      "url": "https://console.loomai.pro/smart-brains/dep-3c4dbe4f?targetProfileId=dtp-coolify-production-behavior"
+    }
+  ],
+  "stagingUnsavedGuard": {
+    "warningShown": true,
+    "keepEditing": true,
+    "discardedWithoutSaving": true
+  },
+  "productionDeepLinkReload": true,
+  "desktopViewport": {
+    "height": 720,
+    "width": 1280
+  },
+  "legacyCustomerRedirect": {
+    "url": "https://console.loomai.pro/smart-brains/dep-79af290c/responses",
+    "passed": true
+  },
+  "mobile": {
+    "navigation": true,
+    "footerVisible": true,
+    "heading": "What your AI can do",
+    "height": 844,
+    "horizontalOverflow": 0,
+    "url": "https://console.loomai.pro/smart-brains/dep-79af290c/capabilities?targetProfileId=dtp-coolify-production-behavior",
+    "width": 390
+  },
+  "staffAdministrationPreserved": true,
+  "browserLogs": {
+    "staging": [],
+    "production": []
+  },
+  "scope": {
+    "configurationSaves": 0,
+    "brainPublishes": 0,
+    "infrastructureApplies": 0,
+    "businessActions": 0,
+    "providerQueries": 0,
+    "authAndPreferences": "normal sign-in/sign-out and theme preferences only"
+  }
+}

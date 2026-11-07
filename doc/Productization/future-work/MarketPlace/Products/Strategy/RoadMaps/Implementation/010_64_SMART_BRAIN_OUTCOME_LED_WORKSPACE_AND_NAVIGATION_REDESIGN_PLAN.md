@@ -1,10 +1,10 @@
 # 010.64 Smart Brain Workspace: Outcome-Led UI And Navigation Redesign
 
 Date: 7 November 2026
-Status: **Implemented and locally verified; authorized hosted rollout in progress.**
+Status: **Implemented, deployed to staging and production, and hosted UI verified.**
 Scope: Customer-visible Smart Brain configuration and the same resource workspace for authorized staff.
 
-Owner clarification: the existing Customer Home/resource lists, Kits, Engage editors, Support/requests, Account/team, notifications and sign-in/onboarding designs remain. Only their entry links into the Smart Brain workspace change where relevant. See [the implementation record](010_64_SMART_BRAIN_WORKSPACE_IMPLEMENTATION_RECORD.md) for local verification and remaining rollout work.
+Owner clarification: the existing Customer Home/resource lists, Kits, Engage editors, Support/requests, Account/team, notifications and sign-in/onboarding designs remain. Only their entry links into the Smart Brain workspace change where relevant. See [the implementation record](010_64_SMART_BRAIN_WORKSPACE_IMPLEMENTATION_RECORD.md) for verification and rollout evidence.
 
 ## 1. Recommendation
 

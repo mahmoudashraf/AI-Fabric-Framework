@@ -1,7 +1,7 @@
 # 010.64 Smart Brain Workspace Implementation Record
 
 Date: 7 November 2026
-Status: Local implementation verified; hosted rollout authorized and in progress.
+Status: **Deployed and hosted UI verified on staging and production.**
 
 Plan: [010.64 outcome-led workspace](010_64_SMART_BRAIN_OUTCOME_LED_WORKSPACE_AND_NAVIGATION_REDESIGN_PLAN.md).
 
@@ -78,4 +78,19 @@ The existing Desk activation API is customer-only. The same Human support page t
 
 The owner requested deployment and verification after local review. Rollout is UI-only, through the existing CI immutable-image and Coolify path: staging first, then production. Backend/runtime versions and customer configuration remain unchanged. Hosted checks cover customer/staff navigation and rendered data; isolated browser harnesses cover write workflows. No customer publish/apply or business write is needed merely to prove this visual redesign.
 
-Exact source, CI, deployment and hosted verification results will be recorded here after readback.
+### Completed 7 November 2026
+
+- Source commit: `3013df7f433899da36bab743c81c5a7c9f8505f7` (`Platform-V11`).
+- [CI run 42373316258](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42373316258): successful; UI image published, backend build skipped.
+- Image: `ghcr.io/mahmoudashraf/loomai-platform-ui:3013df7f433899da36bab743c81c5a7c9f8505f7`.
+- Staging Coolify deployment `n7aey2g0yl0zr9t0hj6s2tf1`: finished; exact revision healthy.
+- Production Coolify deployment `dys7pw6ca281h98ljd25xgpt`: finished; exact revision healthy.
+- [Production Console](https://console.loomai.pro/deployments) and [staging Console](https://loomai-platform-ui.46.224.145.148.sslip.io/deployments) serve the new resource workspace.
+- Hosted browser checks: **55 route checks** (23 staging staff, 23 production customer, nine production staff), all with zero document-level horizontal/vertical overflow at the normal 1280x720 desktop viewport.
+- Production deep-link reload, old customer `/prompts?deploymentId=...` redirect, retained target IDs, light/dark display, basic 390x844 mobile navigation/footer, and unchanged staff-wide administration passed.
+- Staging unsaved-edit warning, Keep editing and Discard passed without saving the temporary change. No captured browser console errors remained in the verification tabs.
+- Backend containers remain healthy on `baf6ea3328a1ef72d83d01552ffbc02da1582105`; no backend/runtime deployment was performed.
+
+Hosted verification deliberately did not save Brain configuration, install capabilities, upload documents, publish/apply a Brain version, run business actions or send AI queries. The isolated browser harnesses above qualify those UI command flows without changing customer resources. This is a UI rollout qualification, not a new end-to-end runtime release gate.
+
+Hosted reports and screenshots: [live evidence](../../../../../../../../verification-support/smart-brain-workspace-01064/README.md#hosted-rollout).
