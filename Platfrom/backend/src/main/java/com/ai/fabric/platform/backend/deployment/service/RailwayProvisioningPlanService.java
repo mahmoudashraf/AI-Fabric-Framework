@@ -645,6 +645,13 @@ public class RailwayProvisioningPlanService {
             deploymentVersionId
         ));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
+        JsonNode closerRemoval = readJson(version.getPromptConfigJson()).path("removeGenericAssistanceClosers");
+        if (!closerRemoval.isMissingNode() && !closerRemoval.isNull() && !closerRemoval.isBoolean()) {
+            throw new RailwayProvisioningConfigurationException("RESPONSE_CLOSER_REMOVAL_BOOLEAN_REQUIRED");
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_RESPONSESANITIZATION_REMOVEGENERICASSISTANCECLOSERS", Boolean.toString(closerRemoval.asBoolean(false))
+        ));
         addOptionalEnv(runtimeEnv, "AI_KNOWLEDGE_SOURCES_DEPLOYMENT_CONFIG_FILE", artifactUrls.knowledgeSources());
         addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));

@@ -23,6 +23,18 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void closerRemovalSettingAcceptsOnlyExplicitJsonBooleans() {
+        for (String value : java.util.List.of("true", "false", "\"true\"", "1", "[]")) {
+            var draft = draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", "{}", "{}");
+            draft.setPromptConfigJson("{\"removeGenericAssistanceClosers\":" + value + "}");
+            var codes = service.validate(draft).issues().stream().map(issue -> issue.code()).toList();
+            if (value.equals("true") || value.equals("false")) {
+                assertThat(codes).doesNotContain("RESPONSE_CLOSER_REMOVAL_BOOLEAN_REQUIRED", "NO_PROMPTS_CONFIGURED");
+            } else assertThat(codes).contains("RESPONSE_CLOSER_REMOVAL_BOOLEAN_REQUIRED");
+        }
+    }
+
+    @Test
     void verifiedSupabaseEmailNeedsOnlyAnUnprivilegedProviderLookupKey() {
         var security = new ObjectMapper().createObjectNode().put("externalIdentityBrokerEnabled", true)
             .put("externalIdentityProvider", "SUPABASE").put("externalIdentityIssuer", "https://identity.example/auth/v1")

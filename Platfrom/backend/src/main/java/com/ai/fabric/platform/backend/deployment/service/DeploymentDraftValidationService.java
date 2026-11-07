@@ -2930,6 +2930,13 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        JsonNode closerRemoval = promptNode.path("removeGenericAssistanceClosers");
+        boolean closerRemovalConfigured = !closerRemoval.isMissingNode() && !closerRemoval.isNull();
+        if (closerRemovalConfigured && !closerRemoval.isBoolean()) {
+            issues.add(error("prompts", "RESPONSE_CLOSER_REMOVAL_BOOLEAN_REQUIRED", "$.removeGenericAssistanceClosers",
+                "removeGenericAssistanceClosers must be a JSON boolean. Phrase-based rewriting is disabled by default."));
+        }
+
         if (populatedCount == 0
             && !thresholdConfigured
             && !maxDocumentsUsedForContextConfigured
@@ -2937,7 +2944,8 @@ public class DeploymentDraftValidationService {
             && !conciseGenerationTokensConfigured
             && !standardGenerationTokensConfigured
             && !deepGenerationTokensConfigured
-            && !suggestionsConfigured) {
+            && !suggestionsConfigured
+            && !closerRemovalConfigured) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",

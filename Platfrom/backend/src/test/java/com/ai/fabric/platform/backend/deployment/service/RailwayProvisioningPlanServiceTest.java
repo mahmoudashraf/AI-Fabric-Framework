@@ -42,6 +42,32 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void closerRemovalRequiresExplicitOptInAndNeverDisablesSanitization() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), new ObjectMapper());
+        for (var sample : Map.of("{}", "false", "{\"removeGenericAssistanceClosers\":false}", "false",
+            "{\"removeGenericAssistanceClosers\":true}", "true").entrySet()) {
+            var version = version();
+            version.setPromptConfigJson(sample.getKey());
+            var env = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+            assertThat(env).containsEntry("AI_RESPONSESANITIZATION_REMOVEGENERICASSISTANCECLOSERS", sample.getValue());
+            assertThat(env).doesNotContainKey("AI_RESPONSE_SANITIZATION_ENABLED").doesNotContainKey("AI_RESPONSE_SANITIZATION_FORCE_REDACTION");
+        }
+        for (String invalid : java.util.List.of("\"true\"", "1", "[]", "{}")) {
+            var version = version();
+            version.setPromptConfigJson("{\"removeGenericAssistanceClosers\":" + invalid + "}");
+            assertThatThrownBy(() -> service.buildPlan(deployment(), version))
+                .isInstanceOf(RailwayProvisioningConfigurationException.class)
+                .hasMessageContaining("RESPONSE_CLOSER_REMOVAL_BOOLEAN_REQUIRED");
+        }
+    }
+
+    @Test
     void canonicalConversationFoundationDoesNotEnableOrRequireAHumanChannel() {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

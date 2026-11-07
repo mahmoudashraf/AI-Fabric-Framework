@@ -98,69 +98,118 @@ database; there is no new service or customer database.
 
 ## 4. Configure How The AI Replies And Uses Outside Information
 
-### 4.1 Four separate controls
+### 4.1 Owner decisions and implementation boundary
 
-**Reply style** controls presentation: professional/warm/consultative voice, short/balanced/detailed answers, preferred language and useful next-step initiative. These are prompt instructions, not guarantees enforced by semantic hard validators.
+Final-review revision, 2026-11-07:
 
-**Knowledge permission** controls what evidence may support an answer. This is where business-only, general guidance and approved web access belong.
+- Customers choose predefined **Conversation tone** and **Answer breadth** profiles. Their generated prompt/configuration details belong in **Advanced**, not the first-step form.
+- "Temperature" in the original request meant answer breadth: how widely the assistant may advise beyond supplied business evidence. Do not map it to a provider sampling parameter or call it a hallucination allowance.
+- The model remains responsible for semantic decisions. Presets guide it through prompts and declared configuration, never keyword/phrase matching, output-text scoring or hard validators policing the meaning of every sentence.
+- Fix generic-closer removal immediately: **false by default**, with only an explicit advanced opt-in. Do not disable PII/security sanitization. Raise other evidenced semantic-rewriting defects for owner review rather than silently broadening this fix.
+- **Defer public web search** until the other optimizations are measured. No search-provider connection, crawler, external network capability or web-search control is included in this implementation.
 
-**Research depth** controls permitted external work: tool calls, returned sources, evidence size, deadline and cost. It is not an invitation to search indefinitely or automatically expand sources after a poor model choice.
+The presets below are agreed direction, still awaiting final implementation review. The closer-default correction is separately authorized now; its source/live status must be recorded independently.
 
-**Generation temperature** is an advanced sampling parameter for compatible models, not a factuality, freshness or internet-permission slider. Spring AI exposes portable generation options plus model-specific options; not every selected model supports every setting. See [Spring AI generation configuration](https://spring.io/blog/2025/04/14/spring-ai-prompt-engineering-patterns/).
+### 4.2 Customer journey and editor placement
 
-### 4.2 Current foundations and gaps
+Place **AI Behaviour** beside the existing behaviour/configuration editor under a Kit's Smart Brain. Reuse the same component and draft for customers and authorized staff. This does not replace deployment behaviour types, activation sources, specialist plans or their existing editors.
 
-The shared Prompts editor already has `systemPrompt`, `intentExtractionPrompt`, `actionSelectionPrompt`, `clarificationPrompt`, `answerGenerationPrompt`, `retrievalPrompt` and `assistantUiPrompt`. Providers exposes distinct orchestration and generation temperatures. Customer advanced routes reuse these editors. The compiler/provisioner already carries these settings into releases.
+The normal customer view contains:
 
-Source: [customer advanced routes](../../../../../../../../Platfrom/ui/src/App.tsx), [Prompts editor](../../../../../../../../Platfrom/ui/src/pages/PromptsPage.tsx), [Providers editor](../../../../../../../../Platfrom/ui/src/pages/ProvidersPage.tsx), [profile catalog](../../../../../../../../Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/ManagedDeploymentProfileCatalog.java), [provisioning compiler](../../../../../../../../Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayProvisioningPlanService.java).
+- **Conversation tone:** a named preset with a short business-facing description and example.
+- **Answer breadth:** Grounded, Advisory or Exploratory, with a clear explanation of what changes.
+- **Answer length:** Brief, Balanced or Detailed; a separate presentation preference.
+- **Next steps:** Off or Contextual, implemented with the response/suggestions work in section 5 rather than generic closing text.
+- **Try a conversation:** existing supported preview, accurately distinguishing live settings from draft-only prompt overlays.
+- **Advanced:** collapsed prompt/configuration details, custom brand guidance and supported technical settings.
 
-There is no dedicated end-to-end public-web research setting in the inspected Platform/runtime contract. A prompt saying "search the internet" does not create a tool or network integration. Pretrained general knowledge is also not live internet research.
+All Engage channels connected to that Brain inherit its answer policy. Engage continues to own branding, layout, display format and channel/tool visibility. Do not create independent tone copies for website, Max and standalone channels.
 
-The framework's managed defaults deliberately prefer supplied evidence and discourage generic closers. A new warmer/proactive preset must reconcile those instructions rather than append contradictory prompts. The `0.8.45` sanitizer also has a default-enabled, phrase-based generic-closer removal option. Inspect its effective configuration when qualifying tone: do not add more text rewriting, and do not disable PII/security sanitization to change conversational style. Prefer the existing separate closer-removal switch where appropriate; any required framework correction must be raised for review.
+### 4.3 Conversation tone presets
 
-Release sources: [managed prompt defaults](https://github.com/Loom-AI-Labs/ai-fabric-framework/blob/ai-fabric-framework-v0.8.45/ai-infrastructure-module/ai-fabric-core/src/main/java/ai/fabric/prompt/ManagedPromptDefaults.java), [sanitization options](https://github.com/Loom-AI-Labs/ai-fabric-framework/blob/ai-fabric-framework-v0.8.45/ai-infrastructure-module/ai-fabric-core/src/main/java/ai/fabric/config/ResponseSanitizationProperties.java).
+Initial presets are domain-neutral and independently combinable with answer breadth:
 
-### 4.3 Proposed customer editor
+- **Professional:** clear, composed, respectful; direct answers without unnecessary formality.
+- **Warm:** approachable and reassuring; conversational language without exaggerated familiarity or unsupported reassurance.
+- **Consultative:** explain useful trade-offs and ask relevant questions to help the customer decide; do not force a question after every answer.
+- **Technical:** precise terminology and structured explanations suited to experienced users; explain assumptions and avoid invented technical facts.
 
-Place **AI Behaviour** under the Kit's Smart Brain configuration, not in each separate Engage channel. All apps connected to the same Brain should inherit the same business-answer policy. Engage retains appearance, display-format, tool visibility and channel configuration.
+Tone changes wording and organization, not evidence authority, available actions, confirmation, tenant access or spending limits. None of these profiles requires a particular sentence ending or deterministic replacement of the model's wording.
 
-Keep the initial view small:
+### 4.4 Answer breadth presets
 
-- **Voice:** Professional, Warm or Consultative; optional short brand guidance.
-- **Answer length:** Brief, Balanced or Detailed.
-- **Next steps:** Off or Contextual; default to a small number of relevant choices, not an invitation after every answer.
-- **Answer sources:** the modes below, with web controls shown only when a real research connection is configured.
-- **Advanced:** model-compatible generation temperature and research limits; preserve the current orchestration settings unless explicitly changed in the existing advanced editor.
+**Grounded** is the conservative business default. Answer customer/business questions using approved documents and authorized live business actions. Explain the supported part and what is missing. This still uses the model's language and reasoning abilities; it does not claim to remove pretrained knowledge.
 
-These controls compile into the current prompt/provider/plugin draft sections. They are not a second independent prompt store. If structured preset selections are persisted for round-trip editing, record their revision and generated prompt fragment; make manual advanced edits visible as **Custom** instead of silently overwriting them on the next preset save. Preserve existing extraction, action and compound-retrieval guidance.
+**Advisory** also permits general knowledge, reasonable inference and practical recommendations beyond supplied documents. Clearly distinguish general advice or inference from verified business facts when that distinction matters. For example, explain typical electric-car motorway considerations without requiring a dealership document to contain the whole explanation.
 
-An isolated **Try a conversation** panel should use the existing preview facilities where supported, show the effective draft settings and label sample answers as samples. No active app changes until publish/apply. Save a successful setup to the relevant template as a default for future deployments, not a forced update to existing customers.
+**Exploratory** permits wider comparisons, alternatives, brainstorming and clearly identified assumptions, including options outside the currently indexed catalogue where appropriate. The model should explain when an option is general guidance rather than something the business supplies. It must not claim current web research, current external prices or verified availability without a real supporting integration.
 
-### 4.4 Recommended source modes
+Common rules across all three:
 
-1. **Business sources only** is the default. Customer-specific prices, stock, availability, policies, commitments and action outcomes require approved documents or live business actions. The model still uses language/reasoning abilities; this does not pretend to remove its pretrained knowledge.
-2. **Business sources plus general guidance** allows clearly distinguished general explanations and recommendations without web access. It must not claim freshness, invent missing vehicle-specific facts or quietly replace a failed business lookup with generic advice presented as a verified answer.
-3. **Approved public research** adds a configured READ tool for selected public sources. Business evidence and public research remain distinguishable with provenance and dates. Start with approved domains, not an unrestricted browser.
+- Business-specific prices, stock, availability, policies, commitments and action outcomes still need approved business evidence. Wider advice cannot invent or overwrite these facts.
+- No automatic web access or hidden source expansion. The LLM chooses authorized sources/actions within the existing published orchestration policy; existing recovery requires its named allow-policy.
+- A failed stock/policy lookup remains visible. General guidance may accompany the limitation, but must not masquerade as a successful lookup.
+- No semantic phrase filters or mandatory citation requirement for every general explanatory sentence. Evaluate quality with representative conversations, accepting measured model imperfection.
+- Missing optional knowledge does not automatically reject a useful answer. Do not ask customers to choose internal vector-space or knowledge-domain names.
+- Authorization, trusted identifiers, required action fields, confirmation and budgets remain hard boundaries. Answer breadth does not modify them.
 
-When evidence is missing, the model may explain the limitation, answer the supported part, ask a useful clarification or offer human help. It must not ask the buyer to choose internal vector-space names. A configured source-expansion/recovery policy remains explicit; web research is not a hidden RAG fallback.
+The real provider **generation temperature** remains a separate model-compatible advanced option. Selecting an answer-breadth preset does not change it, the orchestration temperature or the model unless the user explicitly edits those settings.
 
-### 4.5 Public research integration
+### 4.5 Presets update the same editable configuration
 
-Use an **Action plugin with a governed READ capability** and an approved search-provider connection, reusing the generic REST connector where the provider API fits. Do not create a new standalone bridge, autonomous crawler or plugin type just for this proposal.
+The shared [Prompts editor](../../../../../../../../Platfrom/ui/src/pages/PromptsPage.tsx) already owns `systemPrompt`, `intentExtractionPrompt`, `actionSelectionPrompt`, `clarificationPrompt`, `answerGenerationPrompt`, `retrievalPrompt` and `assistantUiPrompt`. The [Providers editor](../../../../../../../../Platfrom/ui/src/pages/ProvidersPage.tsx) owns provider generation parameters. Reuse these draft sections and the current publish/apply path.
 
-The deployment-local model selects the tool when appropriate within the published policy. The server owns provider credentials, permitted destinations and bounds. READ actions need not pretend to own indexed vector spaces. Review the current planner's allowlist, grounding-eligibility and source-cooperation settings so a non-indexed research action is actually eligible without inventing a vector space or weakening unrelated business-source boundaries.
+1. Selecting a preset shows its effect and updates its owned prompt/configuration fragment in the editor buffer. It does not immediately save or change a live app.
+2. Persist stable preset IDs/revisions and their expanded configuration in the same deployment version, so reopening the editor preserves the chosen profiles and published releases are reproducible.
+3. Preserve unrelated custom prompts, action/schema guidance, compound-retrieval instructions, integrations and credentials. Show a diff before replacing an already-customized profile-owned fragment; never overwrite the whole prompt document just to change tone.
+4. Direct advanced edits make the affected profile **Custom**. Detect this from exact configuration identity/provenance, not by interpreting prompt wording. Reapplying/resetting a preset is explicit.
+5. Resolve curated prompt conflicts at composition time. In particular, reconcile "use only supplied evidence" instructions with Advisory/Exploratory rather than appending contradictory instructions and hoping one wins. Keep policy/trust instructions distinct from style guidance.
+6. Save -> validate -> publish -> apply uses the existing versioning mechanism. Templates may supply initial choices; they do not lock future customer changes or force upgrades of existing deployments.
+7. Preview must accurately show which parts it can simulate. Prompt-only POC overlays cannot claim to preview provider options or post-processing that require a runtime apply. No hidden production edits to make a preview look successful.
 
-Proposed response contract: source title, canonical URL, bounded excerpt, retrieval time and publication date when provided; distinguish a publisher date from the time LoomAI fetched it. These are proposed integration fields, not an existing API promise. Confirm that the safe projection preserves provenance before advertising citations.
+Use small meaningful profiles, not a second independent prompt store, duplicate behaviour engine or opaque numerical "creativity" slider. A profile remains a starting point that the customer can customize.
 
-**Quick** should permit a small bounded lookup; **Standard** may permit an additional planning step within the existing iterative READ budget. Exact call/page/token limits should be selected from measured canaries, not presented as another creativity slider. Defer long-running deep research until there is demonstrated demand.
+### 4.6 Immediate correction: generic-closer removal
 
-Keep external requests minimized: do not forward the conversation transcript, customer secrets or personal contact details to a public search provider. Any URL fetching must enforce destination/redirect/address restrictions against SSRF. Remote text is untrusted evidence, never authorization or executable instructions. Do not automatically index web results into the customer's approved knowledge.
+AI Fabric `0.8.45` defaults `removeGenericAssistanceClosers` to true and uses sentence/paragraph phrase lists in `ResponseSanitizer.applyAnswerHygiene`. This is semantic rewriting, not a security control, and can remove useful advice or next steps. The previous suggestion to treat its default-enabled behavior as normal tone tuning was incorrect.
 
-The existing connector provides configured upstream routes and timeouts, but a production research adapter still needs provider-specific request/response mapping and qualification. If OpenAI hosted web search is selected, it is a distinct tool/API integration with source/citation controls, not something the current generation temperature enables. Its results must retain prominent clickable citations. See [official OpenAI web-search documentation](https://developers.openai.com/api/docs/guides/tools-web-search). This is an available integration option, not a claim it is enabled in LoomAI today.
+Required correction:
 
-Source: [REST action execution](../../../../../../../../ai-infrastructure-module/ai-infrastructure-generic-rest-connector/src/main/java/com/ai/infrastructure/connector/rest/service/RestActionExecutionService.java), [routing contract](../../../../../../../../ai-infrastructure-module/ai-infrastructure-generic-rest-connector/src/main/java/com/ai/infrastructure/connector/rest/config/RestRoutingConfig.java).
+- Default `ai.response-sanitization.remove-generic-assistance-closers` to **false** in framework defaults and Platform-generated runtime configuration. Absence of a deployment choice must mean false, including when consuming the already released framework.
+- Store the explicit deployment choice as `promptConfig.removeGenericAssistanceClosers`. Expose only in the advanced editor as **Remove generic assistance closers (phrase-based)**, off initially, with its content-removal risk visible when enabled.
+- Preserve the existing sanitizer, PII detection/redaction, safe projections and identity/action boundaries. Never switch the whole sanitizer off to change conversational style.
+- Enabling this existing optional rewriting is an explicit owner-approved advanced exception, not permission to add text matching to intent, targets, actions, knowledge routing, evidence selection or recovery. Presets and templates must not enable it automatically.
+- Test omitted/false/true values, save/reload and publish-time runtime mapping. Prove model-authored closers survive by default and sensitive data is still redacted. Do not silently coerce malformed configuration into enabling rewriting.
+- Inspect similar active rewriting/fallback paths and report concrete findings separately. Do not treat test assertions, exact IDs, formal parsing, declared security detectors or presentation-only labels as semantic violations.
 
-**Verdict:** deliver simple voice/length/initiative controls first. Add source permissions and a real, bounded research integration separately. Never label temperature as "how far the AI looks outside your data."
+The released framework already supports the property, so a Platform environment default can correct deployed behavior without a framework version bump. A framework source patch alone is not live adoption; record exact application/release/container evidence separately.
+
+### 4.7 Public research is deferred
+
+No public-search tool or search provider will be implemented in this scope. General model knowledge and an actual internet lookup are different capabilities. Neither Advisory nor Exploratory can claim to have searched the web.
+
+Revisit only after tone, answer breadth, current-source handling and next-step improvements have measured results. A future design may reuse an authorized READ Action plugin or a provider-hosted search capability, with provenance, credentials and execution bounds. Do not add a standalone Python bridge or new plugin type now.
+
+### 4.8 Acceptance and implementation order
+
+1. Close the separately authorized closer-default defect and report similar findings.
+2. Review this section, then implement tone/breadth profiles in the existing shared draft/editor and advanced view.
+3. Verify selection, Custom/reset, save/reopen, versioned release, same-Brain channel consistency and prevention of unrelated prompt loss.
+4. Compare the same multi-turn questions across profiles, including missing evidence, compound stock/policy questions, useful general advice, action confirmation and human handover. No lexical quality gates or guaranteed model-perfect pass claims.
+5. Retain default measured settings in the appropriate template only after qualification. Existing deployments change only through explicit normal configuration updates.
+
+**Verdict:** named tone and answer-breadth presets are the product controls. Prompt/configuration details stay advanced. Phrase-based closer removal is off by default and never silently enabled by a profile. Public research waits for evidence from these optimizations.
+
+### 4.9 Similar defects raised for owner review; not fixed here
+
+Read-only source audit, also checked against the immutable `0.8.45` tag where noted. These are source findings, not a claim that live failure injection reproduced them:
+
+- **Widget overwrites the model's narrative:** [useChatFlow.ts](../../../../../../../../max-mode-widget/src/hooks/useChatFlow.ts) automatically prefers [summarizeShopifyMcpCatalogResult](../../../../../../../../max-mode-widget/src/shopifyMcpResults.ts) when a product-shaped payload exists, even if a backend answer was supplied. It can discard qualifications/comparison/uncertainty. Structured product rendering is fine; substituting the main answer without an explicit presentation choice is the issue. Recommend preserving the authored answer and keeping the product count/list in the existing result presentation.
+- **READ evidence substituted after generation failure:** `InformationGenerationResponseSupport.fromReadActionEvidence` can return raw evidence text as a successful answer instead of surfacing generation failure. The `0.8.45` tag protects exceptions when conversation history exists, but its no-history path still permits this substitution. Recommend separating successful evidence retrieval from failed answer generation, or using a named explicit recovery policy with visible outcome, not generic success.
+- **Deterministic post-action answer fallback and lexical message suppression:** `PostActionGenerationSupport` uses deterministic facts/counts after failed/empty forced READ generation and filters message strings such as "ok"/"success". Present in `0.8.45`. Diagnostics do disclose `deterministicFallbackUsed`; this is not wholly hidden. Forced generation is not itself explicit permission for an alternate answer. Recommend separately authorized recovery and a truthful structured result presentation without replacing the LLM answer or hiding the generation failure.
+- **Static no-context response masks provider failure:** `RagResponseGenerationSupport` can turn failed empty-context generation into a fixed limitation response that the RAG result treats as successful. In `0.8.45`, history-bearing exception paths are protected; no-history failures can still take this path. Recommend an explicit generation outcome and preserving any usable retrieved data, not pretending the static text was a generated answer.
+
+The runtime/widget fixed suggestions after generation failure are already recorded in section 5 and are not new findings. Relationship-module behavior remains deferred. No other framework/router/widget correction is authorized by the closer-default fix; obtain review before changing these paths.
 
 ## 5. Make Next Suggestions Useful And Trustworthy
 
@@ -286,7 +335,7 @@ flowchart LR
     Engage[Website dock / Max / standalone] --> Runtime
     Runtime --> Knowledge[Approved documents and indexed evidence]
     Runtime --> Business[Authorized business READ / write integrations]
-    Runtime --> Research[Optional approved public-research READ tool]
+    Runtime -. Deferred .-> Research[Future approved public-research READ tool]
     Runtime --> Desk[Configured human-support integration]
 ```
 
@@ -304,11 +353,11 @@ Add the staff customer selector to the existing Kit orchestration boundary, invi
 
 ### O3. Add the simple AI Behaviour editor
 
-Deliver voice/length/initiative controls, managed-prompt round trips, effective preview and release diffs over existing storage. Keep advanced provider settings in the existing shared editor. Qualify successful defaults per template before making them defaults for newly created customers.
+Deliver named tone and Grounded/Advisory/Exploratory answer-breadth presets as specified in section 4, with prompt/configuration details in Advanced. Reuse existing length/initiative controls, managed-prompt round trips, accurate preview and release diffs. Qualify successful defaults per template before making them defaults for newly created customers. The default-off closer correction is independently authorized, not contingent on shipping this whole editor.
 
-### O4. Qualify optional public research
+### O4. Public research: deferred, separate approval
 
-Choose one approved provider and a small official-source use case. Add the READ plugin, safe provenance projection, configured limits and source-mode UI. Compare usefulness, latency and cost against business-only/general-guidance modes. Do not make internet access a requirement for the dealership pilot or O1-O3.
+Do not implement now. Revisit provider selection, READ integration, citations and execution limits only after evaluating O1/O3. No current implementation or customer UI exposes web search as an available profile.
 
 ### O5. Extend business capabilities where contracts exist
 
@@ -325,13 +374,13 @@ O1 and the bounded O2 access work can progress independently. Keep shared contra
 - Removing delegated staff access denies subsequent requests for that workspace without revoking the staff member's unrelated login or customer service integrations/app assignment. Already-executing work may finish. The UI honestly distinguishes retained global administration.
 - Duplicate setup/invite submissions are bounded/idempotent; invitation expiry/revocation is enforced. Existing admin and customer self-service creation still work.
 
-### Behaviour and public research
+### Behaviour; future public-research qualification deferred
 
-- Presets round-trip through draft, preview, published release and template defaults without discarding custom advanced instructions.
+- Tone and answer-breadth presets round-trip through draft, supported preview, published release and template defaults without discarding custom advanced instructions. Prompt/configuration details remain advanced.
 - Compare the same representative queries under brief/warm/consultative settings. Assess usefulness manually; do not hard-reject useful answers because wording differs.
-- Business-only mode makes no public-research calls. General-guidance mode does not claim a web check. Research mode preserves cited provenance, obeys destinations/deadlines and does not expose private conversation/contact data.
-- Test missing stock facts, conflicting/old public information, malicious page instructions, unavailable tools and unrelated recommendations. Preserve approved business facts and visible limitations; no hidden semantic fallback.
-- Confirm actual provider compatibility before sending temperature options. Do not alter orchestration temperature as a side effect of a voice change.
+- All current breadth profiles make no public-research calls or web-check claims. Future research-specific provenance, external content and destination tests belong to deferred O4.
+- Test missing stock facts, general advice, explicit assumptions and unrelated recommendations. Preserve approved business facts and visible limitations; no hidden semantic fallback.
+- Confirm actual provider compatibility before sending advanced sampling-temperature options. Do not alter either provider temperature as a side effect of tone or answer breadth.
 
 ### Suggestions and dealership journey
 

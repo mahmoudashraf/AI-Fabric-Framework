@@ -12,9 +12,11 @@ import {
   CardContent,
   Chip,
   Divider,
+  FormControlLabel,
   Grid,
   MenuItem,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -92,6 +94,7 @@ type PromptFormState = Record<PromptKey, string> & {
   responseGenerationMaxTokensStandard: string
   responseGenerationMaxTokensDeep: string
   smartSuggestionsMode: SmartSuggestionsMode
+  removeGenericAssistanceClosers: boolean
 }
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
 type PromptDiffRow = {
@@ -119,6 +122,7 @@ function defaultPromptState(): PromptFormState {
     responseGenerationMaxTokensStandard: '',
     responseGenerationMaxTokensDeep: '',
     smartSuggestionsMode: 'inherit',
+    removeGenericAssistanceClosers: false,
   }
 }
 
@@ -208,6 +212,7 @@ function normalizePromptState(value: unknown): PromptFormState {
       next.smartSuggestionsMode = 'disabled'
     }
   }
+  next.removeGenericAssistanceClosers = value.removeGenericAssistanceClosers === true
   return next
 }
 
@@ -234,7 +239,8 @@ function statesEqual(left: PromptFormState, right: PromptFormState) {
     left.responseGenerationMaxTokensConcise === right.responseGenerationMaxTokensConcise &&
     left.responseGenerationMaxTokensStandard === right.responseGenerationMaxTokensStandard &&
     left.responseGenerationMaxTokensDeep === right.responseGenerationMaxTokensDeep &&
-    left.smartSuggestionsMode === right.smartSuggestionsMode
+    left.smartSuggestionsMode === right.smartSuggestionsMode &&
+    left.removeGenericAssistanceClosers === right.removeGenericAssistanceClosers
   )
 }
 
@@ -334,6 +340,7 @@ function parsePositiveInteger(value: string): number | null {
 
 function createPromptConfigPayload(formState: PromptFormState) {
   const payload: Record<string, string | number | boolean> = createPromptPreviewPayload(formState)
+  payload.removeGenericAssistanceClosers = formState.removeGenericAssistanceClosers
   const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
   if (ragSimilarityThreshold !== null) {
     payload.ragSimilarityThreshold = ragSimilarityThreshold
@@ -982,6 +989,15 @@ export function PromptsPage() {
                 </Stack>
               </CardContent>
             </Card>
+
+            <Box component="details">
+              <Box component="summary" sx={{ cursor: 'pointer', fontWeight: 700, py: 1 }}>Advanced response processing</Box>
+              <FormControlLabel control={<Switch checked={formState.removeGenericAssistanceClosers} disabled={!canEdit}
+                onChange={(_, checked) => setFormState(previous => ({ ...previous, removeGenericAssistanceClosers: checked }))} />}
+                label="Remove generic assistance closers (phrase-based)" />
+              <Typography variant="body2" color="text.secondary">Disabled by default. Rewrites model-authored closing sentences; not a safety control. Requires publish and apply, and is not included in prompt-only preview.</Typography>
+              {formState.removeGenericAssistanceClosers && <Alert severity="warning">Phrase-based rewriting can remove useful recommendations or next steps. Prefer prompt guidance.</Alert>}
+            </Box>
 
             <Grid container spacing={2}>
               <Grid item xs={12}>
