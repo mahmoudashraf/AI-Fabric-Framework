@@ -70,7 +70,34 @@ replaced with in-page dialogs and the checks were repeated after clean reload.
 Development hot-reload context errors were cleared by a full reload; they are
 not a claim about hosted production behavior.
 
-Hosted rollout and browser evidence will be added after qualification. Browser
+### Hosted Qualification
+
+- UI source: `f1045c731aad89d37f80e0897e6c7b728401ed98` on `Platform-V11`.
+- [CI 42416848422](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42416848422) passed; backend image job skipped.
+- Staging Coolify job `y7ubferxhzjar3es0wl1ykdy` finished; exact-source native UI container healthy.
+- Production Coolify job `ce2za8bgmgsn0strvxadhit8` finished; exact-source native UI container healthy.
+- [Production account](https://console.loomai.pro/account/team) and [developer staging account](https://developer.loomai.pro/account/team) verified with the authorized owned support fixtures, not the owner's personal Brain/account.
+- Legacy customer `/users?deploymentId=...` redirects to the account workspace with safe return context. Actual team read, filters, own-member indicator/self-disable guard and add/edit drawers passed.
+- Staging SPA back-navigation retained unsaved edits; Stay here and explicit discard passed. Collaboration drawer and own-identity email-link controls passed without granting access or sending email.
+- Production Back to Smart Brain and account-avatar return preserved the selected target after the Brain loaded. My account, security, dark/light desktop and basic mobile navigation passed. No horizontal page overflow; desktop page fits one viewport.
+- Staff direct `/users` still renders **Unified access administration**, with no customer account frame.
+- Production verification tab captured no console errors. Local/staging/production customer fixtures and production staff were observed signed out; temporary tabs closed and viewport reset.
+- Backend source remains `baf6ea3328a1ef72d83d01552ffbc02da1582105`, healthy on both hosts. Runtime config remains staging/developer and production/standard.
+
+Proof: [production dark](live/production-team-dark.png), [production light](live/production-team-light.png),
+[production security](live/production-security-dark.png), [production mobile](live/production-profile-mobile.png),
+[staging dark](live/staging-team-dark.png), [staging light](live/staging-team-light.png),
+[staging mobile](live/staging-profile-mobile.png).
+
+Verification boundaries: an early production request still reached the previous
+UI while Coolify was switching traffic; checks were repeated after the job
+finished and the page reloaded. An account-avatar click during the Brain's
+initial automatic environment resolution stayed on the Brain; the settled-page
+return passed. Staff sidebar clicks did not navigate in this automation run;
+the unchanged staff `/users` route was qualified by direct entry. These existing
+navigation/timing surfaces were not rewritten as part of this account redesign.
+
+Browser
 verification does not change real user passwords, grant new staff access, disable
 accounts or send sign-in emails. Such operations are checked with synthetic
 command inputs and existing backend contracts instead.

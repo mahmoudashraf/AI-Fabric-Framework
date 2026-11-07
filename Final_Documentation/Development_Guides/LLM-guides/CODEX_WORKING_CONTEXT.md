@@ -13281,3 +13281,25 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence:verification-support/customer-account-workspace/README.md +local/.
   Hosted UI-only staging then production rollout pending exact-source CI and
   hosted browser verification. Preserve unrelated dirty work and developer profile.
+
+### Customer Account Workspace Hosted Closeout
+
+- Supersedes pending rollout above: UI sourcef1045c731aad89d37f80e0897e6c7b728401ed98,
+  CI42416848422 PASS/backend SKIPPED. Staging joby7ubferxhzjar3es0wl1ykdy and
+  production jobce2za8bgmgsn0strvxadhit8 FINISHED; native exact-source UI containers
+  HEALTHY. Both backend containers still healthy onbaf6ea3328a1ef72d83d01552ffbc02da1582105.
+- Hosted owned support fixtures passed legacy /users->/account/team, actual team
+  reads/filter/own-member guard/drawers, collaboration/security/profile,
+  staging dirty SPA back-navigation, production settled Brain/account return with
+  target retained, dark/light desktop/basic mobile. No horizontal page overflow.
+  Staff direct /users still existing Unified access administration, no accountframe.
+- No live member/password/access grant/revoke/email change or AI/resource action.
+  Production tab captured no console errors. Fixtures inclstaff observed signed
+  out; temporarytabs closed/viewportreset. Runtimeprofiles staging/developer and
+  production/standard retained. Evidence:verification-support/customer-account-workspace/.
+- Explicit verification limits: first production request reachedoldUI before
+  Coolify traffic switch; repeatedafterjobfinished. Brain avatar earlyclick during
+  auto-target resolution stayedonBrain, settled-page returnpassed. Staff sidebar
+  automation clicks didnotnavigate; directstaff/users passed. Existingglobal
+  navigation timing notrewritten by thisnarrow account UI task. Same auth/team
+  productconstraints remain, no invented invitation or Supabase provisioning.
