@@ -12,6 +12,16 @@ new Function('require', 'exports', ts.transpileModule(await readFile(new URL('..
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
 }).outputText)(require, profiles)
 const source = await readFile(new URL('../src/brain/BrainUpdatesPage.tsx', import.meta.url), 'utf8')
+async function loadModule(path, dependencies = {}) {
+  const result = {}
+  new Function('require', 'exports', ts.transpileModule(await readFile(new URL(path, import.meta.url), 'utf8'), { compilerOptions: {
+    target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
+  } }).outputText)(name => name in dependencies ? dependencies[name] : require(name), result)
+  return result
+}
+const navigation = await loadModule('../src/brain/brainNavigation.ts')
+const presentation = await loadModule('../src/brain/brainReleasePresentation.ts', { './brainNavigation': navigation })
+const versionView = await loadModule('../src/brain/BrainReleaseVersions.tsx', { './brainReleasePresentation': presentation })
 const revisions = await readFile(new URL('../src/pages/RevisionsPage.tsx', import.meta.url), 'utf8')
 const fields = ['actionsConfig', 'entityConfig', 'routingConfig', 'providerConfig', 'securityConfig',
   'promptConfig', 'knowledgeSourceConfig', 'shellConfig', 'marketplaceDatasetConfig', 'behaviorConfig']
@@ -42,7 +52,9 @@ const dependencies = {
     targetProfile: { id: 'target-1', active: true, environmentName: 'Staging', name: 'London staging' },
     release, target: { deploymentId: 'brain-1', targetProfileId: 'target-1', releaseId: 'release-12' }, href: section => `/smart-brains/brain-1/${section}` }), useBrainEditor: state => { registered = state } },
   './BrainCustomerReleaseTasks': { BrainCustomerReleaseTasks: () => null },
-  './brainNavigation': { brainPath: (id, section, target) => `/smart-brains/${id}/${section}?targetProfileId=${target}` },
+  './brainNavigation': navigation,
+  './brainReleasePresentation': presentation,
+  './BrainReleaseVersions': versionView,
   'react-router-dom': { useNavigate: () => () => {}, useLocation: () => ({ pathname: '/smart-brains/brain-1/updates', search: '?targetProfileId=target-1' }),
     Link: ({ to, children }) => React.createElement('a', { href: to }, children) },
   '@tanstack/react-query': {
@@ -122,10 +134,11 @@ test('release polling preserves pending provider confirmation and terminal failu
 
 test('page mounts read-only queries, registers one shared footer and does not project raw config', () => {
   const html = renderToStaticMarkup(React.createElement(exports.BrainUpdatesPage))
-  assert.match(html, /Review and publish changes/)
+  assert.match(html, /Saved changes/)
+  assert.match(html, /Published versions/)
   assert.match(html, /Compared with Staging v12/)
   assert.ok(!html.includes('DO_NOT_PROJECT_THIS_VALUE'))
-  assert.equal(registered.primaryLabel, 'Publish & update Staging')
+  assert.equal(registered.primaryLabel, 'Review & publish version')
   assert.equal(registered.secondaryLabel, 'Back to editing')
   assert.equal(registered.dirty, false)
   assert.equal(registered.canSave, true)
@@ -139,6 +152,13 @@ test('viewer has no publication or update command registered', () => {
   assert.equal(registered.save, undefined)
   assert.equal(registered.canSave, false)
   canEdit = true; canOperate = true
+})
+
+test('outcome summaries use declared names/counts, not raw action names or prompt content', () => {
+  assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ name: 'domain_internal_name', displayName: 'Find stock' }] }), 'Find stock')
+  assert.equal(exports.outcomeSummary('actionsConfig', { actions: [{ name: 'domain_internal_name' }] }), '1 capabilities')
+  assert.equal(exports.outcomeSummary('promptConfig', { prompt: 'HIDDEN_PROMPT' }), 'Reply preferences and instructions')
+  assert.ok(!exports.outcomeSummary('providerConfig', { token: 'HIDDEN_KEY' }).includes('HIDDEN_KEY'))
 })
 
 test('advanced existing controls remain scoped, permission checked, and preference writes disabled', () => {

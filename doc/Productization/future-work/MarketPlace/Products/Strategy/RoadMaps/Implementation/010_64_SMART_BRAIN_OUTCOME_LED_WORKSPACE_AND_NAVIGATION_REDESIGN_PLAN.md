@@ -277,13 +277,23 @@ Tests run only on explicit request and can incur provider usage. Normal configur
 
 ### 5.8 Updates
 
+**Follow-up approved on 7 November:** the owner requested clearer
+environment selection and first-class published-version controls. The
+[Updates release-journey proposal](010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md)
+adds two visual layouts and the explicit Review / Publish / Apply / Verify
+sequence below. Implementation is locally qualified; hosted rollout is pending.
+
 Root: `/updates`
 Title: **Review and publish changes**
 Outcome: **Understand and apply a change to the intended environment.**
 
 Show a concise difference between the saved shared draft and the selected target's applied version, real readiness results, and a plain-language summary of the affected products. History is a secondary view. Long diffs open a focused bounded pane instead of extending the entire page.
 
-The primary command is `Publish & update Staging` or `Publish & update Production`. This is one UI intent sequencing the **existing publish, apply and verify mechanisms**, not a new versioning or approval system. Show the proposed changes and require the existing meaningful confirmation.
+The primary command starts with `Review & publish version`, then a separate
+`Apply v14 to Production` review names the exact saved version and target.
+The version grid is part of normal Updates, not Advanced. This sequences the
+**existing publish, apply and verify mechanisms**, not a new versioning or
+approval system. Show actual progress and retain meaningful confirmations.
 
 Display exact progress and failures. If publishing succeeds but applying fails, retain the published version and offer the existing apply/retry operation. Do not silently create another version, replace the app, or claim a rollback happened.
 

@@ -10,6 +10,33 @@ Main specification: [010.64 Smart Brain Workspace Redesign](../../010_64_SMART_B
 - [AI capabilities, light mode](capabilities-light.png): connected-capability list, selected detail pane, technical disclosure.
 - [Updates, dark mode](updates-dark.png): saved-draft comparison, actual readiness layout, one target-specific publish/update workflow.
 
+## Updates Follow-up Proposal
+
+The owner requested a clearer release journey after using the implemented screen.
+These two built-in image-generation outputs are **approved visual proposals,
+not implementation screenshots**:
+
+- [Review and visible versions](updates-review-v2-dark.png): explicit environment
+  choices, a four-stage sequence and a normal published-version grid.
+- [Apply confirmation](updates-apply-v2-dark.png): the next screen after
+  publication, with the exact version/environment in a focused review panel.
+
+Specification and source-grounded behavior rules:
+[Updates release journey](../../010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md).
+The follow-up implementation is locally qualified, with hosted rollout pending. Fictional
+Northfield versions and readiness labels are not live evidence.
+
+Generation brief: retain the charcoal AWS-style resource frame, thin dividers,
+readable sans-serif type and restrained blue accent. Replace the environment
+dropdown with labelled Staging/Production choices and evidence-backed status.
+Show Review changes / Publish version / Apply / Verify as a state sequence. Keep
+outcome-led changes beside a visible published-version table, not an advanced
+editor. Show a first-deployment Production example, one meaningful footer action,
+then a separate focused Apply drawer with compatible runtime selection, exact
+target/version confirmation and technical disclosure. No duplicate release engine,
+fake readiness, auto-activation, gradient, decorative graphic or nested cards.
+The second output used the first as its visual reference. No fallback CLI was used.
+
 All three are project-owned copies of outputs generated with the built-in image-generation tool. No fallback CLI was used. Responses received one targeted image edit to replace repeated resource context with `Editing shared draft` and make the unapplied state explicit. The other images used the first screen as a layout reference.
 
 ## Reusable Prompt Set

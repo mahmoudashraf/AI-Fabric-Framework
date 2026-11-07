@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link as RouterLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Avatar, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, Drawer, FormControl, IconButton, Link, List, ListItemButton, ListItemIcon,
-  ListItemText, MenuItem, Select, Stack, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
+  DialogTitle, Divider, Drawer, IconButton, Link, List, ListItemButton, ListItemIcon,
+  ListItemText, Stack, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import HomeOutlined from '@mui/icons-material/HomeOutlined'
 import LayersOutlined from '@mui/icons-material/LayersOutlined'
@@ -30,6 +30,7 @@ import { BrainEditorContext, BrainWorkspaceContext, type BrainEditorState } from
 import { brainIdFromPath, brainPath, brainSections, currentBrainSection, isUsableRelease, retainEditingRelease } from './brainNavigation'
 import { deploymentTerm } from '../deploymentTerminology'
 import { accountPath } from '../account/accountNavigation'
+import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 
 const sectionIcons = [HomeOutlined, LayersOutlined, AutoAwesomeOutlined, ChatBubbleOutlineRounded,
   AccountTreeOutlined, HeadsetMicOutlined, PlayArrowOutlined, SystemUpdateAltOutlined, SettingsOutlined]
@@ -71,7 +72,6 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const applied = scopedReleases.find(isUsableRelease) ?? null
   const requestedRelease = params.get('releaseId')
   const candidateRelease = requestedRelease ? scopedReleases.find(item => item.id === requestedRelease && isUsableRelease(item)) ?? null : applied
-  const latest = scopedReleases[0]
   const section = currentBrainSection(location.pathname)
   const sectionLabel = brainSections.find(item => item.path === section)?.label ?? 'Overview'
   const brain = workspace.selectedDeploymentSummary
@@ -115,12 +115,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const context = useMemo(() => ({ brainId, targetProfileId, targetProfile, release,
     target: release && targetProfileId ? { deploymentId: brainId, targetProfileId, releaseId: release.id } : null,
     href }), [brainId, targetProfileId, targetProfile, release, href])
-  const appliedLabel = versions.data?.find(item => item.id === applied?.deploymentVersionId)?.versionLabel
-    ?? (applied ? applied.deploymentVersionId : '')
   const changed = Boolean(workspace.workspace && (!workspace.workspace.lifecycle.savedDraftMatchesLatestPublished
     || (workspace.workspace.latestVersion && workspace.workspace.latestVersion.id !== applied?.deploymentVersionId)))
-  const targetLabel = targetProfile?.environmentName ?? 'environment'
-  const applyFailed = latest && ['FAILED', 'APPLIED_VERIFICATION_FAILED'].includes(latest.status)
   const nav = <Box component="nav" aria-label={`${deploymentTerm.singular} navigation`} sx={{ display: 'flex', flexDirection: 'column', height: '100%', py: 2 }}>
     <Button component={RouterLink} to="/deployments" startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start', mx: 1.5, color: 'text.primary', mb: 2 }}>All {deploymentTerm.plural}</Button>
     <Typography sx={{ fontSize: 19, fontWeight: 650, px: 2.5, mb: 2.5, overflowWrap: 'anywhere' }}>{brain?.name ?? deploymentTerm.singular}</Typography>
@@ -169,18 +165,11 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
           sx={{ width: compact ? 0 : 210, flexShrink: 0, '& .MuiDrawer-paper': { width: 210, position: compact ? 'fixed' : 'relative', height: '100%', bgcolor: 'background.paper', boxSizing: 'border-box' } }}>{nav}</Drawer>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap" sx={{ px: { xs: 2, md: 3 }, py: 1.5, minHeight: 64, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
-            <Tooltip title="This saved configuration draft is shared. Choose where to inspect or apply it."><Typography fontSize={13} fontWeight={600}>Editing shared draft</Typography></Tooltip>
-            <FormControl size="small" sx={{ minWidth: 140, maxWidth: 220 }}><Select displayEmpty value={requestedTarget} inputProps={{ 'aria-label': 'Environment' }}
-              renderValue={() => targetProfile ? targetProfile.environmentName.charAt(0).toUpperCase() + targetProfile.environmentName.slice(1) : requestedTarget ? 'Unavailable environment' : 'Choose environment'}
-              onChange={event => { const next = new URLSearchParams(location.search); next.set('targetProfileId', event.target.value); next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }}>
-              <MenuItem value="" disabled>Choose environment</MenuItem>
-              {requestedTarget && !targetProfile && <MenuItem value={requestedTarget} disabled>Unavailable environment</MenuItem>}
-              {options.map(option => <MenuItem key={option.id} value={option.id} disabled={!option.active}><Box><Typography fontSize={13}>{option.environmentName.charAt(0).toUpperCase() + option.environmentName.slice(1)}</Typography>
-                {options.filter(item => item.environmentName === option.environmentName).length > 1 && <Typography fontSize={11} color="text.secondary">{option.name}</Typography>}</Box></MenuItem>)}
-            </Select></FormControl>
-            <Stack direction="row" gap={0.75} alignItems="center"><Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: applyFailed ? 'error.main' : applied ? 'success.main' : 'text.disabled' }} />
-              <Typography fontSize={12} color="text.secondary">{profiles.isError || releases.isError ? 'Status unavailable' : profiles.isPending || releases.isPending ? 'Loading environment...' : !targetProfile ? 'Choose an environment' : applyFailed ? 'Update needs attention' : applied ? `Applied ${appliedLabel}` : 'Not deployed'}</Typography></Stack>
-            {changed && <Typography fontSize={12} color="warning.main">Changes not applied</Typography>}
+            <BrainEnvironmentSwitch profiles={options} releases={releases.data ?? []} versions={versions.data ?? []}
+              selectedId={requestedTarget} loading={profiles.isPending || releases.isPending} unavailable={profiles.isError || releases.isError}
+              disabled={busy} onChange={id => { const next = new URLSearchParams(location.search); next.set('targetProfileId', id); next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }} />
+            <Stack spacing={0.25} sx={{ ml: { sm: 'auto' } }}><Tooltip title="Saved configuration is shared by Staging and Production; published versions are applied separately."><Typography fontSize={12} fontWeight={600}>Shared draft{workspace.workspace?.draft ? ` r${workspace.workspace.draft.revisionNumber}` : ''}</Typography></Tooltip>
+              <Typography fontSize={11} color={changed ? 'warning.main' : 'text.secondary'}>{changed ? 'Changes not applied' : 'Saved configuration'}</Typography></Stack>
             {!customer && <Typography sx={{ ml: 'auto', fontSize: 11, color: 'text.secondary' }}>{brain?.binding?.customerName ? `Assisting ${brain.binding.customerName}` : 'Staff access'}</Typography>}
           </Stack>
           <Box component="main" id="brain-main" sx={{ flex: 1, minHeight: 0, overflow: { md: 'hidden' }, display: 'flex', flexDirection: 'column', p: { xs: 2, md: 3 } }}>

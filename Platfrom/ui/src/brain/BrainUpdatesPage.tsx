@@ -7,19 +7,24 @@ import PublishRounded from '@mui/icons-material/PublishRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import RocketLaunchRounded from '@mui/icons-material/RocketLaunchRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
+import LayersOutlined from '@mui/icons-material/LayersOutlined'
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
+import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded'
+import HubOutlined from '@mui/icons-material/HubOutlined'
 import {
-  Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Checkbox, Chip,
   Divider, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack,
-  Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination,
-  TableRow, Tabs, TextField, Tooltip, Typography,
+  Step, StepLabel, Stepper, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination,
+  TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
+import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion, fetchCompatibleDeploymentSourceArtifacts, fetchDeploymentAiBehaviourProfiles, fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft, fetchDeploymentReleases, fetchDeploymentTargetContext,
-  fetchDeploymentVerificationRuns, fetchDeploymentVersionManifest, fetchDeploymentVersions, fetchDeploymentTargetOptions,
+  fetchDeploymentVerificationRuns, fetchDeploymentVersionManifest, fetchDeploymentVersions, fetchDeploymentTargetOptions, fetchDeploymentTargetProfiles,
   publishDeploymentDraft, reconcileDeploymentRelease, rerunDeploymentVerification, validateDeploymentDraft,
   type DeploymentConfigDiffCenterSummary, type DeploymentDraftResponse, type DeploymentReleaseSummary,
   type DeploymentVersionSummary, type AiBehaviourCatalogue,
@@ -31,6 +36,8 @@ import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useBrainEditor, useBrainWorkspace } from './BrainWorkspaceContext'
 import { BrainCustomerReleaseTasks } from './BrainCustomerReleaseTasks'
 import { brainPath } from './brainNavigation'
+import { BrainReleaseVersions } from './BrainReleaseVersions'
+import { environmentLabel, releaseInProgress, targetReleaseState } from './brainReleasePresentation'
 
 const sections = [
   ['actionsConfig', 'AI capabilities', 'actions'],
@@ -59,9 +66,7 @@ export function draftStamp(draft: DeploymentDraftResponse | undefined): string {
 }
 
 export function updatesReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
-    || ['QUEUED', 'RUNNING', 'AWAITING_CONFIRMATION'].includes(release.provisioningStatus)
-    || release.verificationStatus === 'RUNNING'
+  return releaseInProgress(release)
 }
 
 function summary(value: unknown): string {
@@ -134,6 +139,35 @@ function ChangeTable({ changes, nextLabel = 'Saved draft', maxHeight }: { change
   </TableContainer>
 }
 
+export function outcomeSummary(key: string, value: unknown, catalogue?: AiBehaviourCatalogue): string {
+  if (key === 'promptConfig') return responseSummary(value, catalogue) ?? (record(value) && Object.keys(value).length ? 'Reply preferences and instructions' : summary(value))
+  if (!record(value)) return summary(value)
+  const list = key === 'actionsConfig' ? value.actions : key === 'entityConfig' ? value.entities : key === 'knowledgeSourceConfig' ? value.sources : null
+  if (Array.isArray(list)) {
+    const names = list.filter(record).map(item => typeof item.displayName === 'string' ? item.displayName : '').filter(Boolean)
+    const noun = key === 'actionsConfig' ? 'capabilities' : key === 'entityConfig' ? 'collections' : 'sources'
+    return names.length ? `${names.slice(0, 2).join(', ')}${list.length > 2 ? ` +${list.length - 2}` : ''}` : `${list.length} ${noun}`
+  }
+  const labels: Record<string, string> = { providerConfig: 'AI models, embeddings and search', securityConfig: 'Access and conversation safeguards',
+    routingConfig: 'Action destinations and connections', behaviorConfig: 'Conversation and execution settings', shellConfig: 'Customer workspace settings' }
+  return Object.keys(value).length && labels[key] ? labels[key] : summary(value)
+}
+
+function OutcomeChanges({ changes, config, catalogue, firstSetup = false }: { changes: Change[]; config: unknown; catalogue?: AiBehaviourCatalogue; firstSetup?: boolean }) {
+  return <Stack divider={<Divider />} data-update-outcomes>{changes.map(item => {
+    const Icon = ['entityConfig', 'knowledgeSourceConfig', 'marketplaceDatasetConfig'].includes(item.key) ? LayersOutlined
+      : item.key === 'promptConfig' ? ChatBubbleOutlineRounded : item.key === 'actionsConfig' ? AutoAwesomeOutlined : HubOutlined
+    return <Stack key={item.key} direction="row" gap={1.5} alignItems="center" sx={{ py: 1.25 }}>
+      <Box sx={{ width: 34, height: 34, borderRadius: 1, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon sx={{ fontSize: 21 }} /></Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}><Typography fontSize={14} fontWeight={600}>{item.label}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {outcomeSummary(item.key, record(config) ? config[item.key] : undefined, catalogue)}
+        </Typography></Box>
+      <Typography variant="caption" color={item.changed === null ? 'warning.main' : 'text.secondary'}>{item.changed === null ? 'Unavailable' : firstSetup ? 'New' : item.changed ? 'Changed' : 'Unchanged'}</Typography>
+    </Stack>
+  })}</Stack>
+}
+
 export function BrainUpdatesPage() {
   const { brainId, targetProfileId } = useBrainWorkspace()
   return <UpdatesWorkspace key={`${brainId}:${targetProfileId}`} />
@@ -156,7 +190,7 @@ function UpdatesWorkspace() {
   const panelUnavailable = customer && Boolean(requestedPanel && (
     (['connections', 'assignment'].includes(requestedPanel) && !staging)
     || (requestedPanel === 'promotion' && !production)))
-  const view = requestedPanel === 'history' ? 'history'
+  const view = requestedPanel && ['history', 'versions', 'technical'].includes(requestedPanel) ? requestedPanel
     : customer && !panelUnavailable && requestedPanel && ['connections', 'assignment', 'promotion'].includes(requestedPanel)
       ? requestedPanel : 'review'
   const changeView = (next: string) => {
@@ -166,9 +200,11 @@ function UpdatesWorkspace() {
   }
   const [review, setReview] = useState<Review | null>(null)
   const [published, setPublished] = useState<DeploymentVersionSummary | null>(null)
+  const [selectedVersion, setSelectedVersion] = useState<DeploymentVersionSummary | null>(null)
+  const publishedConfiguration = useRef('')
   const [sourceArtifactId, setSourceArtifactId] = useState('')
   const [detail, setDetail] = useState<Change | null>(null)
-  const [advanced, setAdvanced] = useState(false)
+  const [versionDetail, setVersionDetail] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -191,13 +227,15 @@ function UpdatesWorkspace() {
     queryFn: () => fetchDeploymentVersionManifest(brainId, appliedVersionId!), enabled: Boolean(appliedVersionId) })
   const publishedMatchesDraft = selectedDeploymentId === brainId && workspace?.lifecycle.savedDraftMatchesLatestPublished
     && workspace.draft.id === draft.data?.id && workspace.draft.updatedAt === draft.data?.updatedAt
-  const candidate = published ?? (publishedMatchesDraft ? versions.data?.find(item => item.id === workspace?.lifecycle.latestPublishedVersionId) ?? null : null)
+  const publishedStillMatchesDraft = published && publishedConfiguration.current === stableConfig(sections.map(([key]) => draft.data?.[key]))
+  const continuation = publishedStillMatchesDraft ? published : publishedMatchesDraft ? versions.data?.find(item => item.id === workspace?.lifecycle.latestPublishedVersionId) ?? null : null
+  const candidate = review?.mode === 'apply' || versionDetail ? selectedVersion ?? continuation : continuation
   const candidateManifest = useQuery({ queryKey: ['deployment-version-manifest', brainId, candidate?.id],
     queryFn: () => fetchDeploymentVersionManifest(brainId, candidate!.id), enabled: Boolean(candidate) })
   const sources = useQuery({ queryKey: ['compatible-deployment-source-artifacts', brainId, candidate?.id],
     queryFn: () => fetchCompatibleDeploymentSourceArtifacts(brainId, candidate!.id), enabled: Boolean(candidate && canOperate) })
-  const destinations = useQuery({ queryKey: ['brain-release-destinations', brainId],
-    queryFn: () => fetchDeploymentTargetOptions(brainId), enabled: customer })
+  const destinations = useQuery({ queryKey: ['brain-target-options', brainId, auth.session?.role],
+    queryFn: () => customer ? fetchDeploymentTargetOptions(brainId) : fetchDeploymentTargetProfiles() })
   const productionDestinations = (destinations.data ?? []).filter(item => item.active && item.environmentName === 'production')
   const sourceRequired = customer || candidate?.sourceCapabilityManifestRequired === true
   const selectedSource = sources.data?.find(item => item.id === sourceArtifactId) ?? null
@@ -205,7 +243,7 @@ function UpdatesWorkspace() {
   const appliedEvidenceMissing = !appliedRelease && targetReleases.some(item => ['VERIFYING', 'APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED'].includes(item.status))
   const latestRelease = targetReleases[0] ?? null
   const inProgress = releases.data?.find(updatesReleaseInProgress)
-  const environment = targetProfile?.environmentName ?? 'selected environment'
+  const environment = environmentLabel(targetProfile?.environmentName ?? 'selected environment')
   const targetReady = Boolean(targetProfile?.active && targetProfile.id === targetProfileId)
   const changes = buildUpdateChanges(draft.data, appliedManifest.data, appliedVersionId, diff.data, catalogue.data)
   const changed = changes.filter(item => item.changed !== false)
@@ -239,7 +277,9 @@ function UpdatesWorkspace() {
       if (draftStamp(current) !== review.draftStamp) throw new Error('The shared draft changed. Refresh and review the latest changes before publishing.')
       const version = await publishDeploymentDraft(current.id)
       // Retain the immutable result before any subsequent read or apply can fail.
+      publishedConfiguration.current = stableConfig(sections.map(([key]) => current[key]))
       setPublished(version)
+      setSelectedVersion(version)
       setSourceArtifactId('')
       setNotice(`${version.versionLabel} published. The selected target has not been updated.`)
       setReview(review.mode === 'publish-only' ? null : { mode: 'apply', draftStamp: '', confirmed: false, versionId: version.id, appliedReleaseId: appliedRelease?.id ?? null })
@@ -279,22 +319,22 @@ function UpdatesWorkspace() {
     setError(null)
     setReview({ mode, draftStamp: draftStamp(draft.data), confirmed: false, versionId, appliedReleaseId: appliedRelease?.id ?? null })
   }
-  const primaryLabel = candidate ? `Update ${environment} to ${candidate.versionLabel}` : `Publish & update ${environment}`
+  const continueApply = Boolean(continuation && continuation.id !== appliedVersionId && canOperate)
+  const primaryLabel = continueApply ? `Review & apply ${continuation!.versionLabel}` : 'Review & publish version'
   const editor = {
     dirty: false, busy,
-    canSave: candidate ? canOperate && targetReady && !inProgress && candidate.id !== appliedVersionId
-      : canPublish && canOperate && targetReady && comparisonReady && changed.length > 0,
-    save: canEdit || canOperate ? () => openReview(candidate ? 'apply' : 'publish-update') : undefined,
+    canSave: continueApply ? canOperate && targetReady && !inProgress : canPublish && !publishedMatchesDraft,
+    save: !review && !versionDetail && !detail && (canEdit || canOperate) ? () => { setSelectedVersion(null); openReview(continueApply ? 'apply' : 'publish-update', continuation?.id) } : undefined,
     discard: () => navigate(href('responses')), primaryLabel, secondaryLabel: 'Back to editing',
     message: inProgress ? `Release in progress: ${inProgress.currentStepDescription ?? inProgress.status}`
       : latestRelease?.status === 'APPLIED_VERIFIED' && published?.id === latestRelease.deploymentVersionId
         ? `${published.versionLabel} applied; verification ${latestRelease.verificationStatus}.`
       : published ? `${published.versionLabel} published; apply is a separate recorded step.`
         : comparisonReady && changed.length === 0 ? 'Saved shared draft matches the applied target.'
-          : 'Saved shared draft; applied configuration is unchanged.', error,
+          : `Shared draft r${draft.data?.revisionNumber ?? '—'} saved · ${environment} unchanged.`, error,
   }
   const customerTask = customer && ['connections', 'assignment', 'promotion'].includes(view)
-  useBrainEditor(customerTask ? null : view === 'history' ? { dirty: false, busy, message: 'Release history for the selected environment.' } : editor)
+  useBrainEditor(customerTask ? null : ['history', 'versions', 'technical'].includes(view) ? { dirty: false, busy, message: `${environment} · ${view === 'versions' ? 'Published versions' : view === 'technical' ? 'Technical version tools' : 'Update activity'}` } : editor)
 
   const filteredHistory = targetReleases.filter(item => !search || [item.id, item.deploymentVersionId, item.status, item.currentStepDescription ?? ''].some(value => value.toLowerCase().includes(search.toLowerCase())))
   const visibleHistory = filteredHistory.slice(page * 6, page * 6 + 6)
@@ -317,28 +357,50 @@ function UpdatesWorkspace() {
     } catch { /* The mutation keeps the exact error and published version visible. */ }
     finally { operationRunning.current = false }
   }
+  const reviewVersion = (version: DeploymentVersionSummary, sourceId = '') => {
+    setSelectedVersion(version); setSourceArtifactId(sourceId); setVersionDetail(false)
+    openReview('apply', version.id)
+  }
+  const versionGrid = (all = false) => <BrainReleaseVersions versions={versions.data ?? []} profiles={destinations.data ?? []}
+    releases={releases.data ?? []} evidenceReady={releases.isSuccess && destinations.isSuccess} selectedTargetId={targetProfileId}
+    selectedVersionId={candidate?.id} all={all} busy={busy || Boolean(inProgress)} canOperate={canOperate}
+    onReview={reviewVersion} onDetails={version => { setSelectedVersion(version); setVersionDetail(true); setError(null) }}
+    onActivity={() => changeView('history')} />
+  const currentReleaseState = targetReleaseState(releases.data ?? [], targetProfileId)
+  const activeStep = review?.mode === 'publish-update' || review?.mode === 'publish-only' ? 1
+    : inProgress?.targetProfileId === targetProfileId ? inProgress.status === 'VERIFYING' || inProgress.verificationStatus === 'RUNNING' ? 3 : 2
+      : continuation && !currentReleaseState.failed && currentReleaseState.active?.deploymentVersionId === continuation.id
+        && currentReleaseState.active.status === 'APPLIED_VERIFIED' && currentReleaseState.active.verificationStatus === 'PASSED' ? 4
+        : continuation ? 2 : 0
+  const outcomeRows = changed.length ? changed : changes
+  const stageVerified = (destinations.data ?? []).filter(item => item.environmentName === 'staging')
+    .some(item => targetReleaseState(releases.data ?? [], item.id).label === 'Verified')
+  const productionExists = productionDestinations.some(item => (releases.data ?? []).some(release => release.targetProfileId === item.id))
 
   return <Box data-brain-updates sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0,
     '& td, & th': { overflowWrap: 'anywhere' } }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1} sx={{ flexShrink: 0 }}>
-      <Typography component="h1" sx={{ fontSize: 26, fontWeight: 650, lineHeight: 1.3 }}>Review and publish changes</Typography>
-      <Tooltip title="Refresh saved draft and release status"><IconButton aria-label="Refresh updates" disabled={busy} onClick={() => void refresh()}><RefreshRounded /></IconButton></Tooltip>
+    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} sx={{ flexShrink: 0, mb: 2 }}>
+      <Stack direction="row" alignItems="center" gap={1}>
+        {view !== 'review' && <Tooltip title="Back to update review"><IconButton aria-label="Back to update review" disabled={busy} onClick={() => changeView('review')}><ArrowBackRounded /></IconButton></Tooltip>}
+        <Typography component="h1" sx={{ fontSize: 26, fontWeight: 650, lineHeight: 1.3 }}>{customerTask ? view === 'promotion' ? 'Promote tested staging' : view === 'assignment' ? 'Connect Engage app' : 'Required connections' : view === 'history' ? 'Update activity' : view === 'technical' ? 'Technical version tools' : 'Updates'}</Typography>
+      </Stack>
+      <Stack direction="row" gap={0.5}>
+        {view !== 'history' && <Button startIcon={<HistoryRounded />} disabled={busy} onClick={() => changeView('history')}>Activity</Button>}
+        {view !== 'technical' && <Tooltip title="Technical version tools"><IconButton aria-label="Technical version tools" disabled={busy} onClick={() => changeView('technical')}><SettingsOutlined /></IconButton></Tooltip>}
+        <Tooltip title="Refresh saved draft and release status"><IconButton aria-label="Refresh updates" disabled={busy} onClick={() => void refresh()}><RefreshRounded /></IconButton></Tooltip>
+      </Stack>
     </Stack>
-    <Tabs value={view} variant="scrollable" scrollButtons="auto" aria-label="Updates views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
-      <Tab value="review" label={staging ? 'Prepare staging' : 'Review changes'} onClick={() => changeView('review')} disabled={busy} />
-      {customer && staging && <Tab value="connections" label="Connections" onClick={() => changeView('connections')} disabled={busy} />}
-      {customer && staging && <Tab value="assignment" label="Connect Engage app" onClick={() => changeView('assignment')} disabled={busy} />}
-      {customer && production && <Tab value="promotion" label="Promote staging" onClick={() => changeView('promotion')} disabled={busy} />}
-      <Tab value="history" label="History" onClick={() => changeView('history')} disabled={busy} icon={<HistoryRounded sx={{ fontSize: 18 }} />} iconPosition="start" />
-    </Tabs>
+    {view === 'review' && <Stepper activeStep={activeStep} aria-label="Update sequence" sx={{ flexShrink: 0, pb: 2, mb: 2, borderBottom: 1, borderColor: 'divider', '& .MuiStepLabel-label': { fontSize: { xs: 10, sm: 13 } }, '& .MuiStep-root': { px: { xs: 0.25, sm: 1 } } }}>
+      {['Review changes', 'Publish version', `Apply to ${environment}`, 'Verify'].map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
+    </Stepper>}
     {busy && <LinearProgress aria-label="Update operation in progress" />}
-    <Box sx={{ minHeight: 0, overflow: 'auto', flex: 1 }}>
-      <Stack spacing={1.5}>
+    <Box sx={{ minHeight: 0, overflow: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <Stack spacing={1.5} sx={{ minHeight: 0, flex: 1 }}>
         {queryError && <Alert severity="error">{errorMessage(queryError)}</Alert>}
         {panelUnavailable && <Alert severity="warning">The requested release task belongs to a different environment. Select the matching environment above; no release operation was started.</Alert>}
-        {!targetReady && <Alert severity="info">Select an authorized active target in the workspace before updating. The shared draft can still be published as a version.</Alert>}
+        {!targetReady && destinations.isSuccess && <Alert severity="info">Select an authorized active target in the workspace before updating. The shared draft can still be published as a version.</Alert>}
         {appliedEvidenceMissing && <Alert severity="warning">An applied release exists, but the workspace could not resolve its target evidence. Refresh before publishing an update.</Alert>}
-        {!canEdit && !canOperate && <Alert severity="info">Read-only access. Publishing requires editor access; updating and verification require operator access.</Alert>}
+        {access && !canEdit && !canOperate && <Alert severity="info">Read-only access. Publishing requires editor access; updating and verification require operator access.</Alert>}
         {notice && <Alert severity="info" onClose={() => setNotice('')}>{notice}</Alert>}
         {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
         {latestRelease && latestRelease.status !== 'APPLIED_VERIFIED' && <Alert severity={statusColor(latestRelease.status) === 'error' ? 'error' : latestRelease.status === 'APPLIED_VERIFICATION_FAILED' ? 'warning' : 'info'}>
@@ -349,7 +411,7 @@ function UpdatesWorkspace() {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {['FAILED', 'PRE_APPLY_BLOCKED'].includes(latestRelease.status) && canOperate && <Button size="small" startIcon={<RefreshRounded />} disabled={busy || Boolean(inProgress)} onClick={() => {
                 const version = versions.data?.find(item => item.id === latestRelease.deploymentVersionId)
-                if (version) { setPublished(version); setSourceArtifactId(latestRelease.sourceArtifactId ?? ''); openReview('apply', version.id) }
+                if (version) reviewVersion(version, latestRelease.sourceArtifactId ?? '')
                 else setError('The published version is unavailable. Refresh version history before retrying.')
               }}>Retry published version</Button>}
               {canOperate && ['APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED'].includes(latestRelease.status) && <Button size="small" startIcon={<CheckCircleOutlineRounded />} disabled={busy || Boolean(inProgress)} onClick={() => {
@@ -362,64 +424,59 @@ function UpdatesWorkspace() {
         {customerTask ? !targetReady || (view === 'promotion' ? !production : !staging)
           ? <Alert severity="warning">Choose the matching environment in the Smart Brain header to continue this release task.</Alert>
           : <BrainCustomerReleaseTasks session={auth.session!} section={view as 'connections' | 'assignment' | 'promotion'} canEdit={canEdit} canOperate={canOperate} />
-        : view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.35fr) minmax(280px, 1fr)' }, gap: 3 }}>
-          <Stack spacing={2} sx={{ minWidth: 0 }}>
-            <Box><Typography component="h2" sx={{ fontSize: 19, fontWeight: 650 }}>Changes in this draft</Typography>
-              <Typography variant="body2" color="text.secondary">{appliedRelease ? `Compared with ${environment} ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}` : `No applied release recorded for ${environment}`}</Typography>
-            </Box>
+        : view === 'technical' ? <Box sx={{ overflow: 'auto', minHeight: 0 }}><RevisionsPage scope={{ brainId, targetProfileId }} /></Box>
+        : view === 'versions' ? versionGrid(true)
+        : view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) minmax(0, 1.15fr)' }, gap: 3, flex: 1, minHeight: 0 }}>
+          <Stack spacing={1.5} sx={{ minWidth: 0, minHeight: 0 }}>
+            <Box><Typography component="h2" fontSize={19} fontWeight={650}>Saved changes</Typography>
+              <Typography variant="body2" color="text.secondary">{appliedEvidenceMissing ? 'Applied state unavailable' : appliedRelease ? `Compared with ${environment} ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}` : releases.isSuccess ? `New setup for ${environment}` : 'Loading applied state...'}</Typography></Box>
             {draft.isLoading || appliedManifest.isLoading ? <LinearProgress aria-label="Loading saved changes" /> : null}
             {appliedManifest.isError && <Alert severity="warning">Applied-version comparison unavailable: {errorMessage(appliedManifest.error)}</Alert>}
-            <ChangeTable changes={changed.length ? changed : changes} maxHeight={290} />
-            {comparisonReady && changed.length === 0 && <Typography variant="body2" color="text.secondary">The saved draft matches the applied configuration.</Typography>}
-            <Button sx={{ alignSelf: 'flex-start' }} startIcon={<InfoOutlined />} onClick={() => setDetail(changes[0] ?? null)} disabled={!changes.length}>View change details</Button>
-            <Divider />
-            <Typography component="h2" sx={{ fontSize: 19, fontWeight: 650 }}>Before updating</Typography>
-            <Stack spacing={1}>
-              <Stack direction="row" spacing={1} alignItems="center"><InfoOutlined fontSize="small" color={validationCurrent && validate.data.publishReady ? 'success' : 'action'} />
-                <Typography variant="body2" sx={{ flex: 1 }}>{validationCurrent ? `Configuration: ${validate.data.publishReady ? 'ready to publish' : 'blocking findings'} (${validate.data.warningCount} warnings)` : 'Configuration has not been checked for this saved draft'}</Typography>
-                {canEdit && <Button size="small" disabled={!draft.data || busy || validate.isPending} onClick={() => { validatedStamp.current = draftStamp(draft.data); validate.mutate() }}>Check</Button>}
+            <Box sx={{ flex: 1, minHeight: { xs: 100, lg: 80 }, overflow: 'auto', pr: 0.5 }}>
+              <OutcomeChanges changes={outcomeRows} config={draft.data} catalogue={catalogue.data} firstSetup={!appliedVersionId && releases.isSuccess && !appliedEvidenceMissing} />
+              {comparisonReady && changed.length === 0 && <Typography variant="body2" color="text.secondary">The saved draft matches the applied configuration.</Typography>}
+            </Box>
+            <Button sx={{ alignSelf: 'flex-start' }} size="small" startIcon={<InfoOutlined />} onClick={() => setDetail(changes[0] ?? null)} disabled={!changes.length}>View change details</Button>
+            <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
+              <Typography component="h2" fontSize={17} fontWeight={650}>Configuration check</Typography>
+              <Stack direction="row" gap={1} alignItems="center"><InfoOutlined fontSize="small" color={validationCurrent && validate.data.publishReady ? 'success' : 'action'} />
+                <Typography variant="body2" sx={{ flex: 1 }}>{validationCurrent ? `${validate.data.publishReady ? 'Ready to publish' : 'Needs attention'} · ${validate.data.warningCount} warnings` : `Not checked for draft r${draft.data?.revisionNumber ?? '—'}`}</Typography>
+                {canEdit && <Button size="small" variant="outlined" disabled={!draft.data || busy || validate.isPending} onClick={() => { validatedStamp.current = draftStamp(draft.data); validate.mutate() }}>Check draft</Button>}
               </Stack>
               {validate.isError && <Alert severity="error">{errorMessage(validate.error)}</Alert>}
-              {validationCurrent && validate.data.issues.length > 0 && <Box sx={{ maxHeight: 110, overflow: 'auto' }}>{validate.data.issues.map((item, index) => <Typography key={index} variant="caption" display="block">{item.severity}: {item.message}</Typography>)}</Box>}
-              <Typography variant="body2">Access: {canEdit ? 'publish allowed' : 'publish not allowed'}; {canOperate ? 'update allowed' : 'update not allowed'}.</Typography>
-              <Typography variant="body2" color="text.secondary">Connection and runtime checks are recorded by the existing apply and verification workflow, not assumed from a saved draft.</Typography>
+              {validationCurrent && validate.data.issues.length > 0 && <Box sx={{ maxHeight: 70, overflow: 'auto' }}>{validate.data.issues.map((item, index) => <Typography key={index} variant="caption" display="block">{item.severity}: {item.message}</Typography>)}</Box>}
+              <Typography variant="caption" color="text.secondary">Shared draft · Staging and Production</Typography>
             </Stack>
           </Stack>
-          <Stack spacing={2} sx={{ minWidth: 0, borderLeft: { lg: 1 }, borderColor: { lg: 'divider' }, pl: { lg: 3 } }}>
-            <Typography component="h2" sx={{ fontSize: 19, fontWeight: 650 }}>What will happen</Typography>
-            {['Publish an immutable saved version', `Update the existing ${environment} target`, 'Verify the applied release'].map((label, index) => <Stack key={label} direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ width: 28, height: 28, flexShrink: 0, borderRadius: '50%', border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center', fontSize: 13 }}>{index + 1}</Box><Typography variant="body2">{label}</Typography>
-            </Stack>)}
-            <Divider />
-            <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: '85px minmax(0, 1fr)', gap: 1, fontSize: 14, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
-              <Box component="dt" fontWeight={600}>Target</Box><Box component="dd">{environment}<Typography variant="caption" display="block" color="text.secondary">{targetProfile?.name} / {targetProfileId || 'Not selected'}</Typography></Box>
-              <Box component="dt" fontWeight={600}>Applied</Box><Box component="dd">{appliedVersionId ? versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId : 'Not deployed'}</Box>
-              <Box component="dt" fontWeight={600}>Runtime</Box><Box component="dd">{targetContext.data?.runtimeBaseUrl ?? (targetContext.isError ? 'Status unavailable' : 'No runtime address confirmed')}</Box>
-              <Box component="dt" fontWeight={600}>Verification</Box><Box component="dd">{appliedRelease?.verificationStatus ?? 'Not recorded'}</Box>
-            </Box>
-            {candidate && <Alert severity="info">{candidate.versionLabel} is already published. Updating it does not publish the current shared draft again.</Alert>}
-            <Typography variant="body2" color="text.secondary">Existing Brain and connected app identities are retained. Only the explicitly selected target is requested; no automatic rollback runs.</Typography>
-            {customer && staging && <Button sx={{ alignSelf: 'flex-start' }} onClick={() => changeView('connections')}>Review required connections</Button>}
-            {latestRelease?.status === 'APPLIED_VERIFIED' && latestRelease.verificationStatus === 'PASSED' && <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
-              <Typography variant="subtitle2">Ready to try this release</Typography>
-              <Button variant="contained" component={RouterLink} to={`${href('try')}&releaseId=${encodeURIComponent(latestRelease.id)}`}>Try your AI</Button>
-              {customer && staging && <Button onClick={() => changeView('assignment')}>Connect or update the staging app</Button>}
-            </Stack>}
-            {customer && staging && productionDestinations.length > 0 && <Button component={RouterLink}
-              to={productionDestinations.length === 1 ? `${brainPath(brainId, 'updates', productionDestinations[0].id)}&panel=promotion`
-                : `/deployments?${new URLSearchParams({ view: 'setup', deploymentId: brainId, step: 'production' })}`} disabled={busy}>Review go-live</Button>}
-            {customer && staging && destinations.isError && <Alert severity="warning">Production destinations could not be loaded. Refresh before reviewing go-live.</Alert>}
-            <Button startIcon={<SettingsOutlined />} sx={{ alignSelf: 'flex-start' }} onClick={() => setAdvanced(true)}>Advanced version actions</Button>
-            {canOperate && appliedRelease?.status === 'APPLIED_VERIFIED' && <Button startIcon={<CheckCircleOutlineRounded />} sx={{ alignSelf: 'flex-start' }} disabled={busy || Boolean(inProgress)} onClick={() => {
-              if (window.confirm(`Run verification for ${environment} (${targetProfileId}), release ${appliedRelease.id}?`)) verify.mutate(appliedRelease.id)
-            }}>Run verification again</Button>}
-            {canEdit && <Button startIcon={<PublishRounded />} sx={{ alignSelf: 'flex-start' }} disabled={!canPublish || busy} onClick={() => openReview('publish-only')}>Publish version only</Button>}
+          <Stack spacing={1.25} sx={{ minWidth: 0, minHeight: 0, overflow: 'auto', borderLeft: { lg: 1 }, borderColor: { lg: 'divider' }, pl: { lg: 3 } }}>
+            {versions.isLoading && <LinearProgress aria-label="Loading published versions" />}
+            {versions.isSuccess && versionGrid()}
+            <Button size="small" sx={{ alignSelf: 'flex-start' }} disabled={busy} onClick={() => changeView('versions')}>All versions</Button>
+            {destinations.isError && <Alert severity="warning">Environment states unavailable: {errorMessage(destinations.error)}</Alert>}
+            <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
+              <Typography component="h2" fontSize={17} fontWeight={650}>{environment}</Typography>
+              <Typography variant="body2">{releases.isError || appliedEvidenceMissing ? 'Applied version unavailable' : releases.isPending ? 'Loading applied version...' : appliedVersionId ? `Applied ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}` : 'No version applied'}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{targetContext.data?.runtimeBaseUrl ?? (targetContext.isError ? 'Runtime address unavailable' : targetReady ? 'No runtime address confirmed' : 'Choose an environment')}</Typography>
+              <Stack direction="row" gap={1} flexWrap="wrap" useFlexGap>
+                {customer && staging && <Button size="small" disabled={busy} onClick={() => changeView('connections')}>Required connections</Button>}
+                {customer && production && (stageVerified || targetReleases.length > 0) && <Button size="small" disabled={busy} onClick={() => changeView('promotion')}>{stageVerified ? 'Promote tested staging' : 'Production workspace'}</Button>}
+                {latestRelease?.status === 'APPLIED_VERIFIED' && latestRelease.verificationStatus === 'PASSED' && <>
+                  <Button size="small" component={RouterLink} to={`${href('try')}&releaseId=${encodeURIComponent(latestRelease.id)}`}>Try your AI</Button>
+                  {customer && staging && <Button size="small" onClick={() => changeView('assignment')}>Connect Engage app</Button>}
+                </>}
+                {customer && staging && (stageVerified || productionExists) && productionDestinations.length > 0 && <Button size="small" component={RouterLink}
+                  to={productionDestinations.length === 1 ? `${brainPath(brainId, 'updates', productionDestinations[0].id)}&panel=promotion`
+                    : `/deployments?${new URLSearchParams({ view: 'setup', deploymentId: brainId, step: 'production' })}`} disabled={busy}>{stageVerified ? 'Review go-live' : 'Production workspace'}</Button>}
+                {canOperate && appliedRelease?.status === 'APPLIED_VERIFIED' && <Button size="small" startIcon={<CheckCircleOutlineRounded />} disabled={busy || Boolean(inProgress)} onClick={() => {
+                  if (window.confirm(`Run verification for ${environment} (${targetProfileId}), release ${appliedRelease.id}?`)) verify.mutate(appliedRelease.id)
+                }}>Verify again</Button>}
+              </Stack>
+            </Stack>
           </Stack>
-        </Box> : <Stack spacing={1.5}>
+        </Box> : <Stack spacing={1.5} sx={{ minHeight: 0, overflow: 'auto' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
-            <Typography component="h2" sx={{ fontSize: 19, fontWeight: 650, flex: 1 }}>{environment} update history</Typography>
-            <TextField size="small" label="Search history" value={search} onChange={event => { setSearch(event.target.value); setPage(0) }} />
-            <Button startIcon={<SettingsOutlined />} onClick={() => setAdvanced(true)}>Version actions</Button>
+            <Typography component="h2" sx={{ fontSize: 19, fontWeight: 650, flex: 1 }}>{environment} releases</Typography>
+            <TextField size="small" label="Search activity" value={search} onChange={event => { setSearch(event.target.value); setPage(0) }} />
           </Stack>
           <TableContainer><Table size="small" aria-label="Selected target release history"><TableHead><TableRow>
             <TableCell>Version / release</TableCell><TableCell>Update</TableCell><TableCell>Verification</TableCell><TableCell>Updated</TableCell>
@@ -427,7 +484,7 @@ function UpdatesWorkspace() {
             <TableCell><Typography variant="body2" fontWeight={600}>{versions.data?.find(version => version.id === item.deploymentVersionId)?.versionLabel ?? item.deploymentVersionId}</Typography><Typography variant="caption">{item.id}</Typography>
               {canOperate && <Button size="small" disabled={busy || Boolean(inProgress) || !versions.data?.some(version => version.id === item.deploymentVersionId)} onClick={() => {
                 const version = versions.data?.find(version => version.id === item.deploymentVersionId)
-                if (version) { setPublished(version); setSourceArtifactId(item.sourceArtifactId ?? ''); openReview('apply', version.id) }
+                if (version) reviewVersion(version, item.sourceArtifactId ?? '')
               }}>Review update</Button>}
             </TableCell>
             <TableCell><Chip size="small" color={statusColor(item.status)} label={item.status.split('_').join(' ')} /><Typography variant="caption" display="block">{item.currentStepDescription}</Typography>{item.errorMessage && <Typography variant="caption" color="error.main">{item.errorMessage}</Typography>}</TableCell>
@@ -441,51 +498,79 @@ function UpdatesWorkspace() {
       </Stack>
     </Box>
 
-    <Dialog open={Boolean(review)} onClose={() => { if (!busy) setReview(null) }} fullWidth maxWidth="md" aria-labelledby="updates-review-title">
-      <DialogTitle id="updates-review-title">{review?.mode === 'apply' ? `Update ${environment}` : review?.mode === 'publish-only' ? 'Publish a version only' : `Publish & update ${environment}`}</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <Typography variant="body2">{workspace?.deployment.name ?? brainId} / {brainId}</Typography>
-          {review?.mode !== 'publish-only' && <Alert severity="warning">Exact target: {environment} / {targetProfile?.name} / {targetProfileId}. {review?.mode === 'apply' ? `Version: ${candidate?.versionLabel ?? 'Unavailable'} / ${candidate?.id ?? ''}.` : 'Publishing saves a version first. Confirm its compatible runtime image before the target is updated.'}</Alert>}
-          {review?.mode === 'apply' ? <>
-            {!candidateReady && <Alert severity={candidateManifest.isError ? 'error' : 'info'}>{candidateManifest.isError ? errorMessage(candidateManifest.error) : 'Loading the immutable published version...'}</Alert>}
-            <Typography variant="subtitle2">Proposed published-version changes</Typography>
-            <Typography variant="caption" color="text.secondary">Published runtime artifact compared with the selected target. Compilation can add runtime-only settings.</Typography>
-            <ChangeTable changes={applyRows} nextLabel="Proposed version" maxHeight={240} />
-            <TextField select size="small" fullWidth label="Runtime source artifact" value={selectedSource?.id ?? ''} onChange={event => { setSourceArtifactId(event.target.value); setReview(current => current && { ...current, confirmed: false }) }} disabled={busy || sources.isLoading}>
-              <MenuItem value="">{sourceRequired ? 'Select a compatible runtime image' : 'Use promoted channel default'}</MenuItem>
-              {(sources.data ?? []).map(item => <MenuItem key={item.id} value={item.id} sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{item.imageTag} / {item.id}</MenuItem>)}
-            </TextField>
-            {selectedSource && <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>{selectedSource.imageReference}</Typography>}
-            {sources.isError && <Alert severity="error">{errorMessage(sources.error)}</Alert>}
-            {sources.isSuccess && sourceRequired && !sources.data.length && <Alert severity="warning">No compatible runtime image is available for this published version. The version is retained; no target update has been requested.</Alert>}
+    <Drawer anchor="right" open={Boolean(review || detail || versionDetail)} onClose={() => { if (!busy) { setReview(null); setDetail(null); setVersionDetail(false) } }}
+      PaperProps={{ role: 'dialog', 'aria-labelledby': 'updates-review-title', sx: { width: { xs: '100%', sm: 580 }, maxWidth: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography component="h2" id="updates-review-title" fontSize={22} fontWeight={650}>{detail ? 'Change details' : versionDetail ? `Version ${candidate?.versionLabel ?? ''}` : review?.mode === 'apply' ? `Update ${environment}` : 'Publish a version'}</Typography>
+        <IconButton aria-label="Close update details" disabled={busy} onClick={() => { setReview(null); setDetail(null); setVersionDetail(false) }}><CloseRounded /></IconButton>
+      </Stack>
+      <Stack spacing={2} sx={{ px: 3, py: 2, flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {error && <Alert severity="error">{error}</Alert>}
+        {detail ? <>
+          <TextField select size="small" label="Configuration area" value={detail.key} onChange={event => setDetail(changes.find(item => item.key === event.target.value) ?? null)}>{changes.map(item => <MenuItem key={item.key} value={item.key}>{item.label}</MenuItem>)}</TextField>
+          <ChangeTable changes={[detail]} />
+          <Typography variant="caption" color="text.secondary">Changed field names; stored values and credentials are not shown.</Typography>
+          <Table size="small"><TableHead><TableRow><TableCell>Field</TableCell><TableCell>Change</TableCell></TableRow></TableHead><TableBody>
+            {configurationFieldChanges(record(appliedManifest.data) ? appliedManifest.data[detail.key] : undefined, draft.data?.[detail.key as keyof DeploymentDraftResponse]).map(item => <TableRow key={item.path}><TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{item.path}</TableCell><TableCell>{item.change}</TableCell></TableRow>)}
+          </TableBody></Table>
+        </> : <>
+          <Typography fontSize={15} fontWeight={600}>{workspace?.deployment.name ?? brainId}</Typography>
+          {review?.mode === 'apply' || versionDetail ? <>
+            <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: '140px minmax(0, 1fr)', gap: 1, fontSize: 14, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
+              <Box component="dt" color="text.secondary">Environment</Box><Box component="dd">{environment}<Typography variant="caption" color="text.secondary" display="block">{targetProfile?.name ?? 'Not selected'}</Typography></Box>
+              <Box component="dt" color="text.secondary">Current version</Box><Box component="dd">{appliedVersionId ? versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId : releases.isSuccess ? 'Not deployed' : 'Unavailable'}</Box>
+              <Box component="dt" color="text.secondary">Selected version</Box><Box component="dd">{candidate?.versionLabel ?? 'Unavailable'} · {candidate?.status === 'PUBLISHED' ? 'Published' : candidate?.status ?? 'Status unavailable'}</Box>
+            </Box>
+            <Divider />
+            {!candidateReady && <Alert severity={candidateManifest.isError ? 'error' : 'info'}>{candidateManifest.isError ? errorMessage(candidateManifest.error) : 'Loading the published version...'}</Alert>}
+            {candidateReady && <>
+              <Typography component="h3" fontSize={17} fontWeight={650}>What will change</Typography>
+              <OutcomeChanges changes={applyRows.filter(item => item.changed !== false)} config={candidateManifest.data} catalogue={catalogue.data} firstSetup={!appliedVersionId} />
+              {applyRows.every(item => item.changed === false) && <Typography variant="body2" color="text.secondary">Configuration matches the applied version.</Typography>}
+            </>}
+            {review?.mode === 'apply' && <>
+              <TextField select size="small" fullWidth label="Runtime package" InputLabelProps={{ shrink: true }} value={selectedSource?.id ?? ''} SelectProps={{ renderValue: () => selectedSource?.imageTag ?? (sourceRequired ? 'Select a compatible runtime package' : 'Use promoted channel default'), displayEmpty: true,
+                SelectDisplayProps: { 'aria-label': 'Runtime package', 'aria-labelledby': undefined } }}
+                onChange={event => { setSourceArtifactId(event.target.value); setReview(current => current && { ...current, confirmed: false }) }} disabled={busy || sources.isLoading}>
+                <MenuItem value="">{sourceRequired ? 'Select a compatible runtime package' : 'Use promoted channel default'}</MenuItem>
+                {(sources.data ?? []).map(item => <MenuItem key={item.id} value={item.id} sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}><Box><Typography variant="body2">{item.imageTag}</Typography><Typography variant="caption" color="text.secondary">{item.id}</Typography></Box></MenuItem>)}
+              </TextField>
+              {sources.isError && <Alert severity="error">{errorMessage(sources.error)}</Alert>}
+              {sources.isSuccess && sourceRequired && !sources.data.length && <Alert severity="warning">No compatible runtime image is available for this published version. The version is retained; no target update has been requested.</Alert>}
+            </>}
+            <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent', '&:before': { display: 'none' }, borderTop: 1, borderColor: 'divider' }}>
+              <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography variant="body2">Technical details</Typography></AccordionSummary>
+              <AccordionDetails><Stack spacing={1} sx={{ overflowWrap: 'anywhere' }}>
+                <Typography variant="caption">Brain: {brainId}<br />Target: {targetProfileId || 'Not selected'}<br />Version: {candidate?.id}<br />Published: {formatTime(candidate?.publishedAt)}<br />Indexing required: {candidate?.reindexRequired ? 'Yes' : 'No'}<br />Configuration hash: {candidate?.configHash}</Typography>
+                {selectedSource && <Typography variant="caption">Runtime: {selectedSource.imageReference}</Typography>}
+                <Typography variant="caption" color="text.secondary">Published runtime configuration compared with this environment. Compilation may add settings.</Typography>
+                <ChangeTable changes={applyRows} nextLabel="Selected version" />
+                <Button startIcon={<SettingsOutlined />} onClick={() => { setReview(null); setVersionDetail(false); changeView('technical') }}>Open technical version tools</Button>
+              </Stack></AccordionDetails>
+            </Accordion>
+            {review?.mode === 'apply' && <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+              <Typography component="h3" fontSize={17} fontWeight={650}>After applying</Typography>
+              <Typography variant="body2">1. Update {environment}</Typography><Typography variant="body2">2. Verify the release</Typography>
+              <Typography variant="caption" color="text.secondary">Other environments and app assignments remain unchanged.</Typography>
+            </Stack>}
           </> : <>
-            <Typography variant="body2">Saved shared draft r{draft.data?.revisionNumber}, saved {formatTime(draft.data?.updatedAt)}.</Typography>
-            <ChangeTable changes={changes} maxHeight={280} />
-            <Typography variant="body2">{review?.mode === 'publish-only' ? 'This creates immutable artifacts and the next shared draft. It does not update any runtime.' : 'The published version is retained even if updating or verification fails. No replacement app or automatic rollback is requested.'}</Typography>
+            <Typography variant="body2">Saved shared draft r{draft.data?.revisionNumber} · {formatTime(draft.data?.updatedAt)}</Typography>
+            <OutcomeChanges changes={outcomeRows} config={draft.data} catalogue={catalogue.data} firstSetup={!appliedVersionId} />
+            <Alert severity="info">Publishing saves a version. It does not update Staging or Production.</Alert>
           </>}
-          <FormControlLabel control={<Checkbox checked={review?.confirmed ?? false} disabled={busy} onChange={(_, checked) => setReview(current => current && { ...current, confirmed: checked })} />} label={review?.mode === 'publish-only' ? 'I confirm publication of this saved draft without updating a target.' : `I confirm these proposed changes for ${environment} (${targetProfileId}).`} />
+        </>}
+      </Stack>
+      <Box sx={{ px: 3, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+        {review && <FormControlLabel sx={{ mb: 1, alignItems: 'center' }} control={<Checkbox checked={review.confirmed} disabled={busy} onChange={(_, checked) => setReview(current => current && { ...current, confirmed: checked })} />}
+          label={<Typography variant="body2">{review.mode === 'apply' ? `Confirm ${candidate?.versionLabel ?? 'this version'} for ${environment}` : `Confirm publication of draft r${draft.data?.revisionNumber}`}</Typography>} />}
+        <Stack direction="row" justifyContent="flex-end" gap={1}>
+          <Button disabled={busy} onClick={() => { setReview(null); setDetail(null); setVersionDetail(false) }}>{review ? 'Cancel' : 'Close'}</Button>
+          {review && <Button variant="contained" startIcon={review.mode === 'apply' ? <RocketLaunchRounded /> : <PublishRounded />} disabled={busy || !review.confirmed || (review.mode === 'apply' ? !canApply : !canPublish)} onClick={() => void submitReview()}>
+            {busy ? 'Working...' : review.mode === 'apply' ? `Apply ${candidate?.versionLabel ?? ''} to ${environment}` : 'Publish version'}
+          </Button>}
+          {versionDetail && candidate && canOperate && candidate.id !== appliedVersionId && <Button variant="contained" disabled={busy || Boolean(inProgress) || !targetReady} onClick={() => reviewVersion(candidate)}>Review & apply</Button>}
         </Stack>
-      </DialogContent>
-      <DialogActions><Button startIcon={<CloseRounded />} disabled={busy} onClick={() => setReview(null)}>Cancel</Button>
-        <Button variant="contained" startIcon={review?.mode === 'apply' ? <RocketLaunchRounded /> : <PublishRounded />} disabled={busy || !review?.confirmed || (review.mode === 'apply' ? !canApply : !canPublish || (review.mode === 'publish-update' && (!comparisonReady || !targetReady || !canOperate)))} onClick={() => void submitReview()}>
-          {busy ? 'Working...' : review?.mode === 'apply' ? `Update ${environment}` : review?.mode === 'publish-only' ? 'Publish version' : 'Publish & continue'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-
-    <Drawer anchor="right" open={Boolean(detail) || advanced} onClose={() => { setDetail(null); setAdvanced(false) }} PaperProps={{ sx: { width: { xs: '100%', md: advanced ? 'min(1100px, 92vw)' : 680 }, maxWidth: '100%', p: 2.5 } }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 2 }}><Typography component="h2" sx={{ fontSize: 20, fontWeight: 650 }}>{advanced ? 'Advanced version actions' : 'Change details'}</Typography>
-        <IconButton aria-label="Close update details" onClick={() => { setDetail(null); setAdvanced(false) }}><CloseRounded /></IconButton></Stack>
-      {advanced ? <RevisionsPage scope={{ brainId, targetProfileId }} /> : detail && <Stack spacing={2} sx={{ minHeight: 0 }}>
-        <TextField select size="small" label="Configuration area" value={detail.key} onChange={event => setDetail(changes.find(item => item.key === event.target.value) ?? null)}>{changes.map(item => <MenuItem key={item.key} value={item.key}>{item.label}</MenuItem>)}</TextField>
-        <Typography variant="body2" color="text.secondary">Field names only. Stored values and credentials are not projected here. Runtime artifact compilation may add settings absent from the shared draft.</Typography>
-        <TableContainer sx={{ overflow: 'auto' }}><Table size="small"><TableHead><TableRow><TableCell>Field</TableCell><TableCell>Change</TableCell></TableRow></TableHead><TableBody>
-          {configurationFieldChanges(record(appliedManifest.data) ? appliedManifest.data[detail.key] : undefined, draft.data?.[detail.key as keyof DeploymentDraftResponse]).map(item => <TableRow key={item.path}><TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{item.path}</TableCell><TableCell>{item.change}</TableCell></TableRow>)}
-        </TableBody></Table></TableContainer>
-        <Button startIcon={<ArrowBackRounded />} onClick={() => setDetail(null)} sx={{ alignSelf: 'flex-start' }}>Back to changes</Button>
-      </Stack>}
+      </Box>
     </Drawer>
   </Box>
 }

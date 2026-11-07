@@ -19,12 +19,15 @@ const active = { id:'release-12', deploymentId:'brain-1', deploymentVersionId:'v
 const state = window.__updates = {
   mode, calls: [],
   draft: { id:'draft-13', deploymentId:'brain-1', revisionNumber:13, updatedAt:'2026-11-07T12:00:00Z', ...saved },
-  versions: [{ id:'version-12', deploymentId:'brain-1', versionLabel:'v12', sourceCapabilityManifestRequired:true }],
+  versions: [{ id:'version-12', deploymentId:'brain-1', versionLabel:'v12', status:'PUBLISHED', publishedAt:active.createdAt, sourceCapabilityManifestRequired:true },
+    { id:'version-11', deploymentId:'brain-1', versionLabel:'v11', status:'PUBLISHED', publishedAt:'2026-11-05T12:00:00Z', sourceCapabilityManifestRequired:true }],
   releases: [active, { ...active, id:'production-should-not-appear', targetProfileId:'target-production' }],
-  manifests: { 'version-12': { deploymentId:'brain-1', versionId:'version-12', ...empty() } },
+  manifests: { 'version-12': { deploymentId:'brain-1', versionId:'version-12', ...empty() }, 'version-11':{deploymentId:'brain-1',versionId:'version-11',...empty(),actionsConfig:{actions:[{displayName:'Find stock'}]}} },
   workspace: { deployment:{name:'Northfield AI'}, access:{canEdit:mode !== 'read-only', canOperate:mode !== 'read-only'}, lifecycle:{savedDraftMatchesLatestPublished:false}, draft:{id:'draft-13',updatedAt:'2026-11-07T12:00:00Z'} },
 };
 if (mode === 'manifest-unavailable') delete state.manifests['version-12'];
+if (mode === 'first-deployment') state.releases = [];
+if (mode === 'past-verified') state.releases.push({...active,id:'old-version-release',deploymentVersionId:'version-11',provisioningStatus:'DELETED',createdAt:'2026-11-05T10:00:00Z'});
 if (mode === 'in-progress') state.releases.unshift({...active,id:'pending-release',status:'PROVISIONING',provisioningStatus:'RUNNING',verificationStatus:'NOT_RUN',createdAt:'2026-11-07T12:01:00Z'});
 export const getState = () => state;
 const copy = value => structuredClone(value);
@@ -32,6 +35,8 @@ export async function fetchDeploymentDraft() { return copy(state.draft) }
 export async function fetchDeploymentConfigDiffCenter() { return {live:{referenceId:''},draft:{referenceId:'draft-13',updatedAt:'2026-11-07T12:00:00Z'},sections:[]} }
 export async function fetchDeploymentAiBehaviourProfiles() { return {groups:[]} }
 export async function fetchDeploymentVersions() { return copy(state.versions) }
+export async function fetchDeploymentTargetOptions() { return [{id:'target-staging',active:true,environmentName:'staging',name:'London staging'},{id:'target-production',active:true,environmentName:'production',name:'London production'}] }
+export const fetchDeploymentTargetProfiles = fetchDeploymentTargetOptions;
 export async function fetchDeploymentReleases() { return copy(state.releases) }
 export async function fetchDeploymentVerificationRuns() { return [{id:'verify-12',summaryMessage:'Applied target checks passed'}] }
 export async function fetchDeploymentTargetContext() { return {runtimeBaseUrl:'https://runtime.example.test'} }
@@ -40,7 +45,7 @@ export async function fetchCompatibleDeploymentSourceArtifacts() { return mode =
 export async function validateDeploymentDraft(id) { state.calls.push({type:'validate',id}); return {publishReady:true,errorCount:0,warningCount:1,issues:[{severity:'WARNING',message:'Example warning retained'}]} }
 export async function publishDeploymentDraft(id) {
   state.calls.push({type:'publish',id});
-  const version = {id:'version-13',deploymentId:'brain-1',versionLabel:'v13',sourceCapabilityManifestRequired:true};
+  const version = {id:'version-13',deploymentId:'brain-1',versionLabel:'v13',status:'PUBLISHED',publishedAt:'2026-11-07T13:00:00Z',sourceCapabilityManifestRequired:true};
   state.manifests[version.id] = {deploymentId:'brain-1',versionId:version.id,...copy(saved)};
   state.versions.unshift(version);
   state.draft = {...state.draft,id:'draft-14',revisionNumber:14,updatedAt:'2026-11-07T13:00:00Z'};
@@ -72,7 +77,7 @@ const queryClient = new QueryClient({defaultOptions:{queries:{retry:false},mutat
 function Harness() {
   const [editor,register] = useState(null);
   const dark = new URLSearchParams(location.search).get('theme') !== 'light';
-  const context = {brainId:'brain-1',targetProfileId:'target-staging',targetProfile:{id:'target-staging',active:true,environmentName:'Staging',name:'London staging'},release:state.releases.find(item=>item.id==='release-12'),target:{deploymentId:'brain-1',targetProfileId:'target-staging',releaseId:'release-12'},href:section=>'/smart-brains/brain-1/'+(section||'')+'?targetProfileId=target-staging'};
+  const context = {brainId:'brain-1',targetProfileId:'target-staging',targetProfile:{id:'target-staging',active:true,environmentName:'staging',name:'London staging'},release:state.releases.find(item=>item.id==='release-12'),target:state.releases.length?{deploymentId:'brain-1',targetProfileId:'target-staging',releaseId:'release-12'}:null,href:section=>'/smart-brains/brain-1/'+(section||'')+'?targetProfileId=target-staging'};
   return <ThemeProvider theme={createConsoleTheme(dark?'dark':'light')}><CssBaseline/><BrainWorkspaceContext.Provider value={context}><BrainEditorContext.Provider value={register}>
     <Box sx={{height:'100dvh',display:'flex',flexDirection:'column'}}>
       <Box sx={{height:56,flexShrink:0,borderBottom:1,borderColor:'divider',display:'flex',alignItems:'center',px:3}}><Typography fontWeight={700}>LoomAI</Typography><Typography sx={{ml:4}}>Smart Brains / Northfield AI / Updates</Typography></Box>
@@ -93,6 +98,7 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
       if (id === '../auth/PlatformAuthProvider') return '\0virtual:brain-updates-auth'
       if (id === '../workspace/DeploymentWorkspaceContext') return '\0virtual:brain-updates-workspace'
       if (id === '../pages/RevisionsPage') return '\0virtual:brain-updates-revisions'
+      if (id === './BrainCustomerReleaseTasks') return '\0virtual:brain-updates-release-tasks'
     },
     load(id) {
       if (id === '\0virtual:brain-updates-fixture') return fixture
@@ -100,6 +106,7 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
       if (id === '\0virtual:brain-updates-auth') return `export const usePlatformAuth=()=>({session:{role:'CUSTOMER_ADMIN'}})`
       if (id === '\0virtual:brain-updates-workspace') return `import {getState} from 'virtual:brain-updates-fixture'; export const useDeploymentWorkspace=()=>({selectedDeploymentId:'brain-1',workspace:getState().workspace})`
       if (id === '\0virtual:brain-updates-revisions') return `export const RevisionsPage=()=>null`
+      if (id === '\0virtual:brain-updates-release-tasks') return `export const BrainCustomerReleaseTasks=()=>null`
     },
     transform(code, id) {
       if (id === '\0virtual:brain-updates-harness') return import('esbuild').then(({transform}) => transform(code, {loader:'jsx',jsx:'automatic',format:'esm'}))
@@ -124,25 +131,25 @@ try {
   await page.route('**/api/**', route => { throw new Error(`Real API request forbidden: ${route.request().url()}`) })
   const open = async (query = '') => {
     await page.goto(`${url}${query}`)
-    await page.getByRole('heading', {name:'Review and publish changes'}).waitFor()
+    await page.getByRole('heading', {name:'Updates',exact:true}).waitFor()
     await page.waitForFunction(() => document.querySelector('[data-brain-updates] table tbody tr'))
   }
   const calls = () => page.evaluate(() => window.__updates.calls)
   const publishToReview = async () => {
-    await page.getByRole('button', {name:'Publish & update Staging',exact:true}).click()
+    await page.getByRole('button', {name:'Review & publish version',exact:true}).click()
     await page.getByRole('checkbox').check()
-    await page.getByRole('button', {name:'Publish & continue',exact:true}).click()
-    await page.getByRole('dialog').getByText('Version: v13', {exact:false}).waitFor()
+    await page.getByRole('button', {name:'Publish version',exact:true}).click()
+    await page.getByRole('dialog').getByRole('heading',{name:'Update Staging',exact:true}).waitFor()
   }
   const chooseSource = async () => {
-    await page.getByRole('combobox', {name:'Runtime source artifact'}).click()
-    await page.getByRole('option', {name:'runtime-reviewed / image-1'}).click()
+    await page.getByRole('combobox', {name:'Runtime package'}).click()
+    await page.getByRole('option', {name:'runtime-reviewed image-1'}).click()
     await page.getByRole('checkbox').check()
   }
 
   await open()
   assert.deepEqual(await calls(), [], 'mount performs no mutations')
-  await page.getByRole('button', {name:'Publish & update Staging',exact:true}).click()
+  await page.getByRole('button', {name:'Review & publish version',exact:true}).click()
   await page.getByRole('button', {name:'Cancel',exact:true}).click()
   await page.getByRole('dialog').waitFor({state:'hidden'})
   assert.deepEqual(await calls(), [], 'review cancellation performs no mutations')
@@ -150,7 +157,7 @@ try {
     await page.setViewportSize({width,height})
     await page.screenshot({path:`${output}/updates-dark-${width}.png`,fullPage:true})
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}: no horizontal overflow`)
-    assert.equal(await page.locator('footer').getByRole('button', {name:'Publish & update Staging',exact:true}).isVisible(), true)
+    assert.equal(await page.locator('footer').getByRole('button', {name:'Review & publish version',exact:true}).isVisible(), true)
   }
   await page.setViewportSize({width:1440,height:900})
   await open('?theme=light')
@@ -158,17 +165,17 @@ try {
   await page.getByRole('button', {name:'View change details',exact:true}).click()
   assert.ok(!(await page.locator('body').innerText()).includes('HIDDEN_STORED_VALUE'))
   await page.getByRole('button', {name:'Close update details'}).click()
-  await page.getByRole('tab', {name:'History',exact:true}).click()
+  await page.getByRole('button', {name:'Activity',exact:true}).click()
   assert.ok(!(await page.locator('body').innerText()).includes('production-should-not-appear'))
 
   await open('?mode=retry')
   await publishToReview()
   await chooseSource()
-  await page.getByRole('button', {name:'Update Staging',exact:true}).click()
+  await page.getByRole('button', {name:'Apply v13 to Staging',exact:true}).click()
   await page.getByRole('dialog').getByText(/v13 remains published/).waitFor()
   await page.screenshot({path:`${output}/updates-retained-version-failure.png`,fullPage:true})
   assert.equal((await calls()).filter(item=>item.type==='publish').length,1)
-  await page.getByRole('button', {name:'Update Staging',exact:true}).click()
+  await page.getByRole('button', {name:'Apply v13 to Staging',exact:true}).click()
   await page.getByRole('dialog').waitFor({state:'hidden'})
   const retried = await calls()
   const applies = retried.filter(item=>item.type==='apply')
@@ -180,35 +187,34 @@ try {
   await open('?mode=no-source')
   await publishToReview()
   await page.getByRole('dialog').getByText(/No compatible runtime image/).waitFor()
-  assert.equal(await page.getByRole('button',{name:'Update Staging',exact:true}).isDisabled(),true)
+  assert.equal(await page.getByRole('button',{name:'Apply v13 to Staging',exact:true}).isDisabled(),true)
   assert.equal((await calls()).filter(item=>item.type==='apply').length,0)
 
   await open()
-  await page.getByRole('button',{name:'Publish version only',exact:true}).click()
-  await page.getByRole('checkbox').check()
-  await page.getByRole('button',{name:'Publish version',exact:true}).click()
+  await publishToReview()
+  await page.getByRole('button',{name:'Cancel',exact:true}).click()
   await page.getByRole('dialog').waitFor({state:'hidden'})
   assert.deepEqual((await calls()).map(item=>item.type),['publish'])
 
   await open()
-  await page.getByRole('button',{name:'Publish & update Staging',exact:true}).click()
+  await page.getByRole('button',{name:'Review & publish version',exact:true}).click()
   await page.evaluate(() => { window.__updates.draft.promptConfig.tone = 'Changed by another editor' })
   await page.getByRole('checkbox').check()
-  await page.getByRole('button',{name:'Publish & continue',exact:true}).click()
+  await page.getByRole('button',{name:'Publish version',exact:true}).click()
   await page.getByRole('dialog').getByText(/The shared draft changed/).waitFor()
   assert.deepEqual(await calls(),[],'concurrent shared-draft change blocks stale confirmation')
 
   await open('?mode=read-only')
-  assert.equal(await page.locator('footer').getByRole('button',{name:/Publish|Update/}).count(),0)
-  assert.equal(await page.getByRole('button',{name:'Publish version only',exact:true}).count(),0)
+  assert.equal(await page.locator('footer').getByRole('button',{name:/publish|apply/i}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'Review & apply',exact:true}).count(),0)
   assert.deepEqual(await calls(),[])
 
   await open('?mode=in-progress')
-  assert.equal(await page.locator('footer').getByRole('button',{name:'Publish & update Staging',exact:true}).isDisabled(),true)
+  assert.equal(await page.locator('footer').getByRole('button',{name:'Review & publish version',exact:true}).isDisabled(),true)
   assert.deepEqual(await calls(),[],'polling and displaying progress makes no mutations')
 
   await open()
-  await page.getByRole('button',{name:'Check',exact:true}).click()
+  await page.getByRole('button',{name:'Check draft',exact:true}).click()
   await page.getByText('WARNING: Example warning retained',{exact:true}).waitFor()
   assert.deepEqual((await calls()).map(item=>item.type),['validate'])
 
@@ -219,12 +225,44 @@ try {
     const previous = window.__updates.releases[0]
     window.__updates.releases.unshift({...previous,id:'another-actor-release',createdAt:'2026-11-07T14:00:00Z'})
   })
-  await page.getByRole('button',{name:'Update Staging',exact:true}).click()
+  await page.getByRole('button',{name:'Apply v13 to Staging',exact:true}).click()
   await page.getByRole('dialog').getByText(/The applied target changed during review/).waitFor()
   assert.equal((await calls()).filter(item=>item.type==='apply').length,0)
   assert.equal((await calls()).filter(item=>item.type==='publish').length,1)
+
+  await open()
+  await page.getByRole('button',{name:'Review & apply',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'Update Staging',exact:true}).waitFor()
+  await chooseSource()
+  await page.getByRole('button',{name:'Apply v11 to Staging',exact:true}).click()
+  await page.getByRole('dialog').waitFor({state:'hidden'})
+  assert.deepEqual((await calls()).map(item=>item.type),['apply'],'applying an older published version must not publish the draft')
+
+  await open()
+  await page.getByRole('button',{name:'View v11 details',exact:true}).click()
+  await page.getByRole('heading',{name:'Version v11',exact:true}).waitFor()
+  await page.getByRole('button',{name:'Close update details',exact:true}).click()
+  assert.equal(await page.locator('footer').getByRole('button',{name:'Review & publish version',exact:true}).isEnabled(),true,'inspection must not replace publication with historical apply')
+  assert.deepEqual(await calls(),[])
+  await open('?mode=past-verified')
+  await page.getByRole('button',{name:'View v11 details',exact:true}).click()
+  await page.getByRole('button',{name:'Close update details',exact:true}).click()
+  assert.equal(await page.locator('[aria-label="Update sequence"] .Mui-completed').count(),0,'historical verification must not complete the current draft journey')
+
+  await open()
+  await page.getByRole('button',{name:'All versions',exact:true}).click()
+  await page.getByRole('textbox',{name:'Find a version'}).fill('v11')
+  assert.equal(await page.getByRole('button',{name:'v12',exact:true}).count(),0)
+  await page.getByRole('button',{name:'View v11 details',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'Version v11',exact:true}).waitFor()
+  await page.getByRole('button',{name:'Close update details'}).click()
+  assert.deepEqual(await calls(),[])
+
+  await open('?mode=first-deployment')
+  await page.getByText('New setup for Staging',{exact:true}).waitFor()
+  assert.deepEqual(await calls(),[])
   assert.deepEqual(errors,[])
-  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change'],screenshots:output},null,2))
+  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment'],screenshots:output},null,2))
 } finally {
   await browser?.close()
   await server.close()
