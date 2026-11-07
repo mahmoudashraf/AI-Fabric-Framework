@@ -3,6 +3,7 @@ import { Headphones, Loader2, UserRound, X } from "lucide-react";
 
 import type { MaxModeHandoverIntakeFieldConfig } from "@/config";
 import type { ConversationControlState } from "@/types";
+import { adaptHandoverIntakeFields } from "@/handoverIntake";
 import { Button } from "@/ui/button";
 
 export function ConversationHandoverDialog({
@@ -41,6 +42,7 @@ export function ConversationHandoverDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const intake = useMemo(() => adaptHandoverIntakeFields(fields), [fields]);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -64,12 +66,12 @@ export function ConversationHandoverDialog({
     }
   }, [open]);
 
-  const canSubmit = useMemo(() => fields.every((field) => {
+  const canSubmit = useMemo(() => intake.issues.length === 0 && intake.fields.every((field) => {
     const value = values[field.key]?.trim();
     if (field.required && !value) return false;
     if (value && field.consentRequired && !consents[field.key]) return false;
     return true;
-  }), [consents, fields, values]);
+  }), [consents, intake, values]);
 
   if (!open) return null;
 
@@ -130,7 +132,14 @@ export function ConversationHandoverDialog({
               <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                 Share only the contact details you want the support team to use. These fields are sent directly through the configured human-support channel.
               </p>
-              {fields.map((field) => (
+              {intake.issues.length > 0 && (
+                <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                  <p className="font-semibold">Some support contact fields are unavailable.</p>
+                  <ul className="mt-1 list-inside list-disc">{intake.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>
+                  <p className="mt-1">Contact submission is unavailable until the field configuration is corrected.</p>
+                </div>
+              )}
+              {intake.fields.map((field) => (
                 <IntakeField
                   key={field.key}
                   field={field}
@@ -242,7 +251,7 @@ function IntakeField({
         {field.label}{field.required ? " *" : ""}
       </label>
       {field.type === "SELECT" ? (
-        <select id={`handover-${field.key}`} value={value} onChange={(event) => onValue(event.target.value)} className={inputClass}>
+        <select id={`handover-${field.key}`} required={field.required} value={value} onChange={(event) => onValue(event.target.value)} className={inputClass}>
           <option value="">Select an option</option>
           {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
@@ -251,6 +260,7 @@ function IntakeField({
           <input
             id={`handover-${field.key}`}
             type="checkbox"
+            required={field.required}
             checked={value === "true"}
             onChange={(event) => onValue(event.target.checked ? "true" : "")}
           />
@@ -260,8 +270,9 @@ function IntakeField({
         <input
           id={`handover-${field.key}`}
           type={field.type === "EMAIL" ? "email" : field.type === "PHONE" ? "tel" : "text"}
+          required={field.required}
           value={value}
-          maxLength={Math.max(1, Math.min(field.maxLength || 500, 4096))}
+          maxLength={Math.max(0, Math.min(field.maxLength ?? 500, 4096))}
           onChange={(event) => onValue(event.target.value)}
           className={inputClass}
         />
