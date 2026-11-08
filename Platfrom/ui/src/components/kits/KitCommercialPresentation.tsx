@@ -3,7 +3,6 @@ import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import type { KitPreviewKind } from './kitPreviewContent'
-import { CommercialContent } from '../../uiProfile'
 
 export const dealershipOffer = {
   price: '\u00a3500 / month',
@@ -23,9 +22,9 @@ export const dealershipPilotTerms = 'Before launch, we agree in writing the pilo
 export function KitLaunchOffer({ kind }: { kind: KitPreviewKind }) {
   const offer = kitLaunchOffers[kind]
   const Icon = kind === 'dealership' ? DirectionsCarOutlined : kind === 'support' ? SupportAgentOutlined : AutoAwesomeOutlined
-  return <CommercialContent><aside className={`ek-launch-offer${kind === 'dealership' ? ' ek-dealership-offer' : ''}`} aria-label={offer.label}>
+  return <aside className={`ek-launch-offer${kind === 'dealership' ? ' ek-dealership-offer' : ''}`} aria-label={offer.label}>
     <span className="ek-offer-title"><Icon />{kind === 'dealership' ? offer.label : 'Launch offer'}</span>
     <div className="ek-offer-value"><span>{offer.price}</span><strong>{offer.value}</strong></div>
     <ul>{offer.benefits.map(benefit => <li key={benefit}><CheckCircleRounded />{benefit}</li>)}</ul>
-  </aside></CommercialContent>
+  </aside>
 }

@@ -3,7 +3,7 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
 import { enrollPublicCustomerTemplates } from '../api/platformApi'
@@ -13,6 +13,8 @@ import { KitMark } from '../components/kits/KitIdentity'
 import { ExperienceKitSetup } from '../components/kits/ExperienceKitSetup'
 import { ExperienceKitOverview } from '../components/kits/ExperienceKitOverview'
 import './ExperienceKits.css'
+import { isDeveloperEntry, isDeveloperKit } from '../developer/developerEntry'
+import { stagingOnly } from '../developer/deploymentPolicy'
 
 export function ExperienceKitsRefreshTemplates({ customerId }: { customerId: string }) {
   const queryClient = useQueryClient()
@@ -41,6 +43,7 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
         <span className={`ek-badge${!active ? ' ek-badge-amber' : ''}`}>{missing ? 'Setup needed' : active ? 'Live' : 'Not live yet'}</span></div>
         <h2>{kit.name}</h2><p>{definition?.name ?? kit.kitCode}</p>
         <div className="ek-saved-kit-facts"><span>{kit.deliveryMode === 'both' ? 'Website embed + standalone' : kit.deliveryMode === 'embedded' ? 'Website embed' : 'Standalone app'}</span>
+          {stagingOnly(kit.deploymentPolicy) && <span>Developer staging only</span>}
           {kit.kitCode === 'ai-support-experience' && <span>{kit.ticketingEnabled ? 'Request tracking requested' : 'Request tracking off'}</span>}
           <span>{kit.humanSupportEnabled ? 'Desk setup requested' : 'Desk optional'}</span></div>
         {missing && <p className="ek-amber">An installation is missing. Open the kit to review its products.</p>}
@@ -61,12 +64,14 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
 export function ExperienceKitsPage() {
   const auth = usePlatformAuth()
   const { code, id } = useParams<{ code: string; id: string }>()
+  const location = useLocation()
+  const developerEntry = isDeveloperEntry(location.search) && isDeveloperKit(code)
   const { palette } = useTheme()
   if (auth.isLoading) return <CircularProgress size={24} aria-label="Loading your account" />
   if (!isCustomerSession(auth.session)) return <Alert severity="warning">Sign in with a customer administrator account to manage kits.<Button component={Link} to={code ? `/sign-in?kit=${encodeURIComponent(code)}` : '/sign-in'}>Sign in</Button></Alert>
   const customerId = auth.session.customerId
   return <div className="ek-page ek-console-page" data-kit-theme={palette.mode}>
-    {code ? <ExperienceKitSetup key={`${customerId}:${auth.session.actorId}:${code}`} customerId={customerId} actorId={auth.session.actorId} code={code} />
+    {code ? <ExperienceKitSetup key={`${customerId}:${auth.session.actorId}:${code}:${developerEntry}`} customerId={customerId} actorId={auth.session.actorId} code={code} entryPoint={developerEntry ? 'DEVELOPER' : undefined} />
       : id ? <ExperienceKitOverview key={`${customerId}:${id}`} customerId={customerId} id={id} />
         : <ExperienceKitsList key={customerId} customerId={customerId} />}
   </div>

@@ -33,6 +33,7 @@ import { brainAdvancedSections, brainIdFromPath, brainPath, brainSections, curre
 import { deploymentTerm } from '../deploymentTerminology'
 import { accountPath } from '../account/accountNavigation'
 import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
+import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
   responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
@@ -68,7 +69,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     queryFn: () => customer ? fetchDeploymentTargetOptions(brainId) : fetchDeploymentTargetProfiles(), enabled: valid, retry: false })
   const releases = useQuery({ queryKey: ['deployment-releases', brainId], queryFn: () => fetchDeploymentReleases(brainId), enabled: valid })
   const versions = useQuery({ queryKey: ['deployment-versions', brainId], queryFn: () => fetchDeploymentVersions(brainId), enabled: valid })
-  const options = profiles.data ?? []
+  const brain = workspace.selectedDeploymentSummary
+  const options = (profiles.data ?? []).filter(profile => environmentAllowed(brain?.deploymentPolicy, profile.environmentName))
   const targetProfile = options.find(item => item.id === requestedTarget) ?? null
   const targetProfileId = targetProfile?.id ?? ''
   const scopedReleases = (releases.data ?? []).filter(item => item.targetProfileId === targetProfileId)
@@ -80,7 +82,6 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const sectionLabel = brainSections.find(item => item.path === section)?.label ?? 'Overview'
   const childLabel = section === 'advanced' ? brainAdvancedSections.find(item => item.path === location.pathname.split('/')[4])?.label
     : section === 'knowledge' && location.pathname.split('/')[4] === 'search' ? 'Search settings' : null
-  const brain = workspace.selectedDeploymentSummary
   const dirty = Boolean(editor?.dirty)
   const busy = Boolean(editor?.busy)
   const editingRelease = useRef<{ scope: string; release: typeof candidateRelease } | null>(null)
@@ -141,6 +142,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     <Box sx={{ flexShrink: 0 }}>
     <Button component={RouterLink} to="/deployments" startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start', mx: 1.5, color: 'text.primary', mb: 2 }}>All {deploymentTerm.plural}</Button>
     <Typography sx={{ fontSize: 19, fontWeight: 650, px: 2.5, mb: 2.5, overflowWrap: 'anywhere' }}>{brain?.name ?? deploymentTerm.singular}</Typography>
+    {stagingOnly(brain?.deploymentPolicy) && <Typography sx={{ px: 2.5, mb: 2, fontSize: 12, color: 'primary.main' }}>Developer · Staging only</Typography>}
     </Box>
     <Box data-brain-navigation-scroll sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
     {['Build', 'Experience', 'Operations', 'Release'].map(group => <Box key={group} sx={{ mb: 1.5 }}>
@@ -203,7 +205,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
             <BrainEnvironmentSwitch profiles={options} releases={releases.data ?? []} versions={versions.data ?? []}
               selectedId={requestedTarget} loading={profiles.isPending || releases.isPending} unavailable={profiles.isError || releases.isError}
               disabled={busy} onChange={id => { const next = new URLSearchParams(location.search); next.set('targetProfileId', id); next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }} />
-            <Stack spacing={0.25} sx={{ ml: { sm: 'auto' } }}><Tooltip title="Saved configuration is shared by Staging and Production; published versions are applied separately."><Typography fontSize={12} fontWeight={600}>Shared draft{workspace.workspace?.draft ? ` r${workspace.workspace.draft.revisionNumber}` : ''}</Typography></Tooltip>
+            <Stack spacing={0.25} sx={{ ml: { sm: 'auto' } }}><Tooltip title={stagingOnly(brain?.deploymentPolicy) ? 'This developer Brain can only run in staging. Publishing saves a version; applying updates its staging environment.' : 'Saved configuration is shared by Staging and Production; published versions are applied separately.'}><Typography fontSize={12} fontWeight={600}>Shared draft{workspace.workspace?.draft ? ` r${workspace.workspace.draft.revisionNumber}` : ''}</Typography></Tooltip>
               <Typography fontSize={11} color={changed ? 'warning.main' : 'text.secondary'}>{changed ? 'Changes not applied' : 'Saved configuration'}</Typography></Stack>
             {!customer && <Typography sx={{ ml: 'auto', fontSize: 11, color: 'text.secondary' }}>{brain?.binding?.customerName ? `Assisting ${brain.binding.customerName}` : 'Staff access'}</Typography>}
           </Stack>

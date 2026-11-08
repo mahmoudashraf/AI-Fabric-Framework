@@ -234,7 +234,9 @@ test('public page is prop-driven outside Routes, retaining selected-kit sign-up 
   const source = await readFile(new URL('../src/pages/ExperienceKitsPublicPage.tsx', import.meta.url), 'utf8')
   assert.ok(!source.includes('useParams'))
   assert.ok(source.includes('consolePath?: string'))
-  assert.ok(source.includes('/sign-up?kit=${definition.code}'))
+  const chooser = await readFile(new URL('../src/components/kits/KitChooser.tsx', import.meta.url), 'utf8')
+  assert.ok(source.includes('<KitChooser'))
+  assert.ok(chooser.includes('/sign-up?kit=${definition.code}'))
 })
 
 test('setup prepares approved access once, previews nested pack configuration and retains retry identity', async () => {

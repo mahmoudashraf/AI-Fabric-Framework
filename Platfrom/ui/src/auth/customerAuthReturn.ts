@@ -1,8 +1,9 @@
 import { accountSignInReturn } from '../account/accountNavigation'
 import { pluginLibraryReturn } from './pluginLibraryReturn'
+import { DEVELOPER_ENTRY_POINT, isDeveloperEntry, isDeveloperKit } from '../developer/developerEntry'
 
 const returnKey = 'loomai-console-auth-return'
-type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; kit?: string; accountReturn?: string; libraryReturn?: string; createdAt: number }
+type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; kit?: string; entryPoint?: typeof DEVELOPER_ENTRY_POINT; accountReturn?: string; libraryReturn?: string; createdAt: number }
 
 function currentLibraryReturn() {
   return pluginLibraryReturn(`${window.location.pathname}${window.location.search}`)
@@ -32,7 +33,7 @@ export function productStartPath(search: string, pathname = '') {
   const library = pluginLibraryReturn(new URLSearchParams(search).get('library_return'))
   if (library) return library
   const kit = selectedKit(search) ?? kitSetupCode(pathname)
-  if (kit) return `/kits/new/${kit}`
+  if (kit) return `/kits/new/${kit}${isDeveloperKit(kit) && isDeveloperEntry(search) ? '?entryPoint=DEVELOPER' : ''}`
   const product = selectedProduct(search)
   return product ? `/start?product=${product}` : '/start'
 }
@@ -45,6 +46,7 @@ export function rememberCustomerAuthReturn(linking: boolean) {
     ...(window.location.pathname.startsWith('/auth/desk/sign-in/') ? { deskClientId: window.location.pathname.slice('/auth/desk/sign-in/'.length) } : {}),
     ...(selectedProduct(window.location.search) ? { product: selectedProduct(window.location.search)! } : {}),
     ...(selectedKit(window.location.search) ? { kit: selectedKit(window.location.search)! } : {}),
+    ...(isDeveloperEntry(window.location.search) && isDeveloperKit(selectedKit(window.location.search)) ? { entryPoint: DEVELOPER_ENTRY_POINT } : {}),
     ...(currentAccountReturn() ? { accountReturn: currentAccountReturn()! } : {}),
     ...(currentLibraryReturn() ? { libraryReturn: currentLibraryReturn()! } : {}),
     ...(authorizationId ? { authorizationId } : {}), createdAt: Date.now() }
@@ -60,6 +62,7 @@ export function customerAuthReturn(): AuthReturn | null {
         || intent.authorizationId.length === 0 || intent.authorizationId.length > 512))
       || (intent.deskClientId !== undefined && (typeof intent.deskClientId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(intent.deskClientId)))) return null
     if (intent.kit !== undefined && (typeof intent.kit !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(intent.kit))) return null
+    if (intent.entryPoint !== undefined && (intent.entryPoint !== DEVELOPER_ENTRY_POINT || !isDeveloperKit(intent.kit))) return null
     if (intent.accountReturn !== undefined && !accountSignInReturn(intent.accountReturn)) return null
     if (intent.libraryReturn !== undefined && !pluginLibraryReturn(intent.libraryReturn)) return null
     return intent
@@ -79,7 +82,7 @@ export function consumeCustomerAuthReturn() {
     const account = accountSignInReturn(intent?.accountReturn) ?? currentAccountReturn()
     if (account) return account
     const kit = intent?.kit ?? selectedKit(window.location.search)
-    if (kit) return `/kits/new/${kit}`
+    if (kit) return `/kits/new/${kit}${isDeveloperKit(kit) && (intent?.entryPoint === DEVELOPER_ENTRY_POINT || isDeveloperEntry(window.location.search)) ? '?entryPoint=DEVELOPER' : ''}`
   }
   return intent?.purpose === 'customer'
     ? ['platform', 'engage', 'desk'].includes(intent.product ?? '') ? `/start?product=${intent!.product}` : '/start'
@@ -95,7 +98,7 @@ export function identityEmailRedirect(recovery = false) {
   const kit = selectedKit(window.location.search)
   const account = currentAccountReturn()
   const library = currentLibraryReturn()
-  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : account ? '?account_return=' + encodeURIComponent(account) : library ? '?library_return=' + encodeURIComponent(library) : kit ? '?kit=' + encodeURIComponent(kit) : ''}`
+  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : account ? '?account_return=' + encodeURIComponent(account) : library ? '?library_return=' + encodeURIComponent(library) : kit ? '?kit=' + encodeURIComponent(kit) + (isDeveloperKit(kit) && isDeveloperEntry(window.location.search) ? '&entryPoint=DEVELOPER' : '') : ''}`
 }
 
 function deskEntryFromEmail() {

@@ -11,7 +11,6 @@ import PhoneOutlined from '@mui/icons-material/PhoneOutlined'
 import StorageOutlined from '@mui/icons-material/StorageOutlined'
 import WhatsApp from '@mui/icons-material/WhatsApp'
 import { integrationTeam } from '../integrationTeam'
-import { PersonalContactContent } from '../uiProfile'
 
 type Props = Pick<ButtonProps, 'variant' | 'size' | 'fullWidth' | 'className' | 'sx'> & { children?: string }
 
@@ -29,7 +28,7 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
     setLoaded(false)
     setView('booking')
   }
-  return <PersonalContactContent><Button component="a" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer"
+  return <><Button component="a" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer"
     aria-label={children || 'Talk to Mo'} aria-haspopup="dialog" onClick={event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
       event.preventDefault()
@@ -95,5 +94,5 @@ export function IntegrationCallButton({ children, sx, ...props }: Props) {
           <Button component="a" href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" size="small" startIcon={<OpenInNewRounded />}>Open in new tab</Button>
         </Box>
       </>}
-    </Dialog></PersonalContactContent>
+    </Dialog></>
 }

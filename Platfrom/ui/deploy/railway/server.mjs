@@ -11,7 +11,6 @@ const indexPath = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const apiBaseUrl = (process.env.PLATFORM_UI_API_BASE_URL || process.env.VITE_PLATFORM_API_BASE_URL || '').trim()
 const environment = process.env.PLATFORM_UI_ENVIRONMENT === 'staging' ? 'staging' : 'production'
-const uiProfile = environment === 'staging' && process.env.PLATFORM_UI_PROFILE === 'developer' ? 'developer' : 'standard'
 const workspaceScriptSource = workspaceAssetSource(apiBaseUrl)
 
 function workspaceAssetSource(base) {
@@ -50,7 +49,7 @@ function writeJson(response, statusCode, payload) {
 }
 
 function runtimeConfigScript() {
-  return `window.__PLATFORM_RUNTIME_CONFIG__ = Object.freeze(${JSON.stringify({ apiBaseUrl, environment, uiProfile })});\n`
+  return `window.__PLATFORM_RUNTIME_CONFIG__ = Object.freeze(${JSON.stringify({ apiBaseUrl, environment })});\n`
 }
 
 function resolveStaticPath(urlPathname) {
@@ -140,6 +139,16 @@ const server = createServer(async (request, response) => {
       stream.pipe(response)
     })
     response.once('close', () => stream.destroy())
+    return
+  }
+
+  // The developer hostname is a public entry; identity and Console stay canonical.
+  if (String(request.headers.host || '').toLowerCase().split(':')[0] === 'developer.loomai.pro'
+    && !['/', '/developers', '/developers/'].includes(requestUrl.pathname)
+    && ['GET', 'HEAD'].includes(request.method)) {
+    response.writeHead(302, { Location: `https://console.loomai.pro${requestUrl.pathname}${requestUrl.search}`,
+      'Cache-Control': 'no-store', ...securityHeaders(false, requestUrl.pathname.startsWith('/auth/')) })
+    response.end()
     return
   }
 

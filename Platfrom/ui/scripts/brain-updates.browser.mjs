@@ -12,12 +12,14 @@ const output = `${tmpdir()}/brain-updates-${process.pid}`
 await mkdir(output, { recursive: true })
 const fixture = `
 const mode = new URLSearchParams(location.search).get('mode') || 'normal';
+const deploymentPolicy = mode === 'developer' ? {allowedEnvironments:['staging'],tags:['staging-only']} : null;
 const fields = ['actionsConfig','entityConfig','routingConfig','providerConfig','securityConfig','promptConfig','knowledgeSourceConfig','shellConfig','marketplaceDatasetConfig','behaviorConfig'];
 const empty = () => Object.fromEntries(fields.map(key => [key, {}]));
 const saved = { ...empty(), promptConfig: { tone: 'Consultative', prompt: 'HIDDEN_STORED_VALUE' } };
 const active = { id:'release-12', deploymentId:'brain-1', deploymentVersionId:'version-12', targetProfileId:'target-staging', status:'APPLIED_VERIFIED', provisioningStatus:'ACTIVE', verificationStatus:'PASSED', currentStepDescription:'Release verified', verificationRunId:'verify-12', createdAt:'2026-11-06T12:00:00Z', updatedAt:'2026-11-06T12:00:00Z' };
 const state = window.__updates = {
   mode, calls: [],
+  summary: {id:'brain-1',name:'Northfield AI',deploymentPolicy},
   draft: { id:'draft-13', deploymentId:'brain-1', revisionNumber:13, updatedAt:'2026-11-07T12:00:00Z', ...saved },
   versions: [{ id:'version-12', deploymentId:'brain-1', versionLabel:'v12', status:'PUBLISHED', publishedAt:active.createdAt, sourceCapabilityManifestRequired:true },
     { id:'version-11', deploymentId:'brain-1', versionLabel:'v11', status:'PUBLISHED', publishedAt:'2026-11-05T12:00:00Z', sourceCapabilityManifestRequired:true }],
@@ -73,18 +75,23 @@ const harness = `
 import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter,createMemoryRouter,RouterProvider} from 'react-router-dom';
 import {ThemeProvider,CssBaseline,Box,Button,Typography,Stack} from '@mui/material';
 import {createConsoleTheme} from '/src/theme/consoleTheme.ts';
 import {BrainWorkspaceContext,BrainEditorContext} from '/src/brain/BrainWorkspaceContext.tsx';
 import {BrainUpdatesPage} from '/src/brain/BrainUpdatesPage.tsx';
+import {SmartBrainShell} from '/src/brain/SmartBrainShell.tsx';
 import {getState} from 'virtual:brain-updates-fixture';
 const state = getState();
 const queryClient = new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
+const params = new URLSearchParams(location.search);
+const selectedTarget = params.get('target') || 'target-staging';
+const initialRoute = '/smart-brains/brain-1/updates?targetProfileId='+selectedTarget+(params.has('panel')?'&panel='+params.get('panel'):'');
 function Harness() {
   const [editor,register] = useState(null);
   const dark = new URLSearchParams(location.search).get('theme') !== 'light';
-  const context = {brainId:'brain-1',targetProfileId:'target-staging',targetProfile:{id:'target-staging',active:true,environmentName:'staging',name:'London staging'},release:state.releases.find(item=>item.id==='release-12'),target:state.releases.length?{deploymentId:'brain-1',targetProfileId:'target-staging',releaseId:'release-12'}:null,href:section=>'/smart-brains/brain-1/'+(section||'')+'?targetProfileId=target-staging'};
+  const release = state.releases.find(item=>item.targetProfileId===selectedTarget);
+  const context = {brainId:'brain-1',targetProfileId:selectedTarget,targetProfile:{id:selectedTarget,active:true,environmentName:selectedTarget==='target-production'?'production':'staging',name:selectedTarget==='target-production'?'London production':'London staging'},release,target:release?{deploymentId:'brain-1',targetProfileId:selectedTarget,releaseId:release.id}:null,href:section=>'/smart-brains/brain-1/'+(section||'')+'?targetProfileId='+selectedTarget};
   return <ThemeProvider theme={createConsoleTheme(dark?'dark':'light')}><CssBaseline/><BrainWorkspaceContext.Provider value={context}><BrainEditorContext.Provider value={register}>
     <Box sx={{height:'100dvh',display:'flex',flexDirection:'column'}}>
       <Box sx={{height:56,flexShrink:0,borderBottom:1,borderColor:'divider',display:'flex',alignItems:'center',px:3}}><Typography fontWeight={700}>LoomAI</Typography><Typography sx={{ml:4}}>Smart Brains / Northfield AI / Updates</Typography></Box>
@@ -93,27 +100,34 @@ function Harness() {
       <Stack component='footer' direction={{xs:'column',sm:'row'}} gap={1} alignItems={{sm:'center'}} sx={{px:3,py:1.5,borderTop:1,borderColor:'divider',flexShrink:0}}><Typography variant='body2' sx={{flex:1}}>{editor?.message}</Typography><Button onClick={()=>editor?.discard?.()}>{editor?.secondaryLabel}</Button>{editor?.save&&<Button variant='contained' disabled={editor.busy||!editor.canSave} onClick={()=>editor.save()}>{editor.primaryLabel}</Button>}</Stack>
     </Box></BrainEditorContext.Provider></BrainWorkspaceContext.Provider></ThemeProvider>
 }
-createRoot(document.getElementById('root')).render(<MemoryRouter><QueryClientProvider client={queryClient}><Harness/></QueryClientProvider></MemoryRouter>);
+const shellRouter = params.has('shell') ? createMemoryRouter([{path:'/smart-brains/:brainId/*',element:<SmartBrainShell session={{authenticated:true,role:'CUSTOMER_ADMIN',displayName:'Fixture customer'}} onSignOut={async()=>{}}><BrainUpdatesPage/></SmartBrainShell>}],{initialEntries:[initialRoute]}) : null;
+createRoot(document.getElementById('root')).render(<QueryClientProvider client={queryClient}>{shellRouter?<RouterProvider router={shellRouter}/>:<MemoryRouter initialEntries={[initialRoute]}><Harness/></MemoryRouter>}</QueryClientProvider>);
 `
 const server = await createServer({ root, configFile: false, cacheDir: `${output}/vite-cache`,
   plugins: [react(), {
     name: 'brain-updates-memory-only', enforce: 'pre',
     resolveId(id, importer) {
       if (id.startsWith('virtual:brain-updates-')) return `\0${id}`
-      if (!importer?.endsWith('/BrainUpdatesPage.tsx')) return
+      if (!importer?.endsWith('/BrainUpdatesPage.tsx') && !importer?.endsWith('/SmartBrainShell.tsx')) return
       if (id === '../api/platformApi') return '\0virtual:brain-updates-fixture'
       if (id === '../auth/PlatformAuthProvider') return '\0virtual:brain-updates-auth'
       if (id === '../workspace/DeploymentWorkspaceContext') return '\0virtual:brain-updates-workspace'
       if (id === '../pages/RevisionsPage') return '\0virtual:brain-updates-revisions'
       if (id === './BrainCustomerReleaseTasks') return '\0virtual:brain-updates-release-tasks'
+      if (id === '../components/customer/CustomerSupportContext') return '\0virtual:brain-updates-support-context'
+      if (id === '../components/customer/CustomerSupportAssistant') return '\0virtual:brain-updates-support-assistant'
+      if (id === '../components/customer/SupportResourceDialog') return '\0virtual:brain-updates-support-dialog'
     },
     load(id) {
       if (id === '\0virtual:brain-updates-fixture') return fixture
       if (id === '\0virtual:brain-updates-harness') return { code: harness, map: null }
       if (id === '\0virtual:brain-updates-auth') return `export const usePlatformAuth=()=>({session:{role:'CUSTOMER_ADMIN'}})`
-      if (id === '\0virtual:brain-updates-workspace') return `import {getState} from 'virtual:brain-updates-fixture'; export const useDeploymentWorkspace=()=>({selectedDeploymentId:'brain-1',workspace:getState().workspace})`
+      if (id === '\0virtual:brain-updates-workspace') return `import {getState} from 'virtual:brain-updates-fixture'; export const useDeploymentWorkspace=()=>({selectedDeploymentId:'brain-1',selectedDeploymentSummary:getState().summary,workspace:getState().workspace,deploymentsLoading:false})`
       if (id === '\0virtual:brain-updates-revisions') return `export const RevisionsPage=()=>null`
-      if (id === '\0virtual:brain-updates-release-tasks') return `export const BrainCustomerReleaseTasks=()=>null`
+      if (id === '\0virtual:brain-updates-release-tasks') return `import {createElement} from 'react'; export const BrainCustomerReleaseTasks=({section})=>createElement('div',{'data-release-task':section},'Fixture release task: '+section)`
+      if (id === '\0virtual:brain-updates-support-context') return `export const CustomerSupportProvider=({children})=>children`
+      if (id === '\0virtual:brain-updates-support-assistant') return `export const CustomerSupportAssistant=()=>null`
+      if (id === '\0virtual:brain-updates-support-dialog') return `export const SupportResourceDialog=()=>null`
     },
     transform(code, id) {
       if (id === '\0virtual:brain-updates-harness') return import('esbuild').then(({transform}) => transform(code, {loader:'jsx',jsx:'automatic',format:'esm'}))
@@ -136,17 +150,17 @@ try {
   page.on('pageerror', error => { errors.push(error.message); console.error(error.message) })
   page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
   await page.route('**/api/**', route => { throw new Error(`Real API request forbidden: ${route.request().url()}`) })
-  const open = async (query = '') => {
+  const open = async (query = '', heading = 'Updates') => {
     await page.goto(`${url}${query}`)
-    await page.getByRole('heading', {name:'Updates',exact:true}).waitFor()
-    await page.waitForFunction(() => document.querySelector('[data-brain-updates] table tbody tr'))
+    await page.getByRole('heading', {name:heading,exact:true}).waitFor()
+    if (heading === 'Updates') await page.waitForFunction(() => document.querySelector('[data-brain-updates] table tbody tr'))
   }
   const calls = () => page.evaluate(() => window.__updates.calls)
-  const publishToReview = async () => {
+  const publishToReview = async (environment = 'Staging') => {
     await page.getByRole('button', {name:'Review & publish version',exact:true}).click()
     await page.getByRole('checkbox').check()
     await page.getByRole('button', {name:'Publish version',exact:true}).click()
-    await page.getByRole('dialog').getByRole('heading',{name:'Update Staging',exact:true}).waitFor()
+    await page.getByRole('dialog').getByRole('heading',{name:`Update ${environment}`,exact:true}).waitFor()
   }
   const chooseSource = async () => {
     await page.getByRole('combobox', {name:'Runtime package'}).click()
@@ -312,8 +326,71 @@ try {
   await page.getByRole('dialog').getByText(/New setup. No version has been applied/).waitFor()
   await page.getByRole('button',{name:'Back to changes',exact:true}).click()
   assert.deepEqual(await calls(),[])
+
+  await open('?shell=1')
+  await page.getByRole('button',{name:'View Staging',exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'View Production',exact:true}).isEnabled(),true,'ordinary Brains retain production selection')
+  assert.equal(await page.getByRole('columnheader',{name:'Production',exact:true}).count(),1)
+  assert.match(await page.getByRole('link',{name:'Review go-live',exact:true}).getAttribute('href'),/targetProfileId=target-production&panel=promotion/)
+  assert.equal(await page.getByText('Developer · Staging only',{exact:true}).count(),0)
+  await page.getByRole('button',{name:'View Production',exact:true}).click()
+  await page.getByText('Compared with Production v12',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'View Production',exact:true}).getAttribute('aria-pressed'),'true')
+  assert.equal(await page.locator('footer').getByRole('button',{name:'Review & publish version',exact:true}).isEnabled(),true)
+  await page.getByRole('button',{name:'Promote tested staging',exact:true}).click()
+  await page.locator('[data-release-task="promotion"]').waitFor()
+  assert.deepEqual(await calls(),[],'ordinary production selection and promotion review remain read-only')
+  await page.screenshot({path:`${output}/ordinary-production-promotion.png`,fullPage:true})
+  await page.getByRole('button',{name:'Back to update review',exact:true}).click()
+  await page.getByRole('heading',{name:'Updates',exact:true}).waitFor()
+  await publishToReview('Production')
+  await chooseSource()
+  await page.getByRole('button',{name:'Apply v13 to Production',exact:true}).click()
+  await page.getByRole('dialog').waitFor({state:'hidden'})
+  const productionCalls = await calls()
+  assert.deepEqual(productionCalls.map(item=>item.type),['publish','apply'])
+  assert.equal(productionCalls[1].target,'target-production','ordinary production apply retains its selected destination')
+
+  await open('?mode=developer&shell=1')
+  await page.getByText('Developer · Staging only',{exact:true}).waitFor()
+  assert.deepEqual(await page.evaluate(()=>window.__updates.summary.deploymentPolicy),{allowedEnvironments:['staging'],tags:['staging-only']})
+  assert.equal(await page.getByRole('button',{name:'View Staging',exact:true}).isEnabled(),true)
+  assert.equal(await page.getByRole('button',{name:'View Production',exact:true}).count(),0)
+  assert.equal(await page.getByRole('columnheader',{name:'Production',exact:true}).count(),0)
+  assert.equal(await page.getByRole('link',{name:'Review go-live',exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:/^(Promote tested staging|Production workspace)$/}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'Required connections',exact:true}).isEnabled(),true)
+  assert.equal(await page.getByRole('button',{name:'Connect Engage app',exact:true}).isEnabled(),true)
+  assert.equal(await page.locator('footer').getByRole('button',{name:'Review & publish version',exact:true}).isEnabled(),true)
+  await page.screenshot({path:`${output}/developer-staging-updates.png`,fullPage:true})
+  await publishToReview()
+  await chooseSource()
+  await page.getByRole('button',{name:'Apply v13 to Staging',exact:true}).click()
+  await page.getByRole('dialog').waitFor({state:'hidden'})
+  const developerCalls = await calls()
+  assert.deepEqual(developerCalls.map(item=>item.type),['publish','apply'])
+  assert.deepEqual(developerCalls[1],{type:'apply',brain:'brain-1',version:'version-13',target:'target-staging',source:'image-1',key:developerCalls[1].key})
+  assert.ok(developerCalls[1].key,'staging update retains the existing operation key')
+
+  await page.goto(`${url}?mode=developer&shell=1&target=target-production`)
+  await page.getByText('The requested environment is not available. No alternative environment has been selected.',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('heading',{name:'Updates',exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'View Production',exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'View Staging',exact:true}).getAttribute('aria-pressed'),'false','a disallowed URL does not silently change targets')
+  assert.equal(await page.locator('footer').getByRole('button',{name:/publish|apply/i}).count(),0)
+  assert.deepEqual(await calls(),[])
+  await page.getByRole('button',{name:'View Staging',exact:true}).click()
+  await page.getByRole('heading',{name:'Updates',exact:true}).waitFor()
+  assert.equal(await page.locator('footer').getByRole('button',{name:'Review & publish version',exact:true}).isEnabled(),true)
+  assert.deepEqual(await calls(),[],'returning explicitly to staging starts no operation')
+
+  await open('?mode=developer&shell=1&panel=promotion')
+  await page.getByText('The requested release task belongs to a different environment. Select the matching environment above; no release operation was started.',{exact:true}).waitFor()
+  assert.equal(await page.locator('[data-release-task="promotion"]').count(),0,'developer promotion panel never mounts')
+  assert.equal(await page.getByRole('link',{name:'Review go-live',exact:true}).count(),0)
+  assert.deepEqual(await calls(),[])
   assert.deepEqual(errors,[])
-  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview'],screenshots:output},null,2))
+  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview','ordinary production selection and promotion review retained','developer staging-only shell and update apply','developer production URL blocked without silent fallback','developer promotion panel does not mount'],screenshots:output},null,2))
 } finally {
   await browser?.close()
   await server.close()

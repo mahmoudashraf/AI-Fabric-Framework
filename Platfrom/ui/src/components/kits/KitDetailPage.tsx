@@ -15,7 +15,6 @@ import { KitDetailWorkspace, KitOutcomeScene } from './KitDetailScenes'
 import { KitDeskMark, KitMark, kitAsset } from './KitIdentity'
 import { KitIntegrationJourney } from './KitIntegrationJourney'
 import { kitDetailContent } from './kitDetailContent'
-import { CommercialContent, PersonalContactContent } from '../../uiProfile'
 import { kitPreviewKind, safeKitExternalUrl } from './kitModels'
 import './KitDetailPage.css'
 
@@ -48,13 +47,13 @@ export function KitDetailPage({ definition }: { definition: ExperienceKitDefinit
       </div>
     </section>
 
-    <CommercialContent>{dealership ? <aside className="ek-detail-launch" aria-label="Dealership offer"><span className="ek-detail-offer-label">Dealership launch offer</span>
+    {dealership ? <aside className="ek-detail-launch" aria-label="Dealership offer"><span className="ek-detail-offer-label">Dealership launch offer</span>
       <div><CalendarMonthOutlined /><span><strong>3 months free</strong><small>{dealershipOffer.benefits[0]}</small></span></div>
       <div><SupportAgentRounded /><span><strong>{dealershipOffer.benefits[1]}</strong><small>LoomAI's technical team handles the setup.</small></span></div>
       <div className="ek-detail-offer-price"><span>{dealershipOffer.price}</span><strong><CheckRounded />{dealershipOffer.value}</strong></div>
     </aside> : <aside className="ek-detail-intro-band" aria-label={offer.label}><span><SupportAgentRounded />{offer.value}</span>
       <span><CheckRounded />{offer.benefits[0]}</span><strong>{offer.price}</strong></aside>}
-    <p className="ek-detail-offer-terms">{kitOfferTerms}{dealership && <> {dealershipPilotTerms}</>}</p></CommercialContent>
+    <p className="ek-detail-offer-terms">{kitOfferTerms}{dealership && <> {dealershipPilotTerms}</>}</p>
 
     <section id="ek-detail-experience" className="ek-detail-band ek-detail-delivery" aria-labelledby="ek-detail-delivery-title">
       <h2 id="ek-detail-delivery-title">{copy.transformation}</h2><p className="ek-detail-lead">{copy.introduction}</p>
@@ -84,6 +83,6 @@ export function KitDetailPage({ definition }: { definition: ExperienceKitDefinit
       <Button component={Link} to={getStartedPath} variant="contained" startIcon={<RocketLaunchOutlined />}>Install kit</Button>
       {demo && <Button component="a" href={demo} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircleOutlineRounded />}>Try the live demo</Button>}
       <IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
-    </div><PersonalContactContent><p>Meet Mo to plan your project. Book a call, message on WhatsApp or send a request through Console.</p></PersonalContactContent><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
+    </div><p>Meet Mo to plan your project. Book a call, message on WhatsApp or send a request through Console.</p><p>{copy.disclosure}</p><Link className="ek-detail-back" to="/experiences"><ArrowBackRounded />Back to all experiences</Link></section>
   </article>
 }

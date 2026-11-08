@@ -60,10 +60,10 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
   }],
 })
 
-const catalogue = customerId => [{ definition: { code: 'ai-customer-experience', version: '1.0.0', name: 'AI Customer Experience', summary: 'Customer knowledge and enquiries',
-  description: 'Approved business knowledge', experiencePackCode: 'generic-workspace', defaultWorkspaceName: 'Company AI', features: [], demoUrl: null },
+const catalogue = (customerId, code = 'ai-customer-experience') => [{ definition: { code, version: '1.0.0', name: code === 'ai-support-experience' ? 'AI Support Experience' : 'AI Customer Experience', summary: 'Customer knowledge and enquiries',
+  description: 'Approved business knowledge', experiencePackCode: code === 'ai-support-experience' ? 'support' : 'generic-workspace', defaultWorkspaceName: 'Company AI', features: [], demoUrl: null },
   offers: [{ id: `offer-${customerId}`, name: `Template for ${customerId}`, entitlement: { customerId, status: 'ACTIVE', revision: 1 }, settings: [],
-    targets: [{ id: `stage-${customerId}`, intent: 'CUSTOMER_STAGING', blockers: [] }], blockers: [], bindingSlots: [],
+    targets: [{ id: `stage-${customerId}`, intent: 'CUSTOMER_STAGING', blockers: [] }, { id: `production-${customerId}`, intent: 'CUSTOMER_PRODUCTION', blockers: [] }], blockers: [], bindingSlots: [],
     workspaceProfiles: [{ id: `profile-${customerId}`, label: 'Company workspace', theme: {}, interaction: { configuration: {} } }] }], ticketProviders: [] }]
 const kit = (customerId, values = {}) => ({ id: 'kit-one', kitCode: 'ai-customer-experience', kitVersion: '1.0.0', name: 'Saved kit',
   deploymentId: `dep-${customerId}`, consumerId: 'consumer-one', installationId: 'app-one', embeddedInstallationId: null,
@@ -107,11 +107,12 @@ async function run(name, test, options = {}) {
       if (prepareFailure || !accessReady) { prepareFailure = false; return send({ message: 'An active customer administrator is required.' }, 409) }
       return send(null)
     }
-    if ((staff && suffix === '/catalogue') || path === '/api/customer-experience-kits/catalogue') return send(accessReady ? catalogue(customerId) : [])
+    if ((staff && suffix === '/catalogue') || path === '/api/customer-experience-kits/catalogue') return send(accessReady ? catalogue(customerId, options.kitCode) : [])
     if ((staff && suffix === '') || path === '/api/customer-experience-kits') {
       if (method === 'GET') return send([])
       if (method === 'POST') {
-        saved = kit(customerId, { name: body.name, deliveryMode: body.deliveryMode, humanSupportEnabled: body.humanSupportEnabled,
+        saved = kit(customerId, { kitCode: body.kitCode, name: body.name, deliveryMode: body.deliveryMode, humanSupportEnabled: body.humanSupportEnabled,
+          ...(body.entryPoint === 'DEVELOPER' ? { deploymentPolicy: { allowedEnvironments: ['staging'], tags: ['staging-only'] } } : {}),
           workspace: { ...kit(customerId).workspace, displayName: body.workspaceName, appSlug: body.appSlug, configuration: { theme: { primaryColor: body.brandColor } } },
           ...(body.deliveryMode === 'both' ? { embeddedInstallationId: 'app-embed', embeddedWorkspace: { ...kit(customerId).workspace, installationId: 'app-embed', rowVersion: 9, allowedOrigins: [body.websiteOrigin] } } : {}) })
         return send(saved)
@@ -338,8 +339,42 @@ try {
     const create = t.requests.find(item => item.path === '/api/customer-experience-kits' && item.method === 'POST')
     assert.equal(create.body.offerId, 'offer-customer-a')
     assert.equal(create.body.workspaceName, 'Customer self setup AI')
+    assert.equal(Object.hasOwn(create.body, 'entryPoint'), false, 'ordinary customer setup has no developer marker')
     assert.ok(t.requests.every(item => !item.path.startsWith('/api/staff/')))
   }, { route: '/customer-setup' })
+
+  for (const code of ['ai-customer-experience', 'ai-support-experience']) {
+    await run(`developer ${code} uses the shared staff setup with staging-only copy and explicit payload`, async t => {
+      const banner = t.page.getByRole('alert').filter({ hasText: 'Developer programme · Staging only.' })
+      await banner.waitFor()
+      await banner.getByText(/cannot be deployed or promoted to production/).waitFor()
+      await t.page.getByText('Developer environment', { exact: true }).waitFor()
+      assert.equal(await t.page.getByText('Staging only', { exact: true }).count(), 1)
+      assert.equal(await t.page.getByRole('combobox', { name: 'Test environment', exact: true }).count(), 0)
+      assert.equal(await t.page.getByText('Developer staging only', { exact: true }).count(), 0)
+      const name = code === 'ai-support-experience' ? 'Developer support team' : 'Developer customer experience'
+      await t.page.getByRole('textbox', { name: 'Kit name', exact: true }).fill(name)
+      await t.page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+      await t.page.getByRole('textbox', { name: 'Workspace name', exact: true }).fill(`${name} AI`)
+      await t.page.getByRole('textbox', { name: 'App address name', exact: true }).fill(`dev-${code}`)
+      await t.page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+      await t.page.getByText('Developer staging only', { exact: true }).waitFor()
+      await t.page.getByText('Next: connect your information and APIs, test your Brain in staging, and integrate it into your development app.', { exact: true }).waitFor()
+      assert.equal(t.requests.filter(item => item.method === 'POST' && item.path.endsWith('/experience-kits')).length, 0)
+      await t.page.getByRole('button', { name: 'Create customer workspace', exact: true }).click()
+      await t.page.getByRole('heading', { name, exact: true }).waitFor()
+      const creates = t.requests.filter(item => item.method === 'POST' && item.path.endsWith('/experience-kits'))
+      assert.equal(creates.length, 1)
+      assert.equal(creates[0].path, '/api/staff/customers/customer-a/experience-kits')
+      assert.deepEqual({ ...creates[0].body, operationKey: 'opaque' }, { kitCode: code, name, offerId: 'offer-customer-a',
+        targetProfileId: 'stage-customer-a', workspaceProfileId: 'profile-customer-a', entryPoint: 'DEVELOPER', workspaceName: `${name} AI`,
+        brandColor: '#28bfa6', deliveryMode: 'standalone', appSlug: `dev-${code}`, humanSupportEnabled: false,
+        ticketingEnabled: false, ticketProvider: null, operationKey: 'opaque' })
+      assert.ok(creates[0].body.operationKey)
+      assert.ok(t.requests.every(item => !item.path.startsWith('/api/customer-')), 'staff developer setup never changes transport or auth scope')
+      await t.page.screenshot({ path: join(screenshots, `${code}-developer-overview.png`), fullPage: true })
+    }, { route: `/customers/customer-a/kits/new/${code}?entryPoint=DEVELOPER`, kitCode: code })
+  }
 
   await run('mobile assisted setup keeps customer and form controls within viewport', async t => {
     await t.page.getByRole('textbox', { name: 'Kit name', exact: true }).waitFor()

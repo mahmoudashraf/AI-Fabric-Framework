@@ -24,6 +24,7 @@ const presentation = await loadModule('../src/brain/brainReleasePresentation.ts'
 const versionView = await loadModule('../src/brain/BrainReleaseVersions.tsx', { './brainReleasePresentation': presentation })
 const previews = await loadModule('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles })
 const previewView = await loadModule('../src/brain/BrainChangeComparison.tsx')
+const deploymentPolicy = await loadModule('../src/developer/deploymentPolicy.ts')
 const revisions = await readFile(new URL('../src/pages/RevisionsPage.tsx', import.meta.url), 'utf8')
 const fields = ['actionsConfig', 'entityConfig', 'routingConfig', 'providerConfig', 'securityConfig',
   'promptConfig', 'knowledgeSourceConfig', 'shellConfig', 'marketplaceDatasetConfig', 'behaviorConfig']
@@ -43,6 +44,7 @@ const queryData = {
 }
 const api = new Proxy({}, { get: () => () => { throw new Error('No real API is permitted in focused tests') } })
 const dependencies = {
+  '../developer/deploymentPolicy': deploymentPolicy,
   '../api/platformApi': api,
   '../aiBehaviourProfiles': profiles,
   '../auth/PlatformAuthProvider': { usePlatformAuth: () => ({ session: { role: 'CUSTOMER_ADMIN' } }) },

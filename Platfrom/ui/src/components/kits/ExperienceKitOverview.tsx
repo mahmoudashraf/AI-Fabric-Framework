@@ -26,6 +26,7 @@ import { connectableRelease } from '../customer/customerEngageConnection'
 import { brainPath } from '../../brain/brainNavigation'
 import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
 import { deploymentTerm } from '../../deploymentTerminology'
+import { stagingOnly, environmentAllowed } from '../../developer/deploymentPolicy'
 
 export function ExperienceKitOverview({ customerId, id }: { customerId: string; id: string }) {
   const kit = useQuery({ queryKey: experienceKitKeys.detail(customerId, id), queryFn: ({ signal }) => fetchExperienceKit(id, signal), retry: false })
@@ -61,6 +62,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
     enabled: Boolean(release?.targetProfileId), retry: false })
   const primary = kit.workspace
   const supportExperience = kit.kitCode === 'ai-support-experience'
+  const developer = stagingOnly(kit.deploymentPolicy)
   const channels: Array<{ key: string; name: string; app: AIWorkspaceInstallationSummary | null | undefined; embedded: boolean }> =
     kit.deliveryMode === 'both' ? [{ key: 'standalone', name: 'Standalone app', app: primary, embedded: false },
       { key: 'embedded', name: 'Website embed', app: kit.embeddedWorkspace, embedded: true }]
@@ -91,6 +93,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
         ['Your setup', true], ['Your workspace', !missingChannel && Boolean(deployment)], ['Final checks', allReady], ['Go live', allActive],
       ].map(([label, done], index) => <div key={String(label)} data-complete={Boolean(done)}><span>{done ? <CheckCircleRounded /> : index + 1}</span><strong>{label}</strong></div>)}</div>
       <p className="ek-overview-intro">Your AI experience, connected to your business.</p>
+      {developer && <Alert severity="info">Developer staging only. Configure and test this Brain with your app; production deployment and promotion are not available for this Kit.</Alert>}
       {missingChannel && <Alert severity="warning">An Engage app is missing. Review your apps to continue setup.<Button component={Link} to="/ai-workspaces">Open Engage apps</Button></Alert>}
       {portfolio.isError && <Alert severity="error">{deploymentTerm.singular} details could not be loaded. <Button onClick={() => void portfolio.refetch()}>Retry</Button></Alert>}
       {portfolio.isSuccess && !deployment && <Alert severity="warning">The linked {deploymentTerm.lowercase} is not available in your portfolio.<Button component={Link} to="/deployments">Open {deploymentTerm.pluralLowercase}</Button></Alert>}
@@ -164,7 +167,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button component={Link} to={deployment?.bootstrapTargetProfileId ? brainPath(kit.deploymentId, 'updates', deployment.bootstrapTargetProfileId) : revisionPath}>Prepare staging</Button>
             <Button component={Link} to={brainPath(kit.deploymentId, 'try', release?.targetProfileId)}>Try your AI</Button>
-            <Button component={Link} to={`/deployments?${new URLSearchParams({ view: 'setup', deploymentId: kit.deploymentId, step: 'production' })}`}>Review go-live</Button>
+            {!developer && <Button component={Link} to={`/deployments?${new URLSearchParams({ view: 'setup', deploymentId: kit.deploymentId, step: 'production' })}`}>Review go-live</Button>}
             <Button component={Link} to={revisionPath}>Versions & updates</Button>
           </Stack></section>
       </> : <>
@@ -195,7 +198,8 @@ function KitDocumentStorageSetup({ customerId, kit, knowledgePath }: { customerI
     queryFn: () => fetchCustomerSelfServiceOffer(kit.offerId), enabled, retry: false })
   const bindings = useQuery({ queryKey: ['document-storage-bindings', kit.deploymentId, ...scope],
     queryFn: () => fetchDocumentStorageBindings(kit.deploymentId), enabled, retry: false })
-  const targetProfiles = (offer.data?.targets ?? []).filter(target => target.capabilities.includes('BINDING_REPLACE'))
+  const targetProfiles = (offer.data?.targets ?? []).filter(target => target.capabilities.includes('BINDING_REPLACE')
+    && environmentAllowed(kit.deploymentPolicy, target.intent === 'CUSTOMER_STAGING' ? 'staging' : 'production'))
     .map(target => ({ id: target.id, name: target.intent === 'CUSTOMER_STAGING' ? 'Customer staging' : 'Customer production' }))
   return <section className="ek-before-launch" aria-label="Your business document setup">
     {offer.isError && <Alert severity="error" action={<Button onClick={() => void offer.refetch()}>Retry</Button>}>Allowed document-storage targets could not be loaded.</Alert>}

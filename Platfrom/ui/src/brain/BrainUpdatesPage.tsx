@@ -41,6 +41,7 @@ import { BrainReleaseVersions } from './BrainReleaseVersions'
 import { environmentLabel, releaseInProgress, targetReleaseState } from './brainReleasePresentation'
 import { buildChangePreview, configurationFieldChanges, previewHeadline, sectionPreviewBaseline, type PreviewBaseline } from './brainChangePreview'
 import { BrainChangeComparison } from './BrainChangeComparison'
+import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
 
 const sections = [
   ['actionsConfig', 'AI capabilities', 'actions'],
@@ -194,7 +195,8 @@ export function BrainUpdatesPage() {
 
 function UpdatesWorkspace() {
   const { brainId, targetProfileId, targetProfile, release: appliedRelease, target, href } = useBrainWorkspace()
-  const { workspace, selectedDeploymentId } = useDeploymentWorkspace()
+  const { workspace, selectedDeploymentId, selectedDeploymentSummary } = useDeploymentWorkspace()
+  const policy = selectedDeploymentSummary?.deploymentPolicy
   const access = selectedDeploymentId === brainId ? workspace?.access : null
   const canEdit = access?.canEdit ?? false
   const canOperate = access?.canOperate ?? false
@@ -208,7 +210,7 @@ function UpdatesWorkspace() {
   const production = targetProfile?.environmentName === 'production'
   const panelUnavailable = customer && Boolean(requestedPanel && (
     (['connections', 'assignment'].includes(requestedPanel) && !staging)
-    || (requestedPanel === 'promotion' && !production)))
+    || (requestedPanel === 'promotion' && (!production || stagingOnly(policy)))))
   const view = requestedPanel && ['history', 'versions', 'technical'].includes(requestedPanel) ? requestedPanel
     : customer && !panelUnavailable && requestedPanel && ['connections', 'assignment', 'promotion'].includes(requestedPanel)
       ? requestedPanel : 'review'
@@ -255,7 +257,8 @@ function UpdatesWorkspace() {
     queryFn: () => fetchCompatibleDeploymentSourceArtifacts(brainId, candidate!.id), enabled: Boolean(candidate && canOperate) })
   const destinations = useQuery({ queryKey: ['brain-target-options', brainId, auth.session?.role],
     queryFn: () => customer ? fetchDeploymentTargetOptions(brainId) : fetchDeploymentTargetProfiles() })
-  const productionDestinations = (destinations.data ?? []).filter(item => item.active && item.environmentName === 'production')
+  const allowedDestinations = (destinations.data ?? []).filter(item => environmentAllowed(policy, item.environmentName))
+  const productionDestinations = allowedDestinations.filter(item => item.active && item.environmentName === 'production')
   const sourceRequired = customer || candidate?.sourceCapabilityManifestRequired === true
   const selectedSource = sources.data?.find(item => item.id === sourceArtifactId) ?? null
   const targetReleases = (releases.data ?? []).filter(item => item.targetProfileId === targetProfileId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -263,7 +266,7 @@ function UpdatesWorkspace() {
   const latestRelease = targetReleases[0] ?? null
   const inProgress = releases.data?.find(updatesReleaseInProgress)
   const environment = environmentLabel(targetProfile?.environmentName ?? 'selected environment')
-  const targetReady = Boolean(targetProfile?.active && targetProfile.id === targetProfileId)
+  const targetReady = Boolean(targetProfile?.active && targetProfile.id === targetProfileId && environmentAllowed(policy, targetProfile.environmentName))
   const changes = buildUpdateChanges(draft.data, appliedManifest.data, appliedVersionId, diff.data, catalogue.data)
   const changed = changes.filter(item => item.changed !== false)
   const detail = changes.find(item => item.key === detailKey) ?? null
@@ -390,7 +393,7 @@ function UpdatesWorkspace() {
     setSelectedVersion(version); setSourceArtifactId(sourceId); setVersionDetail(false)
     openReview('apply', version.id)
   }
-  const versionGrid = (all = false) => <BrainReleaseVersions versions={versions.data ?? []} profiles={destinations.data ?? []}
+  const versionGrid = (all = false) => <BrainReleaseVersions versions={versions.data ?? []} profiles={allowedDestinations}
     releases={releases.data ?? []} evidenceReady={releases.isSuccess && destinations.isSuccess} selectedTargetId={targetProfileId}
     selectedVersionId={candidate?.id} all={all} busy={busy || Boolean(inProgress)} canOperate={canOperate}
     onReview={reviewVersion} onDetails={version => { setSelectedVersion(version); setVersionDetail(true); setError(null) }}

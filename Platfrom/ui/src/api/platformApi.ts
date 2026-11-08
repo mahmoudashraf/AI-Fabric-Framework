@@ -1,4 +1,5 @@
 import { parseExactJson, stringifyExactJson } from '../lib/losslessJson'
+import type { DeploymentPolicy } from '../developer/deploymentPolicy'
 
 export type CustomerAuthConfig = {
   enabled: boolean
@@ -251,6 +252,7 @@ export type DeploymentTenantBindingSummary = {
 }
 
 export type DeploymentSummary = {
+  deploymentPolicy?: DeploymentPolicy
   id: string
   name: string
   environment: string

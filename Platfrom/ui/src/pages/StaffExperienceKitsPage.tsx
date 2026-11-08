@@ -8,7 +8,7 @@ import PersonAddAltRounded from '@mui/icons-material/PersonAddAltRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import SaveRounded from '@mui/icons-material/SaveRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { fetchPlatformCustomers } from '../api/platformApi'
 import {
@@ -20,6 +20,7 @@ import { KitExperienceFields } from '../components/kits/KitExperienceFields'
 import { kitDisplayName, kitExperienceErrors, kitFormFromSummary, kitUpdateRequest } from '../components/kits/kitModels'
 import { CustomerAccessDialog } from '../components/customer/CustomerAccessDialog'
 import './ExperienceKits.css'
+import { isDeveloperEntry, isDeveloperKit } from '../developer/developerEntry'
 
 export const staffKitsPath = (customerId: string) => `/customers/${encodeURIComponent(customerId)}/kits`
 
@@ -59,6 +60,7 @@ function StaffCustomerKits({ actorId, customerId, code, id }: { actorId: string;
   const isAdmin = session?.role === 'PLATFORM_ADMIN'
   const customersPath = isAdmin ? '/customers' : '/customer-workspaces'
   const navigate = useNavigate()
+  const developerEntry = isDeveloperEntry(useLocation().search) && isDeveloperKit(code)
   const queryClient = useQueryClient()
   const { palette } = useTheme()
   const [accessOpen, setAccessOpen] = useState(false)
@@ -102,7 +104,7 @@ function StaffCustomerKits({ actorId, customerId, code, id }: { actorId: string;
     {isAdmin && <CustomerAccessDialog customerId={customerId} customerName={customer.name} open={accessOpen}
       onClose={() => setAccessOpen(false)} onPrepared={accessPrepared} />}
     {code ? <Box className="ek-page ek-console-page" data-kit-theme={palette.mode}>
-      <ExperienceKitSetup customerId={customerId} actorId={actorId} code={code} transport={transport} basePath={basePath} preparationRevision={accessRevision} />
+      <ExperienceKitSetup customerId={customerId} actorId={actorId} code={code} transport={transport} basePath={basePath} preparationRevision={accessRevision} entryPoint={developerEntry ? 'DEVELOPER' : undefined} />
     </Box> : id ? <StaffKitOverview key={id} customerId={customerId} actorId={actorId} id={id} />
       : <StaffKitsList key={accessRevision} customerId={customerId} actorId={actorId} />}
   </Stack>

@@ -1,5 +1,4 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
-import { CommercialContent } from '../uiProfile'
 import { ConfigurationSurface } from '../components/ConfigurationSurface'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
@@ -362,7 +361,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
       {detail.versions.map((candidate) => <MenuItem key={candidate.id} value={candidate.version}>{candidate.version}</MenuItem>)}
     </TextField><Typography variant="caption" color="text.secondary">Connection inputs are saved in the shared Brain draft. Storage bindings remain environment-specific; changing this version does not upgrade a live deployment.</Typography></> : null}
     {!selectedVersion ? <Alert severity="warning">The selected version is not available in the catalogue. Existing configuration is retained.</Alert> : null}
-    <Typography variant="body2" color="text.secondary">{detail.plugin.publisherDisplayName}<CommercialContent> - {pricingLabel(selectedVersion?.pricing)}</CommercialContent></Typography>
+    <Typography variant="body2" color="text.secondary">{detail.plugin.publisherDisplayName} - {pricingLabel(selectedVersion?.pricing)}</Typography>
     {selectedVersion?.pricing.requiresEntitlement ? <Alert severity="warning">Paid capabilities require an active entitlement before they can compile into the draft.</Alert> : null}
     {storageFields.size > 0 && step === 0 ? <>
       {bindings.isError ? <Alert severity="error">{bindings.error.message}</Alert> : bindings.isPending ? <Typography variant="body2" color="text.secondary">Loading storage connections...</Typography> : null}
@@ -1448,7 +1447,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
                                 {plugin.shortDescription}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {plugin.publisherDisplayName} · latest {plugin.latestVersion ?? '—'}<CommercialContent> · {pricingLabel(plugin.pricing)}</CommercialContent>
+                                {plugin.publisherDisplayName} · latest {plugin.latestVersion ?? '—'} · {pricingLabel(plugin.pricing)}
                               </Typography>
                             </Stack>
                           }
@@ -1479,7 +1478,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
                             {selectedPlugin.displayName}
                           </Typography>
                           <Chip label={selectedPlugin.pluginType} color={pluginTypeColor(selectedPlugin.pluginType)} />
-                          <CommercialContent><Chip label={pricingLabel(selectedVersionSummary?.pricing ?? selectedPlugin.pricing)} variant="outlined" /></CommercialContent>
+                          <Chip label={pricingLabel(selectedVersionSummary?.pricing ?? selectedPlugin.pricing)} variant="outlined" />
                           {selectedInstall ? (
                             <Chip icon={<CheckCircleRoundedIcon />} label={`Installed · ${selectedInstall.status}`} color="success" variant="outlined" />
                           ) : null}
@@ -1734,9 +1733,9 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
                               <Typography variant="body2">
                                 Required capabilities: {contributionList(selectedVersionSummary?.compatibility.requiredCapabilities ?? [])}
                               </Typography>
-                              <CommercialContent><Typography variant="body2">
+                              <Typography variant="body2">
                                 Pricing: {pricingLabel(selectedVersionSummary?.pricing)}
-                              </Typography></CommercialContent>
+                              </Typography>
                             </Stack>
                           </CardContent>
                         </Card>
@@ -1940,7 +1939,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
                       </Alert>
                     ) : null}
                     <Alert severity={selectedVersionSummary?.pricing.requiresEntitlement ? 'warning' : 'info'}>
-                      <CommercialContent>Pricing: {pricingLabel(selectedVersionSummary?.pricing)}. </CommercialContent>
+                      Pricing: {pricingLabel(selectedVersionSummary?.pricing)}.{' '}
                       {selectedVersionSummary?.pricing.requiresEntitlement
                         ? ` Paid marketplace installs remain out of the ${deploymentTerm.lowercase} draft until entitlement is activated.`
                         : ' Free marketplace installs are entitled immediately.'}
@@ -2176,7 +2175,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
                               </Grid>
                             </Grid>
                             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              <CommercialContent><Chip label={pricingLabel(selectedInstall.entitlement)} variant="outlined" /></CommercialContent>
+                              <Chip label={pricingLabel(selectedInstall.entitlement)} variant="outlined" />
                               <Chip
                                 label={`Compiles into draft: ${selectedInstall.entitlement.entitledForCompilation ? 'yes' : 'no'}`}
                                 color={selectedInstall.entitlement.entitledForCompilation ? 'success' : 'warning'}

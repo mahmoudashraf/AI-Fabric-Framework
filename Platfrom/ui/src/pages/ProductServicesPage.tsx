@@ -1,5 +1,4 @@
 import { deploymentTerm } from '../deploymentTerminology'
-import { CommercialContent } from '../uiProfile'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import HubRoundedIcon from '@mui/icons-material/HubRounded'
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded'
@@ -1639,11 +1638,11 @@ export function ProductServicesPage() {
                               </Stack>
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
-                              <CommercialContent>{plan.amount && plan.currencyCode && plan.interval
+                              {plan.amount && plan.currencyCode && plan.interval
                                 ? `${plan.amount} ${plan.currencyCode} / ${plan.interval}`
                                 : plan.tierKey === 'FREE'
                                   ? 'Free'
-                                  : 'Pricing unavailable'} · </CommercialContent>Surfaces{' '}
+                                  : 'Pricing unavailable'} · Surfaces{' '}
                               {plan.allowedSurfaces.length ? plan.allowedSurfaces.join(' · ') : '—'} · Product cap{' '}
                               {detailValue(plan.catalogProductCap ?? 'unlimited')} · Sync cadence {detailValue(plan.syncCadence)}
                             </Typography>

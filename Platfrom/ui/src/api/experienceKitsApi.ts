@@ -1,4 +1,5 @@
 import { platformRequest, type AIWorkspaceInstallationSummary, type AiStateStorageMode, type CustomerOfferSummary } from './platformApi'
+import type { DeploymentPolicy } from '../developer/deploymentPolicy'
 
 export type ExperienceKitCode = 'ai-customer-experience' | 'dealership-ai-experience' | 'ai-support-experience'
 export type ExperienceKitDeliveryMode = 'standalone' | 'embedded' | 'both'
@@ -24,6 +25,7 @@ export type ExperienceKitCatalogueEntry = {
 export type TicketProviderOption = { code: string; name: string; declaredOperations: string[] }
 
 export type ExperienceKitSummary = {
+  deploymentPolicy?: DeploymentPolicy
   id: string
   kitCode: ExperienceKitCode
   kitVersion: string
@@ -46,6 +48,7 @@ export type ExperienceKitSummary = {
 }
 
 export type CreateExperienceKitRequest = {
+  entryPoint?: 'CUSTOMER' | 'DEVELOPER'
   kitCode: ExperienceKitCode
   name: string
   offerId: string

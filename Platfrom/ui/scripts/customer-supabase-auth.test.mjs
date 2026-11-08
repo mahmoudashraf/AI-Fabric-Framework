@@ -11,6 +11,8 @@ async function load(path) {
     source = source.replace("'../account/accountNavigation'", `'data:text/javascript;base64,${Buffer.from(navigation).toString('base64')}'`)
     const library = ts.transpileModule(await readFile(new URL('../src/auth/pluginLibraryReturn.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
     source = source.replace("'./pluginLibraryReturn'", `'data:text/javascript;base64,${Buffer.from(library).toString('base64')}'`)
+    const developer = ts.transpileModule(await readFile(new URL('../src/developer/developerEntry.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+    source = source.replace("'../developer/developerEntry'", `'data:text/javascript;base64,${Buffer.from(developer).toString('base64')}'`)
   }
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
@@ -204,6 +206,28 @@ test('kit selection survives same-device and email-link return without allowing 
     window.location.search = '?kit=..%2Fforeign'
     assert.equal(productStartPath(window.location.search), '/start')
     assert.equal(consumeCustomerAuthReturn(), '/')
+  } finally { delete globalThis.window }
+})
+
+test('developer Kit entry survives sign-in, onboarding and cross-device email links without a new account role', () => {
+  const storage = new Map()
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/sign-up', search: '?kit=ai-support-experience&entryPoint=DEVELOPER' },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    const expected = '/kits/new/ai-support-experience?entryPoint=DEVELOPER'
+    assert.equal(productStartPath(window.location.search), expected)
+    assert.equal(productStartPath('?entryPoint=DEVELOPER', '/kits/new/ai-support-experience'), expected)
+    rememberCustomerAuthReturn(false)
+    assert.equal(customerAuthReturn().entryPoint, 'DEVELOPER')
+    assert.equal(consumeCustomerAuthReturn(), expected)
+    const redirect = new URL(identityEmailRedirect())
+    assert.equal(redirect.searchParams.get('entryPoint'), 'DEVELOPER')
+    window.location.pathname = '/auth/callback'; window.location.search = redirect.search
+    assert.equal(consumeCustomerAuthReturn(), expected, 'email callback retains the typed entry on a fresh device')
+    window.location.search = '?kit=dealership-ai-experience&entryPoint=DEVELOPER'
+    assert.equal(productStartPath(window.location.search), '/kits/new/dealership-ai-experience')
+    window.location.search = '?kit=ai-support-experience&entryPoint=OTHER'
+    assert.equal(productStartPath(window.location.search), '/kits/new/ai-support-experience')
   } finally { delete globalThis.window }
 })
 

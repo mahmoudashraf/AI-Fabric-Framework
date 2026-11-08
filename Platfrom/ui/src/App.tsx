@@ -70,6 +70,8 @@ import { accountSignInReturn, isAccountPath } from './account/accountNavigation'
 import { PluginLibraryPage } from './pluginLibrary/PluginLibraryPage'
 import { CustomerConsoleTheme } from './theme/CustomerConsoleTheme'
 import { pluginLibraryReturn } from './auth/pluginLibraryReturn'
+import { DeveloperLandingPage } from './pages/DeveloperLandingPage'
+import { developerLandingHost, isDeveloperEntry, isDeveloperKit } from './developer/developerEntry'
 
 export default function App() {
   const auth = usePlatformAuth()
@@ -94,6 +96,10 @@ export default function App() {
   const publicProduct = ['/products/platform', '/products/engage', '/products/desk'].includes(location.pathname)
     ? location.pathname.split('/')[2] as 'platform' | 'engage' | 'desk' : undefined
   const experiencePath = location.pathname.match(/^\/experiences(?:\/([a-z][a-z0-9-]{0,63}))?\/?$/)
+  if (location.pathname === '/developers' || location.pathname === '/developers/'
+    || location.pathname === '/' && developerLandingHost(window.location.hostname)) {
+    return <DeveloperLandingPage authenticated={Boolean(auth.session?.authenticated)} />
+  }
   if (location.pathname === '/' || experiencePath) {
     return <ExperienceKitsPublicPage code={experiencePath?.[1]} authenticated={Boolean(customerWorkspace && auth.session?.authenticated)} />
   }
@@ -146,7 +152,7 @@ export default function App() {
     if (library) return <Navigate to={`/sign-in?${new URLSearchParams({ library_return: library })}`} state={{ libraryReturn: library }} replace />
     const kit = kitSetupCode(location.pathname)
     const account = isAccountPath(location.pathname) ? accountSignInReturn(`${location.pathname}${location.search}`) : null
-    return <Navigate to={kit ? `/sign-in?kit=${kit}` : account ? `/sign-in?${new URLSearchParams({ account_return: account })}` : `/sign-in${location.search}`}
+    return <Navigate to={kit ? `/sign-in?kit=${kit}${isDeveloperKit(kit) && isDeveloperEntry(location.search) ? '&entryPoint=DEVELOPER' : ''}` : account ? `/sign-in?${new URLSearchParams({ account_return: account })}` : `/sign-in${location.search}`}
       state={brainIdFromPath(location.pathname) ? { brainReturn: `${location.pathname}${location.search}` }
         : isAccountPath(location.pathname) ? { accountReturn: `${location.pathname}${location.search}` } : undefined} replace />
   }

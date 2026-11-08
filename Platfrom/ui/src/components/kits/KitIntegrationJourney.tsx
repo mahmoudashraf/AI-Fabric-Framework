@@ -11,7 +11,6 @@ import SupportAgentRounded from '@mui/icons-material/SupportAgentRounded'
 import { Link } from 'react-router-dom'
 import { IntegrationCallButton } from '../IntegrationCallButton'
 import type { KitPreviewKind } from './kitPreviewContent'
-import { CommercialContent, PersonalContactContent } from '../../uiProfile'
 import './KitIntegrationJourney.css'
 
 const integrationContent = {
@@ -82,11 +81,11 @@ export function KitIntegrationJourney({ kind, getStartedPath, compact = false }:
         <div className="ek-integration-step-marker"><span>{String(index + 1).padStart(2, '0')}</span><Icon aria-hidden="true" /></div>
         <h3>{title}</h3><p>{description}</p>
       </li>)}</ol>
-      {!compact && <PersonalContactContent><div className="ek-integration-next"><div><h3>Talk through your integration</h3><CommercialContent><p>{content.costs}</p></CommercialContent></div>
+      {!compact && <div className="ek-integration-next"><div><h3>Talk through your integration</h3><p>{content.costs}</p></div>
         <div className="ek-integration-actions"><IntegrationCallButton variant="outlined">Start a project</IntegrationCallButton>
           <Button component={Link} to={getStartedPath} endIcon={<ArrowForwardRounded />}>Install kit</Button></div>
-      </div></PersonalContactContent>}
+      </div>}
     </section>
-    {compact && <details className="ek-detail-integration-scope"><summary>What we connect, and what you control</summary>{scope}<CommercialContent><p>{content.costs}</p></CommercialContent></details>}
+    {compact && <details className="ek-detail-integration-scope"><summary>What we connect, and what you control</summary>{scope}<p>{content.costs}</p></details>}
   </div>
 }

@@ -25,13 +25,14 @@ export type ExperienceKitSetupTransport = {
 
 type SetupProps = {
   customerId: string; actorId: string; code: string; transport?: ExperienceKitSetupTransport; basePath?: string; preparationRevision?: number
+  entryPoint?: 'DEVELOPER'
 }
 
 export function ExperienceKitSetup(props: SetupProps) {
-  return <PreparedKitSetup key={JSON.stringify([props.customerId, props.actorId, props.code, props.basePath, props.transport?.queryScope])} {...props} />
+  return <PreparedKitSetup key={JSON.stringify([props.customerId, props.actorId, props.code, props.basePath, props.transport?.queryScope, props.entryPoint])} {...props} />
 }
 
-function PreparedKitSetup({ customerId, actorId, code, transport, basePath = '/kits', preparationRevision = 0 }: SetupProps) {
+function PreparedKitSetup({ customerId, actorId, code, transport, basePath = '/kits', preparationRevision = 0, entryPoint }: SetupProps) {
   const [prepared, setPrepared] = useState(false)
   const [prepareError, setPrepareError] = useState<Error | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -65,7 +66,7 @@ function PreparedKitSetup({ customerId, actorId, code, transport, basePath = '/k
   if (catalogue.isPending) return <div className="ek-query-state" role="status"><CircularProgress size={24} />Loading kit setup...</div>
   if (catalogue.isError) return <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Kit setup could not be loaded.'}</Alert>
   if (!entry) return <Alert severity="info" action={<Button component={Link} to={transport ? basePath : '/support'}>{transport ? 'Back to customer kits' : 'Get setup help'}</Button>}>This experience is not available for this account yet. Nothing has been created.</Alert>
-  return <KitSetupForm key={`${code}:${entry.definition.version}`} customerId={customerId} actorId={actorId} entry={entry} transport={transport} basePath={basePath} />
+  return <KitSetupForm key={`${code}:${entry.definition.version}:${entryPoint}`} customerId={customerId} actorId={actorId} entry={entry} transport={transport} basePath={basePath} entryPoint={entryPoint} />
 }
 
 function initialOffer(offers: CustomerOfferSummary[]) {
@@ -77,8 +78,9 @@ function storageChoices(offer?: CustomerOfferSummary) {
   catch (error) { return { modes: null, error: error instanceof Error ? error.message : 'AI-state storage choices could not be loaded.' } }
 }
 
-function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
+function KitSetupForm({ customerId, actorId, entry, transport, basePath, entryPoint }: {
   customerId: string; actorId: string; entry: ExperienceKitCatalogueEntry; transport?: ExperienceKitSetupTransport; basePath: string
+  entryPoint?: 'DEVELOPER'
 }) {
   const { definition, offers } = entry
   const supportExperience = definition.code === 'ai-support-experience'
@@ -142,7 +144,7 @@ function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
     const errors = [...selectionErrors, ...kitExperienceErrors(form, supportExperience ? entry.ticketProviders : undefined)]
     if (errors.length) { setError(errors[0]); return }
     const payload: Omit<CreateExperienceKitRequest, 'operationKey'> = {
-      kitCode: definition.code, name: form.name.trim(), offerId, targetProfileId, workspaceProfileId,
+      kitCode: definition.code, name: form.name.trim(), offerId, targetProfileId, workspaceProfileId, ...(entryPoint ? { entryPoint } : {}),
       ...(modes && storageMode ? { aiStateStorageMode: storageMode } : {}),
       workspaceName: form.workspaceName.trim(), brandColor: form.brandColor, deliveryMode: kitDeliveryMode(form)!,
       ...(form.standalone ? { appSlug: form.appSlug } : {}),
@@ -174,9 +176,11 @@ function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
     }
   }
   const dealership = definition.code === 'dealership-ai-experience'
+  const developer = entryPoint === 'DEVELOPER'
   return <form className="ek-setup" noValidate onSubmit={event => void submit(event)}>
     <Button component={Link} to={basePath} startIcon={<ArrowBackRounded />} className="ek-back">{transport ? 'Back to customer kits' : 'Back to experiences'}</Button>
     <div className="ek-detail-title"><KitMark product={dealership ? 'dealership' : 'engage'} large /><div><h1>{definition.name}</h1><p>{definition.summary}</p><KitProductLine dealership={dealership} support={form.humanSupportEnabled} /></div><span className="ek-badge">Not live yet</span></div>
+    {developer && <Alert severity="info">Developer programme · Staging only. This Kit uses the same configuration tools, but its Smart Brain cannot be deployed or promoted to production. Existing usage and resource limits apply.</Alert>}
     <ol className="ek-setup-steps" aria-label="Kit setup progress">{['Choose your starting point', 'Make it yours', 'Review your setup'].map((label, index) => <li key={label} data-step-state={index === step ? 'current' : index < step ? 'done' : 'next'}>
       <button type="button" disabled={index > step || create.isPending} onClick={() => { setStep(index); setError(null) }} aria-current={index === step ? 'step' : undefined}>
         <span>{index < step ? <CheckRounded /> : index + 1}</span>{label}</button></li>)}</ol>
@@ -207,7 +211,7 @@ function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
           {!offers.length && <Alert severity="info">No active template is available. Return to My kits and refresh available templates.</Alert>}
           {offer?.blockers.map((blocker, index) => <Alert severity="warning" key={`offer:${index}`}>{blocker}</Alert>)}
           {targets.find(target => target.id === targetProfileId)?.blockers.map((blocker, index) => <Alert severity="warning" key={`target:${index}`}>{blocker}</Alert>)}
-          {targets.length === 1 ? <div className="ek-target-fact"><small>Start safely</small><strong>Test before going live</strong></div>
+          {targets.length === 1 ? <div className="ek-target-fact"><small>{developer ? 'Developer environment' : 'Start safely'}</small><strong>{developer ? 'Staging only' : 'Test before going live'}</strong></div>
             : <TextField label="Test environment" size="small" select fullWidth value={targetProfileId} onChange={event => setTargetProfileId(event.target.value)}>
               <MenuItem value="" disabled>Choose a test environment</MenuItem>{targets.map((target, index) => <MenuItem key={target.id} value={target.id}>Test environment{targets.length > 1 ? ` ${index + 1} (${target.id})` : ''}</MenuItem>)}
             </TextField>}
@@ -226,7 +230,7 @@ function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
           supportExperience={supportExperience} ticketProviders={entry.ticketProviders} /></>
           : <><h2>Review your kit</h2><dl className="ek-review-facts">
             <div><dt>Kit</dt><dd>{form.name}</dd></div><div><dt>Starting experience</dt><dd>{offer?.name}</dd></div>
-            <div><dt>First step</dt><dd>Test before going live</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
+            <div><dt>Environment</dt><dd>{developer ? 'Developer staging only' : 'Test before going live'}</dd></div><div><dt>Workspace</dt><dd>{form.workspaceName}</dd></div>
             <div><dt>Where customers find you</dt><dd>{form.standalone && form.embedded ? 'Your website + standalone app' : form.embedded ? 'Your website' : 'Standalone app'}</dd></div>
             {form.standalone && <div><dt>App link</dt><dd>{kitAppAddressPreview(form.appSlug)}</dd></div>}
             {form.embedded && <div><dt>Website address</dt><dd>{form.websiteOrigin}</dd></div>}
@@ -234,7 +238,7 @@ function KitSetupForm({ customerId, actorId, entry, transport, basePath }: {
               {form.ticketProvider && <div><dt>Ticket provider</dt><dd>{entry.ticketProviders.find(provider => provider.code === form.ticketProvider)?.name ?? 'Unavailable provider'}</dd></div>}</>}
             <div><dt>Human support</dt><dd>{form.humanSupportEnabled ? 'Add your team after setup' : 'Optional, not requested'}</dd></div>
           </dl><Alert severity="info">Creates your workspace setup only. Your AI assistant is not live yet, and no paid services are started at this step.</Alert>
-            <p className="ek-muted">Next: connect your information, test the experience and choose when to go live. You can get help from our integration team.</p>
+            <p className="ek-muted">{developer ? 'Next: connect your information and APIs, test your Brain in staging, and integrate it into your development app.' : 'Next: connect your information, test the experience and choose when to go live. You can get help from our integration team.'}</p>
           </>}
         <div className="ek-setup-actions">{step > 0 && <Button type="button" onClick={() => { setStep(value => value - 1); setError(null) }} disabled={create.isPending} startIcon={<ArrowBackRounded />}>Back</Button>}
           <Button type="submit" variant="contained" className="ek-primary-button" disabled={create.isPending || (step === 0 && !offers.length)} endIcon={create.isPending ? <CircularProgress size={16} color="inherit" /> : <ArrowForwardRounded />}>
