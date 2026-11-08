@@ -1,7 +1,7 @@
 # 010.64 Follow-up: One Home For Brain-Scoped Operations
 
 Date: 8 November 2026.
-Status: **Approved and implemented. Local verification in progress; hosted rollout pending.**
+Status: **Implemented, committed, deployed to staging/production and verified.**
 Parent: [Smart Brain workspace](010_64_SMART_BRAIN_OUTCOME_LED_WORKSPACE_AND_NAVIGATION_REDESIGN_PLAN.md).
 
 ## 1. Recommendation
@@ -286,8 +286,19 @@ state is expected. Raise any genuine contract gap before broadening scope.
   13 knowledge/sync/review flows without hosted writes. Production build passed.
 - Complete: 44 existing vector/settings regressions passed. Independent review
   corrected source/webhook identity filtering, covered by a distinct-ID fixture.
-- In progress: final responsive/read-only checks, independent regression review,
-  exact-source UI image publication, staging/production rollout and hosted proof.
+- Complete: exact-source UI image `d343ca48a9026b747d18d581a5ef5dee309db5c9`
+  published by CI `42471212481`; backend skipped. Document-storage CI
+  `42471212536` passed. Staging job `v1qjak2mtjxpkz8zo4mdm8sc` and production
+  `q8t75ftdc23jwy9jwm74k8w4` finished; both native containers are healthy.
+- Complete: hosted source list/detail, old-link redirect, separate human-support
+  view, review route, dark/light desktop and basic mobile navigation. No outer
+  desktop page overflow; staging developer / production standard retained.
+- Qualification boundary: the owned hosted Support fixtures have Action reviews
+  disabled in their applied runtime configuration. The UI reports that actual
+  state; no live approval or capability enablement was performed. Decision,
+  cancellation, exact task/version and permissions were exercised in isolated
+  browser/contract fixtures instead. This UI release does not enable runtime
+  capabilities or rewrite existing customer configuration.
 
 No backend, schema, framework, runtime, prompt, AI-routing or customer
 configuration change is required. Test writes stay in isolated memory fixtures.

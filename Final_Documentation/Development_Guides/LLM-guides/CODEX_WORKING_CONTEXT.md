@@ -13414,3 +13414,33 @@ test is being called hosted acceptance. UI extraction remains last.
   or AI-query mutation. Staging developer / production standard profile retained.
   Test sessions signed out, temporary tabs closed, viewport reset. Preserve all
   unrelated dirty work. Evidence: `verification-support/brain-updates-journey/change-preview/`.
+
+### Smart Brain Scoped Operations Closeout - 8 November 2026
+
+- Approved 010.64 scoped Knowledge/Connections/Reviews follow-up is implemented.
+  Customer global menu now contains resources, not Brain-specific selectors.
+  Documents/live data/storage, Human support and Action reviews have one home
+  under `/smart-brains/:brainId`. Old bookmarks redirect with explicit scope;
+  unscoped bookmarks ask for a Brain. Existing customer-wide layouts stay intact.
+- Shared document/storage/sync/webhook/handover/review controllers retained.
+  Source and review master/detail, mobile Back, bounded desktop panes, exact
+  release/source/task context and explicit version-bound decisions verified.
+  Safe diagnostics use webhook `reconcileDataSourceRef`, not equal source IDs.
+  Staff fleet tools and customer review authority remain separate.
+- Source `d343ca48a9026b747d18d581a5ef5dee309db5c9` pushed on `Platform-V11`.
+  UI image CI `42471212481` passed/backend skipped; document-storage CI
+  `42471212536` passed. Staging job `v1qjak2mtjxpkz8zo4mdm8sc` and production
+  `q8t75ftdc23jwy9jwm74k8w4` finished; exact-source native UI containers healthy.
+- 119 focused checks plus 13 in-memory browser scenarios passed; production build
+  passed with existing bundle/runtime-config warnings. Independent review fixed
+  webhook/source identity filtering. Hosted source, redirect, review-disabled,
+  handover and desktop/mobile navigation checked; no captured browser errors.
+- Hosted owned Support fixtures have Action reviews disabled in their applied
+  runtime configuration. This status remains truthful; no live approval/capability
+  enablement was used for qualification. An old closed staging handover fixture
+  retains a historical delivery 409; no retry or hidden cleanup was performed.
+- No backend/framework/runtime/schema/prompt/AI-policy or customer configuration
+  change. Staging developer / production standard retained. Sessions signed out,
+  temporary tabs closed, viewport reset. Preserve unrelated dirt.
+- Evidence: `verification-support/brain-scoped-operations/README.md`. Canonical
+  plan: `010_64_SMART_BRAIN_SCOPED_KNOWLEDGE_CONNECTIONS_AND_REVIEWS_NAVIGATION_PROPOSAL.md`.

@@ -48,6 +48,34 @@ use the webhook's own ID. A distinct-ID browser fixture covers this regression.
 
 ## Hosted Verification
 
-Pending exact-source image publication and staging/production UI-only rollout.
-No real customer release, indexing deletion, sync command, review decision,
-permission, AI query or app assignment is needed for hosted navigation checks.
+Source/image: `d343ca48a9026b747d18d581a5ef5dee309db5c9`, branch `Platform-V11`.
+UI image CI `42471212481` succeeded; backend skipped. Document-storage CI
+`42471212536` passed backend contracts, UI authority tests and mocked browser
+document journeys.
+
+- Staging job `v1qjak2mtjxpkz8zo4mdm8sc` finished. Native container
+  `/u67gepsowf7oo90dwjdx018r-102518142976` healthy, exact source/image verified.
+- Production job `q8t75ftdc23jwy9jwm74k8w4` finished. Native container
+  `/a6fz2ncuzzulg6lrzzwrjshu-102708491041` healthy, exact source/image verified.
+- Owned Support fixtures: source list/detail with retained commands and manifest,
+  old Connections/review links into canonical routes, explicit Brain picker,
+  separate Desk/handover view and truthful review-capability status.
+- Production dark/light desktop and 390px mobile detail/Back navigation checked.
+  Desktop document views had no outer vertical or horizontal overflow. Staging
+  developer and production standard runtime profiles remain unchanged.
+- No captured browser errors. No hosted Brain release, indexing/sync/deletion,
+  review decision, permission, ticket, AI-query or app-assignment mutation.
+
+The hosted Support fixtures do **not** enable Action reviews in their applied
+configuration. Their API reports that state; it is not an empty-inbox success.
+Approval/cancel/decision flows were qualified in memory, not executed against
+real tasks. Staging handover diagnostics also retain an old closed-fixture
+delivery failure (`PROVIDER_HTTP_409`); it was not retried or hidden by this UI
+change. No runtime behavior was changed to make navigation checks pass.
+
+Screenshots are in `live/`. Test sessions signed out, temporary tabs closed and
+viewport override reset. Existing local preview server was left unchanged.
+
+UI-only rollback: use the previous immutable UI image
+`a20d1b7b272a4420bad08a792e735365aa4f71ef` on the same Coolify applications.
+No database migration or runtime rollback is involved.
