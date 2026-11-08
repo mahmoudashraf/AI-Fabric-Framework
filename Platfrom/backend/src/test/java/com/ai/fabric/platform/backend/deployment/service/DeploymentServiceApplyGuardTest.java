@@ -41,6 +41,25 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class DeploymentServiceApplyGuardTest {
+    @ParameterizedTest @ValueSource(strings = {"direct", "trusted", "public", "default"})
+    void developerPolicyRejectsProductionEvenForTrustedAndDefaultTargetRoutes(String path) {
+        deployment.restrictToStaging();
+        var target = new DeploymentTargetProfileEntity(); target.setId("looks-like-staging"); target.setEnvironmentName("production");
+        when(deploymentProvisioningService.selectedTargetProfile(any())).thenReturn(target);
+        assertThatThrownBy(() -> {
+            switch (path) {
+                case "trusted" -> service.applyVersionForTrustedCaller(deployment.getId(), version.getId(), target.getId(), null);
+                case "public" -> service.applyVersionForVerifiedPublicApiBinding(deployment.getId(), version.getId());
+                case "default" -> service.applyVersion(deployment.getId(), version.getId());
+                default -> service.applyVersion(deployment.getId(), version.getId(), null, target.getId(), null);
+            }
+        }).isInstanceOfSatisfying(ResponseStatusException.class, e -> {
+            assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(e.getReason()).contains("DEPLOYMENT_STAGING_ONLY");
+        });
+        verify(releaseRepository, never()).save(any());
+        verifyNoInteractions(deploymentReleaseExecutionService);
+    }
     private DeploymentRepository deploymentRepository;
     private DeploymentDraftRepository draftRepository;
     private DeploymentVersionRepository versionRepository;
@@ -182,7 +201,7 @@ class DeploymentServiceApplyGuardTest {
             .thenReturn(java.util.List.of(release));
         when(deploymentProvisioningService.selectedTargetProfile(target.getId())).thenReturn(target);
         ReflectionTestUtils.setField(service, "targetMutations",
-            new DeploymentTargetMutationService(deploymentRepository, releaseRepository));
+            new DeploymentTargetMutationService(deploymentRepository, releaseRepository, mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository.class)));
 
         assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", null, target.getId(), null))
             .isInstanceOf(ResponseStatusException.class)

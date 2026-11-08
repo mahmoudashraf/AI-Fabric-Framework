@@ -19,7 +19,20 @@ import static org.mockito.Mockito.*;
 class DeploymentTargetMutationServiceTest {
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
-    private final DeploymentTargetMutationService service = new DeploymentTargetMutationService(deployments, releases);
+    private final com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository profiles = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository.class);
+    private final DeploymentTargetMutationService service = new DeploymentTargetMutationService(deployments, releases, profiles);
+
+    @Test void stagingOnlyEligibilityAlsoProtectsDirectBindingMutations() {
+        var deployment = new DeploymentEntity(); deployment.restrictToStaging();
+        when(deployments.findByIdForUpdate("developer")).thenReturn(Optional.of(deployment));
+        var target = new com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity();
+        target.setEnvironmentName("production");
+        when(profiles.findById("target")).thenReturn(Optional.of(target));
+        assertThatThrownBy(() -> service.requireAvailableForMutation("developer", "target")).hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        verifyNoInteractions(releases);
+        target.setEnvironmentName("staging");
+        assertThatCode(() -> service.requireAvailableForMutation("developer", "target")).doesNotThrowAnyException();
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING"})

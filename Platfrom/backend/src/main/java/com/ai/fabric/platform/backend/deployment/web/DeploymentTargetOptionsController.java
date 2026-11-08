@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetProfileSu
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,7 +39,8 @@ public class DeploymentTargetOptionsController {
         var deployment = deployments.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         access.requireDeploymentAccess(deployment);
-        return profiles.findAll().stream().filter(profile -> profile.isActive()).filter(profile -> {
+        return profiles.findAll().stream().filter(profile -> profile.isActive())
+            .filter(profile -> DeploymentEnvironmentPolicyGuard.allows(deployment, profile)).filter(profile -> {
             try {
                 authorization.require(deployment, profile.getId(), null, Operation.READ, null, Map.of(), null, null, null);
                 return true;

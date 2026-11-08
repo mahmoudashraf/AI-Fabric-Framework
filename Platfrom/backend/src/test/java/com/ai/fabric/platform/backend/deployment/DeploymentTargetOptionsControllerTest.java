@@ -53,6 +53,17 @@ class DeploymentTargetOptionsControllerTest {
         verifyNoInteractions(profiles, authorization);
     }
 
+    @Test void developerDeploymentOnlyListsActualStagingTargetsRegardlessOfTargetId() {
+        var deployment = deployment(); deployment.restrictToStaging();
+        var staging = profile("production-looking-id"); staging.setEnvironmentName("staging");
+        var production = profile("staging-looking-id"); production.setEnvironmentName("production");
+        var unknown = profile("unknown-environment");
+        when(profiles.findAll()).thenReturn(List.of(staging, production, unknown));
+        assertThat(controller.list(deployment.getId())).extracting(value -> value.id()).containsExactly(staging.getId());
+        verify(authorization, times(1)).require(eq(deployment), eq(staging.getId()), isNull(), any(), isNull(), anyMap(), isNull(), isNull(), isNull());
+        verifyNoMoreInteractions(authorization);
+    }
+
     @Test void accountOrTenantDenialIsNotHiddenAsAnEmptyTargetList() {
         var deployment = deployment();
         when(profiles.findAll()).thenReturn(List.of(profile("production")));

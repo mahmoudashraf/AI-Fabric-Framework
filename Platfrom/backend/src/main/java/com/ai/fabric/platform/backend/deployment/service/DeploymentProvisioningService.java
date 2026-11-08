@@ -27,6 +27,7 @@ public class DeploymentProvisioningService {
                                         ProvisioningProgressTracker progressTracker) {
         deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         DeploymentTargetProfileEntity targetProfile = targetProfileService.resolveForRelease(release);
+        DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, targetProfile);
         targetProfileService.applyProfileToRelease(release, targetProfile);
         return providerRegistry.require(targetProfile.getProviderType())
             .provision(

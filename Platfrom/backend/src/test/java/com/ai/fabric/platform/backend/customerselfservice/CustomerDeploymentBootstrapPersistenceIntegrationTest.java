@@ -435,7 +435,10 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
         persistInstall(deployment.getId(), pluginId, installedVersion, "BOOTSTRAPPED");
         return new DeploymentSummary(deployment.getId(), deployment.getName(), deployment.getEnvironmentName(),
             deployment.getTemplateId(), deployment.getBehaviorType(), null, null, deployment.getStatus(), null, null,
-            false, false, false, deployment.getCreatedAt());
+            false, false, false, deployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        );
     }
 
     private void persistInstall(String deploymentId, String installedPlugin, String installedVersion, String status) {

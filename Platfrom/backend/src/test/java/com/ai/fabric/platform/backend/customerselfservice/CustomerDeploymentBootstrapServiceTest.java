@@ -83,7 +83,10 @@ class CustomerDeploymentBootstrapServiceTest {
         when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(templates.bootstrapConfiguration(eq("template-plugin"), any())).thenReturn(new DeploymentSummary(
             deployment.getId(), request.name(), "staging", "reviewed-template", "CONVERSATIONAL", null, null,
-            "DRAFT", null, null, false, false, false, Instant.now()));
+            "DRAFT", null, null, false, false, false, Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        ));
         when(installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of(templateInstall()));
     }
 

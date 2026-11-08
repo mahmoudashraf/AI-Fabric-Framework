@@ -16,6 +16,7 @@ public record DeploymentSummary(
     boolean connectorProvisioned,
     boolean approvalRequiredForApply,
     boolean approvalRequiredForDelete,
-    Instant createdAt
+    Instant createdAt,
+    DeploymentPolicySummary deploymentPolicy
 ) {
 }

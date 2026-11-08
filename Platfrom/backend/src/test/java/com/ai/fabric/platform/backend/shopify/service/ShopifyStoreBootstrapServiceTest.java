@@ -866,7 +866,9 @@ class ShopifyStoreBootstrapServiceTest {
             false,
             false,
             false,
-            Instant.now()
+            Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         );
     }
 

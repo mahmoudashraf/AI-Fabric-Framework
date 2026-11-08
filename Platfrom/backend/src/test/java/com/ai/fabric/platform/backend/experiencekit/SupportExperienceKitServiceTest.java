@@ -129,6 +129,6 @@ class SupportExperienceKitServiceTest {
         var base = f.request("standalone", human);
         return new ExperienceKitContracts.CreateRequest(SUPPORT, "Acme Support", base.offerId(), base.targetProfileId(),
             base.workspaceProfileId(), base.aiStateStorageMode(), "Acme Support AI", base.brandColor(), base.deliveryMode(),
-            "acme-support", null, human, base.operationKey(), tickets, provider);
+            "acme-support", null, human, base.operationKey(), tickets, provider, null);
     }
 }

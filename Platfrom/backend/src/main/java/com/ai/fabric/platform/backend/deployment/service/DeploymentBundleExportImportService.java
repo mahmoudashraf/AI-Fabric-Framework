@@ -463,6 +463,7 @@ public class DeploymentBundleExportImportService {
         node.put("id", deployment.getId());
         node.put("name", deployment.getName());
         node.put("environmentName", deployment.getEnvironmentName());
+        node.put("environmentPolicy", deployment.getEnvironmentPolicy().name());
         node.put("templateId", deployment.getTemplateId());
         node.put("behaviorType", deployment.getBehaviorType());
         node.put("customerId", deployment.getCustomerId());
@@ -1361,6 +1362,9 @@ public class DeploymentBundleExportImportService {
         ));
         DeploymentEntity createdDeployment = deploymentRepository.findById(created.id())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Imported deployment was not created."));
+        inheritEnvironmentPolicy(createdDeployment, bundle);
+        DeploymentEnvironmentPolicyGuard.requireEnvironmentAllowed(createdDeployment, environment);
+        deploymentRepository.save(createdDeployment);
         DeploymentDraftEntity draft = activeDraft(createdDeployment);
         ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(createdDeployment, bundle, marketplaceCatalogRestore);
         overwriteDraftFromBundle(draft, bundle, "IMPORTED", rewrite);
@@ -1377,6 +1381,7 @@ public class DeploymentBundleExportImportService {
                                          JsonNode decryptedSecrets) {
         String targetDeploymentId = request == null ? null : request.targetDeploymentId();
         DeploymentEntity deployment = requireDeploymentAdmin(targetDeploymentId);
+        inheritEnvironmentPolicy(deployment, bundle);
         String bundledBehaviorType = bundle.path("manifest").path("deployment").path("behaviorType").asText();
         if (!deployment.getBehaviorType().equals(bundledBehaviorType)) {
             throw new ResponseStatusException(
@@ -2384,6 +2389,18 @@ public class DeploymentBundleExportImportService {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment import requires a bundle JSON object.");
         }
         return bundle;
+    }
+
+    private void inheritEnvironmentPolicy(DeploymentEntity target, JsonNode bundle) {
+        // A bundle may tighten eligibility, never relax an existing or canonical source policy.
+        String declared = bundle.path("manifest").path("deployment").path("environmentPolicy").asText("UNRESTRICTED");
+        com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy policy;
+        try { policy = com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.valueOf(declared); }
+        catch (IllegalArgumentException error) { throw new ResponseStatusException(BAD_REQUEST, "Unknown deployment environment policy."); }
+        var source = deploymentRepository.findById(sourceDeploymentId(bundle)).orElse(null);
+        if (policy == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY
+            || source != null && source.getEnvironmentPolicy() == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY)
+            target.restrictToStaging();
     }
 
     private String sourceDeploymentId(JsonNode bundle) {

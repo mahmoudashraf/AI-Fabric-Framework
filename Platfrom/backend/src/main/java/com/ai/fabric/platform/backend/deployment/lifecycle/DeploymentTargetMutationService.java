@@ -20,10 +20,13 @@ public class DeploymentTargetMutationService {
         "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING");
     private final DeploymentRepository deployments;
     private final DeploymentReleaseRepository releases;
+    private final com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository profiles;
 
-    public DeploymentTargetMutationService(DeploymentRepository deployments, DeploymentReleaseRepository releases) {
+    public DeploymentTargetMutationService(DeploymentRepository deployments, DeploymentReleaseRepository releases,
+        com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository profiles) {
         this.deployments = deployments;
         this.releases = releases;
+        this.profiles = profiles;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -35,8 +38,11 @@ public class DeploymentTargetMutationService {
     public void requireAvailableForReplay(String deploymentId, String targetProfileId) {
         if (targetProfileId == null || targetProfileId.isBlank())
             throw new ResponseStatusException(CONFLICT, "DEPLOYMENT_TARGET_REQUIRED");
-        deployments.findByIdForUpdate(deploymentId)
+        var deployment = deployments.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        if (deployment.getEnvironmentPolicy() == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY)
+            com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment,
+                profiles.findById(targetProfileId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Target profile not found.")));
         if (lifecycleClaims != null) lifecycleClaims.requireAvailable(deploymentId, targetProfileId);
         if (releases.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deploymentId, targetProfileId).stream()
             .anyMatch(release -> ACTIVE_RELEASE_STATUSES.contains(release.getStatus())))

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.experiencekit;
 
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationSummary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.OfferSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary;
 import jakarta.validation.constraints.*;
 import java.time.Instant;
 import java.util.List;
@@ -13,6 +14,7 @@ public final class ExperienceKitContracts {
     public record TicketProviderOption(String code, String name, List<String> declaredOperations) { }
     public record CatalogueEntry(Definition definition, List<OfferSummary> offers,
         List<TicketProviderOption> ticketProviders) { }
+    public enum EntryPoint { CUSTOMER, DEVELOPER }
     public record CreateRequest(@NotBlank String kitCode, @NotBlank @Size(max=120) String name,
         @NotBlank String offerId, @NotBlank String targetProfileId, @NotBlank String workspaceProfileId,
         String aiStateStorageMode, @NotBlank @Size(max=120) String workspaceName,
@@ -20,7 +22,11 @@ public final class ExperienceKitContracts {
         @NotBlank @Pattern(regexp="standalone|embedded|both") String deliveryMode,
         @Size(max=63) String appSlug, @Size(max=255) String websiteOrigin, boolean humanSupportEnabled,
         @NotBlank @Pattern(regexp="[A-Za-z0-9._:-]{1,128}") String operationKey,
-        boolean ticketingEnabled, @Size(max=64) String ticketProvider) { }
+        boolean ticketingEnabled, @Size(max=64) String ticketProvider, EntryPoint entryPoint) {
+        public CreateRequest {
+            if (entryPoint == null) entryPoint = EntryPoint.CUSTOMER;
+        }
+    }
     public record UpdateRequest(@NotBlank @Size(max=120) String name,
         @NotBlank @Size(max=120) String workspaceName,
         @NotBlank @Pattern(regexp="#[0-9a-fA-F]{6}") String brandColor,
@@ -35,5 +41,5 @@ public final class ExperienceKitContracts {
         boolean humanSupportEnabled, long revision, Instant createdAt, Instant updatedAt,
         AIWorkspaceInstallationSummary workspace, String embeddedInstallationId,
         AIWorkspaceInstallationSummary embeddedWorkspace, String deliveryMode,
-        boolean ticketingEnabled, String ticketProvider) { }
+        boolean ticketingEnabled, String ticketProvider, DeploymentPolicySummary deploymentPolicy) { }
 }

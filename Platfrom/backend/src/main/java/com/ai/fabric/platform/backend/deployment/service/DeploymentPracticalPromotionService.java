@@ -214,6 +214,7 @@ public class DeploymentPracticalPromotionService {
             productionRelease.getSourceArtifactId(),
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ACTIVATE, request.operationKey());
         DeploymentTargetProfileEntity productionTarget = requireEnvironmentTarget(productionRelease.getTargetProfileId(), "production");
+        DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, productionTarget);
         JsonNode frozen = readJson(productionRelease.getPromotionCandidateJson());
         String stagingReleaseId = frozen.path("stagingReleaseId").asText();
         PromotionContext context = requirePromotionContext(deployment.getId(), new DeploymentPracticalPromotionRequest(
@@ -327,6 +328,7 @@ public class DeploymentPracticalPromotionService {
         }
 
         var target = requireActiveTargetProfile(rollbackRelease.getTargetProfileId());
+        DeploymentEnvironmentPolicyGuard.requireAllowed(rollbackDeployment, target);
         targets.resolve(rollbackDeployment.getId(), target.getId(), rollbackRelease.getId(), true);
         var version = deploymentVersionRepository.findById(rollbackRelease.getDeploymentVersionId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Rollback version evidence is missing."));
@@ -420,6 +422,7 @@ public class DeploymentPracticalPromotionService {
         if (request == null || request.expectedBindingRevision() == null || request.expectedBindingRevision() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An exact consumer-bound promotion request is required.");
         }
+        DeploymentEnvironmentPolicyGuard.requireEnvironmentAllowed(deployment, "production");
         PlatformConsumerEntity consumer = requireCustomerConsumer(deployment.getCustomerId(), requireText(request.consumerId(), "consumerId"));
         if (!"ACTIVE".equals(consumer.getStatus()) || consumer.getBindingRevision() != request.expectedBindingRevision()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Consumer binding changed; review a fresh promotion plan.");

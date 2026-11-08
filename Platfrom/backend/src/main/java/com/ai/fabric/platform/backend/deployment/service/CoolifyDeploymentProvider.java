@@ -270,6 +270,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
         DeploymentTargetProfileEntity profile = requireActiveProfile(release.getTargetProfileId());
+        DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, profile);
         CoolifyRuntimeDatabaseBinding externalAiState = validateAiStateStorageBeforeEffects(deployment, version, release, profile);
         boolean replacingRuntime = resourceHandleRepository
             .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(

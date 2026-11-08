@@ -586,12 +586,17 @@ public class PlatformCustomerConsumerService {
         DeploymentReleaseEntity release = null;
         String nextTargetProfileId = requestedTargetProfileId;
         if (nextDeploymentId != null) {
-            requireBindableDeployment(consumer.getCustomerId(), nextDeploymentId);
+            var deployment = requireBindableDeployment(consumer.getCustomerId(), nextDeploymentId);
             if (nextReleaseId != null) {
                 release = requireBindableRelease(nextDeploymentId, nextReleaseId, requestedTargetProfileId, requireVerifiedRelease);
                 nextTargetProfileId = StringUtils.hasText(release.getTargetProfileId())
                     ? release.getTargetProfileId()
                     : requestedTargetProfileId;
+            }
+            if (deployment.getEnvironmentPolicy() == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY) {
+                var target = nextTargetProfileId == null ? null : targetProfiles.findById(nextTargetProfileId)
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Target profile not found."));
+                com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, target);
             }
         }
 

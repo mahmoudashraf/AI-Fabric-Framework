@@ -54,6 +54,8 @@ public class ManagedResourceOwnershipService {
     private final ObjectMapper mapper;
     private final TransactionTemplate durable;
     private final TransactionTemplate participating;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository targetProfiles;
 
     public ManagedResourceOwnershipService(JdbcTemplate jdbc, ObjectMapper mapper, PlatformTransactionManager transactions) {
         this.jdbc = jdbc; this.mapper = mapper;
@@ -64,6 +66,9 @@ public class ManagedResourceOwnershipService {
 
     public Scope scope(DeploymentEntity deployment, String targetId) {
         if (deployment == null) throw denied("MANAGED_RESOURCE_SCOPE_REQUIRED");
+        if (deployment.getEnvironmentPolicy() == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY)
+            DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, targetProfiles.findById(targetId)
+                .orElseThrow(() -> denied("MANAGED_RESOURCE_TARGET_REQUIRED")));
         return new Scope(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), targetId);
     }
 

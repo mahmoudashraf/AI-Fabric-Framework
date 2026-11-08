@@ -105,6 +105,8 @@ public class DeploymentTenantMigrationService {
         migrated.setId(generateId("dep"));
         migrated.setName(plan.proposedDeploymentName());
         migrated.setEnvironmentName(plan.proposedEnvironmentName());
+        if (plan.source().getEnvironmentPolicy() == com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY)
+            migrated.restrictToStaging();
         migrated.setTemplateId(plan.source().getTemplateId());
         migrated.setBehaviorType(plan.source().getBehaviorType());
         migrated.setStatus("DRAFT");
@@ -183,6 +185,7 @@ public class DeploymentTenantMigrationService {
         if (environmentName == null) {
             environmentName = source.getEnvironmentName();
         }
+        DeploymentEnvironmentPolicyGuard.requireEnvironmentAllowed(source, environmentName);
         String deploymentName = normalizeOptionalText(proposedDeploymentName);
         if (deploymentName == null) {
             deploymentName = nextAvailableName(defaultMigrationName(source.getName(), targetBindingPreview), environmentName);

@@ -209,6 +209,7 @@ class ExperienceKitMigrationPostgresTest {
             var kits = repositories.getRepository(CustomerExperienceKitRepository.class);
             var definitions = repositories.getRepository(ExperienceKitDefinitionRepository.class);
             var installations = repositories.getRepository(AIWorkspaceInstallationRepository.class);
+            when(f.deployments.findById(anyString())).thenReturn(java.util.Optional.of(f.deployment));
             var transactions = new JpaTransactionManager(factory.getObject()); transactions.setDataSource(dataSource);
             var failSecond = new AtomicBoolean();
             var appCalls = new AtomicInteger();
@@ -246,7 +247,7 @@ class ExperienceKitMigrationPostgresTest {
                 return summary;
             }).when(f.workspaces).create(eq(CUSTOMER), any(), anyString());
             var implementation = new ExperienceKitService(definitions, kits, f.access, f.catalogue, f.bootstrap,
-                f.staging, f.consumers, f.workspaces, installations, f.versions, f.mapper, f.codec, entityManager, f.audit);
+                f.staging, f.consumers, f.workspaces, installations, f.versions, f.mapper, f.codec, entityManager, f.audit, f.deployments);
             var proxy = new ProxyFactory(implementation); proxy.setProxyTargetClass(true);
             proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
             var service = (ExperienceKitService) proxy.getProxy();
@@ -274,7 +275,7 @@ class ExperienceKitMigrationPostgresTest {
             var request = f.request("both", true);
             var failing = new ExperienceKitContracts.CreateRequest(request.kitCode(), request.name(), request.offerId(),
                 request.targetProfileId(), request.workspaceProfileId(), request.aiStateStorageMode(), request.workspaceName(),
-                request.brandColor(), request.deliveryMode(), "failing-kit-app", request.websiteOrigin(), true, "failed-kit-create", false, null);
+                request.brandColor(), request.deliveryMode(), "failing-kit-app", request.websiteOrigin(), true, "failed-kit-create", false, null, null);
             assertThatThrownBy(() -> service.create(failing)).isInstanceOf(IllegalStateException.class)
                 .hasMessage("Second canonical app failed");
 

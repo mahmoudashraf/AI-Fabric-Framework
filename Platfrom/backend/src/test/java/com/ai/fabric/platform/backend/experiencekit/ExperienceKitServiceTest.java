@@ -184,7 +184,7 @@ class ExperienceKitServiceTest {
                 TargetIntent.CUSTOMER_STAGING));
             request = new ExperienceKitContracts.CreateRequest(GENERIC, request.name(), request.offerId(),
                 request.targetProfileId(), request.workspaceProfileId(), request.aiStateStorageMode(), request.workspaceName(),
-                request.brandColor(), request.deliveryMode(), request.appSlug(), request.websiteOrigin(), human, request.operationKey(), false, null);
+                request.brandColor(), request.deliveryMode(), request.appSlug(), request.websiteOrigin(), human, request.operationKey(), false, null, null);
         }
         var result = f.service.create(request);
         var captured = ArgumentCaptor.forClass(CreateAIWorkspaceInstallationRequest.class);

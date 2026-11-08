@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.aiworkspace.model.*;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceInstallationService;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.OfferSummary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.WorkspaceProfile;
@@ -49,17 +51,20 @@ public class ExperienceKitService {
     private final CustomerOfferCodec codec;
     private final EntityManager entityManager;
     private final PlatformAuditService audit;
+    private final DeploymentRepository deployments;
 
     public ExperienceKitService(ExperienceKitDefinitionRepository definitions, CustomerExperienceKitRepository kits,
         CustomerOfferEntitlementService access, CustomerSelfServiceCatalogueService catalogue,
         CustomerDeploymentBootstrapService bootstrap, CustomerStagingConsumerConfigurationService stagingConsumers,
         PlatformCustomerConsumerService consumers, AIWorkspaceInstallationService workspaces,
         AIWorkspaceInstallationRepository installations, MarketplacePluginVersionRepository templateVersions,
-        ObjectMapper mapper, CustomerOfferCodec codec, EntityManager entityManager, PlatformAuditService audit) {
+        ObjectMapper mapper, CustomerOfferCodec codec, EntityManager entityManager, PlatformAuditService audit,
+        DeploymentRepository deployments) {
         this.definitions=definitions; this.kits=kits; this.access=access; this.catalogue=catalogue;
         this.bootstrap=bootstrap; this.stagingConsumers=stagingConsumers; this.consumers=consumers;
         this.workspaces=workspaces; this.installations=installations; this.templateVersions=templateVersions;
         this.mapper=mapper; this.codec=codec; this.entityManager=entityManager; this.audit=audit;
+        this.deployments=deployments;
     }
 
     @Transactional(readOnly=true)
@@ -126,6 +131,9 @@ public class ExperienceKitService {
     }
 
     private Summary create(String customerId, String actorId, CreateRequest request, boolean assisted) {
+        if (request.entryPoint() == EntryPoint.DEVELOPER
+            && !Set.of("ai-customer-experience", "ai-support-experience").contains(request.kitCode()))
+            throw badRequest("The developer entry supports Customer Experience and Support kits only.");
         // Serialize configuration-only creation per owner boundary, including duplicate concurrent requests.
         var customer=entityManager.find(PlatformCustomerEntity.class,customerId,LockModeType.PESSIMISTIC_WRITE);
         if(customer==null || !"ACTIVE".equals(customer.getStatus())) throw notFound();
@@ -151,6 +159,11 @@ public class ExperienceKitService {
             request.targetProfileId(),request.name().trim(),offer.entitlement().revision(),id,request.aiStateStorageMode());
         var created=assisted ? bootstrap.bootstrapForCustomer(customerId,request.offerId(),bootstrapRequest)
             : bootstrap.bootstrap(request.offerId(),bootstrapRequest);
+        var deployment=deployments.findById(created.deploymentId()).orElseThrow(this::notFound);
+        if (request.entryPoint() == EntryPoint.DEVELOPER) {
+            deployment.restrictToStaging();
+            deployments.saveAndFlush(deployment);
+        }
         var consumer=consumers.createConsumer(customerId,new CreatePlatformConsumerRequest(
             id,request.workspaceName().trim(),"AI experience kit configuration",null,null));
         var bindingRequest=new CustomerStagingConsumerConfigurationContracts.Request(
@@ -178,7 +191,7 @@ public class ExperienceKitService {
         audit.record("CUSTOMER_EXPERIENCE_KIT_CREATED","EXPERIENCE_KIT",id,Map.of(
             "kitCode",d.code(),"deploymentId",created.deploymentId(),"consumerId",consumer.consumerId(),
             "installationId",app.installationId(),"deliveryMode",request.deliveryMode(),"creationStatus","CONFIGURATION_ONLY",
-            "customerId",customerId,"assisted",assisted));
+            "customerId",customerId,"assisted",assisted,"entryPoint",request.entryPoint()));
         return summary(kit);
     }
 
@@ -368,7 +381,8 @@ public class ExperienceKitService {
         return new Summary(k.getId(),k.getKitCode(),k.getKitVersion(),k.getName(),k.getDeploymentId(),k.getConsumerId(),
             app==null?null:app.installationId(),k.getOfferId(),k.getTargetProfileId(),k.isHumanSupportEnabled(),k.getRevision(),
             k.getCreatedAt(),k.getUpdatedAt(),app,embedded==null?null:embedded.installationId(),embedded,k.getDeliveryMode(),
-            k.isTicketingEnabled(),k.getTicketProvider());
+            k.isTicketingEnabled(),k.getTicketProvider(),DeploymentPolicySummary.from(deployments.findById(k.getDeploymentId())
+                .orElseThrow(this::notFound).getEnvironmentPolicy()));
     }
     private ResponseStatusException notFound() { return new ResponseStatusException(NOT_FOUND,"Experience not found."); }
     private ResponseStatusException conflict(String message) { return new ResponseStatusException(CONFLICT,message); }

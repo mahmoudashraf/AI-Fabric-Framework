@@ -125,8 +125,10 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         verifyNoInteractions(authorities, operations);
     }
 
-    @Test
-    void productizedApplyFreezesExactTargetVersionOriginsAndReleaseBeforeExecution() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void productizedApplyFreezesExactTargetVersionOriginsAndReleaseBeforeExecution(boolean developer) {
+        if (developer) deployment.restrictToStaging();
         version.setSecurityConfigJson("""
             {"authzMode":"ALLOW_VERIFIED","publicRuntimeBootstrapEnabled":true,
              "corsAllowedOrigins":"https://workspace.example.com, https://admin.example.com"}
@@ -214,8 +216,10 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         verifyNoInteractions(authorities, execution);
     }
 
-    @Test
-    void templateOriginDoesNotBlockEditingTheNormalDeploymentDraft() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void templateOriginDoesNotBlockEditingTheNormalDeploymentDraft(boolean developer) {
+        if (developer) deployment.restrictToStaging();
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setActionsConfigJson("{}"); draft.setEntityConfigJson("{}"); draft.setRoutingConfigJson("{}");
         draft.setSecurityConfigJson("{}"); draft.setProviderConfigJson("{}"); draft.setPromptConfigJson("{}");
@@ -236,6 +240,9 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             null, mapper.createObjectNode().put("instructions", "Customer instructions"), null, null, null, null));
         assertThat(updated.providerConfig().path("openaiModel").asText()).isEqualTo("customer-selected-model");
         assertThat(updated.promptConfig().path("instructions").asText()).isEqualTo("Customer instructions");
+        assertThat(deployment.getEnvironmentPolicy()).isEqualTo(developer
+            ? com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY
+            : com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED);
         verify(access).requireDeploymentEditorAccess(deployment);
         verify(drafts).save(draft);
         verifyNoInteractions(execution, authorities, operations);
@@ -243,6 +250,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
 
     @Test
     void templateResetRestoresDraftSettingsWithoutChangingTheLiveVersionOrDeploymentIdentity() {
+        deployment.restrictToStaging();
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setActionsConfigJson("{}"); draft.setEntityConfigJson("{}"); draft.setRoutingConfigJson("{}");
         draft.setSecurityConfigJson("{}");
@@ -269,6 +277,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         assertThat(deployment.getActiveVersionId()).isEqualTo("running-production-version");
         assertThat(deployment.getRuntimeBaseUrl()).isEqualTo("https://existing-runtime.example.com");
         assertThat(deployment.getCustomerId()).isEqualTo("customer-1");
+        assertThat(deployment.getEnvironmentPolicy()).isEqualTo(com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY);
         verifyNoInteractions(execution, authorities, operations, releases);
         verify(versions, never()).save(any());
     }

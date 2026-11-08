@@ -58,6 +58,8 @@ final class ExperienceKitTestFixture {
     final MarketplacePluginVersionRepository versions = mock(MarketplacePluginVersionRepository.class);
     final EntityManager entityManager = mock(EntityManager.class);
     final PlatformAuditService audit = mock(PlatformAuditService.class);
+    final com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository deployments = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository.class);
+    final com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity deployment = new com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity();
     final Map<String, AIWorkspaceInstallationEntity> appEntities = new HashMap<>();
     final Map<String, AIWorkspaceInstallationSummary> appSummaries = new HashMap<>();
     final WorkspaceProfile profile;
@@ -68,6 +70,8 @@ final class ExperienceKitTestFixture {
     int appSequence;
 
     ExperienceKitTestFixture() {
+        deployment.setId("kit-deployment"); deployment.setCustomerId(CUSTOMER);
+        when(deployments.findById("kit-deployment")).thenReturn(Optional.of(deployment));
         profile = profile("dealership");
         dealership = definition(DEALERSHIP, "dealership", List.of(TEMPLATE,
             "mkp-template-dealership-external-systems-v1",
@@ -96,13 +100,13 @@ final class ExperienceKitTestFixture {
         when(kits.findByCustomerIdAndOperationKey(eq(CUSTOMER), anyString())).thenAnswer(call ->
             saved != null && saved.getOperationKey().equals(call.getArgument(1)) ? Optional.of(saved) : Optional.empty());
         service = new ExperienceKitService(definitions, kits, access, catalogue, bootstrap, staging, consumers,
-            workspaces, installations, versions, mapper, codec, entityManager, audit);
+            workspaces, installations, versions, mapper, codec, entityManager, audit, deployments);
     }
 
     ExperienceKitContracts.CreateRequest request(String delivery, boolean human) {
         return new ExperienceKitContracts.CreateRequest(DEALERSHIP, " Northfield experience ", OFFER, TARGET, PROFILE,
             "CUSTOMER_POSTGRES", " Northfield AI ", "#2563eb", delivery, "northfield-ai",
-            " https://dealer.example.test ", human, "kit-create-1", false, null);
+            " https://dealer.example.test ", human, "kit-create-1", false, null, null);
     }
 
     ExperienceKitContracts.UpdateRequest update(String delivery, boolean human, long revision) {

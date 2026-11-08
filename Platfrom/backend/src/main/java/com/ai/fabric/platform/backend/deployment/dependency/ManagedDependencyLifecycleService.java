@@ -246,7 +246,10 @@ public class ManagedDependencyLifecycleService {
             var current = repository.lockById(graph.getId()).orElseThrow();
             if (current.getWorkerToken() != null) return false;
             if ("RETIRING".equals(current.getStatus()) || "RETIRED".equals(current.getStatus())) fail("DEPENDENCY_RETIREMENT_IN_PROGRESS");
-            environmentQuota.requireAvailable(deployments.findById(current.getDeploymentId()).orElseThrow(), current.getTargetProfileId());
+            var deployment = deployments.findById(current.getDeploymentId()).orElseThrow();
+            com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment,
+                targets.findById(current.getTargetProfileId()).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING")));
+            environmentQuota.requireAvailable(deployment, current.getTargetProfileId());
             current.setWorkerToken(token); current.setStatus("RUNNING"); current.setStep("ADMISSION");
             current.setFailureCode(null); current.setAttempt(current.getAttempt() + 1);
             current.setUpdatedAt(Instant.now()); current.setRevision(current.getRevision() + 1);
@@ -442,6 +445,8 @@ public class ManagedDependencyLifecycleService {
         if (!token.equals(graph.getWorkerToken())) fail("DEPENDENCY_WORKER_FENCED");
         customerOfferGuard.requireActiveExecution(graph);
         var deployment = deployments.findById(graph.getDeploymentId()).orElseThrow(() -> conflict("DEPENDENCY_DEPLOYMENT_MISSING"));
+        com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment,
+            targets.findById(graph.getTargetProfileId()).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING")));
         if (!graph.getCustomerId().equals(deployment.getCustomerId()) || !graph.getTenantId().equals(deployment.getTenantId())
             || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_DRIFT");
         var reviewed = specs.findById(graph.getSpecRef()).orElseThrow(() -> conflict("REVIEWED_DEPENDENCY_SPEC_MISSING"));
@@ -610,6 +615,7 @@ public class ManagedDependencyLifecycleService {
             || deployment.getTenantId().isBlank() || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_REQUIRED");
         var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING"));
         if (!target.isActive()) fail("DEPENDENCY_TARGET_INACTIVE");
+        if (mutate) com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, target);
     }
 
     private void requireReleaseScope(String deploymentId, String targetProfileId, Request request) {
@@ -619,6 +625,7 @@ public class ManagedDependencyLifecycleService {
             || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_REQUIRED");
         var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING"));
         if (!target.isActive()) fail("DEPENDENCY_TARGET_INACTIVE");
+        com.ai.fabric.platform.backend.deployment.service.DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, target);
         var version = versions.findById(request.versionId()).orElseThrow(() -> conflict("DEPENDENCY_CANDIDATE_MISSING"));
         if (!deploymentId.equals(version.getDeploymentId())) fail("DEPENDENCY_CANDIDATE_MISMATCH");
         required(request.releaseId(), 64);

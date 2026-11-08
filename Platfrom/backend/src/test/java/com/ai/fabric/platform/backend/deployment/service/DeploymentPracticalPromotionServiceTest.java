@@ -47,6 +47,16 @@ import static org.mockito.Mockito.when;
 
 class DeploymentPracticalPromotionServiceTest {
 
+    @Test void developerPolicyDeniesProductionPromotionPlanBeforeAnyApply() {
+        TestFixture fixture = fixture(); var deployment = deployment(); deployment.restrictToStaging();
+        when(fixture.deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(fixture.deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+        assertThatThrownBy(() -> fixture.service.planPromotion(deployment.getId(),
+            new DeploymentPracticalPromotionRequest("consumer", 0L, "staging-release", "production", null, "plan")))
+            .hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        verifyNoInteractions(fixture.consumerRepository, fixture.releaseRepository);
+    }
+
     @Test
     void planPromotionRequiresVerifiedCustomerStagingRelease() {
         TestFixture fixture = fixture();

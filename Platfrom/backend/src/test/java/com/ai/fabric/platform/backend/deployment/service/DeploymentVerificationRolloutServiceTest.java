@@ -286,8 +286,10 @@ class DeploymentVerificationRolloutServiceTest {
                 false,
                 false,
                 false,
-                Instant.now()
-            );
+                Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        );
         });
 
         when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> {
@@ -1040,8 +1042,10 @@ class DeploymentVerificationRolloutServiceTest {
                 false,
                 false,
                 false,
-                Instant.now()
-            );
+                Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        );
         });
         when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
         when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
@@ -1160,8 +1164,10 @@ class DeploymentVerificationRolloutServiceTest {
                 false,
                 false,
                 false,
-                Instant.now()
-            );
+                Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        );
         });
         when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
         when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
@@ -1537,8 +1543,10 @@ class DeploymentVerificationRolloutServiceTest {
                 false,
                 false,
                 false,
-                Instant.now()
-            );
+                Instant.now(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
+        );
         });
         when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
         when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {

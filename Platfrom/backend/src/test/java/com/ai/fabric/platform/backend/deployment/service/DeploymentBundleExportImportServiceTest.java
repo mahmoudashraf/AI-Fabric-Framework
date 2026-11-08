@@ -609,10 +609,12 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(revisionCaptor.getValue().getId()).isNotEqualTo(sourceRevision.getId());
     }
 
-    @Test
-    void cloneImportCreatesFreshTenantWhenTargetTenantIsNotExplicit() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void cloneImportCreatesFreshTenantWhenTargetTenantIsNotExplicit(boolean developer) {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity sourceDeployment = deployment();
+        if (developer) sourceDeployment.restrictToStaging();
         DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
         PlatformSecretEntity secret = deploymentSecret("MANAGED_DEPLOYMENT_SECRET", "super-secret-value", sourceDeployment.getId());
         stubExportState(sourceDeployment, sourceDraft, secret);
@@ -624,7 +626,7 @@ class DeploymentBundleExportImportServiceTest {
         DeploymentEntity importedDeployment = deployment();
         importedDeployment.setId("dep-imported");
         importedDeployment.setName("Imported Deployment");
-        importedDeployment.setEnvironmentName("staging-import");
+        importedDeployment.setEnvironmentName("staging");
         importedDeployment.setTenantId("ten-imported");
         importedDeployment.setActiveDraftId("drf-imported");
         DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
@@ -644,7 +646,9 @@ class DeploymentBundleExportImportServiceTest {
             false,
             false,
             false,
-            importedDeployment.getCreatedAt()
+            importedDeployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
@@ -656,7 +660,7 @@ class DeploymentBundleExportImportServiceTest {
             ImportMode.CONFIG_ONLY_CLONE,
             null,
             "Imported Deployment",
-            "staging-import",
+            "staging",
             null,
             null,
             null,
@@ -665,6 +669,7 @@ class DeploymentBundleExportImportServiceTest {
         ));
 
         assertThat(result.deploymentId()).isEqualTo(importedDeployment.getId());
+        assertThat(importedDeployment.getEnvironmentPolicy()).isEqualTo(sourceDeployment.getEnvironmentPolicy());
         ArgumentCaptor<CreateDeploymentRequest> requestCaptor = ArgumentCaptor.forClass(CreateDeploymentRequest.class);
         verify(deploymentService).createDeployment(requestCaptor.capture());
         assertThat(requestCaptor.getValue().customerId()).isEqualTo(sourceDeployment.getCustomerId());
@@ -673,6 +678,22 @@ class DeploymentBundleExportImportServiceTest {
         verify(draftRepository).save(draftCaptor.capture());
         assertThat(draftCaptor.getValue().getEntityConfigContractVersion())
             .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V04);
+    }
+
+    @Test void editedBundleCannotRelaxKnownSourceOrExistingTargetPolicy() {
+        var source = deployment(); source.restrictToStaging();
+        when(deploymentRepository.findById(source.getId())).thenReturn(Optional.of(source));
+        var bundle = objectMapper.createObjectNode();
+        bundle.putObject("source").put("deploymentId", source.getId());
+        bundle.putObject("manifest").putObject("deployment").put("environmentPolicy", "UNRESTRICTED");
+        var target = deployment(); target.setId("copy");
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "inheritEnvironmentPolicy", target, bundle);
+        assertThat(target.getEnvironmentPolicy()).isEqualTo(com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY);
+        var normal = deployment(); normal.setId("normal-source");
+        when(deploymentRepository.findById(normal.getId())).thenReturn(Optional.of(normal));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.path("source")).put("deploymentId", normal.getId());
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "inheritEnvironmentPolicy", target, bundle);
+        assertThat(target.getEnvironmentPolicy()).isEqualTo(com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.STAGING_ONLY);
     }
 
     @Test
@@ -710,7 +731,9 @@ class DeploymentBundleExportImportServiceTest {
             false,
             false,
             false,
-            importedDeployment.getCreatedAt()
+            importedDeployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
@@ -802,7 +825,9 @@ class DeploymentBundleExportImportServiceTest {
             false,
             false,
             false,
-            importedDeployment.getCreatedAt()
+            importedDeployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
@@ -948,7 +973,9 @@ class DeploymentBundleExportImportServiceTest {
             false,
             false,
             false,
-            importedDeployment.getCreatedAt()
+            importedDeployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
@@ -1182,7 +1209,9 @@ class DeploymentBundleExportImportServiceTest {
             false,
             false,
             false,
-            importedDeployment.getCreatedAt()
+            importedDeployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(
+                com.ai.fabric.platform.backend.deployment.model.DeploymentEnvironmentPolicy.UNRESTRICTED)
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));

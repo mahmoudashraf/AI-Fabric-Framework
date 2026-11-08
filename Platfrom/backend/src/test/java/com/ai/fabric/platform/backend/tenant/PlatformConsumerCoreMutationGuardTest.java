@@ -34,10 +34,11 @@ class PlatformConsumerCoreMutationGuardTest {
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final DeploymentTargetMutationService mutations = mock(DeploymentTargetMutationService.class);
     private final PlatformCustomerAccessService access = mock(PlatformCustomerAccessService.class);
+    private final DeploymentTargetProfileRepository profiles = mock(DeploymentTargetProfileRepository.class);
     private final PlatformCustomerConsumerService service = new PlatformCustomerConsumerService(consumers, history,
         customers, deployments, releases, access, mock(PlatformAuditService.class), mock(AIWorkspaceBindingGuard.class),
         mock(AIWorkspaceInstallationRepository.class), mock(AIWorkspaceDeploymentSecurityProjectionService.class),
-        new ObjectMapper().findAndRegisterModules(), mutations, mock(DeploymentTargetProfileRepository.class),
+        new ObjectMapper().findAndRegisterModules(), mutations, profiles,
         mock(CustomerReviewedBindingBoundary.class));
     private final DeploymentEntity deployment = new DeploymentEntity();
     private final DeploymentReleaseEntity release = new DeploymentReleaseEntity();
@@ -67,6 +68,18 @@ class PlatformConsumerCoreMutationGuardTest {
         verify(consumers, never()).saveAndFlush(any());
         verify(history, never()).saveAndFlush(any());
         assertThat(consumer.getBindingRevision()).isZero();
+    }
+
+    @Test void developerProductionAssignmentIsRejectedEvenWithVerifiedReleaseAndTrustedPromotion() {
+        deployment.restrictToStaging();
+        var target = new com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity();
+        target.setEnvironmentName("production"); when(profiles.findById("target")).thenReturn(Optional.of(target));
+        assertThatThrownBy(() -> service.updateBinding("customer", "web", request)).hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        assertThatThrownBy(() -> service.updateBindingForTrustedPromotion("customer", "web", "deployment", "release", "target",
+            "Promote", 0L, "trusted-bind")).hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        verify(consumers, never()).saveAndFlush(any());
+        verify(history, never()).saveAndFlush(any());
+        verifyNoInteractions(mutations);
     }
 
     @Test void unverifiedOrWrongTargetReleaseIsDeniedBeforeMutationGuard() {

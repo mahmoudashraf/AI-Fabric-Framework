@@ -25,6 +25,15 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class ManagedDependencyLifecycleServiceTest {
+    @Test void directDependencyProvisionCannotAllocateProductionForDeveloperBrain() {
+        deployments.findById("dep-1").orElseThrow().restrictToStaging();
+        assertThatThrownBy(() -> lifecycle.provision("dep-1", "production", "developer-provision"))
+            .hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        assertThatThrownBy(() -> lifecycle.reconcile("dep-1", "production", "developer-reconcile"))
+            .hasMessageContaining("DEPLOYMENT_STAGING_ONLY");
+        assertThatCode(() -> lifecycle.requireScope("dep-1", "staging", true)).doesNotThrowAnyException();
+        verifyNoInteractions(provider, gate, productRepository);
+    }
     final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     final ManagedDependencyGraphRepository repository = mock(ManagedDependencyGraphRepository.class);
     final ManagedDependencySpecRepository specRepository = mock(ManagedDependencySpecRepository.class);

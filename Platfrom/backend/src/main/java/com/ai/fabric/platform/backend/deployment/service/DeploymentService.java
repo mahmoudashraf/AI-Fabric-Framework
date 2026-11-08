@@ -1740,6 +1740,7 @@ public class DeploymentService {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
         DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, targetProfile);
         if (!skipAccessCheck) {
             if (offerBoundary == null) throw new IllegalStateException("Reviewed offer authorization boundary is required.");
             var approved = offerBoundary.require(deployment, targetProfile.getId(), null,
@@ -2854,7 +2855,8 @@ public class DeploymentService {
             StringUtils.hasText(deployment.getConnectorBaseUrl()),
             deployment.isApprovalRequiredForApply(),
             deployment.isApprovalRequiredForDelete(),
-            deployment.getCreatedAt()
+            deployment.getCreatedAt(),
+            com.ai.fabric.platform.backend.deployment.model.DeploymentPolicySummary.from(deployment.getEnvironmentPolicy())
         );
     }
 
