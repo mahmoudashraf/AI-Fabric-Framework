@@ -26,24 +26,39 @@ const tasks = {
 export function BrainKnowledgePage() {
   const { brainId } = useBrainWorkspace()
   const location = useLocation()
-  if (location.pathname.split('/').slice(4).join('/') === 'search') return <Box sx={{ ...brainPaneSx, flex: 1 }}>
-    <BrainPageHeader title="Search settings" description="Configure the embedding model and vector storage used to find relevant knowledge." />
+  if (location.pathname.split('/').slice(4).join('/') === 'search') return <Box sx={{ minWidth: 0, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <BrainPageHeader title="Find the right knowledge" description="Choose your search service, embedding model and customer data boundary." />
     <BrainKnowledgeTabs view="search" />
     <ProvidersPage brainId={brainId} configurationOnly view="storage" />
   </Box>
   return <BrainKnowledgeSources />
 }
 
-function BrainKnowledgeTabs({ view }: { view: string }) {
+function BrainKnowledgeTabs({ view, counts }: { view: string; counts?: { all: number | null; documents: number | null; connections: number | null } }) {
   const { href } = useBrainWorkspace()
+  const label = (name: string, count: number | null | undefined) => <Stack component="span" direction="row" gap={0.75} alignItems="center">
+    <span>{name}</span>{counts && <Typography component="span" aria-hidden="true" sx={{ fontSize: 11, color: 'text.secondary', minWidth: 18, fontVariantNumeric: 'tabular-nums' }}>{count ?? '\u2014'}</Typography>}
+  </Stack>
   return <Tabs value={view} variant="scrollable" scrollButtons="auto" aria-label="Knowledge views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
-    <Tab component={RouterLink} to={href('knowledge')} value="" label="All sources" />
-    <Tab component={RouterLink} to={href('knowledge/documents')} value="documents" label="Documents" />
-    <Tab component={RouterLink} to={href('knowledge/connections')} value="connections" label="Live data" />
+    <Tab component={RouterLink} to={href('knowledge')} value="" aria-label="All sources" label={label('All sources', counts?.all)} />
+    <Tab component={RouterLink} to={href('knowledge/documents')} value="documents" aria-label="Documents" label={label('Documents', counts?.documents)} />
+    <Tab component={RouterLink} to={href('knowledge/connections')} value="connections" aria-label="Live data" label={label('Live data', counts?.connections)} />
     <Tab component={RouterLink} to={href('knowledge/storage')} value="storage" label="Storage & uploads" />
     <Tab component={RouterLink} to={href('knowledge/search')} value="search" label="Search settings" />
   </Tabs>
 }
+
+const sourceViews = {
+  all: { title: 'Your AI knowledge', description: 'Documents and live information available in this environment.', find: 'Find a source',
+    empty: 'No knowledge sources yet', detail: 'Bring your knowledge into the conversation',
+    guidance: 'Upload approved documents or connect a live system. Select a source to inspect its indexing or sync status.' },
+  documents: { title: 'Documents for your AI', description: 'Review guides, policies, indexing status and active versions in this environment.', find: 'Find a document',
+    empty: 'No document sources yet', detail: 'Give your AI approved guides and policies',
+    guidance: 'Upload files or discover documents in connected storage, then preview and approve them for indexing. Uploading a file alone does not make it searchable.' },
+  connections: { title: 'Live information for your AI', description: 'Monitor connected systems and keep their indexed information current.', find: 'Find a live source',
+    empty: 'No live data sources yet', detail: 'Keep your AI connected to current information',
+    guidance: 'Connect a data capability to sync an approved system. Select a live source to inspect freshness, sync activity and inbound events.' },
+} as const
 
 function BrainKnowledgeSources() {
   const { target, release, targetProfileId, href } = useBrainWorkspace()
@@ -67,6 +82,10 @@ function BrainKnowledgeSources() {
     queryFn: () => fetchDocumentSources(target!), enabled: Boolean(target && context.data?.documentDatasetIds.length), retry: false })
   const integrations = useQuery({ queryKey: ['deployment-integrations', target?.deploymentId, target?.targetProfileId, target?.releaseId],
     queryFn: () => fetchDeploymentIntegrations(target!), enabled: Boolean(target && context.data?.externalIntegrationConfigured), retry: false })
+  const documentCount = !target || !context.isSuccess ? null : !context.data.documentDatasetIds.length ? 0 : documents.isSuccess && !documents.isError ? documents.data.length : null
+  const connectionCount = !target || !context.isSuccess ? null : !context.data.externalIntegrationConfigured ? 0 : integrations.isSuccess && !integrations.isError ? integrations.data.sources.length : null
+  const counts = { documents: documentCount, connections: connectionCount, all: documentCount === null || connectionCount === null ? null : documentCount + connectionCount }
+  const presentation = sourceViews[view === 'documents' || view === 'connections' ? view : 'all']
   const rows = [
     ...(documents.data ?? []).map(item => ({ id: item.sourceId, label: item.displayName, kind: 'Document',
       status: item.status, updated: item.updatedAt, error: item.failureMessage,
@@ -77,7 +96,9 @@ function BrainKnowledgeSources() {
   ].filter(item => (view !== 'documents' || item.kind === 'Document') && (view !== 'connections' || item.kind === 'Live data'))
   const visible = rows.filter(item => `${item.label} ${item.kind}`.toLowerCase().includes(search.toLowerCase()))
   const selected = rows.find(item => item.id === sourceId && item.kind === (task === 'connections' ? 'Live data' : 'Document'))
-  const error = context.error ?? documents.error ?? integrations.error
+  const error = context.error ?? (view === 'connections' ? integrations.error : view === 'documents' ? documents.error : documents.error ?? integrations.error)
+  const count = view === 'documents' ? counts.documents : view === 'connections' ? counts.connections : counts.all
+  const loading = Boolean(target) && (context.isPending || !context.isError && count === null && !error)
   const sourceQueryReady = task === 'connections' ? integrations.isSuccess || context.isSuccess && !context.data.externalIntegrationConfigured
     : documents.isSuccess || context.isSuccess && !context.data.documentDatasetIds.length
   const taskPage = Object.prototype.hasOwnProperty.call(tasks, task)
@@ -87,17 +108,23 @@ function BrainKnowledgeSources() {
 
   if (invalidPath || task && !['documents', 'sources', 'connections'].includes(task) && !taskPage) return <Alert severity="warning">This knowledge page is not available. <Button component={RouterLink} to={href('knowledge')}>Open knowledge</Button></Alert>
   return <>
-    <BrainPageHeader stackOnMobile title="What your AI knows" description="Keep answers grounded in your documents and live information."
-      action={<Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end"><Button component={RouterLink} to={sourcePath + '?' + sourceParams} startIcon={<AddRounded />} variant="outlined">Connect a source</Button>
-        <Button component={RouterLink} to={href('knowledge/storage')} startIcon={<CloudUploadOutlined />} variant="contained">Upload documents</Button></Stack>} />
-    <BrainKnowledgeTabs view={view} />
+    <BrainPageHeader stackOnMobile title={presentation.title} description={presentation.description}
+      action={<Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
+        {view !== 'documents' && <Button component={RouterLink} to={sourcePath + '?' + sourceParams} startIcon={<AddRounded />} variant={view === 'connections' ? 'contained' : 'outlined'}>Connect live data</Button>}
+        {view !== 'connections' && <Button component={RouterLink} to={href('knowledge/storage')} startIcon={<CloudUploadOutlined />} variant="contained">Upload documents</Button>}
+      </Stack>} />
+    <BrainKnowledgeTabs view={view} counts={counts} />
     {error && <Alert severity="error" sx={{ mb: 1 }}>{error.message}</Alert>}
     {!target && !taskPage && <Alert severity="info" sx={{ mb: 2 }}>No applied release is available here. You can prepare storage and capabilities before publishing a version. <Button component={RouterLink} to={href('updates')}>Review setup</Button></Alert>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
       {(!compact || !hasDetail) && !taskPage && <Box sx={{ width: { lg: 330 }, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <TextField size="small" label="Find a source" value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 1.5 }} />
-        {target && context.isPending && <CircularProgress size={24} aria-label="Loading knowledge" />}
-        {context.isSuccess && !visible.length && !documents.isFetching && !integrations.isFetching && <Alert severity="info">No sources match this view. Upload documents or connect an approved source.</Alert>}
+        <TextField size="small" label={presentation.find} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 1.5 }} />
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>{count === null ? target ? 'Source count unavailable until loaded' : 'No applied source inventory' : `${count} ${view === 'documents' ? 'document' : view === 'connections' ? 'live data' : 'knowledge'} ${count === 1 ? 'source' : 'sources'}${search ? ` / ${visible.length} matching` : ''}`}</Typography>
+        {loading && <CircularProgress size={24} aria-label="Loading knowledge" />}
+        {!loading && !error && target && !visible.length && <Box sx={{ py: 2 }}>
+          <Typography variant="body2" fontWeight={600}>{search ? 'No matching sources' : presentation.empty}</Typography>
+          {search && <Button size="small" onClick={() => setSearch('')} sx={{ mt: 0.5 }}>Clear search</Button>}
+        </Box>}
         <List disablePadding sx={{ ...brainPaneSx, flex: 1 }} aria-label="Knowledge sources">
           {visible.slice(safePage * 7, safePage * 7 + 7).map(row => <ListItemButton key={row.kind + ':' + row.id} component={RouterLink} to={href(row.path)} selected={selected?.path === row.path}
             sx={{ py: 1.5, px: 1.25, borderBottom: 1, borderColor: 'divider', gap: 1.25, alignItems: 'flex-start' }}>
@@ -109,7 +136,8 @@ function BrainKnowledgeSources() {
             </Stack>} primaryTypographyProps={{ fontSize: 13, fontWeight: 600, sx: { overflowWrap: 'anywhere' } }} secondaryTypographyProps={{ component: 'span' }} />
           </ListItemButton>)}
         </List>
-        <TablePagination component="div" count={visible.length} page={safePage} rowsPerPage={7} rowsPerPageOptions={[7]} onPageChange={(_, value) => setPage(value)} />
+        {visible.length > 0 && <TablePagination component="div" count={visible.length} page={safePage} rowsPerPage={7} rowsPerPageOptions={[7]}
+          labelDisplayedRows={count === null ? ({ from, to }) => `${from}-${to} loaded` : undefined} onPageChange={(_, value) => setPage(value)} />}
       </Box>}
       <Box component="section" aria-label="Knowledge details" sx={{ ...brainPaneSx, flex: 1, pb: 9, borderLeft: { lg: !taskPage ? 1 : 0 }, borderColor: 'divider', pl: { lg: !taskPage ? 3 : 0 } }}>
         {compact && sourceId && <Button component={RouterLink} to={href(backPath)} startIcon={<ArrowBackRounded />} sx={{ mb: 2 }}>Back to sources</Button>}
@@ -124,11 +152,12 @@ function BrainKnowledgeSources() {
             ? <BrainLiveSourceDetail key={sourceId} sourceId={sourceId} releaseId={release.id} />
             : <DocumentKnowledgePage key={sourceId} initialReleaseId={release.id} initialTargetProfileId={targetProfileId} initialSourceId={sourceId} lockReleaseSelection workspaceView="source" />
           : sourceId && target && !sourceQueryReady ? <CircularProgress size={24} aria-label="Loading source" /> : <Stack spacing={2} sx={{ maxWidth: 540, pt: 2 }}>
-            <Typography component="h2" fontSize={20} fontWeight={600}>Your knowledge, kept current</Typography>
-            <Typography variant="body2" color="text.secondary">Select a source to inspect its status, preview documents or sync live information. Source files remain in your storage.</Typography>
-            <Stack direction="row" gap={1} flexWrap="wrap"><Button component={RouterLink} to={href('knowledge/discover')} startIcon={<DescriptionOutlined />}>Add stored documents</Button>
+            <Typography component="h2" fontSize={20} fontWeight={600}>{presentation.detail}</Typography>
+            <Typography variant="body2" color="text.secondary">{presentation.guidance}</Typography>
+            <Stack direction="row" gap={1} flexWrap="wrap">
+              {view !== 'connections' && <Button component={RouterLink} to={href('knowledge/discover')} startIcon={<DescriptionOutlined />}>Add stored documents</Button>}
               <Button component={RouterLink} to={href('knowledge/proof')} startIcon={<FactCheckOutlined />}>Check active evidence</Button></Stack>
-            <Button component={RouterLink} to={href('knowledge/retention')} sx={{ alignSelf: 'flex-start' }}>Indexing retention settings</Button>
+            {view !== 'connections' && <Button component={RouterLink} to={href('knowledge/retention')} sx={{ alignSelf: 'flex-start' }}>Indexing retention settings</Button>}
           </Stack>}
       </Box>
     </Box>

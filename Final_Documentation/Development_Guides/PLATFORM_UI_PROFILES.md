@@ -20,6 +20,14 @@ Old `/settings/...` URLs are redirects only. Reuse the existing provider/action
 editors and draft-save contracts; never mount a second copy to add an entry point.
 See `verification-support/brain-settings-navigation/README.md`.
 
+Knowledge's All sources / Documents / Live data tabs are filtered views, not
+parallel editors. Keep their source counts and empty-state wording specific;
+unknown or failed reads are not zero. Search settings uses four focused tasks
+over the same provider buffer: service, embeddings, connection and customer
+separation. Keep file uploads separate, retain connection inputs across these
+tasks and do not display provider defaults as a loaded customer configuration.
+See `verification-support/knowledge-source-experience/README.md`.
+
 The separately approved account follow-up uses `/account/profile`,
 `/account/team`, `/account/loomai-access` and `/account/security` in a single
 resource workspace. Customer `/users` redirects there; staff `/users` remains

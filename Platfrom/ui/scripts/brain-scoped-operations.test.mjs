@@ -49,7 +49,7 @@ test('legacy task without a Brain asks explicitly, never uses a remembered custo
 
 test('Knowledge reuses one document controller and explicitly excludes handover queries from live data', async () => {
   const knowledge = await read('../src/brain/BrainKnowledgePage.tsx')
-  for (const label of ['All sources', 'Documents', 'Live data', 'Storage & uploads']) assert.ok(knowledge.includes(`label="${label}"`))
+  for (const label of ['All sources', 'Documents', 'Live data', 'Storage & uploads']) assert.ok(knowledge.includes(`label="${label}"`) || knowledge.includes(`aria-label="${label}"`))
   assert.match(knowledge, /initialSourceId=\{sourceId\} dataOnly lockReleaseSelection workspaceView/)
   assert.match(knowledge, /workspaceView="source"/)
   const integrations = await read('../src/pages/IntegrationsPage.tsx')

@@ -323,11 +323,19 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
 
     await t.test('storage edits are focused and persist embedding/vector changes', async () => {
       await page.goto(url('storage'))
+      await waitField('Search engine')
+      assert.equal(await page.getByLabel('Embedding provider', { exact: true }).count(), 0)
+      await page.getByRole('button', { name: 'Embedding model', exact: true }).click()
       await waitField('Embedding provider')
       assert.equal(await page.getByLabel('LLM provider', { exact: true }).count(), 0)
       assert.equal(await page.getByLabel('Orchestration model override', { exact: true }).count(), 0)
       await page.getByLabel('OpenAI embedding model', { exact: true }).fill('new-embedding')
+      await page.getByRole('button', { name: 'Service connection', exact: true }).click()
       await page.getByLabel('Qdrant host', { exact: true }).fill('https://new-vector.example.test')
+      await page.getByRole('button', { name: 'Customer separation', exact: true }).click()
+      await waitField('Data isolation')
+      await page.getByRole('button', { name: 'Embedding model', exact: true }).click()
+      assert.equal(await page.getByLabel('OpenAI embedding model', { exact: true }).inputValue(), 'new-embedding')
       await save()
       const config = await page.evaluate(() => window.__settingsTest.writes[0].payload.providerConfig)
       assert.deepEqual(config, { ...providerConfig, openaiEmbeddingModel: 'new-embedding', qdrantHost: 'https://new-vector.example.test' })
@@ -336,8 +344,12 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
         await save()
       }
       for (const strategy of ['Pinecone', 'Weaviate', 'Milvus', 'Lucene', 'Memory', 'Qdrant']) {
-        await choose('Vector strategy', strategy)
+        await page.getByRole('button', { name: 'Search service', exact: true }).click()
+        await choose('Search engine', strategy)
         await save()
+        await page.getByRole('button', { name: 'Service connection', exact: true }).click()
+        if (['Lucene', 'Memory'].includes(strategy)) await page.getByRole('alert').filter({ hasText: 'no external service endpoint' }).waitFor()
+        else await waitField(strategy === 'Pinecone' ? 'Pinecone index' : `${strategy} host`)
       }
     })
 
@@ -381,6 +393,12 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
       await page.goto(url('models', '&draftError=1'))
       await page.getByRole('alert').filter({ hasText: 'Draft unavailable' }).waitFor()
       assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
+      await page.goto(url('storage', '&draftError=1'))
+      await page.getByRole('alert').filter({ hasText: 'Draft unavailable' }).waitFor()
+      assert.equal(await page.getByText('Draft search:', { exact: false }).count(), 0)
+      await page.getByRole('button', { name: 'Service connection', exact: true }).click()
+      assert.equal(await page.getByText('no external service endpoint', { exact: false }).count(), 0)
+      assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
     })
 
     await t.test('light/dark desktop and mobile stay within the viewport', async () => {
@@ -391,7 +409,7 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
           await page.goto(url(section, `&mode=${mode}`))
           await page.getByRole('heading', { level: 1 }).waitFor()
           if (section === 'models') await waitField('LLM provider')
-          if (section === 'storage') await waitField('Embedding provider')
+          if (section === 'storage') await waitField('Search engine')
           if (section === 'technical-files') await waitField('Runtime profile')
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${section} ${mode} ${width}`)
           if (width !== 320 && ['models', 'storage', 'technical-files'].includes(section)) {

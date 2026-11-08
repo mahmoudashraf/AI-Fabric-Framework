@@ -10,7 +10,7 @@ import { chromium } from 'playwright'
 // Real shell, route adapters and provider editors; all API operations stay in memory.
 const root = fileURLToPath(new URL('../', import.meta.url))
 const cache = await mkdtemp(path.join(tmpdir(), 'brain-settings-navigation-'))
-const output = fileURLToPath(new URL('../../../verification-support/brain-settings-navigation/local/', import.meta.url))
+const output = process.env.BRAIN_SETTINGS_EVIDENCE_DIR ?? fileURLToPath(new URL('../../../verification-support/brain-settings-navigation/local/', import.meta.url))
 const fixture = `
 const copy = value => structuredClone(value);
 const readonly = new URLSearchParams(location.search).has('readonly');
@@ -46,7 +46,7 @@ const stubs = {
   '../components/customer/CustomerSupportAssistant': 'export const CustomerSupportAssistant=()=>null;',
   '../components/customer/SupportResourceDialog': 'export const SupportResourceDialog=()=>null;',
   '../components/DeploymentProviderOperationsPanel': 'export const DeploymentProviderOperationsPanel=()=>{throw Error("Staff operations mounted")};',
-  '../components/customer/CustomerExistingVectorBinding': 'export const CustomerExistingVectorBinding=()=> <section aria-label="Existing vector binding">Existing vector binding</section>;',
+  '../components/customer/CustomerExistingVectorBinding': 'export const CustomerExistingVectorBinding=()=> <section aria-label="Existing vector binding">Existing vector binding<input aria-label="Binding draft"/></section>;',
   '../workspace/useDeploymentWorkspaceEditorState': 'export function useDeploymentWorkspaceEditorState(){throw Error("Legacy footer mounted")}',
   '../pages/DocumentKnowledgePage': 'export const DocumentKnowledgePage=()=> <section aria-label="Document controller">Document operations</section>;',
   '../pages/IntegrationsPage': 'export const IntegrationsPage=()=>null;',
@@ -136,10 +136,23 @@ try {
   await page.getByRole('button',{name:'Save draft',exact:true}).click()
   await page.waitForFunction(()=>window.fixture.calls.some(call=>call.type==='save'))
   assert.deepEqual(await page.evaluate(()=>window.fixture.calls.find(call=>call.type==='save').payload.providerConfig.customExtension),{keep:true})
-  await page.goto(url('knowledge/search'));await page.getByLabel('Embedding provider',{exact:true}).waitFor();checkScope()
+  await page.goto(url('knowledge/search'));await page.getByLabel('Search engine',{exact:true}).waitFor();checkScope()
+  await page.screenshot({path:path.join(output,'search-service-dark-1280.png')})
+  assert.equal(await page.getByLabel('Embedding provider',{exact:true}).count(),0)
+  assert.equal(await page.getByRole('region',{name:'Existing vector binding'}).count(),0)
+  await page.getByRole('button',{name:'Embedding model',exact:true}).click();await page.getByLabel('Embedding provider',{exact:true}).waitFor()
+  await page.screenshot({path:path.join(output,'embedding-dark-1280.png')})
+  await page.getByRole('button',{name:'Service connection',exact:true}).click()
   assert.equal(await page.getByRole('region',{name:'Existing vector binding'}).count(),1)
+  await page.getByLabel('Binding draft',{exact:true}).fill('unsaved-binding-input')
+  await page.screenshot({path:path.join(output,'connection-dark-1280.png')})
   assert.equal(await page.getByRole('region',{name:'Document controller'}).count(),0)
   assert.equal(await page.evaluate(()=>window.fixture.calls.length),0,'Search settings do not fetch live sources or mutate anything')
+  await page.getByRole('button',{name:'Customer separation',exact:true}).click();await page.getByLabel('Data isolation',{exact:true}).waitFor()
+  await page.screenshot({path:path.join(output,'isolation-dark-1280.png')})
+  assert.equal(await page.getByLabel('Search engine',{exact:true}).count(),0)
+  await page.getByRole('button',{name:'Service connection',exact:true}).click()
+  assert.equal(await page.getByLabel('Binding draft',{exact:true}).inputValue(),'unsaved-binding-input','Switching sections preserves the single binding editor')
   await page.getByRole('tab',{name:'Storage & uploads',exact:true}).click();await page.getByRole('region',{name:'Document controller'}).waitFor()
   assert.equal(await page.getByLabel('Embedding provider',{exact:true}).count(),0)
   await page.goto(url('settings/delivery'));await page.getByText('Action panel: webhooks',{exact:true}).waitFor();checkScope()
@@ -155,6 +168,17 @@ try {
   await advanced().click();await page.getByLabel('Runtime profile',{exact:true}).waitFor()
   await page.screenshot({path:path.join(output,'advanced-light-1280.png')})
   assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight+2),false)
+  await page.goto(url('knowledge/search'));await page.getByLabel('Search engine',{exact:true}).waitFor()
+  for(const section of ['Search service','Embedding model','Service connection','Customer separation']) {
+    await page.getByRole('button',{name:section,exact:true}).click()
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight+2),false,'Search setup stays inside the workspace')
+    await page.screenshot({path:path.join(output,`search-${section.replaceAll(' ','-').toLowerCase()}-light-1280.png`)})
+  }
+  await page.setViewportSize({width:390,height:844})
+  await page.getByRole('button',{name:'Embedding model',exact:true}).click();await page.getByLabel('Embedding provider',{exact:true}).waitFor()
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  await page.screenshot({path:path.join(output,'search-embedding-light-390.png'),fullPage:true})
+  await page.goto(url('advanced/runtime'));await page.getByLabel('Runtime profile',{exact:true}).waitFor()
   await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Open Smart Brain navigation'}).click()
   await advanced().waitFor();await nav().getByRole('link',{name:'Provider parameters',exact:true}).click()
   await page.getByLabel('OpenAI base URL',{exact:true}).waitFor()

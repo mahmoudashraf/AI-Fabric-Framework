@@ -200,3 +200,19 @@ staging and production. UI-only CI passed. 129 focused checks, the full-shell
 settings browser and existing Knowledge/capabilities journeys passed. Hosted
 navigation/themes/basic mobile passed without customer configuration changes.
 Evidence: `verification-support/brain-settings-navigation/README.md`.
+
+## Approved Knowledge Clarity Follow-Up - 8 November 2026
+
+The owner requested source counts, view-specific empty states and clearer
+selected-view wording, plus focused Search settings. All sources, Documents and
+Live data remain filters over the same controllers. Counts are loaded source
+records, not vector/record totals; unavailable reads never become zero sources.
+Relevant titles/actions and search clearing distinguish the three views.
+
+Search settings now exposes Search service, Embedding model, Service connection
+and Customer separation in a bounded resource task layout. It reuses all existing
+provider fields and one save buffer. Connection inputs stay mounted across task
+switches; unknown settings survive focused saves. No default configuration is
+presented as loaded customer state after an initial read failure.
+
+Verification and rollout status: `verification-support/knowledge-source-experience/README.md`.

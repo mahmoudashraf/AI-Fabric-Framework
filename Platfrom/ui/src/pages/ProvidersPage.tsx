@@ -14,6 +14,8 @@ import {
   Grid,
   List,
   ListItem,
+  ListItemButton,
+  ListItemIcon,
   ListItemText,
   MenuItem,
   Stack,
@@ -22,6 +24,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import StorageOutlined from '@mui/icons-material/StorageOutlined'
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
+import CableOutlined from '@mui/icons-material/CableOutlined'
+import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -1676,6 +1682,14 @@ function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary):
 
 export type ProviderSettingsView = 'all' | 'models' | 'storage' | 'technical-files'
 export type ProviderTechnicalSection = 'wiring' | 'providers' | 'recovery' | 'readiness' | 'json'
+const searchSetupTasks = [
+  { id: 'engine', label: 'Search service', title: 'Where your knowledge is searched', description: 'Choose the vector search engine and how it is hosted.', Icon: StorageOutlined },
+  { id: 'embedding', label: 'Embedding model', title: 'Match questions to relevant knowledge', description: 'Choose the model used to represent your content for semantic search.', Icon: AutoAwesomeOutlined },
+  { id: 'connection', label: 'Service connection', title: 'Connect your search service', description: 'Configure the selected vector service. Document-file storage stays under Storage & uploads.', Icon: CableOutlined },
+  { id: 'isolation', label: 'Customer separation', title: 'Keep customer knowledge separate', description: 'Review the customer boundary and the storage scope used by this Smart Brain.', Icon: ShieldOutlined },
+] as const
+const searchEngineLabels: Record<string, string> = { lucene: 'Lucene', memory: 'Memory', qdrant: 'Qdrant', pinecone: 'Pinecone', weaviate: 'Weaviate', milvus: 'Milvus' }
+const embeddingProviderLabels: Record<string, string> = { openai: 'OpenAI', azure: 'Azure OpenAI', cohere: 'Cohere', gemini: 'Gemini', onnx: 'ONNX' }
 type ProvidersPageProps = { configurationOnly?: boolean; brainId?: string; view?: ProviderSettingsView; technicalSection?: ProviderTechnicalSection }
 
 export function ProvidersPage({ configurationOnly = false, brainId, view = 'all', technicalSection }: ProvidersPageProps) {
@@ -1720,18 +1734,25 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   const [localTechnicalView, setTechnicalView] = useState('wiring')
   const technicalView = technicalSection ?? localTechnicalView
   const [modelView, setModelView] = useState('models')
+  const [storageView, setStorageView] = useState<(typeof searchSetupTasks)[number]['id']>('engine')
+  const focusedSearch = scoped && view === 'storage'
+  const searchTask = searchSetupTasks.find(item => item.id === storageView)!
   const showModels = view === 'all' || (view === 'models' && modelView === 'models')
   const showModelRouting = view === 'all' || (view === 'models' && modelView === 'routing')
   const showStorage = view === 'all' || view === 'storage'
+  const showSearchEngine = showStorage && (!focusedSearch || storageView === 'engine')
+  const showSearchEmbedding = showStorage && (!focusedSearch || storageView === 'embedding')
+  const showVectorConnection = showStorage && (!focusedSearch || storageView === 'connection')
+  const showSearchIsolation = showStorage && (!focusedSearch || storageView === 'isolation')
   const showWiring = view === 'all' || (view === 'technical-files' && technicalView === 'wiring')
   const showRecovery = view === 'all' || (view === 'technical-files' && technicalView === 'recovery')
   const showReadiness = view === 'all' || (view === 'technical-files' && technicalView === 'readiness')
   const showProviderDetails = view === 'technical-files' && technicalView === 'providers'
   const showRaw = view === 'technical-files' && technicalView === 'json'
   const showLlmConfiguration = showModels || showProviderDetails
-  const showEmbeddingConfiguration = showStorage || showProviderDetails
+  const showEmbeddingConfiguration = showSearchEmbedding || showProviderDetails
   const showProviderParameters = view === 'all' || showProviderDetails
-  const showProviderConnections = showProviderParameters || showStorage
+  const showProviderConnections = showProviderParameters || showSearchEmbedding
   const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
@@ -1938,6 +1959,17 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   }
 
   return (
+    <Box data-search-configuration={focusedSearch || undefined} sx={focusedSearch ? { flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: { xs: 2, lg: 3 } } : undefined}>
+    {focusedSearch && <Box component="aside" sx={{ width: { lg: 200 }, flexShrink: 0, minWidth: 0, borderRight: { lg: 1 }, borderBottom: { xs: 1, lg: 0 }, borderColor: 'divider', pr: { lg: 2 } }}>
+      <List disablePadding aria-label="Search setup tasks" sx={{ display: { xs: 'flex', lg: 'block' }, overflowX: 'auto', maxWidth: '100%', pb: { xs: 1, lg: 0 } }}>
+        {searchSetupTasks.map(({ id, label, Icon }) => <ListItemButton key={id} selected={id === storageView} aria-pressed={id === storageView}
+          onClick={() => setStorageView(id)} sx={{ minWidth: { xs: 140, lg: 0 }, minHeight: 57, px: 1.25, borderRadius: 1, alignItems: 'flex-start' }}>
+          <ListItemIcon sx={{ minWidth: 28, mt: 0.5, color: id === storageView ? 'primary.main' : 'text.secondary' }}><Icon fontSize="small" /></ListItemIcon>
+          <ListItemText primary={label} primaryTypographyProps={{ fontSize: 13, fontWeight: id === storageView ? 650 : 500 }} />
+        </ListItemButton>)}
+      </List>
+    </Box>}
+    <Box data-search-pane={focusedSearch || undefined} sx={focusedSearch ? { flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', overscrollBehavior: 'contain', pb: 2 } : undefined}>
     <ConfigurationSurface><Stack spacing={3} sx={scoped ? {
       '& .MuiCard-root': { border: 0, borderRadius: 0, boxShadow: 'none', background: 'none' },
       '& .MuiCardContent-root': { p: '0 !important', overflow: 'visible' },
@@ -1954,7 +1986,24 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
         </Typography>
       </Box> : null}
 
-      {showStorage ? <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} targetProfileId={brainWorkspace?.targetProfileId} /> : null}
+      {focusedSearch && <Box>
+        <Typography component="h2" fontSize={20} fontWeight={650}>{searchTask.title}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{searchTask.description}</Typography>
+        {loadedDraft ? <Stack direction="row" gap={2} flexWrap="wrap" sx={{ mt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary">Draft search: {searchEngineLabels[formState.vectorStrategy] ?? formState.vectorStrategy}</Typography>
+          <Typography variant="caption" color="text.secondary">Embeddings: {embeddingProviderLabels[formState.embeddingProvider] ?? formState.embeddingProvider}</Typography>
+          <Typography variant="caption" color="text.secondary">Scope: {formState.vectorStoragePosture === 'SHARED' ? 'Shared, customer-scoped' : formState.vectorStoragePosture === 'DEDICATED' ? 'Dedicated' : formState.vectorStoragePosture}</Typography>
+        </Stack> : <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+          {draftQuery.isError ? 'Saved search settings could not be loaded.' : 'Loading saved search settings...'}
+        </Typography>}
+      </Box>}
+      {showStorage ? <Box hidden={focusedSearch && !showVectorConnection}>
+        <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} targetProfileId={brainWorkspace?.targetProfileId} />
+      </Box> : null}
+      {focusedSearch && loadedDraft && showVectorConnection && ['lucene', 'memory'].includes(formState.vectorStrategy) && <Alert severity="info">
+        This search engine runs inside the AI runtime and has no external service endpoint.
+        Choose an external engine under Search service when you need a separate vector database.
+      </Alert>}
 
       {!scoped ? <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
@@ -2311,7 +2360,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                     </Alert>
                   ) : loadedDraft ? (
                     <>
-                      {showStorage && secretUsageQuery.isSuccess && providerSetupGuides.length > 0 ? (
+                      {showVectorConnection && secretUsageQuery.isSuccess && providerSetupGuides.length > 0 ? (
                         <ConfigurationDetails label="Provider setup">
                         <Stack spacing={1.25}>
                           {providerSetupGuides.map((guide) => (
@@ -2353,7 +2402,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           </TextField>
                         </Grid>
                         </> : null}
-                        {showStorage ? <>
+                        {showSearchEmbedding ? <>
                         <Grid item xs={12} md={6}>
                           <TextField disabled={!canEdit || saveMutation.isPending}
                             select
@@ -2370,11 +2419,13 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                             <MenuItem value="onnx">ONNX</MenuItem>
                           </TextField>
                         </Grid>
+                        </> : null}
+                        {showSearchEngine ? <>
                         <Grid item xs={12} md={6}>
                           <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
-                            label="Vector strategy"
+                            label={focusedSearch ? 'Search engine' : 'Vector strategy'}
                             value={formState.vectorStrategy}
                             onChange={(event) => handleFieldChange('vectorStrategy', event.target.value)}
                             helperText="Choose local Lucene/Memory or an external managed vector backend."
@@ -2391,7 +2442,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
-                            label="Vector provisioning mode"
+                            label={focusedSearch ? 'Hosting' : 'Vector provisioning mode'}
                             value={formState.vectorProvisioningMode}
                             onChange={(event) => handleFieldChange('vectorProvisioningMode', event.target.value)}
                             helperText={provisioningModeGuidance(formState.vectorStrategy, formState.vectorProvisioningMode)}
@@ -2408,11 +2459,13 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                             {provisioningCapabilityMessage(formState.vectorStrategy).message}
                           </Alert>
                         </Grid>
+                        </> : null}
+                        {showSearchIsolation ? <>
                         <Grid item xs={12} md={6}>
                           <TextField disabled={!canEdit || saveMutation.isPending}
                             select
                             fullWidth
-                            label="Vector storage posture"
+                            label={focusedSearch ? 'Data isolation' : 'Vector storage posture'}
                             value={formState.vectorStoragePosture}
                             onChange={(event) => handleFieldChange('vectorStoragePosture', event.target.value)}
                             helperText={vectorStoragePostureGuidance(
@@ -2431,7 +2484,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                         <Grid item xs={12} md={6}>
                           <TextField disabled={!canEdit || saveMutation.isPending}
                             fullWidth
-                            label="Tenant binding"
+                            label={focusedSearch ? 'Customer workspace' : 'Tenant binding'}
                             value={selectedDeploymentSummary?.binding
                               ? `${selectedDeploymentSummary.binding.customerName} / ${selectedDeploymentSummary.binding.tenantName}`
                               : 'No tenant binding'}
@@ -3101,7 +3154,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           </>
                         ) : null}
 
-                        {showStorage && formState.vectorStrategy === 'qdrant' ? (
+                        {showVectorConnection && formState.vectorStrategy === 'qdrant' ? (
                           <>
                             {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
                               <>
@@ -3242,7 +3295,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           </>
                         ) : null}
 
-                        {showStorage && formState.vectorStrategy === 'pinecone' ? (
+                        {showVectorConnection && formState.vectorStrategy === 'pinecone' ? (
                           <>
                             <Grid item xs={12} md={6}>
                               <TextField disabled={!canEdit || saveMutation.isPending}
@@ -3366,7 +3419,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           </>
                         ) : null}
 
-                        {showStorage && formState.vectorStrategy === 'weaviate' ? (
+                        {showVectorConnection && formState.vectorStrategy === 'weaviate' ? (
                           <>
                             <Grid item xs={12}>
                               <Alert severity="info">
@@ -3459,7 +3512,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           </>
                         ) : null}
 
-                        {showStorage && formState.vectorStrategy === 'milvus' ? (
+                        {showVectorConnection && formState.vectorStrategy === 'milvus' ? (
                           <>
                             <Grid item xs={12}>
                               <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
@@ -3702,5 +3755,6 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
         </Grid>
       ) : null}
     </Stack></ConfigurationSurface>
+    </Box></Box>
   )
 }
