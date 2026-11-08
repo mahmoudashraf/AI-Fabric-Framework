@@ -19,7 +19,7 @@ test('resource identity lives in the path and preserves an exact target', () => 
 })
 
 test('all outcome sections share one route hierarchy', () => {
-  assert.deepEqual(brainSections.map(item => item.path), ['', 'knowledge', 'capabilities', 'responses', 'channels', 'human-support', 'try', 'updates', 'settings'])
+  assert.deepEqual(brainSections.map(item => item.path), ['', 'knowledge', 'capabilities', 'responses', 'channels', 'human-support', 'action-reviews', 'try', 'updates', 'settings'])
   assert.equal(new Set(brainSections.map(item => item.path)).size, brainSections.length)
   assert.equal(legacyBrainSections['/plugins'], 'capabilities')
   assert.equal(legacyBrainSections['/prompts'], 'responses')

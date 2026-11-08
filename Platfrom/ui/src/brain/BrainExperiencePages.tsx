@@ -65,11 +65,17 @@ export function BrainHumanSupportPage() {
   const { target, release, href } = useBrainWorkspace()
   const [deskBusy, setDeskBusy] = useState(false)
   const [channelBusy, setChannelBusy] = useState(false)
+  const [readyRelease, setReadyRelease] = useState('')
+  const [supportPath, supportSearch] = href('human-support').split('?')
+  const supportQuery = new URLSearchParams(supportSearch)
+  if (readyRelease) supportQuery.set('releaseId', readyRelease)
   useBrainEditor({ dirty: false, busy: deskBusy || channelBusy, message: 'Human-support operations use this environment; agent permissions remain separate.' })
   return <><BrainPageHeader title="Bring your team into the conversation" description="Connect human conversations and separately authorized action reviews." />
     <Box sx={brainPaneSx}>{!target ? <Alert severity="info">Apply a release to this environment before connecting human support. <Button component={RouterLink} to={href('updates')}>Review setup</Button></Alert> : <>
-      {session?.role === 'CUSTOMER_ADMIN' ? <CustomerDeskActivation target={target} onReady={() => {}} onBusyChange={setDeskBusy} />
+      {session?.role === 'CUSTOMER_ADMIN' ? <CustomerDeskActivation target={target} onReady={setReadyRelease} onBusyChange={setDeskBusy} />
         : <Alert severity="info" sx={{ mb: 2 }}>The owning customer can enable and manage LoomAI Desk from this page. Staff can inspect the conversation channel below.</Alert>}
+      {readyRelease && readyRelease !== release?.id && <Alert severity="info" sx={{ mb: 2 }} action={<Button component={RouterLink}
+        disabled={deskBusy || channelBusy} to={`${supportPath}?${supportQuery}`}>View updated connection</Button>}>The support integration has a verified updated release.</Alert>}
       <IntegrationsPage initialReleaseId={release!.id} handoverOnly lockReleaseSelection workspaceView onBusyChange={setChannelBusy} />
     </>}</Box></>
 }

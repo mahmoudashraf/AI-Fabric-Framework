@@ -5,6 +5,7 @@ export const brainSections = [
   { path: 'responses', label: 'Responses', group: 'Build' },
   { path: 'channels', label: 'Channels', group: 'Experience' },
   { path: 'human-support', label: 'Human support', group: 'Experience' },
+  { path: 'action-reviews', label: 'Action reviews', group: 'Operations' },
   { path: 'try', label: 'Try it', group: 'Release' },
   { path: 'updates', label: 'Updates', group: 'Release' },
   { path: 'settings', label: 'Technical settings', group: 'Settings' },
@@ -23,6 +24,32 @@ export function brainPath(brainId: string, section = '', targetProfileId?: strin
 export const legacyBrainSections: Record<string, string> = {
   '/overview': '', '/prompts': 'responses', '/plugins': 'capabilities',
   '/actions': 'capabilities/actions', '/providers': 'settings/models', '/revisions': 'updates',
+}
+
+export const scopedBrainTasks: Record<string, string> = {
+  '/document-knowledge': 'knowledge/documents', '/integrations': 'knowledge/connections',
+  '/human-support': 'human-support', '/human-review': 'action-reviews',
+}
+
+// Preserve only supported task identifiers; selectors are resolved by the Brain shell.
+export function scopedBrainTaskPath(brainId: string, pathname: string, search: string): string {
+  const params = new URLSearchParams(search)
+  let section = scopedBrainTasks[pathname] ?? ''
+  const sourceId = params.get('sourceId') ?? (pathname === '/integrations' ? params.get('connectionId') : null)
+  if (pathname === '/document-knowledge') {
+    const task = params.get('task') ?? params.get('view')
+    if (task && ['storage', 'discover', 'proof', 'retention'].includes(task)) section = `knowledge/${task}`
+    else if (sourceId) section = `knowledge/sources/${encodeURIComponent(sourceId)}`
+  } else if (pathname === '/integrations') {
+    if (params.get('view') === 'human' || params.get('handoverOnly') === 'true') section = 'human-support'
+    else if (sourceId) section += `/${encodeURIComponent(sourceId)}`
+  }
+  const [path, query] = brainPath(brainId, section, params.get('targetProfileId')).split('?')
+  const next = new URLSearchParams(query)
+  for (const key of ['releaseId', ...(pathname === '/human-review' ? ['taskId'] : [])]) {
+    if (params.get(key)) next.set(key, params.get(key)!)
+  }
+  return `${path}${next.size ? `?${next}` : ''}`
 }
 
 export function currentBrainSection(pathname: string): string {

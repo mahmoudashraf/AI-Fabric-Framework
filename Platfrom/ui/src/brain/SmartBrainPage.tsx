@@ -10,6 +10,7 @@ import { BrainUpdatesPage } from './BrainUpdatesPage'
 import { BrainSettingsPage } from './BrainSettingsPage'
 import { BrainChannelsPage, BrainHumanSupportPage } from './BrainExperiencePages'
 import { BrainTryPage } from './BrainTryPage'
+import { BrainActionReviewsPage } from './BrainActionReviewsPage'
 
 export function SmartBrainPage() {
   const location = useLocation()
@@ -23,6 +24,7 @@ export function SmartBrainPage() {
     case 'capabilities': return <BrainCapabilitiesPage key={key} />
     case 'channels': return <BrainChannelsPage key={key} />
     case 'human-support': return <BrainHumanSupportPage key={key} />
+    case 'action-reviews': return <BrainActionReviewsPage key={key} />
     case 'try': return <BrainTryPage key={key} />
     case 'updates': return <BrainUpdatesPage key={key} />
     case 'settings': return <BrainSettingsPage key={key} />

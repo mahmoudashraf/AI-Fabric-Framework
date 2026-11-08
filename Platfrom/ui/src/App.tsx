@@ -18,8 +18,7 @@ import { CustomerOnboardingPage, CustomerProductStartPage, CustomerSignInPage } 
 import { AppShell } from './layout/AppShell'
 import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
 import { CustomerResourcesPage } from './pages/CustomerResourcesPage'
-import { CustomerKnowledgeConnectionsPage } from './pages/CustomerKnowledgeConnectionsPage'
-import { CustomerActionReviewsPage } from './pages/CustomerActionReviewsPage'
+import { CustomerBrainTaskRedirect } from './brain/CustomerBrainTaskRedirect'
 import { CustomerAccountPage } from './pages/CustomerAccountPage'
 import { CustomerSupportPage } from './pages/CustomerSupportPage'
 import { SupportTeamIntakePage } from './pages/SupportTeamIntakePage'
@@ -177,10 +176,10 @@ export default function App() {
               <Route path="/onboarding" element={<Navigate to={productStartPath(location.search)} replace />} />
               <Route path="/deployments" element={<CustomerResourcesPage mode="deployments" />} />
               <Route path="/ai-workspaces" element={<CustomerResourcesPage mode="apps" />} />
-              <Route path="/document-knowledge" element={<CustomerKnowledgeConnectionsPage mode="knowledge" />} />
-              <Route path="/integrations" element={<CustomerKnowledgeConnectionsPage mode="connections" />} />
-              <Route path="/human-support" element={<CustomerKnowledgeConnectionsPage mode="human" />} />
-              <Route path="/human-review" element={<CustomerActionReviewsPage />} />
+              <Route path="/document-knowledge" element={<CustomerBrainTaskRedirect />} />
+              <Route path="/integrations" element={<CustomerBrainTaskRedirect />} />
+              <Route path="/human-support" element={<CustomerBrainTaskRedirect />} />
+              <Route path="/human-review" element={<CustomerBrainTaskRedirect />} />
               <Route path="/revisions" element={<CustomerDeploymentAdvanced><RevisionsPage /></CustomerDeploymentAdvanced>} />
               <Route path="/actions" element={<CustomerDeploymentAdvanced><ActionsPage /></CustomerDeploymentAdvanced>} />
               <Route path="/prompts" element={<CustomerDeploymentAdvanced><PromptsPage /></CustomerDeploymentAdvanced>} />

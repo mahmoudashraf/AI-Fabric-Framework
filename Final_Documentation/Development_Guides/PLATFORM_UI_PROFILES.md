@@ -5,6 +5,13 @@ The customer-wide 010.65 design expansion was rejected and rolled back on
 workspace. Do not restore the removed customer shell/task redesign or its design
 guide without a new owner request.
 
+Brain-scoped operations have one canonical home under `/smart-brains/:brainId`:
+Knowledge (documents/live data/storage), Human support and Action reviews. Do not
+re-add their customer global-menu selectors or Manage wrappers. Legacy links are
+navigation adapters, not parallel editors. Staff-wide administration stays
+separate; sharing the workspace never grants customer review authority. See the
+010.64 scoped Knowledge/Connections/Reviews proposal and its verification record.
+
 The separately approved account follow-up uses `/account/profile`,
 `/account/team`, `/account/loomai-access` and `/account/security` in a single
 resource workspace. Customer `/users` redirects there; staff `/users` remains

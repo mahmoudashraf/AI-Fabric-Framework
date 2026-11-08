@@ -17,23 +17,23 @@ import { connectionEnvironments, connectionEnvironmentSelection } from './custom
 const emptyForm = (): ExistingVectorForm => ({ clusterId: '', projectId: '', regionId: '', expectedDeploymentOption: 'Free', token: '', username: '', password: '' })
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'The vector binding could not be read or saved.'
 
-export function CustomerExistingVectorBinding({ deploymentId }: { deploymentId: string }) {
+export function CustomerExistingVectorBinding({ deploymentId, targetProfileId }: { deploymentId: string; targetProfileId?: string }) {
   const { session } = usePlatformAuth()
   if (!isCustomerSession(session) || !deploymentId) return null
   const scope = JSON.stringify([session.actorId, session.customerId, session.authenticationMode, deploymentId])
-  return <ExistingVectorScope key={scope} scope={scope} session={session} deploymentId={deploymentId} />
+  return <ExistingVectorScope key={`${scope}:${targetProfileId ?? ''}`} scope={scope} session={session} deploymentId={deploymentId} targetProfileId={targetProfileId} />
 }
 
-function ExistingVectorScope({ scope, session, deploymentId }: { scope: string; session: PlatformAuthSessionSummary; deploymentId: string }) {
+function ExistingVectorScope({ scope, session, deploymentId, targetProfileId }: { scope: string; session: PlatformAuthSessionSummary; deploymentId: string; targetProfileId?: string }) {
   const [open, setOpen] = useState(false)
   return <Box component="section" aria-label="Existing vector service" sx={{ pb: 3, borderBottom: 1, borderColor: 'divider' }}>
     <Button startIcon={<StorageOutlined />} aria-expanded={open} onClick={() => setOpen(value => !value)}>Existing vector service</Button>
-    {open ? <VectorChoices scope={scope} session={session} deploymentId={deploymentId} /> : null}
+    {open ? <VectorChoices scope={scope} session={session} deploymentId={deploymentId} targetProfileId={targetProfileId} /> : null}
   </Box>
 }
 
-function VectorChoices({ scope, session, deploymentId }: { scope: string; session: PlatformAuthSessionSummary; deploymentId: string }) {
-  const [environment, setEnvironment] = useState('')
+function VectorChoices({ scope, session, deploymentId, targetProfileId }: { scope: string; session: PlatformAuthSessionSummary; deploymentId: string; targetProfileId?: string }) {
+  const [chosenEnvironment, setEnvironment] = useState('')
   const [versionId, setVersionId] = useState('')
   const workspace = useQuery({ queryKey: ['customer-existing-vector', scope, 'workspace'], retry: false,
     queryFn: async () => {
@@ -51,12 +51,14 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     enabled: workspace.isSuccess, queryFn: () => fetchDeploymentVersions(deploymentId) })
   const selected = versions.data?.find(value => value.id === versionId && value.deploymentId === deploymentId && value.status === 'PUBLISHED')
   const environments = connectionEnvironments(targets.data ?? [])
+  const environment = targetProfileId !== undefined ? targets.data?.find(value => value.id === targetProfileId)?.environmentName ?? '' : chosenEnvironment
   const choices = ['staging', 'production'].map(name => ({ name,
     label: environments.find(value => value.name === name)?.label ?? (name === 'staging' ? 'Staging' : 'Production') }))
   const selection = connectionEnvironmentSelection(environment, targets.data ?? [],
     (releases.data ?? []).filter(value => value.deploymentId === deploymentId))
   const target = targets.isSuccess && releases.isSuccess
     ? targets.data.find(value => value.id === selection.targetId && value.active && value.environmentName === environment) : undefined
+  const exactTarget = !targetProfileId || target?.id === targetProfileId
   const selectionIssue = environment && targets.isSuccess && releases.isSuccess && !target
     ? targets.data.some(value => value.active && value.environmentName === environment)
       ? `The vector target for this environment is ambiguous. An exact ${deploymentTerm.lowercase} target must be resolved before binding.`
@@ -75,18 +77,19 @@ function VectorChoices({ scope, session, deploymentId }: { scope: string; sessio
     {error ? <Alert severity="error">{errorText(error)}</Alert> : null}
     {workspace.isPending ? <CircularProgress size={20} aria-label="Loading vector binding scope" /> : null}
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-      <TextField fullWidth select label="Vector target" value={environment} onChange={event => setEnvironment(event.target.value)} disabled={!targets.isSuccess || !releases.isSuccess}>
+      {targetProfileId === undefined && <TextField fullWidth select label="Vector target" value={environment} onChange={event => setEnvironment(event.target.value)} disabled={!targets.isSuccess || !releases.isSuccess}>
         {choices.map(value => <MenuItem key={value.name} value={value.name}>{value.label}</MenuItem>)}
-      </TextField>
+      </TextField>}
       <TextField fullWidth select label="Published vector version" value={selected?.id ?? ''} onChange={event => setVersionId(event.target.value)} disabled={!versions.isSuccess}>
         {(versions.data ?? []).filter(value => value.deploymentId === deploymentId && value.status === 'PUBLISHED').map(value => <MenuItem key={value.id} value={value.id}>{value.versionLabel}</MenuItem>)}
       </TextField>
     </Stack>
     {selectionIssue ? <Alert severity="warning">{selectionIssue}</Alert> : null}
+    {targetProfileId !== undefined && (!targetProfileId || targets.isSuccess && !exactTarget) ? <Alert severity="warning">Choose an unambiguous environment in the Smart Brain header before binding storage.</Alert> : null}
     {versions.isSuccess && !versions.data.some(value => value.deploymentId === deploymentId && value.status === 'PUBLISHED') ? <Alert severity="info">No published version is available.</Alert> : null}
     {configError ? <Alert severity="error">{configError}</Alert> : null}
     {selected && manifest.isSuccess && !authType && !configError ? <Alert severity="info">This published version does not require a typed existing Milvus binding.</Alert> : null}
-    {selected && target && authType && !error ? <VectorForm key={`${scope}:${target.id}:${selected.id}:${selected.configHash}:${authType}`}
+    {selected && target && exactTarget && authType && !error ? <VectorForm key={`${scope}:${target.id}:${selected.id}:${selected.configHash}:${authType}`}
       scope={scope} session={session} deploymentId={deploymentId} targetId={target.id} version={selected}
       environment={environment} authType={authType} canBind={workspace.data?.access.canAdmin ?? false} /> : null}
   </Stack>

@@ -38,7 +38,7 @@ import {
   type DeploymentDraftResponse,
   type DeploymentWorkspaceSummary,
 } from '../api/platformApi'
-import { useBrainEditor } from '../brain/BrainWorkspaceContext'
+import { useBrainEditor, useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
 import { DeploymentProviderOperationsPanel } from '../components/DeploymentProviderOperationsPanel'
 import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -1710,6 +1710,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   workspace: DeploymentWorkspaceSummary | null; configurationOnly: boolean; scoped?: boolean; view?: ProviderSettingsView
 }) {
   const queryClient = useQueryClient()
+  const brainWorkspace = useOptionalBrainWorkspace()
   const [formState, setFormState] = useState<ProviderFormState>(DEFAULT_PROVIDER_FORM_STATE)
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
   const [rawProviderValue, setRawProviderValue] = useState<string | null>(null)
@@ -1948,7 +1949,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
         </Typography>
       </Box> : null}
 
-      {showStorage ? <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} /> : null}
+      {showStorage ? <CustomerExistingVectorBinding deploymentId={selectedDeploymentId} targetProfileId={brainWorkspace?.targetProfileId} /> : null}
 
       {!scoped ? <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>

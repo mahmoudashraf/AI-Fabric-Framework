@@ -12,6 +12,8 @@ import {
 } from '../api/platformApi'
 import type { DeploymentWorkspaceEditorBufferState } from './deploymentWorkspaceLifecycle'
 import { brainIdFromPath, brainPath, legacyBrainSections } from '../brain/brainNavigation'
+import { scopedBrainTaskPath, scopedBrainTasks } from '../brain/brainNavigation'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/overview',
@@ -74,6 +76,8 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { session } = usePlatformAuth()
+  const explicitBrainChoice = session?.role === 'CUSTOMER_ADMIN' && location.pathname in scopedBrainTasks
   const isScopedPage = isDeploymentWorkspacePath(location.pathname)
 
   const deploymentsQuery = useQuery({
@@ -97,7 +101,7 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   const preferencesLoaded = preferencesQuery.isSuccess || preferencesQuery.isError
 
   useEffect(() => {
-    if (!isScopedPage || deployments.length === 0) {
+    if (!isScopedPage || explicitBrainChoice || deployments.length === 0) {
       return
     }
 
@@ -127,6 +131,7 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
     )
   }, [
     deployments,
+    explicitBrainChoice,
     isScopedPage,
     location.pathname,
     location.search,
@@ -213,6 +218,9 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
     if (pathname in legacyBrainSections) {
       return brainPath(deploymentIdForPath, legacyBrainSections[pathname], new URLSearchParams(location.search).get('targetProfileId'))
     }
+    if (session?.role === 'CUSTOMER_ADMIN' && pathname in scopedBrainTasks) {
+      return scopedBrainTaskPath(deploymentIdForPath, pathname, location.search)
+    }
     return `${pathname}?deploymentId=${encodeURIComponent(deploymentIdForPath)}`
   }
 
@@ -243,6 +251,7 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       requestedDeploymentId,
       selectedDeploymentId,
       selectedDeploymentSummary,
+      session?.role,
       unresolvedRequestedDeploymentId,
       workspaceQuery.data,
       workspaceQuery.isLoading,

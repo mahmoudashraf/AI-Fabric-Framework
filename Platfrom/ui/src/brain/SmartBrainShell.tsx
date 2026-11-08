@@ -20,6 +20,7 @@ import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
+import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import { fetchDeploymentReleases, fetchDeploymentTargetOptions, fetchDeploymentTargetProfiles, fetchDeploymentVersions, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
@@ -33,7 +34,7 @@ import { accountPath } from '../account/accountNavigation'
 import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 
 const sectionIcons = [HomeOutlined, LayersOutlined, AutoAwesomeOutlined, ChatBubbleOutlineRounded,
-  AccountTreeOutlined, HeadsetMicOutlined, PlayArrowOutlined, SystemUpdateAltOutlined, SettingsOutlined]
+  AccountTreeOutlined, HeadsetMicOutlined, FactCheckOutlined, PlayArrowOutlined, SystemUpdateAltOutlined, SettingsOutlined]
 
 type Props = { session: PlatformAuthSessionSummary | null; onSignOut: () => Promise<void>; children: ReactNode }
 
@@ -97,12 +98,15 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     const defaults = options.filter(item => item.active && item.defaultForRuntime)
     const recent = [...(releases.data ?? [])].filter(isUsableRelease).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .find(item => options.some(option => option.id === item.targetProfileId))
-    const initial = recent?.targetProfileId ?? (defaults.length === 1 ? defaults[0].id : options.length === 1 ? options[0].id : '')
+    const exactRelease = requestedRelease ? (releases.data ?? []).find(item => item.id === requestedRelease
+      && options.some(option => option.id === item.targetProfileId)) : null
+    const initial = exactRelease?.targetProfileId ?? (requestedRelease ? '' : recent?.targetProfileId)
+      ?? (defaults.length === 1 ? defaults[0].id : options.length === 1 ? options[0].id : '')
     if (!initial) return
     const next = new URLSearchParams(location.search)
     next.set('targetProfileId', initial)
     navigate({ pathname: location.pathname, search: next.toString() }, { replace: true })
-  }, [requestedTarget, profiles.isSuccess, releases.isSuccess, options, releases.data, location.pathname, location.search, navigate])
+  }, [requestedTarget, requestedRelease, profiles.isSuccess, releases.isSuccess, options, releases.data, location.pathname, location.search, navigate])
 
   useEffect(() => {
     if (!dirty && !busy) return
@@ -111,7 +115,12 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     return () => window.removeEventListener('beforeunload', prevent)
   }, [dirty, busy])
 
-  const href = useCallback((path = '') => brainPath(brainId, path, requestedTarget), [brainId, requestedTarget])
+  const href = useCallback((path = '') => {
+    const [pathname, search] = brainPath(brainId, path, requestedTarget).split('?')
+    const query = new URLSearchParams(search)
+    if (requestedRelease) query.set('releaseId', requestedRelease)
+    return `${pathname}${query.size ? `?${query}` : ''}`
+  }, [brainId, requestedTarget, requestedRelease])
   const context = useMemo(() => ({ brainId, targetProfileId, targetProfile, release,
     target: release && targetProfileId ? { deploymentId: brainId, targetProfileId, releaseId: release.id } : null,
     href }), [brainId, targetProfileId, targetProfile, release, href])
@@ -120,7 +129,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const nav = <Box component="nav" aria-label={`${deploymentTerm.singular} navigation`} sx={{ display: 'flex', flexDirection: 'column', height: '100%', py: 2 }}>
     <Button component={RouterLink} to="/deployments" startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start', mx: 1.5, color: 'text.primary', mb: 2 }}>All {deploymentTerm.plural}</Button>
     <Typography sx={{ fontSize: 19, fontWeight: 650, px: 2.5, mb: 2.5, overflowWrap: 'anywhere' }}>{brain?.name ?? deploymentTerm.singular}</Typography>
-    {['Build', 'Experience', 'Release'].map(group => <Box key={group} sx={{ mb: 1.5 }}>
+    {['Build', 'Experience', 'Operations', 'Release'].map(group => <Box key={group} sx={{ mb: 1.5 }}>
       <Typography sx={{ px: 2.5, py: 0.75, fontSize: 10, fontWeight: 650, textTransform: 'uppercase', color: 'text.secondary' }}>{group}</Typography>
       <List disablePadding>{brainSections.map((item, index) => {
         if (item.group !== group) return null
@@ -186,7 +195,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
               <Stack direction="row" gap={1} sx={{ flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {editor?.discard && <Button disabled={busy} variant="outlined" onClick={() => editor.discard?.()}>{editor.secondaryLabel ?? 'Discard'}</Button>}
                 {editor?.save ? <Button variant="contained" disabled={busy || editor.canSave === false} onClick={() => { void editor.save?.() }}>{busy ? 'Working...' : editor.primaryLabel ?? 'Save draft'}</Button>
-                  : section !== 'updates' && <Button component={RouterLink} to={href('updates')} variant="outlined">Review & publish</Button>}
+                  : !['updates', 'action-reviews', 'human-support', 'knowledge'].includes(section) && <Button component={RouterLink} to={href('updates')} variant="outlined">Review & publish</Button>}
               </Stack>
             </Stack>
           </Box>}

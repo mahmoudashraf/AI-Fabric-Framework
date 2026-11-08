@@ -4,8 +4,12 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
+import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import {
   Alert,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Box,
   Button,
   Chip,
@@ -63,7 +67,7 @@ function errorText(value: unknown): string {
   return value instanceof Error ? value.message : 'Integration operation failed.'
 }
 
-export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, lockReleaseSelection = false, workspaceView = false, onBusyChange }: { initialReleaseId?: string; handoverOnly?: boolean; lockReleaseSelection?: boolean; workspaceView?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, dataOnly = false, initialSourceId = '', lockReleaseSelection = false, workspaceView = false, onBusyChange }: { initialReleaseId?: string; handoverOnly?: boolean; dataOnly?: boolean; initialSourceId?: string; lockReleaseSelection?: boolean; workspaceView?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const auth = usePlatformAuth()
   const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
@@ -102,7 +106,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     retry: false,
   })
   const dataLive = !handoverOnly && (targetQuery.data?.externalIntegrationConfigured ?? false)
-  const handoverLive = targetQuery.data?.conversationHandoverConfigured ?? false
+  const handoverLive = !dataOnly && (targetQuery.data?.conversationHandoverConfigured ?? false)
   const live = dataLive || handoverLive
 
   const overview = useQuery({
@@ -153,6 +157,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     },
   })
   const operationBusy = reconcile.isPending || replay.isPending || retryDispatch.isPending || expireHandover.isPending
+  const source = initialSourceId ? overview.data?.sources.find(item => item.sourceId === initialSourceId) : undefined
   useEffect(() => {
     onBusyChange?.(operationBusy)
     return () => onBusyChange?.(false)
@@ -163,7 +168,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
     return (
       <Stack spacing={3}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
+          {!workspaceView && <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>}
           <Typography color="text.secondary">
             {deploymentTerm.singular}-local provider connections, trusted resource bindings, live synchronization, and signed inbound events.
           </Typography>
@@ -259,7 +264,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
       {detailSection ? overview.data?.sources.filter(source => source.state.errorClass).map(source => <Alert key={source.sourceId} severity="error">{source.sourceId}: {source.state.errorMessage ?? source.state.errorClass}</Alert>) : null}
       {detailSection ? overview.data?.webhooks.filter(webhook => webhook.counts.deadLetter > 0 || webhook.counts.rejected > 0).map(webhook => <Alert key={webhook.sourceId} severity="warning">{webhook.sourceId}: {webhook.counts.rejected} rejected events / {webhook.counts.deadLetter} dead-letter events. Review inbound events in Advanced.</Alert>) : null}
 
-      {handover.data ? (
+      {handoverLive && handover.data ? (
         <ConversationHandoverOperations
           value={handover.data}
           canOperate={canOperate}
@@ -269,8 +274,33 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
         />
       ) : null}
 
-      {overview.data ? (
+      {dataLive && overview.data && !overview.data.success ? <Alert severity="error">The integration service did not return a successful operational overview.</Alert> : null}
+      {dataLive && overview.isSuccess && initialSourceId && !source ? <Alert severity="error">The requested live source is not available in this environment. No other source has been selected.</Alert> : null}
+      {dataLive && overview.data && (!initialSourceId || source) ? (
         <>
+          {workspaceView && source && <Box component="section" aria-label="Live source details">
+            <Stack direction="row" gap={1.5} alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Box sx={{ minWidth: 0 }}><Typography component="h2" fontSize={20} fontWeight={650} sx={{ overflowWrap: 'anywhere' }}>{source.sourceId}</Typography>
+                <Typography variant="body2" color="text.secondary">Live information / {source.entityType}</Typography></Box>
+              <Chip label={source.state.status} color={statusColor(source.state.status)} />
+            </Stack>
+            <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mb: 2 }}><Chip label={source.freshnessState} variant="outlined" />
+              <Chip label={`Preflight ${source.preflightState}`} variant="outlined" /></Stack>
+            {source.state.errorMessage && <Alert severity="error" sx={{ mb: 2 }}>{source.state.errorMessage}</Alert>}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', borderBlock: 1, borderColor: 'divider', py: 2, gap: 1, mb: 2 }}>
+              {[['Source records', source.state.counts.sourceCount], ['Indexed', source.state.counts.indexedCount], ['Failed work', source.state.counts.failedWorkCount]].map(([label, count]) =>
+                <Box key={label}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography fontSize={24} fontWeight={600}>{count}</Typography></Box>)}
+            </Box>
+            <Typography variant="body2">Last successful sync: {formatTime(source.state.lastSuccessAt)}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>Scheduled every {source.scheduleSeconds} seconds.</Typography>
+            <Stack direction="row" gap={1} sx={{ mt: 2, mb: 2 }}><Button variant="contained" startIcon={<SyncRoundedIcon />} disabled={!canOperate || operationBusy || !overview.data.success}
+              onClick={() => reconcile.mutate({ sourceId: source.sourceId, operationKey: crypto.randomUUID() })}>{reconcile.isPending ? 'Syncing...' : 'Sync now'}</Button>
+              <Button disabled={overview.isFetching || operationBusy} onClick={() => void overview.refetch()}>Refresh status</Button></Stack>
+            {reconcile.isSuccess && <Alert severity="info">Sync requested. Refresh the recorded status to check its outcome.</Alert>}
+          </Box>}
+          <Accordion defaultExpanded={!workspaceView} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography fontSize={13} fontWeight={600}>Connection diagnostics & authority</Typography></AccordionSummary>
+          <AccordionDetails sx={{ minWidth: 0 }}>
           <CustomerAdvancedSection>
           <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} divider={<Divider flexItem orientation="vertical" />}>
@@ -342,8 +372,16 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
           </Box>
 
           </CustomerAdvancedSection>
+          {source && <Stack spacing={1} sx={{ mt: 2, overflowWrap: 'anywhere' }}>
+            <Typography variant="body2">Connection profile: {source.connectionProfileRef}</Typography>
+            <Typography variant="body2">Resource binding: {source.protectedResourceBindingRef}</Typography>
+            <Typography variant="body2">Collection: {source.vectorSpace}</Typography>
+            <Typography variant="body2">Provider call: {source.state.providerCorrelationValue ?? 'Not recorded'}</Typography>
+            <Typography variant="body2">Source version: {source.state.sourceVersion ?? 'Not recorded'}</Typography>
+          </Stack>}
+          </AccordionDetails></Accordion>
 
-          <Box>
+          {(!workspaceView || !initialSourceId) && <Box>
             <Typography variant="h6" sx={{ mb: 1.5 }}>Live data sources</Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -392,13 +430,15 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
                 </TableBody>
               </Table>
             </TableContainer>
-          </Box>
+          </Box>}
 
-          <CustomerAdvancedSection><Box>
+          <CustomerAdvancedSection><Accordion defaultExpanded={!workspaceView} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography fontSize={13} fontWeight={600}>Sync activity & inbound events</Typography></AccordionSummary>
+            <AccordionDetails><Box>
             <Typography variant="h6" sx={{ mb: 1.5 }}>Inbound events</Typography>
-            {overview.data.webhooks.length === 0 ? (
+            {overview.data.webhooks.filter(webhook => !initialSourceId || webhook.reconcileDataSourceRef === initialSourceId).length === 0 ? (
               <Alert severity="info">This composition does not declare an inbound provider webhook.</Alert>
-            ) : overview.data.webhooks.map((webhook) => (
+            ) : overview.data.webhooks.filter(webhook => !initialSourceId || webhook.reconcileDataSourceRef === initialSourceId).map((webhook) => (
               <Paper key={webhook.sourceId} variant="outlined" sx={{ mb: 2 }}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ px: 2, py: 1.5 }}>
                   <Typography sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{webhook.sourceId}</Typography>
@@ -438,7 +478,7 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, 
                 />
               </Paper>
             ))}
-          </Box></CustomerAdvancedSection>
+          </Box></AccordionDetails></Accordion></CustomerAdvancedSection>
         </>
       ) : null}
     </Stack>

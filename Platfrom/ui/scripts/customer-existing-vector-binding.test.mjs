@@ -16,15 +16,16 @@ const manifest = () => ({ deploymentId: 'dep/one', versionId: 'ver/one', provide
 const form = () => ({ clusterId: 'cluster', projectId: 'project', regionId: 'region', expectedDeploymentOption: 'Free',
   token: 'synthetic-private-token', username: 'serving-user', password: 'synthetic-private-password' })
 
-test('only Providers and owned Connections mount one shared binding control, never the generic editor shell', async () => {
+test('only Storage mounts the shared binding control; legacy Connections is a navigation adapter', async () => {
   const read = path => readFile(new URL(path, import.meta.url), 'utf8')
   const shell = await read('../src/components/customer/CustomerConfigurationPanel.tsx')
   assert.equal(shell.includes('CustomerExistingVectorBinding'), false)
   const providers = await read('../src/pages/ProvidersPage.tsx')
   const connections = await read('../src/pages/CustomerKnowledgeConnectionsPage.tsx')
   assert.equal([...providers.matchAll(/<CustomerExistingVectorBinding\b/g)].length, 1)
-  assert.equal([...connections.matchAll(/<CustomerExistingVectorBinding\b/g)].length, 1)
-  assert.match(connections, /mode === 'connections' && deployment \? <CustomerExistingVectorBinding/)
+  assert.equal([...connections.matchAll(/<CustomerExistingVectorBinding\b/g)].length, 0)
+  assert.match(connections, /<CustomerBrainTaskRedirect/)
+  assert.match(providers, /targetProfileId=\{brainWorkspace\?\.targetProfileId\}/)
   const vector = await read('../src/components/customer/CustomerExistingVectorBinding.tsx')
   assert.match(vector, /import \{ connectionEnvironments, connectionEnvironmentSelection \} from '\.\/customerEngageConnection'/)
   assert.equal([...vector.matchAll(/connectionEnvironmentSelection\(/g)].length, 2)

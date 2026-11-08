@@ -41,6 +41,7 @@ function fixture() {
     if (id === 'react-router-dom') return { useLocation: () => location, useNavigate: () => navigate }
     if (id === '../api/platformApi') return api
     if (id === '../brain/brainNavigation') return navigation
+    if (id === '../auth/PlatformAuthProvider') return { usePlatformAuth: () => ({ session: { role: 'OPERATOR' } }) }
     throw new Error('Unexpected fixture import: ' + id)
   }
   vm.runInNewContext(compiled, { module, exports: module.exports, require, URLSearchParams })

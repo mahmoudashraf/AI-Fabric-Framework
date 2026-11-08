@@ -8,6 +8,7 @@ import RocketLaunchOutlined from '@mui/icons-material/RocketLaunchOutlined'
 import PsychologyAltOutlined from '@mui/icons-material/PsychologyAltOutlined'
 import type { CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
 import { releaseEnvironment } from './customerResourceModels'
+import { brainPath, scopedBrainTaskPath } from '../../brain/brainNavigation'
 
 export function CustomerProductTasks({ deploymentId, offer, releases, selectedReleaseId, onSelectRelease }: {
   deploymentId: string
@@ -18,7 +19,7 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
 }) {
   const selected = releases.find(release => release.id === selectedReleaseId)
   const scoped = selected?.targetProfileId && selected.provisioningStatus === 'ACTIVE'
-    ? new URLSearchParams({ deploymentId, releaseId: selected.id }).toString() : null
+    ? new URLSearchParams({ deploymentId, releaseId: selected.id, targetProfileId: selected.targetProfileId }).toString() : null
   const setup = (step: string) => `/deployments?${new URLSearchParams({ view: 'setup', deploymentId, step })}`
   const configure = (path: string) => `${path}?${new URLSearchParams({ deploymentId, view: 'manage' })}`
   const kinds = new Set(offer.bindingSlots.map(slot => slot.kind))
@@ -28,7 +29,7 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
       <Button component={RouterLink} to={setup('configure')} startIcon={<SettingsOutlined />}>Continue setup</Button>
       <Button component={RouterLink} to={configure('/prompts')} startIcon={<PsychologyAltOutlined />}>AI behaviour</Button>
       {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={`${setup('configure')}#approved-connections`} startIcon={<CableOutlined />}>Configure data connection</Button> : null}
-      {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={configure('/document-knowledge')} startIcon={<DescriptionOutlined />}>Connect document storage</Button> : null}
+      {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={brainPath(deploymentId, 'knowledge/storage')} startIcon={<DescriptionOutlined />}>Connect document storage</Button> : null}
       <Button component={RouterLink} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', connectDeploymentId: deploymentId })}`} startIcon={<ForumOutlined />}>Connect Engage app</Button>
       <Button component={RouterLink} to={setup('staging')} startIcon={<RocketLaunchOutlined />}>Prepare staging release</Button>
       <Button component={RouterLink} to={setup('production')} startIcon={<RocketLaunchOutlined />}>Review go-live</Button>
@@ -41,9 +42,9 @@ export function CustomerProductTasks({ deploymentId, offer, releases, selectedRe
         {releases.map(release => <MenuItem key={release.id} value={release.id}>{releaseEnvironment(release, offer)} / {release.id}</MenuItem>)}
       </TextField>
       <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }}>
-        {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={scoped ? `/integrations?${scoped}` : '#'} disabled={!scoped}>Synchronization</Button> : null}
-        {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={scoped ? `/document-knowledge?${scoped}` : '#'} disabled={!scoped}>Policies & documents</Button> : null}
-        <Button component={RouterLink} to={scoped ? `/human-support?${scoped}` : '#'} disabled={!scoped}>Human support</Button>
+        {kinds.has('EXTERNAL_SERVICE') ? <Button component={RouterLink} to={scoped ? scopedBrainTaskPath(deploymentId, '/integrations', scoped) : '#'} disabled={!scoped}>Synchronization</Button> : null}
+        {kinds.has('CUSTOMER_S3') ? <Button component={RouterLink} to={scoped ? scopedBrainTaskPath(deploymentId, '/document-knowledge', scoped) : '#'} disabled={!scoped}>Policies & documents</Button> : null}
+        <Button component={RouterLink} to={scoped ? scopedBrainTaskPath(deploymentId, '/human-support', scoped) : '#'} disabled={!scoped}>Human support</Button>
       </Stack>
     </Box> : null}
   </Box>

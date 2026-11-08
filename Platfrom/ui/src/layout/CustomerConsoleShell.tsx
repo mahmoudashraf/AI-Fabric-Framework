@@ -9,11 +9,7 @@ import {
 import HubOutlined from '@mui/icons-material/HubOutlined'
 import DnsOutlined from '@mui/icons-material/DnsOutlined'
 import WidgetsOutlined from '@mui/icons-material/WidgetsOutlined'
-import DatasetOutlined from '@mui/icons-material/DatasetOutlined'
-import CableOutlined from '@mui/icons-material/CableOutlined'
-import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import PeopleOutline from '@mui/icons-material/PeopleOutline'
-import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
@@ -38,10 +34,6 @@ const navigation = [
   { path: '/kits', label: 'My kits', icon: Inventory2Outlined },
   { path: '/deployments', label: deploymentTerm.plural, icon: DnsOutlined },
   { path: '/ai-workspaces', label: 'Engage apps', icon: WidgetsOutlined },
-  { path: '/document-knowledge', label: 'Knowledge & data', icon: DatasetOutlined },
-  { path: '/integrations', label: 'Connections', icon: CableOutlined },
-  { path: '/human-support', label: 'Human support', icon: SupportAgentOutlined },
-  { path: '/human-review', label: 'Action reviews', icon: FactCheckOutlined },
   { path: '/account/team', label: 'Account & team', icon: PeopleOutline },
   { path: '/support', label: 'Help & requests', icon: HelpOutlineRounded },
 ] as const
@@ -84,7 +76,7 @@ export function CustomerShellLayout({ session, onSignOut, children, buildWorkspa
     : content}</CustomerConsoleTheme>
 }
 
-function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath, deploymentName, humanSupportAvailable, expandedNavigation, supportEnabled }: CustomerShellProps & {
+function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath, deploymentName, expandedNavigation, supportEnabled }: CustomerShellProps & {
   buildWorkspacePath: (path: string) => string
   deploymentName?: string | null
   humanSupportAvailable: boolean
@@ -109,8 +101,7 @@ function CustomerShellContent({ session, onSignOut, children, buildWorkspacePath
         <Typography sx={{ fontSize: 10 }} color="text.secondary">Customer workspace</Typography></Box>
     </Stack>
     <List component="nav" aria-label="Customer navigation" disablePadding>
-      {navigation.filter(item => (expandedNavigation || ['/home', '/kits', '/deployments', '/ai-workspaces', '/account/team', '/support'].includes(item.path))
-        && (item.path !== '/human-support' || humanSupportAvailable)).map(item => <ListItemButton key={item.path} component={Link}
+      {navigation.filter(item => (expandedNavigation || ['/home', '/kits', '/deployments', '/ai-workspaces', '/account/team', '/support'].includes(item.path))).map(item => <ListItemButton key={item.path} component={Link}
         to={isDeploymentWorkspacePath(item.path) ? buildWorkspacePath(item.path) : item.path}
         selected={active?.path === item.path} onClick={() => setMenuOpen(false)}
         sx={{ borderRadius: 1, mb: 0.5, px: 1.25, py: 0.75, minHeight: 37,

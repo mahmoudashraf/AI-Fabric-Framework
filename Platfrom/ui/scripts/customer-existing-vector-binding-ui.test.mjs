@@ -25,13 +25,13 @@ before(async () => {
           import { PlatformAuthProvider } from '/src/auth/PlatformAuthProvider.tsx';
           import { CustomerConsoleTheme } from '/src/theme/CustomerConsoleTheme.tsx';
           import { CustomerConfigurationPanel } from '/src/components/customer/CustomerConfigurationPanel.tsx';
-          import { CustomerKnowledgeConnectionsPage } from '/src/pages/CustomerKnowledgeConnectionsPage.tsx';
+          import { CustomerExistingVectorBinding } from '/src/components/customer/CustomerExistingVectorBinding.tsx';
           const options = new URLSearchParams(window.location.search), panel = options.get('panel');
           function Content() {
             const location = useLocation(), navigate = useNavigate(), dep = new URLSearchParams(location.search).get('deploymentId');
             return <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1100, mx: 'auto' }}>
               {panel ? <CustomerConfigurationPanel open title={panel + ' / Configuration'} scopeKey={dep} deploymentId={dep} onClose={() => {}}>
-                <p>{panel} editor</p></CustomerConfigurationPanel> : <CustomerKnowledgeConnectionsPage mode="connections" />}
+                <p>{panel} editor</p></CustomerConfigurationPanel> : <><h1>Storage connections</h1><CustomerExistingVectorBinding deploymentId={dep}/></>}
               <Button onClick={() => navigate({ search: new URLSearchParams({ deploymentId: dep === 'dep-a' ? 'dep-b' : 'dep-a' }).toString() })}>Switch fixture deployment</Button>
             </Box>
           }
@@ -71,7 +71,7 @@ async function fixture(t, options = {}) {
       if (resource === 'releases') return state.releaseError ? json(route, { message: 'Release read unavailable' }, 503) : json(route, state.releases)
       if (resource === 'workspace') {
         if (state.holdWorkspace) await state.holdWorkspace
-        return json(route, { deployment: { id: dep, behaviorType: 'SMART_BRAIN', binding: { customerId: 'customer-a' } }, access: { canAdmin: !state.readOnly } })
+        return json(route, { deployment: { id: dep, behaviorType: 'SMART_BRAIN', binding: { customerId: state.foreignWorkspace ? 'foreign' : 'customer-a' } }, access: { canAdmin: !state.readOnly } })
       }
       if (resource === 'target-profiles') return json(route, state.targets)
       if (resource === 'versions') return json(route, ['v1', 'v2'].map(id => ({ id, deploymentId: dep, status: 'PUBLISHED', versionLabel: id, configHash: 'hash-'+id })))
@@ -96,11 +96,12 @@ async function fixture(t, options = {}) {
   })
   await page.goto(`${base}vector-fixture?${new URLSearchParams({ ...(options.panel ? { panel: options.panel } : {}), ...(options.deploymentId ? { deploymentId: options.deploymentId } : {}) })}`)
   if (options.panel) { await page.getByText(`${options.panel} editor`, { exact: true }).waitFor(); return { page, state } }
-  await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Storage connections', exact: true }).waitFor()
   if (options.deploymentId === 'foreign') return { page, state }
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Existing vector service', exact: true }).count(), 1)
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).click()
+  if (options.foreignWorkspace) return { page, state }
   if (options.releaseError) { await page.getByText('Release read unavailable', { exact: true }).first().waitFor(); return { page, state } }
   await select(page, 'Vector target', options.environment ?? 'Staging'); await select(page, 'Published vector version', options.version ?? 'v1')
   if (options.unresolved) return { page, state }
@@ -252,7 +253,7 @@ test('scope change during bind preflight prevents a subsequent POST', async t =>
   await page.waitForFunction(() => document.querySelector('button') !== null)
   await until(() => state.calls.slice(before).some(call => call.path.endsWith('/workspace')), 'Binding preflight did not recheck workspace ownership')
   await page.getByRole('button', { name: 'Switch fixture deployment', exact: true }).click()
-  await page.getByRole('combobox', { name: 'Smart Brain dep-b', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Existing vector service', exact: true }).waitFor()
   release(); state.holdWorkspace = null
   await page.getByRole('button', { name: 'Existing vector service', exact: true }).waitFor()
   await page.waitForTimeout(100)
@@ -307,10 +308,10 @@ for (const panel of ['Prompts', 'Actions']) test(`${panel} configuration has no 
   assert.deepEqual(state.errors, [])
 })
 
-test('Connections cannot open a vector binding for a deployment outside the owned portfolio', async t => {
-  const { page, state } = await fixture(t, { deploymentId: 'foreign' })
-  await page.getByText('The requested smart brain is not available in this account.', { exact: false }).waitFor()
-  assert.equal(await page.getByRole('button', { name: 'Existing vector service', exact: true }).count(), 0)
+test('Storage cannot open a vector binding for a deployment outside the owned account', async t => {
+  const { page, state } = await fixture(t, { foreignWorkspace: true })
+  await page.getByText('The smart brain is not available in the current customer account.', { exact: false }).waitFor()
+  assert.equal(await page.getByLabel('Zilliz cluster ID', { exact: true }).count(), 0)
   assert.equal(state.calls.some(call => call.path.includes('/existing-vector-binding')), false)
 })
 

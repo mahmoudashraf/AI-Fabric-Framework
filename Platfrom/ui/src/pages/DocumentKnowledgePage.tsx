@@ -885,7 +885,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
         </Stack>
       </Paper>}
 
-      {(!workspaceView || workspaceView === 'source') && <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {(!workspaceView || workspaceView === 'source') && <Paper variant="outlined" sx={{ p: workspaceView ? 0 : 2.5, ...(workspaceView ? { border: 0, bgcolor: 'transparent' } : {}) }}>
         <Stack spacing={2.5}>
           {!workspaceView && <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
@@ -921,10 +921,11 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
 
           {selectedSource ? (
             <>
-              <Divider />
-              <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={2}>
+              {!workspaceView && <Divider />}
+              <Stack direction={workspaceView ? 'column' : { xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={2}>
                 <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>{selectedSource.displayName}</Typography>
+                  <Typography component={workspaceView ? 'h2' : 'h6'} sx={{ fontSize: workspaceView ? 20 : 16, fontWeight: 650, overflowWrap: 'anywhere' }}>{selectedSource.displayName}</Typography>
+                  {workspaceView && <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{selectedSource.mediaType} / {formatBytes(selectedSource.contentLength)} / {selectedSource.visibility}</Typography>}
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
                     <Chip size="small" label={selectedSource.status} color={statusColor(selectedSource.status)} />
                     <Chip size="small" label={`Active v${selectedSource.activeVersion ?? '—'}`} variant="outlined" />
@@ -932,7 +933,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
                     <Chip size="small" label={`Revision ${selectedSource.providerRevisionFingerprint.slice(0, 12)}`} variant="outlined" />
                   </Stack>
                 </Box>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Button size="small" variant="outlined" startIcon={<PreviewRoundedIcon />} disabled={!documentLive || previewMutation.isPending} onClick={() => previewMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId })}>Preview</Button>
                   <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index', operationKey: crypto.randomUUID() })}>Index</Button>
                   <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'refresh', operationKey: crypto.randomUUID() })}>Refresh revision</Button>

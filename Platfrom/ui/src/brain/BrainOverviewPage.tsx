@@ -31,7 +31,7 @@ export function BrainOverviewPage() {
     { name: 'Responses', description: 'Tone, guidance and helpful next steps', path: 'responses', Icon: ChatBubbleOutlineRounded, state: 'Personalize' },
     { name: 'Channels', description: 'Website workspace and standalone Engage apps', path: 'channels', Icon: AccountTreeOutlined,
       state: !targetProfile ? 'Choose environment' : loading ? 'Checking apps' : apps.isError ? 'Status unavailable' : state.activeApps.length ? `${state.activeApps.length} active` : state.matchingApps.length ? 'Review app setup' : 'Connect app' },
-    { name: 'Human support', description: 'Your team, conversation handover and action reviews', path: 'human-support', Icon: HeadsetMicOutlined, state: !workspace ? 'Status unavailable' : workspace.conversationHandoverConfigured ? 'Configured' : 'Optional' },
+    { name: 'Human support', description: 'Your team and conversation handover', path: 'human-support', Icon: HeadsetMicOutlined, state: !workspace ? 'Status unavailable' : workspace.conversationHandoverConfigured ? 'Configured' : 'Optional' },
   ]
   return <>
     <BrainPageHeader title="Your AI, connected to your business" description={selectedDeploymentSummary?.name}
