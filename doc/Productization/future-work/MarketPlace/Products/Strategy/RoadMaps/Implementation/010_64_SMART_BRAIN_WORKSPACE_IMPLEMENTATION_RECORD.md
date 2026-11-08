@@ -181,3 +181,22 @@ with ordinary scroll access on small screens. No broader customer/staff shell
 redesign, backend contract or operational policy change is part of this follow-up.
 
 Qualification: `verification-support/smart-brain-management/README.md`.
+
+## Approved Settings Navigation Correction - 8 November 2026
+
+The mixed Technical settings directory is retired. AI models is a Brain sidebar
+entry; embedding/vector configuration belongs to Knowledge -> Search settings;
+action access/webhooks stay with AI capabilities. Advanced is pinned below the
+scrollable resource navigation and expands its addressable child tasks. Old
+settings URLs are adapters only, preserving exact Brain/target/release context.
+
+The same provider editor serves each focused task; no new configuration store or
+duplicate editor is introduced. Structured Advanced siblings retain their mounted
+buffer for Probe current edits. Raw JSON, target/release changes, busy operations
+and leaving the editor retain the shared navigation safeguards.
+
+Source `1cb4b5b899eda855786c5c4adbcdf7e9713a624d` is deployed and healthy on
+staging and production. UI-only CI passed. 129 focused checks, the full-shell
+settings browser and existing Knowledge/capabilities journeys passed. Hosted
+navigation/themes/basic mobile passed without customer configuration changes.
+Evidence: `verification-support/brain-settings-navigation/README.md`.

@@ -13444,3 +13444,29 @@ test is being called hosted acceptance. UI extraction remains last.
   temporary tabs closed, viewport reset. Preserve unrelated dirt.
 - Evidence: `verification-support/brain-scoped-operations/README.md`. Canonical
   plan: `010_64_SMART_BRAIN_SCOPED_KNOWLEDGE_CONNECTIONS_AND_REVIEWS_NAVIGATION_PROPOSAL.md`.
+
+### Smart Brain Settings Navigation Closeout - 8 November 2026
+
+- Owner approved replacing the orphaned Technical settings directory. AI models
+  is first-class Brain navigation; Knowledge/Search settings owns embeddings and
+  the existing single vector binding; action access/webhooks stay in Capabilities.
+  Advanced is pinned with addressable runtime/provider/recovery/checks/JSON children.
+  Old settings URLs redirect with exact Brain/target/release, not duplicate editors.
+- Existing provider/action controllers, lossless draft mapping and permissions
+  retained. Independent review caught unsaved-probe loss; fixed by preserving the
+  mounted buffer only across declared structured Advanced siblings with unchanged
+  query. Busy, raw JSON, leaving Advanced and target/release changes stay guarded.
+- Source `1cb4b5b899eda855786c5c4adbcdf7e9713a624d` pushed on Platform-V11.
+  CI `42475630404` passed/backend skipped. Staging job `o5s6mba2b5zef3kltupx6uvk`
+  and production `scxzezczxt528tzncf2ab4pj` finished; exact-source UI containers
+  healthy. Backend/runtime/framework/schema and customer AI settings unchanged.
+- 129 focused checks, full-shell settings navigation browser, 13 Knowledge/review
+  and 21 capability browser journeys passed; build passed with existing warnings.
+  Save/probe payloads, dirty guards and permission tests used memory-only fixtures.
+- Hosted owned Support fixtures passed old redirects, models/search, every
+  Advanced child, webhook entry, light/dark short desktop and basic mobile. One
+  vector editor, no outer overflow or captured errors. No hosted config save,
+  binding/source mutation, vendor-probe command, release or AI query submitted.
+- Developer staging/standard production retained. Sessions signed out, temporary
+  tabs closed and viewport reset. Existing local preview left running. Preserve
+  unrelated dirty work. Evidence: `verification-support/brain-settings-navigation/README.md`.
