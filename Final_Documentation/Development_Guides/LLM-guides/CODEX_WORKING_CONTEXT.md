@@ -13548,3 +13548,31 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence: `verification-support/plugin-library-01066/README.md`; customer guide:
   `Final_Documentation/External_User_Guides/CUSTOMER_DATA_PLUGIN_AUTHORING_GUIDE.md`.
   Preserve unrelated dirty work, including the pre-existing `.gitignore` edit.
+
+### Data Plugin Form Guidance - 8 November 2026
+
+- User requested less vague forms. Creator tasks now include examples, expected
+  formats, unit explanations and a collapsible HTTP response/mapping example.
+  Setup field names are explicitly distinguished from actual installation
+  values. New definitions carry editable installation descriptions. Existing
+  definitions are not backfilled; example URLs/IDs/mappings are not saved values.
+- Initial UI source `6c5781c9b7351394d8ef21a6ef3faeaad21f05fe` pushed; CI
+  `42520898672` passed, backend build skipped. UI-only rollout reached healthy
+  staging/production containers. Read-only hosted staging checks passed.
+- Live expanded mapping help revealed off-screen table labels contributing to
+  outer-page scroll height. Follow-up `1cdb0992556d233f6b8b804141f3f543571ba275`
+  anchors those labels inside their table headers. Expanded-help layout checks
+  now pass on desktop/mobile in both themes. Final image CI `42521529897` passed
+  with backend skipped. Staging job `homna78rruhih6ud92rt385p` and production job
+  `cyhfdnjwmgge92mq09yxmrw5` finished; both exact-source UI containers healthy.
+- Read-only live browser checks pass on both environments: real authorized staff
+  entry, HTTP/S3 help, token and pagination variants, sample-response mappings,
+  installer descriptions and desktop/mobile layout, including bounded expanded
+  help. No captured page errors, configuration writes or test resources. Profiles
+  remain staging/developer and production/standard. First staging login probe
+  timed out during replacement; completed-rollout checks passed without auth edits.
+- Focused checks: 53 unit tests, 13 library browser cases, 23 capability browser
+  cases and production build pass. Only existing runtime-config/bundle-size
+  warnings remain. No backend/framework/schema/AI-policy change or customer
+  configuration write. Private-plugin runtime indexing qualification remains
+  separately unrun as described in the earlier 010.66 entry.

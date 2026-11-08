@@ -152,9 +152,28 @@ Focused unit checks pass (53); library browser checks pass (13), including
 no mutation while navigating examples and preservation of existing definitions.
 Capability browser checks pass (23), including installation URL placeholders and
 declared boolean help. Production build passes, with the existing runtime-config
-script and bundle-size warnings. Hosted rollout is not yet claimed here; its
-completion is recorded separately. This is UI-only work, not new indexing/runtime
-qualification.
+script and bundle-size warnings. Expanded-help checks also cover bounded desktop
+scrolling and mobile overflow: off-screen table labels are anchored within their
+headers, rather than contributing an empty area below the editor.
+
+Initial source `6c5781c9b7351394d8ef21a6ef3faeaad21f05fe`; final UI source
+`1cdb0992556d233f6b8b804141f3f543571ba275`. Both are committed and pushed on
+`Platform-V11`. Final image CI `42521529897` passed, with backend skipped.
+Staging UI job `homna78rruhih6ud92rt385p` and production UI job
+`cyhfdnjwmgge92mq09yxmrw5` finished; both exact-source native containers are
+healthy. Backend source and database migrations were not changed.
+
+Read-only live browser checks pass on both environments: authorized staff entry,
+field hints and starter values, token/page/cursor variants, HTTP response example,
+S3 limits, editable installer descriptions and desktop/mobile layout. No captured
+page errors or configuration writes; no test definitions, Brains, installations,
+indexing commands or releases were created. Staging remains developer and
+production standard. Screenshots are ignored under
+`output/plugin-library-implementation/*-guidance-*.png`.
+
+The first staging login probe ran during replacement and timed out before the
+login control appeared. Checks after the completed rollout passed; no auth code
+was changed. This is UI-only work, not new indexing/runtime qualification.
 
 Definition save/check/version and Brain draft save do not call the provider,
 index data, create a release or change live app assignment. Storage binding,
