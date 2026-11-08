@@ -137,14 +137,15 @@ Resetting Git alone does not roll back the schema or its private data.
 
 ## Operational Boundaries
 
-### Required Fields And Real-Plugin Recreation - In Progress
+### Required Fields And Real-Plugin Recreation - Verified Live
 
-The next bounded UI follow-up marks creator fields Required/Optional, lists
-missing required inputs with step/focus navigation, and preserves incomplete
-draft saves. Reusable-version creation runs the existing server check before the
-atomic version command. Installer storage/text/choice/boolean controls share
-requiredness and inline feedback; required booleans accept explicit false.
-No AI semantic validator, new plugin type or backend/schema change is intended.
+Creator fields are marked Required/Optional. The step rail counts missing inputs;
+Review links return to and focus those fields. Incomplete drafts can still be
+saved, including Save draft & check. Reusable-version creation runs the existing
+server check before the atomic version command. Installer storage/text/choice/
+boolean controls share requiredness and inline feedback; required booleans accept
+explicit false. Separate affirmative approval contracts remain enforced. No AI
+semantic validator, new plugin type or backend/schema change was introduced.
 
 New definitions can start from an available Data plugin version. The complete
 manifest is preserved except the new identity, copy name and initial version;
@@ -161,7 +162,42 @@ never put credentials in command arguments or tracked files. It recreates
 supported public Data definitions through the real form, checks saved-version
 contract equality and immutable UI, verifies unsupported selections are
 disabled, and archives only its own copies. Output is ignored under
-`output/plugin-form-recreation/`. Live results will be recorded after rollout.
+`output/plugin-form-recreation/`.
+
+UI source `51598facb9d96110975cf083134edc947d8550a3` is committed/pushed.
+Image CI `42526898728` passed, with backend skipped. Staging job
+`x36uwcs6ly77r9xm79ha9kte` and production job `uko8wcf3i7j5srpaodmnqghp`
+finished; exact-source native UI containers are healthy. Focused checks passed:
+59 unit tests, 17 library browser scenarios, 33 installer/capability browser
+scenarios, TypeScript and production build. Existing runtime-config script and
+bundle-size build warnings remain. Independent review found and fixed a path
+that skipped Save draft & check on unfinished input; a regression covers it.
+
+Real hosted recreation passed for all eight supported staging definitions and
+all five production definitions. Each complete saved manifest matched its source
+except the separate identity, copy name and initial version. The tests changed
+and restored actual source/mapping/freshness/setup fields, checked immutable
+version UI, and archived all 13 copies. Original plugins and installations were
+unchanged. Eight legacy SQL/folder/packaged entries in each environment were
+correctly unavailable, not claimed as newly authorable. Desktop/mobile checks
+passed with no captured page errors. Safe receipts and screenshots are in the
+ignored staging/production `output/plugin-form-recreation/` folders.
+
+A separate from-scratch S3 definition and installer journey passed on staging
+and production: create/check/version, configure the existing storage input,
+review, save to a compatible configuration-only Brain, and read back the install
+and compiled draft. Each had one saved and zero applied uses; cross-workspace
+read returned 404. Test definitions are archived, installs removed, and fixture
+deletions `del-6f5b5044` (staging) and `del-42c9374d` (production) succeeded.
+No runtime, vector service, release, provider query or indexing job was created.
+
+The first recreation attempt reloaded the page after API-key sign-in and lost
+its intentionally in-memory staff session, before writing any record. The runner
+now follows the real SPA navigation links; no authentication workaround or app
+change was needed. Read-only field-guidance checks also pass against the final
+source, preserving staging/developer and production/standard profiles. Private-
+plugin indexing, answer quality and release application remain separate,
+unrun qualification; these authoring results are not a full Platform gate.
 
 ### Field Guidance Follow-Up - 8 November 2026
 

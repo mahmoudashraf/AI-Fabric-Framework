@@ -42,6 +42,8 @@ const query = `?${new URLSearchParams({ customerId })}`
 const destination = '/library/plugins/new/data' + query
 const step = name => page.getByRole('navigation', { name: 'Data plugin creation steps' }).getByRole('button', { name: new RegExp(name) }).click()
 const screenshot = name => page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
+const library = () => page.getByRole('link', { name: 'My plugins', exact: true }).first().click()
+const newDefinition = async () => { await library(); await page.getByRole('link', { name: 'Create a data plugin', exact: true }).first().click() }
 function supported(manifest) {
   const datasets = manifest?.contributions?.datasets
   return Array.isArray(datasets) && datasets.length > 0 && datasets.every(dataset =>
@@ -72,9 +74,9 @@ try {
   await required.getByRole('button', { name: 'Relative read route', exact: true }).click()
   assert.equal(await page.getByLabel('Relative read route', { exact: true }).evaluate(element => document.activeElement === element), true)
   assert.equal(commands.length, 0, 'An incomplete version attempt must not create a record')
-  // This page has no changed values; the next navigation discards no customer work.
+  // Keep staff API-key authentication in its existing in-memory SPA session.
   for (const { plugin, version } of originals) {
-    await page.goto(ui + destination)
+    await newDefinition()
     await page.getByRole('button', { name: 'Start from existing plugin', exact: true }).click()
     await page.getByRole('combobox', { name: /^Existing Data plugin/ }).click()
     await page.getByRole('option', { name: plugin.displayName, exact: true }).click()
@@ -92,7 +94,27 @@ try {
     await use.click()
     const copiedName = `UI recreation - ${plugin.displayName}`
     await page.getByLabel('Display name', { exact: true }).fill(copiedName)
-    for (const name of ['Source contract', 'Records & content', 'Freshness & access', 'Setup inputs', 'Review & version']) await step(name)
+    const dataset = version.manifest.contributions.datasets[0]
+    const roundTrip = async (control, temporary, original) => { await control.fill(temporary); await control.fill(String(original)) }
+    await step('Source contract')
+    if (dataset.syncConnector?.connectorType === 'HTTP_JSON') {
+      await roundTrip(page.getByLabel('Relative read route', { exact: true }), '/ui-recreation-canary', dataset.syncConnector.httpSource.path)
+      const auth = dataset.syncConnector.connectionProfile.auth
+      if (auth.absoluteExpiryJsonPointer) await roundTrip(page.getByLabel('Absolute expiry JSON pointer', { exact: true }), '/ui_recreation_expiry', auth.absoluteExpiryJsonPointer)
+    } else await roundTrip(page.getByLabel('Maximum file bytes', { exact: true }), '1048575', dataset.documentPolicy.maxSourceBytes)
+    await step('Records & content')
+    if (dataset.syncConnector?.connectorType === 'HTTP_JSON') {
+      const [name, path] = Object.entries(dataset.syncConnector.httpSource.mapping.contentFields)[0]
+      await roundTrip(page.getByRole('textbox', { name: `Searchable content: ${name} source field`, exact: true }), '/ui_recreation_content', path)
+    } else await roundTrip(page.getByLabel('Maximum characters per chunk', { exact: true }), '8050', dataset.documentPolicy.maxChunkCharacters)
+    await step('Freshness & access')
+    if (dataset.syncConnector?.connectorType === 'HTTP_JSON') {
+      if (dataset.syncConnector.httpSource.scheduleSeconds !== undefined) await roundTrip(page.getByLabel('Baseline sync interval (seconds)', { exact: true }), '901', dataset.syncConnector.httpSource.scheduleSeconds)
+    }
+    else await roundTrip(page.getByLabel('Evidence retention (days)', { exact: true }), '31', dataset.documentPolicy.evidenceRetentionDays)
+    await step('Setup inputs')
+    if (typeof version.manifest.installForm?.[0]?.label === 'string') await roundTrip(page.getByLabel('Installer label', { exact: true }).first(), 'UI recreation label', version.manifest.installForm[0].label)
+    await step('Review & version')
     await page.getByRole('button', { name: 'Save draft & check', exact: true }).click()
     await page.waitForURL('**/library/plugins/*/edit*')
     const id = page.url().match(/\/library\/plugins\/([^/]+)\/edit/)[1]
@@ -112,13 +134,15 @@ try {
     await page.getByRole('link', { name: 'View reusable version', exact: true }).click()
     assert.equal(await page.getByLabel('Display name', { exact: true }).isDisabled(), true)
     assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).count(), 0)
-    await page.goto(ui + `/library/plugins/${id}/edit${query}`)
+    await library()
+    await page.getByRole('button').filter({ hasText: copiedName }).first().click()
+    await page.getByRole('link', { name: 'Edit definition', exact: true }).click()
     await page.getByRole('button', { name: 'Archive', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Archive definition', exact: true }).click()
     await page.getByText('Definition archived. Existing pinned versions are retained.', { exact: true }).waitFor()
     results.push({ sourcePluginId: plugin.id, name: plugin.displayName, sourceVersion: version.version, copyPluginId: id, status: 'PASS', fullContractPreserved: true, cleanup: 'ARCHIVED' })
   }
-  await page.goto(ui + destination)
+  await newDefinition()
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByLabel('Display name', { exact: true }).waitFor()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)

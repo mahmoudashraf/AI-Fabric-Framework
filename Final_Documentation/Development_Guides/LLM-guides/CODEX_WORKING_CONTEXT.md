@@ -13576,3 +13576,47 @@ test is being called hosted acceptance. UI extraction remains last.
   warnings remain. No backend/framework/schema/AI-policy change or customer
   configuration write. Private-plugin runtime indexing qualification remains
   separately unrun as described in the earlier 010.66 entry.
+
+### Plugin Form Completion And Recreation - 8 November 2026, Verified Live
+
+- Source `51598facb9d96110975cf083134edc947d8550a3` is committed/pushed. UI-only
+  image CI `42526898728` passed, backend skipped. Creator
+  Required/Optional labels, missing-field review links and server-before-version
+  checks preserve incomplete draft saves. Installer feedback is inline and
+  step-aware, and required booleans accept explicit Yes or No rather than forcing
+  consent. Actual affirmative approval contracts remain server-enforced.
+- New form's Start from existing plugin keeps the complete Data manifest with a
+  separate identity/name/initial version. Existing source/installation credentials
+  and business data are not copied. Supported private contracts remain HTTP JSON
+  and bound S3 only. No new plugin type, backend/schema/AI-policy change.
+- Focused checks pass: 59 unit, 17 library browser, 33 installer/capability browser,
+  production build and final TypeScript checks. Independent review caught and
+  corrected Save draft & check incorrectly skipping its promised save/check on
+  unfinished input; a browser regression now covers that path.
+- Live inventory: staging has 16 public Data definitions, 8 supported; production
+  has 13, 5 supported. Others are existing SQL, mounted/folder or packaged sources
+  and must remain explicitly unavailable for private authoring. No explicit
+  source-handle override was found in these supported definitions.
+- Staging UI job `x36uwcs6ly77r9xm79ha9kte` and production UI job
+  `uko8wcf3i7j5srpaodmnqghp` finished; exact-source native containers healthy.
+  All 8 supported staging and 5 production definitions were recreated through
+  the actual UI, exercising source/mapping/freshness/setup controls. Complete
+  saved contracts matched apart from the new identity/name/initial version.
+  All 13 copies are archived; originals/installations unchanged. The 8 legacy
+  SQL/folder/packaged entries per environment remain correctly unavailable.
+- From-scratch S3 authoring and the real installer passed in both environments:
+  saved install/compiler readback, zero applied use, cross-workspace 404 and no
+  captured page errors. Configuration-only fixtures were removed; deletion
+  `del-6f5b5044` (staging) and `del-42c9374d` (production) succeeded. No runtime,
+  vector service, release, indexing command or provider query was created.
+- Read-only guidance/desktop/mobile checks pass against the final UI source.
+  Profiles remain staging/developer and production/standard. An initial runner
+  reload lost intentionally in-memory API-key sign-in before any write; the
+  runner now uses actual SPA navigation, with no auth code change.
+- Evidence/runner: `verification-support/plugin-library-01066/`; ignored live
+  receipts/screenshots: `output/plugin-form-recreation/{staging,production}/`.
+  Private auth/rollout helpers stay under
+  `/Users/mahmoudashraf/.codex/private/loomai-plugin-library-01066/`.
+  Keep unrelated dirty `.gitignore` and pre-existing untracked work untouched.
+  New private-source runtime indexing/AI quality/release qualification remains
+  separately unrun; do not claim the full Platform gate is green.
