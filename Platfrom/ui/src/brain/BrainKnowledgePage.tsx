@@ -115,11 +115,11 @@ function BrainKnowledgeSources() {
       </Stack>} />
     <BrainKnowledgeTabs view={view} counts={counts} />
     {error && <Alert severity="error" sx={{ mb: 1 }}>{error.message}</Alert>}
-    {!target && !taskPage && <Alert severity="info" sx={{ mb: 2 }}>No applied release is available here. You can prepare storage and capabilities before publishing a version. <Button component={RouterLink} to={href('updates')}>Review setup</Button></Alert>}
+    {!target && !taskPage && <Alert severity="info" sx={{ mb: 2 }}>Source inventory is not available yet. You can prepare storage and capabilities, or review this environment's setup. <Button component={RouterLink} to={href('updates')}>Review setup</Button></Alert>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>
       {(!compact || !hasDetail) && !taskPage && <Box sx={{ width: { lg: 330 }, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <TextField size="small" label={presentation.find} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 1.5 }} />
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>{count === null ? target ? 'Source count unavailable until loaded' : 'No applied source inventory' : `${count} ${view === 'documents' ? 'document' : view === 'connections' ? 'live data' : 'knowledge'} ${count === 1 ? 'source' : 'sources'}${search ? ` / ${visible.length} matching` : ''}`}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>{count === null ? target ? 'Source count unavailable until loaded' : 'Source inventory not available yet' : `${count} ${view === 'documents' ? 'document' : view === 'connections' ? 'live data' : 'knowledge'} ${count === 1 ? 'source' : 'sources'}${search ? ` / ${visible.length} matching` : ''}`}</Typography>
         {loading && <CircularProgress size={24} aria-label="Loading knowledge" />}
         {!loading && !error && target && !visible.length && <Box sx={{ py: 2 }}>
           <Typography variant="body2" fontWeight={600}>{search ? 'No matching sources' : presentation.empty}</Typography>

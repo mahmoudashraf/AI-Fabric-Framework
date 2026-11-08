@@ -105,7 +105,8 @@ try {
   assert.doesNotMatch(await page.getByRole('tab',{name:'Documents',exact:true}).innerText(),/0/);
   assert.equal(await page.getByText('No document sources yet',{exact:true}).count(),0);
   assert.equal(await page.getByRole('button',{name:'Go to next page',exact:true}).count(),0,'Loading is not represented as a zero-result page');
-  await open('smart-brains/brain/knowledge?mode=undeployed');await page.getByRole('alert').filter({hasText:'No applied release'}).waitFor();
+  await open('smart-brains/brain/knowledge?mode=undeployed');await page.getByRole('alert').filter({hasText:'Source inventory is not available yet'}).waitFor();
+  assert.equal(await page.getByText('No applied release is available here.',{exact:false}).count(),0);
   assert.doesNotMatch(await page.getByRole('tab',{name:'All sources',exact:true}).innerText(),/0/);
   assert.equal(await page.getByText('No knowledge sources yet',{exact:true}).count(),0);
   await open('smart-brains/brain/knowledge?mode=not-configured');await page.getByText('No knowledge sources yet',{exact:true}).waitFor();

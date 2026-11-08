@@ -10,6 +10,8 @@ framework, retrieval decision, provider default, draft schema or live setting ch
 - Counts describe source records, not files in storage, chunks or indexed business
   records. Unknown/loading/failed/undeployed inventories never report zero.
   A failed source kind does not masquerade as an empty successful read.
+  Before an applied target is resolved, inventory is labelled unavailable, not
+  falsely diagnosed as an undeployed environment.
 - Search filtering keeps total source counts; Clear search restores the list.
   Empty/loading lists have no misleading zero-result pagination.
 - Search settings is a bounded task workspace: Search service, Embedding model,
