@@ -166,7 +166,9 @@ function OutcomeChanges({ changes, config, currentConfig, catalogue, baseline = 
     const itemBaseline = sectionPreviewBaseline(currentConfig, item.key, baseline)
     const preview = buildChangePreview(item.key, record(currentConfig) ? currentConfig[item.key] : undefined, record(config) ? config[item.key] : undefined,
       item.changed === null ? 'unavailable' : itemBaseline, catalogue)
-    const headline = item.changed === false ? 'No changes' : previewHeadline(preview)
+    const runtimeOnly = !preview.fieldChanges.length && preview.runtimeFieldChanges.length > 0
+    const headline = preview.baseline === 'unavailable' ? previewHeadline(preview) ?? 'Applied comparison unavailable'
+      : item.changed === false ? 'No changes' : runtimeOnly ? 'Saved reply inputs match · runtime guidance differs' : previewHeadline(preview)
     const Icon = ['entityConfig', 'knowledgeSourceConfig', 'marketplaceDatasetConfig'].includes(item.key) ? LayersOutlined
       : item.key === 'promptConfig' ? ChatBubbleOutlineRounded : item.key === 'actionsConfig' ? AutoAwesomeOutlined : HubOutlined
     const content = <>
@@ -176,7 +178,7 @@ function OutcomeChanges({ changes, config, currentConfig, catalogue, baseline = 
           {headline ?? (item.changed === false ? 'No changes' : 'Settings updated · inspect details')}
         </Typography></Box>
       <Typography variant="caption" color={preview.baseline === 'unavailable' ? 'warning.main' : 'text.secondary'} sx={{ flexShrink: 0 }}>
-        {preview.baseline === 'unavailable' ? 'Unavailable' : baseline === 'new' ? 'New' : item.changed && preview.fieldChanges.length ? `${preview.fieldChanges.length} ${preview.fieldChanges.length === 1 ? 'field' : 'fields'}` : item.changed ? 'Changed' : 'Unchanged'}
+        {preview.baseline === 'unavailable' ? 'Unavailable' : baseline === 'new' ? 'New' : item.changed && preview.fieldChanges.length ? `${preview.fieldChanges.length} ${preview.fieldChanges.length === 1 ? 'field' : 'fields'}` : runtimeOnly ? 'Runtime details' : item.changed ? 'Changed' : 'Unchanged'}
       </Typography>
       {onSelect && <ChevronRightRounded fontSize="small" color="action" />}
     </>

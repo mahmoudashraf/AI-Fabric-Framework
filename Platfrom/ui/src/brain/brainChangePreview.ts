@@ -6,6 +6,7 @@ export type PreviewValue = { id: string; label: string; current: string; propose
 export type ChangePreview = {
   title: string; impact: string; editor: string | null; editorLabel: string
   values: PreviewValue[]; fieldChanges: Array<{ path: string; change: string }>; baseline: PreviewBaseline
+  runtimeFieldChanges: Array<{ path: string; change: string }>
 }
 
 const areas: Record<string, [string, string, string | null, string]> = {
@@ -50,6 +51,21 @@ function editablePrompt(config: Record<string, unknown>, key: string): string | 
   return readAiBehaviour(config) && typeof source === 'string' && typeof expanded === 'string' && config[key] === expanded ? text(source) : text(config[key])
 }
 
+function authoredPrompts(value: unknown): Record<string, unknown> {
+  const result = { ...record(value) }
+  const metadata = record(result.aiBehaviour)
+  for (const key of AI_BEHAVIOUR_PROMPT_KEYS) {
+    const input = editablePrompt(result, key)
+    if (input === undefined) delete result[key]; else result[key] = input
+  }
+  if (readAiBehaviour(result)) {
+    const { sourcePrompts: _source, expandedPrompts: _expanded, ...settings } = metadata
+    if (Object.keys(settings).some(key => !['schemaVersion', 'revision'].includes(key))) result.aiBehaviour = settings
+    else delete result.aiBehaviour
+  }
+  return result
+}
+
 type NamedEntry = { id: string | undefined; label: string | undefined; value: Record<string, unknown> }
 function entries(key: string, config: Record<string, unknown>): NamedEntry[] {
   if (key === 'entityConfig' && Object.prototype.hasOwnProperty.call(config, 'ai-entities')) {
@@ -66,8 +82,11 @@ function entries(key: string, config: Record<string, unknown>): NamedEntry[] {
 // Project only declared presentation fields. Never render arbitrary config values or credential references.
 export function buildChangePreview(key: string, current: unknown, proposed: unknown, baseline: PreviewBaseline, catalogue?: AiBehaviourCatalogue): ChangePreview {
   const [title, impact, editor, editorLabel] = areas[key] ?? [key, 'Saved configuration for this area.', 'settings/technical-files', 'Technical settings']
+  const rawChanges = baseline === 'unavailable' ? [] : configurationFieldChanges(baseline === 'new' ? undefined : current, proposed)
+  const fieldChanges = key === 'promptConfig' && baseline !== 'unavailable'
+    ? configurationFieldChanges(baseline === 'new' ? undefined : authoredPrompts(current), authoredPrompts(proposed)) : rawChanges
   const result: ChangePreview = { title, impact, editor, editorLabel, values: [],
-    fieldChanges: baseline === 'unavailable' ? [] : configurationFieldChanges(baseline === 'new' ? undefined : current, proposed), baseline }
+    fieldChanges, runtimeFieldChanges: promptConfigIdentity(fieldChanges) !== promptConfigIdentity(rawChanges) ? rawChanges : [], baseline }
   const before = record(current), after = record(proposed)
   const add = (id: string, label: string, left: string | undefined, right: string | undefined, changed = left !== right) => {
     if (baseline === 'applied' && !changed || left === undefined && right === undefined) return
@@ -117,7 +136,7 @@ export function buildChangePreview(key: string, current: unknown, proposed: unkn
           }
         }
       }
-    } else if (promptConfigIdentity(before) !== promptConfigIdentity(after)) {
+    } else if (promptConfigIdentity(oldRows.map(row => row.value)) !== promptConfigIdentity(newRows.map(row => row.value))) {
       add('list', `${noun} list`, `${oldRows.length} configured`, `${newRows.length} configured`, true)
     }
   }

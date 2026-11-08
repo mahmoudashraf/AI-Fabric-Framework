@@ -17,7 +17,7 @@ Date: 8 November 2026. Scope: approved 010.64 follow-up, UI only.
 
 ## Verification
 
-- 56 focused preview, Updates, release, workspace and UI-profile tests pass.
+- 57 focused preview, Updates, release, workspace and UI-profile tests pass.
 - 25 isolated browser scenarios pass, including existing publish/apply safety,
   zero-write preview navigation, safe technical fields, tone/instructions, added
   capability/source, unavailable baseline, new setup, dark/light and 390px layout.
@@ -33,4 +33,9 @@ boolean/access-mode projection, missing per-section applied evidence, generated
 prompt provenance, canonical action/source/collection fields and an unsupported
 behaviour editor link. These are corrected before rollout, not waived.
 
-Hosted rollout and final independent recheck are pending at this checkpoint.
+Final review also found cached-unknown evidence wording, compiler-only prompt
+counts and ambiguous-list sibling attribution. These are corrected with authored
+prompt projection, separate runtime differences and list-only identity checks.
+No hidden semantic or execution-policy change was introduced.
+
+Hosted rollout is pending at this checkpoint.

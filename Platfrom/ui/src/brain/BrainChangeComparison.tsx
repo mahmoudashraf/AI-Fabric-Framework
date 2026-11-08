@@ -29,7 +29,8 @@ export function BrainChangeComparison({ preview, currentLabel, proposedLabel, hr
     </Box>)}
     {!preview.values.length && <Typography variant="body2" color="text.secondary">
       {preview.baseline === 'unavailable' ? 'A readable preview is not available for these saved settings.'
-        : preview.fieldChanges.length ? 'Additional settings changed. Their field names are available in Technical details; stored values are not projected here.' : 'No field changes in this area.'}
+        : preview.fieldChanges.length ? 'Additional settings changed. Their field names are available in Technical details; stored values are not projected here.'
+          : preview.runtimeFieldChanges.length ? 'Saved reply inputs match. Applied runtime guidance differs; inspect Technical details for the separate runtime comparison.' : 'No field changes in this area.'}
     </Typography>}
     <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
       <Typography component="h3" fontSize={17} fontWeight={650} sx={{ mb: 0.75 }}>What this changes</Typography>
@@ -44,6 +45,11 @@ export function BrainChangeComparison({ preview, currentLabel, proposedLabel, hr
         {preview.baseline === 'unavailable' ? <Typography variant="body2">Field comparison unavailable.</Typography> : <Table size="small" aria-label="Changed configuration fields"><TableHead><TableRow><TableCell>Field</TableCell><TableCell>Change</TableCell></TableRow></TableHead>
           <TableBody>{preview.fieldChanges.map(item => <TableRow key={item.path}><TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{item.path}</TableCell><TableCell>{item.change}</TableCell></TableRow>)}</TableBody>
         </Table>}
+        {preview.runtimeFieldChanges.length > 0 && <>
+          <Typography variant="body2" fontWeight={600} sx={{ mt: 2 }}>Runtime / generated-guidance differences</Typography>
+          <Typography variant="caption" color="text.secondary">These are not counted as authored setting changes.</Typography>
+          <Table size="small" aria-label="Runtime generated guidance fields"><TableBody>{preview.runtimeFieldChanges.map(item => <TableRow key={item.path}><TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{item.path}</TableCell><TableCell>{item.change}</TableCell></TableRow>)}</TableBody></Table>
+        </>}
       </AccordionDetails>
     </Accordion>
     {preview.editor ? <Button component={RouterLink} to={href(preview.editor)} startIcon={<EditOutlined />} sx={{ alignSelf: 'flex-start' }}>{canEdit ? 'Edit' : 'View'} {preview.editorLabel}</Button>

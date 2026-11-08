@@ -109,6 +109,8 @@ test('generated prompt defaults are not presented as removal and verified author
     sourcePrompts: { answerGenerationPrompt: 'Write grounded answers' }, expandedPrompts: { answerGenerationPrompt: 'Expanded runtime guidance' } } }
   const same = preview('promptConfig', current, { answerGenerationPrompt: 'Write grounded answers' }, 'applied')
   assert.equal(same.values.length, 0)
+  assert.equal(same.fieldChanges.length, 0)
+  assert.ok(same.runtimeFieldChanges.length)
   const reset = preview('promptConfig', current, {}, 'applied')
   assert.equal(reset.values[0].proposed, 'Generated/default guidance on publish')
   assert.equal(reset.values[0].kind, 'Changed')
@@ -140,4 +142,10 @@ test('a missing manifest section stays unavailable even if a server summary know
   assert.equal(sectionPreviewBaseline({promptConfig:{}},'promptConfig','applied'),'applied')
   assert.equal(sectionPreviewBaseline(undefined,'promptConfig','new'),'new')
   assert.equal(sectionPreviewBaseline({promptConfig:{}},'promptConfig','unavailable'),'unavailable')
+})
+test('ambiguous item lists do not absorb unrelated connection changes', () => {
+  const result = preview('actionsConfig', {actions:[{displayName:'Unchanged'}],webhookTargets:[]},
+    {actions:[{displayName:'Unchanged'}],webhookTargets:[{token:'SECRET'}]},'applied')
+  assert.equal(result.values.length,0)
+  assert.deepEqual(result.fieldChanges,[{path:'$.webhookTargets',change:'Changed'}])
 })
