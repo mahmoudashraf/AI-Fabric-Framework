@@ -1,7 +1,7 @@
 # 010.66 Plugin Library And Guided Data Plugin Authoring
 
 Date: 8 November 2026
-Status: Backend and UI implemented; local qualification passed. Hosted rollout and indexing/release canary remain separate qualification work.
+Status: Backend and UI implemented and deployed on staging/production; hosted authoring and installation passed. New-source indexing/answer/release canary remains unrun.
 Source baseline: `75bedeb23`, after the owner-requested rollback of the subsequent plugin-authoring implementation.
 
 ## 1. Recommendation
@@ -241,6 +241,12 @@ The owner subsequently approved full implementation of this design. No framework
 - P1 private contract, ownership, fidelity and concurrency: implemented and verified in the existing marketplace backend.
 - P2 picker, three-step installer, six-step creator and library: implemented and browser-verified; no changes to unrelated customer layouts.
 - P3 local full-stack qualification: passed real staff sign-in, create/check/version and persistence readback. The existing installer/compiler is covered by focused backend and browser tests. Hosted source sync/indexing/answer/promotion qualification has not run for this new private definition.
+- Hosted authoring/installation qualification: passed on staging and production,
+  including real persistence, compiled Brain draft readback and customer-scope
+  denial. Exact-source healthy backend/UI containers run `ad02bbe55`; both
+  databases are on migration 237. No running Brain was changed by these tests.
+  All disposable configuration-only test Brains were deleted; definitions were
+  archived. This does not close the source-indexing/answer/promotion part of P3.
 
 The new authoring workflow continues to create existing `DATA` manifests. Private
 ownership, drafts and versions are lifecycle metadata, not additional plugin types.

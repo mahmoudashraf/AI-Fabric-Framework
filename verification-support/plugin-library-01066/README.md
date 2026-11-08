@@ -86,6 +86,8 @@ Independent review identified and corrected clone destination-scope confusion,
 explicit source-handle overrides and an empty draft on new private definition
 import. The final bundle/seed regression rerun passed 31 tests, including those
 additional cases. Existing private working drafts are not overwritten by import.
+The subsequent owner/lifecycle recheck passed 29 tests across H2 and PostgreSQL
+with the final handle-binding rule enabled.
 
 One wider marketplace regression remains: the existing public handover/template
 upgrade case receives 409 instead of 200. Its prerequisite path is unchanged
@@ -94,10 +96,44 @@ not change framework/runtime code to hide that result.
 
 ## Current Delivery Status
 
-Implementation is locally qualified and ready for hosted qualification; no new
-hosted image has been applied yet. Live preflight was read-only. New source indexing, answer
-quality and promotion against an applied private-plugin release are not claimed.
-The existing storage/indexing/release controllers are reused, not replaced.
+Source `ad02bbe550015b93f34d67f8701387ab720d7586` is committed and pushed on
+`Platform-V11`. Image CI `42515037591` passed for backend and UI. Both services
+are deployed on staging and production with exact-source healthy containers.
+Both databases report `237:true`; database dumps were completed before rollout.
+
+- Staging backend job: `kkxtjoxeh3ebyn5aw0r8o5vs`.
+- Staging UI job: `n6irbcjc8b42sq2okpycfwkw`.
+- Production backend job: `hur628qw6ifo3qitebtjwk65`.
+- Production UI job: `y95sw8dx1dmgpycnt7btpbsi`.
+- Uncached runtime configuration confirms staging/developer and
+  production/standard presentation profiles.
+
+Real hosted browser journeys passed on both environments: authorized staff
+sign-in, create/check/version a private S3 definition, use the existing three-step
+installer, save and read the compiled Brain draft, verify saved/applied usage,
+and deny a mismatched customer workspace. No captured page errors. Customer-role
+and delegated-staff authority are independently covered by the integration tests;
+the hosted runner did not use the owner's personal identity.
+
+Qualification used disposable, configuration-only Brains with an existing
+durable-vector template contract. No vector service or runtime was provisioned,
+no release was published/applied and no provider query or indexing command ran.
+Lucene scratch configuration correctly rejected the document install; the runner
+was corrected to use a compatible fixture, not to bypass that contract. Earlier
+runner failures also corrected its own route/locator/wait assumptions, not the
+application. All five test Brains were deleted successfully. Private test
+definitions are archived, with no saved or applied installations retained.
+
+The feature is live. New-source indexing, AI answer quality and staging-to-
+production application of a private-plugin release remain unrun qualification
+work, not claimed as passed. Existing storage/indexing/release controllers are
+reused, not replaced. No existing customer Brain release, app assignment, prompt,
+provider credential or permission was changed.
+
+Future rollback must preserve private ownership enforcement. Do not deploy a
+pre-library catalogue reader against a database containing private definitions;
+use a verified forward fix, or a deliberately coordinated database/image restore.
+Resetting Git alone does not roll back the schema or its private data.
 
 ## Operational Boundaries
 

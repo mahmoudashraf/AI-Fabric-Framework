@@ -27,6 +27,11 @@ connection. Its runtime binding is environment-specific. Ordinary installation
 configuration is Brain-wide; do not assume it becomes a separate staging or
 production credential merely by switching the environment selector.
 
+Document indexing also requires a durable search service. A scratch Brain using
+Lucene or memory is not a qualified document-indexing target; configure the
+appropriate existing service under Knowledge -> Search settings first. A
+reusable document plugin can still be authored before that Brain is ready.
+
 ## Define A Reusable Source
 
 Open My plugins from Add knowledge or AI capabilities. Select Create a data

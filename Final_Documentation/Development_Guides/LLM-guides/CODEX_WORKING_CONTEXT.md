@@ -13501,3 +13501,50 @@ test is being called hosted acceptance. UI extraction remains last.
   Sessions signed out, temporary tabs closed and viewport reset. Existing local
   preview remains running. Preserve all unrelated dirty work.
 - Evidence: `verification-support/knowledge-source-experience/README.md`.
+
+### Private Data Plugin Library And Guided Authoring - 8 November 2026
+
+- Approved 010.66 is implemented over existing DATA manifests, marketplace
+  versions/installs/compiler and the current Platform database. No new plugin
+  type, runtime/framework release, customer business database or AI decision rule.
+  Private drafts, immutable versions, archive, exact JSON/source fidelity,
+  customer ownership and atomic revision/installation checks are enforced.
+- Brain Add knowledge/capability has one recommended/private/all picker and the
+  existing installer in three steps. `/library/plugins` is the customer-workspace
+  library; the six-step creator retains source/form edits and target return paths.
+  It is not a new environment selector or a copy of the staff publisher console.
+  Approved customer-wide layouts and independent developer presentation remain.
+- Only HTTP JSON and bound S3 contracts are usable private versions. The old
+  SQL loader is Platform-demo JDBC, not a customer connector; SQL/folder/classpath
+  authority cannot be acquired through a private definition. Unsupported source
+  may be retained in a draft. Document indexing needs a durable vector service.
+- Baseline was the owner-reset `75bedeb23`, not the rejected later plugin UI.
+  Staging's database had already applied the rejected session's immutable V236;
+  that exact migration alone was restored, and V237 safely moves both 235/236
+  baselines forward. No rejected application/UI code was reinstated.
+- Source `ad02bbe550015b93f34d67f8701387ab720d7586` pushed on `Platform-V11`.
+  Backend/UI image CI `42515037591` passed. Staging jobs
+  `kkxtjoxeh3ebyn5aw0r8o5vs` / `n6irbcjc8b42sq2okpycfwkw` and production jobs
+  `hur628qw6ifo3qitebtjwk65` / `y95sw8dx1dmgpycnt7btpbsi` completed; exact-source
+  native containers healthy. Both databases `237:true`, with pre-rollout dumps.
+  Uncached profiles remain staging/developer and production/standard.
+- Focused verification includes 52 UI checks, 22 capability browser scenarios,
+  10 library/layout scenarios, successful TypeScript/build, 90 earlier backend
+  checks, 33 migration/lifecycle checks, and final 31 bundle/contract plus 29
+  owner/lifecycle checks. Counts overlap. Independent review findings on clone
+  destination scope, handle binding and new-import draft initialization were
+  fixed and covered. The wider public handover/template regression remains
+  19/20; do not describe the complete Platform gate as green.
+- Real local and hosted staging/production authoring journeys passed. Hosted
+  tests used authorized staff and disposable configuration-only Brains, no owner
+  personal identity, runtime/vector provisioning, release apply, indexing or AI
+  query. Cross-workspace denial and compiled draft readback passed, no captured
+  page errors. Test Brains deleted successfully; private definitions archived.
+- Remaining qualification: a newly authored private source's sync/indexing,
+  answer quality and staging/production release journey. P1/P2 and hosted
+  authoring/installation are complete; that P3 runtime proof is not claimed.
+  Existing customer releases, app assignments, prompts, credentials and access
+  were not changed. Local fixture servers were stopped after live verification.
+- Evidence: `verification-support/plugin-library-01066/README.md`; customer guide:
+  `Final_Documentation/External_User_Guides/CUSTOMER_DATA_PLUGIN_AUTHORING_GUIDE.md`.
+  Preserve unrelated dirty work, including the pre-existing `.gitignore` edit.
