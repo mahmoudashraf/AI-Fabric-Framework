@@ -26,8 +26,8 @@ apply, verification, promotion, assignment and authorization contracts remain.
 
 - Production UI build passed. Existing runtime-config script and bundle-size
   warnings remain visible and unchanged in kind.
-- 113 focused Brain/setup/auth/Support/profile checks passed. The final smaller
-  release/presentation suite is rerun after finishing copy and layout changes.
+- 113 focused Brain/setup/auth/Support/profile checks passed, followed by a final
+  32-check release/presentation suite and 19 focused checks after count wording.
 - `scripts/brain-updates.browser.mjs` passed 19 isolated browser scenarios:
   publication, apply/retry without republishing, stable retry identity, concurrent
   draft/target changes, missing compatible image, read-only access, first setup,
@@ -41,7 +41,7 @@ apply, verification, promotion, assignment and authorization contracts remain.
   version details, exact apply review/cancel, All versions search, Activity and
   Technical tools passed. No publication, apply, verification request, customer
   configuration, app assignment or AI query was performed.
-- Real local layout: 1440x900 and 1280x800, dark/light; no page or horizontal
+- Real local layout: 1440x900 and 1280x800; no page or horizontal
   overflow in normal desktop review. 390px navigation has natural vertical
   scrolling and no page-level horizontal overflow. Screenshots in `local/`.
 - Focused independent review found four actionable edge cases; all were fixed.
@@ -51,8 +51,42 @@ apply, verification, promotion, assignment and authorization contracts remain.
 
 ## Hosted Rollout
 
-Pending exact-source UI image CI, staging-first deployment and live read-only
-browser qualification. Backend/runtime remain on their existing versions.
+Initial source `01539661d0ef133653bf9bba06b63d6f9d4388cc` passed UI image CI
+`42427318405` (backend skipped). Staging job `dz4h7yc9co4qmanh7gsweayn` finished;
+the exact-source UI container is healthy. Live staging passed normal review,
+explicit duplicate-destination selection, a genuinely undeployed Production
+target, old-version inspection, exact apply review/cancel and version search.
+No captured console errors or live release/configuration mutations.
+
+Final wording-only source `f9654a9c745bcfc80f8b1bcd077cc57bf6c3978c` corrects
+singular counts and retains unnamed entries in partial-label summaries.
+[CI 42427637201](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42427637201)
+passed; backend image build skipped. On 8 November 2026:
+
+- Staging job `cxxsddueb3xdnhh101vwhvl2` finished; exact-source native UI
+  container healthy. Final wording and the undeployed Production view verified.
+- Production job `ych71fqbhp3tpbourqq544nf` finished; exact-source native UI
+  container healthy. Both backend and customer runtime images remain unchanged.
+- Production passed published versions, exact-version/environment Apply review
+  and cancellation, historical inspection without changing publication intent,
+  version search, Activity and existing Technical tools.
+- Explicit destination choice and Staging context retention through Responses
+  passed. Return to Production retained the selected exact destination.
+- Production dark and light screenshots are in `live/`. Themes were checked on
+  the scoped Brain workspace, not the outer document body. The 1440x900 review
+  has no page-level scrolling or horizontal overflow. 390px version search and
+  resource-drawer navigation have no horizontal page overflow.
+- Staging developer and production standard profiles were retained. Both owned
+  fixture sessions were observed signed out; temporary tabs closed and viewport
+  override reset. No captured console errors on either hosted session.
+
+No live Brain publish/apply, verification request, customer draft save, app
+assignment, permission change, provider query or ticket submission was performed.
+Only the Platform UI service image was updated through existing Coolify delivery.
+
+Local screenshot names without a mode suffix are layout evidence; final hosted
+`production-updates-dark.jpg` and `production-updates-light.jpg` are the confirmed
+theme examples. The pictures in the proposal remain illustrative, not evidence.
 
 Write-workflow proof is the isolated harness evidence above, not a claim of a
 fresh production publish/apply or resource mutation.

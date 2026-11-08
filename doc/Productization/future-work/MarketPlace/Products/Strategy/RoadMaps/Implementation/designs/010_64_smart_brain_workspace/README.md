@@ -23,7 +23,7 @@ not implementation screenshots**:
 
 Specification and source-grounded behavior rules:
 [Updates release journey](../../010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md).
-The follow-up implementation is locally qualified, with hosted rollout pending. Fictional
+The follow-up is implemented and live UI verified on staging and production. Fictional
 Northfield versions and readiness labels are not live evidence.
 
 Generation brief: retain the charcoal AWS-style resource frame, thin dividers,

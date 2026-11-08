@@ -13357,3 +13357,35 @@ test is being called hosted acceptance. UI extraction remains last.
   No AI query, ticket submission or customer configuration/resource mutation.
   Test sessions signed out and temporary tabs closed. Preserve unrelated dirt.
 - Evidence: `verification-support/support-lifecycle-ci/README.md` and screenshots.
+
+### Smart Brain Updates Journey Closeout - 8 November 2026
+
+- Owner approved the 010.64 Updates follow-up. Shared Brain header now has visible
+  environment choices with factual state and an explicit chooser when authorized
+  destinations share a name. Exact target URL context and dirty/busy safeguards
+  remain; no alternate target is silently selected on an unavailable deep link.
+- Updates shows Review / Publish / Apply / Verify, outcome-led saved changes,
+  first-class published versions and separate environment verification. Version
+  search, focused details/apply review, Activity and scoped Technical tools remain
+  available. Existing backend versioning, promotion and app activation are reused.
+- Inspected versions cannot hijack publication intent; old verification cannot
+  complete a new journey. Failed apply preserves its version and retry operation
+  identity. Existing production controls remain reachable if staging later fails.
+- Source implementation `01539661d0ef133653bf9bba06b63d6f9d4388cc`, then final
+  count-wording polish `f9654a9c745bcfc80f8b1bcd077cc57bf6c3978c`, pushed on
+  `Platform-V11`. CI `42427637201` passed; backend skipped. Final staging job
+  `cxxsddueb3xdnhh101vwhvl2` and production job `ych71fqbhp3tpbourqq544nf`
+  finished; both exact-source native UI containers healthy. No backend, framework,
+  runtime, schema, AI configuration or customer infrastructure change.
+- 113 focused Brain/setup/auth/Support/profile checks, final 32 release checks
+  and 19 isolated browser scenarios passed; build passed with existing warnings.
+  Independent review findings fixed. Browser writes were memory-only fixtures.
+- Hosted owned Support fixtures passed review, version search/details, exact
+  apply review/cancel, Activity/Technical tools, explicit destination selection,
+  target retention through Responses, undeployed environment state, dark/light
+  desktop and basic mobile. No captured console errors. No live Brain release,
+  customer configuration/app assignment, permission, ticket or AI-query mutation.
+- Staging developer / production standard profiles retained. Fixtures signed out,
+  temporary tabs closed, viewport reset. Preserve all unrelated dirty work.
+- Canonical follow-up: `010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md` in
+  Implementation. Evidence: `verification-support/brain-updates-journey/README.md`.

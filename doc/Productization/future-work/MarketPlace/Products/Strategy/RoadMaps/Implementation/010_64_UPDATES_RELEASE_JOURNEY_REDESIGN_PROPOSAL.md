@@ -1,7 +1,7 @@
 # 010.64 Follow-up: Clear Updates And Version Journey
 
 Date: 7 November 2026
-Status: **Owner approved; implemented and locally qualified. Hosted rollout pending.**
+Status: **Implemented, committed, deployed to staging and production, and live UI verified on 8 November 2026.**
 Parent: [Smart Brain outcome-led workspace](010_64_SMART_BRAIN_OUTCOME_LED_WORKSPACE_AND_NAVIGATION_REDESIGN_PLAN.md).
 
 Execution evidence: [Updates journey verification](../../../../../../../../verification-support/brain-updates-journey/README.md).

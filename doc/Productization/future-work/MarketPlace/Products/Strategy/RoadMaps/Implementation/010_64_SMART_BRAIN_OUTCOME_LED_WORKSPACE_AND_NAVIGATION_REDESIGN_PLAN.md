@@ -281,7 +281,8 @@ Tests run only on explicit request and can incur provider usage. Normal configur
 environment selection and first-class published-version controls. The
 [Updates release-journey proposal](010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md)
 adds two visual layouts and the explicit Review / Publish / Apply / Verify
-sequence below. Implementation is locally qualified; hosted rollout is pending.
+sequence below. The follow-up is deployed and live UI verified on staging and
+production; see its linked verification record for exact source and test limits.
 
 Root: `/updates`
 Title: **Review and publish changes**
