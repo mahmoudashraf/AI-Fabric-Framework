@@ -39,6 +39,7 @@ import {
   type DeploymentWorkspaceSummary,
 } from '../api/platformApi'
 import { useBrainEditor, useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
+import { brainAdvancedSections } from '../brain/brainNavigation'
 import { DeploymentProviderOperationsPanel } from '../components/DeploymentProviderOperationsPanel'
 import { CustomerExistingVectorBinding } from '../components/customer/CustomerExistingVectorBinding'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -1674,22 +1675,23 @@ function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary):
 }
 
 export type ProviderSettingsView = 'all' | 'models' | 'storage' | 'technical-files'
-type ProvidersPageProps = { configurationOnly?: boolean; brainId?: string; view?: ProviderSettingsView }
+export type ProviderTechnicalSection = 'wiring' | 'providers' | 'recovery' | 'readiness' | 'json'
+type ProvidersPageProps = { configurationOnly?: boolean; brainId?: string; view?: ProviderSettingsView; technicalSection?: ProviderTechnicalSection }
 
-export function ProvidersPage({ configurationOnly = false, brainId, view = 'all' }: ProvidersPageProps) {
+export function ProvidersPage({ configurationOnly = false, brainId, view = 'all', technicalSection }: ProvidersPageProps) {
   return brainId
-    ? <BrainProvidersEditor key={brainId} brainId={brainId} view={view} />
+    ? <BrainProvidersEditor key={brainId} brainId={brainId} view={view} technicalSection={technicalSection} />
     : <LegacyProvidersEditor configurationOnly={configurationOnly} />
 }
 
-function BrainProvidersEditor({ brainId, view }: { brainId: string; view: ProviderSettingsView }) {
+function BrainProvidersEditor({ brainId, view, technicalSection }: { brainId: string; view: ProviderSettingsView; technicalSection?: ProviderTechnicalSection }) {
   const query = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
   if (query.isError && !query.data) return <Alert severity="error">{query.error.message}</Alert>
   if (!query.data) return <Typography color="text.secondary">Loading settings access...</Typography>
   return <>
     {query.isError && <Alert severity="error">{query.error.message}</Alert>}
     <ProvidersEditor selectedDeploymentId={brainId} selectedDeploymentSummary={query.data.deployment}
-      workspace={query.data} configurationOnly scoped view={view} />
+      workspace={query.data} configurationOnly scoped view={view} technicalSection={technicalSection} />
   </>
 }
 
@@ -1705,9 +1707,9 @@ function LegacyProviderEditorRegistration({ state }: { state: Parameters<typeof 
 }
 
 function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, workspace, configurationOnly,
-  scoped = false, view = 'all' }: {
+  scoped = false, view = 'all', technicalSection }: {
   selectedDeploymentId: string; selectedDeploymentSummary: Pick<DeploymentSummary, 'binding'> | null;
-  workspace: DeploymentWorkspaceSummary | null; configurationOnly: boolean; scoped?: boolean; view?: ProviderSettingsView
+  workspace: DeploymentWorkspaceSummary | null; configurationOnly: boolean; scoped?: boolean; view?: ProviderSettingsView; technicalSection?: ProviderTechnicalSection
 }) {
   const queryClient = useQueryClient()
   const brainWorkspace = useOptionalBrainWorkspace()
@@ -1715,7 +1717,8 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
   const [rawProviderValue, setRawProviderValue] = useState<string | null>(null)
   const bufferDirty = useRef(false)
-  const [technicalView, setTechnicalView] = useState('wiring')
+  const [localTechnicalView, setTechnicalView] = useState('wiring')
+  const technicalView = technicalSection ?? localTechnicalView
   const [modelView, setModelView] = useState('models')
   const showModels = view === 'all' || (view === 'models' && modelView === 'models')
   const showModelRouting = view === 'all' || (view === 'models' && modelView === 'routing')
@@ -1911,6 +1914,8 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   }
 
   useBrainEditor(scoped ? {
+    retainedNavigationPaths: technicalSection && !rawDirty && brainWorkspace
+      ? brainAdvancedSections.filter(item => item.view !== 'json').map(item => brainWorkspace.href(`advanced/${item.path}`).split('?')[0]) : undefined,
     dirty: draftDirty, busy: saveMutation.isPending,
     canSave: canEdit && Boolean(loadedDraft) && draftDirty && !rawProvider.error,
     save: async () => { try { await handleSave() } catch { /* The mutation error is shown in the workspace footer. */ } },
@@ -1990,7 +1995,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
         <Tab value="models" label="Models & fallback" />
         <Tab value="routing" label="Purpose overrides" />
       </Tabs> : null}
-      {scoped && view === 'technical-files' ? <Tabs value={technicalView} onChange={(_event, value) => setTechnicalView(value)}
+      {scoped && view === 'technical-files' && !technicalSection ? <Tabs value={technicalView} onChange={(_event, value) => setTechnicalView(value)}
         variant="scrollable" scrollButtons="auto" aria-label="Provider technical views">
         <Tab value="wiring" label="Runtime wiring" disabled={rawDirty || saveMutation.isPending} />
         <Tab value="providers" label="Provider parameters" disabled={rawDirty || saveMutation.isPending} />

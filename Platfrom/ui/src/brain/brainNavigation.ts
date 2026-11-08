@@ -3,13 +3,35 @@ export const brainSections = [
   { path: 'knowledge', label: 'Knowledge', group: 'Build' },
   { path: 'capabilities', label: 'AI capabilities', group: 'Build' },
   { path: 'responses', label: 'Responses', group: 'Build' },
+  { path: 'models', label: 'AI models', group: 'Build' },
   { path: 'channels', label: 'Channels', group: 'Experience' },
   { path: 'human-support', label: 'Human support', group: 'Experience' },
   { path: 'action-reviews', label: 'Action reviews', group: 'Operations' },
   { path: 'try', label: 'Try it', group: 'Release' },
   { path: 'updates', label: 'Updates', group: 'Release' },
-  { path: 'settings', label: 'Technical settings', group: 'Settings' },
+  { path: 'advanced', label: 'Advanced', group: 'Settings' },
 ] as const
+
+export const brainAdvancedSections = [
+  { path: 'runtime', label: 'Runtime connections', view: 'wiring' },
+  { path: 'providers', label: 'Provider parameters', view: 'providers' },
+  { path: 'recovery', label: 'Recovery policy', view: 'recovery' },
+  { path: 'diagnostics', label: 'Provider checks', view: 'readiness' },
+  { path: 'configuration', label: 'Configuration JSON', view: 'json' },
+] as const
+
+export function legacyBrainSettingsDestination(pathname: string): { path: string; panel?: string } | null {
+  const parts = pathname.split('/').slice(4)
+  if (parts.length > 1) return null
+  switch (parts[0] ?? '') {
+    case '': case 'technical-files': return { path: 'advanced/runtime' }
+    case 'models': return { path: 'models' }
+    case 'storage': return { path: 'knowledge/search' }
+    case 'access': return { path: 'capabilities/actions' }
+    case 'delivery': return { path: 'capabilities/actions', panel: 'webhooks' }
+    default: return null
+  }
+}
 
 export function brainIdFromPath(pathname: string): string {
   const match = pathname.match(/^\/smart-brains\/([^/]+)(?:\/|$)/)
@@ -23,7 +45,7 @@ export function brainPath(brainId: string, section = '', targetProfileId?: strin
 
 export const legacyBrainSections: Record<string, string> = {
   '/overview': '', '/prompts': 'responses', '/plugins': 'capabilities',
-  '/actions': 'capabilities/actions', '/providers': 'settings/models', '/revisions': 'updates',
+  '/actions': 'capabilities/actions', '/providers': 'models', '/revisions': 'updates',
 }
 
 export const scopedBrainTasks: Record<string, string> = {

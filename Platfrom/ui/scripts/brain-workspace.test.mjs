@@ -19,10 +19,22 @@ test('resource identity lives in the path and preserves an exact target', () => 
 })
 
 test('all outcome sections share one route hierarchy', () => {
-  assert.deepEqual(brainSections.map(item => item.path), ['', 'knowledge', 'capabilities', 'responses', 'channels', 'human-support', 'action-reviews', 'try', 'updates', 'settings'])
+  assert.deepEqual(brainSections.map(item => item.path), ['', 'knowledge', 'capabilities', 'responses', 'models', 'channels', 'human-support', 'action-reviews', 'try', 'updates', 'advanced'])
   assert.equal(new Set(brainSections.map(item => item.path)).size, brainSections.length)
   assert.equal(legacyBrainSections['/plugins'], 'capabilities')
   assert.equal(legacyBrainSections['/prompts'], 'responses')
+})
+
+test('settings bookmarks lead to one canonical editor, never another settings directory', () => {
+  const expected = { '': 'advanced/runtime', models: 'models', storage: 'knowledge/search',
+    access: 'capabilities/actions', delivery: 'capabilities/actions', 'technical-files': 'advanced/runtime' }
+  for (const [old, next] of Object.entries(expected)) {
+    assert.equal(exports.legacyBrainSettingsDestination(`/smart-brains/brain/settings${old ? '/' + old : ''}`).path, next)
+  }
+  assert.equal(exports.legacyBrainSettingsDestination('/smart-brains/brain/settings/delivery').panel, 'webhooks')
+  assert.equal(exports.legacyBrainSettingsDestination('/smart-brains/brain/settings/unknown'), null)
+  assert.equal(exports.legacyBrainSettingsDestination('/smart-brains/brain/settings/models/unknown'), null)
+  assert.equal(new Set(exports.brainAdvancedSections.map(item => item.view)).size, 5)
 })
 
 test('sign-in return is restricted to a valid local Brain route', () => {

@@ -12,6 +12,7 @@ import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import { fetchDeploymentIntegrations, fetchDeploymentTargetContext, fetchDocumentSources } from '../api/platformApi'
 import { DocumentKnowledgePage } from '../pages/DocumentKnowledgePage'
 import { IntegrationsPage } from '../pages/IntegrationsPage'
+import { ProvidersPage } from '../pages/ProvidersPage'
 import { useBrainWorkspace, useBrainEditor } from './BrainWorkspaceContext'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
 
@@ -23,6 +24,28 @@ const tasks = {
 } as const
 
 export function BrainKnowledgePage() {
+  const { brainId } = useBrainWorkspace()
+  const location = useLocation()
+  if (location.pathname.split('/').slice(4).join('/') === 'search') return <Box sx={{ ...brainPaneSx, flex: 1 }}>
+    <BrainPageHeader title="Search settings" description="Configure the embedding model and vector storage used to find relevant knowledge." />
+    <BrainKnowledgeTabs view="search" />
+    <ProvidersPage brainId={brainId} configurationOnly view="storage" />
+  </Box>
+  return <BrainKnowledgeSources />
+}
+
+function BrainKnowledgeTabs({ view }: { view: string }) {
+  const { href } = useBrainWorkspace()
+  return <Tabs value={view} variant="scrollable" scrollButtons="auto" aria-label="Knowledge views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
+    <Tab component={RouterLink} to={href('knowledge')} value="" label="All sources" />
+    <Tab component={RouterLink} to={href('knowledge/documents')} value="documents" label="Documents" />
+    <Tab component={RouterLink} to={href('knowledge/connections')} value="connections" label="Live data" />
+    <Tab component={RouterLink} to={href('knowledge/storage')} value="storage" label="Storage & uploads" />
+    <Tab component={RouterLink} to={href('knowledge/search')} value="search" label="Search settings" />
+  </Tabs>
+}
+
+function BrainKnowledgeSources() {
   const { target, release, targetProfileId, href } = useBrainWorkspace()
   const location = useLocation()
   const parts = location.pathname.split('/').slice(4)
@@ -67,12 +90,7 @@ export function BrainKnowledgePage() {
     <BrainPageHeader stackOnMobile title="What your AI knows" description="Keep answers grounded in your documents and live information."
       action={<Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end"><Button component={RouterLink} to={sourcePath + '?' + sourceParams} startIcon={<AddRounded />} variant="outlined">Connect a source</Button>
         <Button component={RouterLink} to={href('knowledge/storage')} startIcon={<CloudUploadOutlined />} variant="contained">Upload documents</Button></Stack>} />
-    <Tabs value={view} variant="scrollable" scrollButtons="auto" aria-label="Knowledge views" sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, flexShrink: 0 }}>
-      <Tab component={RouterLink} to={href('knowledge')} value="" label="All sources" />
-      <Tab component={RouterLink} to={href('knowledge/documents')} value="documents" label="Documents" />
-      <Tab component={RouterLink} to={href('knowledge/connections')} value="connections" label="Live data" />
-      <Tab component={RouterLink} to={href('knowledge/storage')} value="storage" label="Storage & uploads" />
-    </Tabs>
+    <BrainKnowledgeTabs view={view} />
     {error && <Alert severity="error" sx={{ mb: 1 }}>{error.message}</Alert>}
     {!target && !taskPage && <Alert severity="info" sx={{ mb: 2 }}>No applied release is available here. You can prepare storage and capabilities before publishing a version. <Button component={RouterLink} to={href('updates')}>Review setup</Button></Alert>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 3, flexDirection: { xs: 'column', lg: 'row' } }}>

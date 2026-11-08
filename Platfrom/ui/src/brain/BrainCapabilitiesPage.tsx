@@ -15,7 +15,7 @@ import {
   fetchDeploymentDraft, fetchDeploymentMarketplaceInstalls, fetchMarketplacePlugins,
   type DeploymentMarketplaceInstallSummary, type MarketplacePluginSummary,
 } from '../api/platformApi'
-import { ActionsPage } from '../pages/ActionsPage'
+import { ActionsPage, type ActionTechnicalView } from '../pages/ActionsPage'
 import { MarketplacePage } from '../pages/MarketplacePage'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
 import { useBrainWorkspace } from './BrainWorkspaceContext'
@@ -107,6 +107,8 @@ export function BrainCapabilitiesPage() {
   const technical = params.get('view') === 'technical'
   const connection = params.get('view') === 'connection'
   const selectedPluginId = params.get('pluginId') ?? ''
+  const actionPanel = params.get('panel')
+  const initialActionView: ActionTechnicalView = actionPanel === 'webhooks' || actionPanel === 'deliveries' || actionPanel === 'routing' ? actionPanel : 'catalogue'
   const dataSourcesOnly = available && params.get('type') === 'DATA'
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -139,11 +141,12 @@ export function BrainCapabilitiesPage() {
 
   if (detailKey === 'actions') return <Box sx={pageSx}>
     <BrainPageHeader title="Action configuration" action={<Button component={RouterLink} to={href('capabilities')} startIcon={<ArrowBackRoundedIcon />}>Capabilities</Button>} />
-    <Box sx={{ ...brainPaneSx, flex: 1 }}><ActionsPage brainId={brainId} workspaceMode /></Box>
+    <Box sx={{ ...brainPaneSx, flex: 1 }}><ActionsPage brainId={brainId} workspaceMode initialTechnicalView={initialActionView} /></Box>
   </Box>
 
   return <Box sx={pageSx}>
-    <BrainPageHeader title="What your AI can do" action={<Stack direction="row" gap={1} alignItems="center">
+    <BrainPageHeader title="What your AI can do" action={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+      <Button component={RouterLink} to={link('capabilities/actions', { panel: 'webhooks' })} size="small">Webhooks &amp; deliveries</Button>
       <Tooltip title="Action configuration"><IconButton component={RouterLink} to={href('capabilities/actions')} aria-label="Action configuration"><CodeRoundedIcon /></IconButton></Tooltip>
       <Button component={RouterLink} to={href('capabilities/add')} variant="contained" startIcon={<AddRoundedIcon />} sx={{ flexShrink: 0 }}>Add capability</Button>
     </Stack>} />
@@ -201,7 +204,7 @@ export function BrainCapabilitiesPage() {
               : connection && selected.install ? <>
                 <Button component={RouterLink} to={href(selectedPath)} startIcon={<ArrowBackRoundedIcon />} sx={{ mb: 2 }}>Capability settings</Button>
                 <MarketplacePage capabilityView={{ brainId, pluginId: selected.install.pluginId }} />
-              </> : <CapabilitySettings row={selected} href={href} connectionHref={link(selectedPath, { view: 'connection' })} />}
+              </> : <CapabilitySettings row={selected} href={href} connectionHref={link(selectedPath, { view: 'connection' })} technicalHref={link(selectedPath, { view: 'technical' })} />}
           </Box>
         </> : null}
       </Box> : !loading && !error && ((detailKey && !available) || selectedPluginId) ? <Alert severity="warning">This capability is not available in this Brain. <Link component={RouterLink} to={href('capabilities')}>View connected capabilities</Link></Alert> : null}
@@ -209,7 +212,7 @@ export function BrainCapabilitiesPage() {
   </Box>
 }
 
-function CapabilitySettings({ row, href, connectionHref }: { row: Capability; href: (section?: string) => string; connectionHref: string }) {
+function CapabilitySettings({ row, href, connectionHref, technicalHref }: { row: Capability; href: (section?: string) => string; connectionHref: string; technicalHref: string }) {
   const inputs = row.action ? capabilityInputs(row.action) : []
   return <Stack spacing={2.5} sx={{ pb: 2 }}>
     <Box><Typography variant="subtitle2">What happens</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{row.purpose}</Typography></Box>
@@ -218,7 +221,8 @@ function CapabilitySettings({ row, href, connectionHref }: { row: Capability; hr
         {inputs.length ? <List dense disablePadding>{inputs.map((input) => <ListItemText key={input.name} primary={`${readable(input.name)}${input.required ? ' (required)' : ' (optional)'}`} secondary={[input.type, input.description].filter(Boolean).join(' - ')} primaryTypographyProps={{ variant: 'body2' }} />)}</List> : <Typography variant="body2" color="text.secondary">No inputs declared.</Typography>}
       </Box>
       <Box><Typography variant="subtitle2">Customer confirmation</Typography><Typography variant="body2" color="text.secondary">{row.action.requiresConfirmation === true ? 'Required before execution.' : row.action.requiresConfirmation === false ? 'Not required by this action definition.' : 'Not declared in the action definition.'}</Typography></Box>
-      <Box><Typography variant="subtitle2">Sign-in</Typography><Typography variant="body2" color="text.secondary">{row.action.anonymousAllowed === true ? 'Anonymous access is allowed by this action.' : 'Anonymous access is not enabled.'}</Typography></Box>
+      <Box><Typography variant="subtitle2">Sign-in</Typography><Typography variant="body2" color="text.secondary">{row.action.anonymousAllowed === true ? 'Anonymous access is allowed by this action.' : 'Anonymous access is not enabled.'}</Typography>
+        <Link component={RouterLink} to={technicalHref} fontSize={13}>Edit action access &amp; requirements</Link></Box>
     </> : null}
     <Divider />
     <Box><Typography variant="subtitle2">Connected destination</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{row.install?.pluginDisplayName ?? 'Configured action route'}</Typography>

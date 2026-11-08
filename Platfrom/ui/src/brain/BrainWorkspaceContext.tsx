@@ -11,6 +11,7 @@ export type BrainEditorState = {
   error?: string | null
   primaryLabel?: string
   secondaryLabel?: string
+  retainedNavigationPaths?: string[]
 }
 
 export const BrainWorkspaceContext = createContext<{
@@ -42,10 +43,10 @@ export function useBrainEditor(state: BrainEditorState | null) {
     if (!register || !active) return
     register({ dirty: state!.dirty, busy: state!.busy, canSave: state!.canSave,
       message: state!.message, error: state!.error, primaryLabel: state!.primaryLabel,
-      secondaryLabel: state!.secondaryLabel,
+      secondaryLabel: state!.secondaryLabel, retainedNavigationPaths: state!.retainedNavigationPaths,
       save: state!.save ? () => latest.current?.save?.() : undefined,
       discard: state!.discard ? () => latest.current?.discard?.() : undefined })
     return () => register(null)
   }, [register, active, state?.dirty, state?.busy, state?.canSave, state?.message, state?.error,
-    state?.primaryLabel, state?.secondaryLabel, Boolean(state?.save), Boolean(state?.discard)])
+    state?.primaryLabel, state?.secondaryLabel, state?.retainedNavigationPaths?.join('\n'), Boolean(state?.save), Boolean(state?.discard)])
 }

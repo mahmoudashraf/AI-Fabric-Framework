@@ -7,7 +7,7 @@ import { BrainKnowledgePage } from './BrainKnowledgePage'
 import { BrainResponsesPage } from './BrainResponsesPage'
 import { BrainCapabilitiesPage } from './BrainCapabilitiesPage'
 import { BrainUpdatesPage } from './BrainUpdatesPage'
-import { BrainSettingsPage } from './BrainSettingsPage'
+import { BrainAdvancedPage, BrainModelsPage, BrainSettingsPage } from './BrainSettingsPage'
 import { BrainChannelsPage, BrainHumanSupportPage } from './BrainExperiencePages'
 import { BrainTryPage } from './BrainTryPage'
 import { BrainActionReviewsPage } from './BrainActionReviewsPage'
@@ -21,6 +21,7 @@ export function SmartBrainPage() {
     case '': return <BrainOverviewPage key={key} />
     case 'knowledge': return <BrainKnowledgePage key={key} />
     case 'responses': return <BrainResponsesPage key={key} />
+    case 'models': return <BrainModelsPage key={key} />
     case 'capabilities': return <BrainCapabilitiesPage key={key} />
     case 'channels': return <BrainChannelsPage key={key} />
     case 'human-support': return <BrainHumanSupportPage key={key} />
@@ -28,6 +29,7 @@ export function SmartBrainPage() {
     case 'try': return <BrainTryPage key={key} />
     case 'updates': return <BrainUpdatesPage key={key} />
     case 'settings': return <BrainSettingsPage key={key} />
+    case 'advanced': return <BrainAdvancedPage key={key} />
     default: return <Alert severity="warning">This Smart Brain page does not exist. <Button component={RouterLink} to={href()}>Open overview</Button></Alert>
   }
 }

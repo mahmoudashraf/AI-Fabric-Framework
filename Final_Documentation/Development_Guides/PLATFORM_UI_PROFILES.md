@@ -12,6 +12,14 @@ navigation adapters, not parallel editors. Staff-wide administration stays
 separate; sharing the workspace never grants customer review authority. See the
 010.64 scoped Knowledge/Connections/Reviews proposal and its verification record.
 
+Brain configuration also has one canonical navigation home: AI models in the
+Brain sidebar, embedding/vector settings in Knowledge -> Search settings, and
+runtime/provider/recovery/diagnostic/JSON tools under pinned Advanced children.
+Action access and webhooks stay with AI capabilities, not empty Settings pages.
+Old `/settings/...` URLs are redirects only. Reuse the existing provider/action
+editors and draft-save contracts; never mount a second copy to add an entry point.
+See `verification-support/brain-settings-navigation/README.md`.
+
 The separately approved account follow-up uses `/account/profile`,
 `/account/team`, `/account/loomai-access` and `/account/security` in a single
 resource workspace. Customer `/users` redirects there; staff `/users` remains

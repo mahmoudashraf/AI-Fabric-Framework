@@ -417,7 +417,8 @@ function parseSuccessStatuses(value: string, actionName: string): number[] {
     })
 }
 
-type ActionsPageProps = { brainId?: string; actionName?: string; workspaceMode?: boolean }
+export type ActionTechnicalView = 'catalogue' | 'routing' | 'webhooks' | 'deliveries'
+type ActionsPageProps = { brainId?: string; actionName?: string; workspaceMode?: boolean; initialTechnicalView?: ActionTechnicalView }
 
 export function ActionsPage(props: ActionsPageProps = {}) {
   return props.brainId ? <BrainActionsEditor {...props} brainId={props.brainId} /> : <LegacyActionsEditor />
@@ -428,11 +429,11 @@ function LegacyActionsEditor() {
   return <ActionsEditor selectedDeploymentId={selectedDeploymentId} workspace={workspace} />
 }
 
-function BrainActionsEditor({ brainId, actionName }: ActionsPageProps & { brainId: string }) {
+function BrainActionsEditor({ brainId, actionName, initialTechnicalView }: ActionsPageProps & { brainId: string }) {
   const workspace = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
   if (workspace.isError) return <Alert severity="error">{workspace.error.message}</Alert>
   if (!workspace.data) return <Typography color="text.secondary">Loading access...</Typography>
-  return <ActionsEditor key={brainId} selectedDeploymentId={brainId} workspace={workspace.data} workspaceMode actionName={actionName} />
+  return <ActionsEditor key={`${brainId}:${initialTechnicalView ?? 'catalogue'}`} selectedDeploymentId={brainId} workspace={workspace.data} workspaceMode actionName={actionName} initialTechnicalView={initialTechnicalView} />
 }
 
 function LegacyEditorRegistration({ state }: { state: Parameters<typeof useDeploymentWorkspaceEditorState>[0] }) {
@@ -445,11 +446,11 @@ function BrainEditorRegistration({ state }: { state: Parameters<typeof useBrainE
   return null
 }
 
-function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false, actionName }: {
-  selectedDeploymentId: string; workspace: DeploymentWorkspaceSummary | null; workspaceMode?: boolean; actionName?: string
+function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false, actionName, initialTechnicalView = 'catalogue' }: {
+  selectedDeploymentId: string; workspace: DeploymentWorkspaceSummary | null; workspaceMode?: boolean; actionName?: string; initialTechnicalView?: ActionTechnicalView
 }) {
   const queryClient = useQueryClient()
-  const [technicalView, setTechnicalView] = useState('catalogue')
+  const [technicalView, setTechnicalView] = useState<string>(initialTechnicalView)
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
   const bufferDirty = useRef(false)
   const [editorValue, setEditorValue] = useState('{\n  "actions": []\n}')

@@ -157,15 +157,17 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
   const harness = `
     import React, { useState, useCallback } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { BrowserRouter } from 'react-router-dom';
+    import { BrowserRouter, useLocation } from 'react-router-dom';
     import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
     import { ThemeProvider, CssBaseline, Box, Button, Stack, Typography } from '@mui/material';
     import { createConsoleTheme } from '/src/theme/consoleTheme.ts';
     import { BrainWorkspaceContext, BrainEditorContext } from '/src/brain/BrainWorkspaceContext.tsx';
-    import { BrainSettingsPage } from '/src/brain/BrainSettingsPage.tsx';
+    import { BrainSettingsPage, BrainModelsPage, BrainAdvancedPage } from '/src/brain/BrainSettingsPage.tsx';
+    import { ProvidersPage } from '/src/pages/ProvidersPage.tsx';
     import { brainPath } from '/src/brain/brainNavigation.ts';
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity }, mutations: { retry: false } } });
     function App() {
+      const location = useLocation();
       const [editor, setEditor] = useState(null);
       const register = useCallback(value => { setEditor(value); window.__editor = value }, []);
       window.__settingsTest.refetch = config => client.setQueryData(['deployment-draft', 'brain/a & b'], { ...window.__settingsTest.draft, providerConfig: config });
@@ -174,7 +176,12 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
       return <ThemeProvider theme={createConsoleTheme(new URLSearchParams(location.search).get('mode') || 'light')}><CssBaseline />
         <BrainWorkspaceContext.Provider value={value}><BrainEditorContext.Provider value={register}>
           <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', p: { xs: 2, md: 3 }, minWidth: 0 }}>
-            <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}><BrainSettingsPage /></Box>
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>{location.pathname.includes('/settings') ? <BrainSettingsPage />
+              : location.pathname.endsWith('/models') ? <BrainModelsPage />
+              : location.pathname.endsWith('/knowledge/search') ? <Box sx={{flex:1,overflow:'auto'}}><Typography component="h1">Search settings</Typography><ProvidersPage brainId={value.brainId} configurationOnly view="storage" /></Box>
+              : location.pathname.endsWith('/advanced/retained-tabs') ? <Box sx={{flex:1,overflow:'auto'}}><Typography component="h1">Retained technical editor</Typography><ProvidersPage brainId={value.brainId} configurationOnly view="technical-files" /></Box>
+              : location.pathname.includes('/advanced') ? <BrainAdvancedPage />
+              : <Typography component="h1">Action configuration</Typography>}</Box>
             <Stack component="footer" direction="row" gap={1} sx={{ pt: 2, flexShrink: 0, flexWrap: 'wrap' }}>
               <Typography data-testid="footer-state">{editor?.dirty ? 'Unsaved changes' : 'Saved'}</Typography>
               {editor?.error && <Typography role="alert">{editor.error}</Typography>}
@@ -230,7 +237,8 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
     const origin = server.resolvedUrls.local[0].replace(/\/$/, '')
-    const url = (section = '', query = '') => `${origin}/smart-brains/brain%2Fa%20%26%20b/settings${section ? `/${section}` : ''}?targetProfileId=target%2Fstaging${query}`
+    const canonical = { models: 'models', storage: 'knowledge/search', 'technical-files': 'advanced/retained-tabs' }
+    const url = (section = '', query = '') => `${origin}/smart-brains/brain%2Fa%20%26%20b/${canonical[section] ?? ('settings' + (section ? '/' + section : ''))}?targetProfileId=target%2Fstaging${query}`
     const waitField = label => page.getByLabel(label, { exact: true }).waitFor()
     const saved = () => page.waitForFunction(() => window.__editor && !window.__editor.dirty && !window.__editor.busy)
     const save = async () => { await page.getByRole('button', { name: 'Save draft', exact: true }).click(); await saved() }
@@ -239,20 +247,13 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
       await page.getByRole('option', { name: option, exact: true }).click()
     }
 
-    await t.test('short index and delegated links preserve exact Brain and environment', async () => {
-      await page.goto(url())
-      await page.getByRole('heading', { name: 'Technical settings' }).waitFor()
-      const links = await page.locator('a').evaluateAll(items => items.map(item => item.href))
-      assert.equal(links.length, 5)
-      for (const href of links) {
-        const link = new URL(href)
-        assert.equal(link.searchParams.get('targetProfileId'), 'target/staging')
-        assert.ok(link.pathname.startsWith('/smart-brains/brain%2Fa%20%26%20b/settings/'))
-      }
-      for (const section of ['access', 'delivery']) {
-        await page.goto(url(section))
-        await page.getByRole('link', { name: /Open capability access|Open webhook/ }).waitFor()
-        assert.ok((await page.getByRole('link', { name: /Open capability access|Open webhook/ }).getAttribute('href')).includes('/capabilities/actions?targetProfileId='))
+    await t.test('legacy bookmarks redirect to canonical owners with exact Brain and environment', async () => {
+      for (const [old, destination] of Object.entries({ '': 'advanced/runtime', models: 'models', storage: 'knowledge/search', access: 'capabilities/actions', delivery: 'capabilities/actions', 'technical-files': 'advanced/runtime' })) {
+        await page.goto(`${origin}/smart-brains/brain%2Fa%20%26%20b/settings${old ? '/' + old : ''}?targetProfileId=target%2Fstaging`)
+        await page.waitForURL(value => value.pathname.endsWith('/' + destination))
+        assert.equal(new URL(page.url()).searchParams.get('targetProfileId'), 'target/staging')
+        assert.ok(new URL(page.url()).pathname.startsWith('/smart-brains/brain%2Fa%20%26%20b/'))
+        if (old === 'delivery') assert.equal(new URL(page.url()).searchParams.get('panel'), 'webhooks')
       }
     })
 

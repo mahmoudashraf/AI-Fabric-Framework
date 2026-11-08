@@ -49,10 +49,10 @@ try {
   }
   await page.waitForTimeout(800)
   const target = new URL(page.url()).searchParams.get('targetProfileId')
-  const sections = ['', 'responses', 'capabilities', 'knowledge', 'channels', 'human-support', 'try', 'updates', 'settings']
+  const sections = ['', 'responses', 'capabilities', 'knowledge', 'models', 'channels', 'human-support', 'try', 'updates', 'advanced/runtime']
   if (process.env.PLATFORM_PREVIEW_DEEP === 'true') sections.push('responses/instructions', 'responses/advanced',
     'capabilities/actions', 'capabilities/add', 'knowledge/storage', 'knowledge/discover', 'knowledge/proof',
-    'knowledge/retention', 'knowledge/connections', 'settings/models', 'settings/storage', 'settings/technical-files', 'settings/access', 'settings/delivery')
+    'knowledge/retention', 'knowledge/connections', 'knowledge/search', 'advanced/providers', 'advanced/recovery', 'advanced/diagnostics', 'advanced/configuration', 'settings/access', 'settings/delivery')
   for (const section of sections) {
     await page.goto(`${origin}${root}${section ? `/${section}` : ''}${target ? `?targetProfileId=${encodeURIComponent(target)}` : ''}`)
     await page.locator('[data-brain-workspace]').waitFor()

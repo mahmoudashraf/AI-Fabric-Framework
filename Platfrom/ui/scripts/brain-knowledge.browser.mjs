@@ -51,8 +51,10 @@ const server = await createServer({root,configFile:false,cacheDir:cache,resolve:
     if(!importer?.endsWith('/BrainKnowledgePage.tsx') && !importer?.endsWith('/IntegrationsPage.tsx') && !importer?.endsWith('/HumanReviewPage.tsx')) return;
     if(['../api/platformApi','../auth/PlatformAuthProvider','../workspace/DeploymentWorkspaceContext'].includes(id)) return '\0virtual:knowledge-fixture';
     if(id==='../pages/DocumentKnowledgePage') return '\0virtual:knowledge-document';
+    if(id==='../pages/ProvidersPage') return '\0virtual:knowledge-provider';
   },async load(id) {
     if(id==='\0virtual:knowledge-fixture') return fixture;
+    if(id==='\0virtual:knowledge-provider') return 'export const ProvidersPage=()=>null;';
     if(id==='\0virtual:knowledge-harness') return (await transformWithEsbuild(harness,'harness.jsx',{loader:'jsx',jsx:'automatic'})).code;
     if(id==='\0virtual:knowledge-document') return (await transformWithEsbuild('import React from "react";export function DocumentKnowledgePage(props){return <section aria-label="Document controller">{props.workspaceView} / {props.initialSourceId} / {props.initialReleaseId}</section>}','document.jsx',{loader:'jsx',jsx:'automatic'})).code;
   },

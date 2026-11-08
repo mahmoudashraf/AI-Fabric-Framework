@@ -21,6 +21,7 @@ import MenuRounded from '@mui/icons-material/MenuRounded'
 import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
+import PsychologyOutlined from '@mui/icons-material/PsychologyOutlined'
 import { fetchDeploymentReleases, fetchDeploymentTargetOptions, fetchDeploymentTargetProfiles, fetchDeploymentVersions, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
@@ -28,13 +29,15 @@ import { CustomerSupportAssistant } from '../components/customer/CustomerSupport
 import { SupportResourceDialog } from '../components/customer/SupportResourceDialog'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { BrainEditorContext, BrainWorkspaceContext, type BrainEditorState } from './BrainWorkspaceContext'
-import { brainIdFromPath, brainPath, brainSections, currentBrainSection, isUsableRelease, retainEditingRelease } from './brainNavigation'
+import { brainAdvancedSections, brainIdFromPath, brainPath, brainSections, currentBrainSection, isUsableRelease, retainEditingRelease } from './brainNavigation'
 import { deploymentTerm } from '../deploymentTerminology'
 import { accountPath } from '../account/accountNavigation'
 import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 
-const sectionIcons = [HomeOutlined, LayersOutlined, AutoAwesomeOutlined, ChatBubbleOutlineRounded,
-  AccountTreeOutlined, HeadsetMicOutlined, FactCheckOutlined, PlayArrowOutlined, SystemUpdateAltOutlined, SettingsOutlined]
+const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
+  responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
+  'human-support': HeadsetMicOutlined, 'action-reviews': FactCheckOutlined, try: PlayArrowOutlined,
+  updates: SystemUpdateAltOutlined, advanced: SettingsOutlined }
 
 type Props = { session: PlatformAuthSessionSummary | null; onSignOut: () => Promise<void>; children: ReactNode }
 
@@ -75,6 +78,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const candidateRelease = requestedRelease ? scopedReleases.find(item => item.id === requestedRelease && isUsableRelease(item)) ?? null : applied
   const section = currentBrainSection(location.pathname)
   const sectionLabel = brainSections.find(item => item.path === section)?.label ?? 'Overview'
+  const childLabel = section === 'advanced' ? brainAdvancedSections.find(item => item.path === location.pathname.split('/')[4])?.label
+    : section === 'knowledge' && location.pathname.split('/')[4] === 'search' ? 'Search settings' : null
   const brain = workspace.selectedDeploymentSummary
   const dirty = Boolean(editor?.dirty)
   const busy = Boolean(editor?.busy)
@@ -82,8 +87,14 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   editingRelease.current = retainEditingRelease(editingRelease.current, `${brainId}:${targetProfileId}`, candidateRelease, dirty || busy)
   const release = editingRelease.current.release
   const releaseHeld = release?.id !== candidateRelease?.id
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => (dirty || busy)
-    && `${currentLocation.pathname}${currentLocation.search}` !== `${nextLocation.pathname}${nextLocation.search}`)
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (!dirty && !busy || `${currentLocation.pathname}${currentLocation.search}` === `${nextLocation.pathname}${nextLocation.search}`) return false
+    // Only a mounted editor can declare sibling tasks that retain its buffer.
+    if (!busy && currentLocation.search === nextLocation.search
+      && editor?.retainedNavigationPaths?.includes(currentLocation.pathname)
+      && editor.retainedNavigationPaths.includes(nextLocation.pathname)) return false
+    return true
+  })
 
   useEffect(() => {
     const footer = footerRef.current
@@ -126,14 +137,17 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     href }), [brainId, targetProfileId, targetProfile, release, href])
   const changed = Boolean(workspace.workspace && (!workspace.workspace.lifecycle.savedDraftMatchesLatestPublished
     || (workspace.workspace.latestVersion && workspace.workspace.latestVersion.id !== applied?.deploymentVersionId)))
-  const nav = <Box component="nav" aria-label={`${deploymentTerm.singular} navigation`} sx={{ display: 'flex', flexDirection: 'column', height: '100%', py: 2 }}>
+  const nav = <Box component="nav" aria-label={`${deploymentTerm.singular} navigation`} sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', py: 2 }}>
+    <Box sx={{ flexShrink: 0 }}>
     <Button component={RouterLink} to="/deployments" startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start', mx: 1.5, color: 'text.primary', mb: 2 }}>All {deploymentTerm.plural}</Button>
     <Typography sx={{ fontSize: 19, fontWeight: 650, px: 2.5, mb: 2.5, overflowWrap: 'anywhere' }}>{brain?.name ?? deploymentTerm.singular}</Typography>
+    </Box>
+    <Box data-brain-navigation-scroll sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
     {['Build', 'Experience', 'Operations', 'Release'].map(group => <Box key={group} sx={{ mb: 1.5 }}>
       <Typography sx={{ px: 2.5, py: 0.75, fontSize: 10, fontWeight: 650, textTransform: 'uppercase', color: 'text.secondary' }}>{group}</Typography>
-      <List disablePadding>{brainSections.map((item, index) => {
+      <List disablePadding>{brainSections.map(item => {
         if (item.group !== group) return null
-        const Icon = sectionIcons[index]
+        const Icon = sectionIcons[item.path]
         return <ListItemButton key={item.path} component={RouterLink} to={href(item.path)} selected={section === item.path}
           aria-current={section === item.path ? 'page' : undefined} onClick={() => setMenuOpen(false)}
           sx={{ px: 2.5, minHeight: 41, borderLeft: 3, borderColor: section === item.path ? 'primary.main' : 'transparent',
@@ -143,10 +157,21 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
         </ListItemButton>
       })}</List>
     </Box>)}
-    <Box sx={{ flexGrow: 1 }} /><Divider sx={{ mx: 2, mb: 1.25 }} />
-    <ListItemButton component={RouterLink} to={href('settings')} selected={section === 'settings'} onClick={() => setMenuOpen(false)} sx={{ px: 2.5 }}>
-      <ListItemIcon sx={{ minWidth: 31, color: 'inherit' }}><SettingsOutlined sx={{ fontSize: 20 }} /></ListItemIcon><ListItemText primary="Technical settings" primaryTypographyProps={{ fontSize: 13 }} />
-    </ListItemButton>
+    </Box>
+    <Box sx={{ flexShrink: 0 }}>
+      <Divider sx={{ mx: 2, my: 1.25 }} />
+      <ListItemButton component={RouterLink} to={href('advanced/runtime')} selected={section === 'advanced'}
+        aria-current={section === 'advanced' && !childLabel ? 'page' : undefined} onClick={() => setMenuOpen(false)} sx={{ px: 2.5 }}>
+        <ListItemIcon sx={{ minWidth: 31, color: 'inherit' }}><SettingsOutlined sx={{ fontSize: 20 }} /></ListItemIcon><ListItemText primary="Advanced" primaryTypographyProps={{ fontSize: 13 }} />
+      </ListItemButton>
+      {section === 'advanced' && <List disablePadding aria-label="Advanced settings" sx={{ maxHeight: '35dvh', overflowY: 'auto' }}>
+        {brainAdvancedSections.map(item => <ListItemButton key={item.path} component={RouterLink} to={href(`advanced/${item.path}`)}
+          selected={childLabel === item.label} aria-current={childLabel === item.label ? 'page' : undefined}
+          onClick={() => setMenuOpen(false)} sx={{ pl: 4.5, pr: 1.5, py: 0.5, minHeight: 32 }}>
+          <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 12 }} />
+        </ListItemButton>)}
+      </List>}
+    </Box>
   </Box>
 
   return <BrainWorkspaceContext.Provider value={context}><BrainEditorContext.Provider value={registerEditor}>
@@ -156,11 +181,12 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
         <Stack component="a" href="https://loomai.pro/" direction="row" gap={1} alignItems="center" sx={{ color: 'text.primary', textDecoration: 'none', pr: { md: 2 }, borderRight: { md: 1 }, borderColor: 'divider' }}>
           <HubOutlined color="primary" /><Typography fontWeight={700} fontSize={19}>LoomAI</Typography>
         </Stack>
-        {compact ? <Typography fontSize={12} noWrap sx={{ flex: 1, minWidth: 0 }}>{sectionLabel}</Typography> : <Breadcrumbs aria-label="Brain breadcrumb" sx={{ flex: 1, minWidth: 0, fontSize: 12, '& ol': { flexWrap: 'nowrap' }, '& li': { minWidth: 0 } }}>
+        {compact ? <Typography fontSize={12} noWrap sx={{ flex: 1, minWidth: 0 }}>{childLabel ?? sectionLabel}</Typography> : <Breadcrumbs aria-label="Brain breadcrumb" sx={{ flex: 1, minWidth: 0, fontSize: 12, '& ol': { flexWrap: 'nowrap' }, '& li': { minWidth: 0 } }}>
           <Link component={RouterLink} to={customer ? '/home' : '/deployments'} color="inherit" underline="hover">Console</Link>
           <Link component={RouterLink} to="/deployments" color="inherit" underline="hover">{deploymentTerm.plural}</Link>
           <Link component={RouterLink} to={href()} color="inherit" underline="hover" sx={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>{brain?.name ?? deploymentTerm.singular}</Link>
-          <Typography fontSize={12} noWrap>{sectionLabel}</Typography>
+          {childLabel && <Link component={RouterLink} to={href(section)} color="inherit" underline="hover">{sectionLabel}</Link>}
+          <Typography fontSize={12} noWrap>{childLabel ?? sectionLabel}</Typography>
         </Breadcrumbs>}
         {import.meta.env.VITE_SMART_BRAIN_REVIEW === 'true' && !compact && <Typography variant="caption" color="warning.main" sx={{ flexShrink: 0 }}>Local review · read-only</Typography>}
         <Tooltip title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}><IconButton aria-label="Switch color theme" onClick={() => color.setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>

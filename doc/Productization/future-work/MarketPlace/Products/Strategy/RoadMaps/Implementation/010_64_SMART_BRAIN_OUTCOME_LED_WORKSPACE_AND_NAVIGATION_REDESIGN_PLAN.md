@@ -72,7 +72,7 @@ Inside a Brain, replace the workspace sidebar with the resource sidebar. Do not 
 The resource frame contains:
 
 - A slim utility bar: Console identity/home, breadcrumb, theme, help and account.
-- A sidebar: Back to all Smart Brains, Brain name, outcome sections and Technical settings.
+- A sidebar: Back to all Smart Brains, Brain name, scrollable outcome sections and a pinned Advanced entry.
 - One context strip: `Editing shared draft`, selected target, applied version/runtime state and unapplied-change state.
 - One task title and the current task content.
 - One fixed task footer with the appropriate save or publish command.
@@ -90,16 +90,25 @@ BUILD
   Knowledge
   AI capabilities
   Responses
+  AI models
 
 EXPERIENCE
   Channels
   Human support
 
+OPERATIONS
+  Action reviews
+
 RELEASE
   Try it
   Updates
 
-Technical settings
+Advanced (pinned; children expand when selected)
+  Runtime connections
+  Provider parameters
+  Recovery policy
+  Provider checks
+  Configuration JSON
 ```
 
 Do not add another `Configuration` tab before showing these sections. The resource workspace is the configuration context. Its sidebar stays in the same order as the customer progresses; Overview highlights the next useful step instead of introducing a separate wizard.
@@ -124,12 +133,13 @@ Do not add another `Configuration` tab before showing these sections. The resour
 /smart-brains/:brainId/try
 /smart-brains/:brainId/updates                  Review changes / History
 /smart-brains/:brainId/updates/:releaseId
-/smart-brains/:brainId/settings                Technical settings index
-/smart-brains/:brainId/settings/models
-/smart-brains/:brainId/settings/storage
-/smart-brains/:brainId/settings/access
-/smart-brains/:brainId/settings/delivery
-/smart-brains/:brainId/settings/technical-files
+/smart-brains/:brainId/models                  Models, fallback and purpose overrides
+/smart-brains/:brainId/knowledge/search        Embeddings and vector storage
+/smart-brains/:brainId/advanced/runtime
+/smart-brains/:brainId/advanced/providers
+/smart-brains/:brainId/advanced/recovery
+/smart-brains/:brainId/advanced/diagnostics
+/smart-brains/:brainId/advanced/configuration
 ```
 
 An Engage app remains an independent resource. A resource-scoped app route such as `/engage/apps/:appId` can wrap the existing app editor; it must not create another app record or make an embedded-only installation require a standalone address.
@@ -187,7 +197,7 @@ Keep these states distinct: uploaded to storage, awaiting approval, indexing, in
 
 Retain optional LoomAI-hosted and BYO S3-compatible storage. Staging and Production can use one customer bucket with chosen prefixes. Production indexes the selected source files; it does not copy staging vectors or silently include staging-only documents. Runtime read credentials stay scoped; platform provisioning credentials never appear here.
 
-Move vector infrastructure and embedding-model settings to Technical settings. Retain collection/source scope and allowlist controls in the appropriate advanced knowledge view. The redesign must not silently force search-all or alter retrieval decisions.
+Keep vector infrastructure and embedding-model settings under Knowledge -> Search settings, separate from document-file Storage & uploads. Retain collection/source scope and allowlist controls in the appropriate advanced knowledge view. The redesign must not silently force search-all or alter retrieval decisions.
 
 ### 5.3 AI Capabilities
 
@@ -300,12 +310,29 @@ Display exact progress and failures. If publishing succeeds but applying fails, 
 
 Keep version-only publishing, historical restore and permitted rollback available in contextual advanced actions. Direct Production updates remain supported; staging promotion is an available route, not a new mandatory approval gate. Do not promise zero downtime or add recovery/draining redesign to this UI work.
 
-### 5.9 Technical Settings
+### 5.9 Models, Search And Advanced Controls
 
-Root: `/settings`
+Owner-approved navigation correction, 8 November 2026; supersedes the original
+mixed Technical settings index.
+
+Roots: `/models`, `/knowledge/search`, `/advanced/:task`.
 Outcome: **Reach deeper controls without crowding everyday setup.**
 
-Use a short index leading to focused subpages: AI models, Storage & search, Access, Event delivery and Technical files. Move the current long Providers screen into these bounded tasks.
+AI models is a direct Brain sidebar task. Knowledge owns embedding/vector search
+configuration, including the single existing vector-binding editor; document-file
+storage/uploads remain distinct. Advanced is always reachable below the scrollable
+main navigation. Its selected child is visible in the sidebar and breadcrumb.
+
+Do not create Access or Event delivery directory pages that only point elsewhere.
+Action access/requirements, HTTP routes, webhook policies and delivery status use
+the existing AI capabilities action editor. Channel sign-in remains with Engage;
+source webhooks remain with live data; handover remains with Human support.
+The existing delivery API is active-runtime scoped, not selected-target scoped.
+
+Old `/settings` and `/settings/technical-files` URLs redirect to Advanced/runtime;
+models and storage bookmarks redirect to their new homes. Access and delivery
+bookmarks go to the existing action editor (delivery opens its webhook panel).
+Retain exact Brain/target/release context, not another copy of the editor.
 
 Retain provider/model parameters, orchestration versus generation configuration, explicit configured provider fallback policy, embedding and vector settings, runtime/connector profile wiring, webhook policies/deliveries, raw configuration and permitted import/export functions. Use accurate units and names in these views; natural language must not conceal technical meaning.
 
@@ -355,7 +382,7 @@ Recommended customer vocabulary:
 
 - Plugins -> **AI capabilities** or **Connected services**, according to the contribution.
 - Prompts / AI behaviour -> **Responses**; editable prompts -> **Instructions**.
-- Providers -> **AI models** and **Storage & search**, in focused technical views.
+- Providers -> **AI models**, **Knowledge / Search settings** and **Advanced**, reusing the focused provider editor.
 - RAG -> **Answers from your knowledge**.
 - Vector space -> **Knowledge collection**, with the actual identifier in Technical details.
 - POC -> **Try it**.

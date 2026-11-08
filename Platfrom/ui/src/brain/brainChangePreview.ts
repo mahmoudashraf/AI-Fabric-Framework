@@ -14,9 +14,9 @@ const areas: Record<string, [string, string, string | null, string]> = {
   actionsConfig: ['What your AI can do', 'The capabilities available to your AI and their declared requirements.', 'capabilities/actions', 'AI capabilities'],
   entityConfig: ['How knowledge is organised', 'The configured knowledge collections. This does not show live indexing status.', 'knowledge', 'Knowledge'],
   knowledgeSourceConfig: ['What your AI knows', 'The configured knowledge sources. Adding a source does not prove its documents are indexed.', 'knowledge', 'Knowledge'],
-  providerConfig: ['AI models & search', 'The models and search settings used after this version is applied.', 'settings/models', 'AI models'],
+  providerConfig: ['AI models & search', 'The models and search settings used after this version is applied.', 'models', 'AI models'],
   routingConfig: ['Where capabilities connect', 'The saved connections used to reach integrated services.', 'capabilities/actions', 'Capability connections'],
-  securityConfig: ['Who can access your AI', 'The access settings applied to this Smart Brain.', 'settings/access', 'Access settings'],
+  securityConfig: ['Who can access your AI', 'The access settings applied to this Smart Brain.', 'capabilities/actions', 'Action access settings'],
   shellConfig: ['What customers see', 'The workspace defaults in this version. Engage app settings remain separate.', 'channels', 'Channels'],
   marketplaceDatasetConfig: ['Connected datasets', 'The dataset configuration supplied to this Smart Brain.', 'knowledge', 'Knowledge'],
   behaviorConfig: ['How conversations run', 'The saved conversation and execution settings.', null, 'AI behaviour'],
@@ -81,7 +81,7 @@ function entries(key: string, config: Record<string, unknown>): NamedEntry[] {
 
 // Project only declared presentation fields. Never render arbitrary config values or credential references.
 export function buildChangePreview(key: string, current: unknown, proposed: unknown, baseline: PreviewBaseline, catalogue?: AiBehaviourCatalogue): ChangePreview {
-  const [title, impact, editor, editorLabel] = areas[key] ?? [key, 'Saved configuration for this area.', 'settings/technical-files', 'Technical settings']
+  const [title, impact, editor, editorLabel] = areas[key] ?? [key, 'Saved configuration for this area.', 'advanced/configuration', 'Advanced configuration']
   const rawChanges = baseline === 'unavailable' ? [] : configurationFieldChanges(baseline === 'new' ? undefined : current, proposed)
   const fieldChanges = key === 'promptConfig' && baseline !== 'unavailable'
     ? configurationFieldChanges(baseline === 'new' ? undefined : authoredPrompts(current), authoredPrompts(proposed)) : rawChanges
