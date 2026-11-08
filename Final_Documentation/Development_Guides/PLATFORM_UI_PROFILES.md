@@ -1,4 +1,4 @@
-# Platform UI Profiles
+# Platform UI Entry Points
 
 The customer-wide 010.65 design expansion was rejected and rolled back on
 2026-11-07. Keep the earlier approved customer pages and the 010.64 Smart Brain
@@ -45,55 +45,67 @@ fidelity and server-enforced ownership/revisions; advanced presentation is not
 permission. See `verification-support/plugin-library-01066/README.md` for delivery
 status, including the distinction between local tests and hosted qualification.
 
-The staging-only developer presentation is retained independently of that
-redesign. It uses the same existing UI and staging Platform backend, not a
-separate product, backend, authentication role or authorization bypass.
+## Developer Entry - Owner Decision, 8 November 2026
 
-## Configuration
+The old staging-wide developer presentation is retired by 010.67. Do not
+re-enable commercial/contact-hiding wrappers or treat staging as a developer
+account type. Existing customer and staff pages retain their standard content
+on both environments. The rejected 010.65 redesign remains out of scope.
 
-Set these runtime variables on the staging UI service:
+There are two public entry pages over one shared production Console:
 
-```text
-PLATFORM_UI_ENVIRONMENT=staging
-PLATFORM_UI_PROFILE=developer
-```
+- `console.loomai.pro/`: ordinary business Kit discovery.
+- `developer.loomai.pro/`: the developer landing page; `/developers` is its explicit
+  preview route on the existing frontend.
 
-The existing uncached `/runtime-config.js` supplies the profile before React
-renders. Production and an unset environment always resolve to `standard`, even
-if the requested profile is `developer`. Query strings/local storage cannot
-enable it. To restore the standard staging presentation, set
-`PLATFORM_UI_PROFILE=standard` and redeploy the same UI image.
+Developer links use canonical Console authentication and the existing Kit
+creation route with `entryPoint=DEVELOPER`. Keep this typed intent through sign-in,
+onboarding and email callbacks. It is not a role, entitlement or permission.
+The customer-experience and support Kits reuse their existing configuration and
+editors. Ordinary business templates are not globally restricted by this entry.
 
-`https://developer.loomai.pro` and the existing staging UI aliases use the same
-staging service and profile. This is real staging data/infrastructure, not a
-resource-free simulation. Production keeps the ordinary commercial view.
+The backend stamps a persisted environment policy on developer-created Brains.
+Use its `deploymentPolicy.allowedEnvironments` for target choices and show its
+staging-only status. Do not infer policy from the hostname, browser preference,
+free-form tags or a customer-editable prompt. Backend enforcement remains the
+authority across deployment, provisioning, promotion and reassignment.
 
-## Shared Presentation Wrappers
+## Runtime Configuration
 
-Use `Platfrom/ui/src/uiProfile.tsx` for these concerns:
+The uncached `/runtime-config.js` still supplies the API base URL and actual
+`environment` (`staging` or `production`). The removed `PLATFORM_UI_PROFILE` value
+has no effect and is not emitted. Do not confuse a public entry page with the
+server on which its customer's runtime is deployed.
 
-- `CommercialContent` wraps LoomAI offers, sales pricing, commercial terms and
-  marketplace/service-plan price displays.
-- `PersonalContactContent` wraps personal integration/contact-card triggers,
-  dialogs and associated personal sales copy. The shared `IntegrationCallButton`
-  already wraps its entire trigger/dialog, so callers inherit the rule.
+The owner selected `developer.loomai.pro` for the production frontend; remove its
+old staging route. Staging retains its existing sslip hostname. Normal
+authentication, ownership, credentials, provider accounting and resource limits
+apply regardless of entry page. Neither page is a resource-free simulation.
 
-Hidden components do not mount. Do not hide them with CSS or remove matching
-text. Product previews, actual business data/prices, configuration commands,
-Support requests and real Desk handover retain their existing behavior.
-Budget/accounting controls, quotas, permissions and entitlement checks are not
-sales chrome and remain enforced. The profile is not a confidentiality feature:
-compiled assets and authorized API data can still contain commercial metadata.
+## Visual Contract
+
+Keep the developer landing dark, using the approved silver/teal Brain bitmap,
+eight interactive capability nodes and two product starting points. The Brain
+image is media, while labels, links, previews and controls are real responsive
+HTML. Do not ship a flattened screenshot as the page. Preview examples must not
+claim live execution, configured specialists or successful provider calls.
+
+The developer offer is one year of developer platform access and LoomAI training,
+not lifetime hosting, unlimited model credit or a quota/funding bypass. Existing
+support provides the training enquiry entry; no duplicate ticket system is added.
 
 ## Verification
 
-Run `node --test scripts/ui-profile.test.mjs` and the production UI build.
-Check the developer hostname's HTTPS and runtime configuration, normal staging
-sign-in, absence of offers/contact actions, retained setup/Support and clean
-desktop/mobile layout. Confirm production still has its normal presentation.
-Never infer authentication or resource isolation from hidden UI alone.
+Run `node --test scripts/developer-entry.test.mjs
+scripts/customer-supabase-auth.test.mjs scripts/ui-profile.test.mjs`, the developer
+landing browser scenarios and the production UI build. Check desktop/mobile,
+all capability previews, real Kit setup links and retained authentication intent.
+Verify production denial for developer Brains through the API, staging allowed,
+and ordinary business production unchanged. Check both public hostnames and
+the standard staging presentation after rollout.
 
 Evidence and rollback status:
-`verification-support/developer-ui-profile/README.md` and the latest
-`LLM-guides/CODEX_WORKING_CONTEXT.md` entry. Earlier hosted screenshots/revisions
-are historical evidence, not proof of the current deployed layout.
+The old `verification-support/developer-ui-profile/README.md` is historical
+evidence only. Current work is tracked in 010.67, `verification-support/developer-entry/`
+and the latest `LLM-guides/CODEX_WORKING_CONTEXT.md` entry. Source and plan text
+are not proof of a completed hosted rollout.

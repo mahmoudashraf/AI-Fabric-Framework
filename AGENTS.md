@@ -14,7 +14,8 @@ must name the trust boundary or necessary execution requirement they protect.
 Use `CODEX_WORKING_CONTEXT.md` in that guide directory for current execution
 status; historical entries are not proof of the current deployed version.
 
-For UI presentation profiles, read
+For UI entry points and presentation, read
 `Final_Documentation/Development_Guides/PLATFORM_UI_PROFILES.md`.
-Keep the staging developer profile independent of customer page layout. The
+The staging-global developer profile is retired in favour of the separate
+010.67 developer landing page and resource-level staging-only policy. The
 010.65 customer-wide redesign was rejected; do not reapply it without approval.

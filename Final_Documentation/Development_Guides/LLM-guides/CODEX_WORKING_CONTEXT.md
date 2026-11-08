@@ -13620,3 +13620,72 @@ test is being called hosted acceptance. UI extraction remains last.
   Keep unrelated dirty `.gitignore` and pre-existing untracked work untouched.
   New private-source runtime indexing/AI quality/release qualification remains
   separately unrun; do not claim the full Platform gate is green.
+
+### 010.67 Developer Entry - 8 November 2026, Verified Live
+
+- Owner-selected public hostname is `https://developer.loomai.pro`, not `develop`.
+  It points to production `46.225.162.106` and uses the existing shared production
+  frontend with valid HTTPS. Console authentication/setup links stay canonical at
+  `console.loomai.pro`. Staging's old developer hostname route is removed.
+- Backend source `6f5d59b7ac224e99c90dd510b9167c24a2c7f922` is committed/pushed;
+  CI `42532865318` passed. Healthy exact-source containers and migration 238 were
+  verified on both hosts, with private database backups taken before migration.
+  This is Platform policy only, not a framework/runtime release or AI change.
+- Frontend source `edfb370717d1e3eff6f4efcc1dc1666640ee2a92` is committed/pushed;
+  CI `42533958728` passed, backend skipped. UI jobs `m31wuljcne1nm12n4vz419ry`
+  (staging) and `o5hpvsmo9injq4gndhoxjrai` (production) reached healthy exact-source
+  containers. Backend same-image configuration restarts `laby2d79375t8n6jbvnv0cx8`
+  and `s8agk6de0u70shwvlizgpexn` completed successfully.
+- The dark page uses a generated transparent Brain image, eight real interactive
+  capability previews and two existing Kit setup routes: Customer Experience and
+  Support Team. Developer intent survives existing sign-in/onboarding/email
+  returns. No new account role, Console service or product database was created.
+- Developer Kit creation stamps the canonical persisted `STAGING_ONLY` policy.
+  Public summaries expose allowed environments and the derived `staging-only`
+  tag. Apply/provision/dependencies/promotion/binding guard the allocation boundary;
+  reset/clone/import cannot remove it. Normal business Kit creation remains
+  unrestricted and does not inherit permanent original offer/model/runtime pins.
+- The old staging-global `PLATFORM_UI_PROFILE` and commercial/contact-hiding
+  wrappers are retired. Both environments retain standard business presentation.
+  The rejected 010.65 global customer redesign was not restored.
+- Public Support starter `public-support-profile-20261108` was published from the
+  existing generic Support template 1.2.0 and enabled in both operator-controlled
+  enrollment lists, preserving current Knowledge/Dealership entries. It declares
+  customer storage/AI-state choices, not internal support documents, credentials,
+  prepaid funding, business databases or a prebound Desk/agent. Human handover and
+  tickets require the customer's normal configuration and readiness.
+- Focused backend: 303 tests across 24 classes, plus overlapping 17-test follow-up
+  passed; PostgreSQL/H2 checks passed. UI groups: 64 Kit/auth/profile checks, 33
+  Brain/release checks, 8 landing browser scenarios, 29 Updates browser scenarios,
+  14 staff/shared Kit browser scenarios, 27 Support offer checks, TypeScript and
+  production build passed. Existing runtime-config/bundle-size warnings remain.
+- Hosted public checks passed at desktop/tablet/phone widths: all images loaded,
+  all eight previews open/dismiss, two actual setup links, no overflow/page errors,
+  canonical sign-in redirect and unchanged ordinary Console/staging root pages.
+- An existing genuinely verified Supabase customer signed in through the actual
+  UI and created both developer Kit types on both environments. All four persisted
+  staging-only policy, listed only staging targets, and returned HTTP 403
+  `DEPLOYMENT_STAGING_ONLY` for promotion planning/production apply with the real
+  consumer revision. A separate ordinary business control retained staging and
+  production and exposed a production target. These were configuration-only,
+  with no runtime allocation, source indexing or provider query requested.
+- Supported API cleanup removed their draft Engage apps, consumer bindings and
+  Brains, including the initial disposable probe. Main deletion receipts:
+  staging `del-58610637`, `del-1962af69`; production `del-4bd463da`,
+  `del-18ebe7c3`. Initial probe `del-5abdc713` and ordinary-control cleanup
+  `del-716f2567` also succeeded. Final database reads confirm zero remaining
+  qualification Brains or Kits on either environment. Receipts are recorded in
+  `output/developer-entry/hosted/cleanup.json`.
+- Live runner corrections were not application workarounds: it selected the
+  current public offer rather than the fixture's obsolete offer, used the actual
+  target-profiles route and consumer revision, and minimized the existing support
+  dock through its real button. No forced click or test-only hidden UI.
+- Evidence/reproducible public runner: `verification-support/developer-entry/`.
+  Ignored screenshots/reports: `output/developer-entry/`. Private auth, rollout,
+  native customer and deletion receipts remain under
+  `/Users/mahmoudashraf/.codex/private/loomai-developer-entry-01067/`.
+  The one-year offer is developer platform access, not a new billing/expiry
+  service, unlimited usage or a quota bypass. Existing serving apps, customer
+  documents and assignments are unchanged. This scope does not claim a full
+  Platform release gate, runtime AI quality or new starter indexing qualification.
+  Keep unrelated dirty `.gitignore` and pre-existing untracked work untouched.

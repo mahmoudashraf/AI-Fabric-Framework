@@ -5,16 +5,19 @@ Use this document to orient the next LLM session to how this codebase is develop
 This is not a task handoff.
 This is the baseline operating context for platform work.
 
-## Customer UI Rollback And Developer Profile (2026-11-07)
+## Customer UI Rollback And Developer Entry (2026-11-08)
 
 The owner rejected the 010.65 customer-wide Console redesign. Retain the earlier
 customer pages and the previously approved 010.64 Smart Brain workspace; do not
 restore 010.65's global shell/task changes or its removed design guide. Keep the
-staging-only developer presentation independently, using the existing UI/runtime
-config and normal authentication. Read
+earlier customer presentation. The staging-global developer profile is now
+retired in favour of the separate 010.67 developer landing page and typed,
+persisted staging-only resource policy. There is no developer account role.
+Normal business Kits retain their existing production path. Read
 `Final_Documentation/Development_Guides/PLATFORM_UI_PROFILES.md` before editing its
-commercial/contact wrappers. Current deployment evidence remains in
-`CODEX_WORKING_CONTEXT.md`; the rollback is not a backend/runtime/AI change.
+entry-page routing or environment-policy presentation. Current deployment
+evidence remains in `CODEX_WORKING_CONTEXT.md`; the historical UI rollback itself
+was not a backend/runtime/AI change.
 
 ## Template And Upgrade Contract (2026-10-25)
 
