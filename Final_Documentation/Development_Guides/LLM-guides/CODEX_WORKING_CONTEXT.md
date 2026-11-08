@@ -13389,3 +13389,28 @@ test is being called hosted acceptance. UI extraction remains last.
   temporary tabs closed, viewport reset. Preserve all unrelated dirty work.
 - Canonical follow-up: `010_64_UPDATES_RELEASE_JOURNEY_REDESIGN_PROPOSAL.md` in
   Implementation. Evidence: `verification-support/brain-updates-journey/README.md`.
+
+### Smart Brain Change Preview Closeout - 8 November 2026
+
+- Owner approved clickable outcome changes and a Current / Proposed side panel.
+  Known profile labels/instructions, action confirmation/access, canonical source
+  IDs/labels and collection maps are projected without arbitrary config values.
+  Unknown sections and first setup stay distinct; unsupported behaviour has no
+  misleading prompt-editor link. Preview navigation is read-only.
+- Verified compiler source/expanded provenance drives authored prompt comparisons;
+  runtime/generated differences stay separately labelled and do not inflate
+  authored change counts. No AI decision, prompt content, execution contract or
+  release-engine change. Existing publish/apply/verify and permissions retained.
+- Initial implementation `e8e4b336a5c4267affdc58b8c68bdaf8a6622054`, final source
+  `a20d1b7b272a4420bad08a792e735365aa4f71ef`, pushed on `Platform-V11`.
+  Image CI `42463859075` passed/backend skipped. Staging job
+  `p4kgfsxcyd5w371zspj66926` and production `mgjizfst8na1932lydaj1cic` finished;
+  both exact-source native UI containers healthy. Backend/runtime unchanged.
+- 57 focused checks, 25 memory-only browser scenarios and production build pass.
+  Independent review findings corrected with focused regressions. Hosted owned
+  fixtures passed comparison/details/close, editor navigation with exact target,
+  dark/light desktop and basic 390px layout. No captured console errors.
+- No hosted customer config, Brain release, app assignment, permission, ticket
+  or AI-query mutation. Staging developer / production standard profile retained.
+  Test sessions signed out, temporary tabs closed, viewport reset. Preserve all
+  unrelated dirty work. Evidence: `verification-support/brain-updates-journey/change-preview/`.
