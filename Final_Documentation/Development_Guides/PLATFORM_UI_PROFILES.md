@@ -89,6 +89,8 @@ eight interactive capability nodes and two product starting points. The Brain
 image is media, while labels, links, previews and controls are real responsive
 HTML. Do not ship a flattened screenshot as the page. Preview examples must not
 claim live execution, configured specialists or successful provider calls.
+Developer-page header/footer logos are noninteractive branding, not links.
+Other product pages keep their existing logo navigation.
 
 The developer offer is one year of developer platform access and LoomAI training,
 not lifetime hosting, unlimited model credit or a quota/funding bypass. Existing

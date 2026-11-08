@@ -56,6 +56,8 @@ try {
     await page.getByRole('heading', { name: 'Smart Brain for your app.' }).waitFor()
     assert.equal(await page.locator('[data-developer-landing]').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(12, 18, 20)')
     assert.equal(await page.locator('.dev-capability').count(), 8)
+    assert.equal(await page.locator('span.dev-brand').count(), 2)
+    assert.equal(await page.locator('.dev-brand[href], a:has(.dev-brand), button:has(.dev-brand)').count(), 0)
     for (const image of await page.locator('.dev-landing img').all()) assert.equal(await image.evaluate(img => img.complete && img.naturalWidth > 0), true)
     await page.getByText('Free for 1 year', { exact: true }).waitFor()
     await page.getByText('Training by LoomAI included', { exact: true }).waitFor()

@@ -19,6 +19,8 @@ try {
     await page.getByRole('heading', { name: 'Smart Brain for your app.', exact: true }).waitFor()
     assert.equal(await page.locator('.dev-capability').count(), 8)
     assert.equal(await page.locator('.dev-starter').count(), 2)
+    assert.equal(await page.locator('span.dev-brand').count(), 2)
+    assert.equal(await page.locator('.dev-brand[href], a:has(.dev-brand), button:has(.dev-brand)').count(), 0)
     for (const image of await page.locator('.dev-landing img').all()) {
       await image.scrollIntoViewIfNeeded()
       await image.evaluate(img => img.decode())
