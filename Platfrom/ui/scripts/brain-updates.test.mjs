@@ -22,6 +22,8 @@ async function loadModule(path, dependencies = {}) {
 const navigation = await loadModule('../src/brain/brainNavigation.ts')
 const presentation = await loadModule('../src/brain/brainReleasePresentation.ts', { './brainNavigation': navigation })
 const versionView = await loadModule('../src/brain/BrainReleaseVersions.tsx', { './brainReleasePresentation': presentation })
+const previews = await loadModule('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles })
+const previewView = await loadModule('../src/brain/BrainChangeComparison.tsx')
 const revisions = await readFile(new URL('../src/pages/RevisionsPage.tsx', import.meta.url), 'utf8')
 const fields = ['actionsConfig', 'entityConfig', 'routingConfig', 'providerConfig', 'securityConfig',
   'promptConfig', 'knowledgeSourceConfig', 'shellConfig', 'marketplaceDatasetConfig', 'behaviorConfig']
@@ -55,6 +57,8 @@ const dependencies = {
   './brainNavigation': navigation,
   './brainReleasePresentation': presentation,
   './BrainReleaseVersions': versionView,
+  './brainChangePreview': previews,
+  './BrainChangeComparison': previewView,
   'react-router-dom': { useNavigate: () => () => {}, useLocation: () => ({ pathname: '/smart-brains/brain-1/updates', search: '?targetProfileId=target-1' }),
     Link: ({ to, children }) => React.createElement('a', { href: to }, children) },
   '@tanstack/react-query': {
@@ -134,7 +138,7 @@ test('release polling preserves pending provider confirmation and terminal failu
 
 test('page mounts read-only queries, registers one shared footer and does not project raw config', () => {
   const html = renderToStaticMarkup(React.createElement(exports.BrainUpdatesPage))
-  assert.match(html, /Saved changes/)
+  assert.match(html, /What will change/)
   assert.match(html, /Published versions/)
   assert.match(html, /Compared with Staging v12/)
   assert.ok(!html.includes('DO_NOT_PROJECT_THIS_VALUE'))

@@ -11,9 +11,10 @@ import LayersOutlined from '@mui/icons-material/LayersOutlined'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded'
 import HubOutlined from '@mui/icons-material/HubOutlined'
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Checkbox, Chip,
-  Divider, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack,
+  Divider, Drawer, FormControlLabel, IconButton, LinearProgress, ListItemButton, MenuItem, Stack,
   Step, StepLabel, Stepper, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination,
   TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
@@ -38,6 +39,8 @@ import { BrainCustomerReleaseTasks } from './BrainCustomerReleaseTasks'
 import { brainPath } from './brainNavigation'
 import { BrainReleaseVersions } from './BrainReleaseVersions'
 import { environmentLabel, releaseInProgress, targetReleaseState } from './brainReleasePresentation'
+import { buildChangePreview, configurationFieldChanges, previewHeadline, sectionPreviewBaseline, type PreviewBaseline } from './brainChangePreview'
+import { BrainChangeComparison } from './BrainChangeComparison'
 
 const sections = [
   ['actionsConfig', 'AI capabilities', 'actions'],
@@ -60,6 +63,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 export { stableConfig }
+export { configurationFieldChanges }
 
 export function draftStamp(draft: DeploymentDraftResponse | undefined): string {
   return draft ? `${draft.id}:${draft.updatedAt}:${stableConfig(sections.map(([key]) => draft[key]))}` : ''
@@ -155,18 +159,29 @@ export function outcomeSummary(key: string, value: unknown, catalogue?: AiBehavi
   return Object.keys(value).length && labels[key] ? labels[key] : summary(value)
 }
 
-function OutcomeChanges({ changes, config, catalogue, firstSetup = false }: { changes: Change[]; config: unknown; catalogue?: AiBehaviourCatalogue; firstSetup?: boolean }) {
+function OutcomeChanges({ changes, config, currentConfig, catalogue, baseline = 'applied', onSelect }: {
+  changes: Change[]; config: unknown; currentConfig: unknown; catalogue?: AiBehaviourCatalogue; baseline?: PreviewBaseline; onSelect?: (key: string) => void
+}) {
   return <Stack divider={<Divider />} data-update-outcomes>{changes.map(item => {
+    const itemBaseline = sectionPreviewBaseline(currentConfig, item.key, baseline)
+    const preview = buildChangePreview(item.key, record(currentConfig) ? currentConfig[item.key] : undefined, record(config) ? config[item.key] : undefined,
+      item.changed === null ? 'unavailable' : itemBaseline, catalogue)
+    const headline = item.changed === false ? 'No changes' : previewHeadline(preview)
     const Icon = ['entityConfig', 'knowledgeSourceConfig', 'marketplaceDatasetConfig'].includes(item.key) ? LayersOutlined
       : item.key === 'promptConfig' ? ChatBubbleOutlineRounded : item.key === 'actionsConfig' ? AutoAwesomeOutlined : HubOutlined
-    return <Stack key={item.key} direction="row" gap={1.5} alignItems="center" sx={{ py: 1.25 }}>
+    const content = <>
       <Box sx={{ width: 34, height: 34, borderRadius: 1, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon sx={{ fontSize: 21 }} /></Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}><Typography fontSize={14} fontWeight={600}>{item.label}</Typography>
+      <Box sx={{ flex: 1, minWidth: 0 }}><Typography fontSize={14} fontWeight={600}>{preview.title}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {outcomeSummary(item.key, record(config) ? config[item.key] : undefined, catalogue)}
+          {headline ?? (item.changed === false ? 'No changes' : 'Settings updated · inspect details')}
         </Typography></Box>
-      <Typography variant="caption" color={item.changed === null ? 'warning.main' : 'text.secondary'}>{item.changed === null ? 'Unavailable' : firstSetup ? 'New' : item.changed ? 'Changed' : 'Unchanged'}</Typography>
-    </Stack>
+      <Typography variant="caption" color={preview.baseline === 'unavailable' ? 'warning.main' : 'text.secondary'} sx={{ flexShrink: 0 }}>
+        {preview.baseline === 'unavailable' ? 'Unavailable' : baseline === 'new' ? 'New' : item.changed && preview.fieldChanges.length ? `${preview.fieldChanges.length} ${preview.fieldChanges.length === 1 ? 'field' : 'fields'}` : item.changed ? 'Changed' : 'Unchanged'}
+      </Typography>
+      {onSelect && <ChevronRightRounded fontSize="small" color="action" />}
+    </>
+    return onSelect ? <ListItemButton key={item.key} aria-label={`Preview ${preview.title}`} onClick={() => onSelect(item.key)} sx={{ px: 0.5, py: 1.5, gap: 1.5, alignItems: 'center' }}>{content}</ListItemButton>
+      : <Stack key={item.key} direction="row" gap={1.5} alignItems="center" sx={{ py: 1.25 }}>{content}</Stack>
   })}</Stack>
 }
 
@@ -205,7 +220,7 @@ function UpdatesWorkspace() {
   const [selectedVersion, setSelectedVersion] = useState<DeploymentVersionSummary | null>(null)
   const publishedConfiguration = useRef('')
   const [sourceArtifactId, setSourceArtifactId] = useState('')
-  const [detail, setDetail] = useState<Change | null>(null)
+  const [detailKey, setDetail] = useState<string | null>(null)
   const [versionDetail, setVersionDetail] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -249,6 +264,16 @@ function UpdatesWorkspace() {
   const targetReady = Boolean(targetProfile?.active && targetProfile.id === targetProfileId)
   const changes = buildUpdateChanges(draft.data, appliedManifest.data, appliedVersionId, diff.data, catalogue.data)
   const changed = changes.filter(item => item.changed !== false)
+  const detail = changes.find(item => item.key === detailKey) ?? null
+  const baseline: PreviewBaseline = appliedEvidenceMissing || !releases.isSuccess ? 'unavailable' : !appliedVersionId ? 'new'
+    : record(appliedManifest.data) && appliedManifest.data.deploymentId === brainId && appliedManifest.data.versionId === appliedVersionId ? 'applied' : 'unavailable'
+  const currentConfig = baseline === 'applied' ? appliedManifest.data : undefined
+  const detailBaseline = detail ? sectionPreviewBaseline(currentConfig, detail.key, baseline) : baseline
+  const detailPreview = detail && buildChangePreview(detail.key, record(currentConfig) ? currentConfig[detail.key] : undefined,
+    draft.data?.[detail.key as keyof DeploymentDraftResponse], detail.changed === null ? 'unavailable' : detailBaseline, catalogue.data)
+  const currentLabel = baseline === 'new' ? `No version applied to ${environment}` : baseline === 'unavailable' ? `${environment} unavailable`
+    : `${environment} ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}`
+  const proposedLabel = `Saved draft r${draft.data?.revisionNumber ?? '—'}`
   const comparisonReady = !appliedEvidenceMissing && changes.length > 0 && changes.every(item => item.changed !== null) && releases.isSuccess
     && (!appliedVersionId || appliedManifest.isSuccess)
   const exactManifest = (value: unknown, versionId: string) => record(value) && value.deploymentId === brainId && value.versionId === versionId
@@ -428,26 +453,27 @@ function UpdatesWorkspace() {
           : <BrainCustomerReleaseTasks session={auth.session!} section={view as 'connections' | 'assignment' | 'promotion'} canEdit={canEdit} canOperate={canOperate} />
         : view === 'technical' ? <Box sx={{ overflow: 'auto', minHeight: 0 }}><RevisionsPage scope={{ brainId, targetProfileId }} /></Box>
         : view === 'versions' ? versionGrid(true)
-        : view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) minmax(0, 1.15fr)' }, gap: 3, flex: 1, minHeight: 0 }}>
+        : view === 'review' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.3fr) minmax(0, 1fr)' }, gap: 3, flex: 1, minHeight: 0 }}>
           <Stack spacing={1.5} sx={{ minWidth: 0, minHeight: 0 }}>
-            <Box><Typography component="h2" fontSize={19} fontWeight={650}>Saved changes</Typography>
+            <Box><Typography component="h2" fontSize={19} fontWeight={650}>What will change</Typography>
               <Typography variant="body2" color="text.secondary">{appliedEvidenceMissing ? 'Applied state unavailable' : appliedRelease ? `Compared with ${environment} ${versions.data?.find(item => item.id === appliedVersionId)?.versionLabel ?? appliedVersionId}` : releases.isSuccess ? `New setup for ${environment}` : 'Loading applied state...'}</Typography></Box>
             {draft.isLoading || appliedManifest.isLoading ? <LinearProgress aria-label="Loading saved changes" /> : null}
             {appliedManifest.isError && <Alert severity="warning">Applied-version comparison unavailable: {errorMessage(appliedManifest.error)}</Alert>}
             <Box sx={{ flex: 1, minHeight: { xs: 100, lg: 80 }, overflow: 'auto', pr: 0.5 }}>
-              <OutcomeChanges changes={outcomeRows} config={draft.data} catalogue={catalogue.data} firstSetup={!appliedVersionId && releases.isSuccess && !appliedEvidenceMissing} />
+              <OutcomeChanges changes={outcomeRows} config={draft.data} currentConfig={currentConfig} catalogue={catalogue.data} baseline={baseline} onSelect={setDetail} />
               {comparisonReady && changed.length === 0 && <Typography variant="body2" color="text.secondary">The saved draft matches the applied configuration.</Typography>}
             </Box>
-            <Button sx={{ alignSelf: 'flex-start' }} size="small" startIcon={<InfoOutlined />} onClick={() => setDetail(changes[0] ?? null)} disabled={!changes.length}>View change details</Button>
+            <Typography variant="caption" color="text.secondary"><InfoOutlined sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />Configuration preview · AI responses may vary</Typography>
+            <Button sx={{ alignSelf: 'flex-start' }} size="small" startIcon={<InfoOutlined />} onClick={() => setDetail(outcomeRows[0]?.key ?? null)} disabled={!changes.length}>View change details</Button>
             <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
-              <Typography component="h2" fontSize={17} fontWeight={650}>Configuration check</Typography>
+              <Typography component="h2" fontSize={17} fontWeight={650}>Before publishing</Typography>
               <Stack direction="row" gap={1} alignItems="center"><InfoOutlined fontSize="small" color={validationCurrent && validate.data.publishReady ? 'success' : 'action'} />
                 <Typography variant="body2" sx={{ flex: 1 }}>{validationCurrent ? `${validate.data.publishReady ? 'Ready to publish' : 'Needs attention'} · ${validate.data.warningCount} warnings` : `Not checked for draft r${draft.data?.revisionNumber ?? '—'}`}</Typography>
                 {canEdit && <Button size="small" variant="outlined" disabled={!draft.data || busy || validate.isPending} onClick={() => { validatedStamp.current = draftStamp(draft.data); validate.mutate() }}>Check draft</Button>}
               </Stack>
               {validate.isError && <Alert severity="error">{errorMessage(validate.error)}</Alert>}
               {validationCurrent && validate.data.issues.length > 0 && <Box sx={{ maxHeight: 70, overflow: 'auto' }}>{validate.data.issues.map((item, index) => <Typography key={index} variant="caption" display="block">{item.severity}: {item.message}</Typography>)}</Box>}
-              <Typography variant="caption" color="text.secondary">Shared draft · Staging and Production</Typography>
+              <Typography variant="caption" color="text.secondary">Publishing saves the shared draft. {environment} stays unchanged until you apply a version.</Typography>
             </Stack>
           </Stack>
           <Stack spacing={1.25} sx={{ minWidth: 0, minHeight: 0, overflow: 'auto', borderLeft: { lg: 1 }, borderColor: { lg: 'divider' }, pl: { lg: 3 } }}>
@@ -501,21 +527,15 @@ function UpdatesWorkspace() {
     </Box>
 
     <Drawer anchor="right" open={Boolean(review || detail || versionDetail)} onClose={() => { if (!busy) { setReview(null); setDetail(null); setVersionDetail(false) } }}
-      PaperProps={{ role: 'dialog', 'aria-labelledby': 'updates-review-title', sx: { width: { xs: '100%', sm: 580 }, maxWidth: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}>
+      PaperProps={{ role: 'dialog', 'aria-labelledby': 'updates-review-title', sx: { width: { xs: '100%', sm: detail ? 720 : 580 }, maxWidth: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography component="h2" id="updates-review-title" fontSize={22} fontWeight={650}>{detail ? 'Change details' : versionDetail ? `Version ${candidate?.versionLabel ?? ''}` : review?.mode === 'apply' ? `Update ${environment}` : 'Publish a version'}</Typography>
+        <Box>{detail && <Typography variant="overline" color="text.secondary" sx={{ fontSize: 10 }}>Saved change · {detail.label}</Typography>}
+          <Typography component="h2" id="updates-review-title" fontSize={22} fontWeight={650}>{detailPreview ? detailPreview.title : versionDetail ? `Version ${candidate?.versionLabel ?? ''}` : review?.mode === 'apply' ? `Update ${environment}` : 'Publish a version'}</Typography></Box>
         <IconButton aria-label="Close update details" disabled={busy} onClick={() => { setReview(null); setDetail(null); setVersionDetail(false) }}><CloseRounded /></IconButton>
       </Stack>
       <Stack spacing={2} sx={{ px: 3, py: 2, flex: 1, minHeight: 0, overflow: 'auto' }}>
         {error && <Alert severity="error">{error}</Alert>}
-        {detail ? <>
-          <TextField select size="small" label="Configuration area" value={detail.key} onChange={event => setDetail(changes.find(item => item.key === event.target.value) ?? null)}>{changes.map(item => <MenuItem key={item.key} value={item.key}>{item.label}</MenuItem>)}</TextField>
-          <ChangeTable changes={[detail]} />
-          <Typography variant="caption" color="text.secondary">Changed field names; stored values and credentials are not shown.</Typography>
-          <Table size="small"><TableHead><TableRow><TableCell>Field</TableCell><TableCell>Change</TableCell></TableRow></TableHead><TableBody>
-            {configurationFieldChanges(record(appliedManifest.data) ? appliedManifest.data[detail.key] : undefined, draft.data?.[detail.key as keyof DeploymentDraftResponse]).map(item => <TableRow key={item.path}><TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{item.path}</TableCell><TableCell>{item.change}</TableCell></TableRow>)}
-          </TableBody></Table>
-        </> : <>
+        {detailPreview ? <BrainChangeComparison preview={detailPreview} currentLabel={currentLabel} proposedLabel={proposedLabel} href={href} canEdit={canEdit} /> : <>
           <Typography fontSize={15} fontWeight={600}>{workspace?.deployment.name ?? brainId}</Typography>
           {review?.mode === 'apply' || versionDetail ? <>
             <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: '140px minmax(0, 1fr)', gap: 1, fontSize: 14, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
@@ -527,7 +547,7 @@ function UpdatesWorkspace() {
             {!candidateReady && <Alert severity={candidateManifest.isError ? 'error' : 'info'}>{candidateManifest.isError ? errorMessage(candidateManifest.error) : 'Loading the published version...'}</Alert>}
             {candidateReady && <>
               <Typography component="h3" fontSize={17} fontWeight={650}>What will change</Typography>
-              <OutcomeChanges changes={applyRows.filter(item => item.changed !== false)} config={candidateManifest.data} catalogue={catalogue.data} firstSetup={!appliedVersionId} />
+              <OutcomeChanges changes={applyRows.filter(item => item.changed !== false)} config={candidateManifest.data} currentConfig={currentConfig} catalogue={catalogue.data} baseline={baseline} />
               {applyRows.every(item => item.changed === false) && <Typography variant="body2" color="text.secondary">Configuration matches the applied version.</Typography>}
             </>}
             {review?.mode === 'apply' && <>
@@ -557,7 +577,7 @@ function UpdatesWorkspace() {
             </Stack>}
           </> : <>
             <Typography variant="body2">Saved shared draft r{draft.data?.revisionNumber} · {formatTime(draft.data?.updatedAt)}</Typography>
-            <OutcomeChanges changes={outcomeRows} config={draft.data} catalogue={catalogue.data} firstSetup={!appliedVersionId} />
+            <OutcomeChanges changes={outcomeRows} config={draft.data} currentConfig={currentConfig} catalogue={catalogue.data} baseline={baseline} />
             <Alert severity="info">Publishing saves a version. It does not update Staging or Production.</Alert>
           </>}
         </>}
@@ -565,8 +585,9 @@ function UpdatesWorkspace() {
       <Box sx={{ px: 3, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
         {review && <FormControlLabel sx={{ mb: 1, alignItems: 'center' }} control={<Checkbox checked={review.confirmed} disabled={busy} onChange={(_, checked) => setReview(current => current && { ...current, confirmed: checked })} />}
           label={<Typography variant="body2">{review.mode === 'apply' ? `Confirm ${candidate?.versionLabel ?? 'this version'} for ${environment}` : `Confirm publication of draft r${draft.data?.revisionNumber}`}</Typography>} />}
-        <Stack direction="row" justifyContent="flex-end" gap={1}>
-          <Button disabled={busy} onClick={() => { setReview(null); setDetail(null); setVersionDetail(false) }}>{review ? 'Cancel' : 'Close'}</Button>
+        <Stack direction="row" justifyContent="flex-end" gap={1} alignItems="center">
+          {detail && <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>Preview only · No live changes</Typography>}
+          <Button disabled={busy} onClick={() => { setReview(null); setDetail(null); setVersionDetail(false) }}>{detail ? 'Back to changes' : review ? 'Cancel' : 'Close'}</Button>
           {review && <Button variant="contained" startIcon={review.mode === 'apply' ? <RocketLaunchRounded /> : <PublishRounded />} disabled={busy || !review.confirmed || (review.mode === 'apply' ? !canApply : !canPublish)} onClick={() => void submitReview()}>
             {busy ? 'Working...' : review.mode === 'apply' ? `Apply ${candidate?.versionLabel ?? ''} to ${environment}` : 'Publish version'}
           </Button>}
@@ -575,11 +596,4 @@ function UpdatesWorkspace() {
       </Box>
     </Drawer>
   </Box>
-}
-
-export function configurationFieldChanges(current: unknown, next: unknown, path = '$'): Array<{ path: string; change: string }> {
-  if (stableConfig(current) === stableConfig(next)) return []
-  if (record(current) && record(next)) return [...new Set([...Object.keys(current), ...Object.keys(next)])].sort()
-    .flatMap(key => configurationFieldChanges(current[key], next[key], `${path}.${key}`))
-  return [{ path, change: current === undefined ? 'Added' : next === undefined ? 'Removed' : 'Changed' }]
 }

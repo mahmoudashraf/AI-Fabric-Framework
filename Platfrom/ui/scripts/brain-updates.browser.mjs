@@ -29,11 +29,18 @@ if (mode === 'manifest-unavailable') delete state.manifests['version-12'];
 if (mode === 'first-deployment') state.releases = [];
 if (mode === 'past-verified') state.releases.push({...active,id:'old-version-release',deploymentVersionId:'version-11',provisioningStatus:'DELETED',createdAt:'2026-11-05T10:00:00Z'});
 if (mode === 'in-progress') state.releases.unshift({...active,id:'pending-release',status:'PROVISIONING',provisioningStatus:'RUNNING',verificationStatus:'NOT_RUN',createdAt:'2026-11-07T12:01:00Z'});
+if (mode === 'preview' || mode === 'preview-unavailable') {
+  state.manifests['version-12'].promptConfig = {aiBehaviour:{schemaVersion:'loomai-ai-behaviour-v1',tone:{presetId:'professional',instructions:'Use concise, professional language.'}}};
+  state.draft.promptConfig = {aiBehaviour:{schemaVersion:'loomai-ai-behaviour-v1',tone:{presetId:'consultative',instructions:'Use a warm, consultative tone. Ask one useful follow-up question when it helps.'}},secretRef:'HIDDEN_CREDENTIAL_VALUE'};
+  state.draft.actionsConfig = {actions:[{name:'request_callback',displayName:'Request a callback',requiresConfirmation:true,accessMode:'WRITE_ONLY'}]};
+  state.draft.knowledgeSourceConfig = {sources:[{id:'delivery',attributionLabel:'Delivery & collection guide',accessKey:'HIDDEN_ACCESS_KEY'}]};
+  if (mode === 'preview-unavailable') delete state.manifests['version-12'];
+}
 export const getState = () => state;
 const copy = value => structuredClone(value);
 export async function fetchDeploymentDraft() { return copy(state.draft) }
 export async function fetchDeploymentConfigDiffCenter() { return {live:{referenceId:''},draft:{referenceId:'draft-13',updatedAt:'2026-11-07T12:00:00Z'},sections:[]} }
-export async function fetchDeploymentAiBehaviourProfiles() { return {groups:[]} }
+export async function fetchDeploymentAiBehaviourProfiles() { return {groups:[{key:'tone',label:'Tone',options:[{id:'professional',label:'Professional'},{id:'consultative',label:'Warm & consultative'}]}]} }
 export async function fetchDeploymentVersions() { return copy(state.versions) }
 export async function fetchDeploymentTargetOptions() { return [{id:'target-staging',active:true,environmentName:'staging',name:'London staging'},{id:'target-production',active:true,environmentName:'production',name:'London production'}] }
 export const fetchDeploymentTargetProfiles = fetchDeploymentTargetOptions;
@@ -168,6 +175,47 @@ try {
   await page.getByRole('button', {name:'Activity',exact:true}).click()
   assert.ok(!(await page.locator('body').innerText()).includes('production-should-not-appear'))
 
+  await open('?mode=preview')
+  await page.getByText('Professional → Warm & consultative',{exact:true}).waitFor()
+  await page.screenshot({path:`${output}/preview-overview-dark.png`,fullPage:true})
+  await page.getByRole('button',{name:'Preview How your AI replies',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'How your AI replies',exact:true}).waitFor()
+  await page.getByRole('dialog').getByText('Use concise, professional language.',{exact:true}).waitFor()
+  await page.getByRole('dialog').getByText('Use a warm, consultative tone. Ask one useful follow-up question when it helps.',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('dialog').getByRole('table',{name:'Changed configuration fields'}).isVisible(),false,'technical fields start collapsed')
+  assert.ok(!(await page.locator('body').innerText()).includes('HIDDEN_CREDENTIAL_VALUE'))
+  await page.screenshot({path:`${output}/preview-comparison-dark.png`,fullPage:true})
+  await page.getByRole('dialog').getByRole('button',{name:'Technical details',exact:true}).click()
+  assert.ok(!(await page.locator('body').innerText()).includes('HIDDEN_CREDENTIAL_VALUE'))
+  await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).click()
+  await page.getByRole('dialog').waitFor({state:'hidden'})
+  await page.getByRole('button',{name:'Preview What your AI can do',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'Request a callback',exact:true}).waitFor()
+  await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).click()
+  await page.getByRole('button',{name:'Preview What your AI knows',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'Delivery & collection guide',exact:true}).waitFor()
+  assert.ok(!(await page.locator('body').innerText()).includes('HIDDEN_ACCESS_KEY'))
+  await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).click()
+  assert.deepEqual(await calls(),[],'all preview interactions must be read-only')
+  await open('?mode=preview&theme=light')
+  await page.getByRole('button',{name:'Preview How your AI replies',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'How your AI replies',exact:true}).waitFor()
+  await page.screenshot({path:`${output}/preview-comparison-light.png`,fullPage:true})
+  for (const [width,height] of [[1280,800],[390,844]]) {
+    await page.setViewportSize({width,height})
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false)
+    assert.equal(await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).isVisible(),true)
+    await page.screenshot({path:`${output}/preview-comparison-${width}.png`,fullPage:true})
+  }
+  assert.match(await page.getByRole('dialog').getByRole('link',{name:'Edit Responses',exact:true}).getAttribute('href'), /targetProfileId=target-staging/)
+  await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).click()
+  await page.setViewportSize({width:1440,height:900})
+  await open('?mode=preview-unavailable')
+  await page.getByRole('button',{name:'Preview How your AI replies',exact:true}).click()
+  await page.getByRole('dialog').getByText(/Only saved settings are shown/).waitFor()
+  assert.equal(await page.getByRole('dialog').getByText('Use concise, professional language.',{exact:true}).count(),0)
+  assert.deepEqual(await calls(),[])
+
   await open('?mode=retry')
   await publishToReview()
   await chooseSource()
@@ -260,9 +308,12 @@ try {
 
   await open('?mode=first-deployment')
   await page.getByText('New setup for Staging',{exact:true}).waitFor()
+  await page.getByRole('button',{name:'Preview How your AI replies',exact:true}).click()
+  await page.getByRole('dialog').getByText(/New setup. No version has been applied/).waitFor()
+  await page.getByRole('button',{name:'Back to changes',exact:true}).click()
   assert.deepEqual(await calls(),[])
   assert.deepEqual(errors,[])
-  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment'],screenshots:output},null,2))
+  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview'],screenshots:output},null,2))
 } finally {
   await browser?.close()
   await server.close()

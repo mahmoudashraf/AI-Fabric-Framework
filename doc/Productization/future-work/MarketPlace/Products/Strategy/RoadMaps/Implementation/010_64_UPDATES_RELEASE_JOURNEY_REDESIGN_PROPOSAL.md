@@ -192,3 +192,37 @@ Required checks before rollout:
 
 This proposal changes presentation and sequencing only. Any genuine API gap found
 during implementation must be reported before expanding backend scope.
+
+## 9. Approved Follow-up: Intuitive Change Previews
+
+Owner approved on 8 November 2026. The original summary-only comparison is
+replaced with clickable outcome rows and one focused Current / Proposed panel.
+The existing publication, target apply, verification and authorization remain.
+
+![Approved overview proposal, fictional example settings.](designs/010_64_smart_brain_workspace/updates-preview-overview-v1.png)
+
+![Approved comparison-panel proposal, fictional example settings.](designs/010_64_smart_brain_workspace/updates-preview-comparison-v1.png)
+
+- Main heading: **What will change**. Show actual structured choices such as
+  Professional -> Consultative, named capability/source additions, and changed
+  field counts. No model-generated explanation or inferred business result.
+- Click any row to compare the exact selected environment's current runtime
+  with the saved draft. Labels, known reply guidance, capability confirmation
+  settings, declared source names and supported model settings are readable.
+- Preserve long instructions in bounded scrollable values. Unsupported settings
+  retain an honest changed-settings summary and field-name-only Technical details;
+  never project arbitrary connection payloads, credential values or secret refs.
+- Catalogue labels come from actual profile metadata. List entries require
+  stable unique identities before attributing an addition/removal to an item.
+  Missing labels/identities do not justify inventing a friendly interpretation.
+- First deployment says New setup. Missing/wrong-version evidence says comparison
+  unavailable, not that all settings were newly added. Source configuration is
+  not proof of active document indexing or successful service connectivity.
+- The panel links back to the relevant existing editor with exact target retained.
+  Inspecting/closing it is read-only; it never publishes, applies or runs AI.
+- Current is compiled runtime configuration; Proposed is saved draft input.
+  Publication can add generated guidance. This is a configuration comparison,
+  not a promise of the final compiled diff or a simulated AI answer.
+
+Implementation and qualification are tracked in
+`verification-support/brain-updates-journey/change-preview/README.md`.
