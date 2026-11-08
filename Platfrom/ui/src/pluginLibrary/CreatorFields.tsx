@@ -3,22 +3,26 @@ import AddOutlined from '@mui/icons-material/AddOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
 import { at, audience, audienceModes, datasetList, datasetPath, knowledgeIndex, numericValue, objectValue, sourceKind, sourceNames, textAt, type DocumentPath, type ExactObject, type SourceKind } from './creatorDocument'
 import type { PluginIssue } from './types'
+import { pointerPath, requirementAt } from './creatorRequirements'
 
 export type EditDocument = (edits: { path: DocumentPath; value: unknown; remove?: boolean }[]) => void
 export const NumericDraftContext = createContext<{ drafts: Record<string, string>; setDraft: (path: string, value: string | undefined) => void }>({ drafts: {}, setDraft: () => {} })
+export const CreatorIssuesContext = createContext<PluginIssue[]>([])
 type FieldProps = {
   document: ExactObject; path: DocumentPath; label: string; edit: EditDocument; disabled?: boolean
-  options?: { value: string; label: string }[]; multiline?: boolean; numeric?: boolean; hint?: string; placeholder?: string; issues?: PluginIssue[]
+  options?: { value: string; label: string }[]; multiline?: boolean; numeric?: boolean; hint?: string; placeholder?: string; issues?: PluginIssue[]; required?: boolean
 }
 function issuePath(path: DocumentPath) { return '/' + path.map(key => String(key).replace(/~/g, '~0').replace(/\//g, '~1')).join('/') }
-export function Field({ document, path, label, edit, disabled, options, multiline, numeric, hint, placeholder, issues }: FieldProps) {
+export function Field({ document, path, label, edit, disabled, options, multiline, numeric, hint, placeholder, issues, required: declaredRequired }: FieldProps) {
   const id = useId()
   const numbers = useContext(NumericDraftContext)
+  const inheritedIssues = useContext(CreatorIssuesContext)
+  const required = declaredRequired ?? requirementAt(document, path)
   const draftKey = issuePath(path)
   const pending = numbers.drafts[draftKey]
   const value = pending ?? textAt(document, path)
   const raw = at(document, path)
-  const fieldIssue = issues?.find(issue => issue.path === issuePath(path) || issue.path === path.join('.'))
+  const fieldIssue = [...(issues ?? []), ...inheritedIssues].find(issue => issue.path === issuePath(path) || issue.path === path.join('.'))
   const error = pending !== undefined ? 'Incomplete number. Finish this value before saving or checking.' : fieldIssue?.message
   const describedBy = error || hint || raw === null ? `${id}-help` : undefined
   const change = (next: string) => {
@@ -30,19 +34,21 @@ export function Field({ document, path, label, edit, disabled, options, multilin
     edit([{ path, value: field }])
     if (numeric) numbers.setDraft(draftKey, undefined)
   }
-  return <label className="pl-field" htmlFor={id}><span id={`${id}-label`}>{label}</span>
-    {options ? <select id={id} aria-labelledby={`${id}-label`} value={value} disabled={disabled} onChange={event => change(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={describedBy}>
+  const accessibility = { 'aria-labelledby': `${id}-label`, 'aria-required': required, 'data-plugin-field-path': pointerPath(path), 'aria-invalid': Boolean(error), 'aria-describedby': describedBy }
+  return <label className="pl-field" htmlFor={id}><span className="pl-field-label"><span id={`${id}-label`}>{label}</span><small className={required ? 'pl-required' : 'pl-optional'}>{required ? 'Required' : 'Optional'}</small></span>
+    {options ? <select id={id} {...accessibility} value={value} disabled={disabled} onChange={event => change(event.target.value)}>
       {!options.some(option => option.value === value) && <option value={value}>{value || (raw === null ? 'Explicit null' : 'Not set')}</option>}
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select> : multiline ? <textarea id={id} aria-labelledby={`${id}-label`} rows={3} value={value} disabled={disabled} placeholder={placeholder} onChange={event => change(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={describedBy} />
-      : <input id={id} aria-labelledby={`${id}-label`} value={value} disabled={disabled} placeholder={placeholder} inputMode={numeric ? 'decimal' : undefined} onChange={event => change(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={describedBy} />}
+    </select> : multiline ? <textarea id={id} {...accessibility} rows={3} value={value} disabled={disabled} placeholder={placeholder} onChange={event => change(event.target.value)} />
+      : <input id={id} {...accessibility} value={value} disabled={disabled} placeholder={placeholder} inputMode={numeric ? 'decimal' : undefined} onChange={event => change(event.target.value)} />}
     {(error || hint || raw === null) && <small id={`${id}-help`} className={error ? 'pl-error-text' : undefined}>{error || hint || 'Explicit null'}</small>}
   </label>
 }
 function CheckField({ document, path, label, edit, disabled, hint }: Omit<FieldProps, 'options'>) {
   const value = at(document, path)
   const id = useId()
-  return <div><label className="pl-checkbox"><input type="checkbox" checked={value === true} disabled={disabled} aria-describedby={hint ? `${id}-help` : undefined} onChange={event => edit([{ path, value: event.target.checked }])} />{label}{value !== true && value !== false && value !== undefined && <span className="pl-caption">Custom source value retained</span>}</label>{hint && <small id={`${id}-help`} className="pl-check-hint">{hint}</small>}</div>
+  const required = requirementAt(document, path)
+  return <div><label className="pl-checkbox"><input type="checkbox" data-plugin-field-path={pointerPath(path)} aria-labelledby={`${id}-label`} aria-required={required} checked={value === true} disabled={disabled} aria-describedby={hint ? `${id}-help` : undefined} onChange={event => edit([{ path, value: event.target.checked }])} /><span id={`${id}-label`}>{label}</span><small className={required ? 'pl-required' : 'pl-optional'}>{required ? 'Required setting' : 'Optional'}</small>{value !== true && value !== false && value !== undefined && <span className="pl-caption">Custom source value retained</span>}</label>{hint && <small id={`${id}-help`} className="pl-check-hint">{hint}</small>}</div>
 }
 const options = (values: string[]) => values.map(value => ({ value, label: value }))
 
@@ -51,8 +57,8 @@ function PointerMap({ document, path, label, edit, disabled, hint, placeholder }
   const id = useId()
   if (value !== undefined && !objectValue(value)) return <div className="pl-notice pl-warning">{label} has a custom source value. Edit it in Source.</div>
   const entries = Object.entries(objectValue(value) ? value : {})
-  return <section className="pl-mapping-section"><h3>{label}</h3>{hint && <p className="pl-field-help" id={`${id}-help`}>{hint}</p>}<div className="pl-table-scroll"><table className="pl-mapping"><thead><tr><th>JSON path in each record</th><th>Indexed field name</th><th><span className="pl-sr-only">Remove</span></th></tr></thead><tbody>
-    {entries.map(([key, pointer]) => <tr key={key}><td><input aria-label={`${label}: ${key} source field`} aria-describedby={hint ? `${id}-help` : undefined} placeholder={placeholder || 'e.g. /description'} value={typeof pointer === 'string' ? pointer : ''} disabled={disabled} onChange={event => edit([{ path: [...path, key], value: event.target.value }])} /></td>
+  return <section className="pl-mapping-section" data-plugin-field-path={pointerPath(path)} tabIndex={-1}><h3>{label} <small className={requirementAt(document, path) ? 'pl-required' : 'pl-optional'}>{requirementAt(document, path) ? 'At least one required' : 'Optional'}</small></h3>{hint && <p className="pl-field-help" id={`${id}-help`}>{hint}</p>}<div className="pl-table-scroll"><table className="pl-mapping"><thead><tr><th>JSON path in each record</th><th>Indexed field name</th><th><span className="pl-sr-only">Remove</span></th></tr></thead><tbody>
+    {entries.map(([key, pointer]) => <tr key={key}><td><input aria-label={`${label}: ${key} source field`} data-plugin-field-path={pointerPath([...path, key])} aria-required="true" aria-describedby={hint ? `${id}-help` : undefined} placeholder={placeholder || 'e.g. /description'} value={typeof pointer === 'string' ? pointer : ''} disabled={disabled} onChange={event => edit([{ path: [...path, key], value: event.target.value }])} /></td>
       <td><input aria-label={`${label}: ${key} meaning`} aria-describedby={hint ? `${id}-help` : undefined} placeholder="e.g. description" defaultValue={key} disabled={disabled} onBlur={event => {
         const next = event.target.value
         if (next === key || !next || Object.prototype.hasOwnProperty.call(value, next)) { event.target.value = key; return }
@@ -97,7 +103,8 @@ export function CreatorFields({ document, step, dataset, edit, disabled, immutab
         {fields([...auth, 'strategy'], 'Authentication', { options: [{ value: 'API_KEY', label: 'API key reference' }, { value: 'FORM_TOKEN_EXCHANGE', label: 'Form token exchange' }] })}
         {textAt(document, [...auth, 'strategy']) === 'API_KEY' ? <div className="pl-two">{fields([...auth, 'apiKeyHeader'], 'API key header', { placeholder: 'X-API-Key', hint: 'HTTP header expected by the provider. Starter: X-API-Key; use the exact name from its API documentation.' })}{fields([...auth, 'apiKeySecretRefField'], 'Credential reference input', { placeholder: 'providerKey', hint: 'Setup field name for a stored Platform secret reference. Never enter the API key itself here.' })}</div> : <>
           {fields([...auth, 'tokenPath'], 'Token route', { placeholder: 'e.g. /oauth/token', hint: 'Relative route used to exchange credentials for a token. Match the provider authentication API.' })}{fields([...auth, 'managedTokenBaseUrlField'], 'Token base URL input', { placeholder: 'e.g. tokenBaseUrl', hint: 'Setup field name whose value supplies the token server base URL. Declare the same name in Setup inputs.' })}
-          <div className="pl-two">{fields([...auth, 'tokenJsonPointer'], 'Token JSON pointer', { placeholder: 'e.g. /access_token', hint: 'Path to the token in the authentication response, not in a data record.' })}{fields([...auth, 'relativeExpiryJsonPointer'], 'Relative expiry JSON pointer', { placeholder: 'e.g. /expires_in', hint: 'Path to the token lifetime in seconds in that same response.' })}</div>
+          {fields([...auth, 'tokenJsonPointer'], 'Token JSON pointer', { placeholder: 'e.g. /access_token', hint: 'Path to the token in the authentication response, not in a data record.' })}
+          <div className="pl-two">{fields([...auth, 'relativeExpiryJsonPointer'], 'Relative expiry JSON pointer', { placeholder: 'e.g. /expires_in', hint: 'Use this OR absolute expiry, not both. Path to the token lifetime in seconds.' })}{fields([...auth, 'absoluteExpiryJsonPointer'], 'Absolute expiry JSON pointer', { placeholder: 'e.g. /expires_at', hint: 'Use this OR relative expiry. Path to the absolute expiry value returned by the provider.' })}</div>
           <ArrayRows document={document} path={[...auth, 'credentialFields']} label="Token credentials" hint="Maps each token-request form field to a setup input containing a stored secret reference, not the credential itself." edit={edit} disabled={disabled} columns={[{ key: 'name', label: 'Form field', placeholder: 'e.g. client_id' }, { key: 'secretRefField', label: 'Credential reference input', placeholder: 'e.g. clientIdSecretRef' }]} newValue={{ name: '', secretRefField: '' }} />
         </>}
         <div className="pl-two">{fields([...h, 'method'], 'Read method', { options: options(['GET', 'POST']), hint: 'Use the provider read-only listing method. POST must not be a write operation.' })}{fields([...h, 'path'], 'Relative read route', { placeholder: 'e.g. /records', hint: 'Added to the provider base URL. Example: /records, not a full URL. Use the actual listing endpoint.' })}</div>
@@ -162,13 +169,13 @@ function ArrayRows({ document, path, label, hint, columns, newValue, edit, disab
   const value = at(document, path)
   if (value !== undefined && !Array.isArray(value)) return <div className="pl-notice pl-warning">{label} has a custom source value. Edit it in Source.</div>
   const rows = Array.isArray(value) ? value : []
-  return <section className="pl-array"><h3>{label}</h3>{hint && <p className="pl-field-help">{hint}</p>}{rows.map((_, index) => <div className="pl-input-row" key={index}>{columns.map(({ key, ...props }) => <Field key={key} {...props} document={document} path={[...path, index, key]} edit={edit} disabled={disabled} />)}<button className="pl-icon-button" title={`Remove ${label} ${index + 1}`} aria-label={`Remove ${label} ${index + 1}`} disabled={disabled} onClick={() => edit([{ path: [...path, index], value: undefined, remove: true }])}><DeleteOutline /></button></div>)}<button className="pl-text-button" disabled={disabled} onClick={() => edit([{ path: [...path, rows.length], value: newValue }])}><AddOutlined />Add {label.toLowerCase()}</button></section>
+  return <section className="pl-array" data-plugin-field-path={pointerPath(path)} tabIndex={-1}><h3>{label}</h3>{hint && <p className="pl-field-help">{hint}</p>}{rows.map((_, index) => <div className="pl-input-row" key={index}>{columns.map(({ key, ...props }) => <Field key={key} {...props} document={document} path={[...path, index, key]} edit={edit} disabled={disabled} />)}<button className="pl-icon-button" title={`Remove ${label} ${index + 1}`} aria-label={`Remove ${label} ${index + 1}`} disabled={disabled} onClick={() => edit([{ path: [...path, index], value: undefined, remove: true }])}><DeleteOutline /></button></div>)}<button className="pl-text-button" disabled={disabled} onClick={() => edit([{ path: [...path, rows.length], value: newValue }])}><AddOutlined />Add {label.toLowerCase()}</button></section>
 }
 function StringList({ document, path, label, edit, disabled, hint, placeholder }: Omit<FieldProps, 'issues'>) {
   const value = at(document, path)
   if (value !== undefined && !Array.isArray(value)) return <div className="pl-notice pl-warning">{label} has a custom source value. Edit it in Source.</div>
   const rows = Array.isArray(value) ? value : []
-  return <section className="pl-array"><h3>{label}</h3>{hint && <p className="pl-field-help">{hint}</p>}{rows.map((_, index) => <div className="pl-input-row pl-string-row" key={index}><Field document={document} path={[...path, index]} label={`${label} ${index + 1}`} placeholder={placeholder} edit={edit} disabled={disabled} /><button className="pl-icon-button" title={`Remove ${label} ${index + 1}`} aria-label={`Remove ${label} ${index + 1}`} disabled={disabled} onClick={() => edit([{ path: [...path, index], value: undefined, remove: true }])}><DeleteOutline /></button></div>)}<button className="pl-text-button" disabled={disabled} onClick={() => edit([{ path: [...path, rows.length], value: '' }])}><AddOutlined />Add value</button></section>
+  return <section className="pl-array" data-plugin-field-path={pointerPath(path)} tabIndex={-1}><h3>{label} <small className={requirementAt(document, path) ? 'pl-required' : 'pl-optional'}>{requirementAt(document, path) ? 'Required list' : 'Optional'}</small></h3>{hint && <p className="pl-field-help">{hint}</p>}{rows.map((_, index) => <div className="pl-input-row pl-string-row" key={index}><Field document={document} path={[...path, index]} label={`${label} ${index + 1}`} required placeholder={placeholder} edit={edit} disabled={disabled} /><button className="pl-icon-button" title={`Remove ${label} ${index + 1}`} aria-label={`Remove ${label} ${index + 1}`} disabled={disabled} onClick={() => edit([{ path: [...path, index], value: undefined, remove: true }])}><DeleteOutline /></button></div>)}<button className="pl-text-button" disabled={disabled} onClick={() => edit([{ path: [...path, rows.length], value: '' }])}><AddOutlined />Add value</button></section>
 }
 function SetupInputs({ document, edit, disabled, issues }: { document: ExactObject; edit: EditDocument; disabled: boolean; issues: PluginIssue[] }) {
   const value = at(document, ['installForm'])

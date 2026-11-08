@@ -137,6 +137,32 @@ Resetting Git alone does not roll back the schema or its private data.
 
 ## Operational Boundaries
 
+### Required Fields And Real-Plugin Recreation - In Progress
+
+The next bounded UI follow-up marks creator fields Required/Optional, lists
+missing required inputs with step/focus navigation, and preserves incomplete
+draft saves. Reusable-version creation runs the existing server check before the
+atomic version command. Installer storage/text/choice/boolean controls share
+requiredness and inline feedback; required booleans accept explicit false.
+No AI semantic validator, new plugin type or backend/schema change is intended.
+
+New definitions can start from an available Data plugin version. The complete
+manifest is preserved except the new identity, copy name and initial version;
+no connection instances, secret values or data are copied. Unsupported private
+source authority remains visibly unavailable. The current production catalogue
+contains bound-document and HTTP stock sources plus legacy packaged/folder/SQL
+entries; do not claim every historical source is customer-authorable.
+
+`recreate-through-ui.mjs` is the repeatable hosted verification runner. It needs
+`PLUGIN_UI_ORIGIN`, `PLUGIN_API_ORIGIN`, `PLUGIN_STAFF_API_KEY`,
+`PLUGIN_CUSTOMER_ID`, `PLUGIN_TEST_LABEL` and explicit
+`PLUGIN_ALLOW_TEST_COPIES=true`. Use a dedicated authorized test customer scope;
+never put credentials in command arguments or tracked files. It recreates
+supported public Data definitions through the real form, checks saved-version
+contract equality and immutable UI, verifies unsupported selections are
+disabled, and archives only its own copies. Output is ignored under
+`output/plugin-form-recreation/`. Live results will be recorded after rollout.
+
 ### Field Guidance Follow-Up - 8 November 2026
 
 The creator now explains setup field names versus real connection values, uses

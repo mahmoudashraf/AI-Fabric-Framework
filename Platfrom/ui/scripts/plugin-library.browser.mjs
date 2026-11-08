@@ -38,7 +38,7 @@ await server.listen()
 const base = `http://127.0.0.1:${server.httpServer.address().port}`
 const browser = await chromium.launch({ headless: true })
 const source = { schemaVersion: 1, pluginId: 'source-example', pluginType: 'DATA', displayName: 'Service records', description: 'Approved service information', version: '1.0.0',
-  contributions: { datasets: [{ datasetId: 'records', entityType: 'record', ingestionMode: 'EXTERNAL_SYNC_HTTP', syncConnector: { connectorType: 'HTTP_JSON', httpSource: { scheduleSeconds: 900, mapping: { idJsonPointer: '/id' } } } }], knowledgeSources: [{ datasetRef: 'records', authModes: ['PRIVATE_RUNTIME_BACKEND_MEDIATED'] }] }, installForm: [] }
+  contributions: { datasets: [{ datasetId: 'records', entityType: 'record', ingestionMode: 'EXTERNAL_SYNC_HTTP', syncConnector: { connectorType: 'HTTP_JSON', connectionProfile: { managedBaseUrlField: 'providerBaseUrl', managedAllowedHostField: 'providerHost', auth: { strategy: 'API_KEY', apiKeyHeader: 'X-API-Key', apiKeySecretRefField: 'providerKey' } }, protectedResource: { resourceIdField: 'accountId' }, httpSource: { path: '/records', trustedResourcePlacements: [{ target: 'QUERY', field: 'accountId' }], pagination: { strategy: 'NONE' }, scheduleSeconds: 900, mapping: { idJsonPointer: '/id', resourceJsonPointer: '/accountId', contentFields: { content: '/description' } } } } }], knowledgeSources: [{ datasetRef: 'records', authModes: ['PRIVATE_RUNTIME_BACKEND_MEDIATED'] }] }, installForm: [] }
 const summary = (manifest = source) => ({ id: 'private-a', ownerCustomerId: 'customer', visibility: 'CUSTOMER_PRIVATE', displayName: manifest.displayName, manifest, revision: 1, status: 'DRAFT', versions: [],
   catalogueFamily: 'HTTP_JSON', adapterContract: 'HTTP_JSON', canManage: true, installs: { savedCount: 0, appliedCount: 0, saved: [], applied: [] } })
 let count = 0
@@ -64,7 +64,7 @@ async function run(name, callback, options = {}) {
       if (method === 'PUT') row = { ...row, manifest: payload.manifest, displayName: payload.manifest.displayName, revision: row.revision + 1 }
       return send({ ...row, canManage: !options.readonly })
     }
-    if (path.endsWith('/check')) return send({ valid: true, issues: [], connectionTested: false, revision: row.revision })
+    if (path.endsWith('/check')) return send({ valid: !options.checkInvalid, issues: options.checkInvalid ? [{ path: '/contributions', message: 'The source contract needs correction.' }] : [], connectionTested: false, revision: row.revision })
     if (path.endsWith('/versions') && method === 'POST') { row = { ...row, manifest: payload.manifest, status: 'ACTIVE', revision: row.revision + 1, versions: [{ id: 'pv-a', version: payload.manifest.version, status: 'PUBLISHED', manifest: payload.manifest, createdAt: '2026-11-08T00:00:00Z' }] }; return send(row, 201) }
     if (path.includes('/versions/')) return send({ id: 'pv-a', version: '1.0.0', manifest: source })
     if (path.endsWith('/archive')) { row = { ...row, status: 'ARCHIVED', revision: row.revision + 1 }; return send(row) }
@@ -90,6 +90,60 @@ async function run(name, callback, options = {}) {
 }
 const step = (page, name) => page.getByRole('navigation', { name: 'Data plugin creation steps' }).getByRole('button', { name: new RegExp(name) }).click()
 try {
+  await run('required markers and review links guide completion without preventing unfinished draft saves', async ({ page, calls }) => {
+    const name = page.getByLabel('Display name', { exact: true })
+    await name.waitFor()
+    assert.equal(await name.getAttribute('aria-required'), 'true')
+    assert.equal(await page.getByLabel('Purpose', { exact: true }).getAttribute('aria-required'), 'false')
+    await step(page, 'Review & version')
+    await page.getByRole('button', { name: 'Save reusable version', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Required fields to complete' })
+    await review.waitFor()
+    assert.equal(calls.filter(call => call.method !== 'GET').length, 0)
+    await review.getByRole('button', { name: 'Relative read route', exact: true }).click()
+    const route = page.getByLabel('Relative read route', { exact: true })
+    assert.equal(await route.evaluate(element => document.activeElement === element), true)
+    assert.equal(await route.getAttribute('aria-invalid'), 'true')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.waitForURL('**/private-a/edit*')
+    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/versions')).length, 0)
+  }, { path: '/library/plugins/new/data', empty: true })
+  await run('an existing source can be recreated through the guided UI without dropping advanced contract data', async ({ page, calls }) => {
+    await page.getByRole('button', { name: 'Start from existing plugin', exact: true }).click()
+    await page.getByRole('combobox', { name: /^Existing Data plugin/ }).click()
+    await page.getByRole('option', { name: 'Service records', exact: true }).click()
+    await page.getByRole('button', { name: 'Use this starting point', exact: true }).click()
+    assert.equal(await page.getByLabel('Display name', { exact: true }).inputValue(), 'Copy of Service records')
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
+    const copy = JSON.parse(await page.getByRole('textbox', { name: 'Complete plugin manifest' }).inputValue())
+    assert.notEqual(copy.pluginId, source.pluginId)
+    assert.deepEqual(copy.contributions, source.contributions)
+    await page.getByRole('button', { name: 'Guided form', exact: true }).click()
+    await step(page, 'Review & version')
+    await page.getByRole('button', { name: 'Save reusable version', exact: true }).click()
+    await page.getByText('Reusable version saved. No Brain or live environment was changed.', { exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/check')).length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/versions') && call.method === 'POST').length, 1)
+  }, { path: '/library/plugins/new/data', empty: true })
+  await run('server contract errors remain visible and prevent version creation without overwriting the draft', async ({ page, calls }) => {
+    await step(page, 'Review & version')
+    await page.getByRole('button', { name: 'Save reusable version', exact: true }).click()
+    await page.getByText('The source contract needs correction.', { exact: false }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/versions') && call.method === 'POST').length, 0)
+    await page.getByRole('button', { name: 'Open source', exact: true }).click()
+    assert.deepEqual(JSON.parse(await page.getByRole('textbox', { name: 'Complete plugin manifest' }).inputValue()), source)
+  }, { path: '/library/plugins/private-a/edit', checkInvalid: true })
+  await run('Save draft and check really saves incomplete work and requests the authoritative server check', async ({ page, calls }) => {
+    await step(page, 'Review & version')
+    await page.getByRole('button', { name: 'Save draft & check', exact: true }).click()
+    await page.waitForURL('**/private-a/edit*')
+    await page.getByText('Review the configuration issues below.', { exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path === '/api/customer/plugin-library' && call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/check') && call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/versions') && call.method === 'POST').length, 0)
+    assert.equal(await page.getByLabel('Display name', { exact: true }).inputValue(), '')
+  }, { path: '/library/plugins/new/data', empty: true, checkInvalid: true })
   await run('guided examples explain fields without saving sample endpoints or changing existing starter defaults', async ({ page, calls }) => {
     await page.getByLabel('Display name', { exact: true }).waitFor()
     assert.equal(await page.getByLabel('Display name', { exact: true }).getAttribute('placeholder'), 'e.g. Customer help articles')

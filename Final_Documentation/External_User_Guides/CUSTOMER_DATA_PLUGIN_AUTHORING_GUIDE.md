@@ -37,6 +37,15 @@ reusable document plugin can still be authored before that Brain is ready.
 Open My plugins from Add knowledge or AI capabilities. Select Create a data
 plugin. This library belongs to your customer workspace, not to an environment.
 
+To reuse an existing contract, choose **Start from existing plugin**, select its
+Data plugin and version, then **Use this starting point**. This replaces the
+unsaved form with a separate private copy and a new plugin identity. Dataset,
+authentication, mapping, notification and other advanced settings are preserved;
+installed connection values, stored credentials and business data are not
+copied. The original plugin and its installations are unchanged. Private copies
+still support only HTTP JSON and bound S3; packaged, folder and SQL contracts
+remain visibly unavailable instead of being converted to a different adapter.
+
 The editor has six tasks:
 
 1. **Name & purpose:** give the source a clear name and explain what it adds.
@@ -84,6 +93,23 @@ up to `100` pages, and document files up to `1048576` bytes (1 MiB), with approv
 required and automatic indexing off. They apply only after the relevant
 connection/release workflow, not merely by visiting or saving this form.
 Existing definitions and installations are not overwritten by example values.
+
+### Required Fields And Checking
+
+The creator labels fields Required or Optional. The step rail counts missing
+required values, and Review lists them with links that focus the corresponding
+field. Optional collection paths can remain empty for an API returning a root
+array. Unfinished drafts can still be saved. Creating a reusable version checks
+the complete server contract first; a green set of local fields alone is not a
+provider or indexing test. Server issues remain visible with access to Source
+for advanced configuration.
+
+The Brain installer marks required inputs with `*`, labels optional ones, and
+shows field-specific errors after an attempted next step or review. Missing
+values in Review link back to their input. Required Yes/No fields require an
+explicit answer, not necessarily Yes; separate approval contracts can still
+require an affirmative confirmation. A required storage field selects an
+authorized connection for that environment, never a raw access key.
 
 ## Reuse And Update
 

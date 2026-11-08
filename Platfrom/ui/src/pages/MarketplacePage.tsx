@@ -39,7 +39,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   bootstrapMarketplaceTemplatePlugin,
@@ -215,6 +215,8 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
   const client = useQueryClient()
   const brain = useOptionalBrainWorkspace()
   const [step, setStep] = useState(0)
+  const [checkedSteps, setCheckedSteps] = useState<number[]>([])
+  const inputId = useId()
   const tasks = ['Connection', 'Information & access', 'Review']
   const initialVersion = install?.pluginVersion ?? detail.versions[0]?.version ?? ''
   const [version, setVersion] = useState(requestedVersion || initialVersion)
@@ -234,15 +236,36 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     return connector.connectorType === 'S3_COMPATIBLE_OBJECT_STORAGE' && typeof connector.bindingRefField === 'string' ? [connector.bindingRefField] : []
   }))
   const bindings = useQuery({ queryKey: ['document-storage-bindings', brainId], queryFn: () => fetchDocumentStorageBindings(brainId), enabled: storageFields.size > 0 })
-  const numericErrors = Object.entries(numericInputs).flatMap(([id, value]) => {
-    try { if (value.trim()) exactNumber(value); return [] } catch { return [`${fields.find(field => field.id === id)?.label ?? id} must be numeric`] }
-  })
+  const numericFieldErrors = new Map(Object.entries(numericInputs).flatMap(([id, value]): [string, string][] => {
+    try { if (value.trim()) exactNumber(value); return [] } catch { return [[id, `Enter a valid number for ${fields.find(field => field.id === id)?.label ?? id}.`]] }
+  }))
+  const numericErrors = [...numericFieldErrors.values()]
   let reviewConfig = config, reviewRefs = refs, sourceError: string | null = null
   try {
     if (rawConfig !== null) reviewConfig = parseExactObject(rawConfig, 'Plugin configuration')
     if (rawRefs !== null) reviewRefs = parseExactObject(rawRefs, 'Secret references')
   } catch (error) { sourceError = error instanceof Error ? error.message : 'Invalid JSON. Your source is retained.' }
-  const fieldErrors = [...validateInstallFields(fields, reviewConfig, reviewRefs), ...numericErrors]
+  const fieldIssues = fields.flatMap(field => {
+    const issue = numericFieldErrors.get(field.id) ?? validateInstallFields([field], reviewConfig, reviewRefs)[0]
+    if (!issue) return []
+    const missing = !numericFieldErrors.has(field.id) && field.required && readInstallFieldValue(field, reviewConfig, reviewRefs).trim().length === 0
+    return [{ field, message: missing ? storageFields.has(field.id) ? 'Choose a storage connection.'
+      : field.type === 'boolean' ? 'Choose Yes or No. Either value completes this required input.' : `${field.label} is required.` : issue }]
+  })
+  const connectionField = (field: MarketplaceInstallField) => field.type === 'secretRef' || field.type === 'url' || storageFields.has(field.id)
+  const fieldStep = (field: MarketplaceInstallField) => connectionField(field) ? 0 : 1
+  const visibleFields = fields.filter(field => fieldStep(field) === step)
+  const visibleIssues = fieldIssues.filter(issue => step === 2 || fieldStep(issue.field) === step && checkedSteps.includes(step))
+  const goToStep = (nextStep: number) => {
+    if (nextStep === 2) setCheckedSteps([0, 1])
+    else if (nextStep > step) setCheckedSteps(current => [...new Set([...current, step])])
+    setStep(nextStep)
+  }
+  const advance = () => {
+    setCheckedSteps(current => [...new Set([...current, step])])
+    if (!selectedVersion || sourceError || fieldIssues.some(issue => fieldStep(issue.field) === step)) return
+    goToStep(step + 1)
+  }
   const dirty = Object.keys(numericInputs).length > 0 || version !== baseline.version || (rawConfig ?? prettifyJson(config)) !== baseline.config || (rawRefs ?? prettifyJson(refs)) !== baseline.refs
   const conflict = dirty && (install?.updatedAt ?? null) !== baseline.updatedAt
   const supported = detail.plugin.pluginType === 'ACTION' || detail.plugin.pluginType === 'DATA' || detail.plugin.pluginType === 'INTEGRATION'
@@ -255,6 +278,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     setRawConfig(null)
     setRawRefs(null)
     setNumericInputs({})
+    setCheckedSteps([])
     setBaseline({ version: nextVersion, config: prettifyJson(saved?.config), refs: prettifyJson(saved?.secretRefs), updatedAt: saved?.updatedAt ?? null })
   }
   const refresh = async () => {
@@ -304,8 +328,8 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     if (!dirty && install && install.updatedAt !== baseline.updatedAt && !operation.isPending) adopt(install)
   }, [install?.updatedAt])
   useBrainEditor({ dirty, busy: operation.isPending,
-    canSave: canEdit && supported && Boolean(selectedVersion) && !conflict && (step < 2 || !sourceError && !fieldErrors.length && (dirty || !install)),
-    save: canEdit && supported ? () => step < 2 ? setStep(step + 1) : operation.mutateAsync('save').catch(() => undefined) : undefined,
+    canSave: canEdit && supported && Boolean(selectedVersion) && !conflict && (step < 2 || !sourceError && !fieldIssues.length && !numericErrors.length && (dirty || !install)),
+    save: canEdit && supported ? () => step < 2 ? advance() : operation.mutateAsync('save').catch(() => undefined) : undefined,
     discard: canEdit ? () => { adopt(install); operation.reset(); setMessage(undefined) } : undefined,
     primaryLabel: step < 2 ? 'Continue' : install ? 'Save connection' : 'Add to Brain draft',
     message: message && !dirty ? message : !canEdit ? 'Read-only access. Brain editor permission is required to make changes.' : undefined,
@@ -319,22 +343,21 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     setConfig(next.config); setRefs(next.secretRefs)
     setRawConfig(null); setRawRefs(null); setMessage(undefined)
   }
-  const connectionField = (field: MarketplaceInstallField) => field.type === 'secretRef' || field.type === 'url' || storageFields.has(field.id)
-  const visibleFields = fields.filter(field => step === 0 ? connectionField(field) : !connectionField(field))
   return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', md: '190px minmax(0,1fr)' }, gap: 3, height: '100%', minHeight: 0 }}>
     <Box component="nav" aria-label="Connection setup steps" sx={{ borderRight: { md: 1 }, borderColor: 'divider', pr: { md: 2 } }}>
-      <List disablePadding>{tasks.map((task, index) => <ListItemButton key={task} selected={step === index} onClick={() => setStep(index)} disabled={operation.isPending} sx={{ mb: 1, borderRadius: 1, alignItems: 'flex-start', gap: 1 }}>
+      <List disablePadding>{tasks.map((task, index) => <ListItemButton key={task} selected={step === index} onClick={() => goToStep(index)} disabled={operation.isPending} sx={{ mb: 1, borderRadius: 1, alignItems: 'flex-start', gap: 1 }}>
         <Chip size="small" label={index + 1} color={step === index ? 'primary' : 'default'} sx={{ width: 24, height: 24, '& .MuiChip-label': { px: 0 } }} /><ListItemText primary={task} primaryTypographyProps={{ variant: 'body2' }} />
       </ListItemButton>)}</List>
     </Box>
     <Stack spacing={2.5} sx={{ pb: 2, overflow: 'auto', minWidth: 0, pr: 1 }}>
     <Typography component="h2" sx={{ fontSize: 21, fontWeight: 650 }}>{tasks[step]}</Typography>
+    {step < 2 ? <Typography variant="caption" color="text.secondary">* Required. Optional inputs can be left blank.</Typography> : null}
     {!canEdit ? <Alert severity="info">Read-only access. Brain editor permission is required to make changes.</Alert> : null}
     {!supported ? <Alert severity="info">This plugin is managed in its owning technical workspace.</Alert> : null}
     {conflict ? <Alert severity="warning">This connection changed while you were editing. Discard to load its current settings.</Alert> : null}
     {operation.isError ? <Alert severity="error">{operation.error.message}</Alert> : null}
     {sourceError ? <Alert severity="error">{sourceError}</Alert> : null}
-    {step === 0 ? <><TextField select fullWidth size="small" label="Plugin version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
+    {step === 0 ? <><TextField select fullWidth size="small" required label="Plugin version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
       {!selectedVersion && version ? <MenuItem value={version}>{version} (unavailable)</MenuItem> : null}
       {detail.versions.map((candidate) => <MenuItem key={candidate.id} value={candidate.version}>{candidate.version}</MenuItem>)}
     </TextField><Typography variant="caption" color="text.secondary">Connection inputs are saved in the shared Brain draft. Storage bindings remain environment-specific; changing this version does not upgrade a live deployment.</Typography></> : null}
@@ -345,33 +368,51 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
       {bindings.isError ? <Alert severity="error">{bindings.error.message}</Alert> : bindings.isPending ? <Typography variant="body2" color="text.secondary">Loading storage connections...</Typography> : null}
       {brain ? <Button component={RouterLink} to={brain.href('knowledge/storage')} sx={{ alignSelf: 'flex-start' }}>Manage document storage</Button> : null}
     </> : null}
-    {step < 2 ? visibleFields.map((field) => storageFields.has(field.id) ? <TextField key={field.id} select fullWidth size="small" label={field.label} value={readInstallFieldValue(field, config, refs)}
-      disabled={disabled || rawConfig !== null || rawRefs !== null} onChange={event => editField(field, event.target.value)} helperText={field.description || 'Choose an existing hosted or BYO S3-compatible connection for this environment. Its own credentials stay in the storage binding, not in this definition.'}>
-      <MenuItem value="">Choose a storage connection</MenuItem><MenuItem value="slot:document-storage">Use this environment's document storage binding</MenuItem>
-      {(bindings.data ?? []).filter(binding => binding.targetProfileId === brain?.targetProfileId).map(binding => <MenuItem key={binding.bindingRef} value={binding.bindingRef}>{binding.bindingRef} / {binding.status}</MenuItem>)}
-      {readInstallFieldValue(field, config, refs) && readInstallFieldValue(field, config, refs) !== 'slot:document-storage' && !(bindings.data ?? []).some(binding => binding.bindingRef === readInstallFieldValue(field, config, refs) && binding.targetProfileId === brain?.targetProfileId)
-        ? <MenuItem value={readInstallFieldValue(field, config, refs)}>{readInstallFieldValue(field, config, refs)} (not confirmed in this environment)</MenuItem> : null}
-    </TextField> : field.type === 'boolean' ? <Box key={field.id}><FormControlLabel label={field.label}
-      control={<Checkbox disabled={disabled || rawConfig !== null || rawRefs !== null} indeterminate={readInstallFieldValue(field, config, refs) === ''} checked={readInstallFieldValue(field, config, refs) === 'true'} onChange={(_, checked) => editField(field, String(checked))} />} />{field.description ? <Typography variant="caption" color="text.secondary" display="block">{field.description}</Typography> : null}</Box> :
-      <TextField key={field.id} fullWidth size="small" select={field.type === 'select'} required={field.required}
-        type={field.type === 'url' ? 'url' : 'text'} label={field.label} placeholder={field.type === 'url' ? 'https://api.example.com' : undefined}
-        value={numericInputs[field.id] ?? readInstallFieldValue(field, config, refs)} onChange={(event) => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
-        helperText={field.description ?? (field.type === 'secretRef' ? 'Platform secret reference, never a raw credential.' : undefined)}>
-        {field.type === 'select' ? field.options.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>) : null}
-      </TextField>) : null}
+    {step < 2 ? visibleFields.map(field => {
+      const storage = storageFields.has(field.id)
+      const boolean = field.type === 'boolean'
+      const error = checkedSteps.includes(step) ? fieldIssues.find(issue => issue.field.id === field.id)?.message : undefined
+      const description = field.description || (storage ? 'Choose an existing hosted or BYO S3-compatible connection for this environment. Its own credentials stay in the storage binding, not in this definition.'
+        : field.type === 'secretRef' ? 'Platform secret reference, never a raw credential.' : '')
+      const hint = `${field.required ? 'Required.' : 'Optional.'}${boolean ? field.required ? ' An explicit Yes or No is required.' : ' Leave blank, or choose Yes or No.' : ''}${description ? ` ${description}` : ''}`
+      const value = readInstallFieldValue(field, config, refs)
+      return <TextField key={field.id} id={`${inputId}-${field.id}`} fullWidth size="small" select={storage || boolean || field.type === 'select'} required={field.required} error={Boolean(error)}
+        SelectProps={storage || boolean || field.type === 'select' ? { SelectDisplayProps: { 'aria-labelledby': `${inputId}-${field.id}-label` } } : undefined}
+        type={field.type === 'url' ? 'url' : 'text'} label={<>{field.label}{!field.required ? <Box component="span" aria-hidden="true" sx={{ color: 'text.secondary' }}> (optional)</Box> : null}</>}
+        placeholder={field.type === 'url' ? 'https://api.example.com' : undefined}
+        value={numericInputs[field.id] ?? value} onChange={event => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
+        helperText={<>{error ? <Box component="span" sx={{ display: 'block' }}>{error}</Box> : null}{hint}</>}>
+        {storage ? [
+          <MenuItem key="empty" value="">Choose a storage connection</MenuItem>,
+          <MenuItem key="slot" value="slot:document-storage">Use this environment's document storage binding</MenuItem>,
+          ...(bindings.data ?? []).filter(binding => binding.targetProfileId === brain?.targetProfileId).map(binding => <MenuItem key={binding.bindingRef} value={binding.bindingRef}>{binding.bindingRef} / {binding.status}</MenuItem>),
+          value && value !== 'slot:document-storage' && !(bindings.data ?? []).some(binding => binding.bindingRef === value && binding.targetProfileId === brain?.targetProfileId)
+            ? <MenuItem key="unconfirmed" value={value}>{value} (not confirmed in this environment)</MenuItem> : null,
+        ] : boolean ? [<MenuItem key="empty" value="">{field.required ? 'Choose Yes or No' : 'Not provided'}</MenuItem>, <MenuItem key="true" value="true">Yes</MenuItem>, <MenuItem key="false" value="false">No</MenuItem>]
+          : field.type === 'select' ? [<MenuItem key="empty" value="">{field.required ? 'Choose an option' : 'Not provided'}</MenuItem>, ...field.options.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)] : null}
+      </TextField>
+    }) : null}
     {step < 2 && visibleFields.length === 0 && selectedVersion ? <Typography variant="body2" color="text.secondary">{step === 0 ? 'No connection inputs are declared for this version. Check its source settings in the next step.' : 'No additional source inputs are declared by this version.'}</Typography> : null}
     {step === 1 ? <Typography variant="body2" color="text.secondary">{detail.plugin.pluginType === 'DATA' ? 'Your source remains the source of truth. This Data connection does not grant write access or replace content approval.' : 'Access and confirmation requirements remain governed by the declared capability contract.'}</Typography> : null}
     {step === 2 ? <>
       <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'minmax(100px,.35fr) minmax(0,1fr)', gap: 1.5, '& dt': { color: 'text.secondary' }, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
         <Typography component="dt" variant="body2">Plugin</Typography><Typography component="dd" variant="body2">{detail.plugin.displayName} / {version}</Typography>
         <Typography component="dt" variant="body2">Saved to</Typography><Typography component="dd" variant="body2">Shared Brain draft</Typography>
-        {fields.map(field => <Box key={field.id} sx={{ display: 'contents' }}><Typography component="dt" variant="body2">{field.label}</Typography><Typography component="dd" variant="body2">{readInstallFieldValue(field, reviewConfig, reviewRefs) || 'Not provided'}</Typography></Box>)}
+        {fields.map(field => {
+          const value = numericInputs[field.id] ?? readInstallFieldValue(field, reviewConfig, reviewRefs)
+          return <Box key={field.id} sx={{ display: 'contents' }}><Typography component="dt" variant="body2">{field.label} <Box component="span" sx={{ fontSize: 12 }}>({field.required ? 'required' : 'optional'})</Box></Typography><Typography component="dd" variant="body2">{field.type === 'boolean' && value ? value === 'true' ? 'Yes' : 'No' : value || 'Not provided'}</Typography></Box>
+        })}
       </Box>
       {install && version !== baseline.version ? <Alert severity="warning">Definition version changes from {baseline.version} to {version}. Existing input values are retained; check the new version's requirements before saving.</Alert> : null}
       <Alert severity="info">Saving checks the declared configuration and recompiles the draft. It does not test the provider, start indexing, or update a live environment.</Alert>
       {message && brain ? <Button component={RouterLink} to={brain.href('updates')} sx={{ alignSelf: 'flex-start' }}>Review Brain changes</Button> : null}
     </> : null}
-    {fieldErrors.length ? <Alert severity="warning">Complete these inputs: {fieldErrors.join(', ')}</Alert> : null}
+    {visibleIssues.length ? <Alert severity="warning"><Typography variant="body2">Complete {visibleIssues.length === 1 ? 'this input' : 'these inputs'} before {step === 2 ? 'saving' : 'continuing'}:</Typography>
+      <Box component="ul" sx={{ m: 0, pl: 2 }}>{visibleIssues.map(issue => <li key={issue.field.id}><Button size="small" sx={{ textAlign: 'left', justifyContent: 'flex-start', whiteSpace: 'normal' }} onClick={() => {
+        goToStep(fieldStep(issue.field))
+        requestAnimationFrame(() => document.getElementById(`${inputId}-${issue.field.id}`)?.focus())
+      }}>{issue.field.label}: {issue.message}</Button></li>)}</Box>
+    </Alert> : null}
     {install ? <>
       <Divider />
       <Typography variant="body2" color="text.secondary">Draft status: {install.status}. Readiness: {install.readinessStatus}. Entitlement: {install.entitlement.status}.</Typography>
@@ -398,8 +439,8 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     </Accordion>
     {message ? <Typography variant="body2" color="text.secondary">{message}</Typography> : null}
     <Stack direction="row" justifyContent="space-between" gap={1}>
-      <Button startIcon={<ArrowBackRoundedIcon />} disabled={step === 0 || operation.isPending} onClick={() => setStep(step - 1)}>Previous step</Button>
-      {step < 2 ? <Button endIcon={<ArrowForwardRoundedIcon />} onClick={() => setStep(step + 1)}>Review next step</Button> : null}
+      <Button startIcon={<ArrowBackRoundedIcon />} disabled={step === 0 || operation.isPending} onClick={() => goToStep(step - 1)}>Previous step</Button>
+      {step < 2 ? <Button endIcon={<ArrowForwardRoundedIcon />} disabled={operation.isPending} onClick={advance}>Review next step</Button> : null}
     </Stack>
     <Dialog open={removeOpen} onClose={() => { if (!operation.isPending) setRemoveOpen(false) }}>
       <DialogTitle>Remove {detail.plugin.displayName}?</DialogTitle>

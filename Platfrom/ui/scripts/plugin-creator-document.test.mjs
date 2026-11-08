@@ -132,6 +132,30 @@ test('starter definitions explain installation inputs without inventing customer
   }
 })
 
+test('copying an existing Data definition preserves its full contract and exact values, but gives it a new identity', () => {
+  const original = document.parseDocument(document.newDefinition('public-original', 'S3_COMPATIBLE_OBJECT_STORAGE')).document
+  original.displayName = 'Approved support documents'
+  const withExtension = document.parseDocument(document.patchDocument(JSON.stringify(original), [
+    { path: ['custom'], value: { retained: [null, 'first', 'second'] } },
+  ])).document
+  const copy = document.parseDocument(document.copyDefinition(withExtension, 'private-copy')).document
+  assert.equal(copy.pluginId, 'private-copy')
+  assert.equal(copy.displayName, 'Copy of Approved support documents')
+  assert.equal(copy.version, '1.0.0')
+  assert.deepEqual(copy.contributions, original.contributions)
+  assert.deepEqual(copy.installForm, original.installForm)
+  assert.deepEqual(copy.custom, { retained: [null, 'first', 'second'] })
+  assert.equal(withExtension.pluginId, 'public-original')
+  const exact = document.parseDocument('{"pluginType":"DATA","version":"3.0.0","custom":900719925474099312345,"contributions":{"datasets":[{"ingestionMode":"EXTERNAL_SYNC_HTTP","syncConnector":{"connectorType":"HTTP_JSON"}}]}}').document
+  assert.ok(document.copyDefinition(exact, 'private-exact').includes('900719925474099312345'))
+})
+
+test('copying does not convert unsupported adapters or plugin types into private executable definitions', () => {
+  for (const kind of ['SQL_QUERY', 'FILE_FOLDER', 'PACKAGED']) assert.throws(() => document.copyDefinition({ pluginType: 'DATA', contributions: { datasets: [{ syncConnector: { connectorType: kind } }] } }, 'private-copy'), /Private definitions currently support/)
+  assert.throws(() => document.copyDefinition({ pluginType: 'ACTION' }, 'private-copy'), /Data plugin/)
+  assert.throws(() => document.copyDefinition({ pluginType: 'DATA', contributions: { datasets: [{ sourceConnector: { connectorType: 'S3_COMPATIBLE_OBJECT_STORAGE', storageOwnership: 'PLATFORM_FILESYSTEM' } }] } }, 'private-copy'), /Private definitions currently support/)
+})
+
 test('audience labels follow exact declared access modes without guessing custom policy', () => {
   const input = document.parseDocument(document.newDefinition('private-access')).document
   assert.equal(document.audience(input, 0), 'staff')

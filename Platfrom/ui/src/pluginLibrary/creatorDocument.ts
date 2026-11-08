@@ -76,6 +76,20 @@ export function audienceModes(value: string): string[] {
     : value === 'signed' ? ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED'] : ['PRIVATE_RUNTIME_BACKEND_MEDIATED']
 }
 
+export function copyDefinition(manifest: unknown, identifier: string): string {
+  if (!objectValue(manifest) || manifest.pluginType !== 'DATA') throw new Error('Choose an existing Data plugin.')
+  const datasets = datasetList(manifest)
+  if (!datasets.length || datasets.some((dataset, index) => {
+    const kind = sourceKind(manifest, index)
+    const mode = textAt(dataset, ['ingestionMode'])
+    return !(kind === 'HTTP_JSON' && mode === 'EXTERNAL_SYNC_HTTP') && !(kind === 'S3_COMPATIBLE_OBJECT_STORAGE' && mode === 'EXTERNAL_DOCUMENT_STORAGE' && textAt(dataset, ['sourceConnector', 'storageOwnership']) === 'BOUND_CONNECTION')
+  })) throw new Error('This source uses a packaged, folder or SQL adapter. Private definitions currently support HTTP JSON and bound S3 storage only.')
+  return patchDocument(stringifyExactJson(manifest, 2), [
+    { path: ['pluginId'], value: identifier }, { path: ['version'], value: '1.0.0' },
+    { path: ['displayName'], value: `Copy of ${textAt(manifest, ['displayName']) || 'Data plugin'}` },
+  ])
+}
+
 function sourceContract(kind: SourceKind, identity = 'source'): ExactObject {
   if (kind === 'S3_COMPATIBLE_OBJECT_STORAGE') return {
     ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE', updateStrategy: 'VERSIONED_REPLACE', storageScope: 'CUSTOMER_SCOPED', sharingScope: 'DEPLOYMENT_ONLY',

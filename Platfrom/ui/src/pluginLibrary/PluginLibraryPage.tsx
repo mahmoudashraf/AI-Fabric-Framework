@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, useBlocker, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Breadcrumbs, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton,
-  Link, Stack, Typography, useTheme } from '@mui/material'
+  Link, MenuItem, Stack, TextField, Typography, useTheme } from '@mui/material'
 import ArrowBackOutlined from '@mui/icons-material/ArrowBackOutlined'
 import ArrowForwardOutlined from '@mui/icons-material/ArrowForwardOutlined'
 import AddOutlined from '@mui/icons-material/AddOutlined'
@@ -14,10 +14,11 @@ import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined'
 import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import { useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
-import { fetchDeployments } from '../api/platformApi'
-import { CreatorFields, NumericDraftContext } from './CreatorFields'
-import { datasetList, libraryPath, newDefinition, parseDocument, patchDocument, replaceSourceContract,
+import { fetchDeployments, fetchMarketplacePlugin, fetchMarketplacePlugins } from '../api/platformApi'
+import { CreatorFields, CreatorIssuesContext, NumericDraftContext } from './CreatorFields'
+import { copyDefinition, datasetList, libraryPath, newDefinition, parseDocument, patchDocument, replaceSourceContract,
   safeBrainReturn, textAt, type SourceKind } from './creatorDocument'
+import { missingCreatorRequirements, pointerPath, type CreatorRequirement } from './creatorRequirements'
 import { pluginLibraryApi as api } from './pluginLibraryApi'
 import type { PluginCheck, PluginDetail, PluginSummary } from './types'
 import './pluginLibrary.css'
@@ -139,11 +140,32 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const [archiveOpen, setArchiveOpen] = useState(false), [sourceChange, setSourceChange] = useState<SourceKind | null>(null)
   const [reloadOpen, setReloadOpen] = useState(false)
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({})
+  const [reviewRequired, setReviewRequired] = useState(Boolean(feedback?.check)), [focusPath, setFocusPath] = useState<string | null>(null)
+  const [starterOpen, setStarterOpen] = useState(false), [starterId, setStarterId] = useState(''), [starterVersion, setStarterVersion] = useState('')
+  const catalogue = useQuery({ queryKey: ['plugin-authoring-starters', customerId], queryFn: () => fetchMarketplacePlugins(customerId), enabled: starterOpen, retry: false })
+  const starter = useQuery({ queryKey: ['plugin-authoring-starter', customerId, starterId], queryFn: () => fetchMarketplacePlugin(starterId, customerId), enabled: starterOpen && Boolean(starterId), retry: false })
   const invalidFields = Object.keys(numericDrafts).length > 0
   const clearNumeric = () => setNumericDrafts({})
   const leaving = useRef(false), fileInput = useRef<HTMLInputElement>(null)
   const readOnly = !canManage || saved?.canManage === false || saved?.status === 'ARCHIVED' || Boolean(immutableSource)
   const parsed = parseDocument(source), document = parsed.document
+  const starterManifest = starter.data?.versions.find(version => version.version === (starterVersion || starter.data.versions[0]?.version))?.manifest
+  let starterError: string | undefined
+  if (starterOpen && starter.data) { try { copyDefinition(starterManifest, 'preview') } catch (error) { starterError = error instanceof Error ? error.message : 'This source contract is not available for private authoring.' } }
+  const missing = document ? missingCreatorRequirements(document) : []
+  const localIssues = reviewRequired ? missing.map(item => ({ path: pointerPath(item.path), message: 'Required for a reusable version. You can still save an unfinished draft.' })) : []
+  useEffect(() => {
+    if (!focusPath || showSource) return
+    const control = window.document.querySelector<HTMLElement>(`[data-plugin-field-path="${CSS.escape(focusPath)}"]`)
+    if (!control) { setShowSource(true); setFocusPath(null); return }
+    let parent = control.parentElement
+    while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement }
+    control.focus(); control.scrollIntoView({ block: 'nearest' }); setFocusPath(null)
+  }, [focusPath, step, dataset, showSource])
+  const visitRequirement = (item: CreatorRequirement) => {
+    setShowSource(false); setStep(item.step); if (item.dataset !== undefined) setDataset(item.dataset)
+    setFocusPath(pointerPath(item.path))
+  }
   const dirty = !readOnly && (source !== baseline || invalidFields)
   const blocker = useBlocker(() => !leaving.current && (busy || dirty))
   useEffect(() => {
@@ -165,6 +187,11 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const adopt = (result: PluginDetail) => { setSaved(result); setBaseline(result.manifestJson); setSource(result.manifestJson); clearNumeric(); client.setQueryData([...key(customerId), result.pluginId], result) }
   const command = async (action: 'save' | 'check' | 'version' | 'archive') => {
     if (readOnly || busy || !document || invalidFields) return
+    if (action === 'check') setReviewRequired(true)
+    if (action === 'version' && missing.length) {
+      setReviewRequired(true); setStep(5); setShowSource(false); setCheck(null); setError(''); setMessage('')
+      return
+    }
     setBusy(true); setError(''); setMessage('')
     let current = saved
     try {
@@ -173,8 +200,13 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
         const result = await api.check(current.pluginId, { manifestJson: source, expectedRevision: current.draftRevision }, customerId)
         setCheck(result); setMessage(result.valid ? 'Configuration checked. Provider connectivity and indexing have not been tested.' : 'Review the configuration issues below.')
       } else if (action === 'version') {
-        const result = await api.createVersion(current.pluginId, { manifestJson: source, expectedRevision: current.draftRevision, version: textAt(document, ['version']) }, customerId)
-        current = result; adopt(result); setCheck(null); setMessage('Reusable version saved. No Brain or live environment was changed.')
+        const validation = await api.check(current.pluginId, { manifestJson: source, expectedRevision: current.draftRevision }, customerId)
+        setCheck(validation); setReviewRequired(true)
+        if (!validation.valid) { setStep(5); setShowSource(false); setMessage('Review the configuration issues below.') }
+        else {
+          const result = await api.createVersion(current.pluginId, { manifestJson: source, expectedRevision: current.draftRevision, version: textAt(document, ['version']) }, customerId)
+          current = result; adopt(result); setCheck(null); setMessage('Reusable version saved. No Brain or live environment was changed.')
+        }
       } else if (action === 'archive') {
         const result = await api.archive(current.pluginId, { expectedRevision: current.draftRevision }, customerId)
         current = result; adopt(result); setArchiveOpen(false); setMessage('Definition archived. Existing pinned versions are retained.')
@@ -201,7 +233,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
       <Button variant="outlined" startIcon={<CodeOutlined />} onClick={() => setShowSource(!showSource)}>{showSource ? 'Guided form' : 'Source'}</Button></div>
     <div className="pl-editor-content">
       <nav className="pl-task-rail" aria-label="Data plugin creation steps">{tasks.map(([label, help], index) => <button key={label} className={step === index ? 'pl-selected' : ''} type="button" onClick={() => setStep(index)} disabled={busy} aria-current={step === index ? 'step' : undefined}>
-        <span className="pl-step-number">{index + 1}</span><span><strong>{label}</strong><small>{help}</small></span></button>)}</nav>
+        <span className="pl-step-number">{index + 1}</span><span><strong>{label}</strong><small>{help}</small>{!readOnly && missing.some(item => item.step === index) ? <small className="pl-step-remaining">{missing.filter(item => item.step === index).length} required left</small> : null}</span></button>)}</nav>
       <section className="pl-editor-pane" aria-label={showSource ? 'Definition source' : tasks[step][0]}>
         {error ? <Alert severity="error" action={saved ? <Button disabled={busy} onClick={() => setReloadOpen(true)}>Reload saved draft</Button> : undefined}>{error}</Alert> : null}{message ? <Alert severity={check && !check.valid ? 'warning' : 'success'}>{message}</Alert> : null}
         {showSource ? <>
@@ -211,14 +243,17 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
           {parsed.error ? <Alert severity="error">{parsed.error} Your source has not been replaced.</Alert> : null}
         </> : document ? <>
           <h2>{tasks[step][0]}</h2>
+          <p className="pl-field-help">Required fields are marked. Optional fields can stay empty. Save draft keeps unfinished work; reusable versions need a complete configuration.</p>
+          {!saved && !readOnly && step === 0 ? <div className="pl-starter"><div><strong>Reuse a source you already know</strong><p>Start with an existing Data plugin, then adapt your private copy.</p></div><Button variant="outlined" onClick={() => setStarterOpen(true)} startIcon={<ExtensionOutlined />}>Start from existing plugin</Button></div> : null}
           {datasetList(document).length > 1 ? <label className="pl-field"><span>Dataset</span><select value={dataset} onChange={event => setDataset(Number(event.target.value))}>{datasetList(document).map((_, index) => <option key={index} value={index}>{textAt(document, ['contributions', 'datasets', index, 'datasetId']) || `Dataset ${index + 1}`}</option>)}</select></label> : null}
-          <NumericDraftContext.Provider value={{ drafts: numericDrafts, setDraft: (path, value) => setNumericDrafts(current => { const next = { ...current }; if (value === undefined) delete next[path]; else next[path] = value; return next }) }}>
+          <CreatorIssuesContext.Provider value={localIssues}><NumericDraftContext.Provider value={{ drafts: numericDrafts, setDraft: (path, value) => setNumericDrafts(current => { const next = { ...current }; if (value === undefined) delete next[path]; else next[path] = value; return next }) }}>
             <CreatorFields document={document} step={step} dataset={dataset} edit={edit} disabled={readOnly || busy} immutableId={Boolean(saved?.versions.length)} issues={check?.issues ?? []} onSourceChange={setSourceChange} />
-          </NumericDraftContext.Provider>
+          </NumericDraftContext.Provider></CreatorIssuesContext.Provider>
           {invalidFields ? <Alert severity="warning">Finish incomplete numeric values before saving or checking. Your typed values are retained in their steps.</Alert> : null}
           {step === 5 ? <>
+            {!readOnly && missing.length ? <section className="pl-required-review" aria-label="Required fields to complete"><h3>{missing.length} required {missing.length === 1 ? 'field needs' : 'fields need'} attention</h3><p>You can save this draft now. Complete these inputs before creating a reusable version.</p><ul>{missing.map(item => <li key={pointerPath(item.path)}><button type="button" className="pl-text-button" onClick={() => visitRequirement(item)}>{item.label}{item.dataset !== undefined && datasetList(document).length > 1 ? ` / Dataset ${item.dataset + 1}` : ''}<ArrowForwardOutlined /></button></li>)}</ul></section> : null}
             {!readOnly ? <Button onClick={() => void command('check')} disabled={busy || invalidFields} startIcon={<CodeOutlined />} sx={{ alignSelf: 'flex-start' }}>{saved ? 'Check configuration' : 'Save draft & check'}</Button> : null}
-            {check?.issues.map((issue, index) => <Alert key={`${issue.path}:${index}`} severity="warning"><strong>{issue.path}</strong>: {issue.message}</Alert>)}
+            {check?.issues.map((issue, index) => <Alert key={`${issue.path}:${index}`} severity="warning" action={<Button size="small" onClick={() => setShowSource(true)}>Open source</Button>}><strong>{issue.path}</strong>: {issue.message}</Alert>)}
             {useHref && !dirty ? <Button component={RouterLink} to={useHref} variant="outlined" startIcon={<AddOutlined />} sx={{ alignSelf: 'flex-start' }}>Use in this Brain</Button> : versionHref && !dirty ? <Button component={RouterLink} to={versionHref}>View reusable version</Button> : null}
           </> : null}
         </> : <Alert severity="error">{parsed.error} Open Source to correct it. No defaults have replaced your edits.</Alert>}
@@ -236,6 +271,21 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
         {step < 5 ? <Button variant="contained" disabled={busy} endIcon={<ArrowForwardOutlined />} onClick={() => setStep(step + 1)}>Continue</Button> : !readOnly ? <Button variant="contained" disabled={busy || !document || invalidFields} onClick={() => void command('version')}>Save reusable version</Button> : null}
       </div></footer>
     <Dialog open={sourceChange !== null} onClose={() => setSourceChange(null)}><DialogTitle>Change the source contract?</DialogTitle><DialogContent>The selected dataset's connector settings will be replaced. Other definition fields stay unchanged. Review setup inputs before saving a reusable version.</DialogContent><DialogActions><Button onClick={() => setSourceChange(null)}>Cancel</Button><Button onClick={() => { try { setSource(replaceSourceContract(source, dataset, sourceChange!)); clearNumeric(); resetFeedback(); setSourceChange(null) } catch (error) { setError(error instanceof Error ? error.message : 'Unable to change source.') } }}>Change source</Button></DialogActions></Dialog>
+    <Dialog open={starterOpen} onClose={() => setStarterOpen(false)} fullWidth maxWidth="sm"><DialogTitle>Start from an existing Data plugin</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+      <Typography variant="body2" color="text.secondary">Copy a version's complete definition, including advanced settings. No installed connections, credentials or live data are copied. This replaces the current unsaved form.</Typography>
+      {catalogue.isError || starter.isError ? <Alert severity="error">{catalogue.error?.message ?? starter.error?.message}</Alert> : null}
+      {catalogue.data && !catalogue.data.some(plugin => plugin.pluginType === 'DATA') ? <Alert severity="info">No Data plugins are available as a starting point. Keep the current form to define your own source.</Alert> : null}
+      <TextField select required label="Existing Data plugin" value={starterId} onChange={event => { setStarterId(event.target.value); setStarterVersion('') }} fullWidth size="small" disabled={catalogue.isPending} sx={{ '& .MuiSelect-select': { whiteSpace: 'normal', overflowWrap: 'anywhere' } }}>
+        <MenuItem value="">Choose a plugin</MenuItem>{catalogue.data?.filter(plugin => plugin.pluginType === 'DATA').map(plugin => <MenuItem key={plugin.id} value={plugin.id} sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{plugin.displayName}</MenuItem>)}
+      </TextField>
+      {starter.data ? <><TextField select required label="Starting version" size="small" value={starterVersion || starter.data.versions[0]?.version || ''} onChange={event => setStarterVersion(event.target.value)} fullWidth>{starter.data.versions.map(version => <MenuItem key={version.id} value={version.version}>{version.version}</MenuItem>)}</TextField>
+        <Alert severity={starterError ? 'warning' : 'info'}>{starterError || 'You will get a separate private draft. The original plugin and its installations stay unchanged. Dataset and advanced contract settings are retained.'}</Alert>
+      </> : starterId && starter.isPending ? <Typography variant="body2">Loading reusable versions...</Typography> : null}
+    </Stack></DialogContent><DialogActions><Button onClick={() => setStarterOpen(false)}>Keep current form</Button><Button variant="contained" disabled={!starter.data || starter.isFetching || Boolean(starterError)} onClick={() => {
+      try {
+        setSource(copyDefinition(starterManifest, document ? textAt(document, ['pluginId']) || `source-${crypto.randomUUID().slice(0, 8)}` : `source-${crypto.randomUUID().slice(0, 8)}`)); clearNumeric(); resetFeedback(); setReviewRequired(false); setDataset(0); setStep(0); setStarterOpen(false)
+      } catch (error) { setError(error instanceof Error ? error.message : 'Unable to copy this definition.'); setStarterOpen(false) }
+    }}>Use this starting point</Button></DialogActions></Dialog>
     <Dialog open={archiveOpen} onClose={() => { if (!busy) setArchiveOpen(false) }}><DialogTitle>Archive this definition?</DialogTitle><DialogContent>It will no longer be offered for new installations. Existing pinned versions and live Brains are retained.</DialogContent><DialogActions><Button disabled={busy} onClick={() => setArchiveOpen(false)}>Cancel</Button><Button disabled={busy} color="warning" onClick={() => void command('archive')}>Archive definition</Button></DialogActions></Dialog>
     <Dialog open={reloadOpen} onClose={() => { if (!busy) setReloadOpen(false) }}><DialogTitle>Load the current saved draft?</DialogTitle><DialogContent>This discards your local edits. Export the source first to keep a copy. No installed Brain will change.</DialogContent><DialogActions><Button disabled={busy} onClick={() => setReloadOpen(false)}>Keep editing</Button><Button color="warning" disabled={busy} onClick={async () => {
       if (!saved) return
