@@ -106,13 +106,13 @@ function sourceContract(kind: SourceKind, identity = 'source'): ExactObject {
   }
 }
 function installFields(kind: SourceKind): ExactObject[] {
-  if (kind === 'S3_COMPATIBLE_OBJECT_STORAGE') return [{ id: 'documentStorageBindingRef', label: 'Document storage connection', type: 'text', required: true }]
+  if (kind === 'S3_COMPATIBLE_OBJECT_STORAGE') return [{ id: 'documentStorageBindingRef', label: 'Document storage connection', type: 'text', required: true, description: 'Choose an existing hosted or BYO S3-compatible connection for this environment. The plugin reads its approved folder; no access key belongs in this field.' }]
   if (kind === 'SQL_QUERY') return [{ id: 'connectionRef', label: 'SQL connection reference', type: 'text', required: true }]
   return [
-    { id: 'providerBaseUrl', label: 'Provider base URL', type: 'url', required: true },
-    { id: 'providerHost', label: 'Allowed provider host', type: 'text', required: true },
-    { id: 'providerKey', label: 'Provider credential reference', type: 'secretRef', required: true },
-    { id: 'accountId', label: 'Authorized account', type: 'text', required: true },
+    { id: 'providerBaseUrl', label: 'Provider base URL', type: 'url', required: true, description: 'Your API base URL, for example https://api.example.com. The relative read route is defined by this plugin.' },
+    { id: 'providerHost', label: 'Allowed provider host', type: 'text', required: true, description: 'Approved hostname matching the API URL, for example api.example.com. Do not include https:// or a path.' },
+    { id: 'providerKey', label: 'Provider credential reference', type: 'secretRef', required: true, description: 'Reference to the API credential already stored in Platform. Never paste the API key itself.' },
+    { id: 'accountId', label: 'Authorized account', type: 'text', required: true, description: 'The source account ID you are authorized to read, for example account-7. The connector restricts requests and returned records to this account.' },
   ]
 }
 export function newDefinition(identifier: string, kind: SourceKind = 'HTTP_JSON'): string {

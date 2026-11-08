@@ -90,7 +90,7 @@ async function run(name, callback, options = {}) {
     if (path.startsWith('/api/marketplace/plugins/')) {
       const id = path.split('/').pop()
       return send({ plugin: plugin(id), versions: [{ id: `version-${id}`, version: '1.0.0', pricing,
-        installForm: [{ id: 'endpoint', label: 'Service endpoint', type: 'url', required: true }, { id: 'token', label: 'API key reference', type: 'secretRef', required: false }], contributions }] })
+        installForm: [{ id: 'endpoint', label: 'Service endpoint', type: 'url', required: true, description: 'Base address from your API provider, without the record route.' }, { id: 'token', label: 'API key reference', type: 'secretRef', required: false }, ...(options.guidance ? [{ id: 'includeArchived', label: 'Include archived records', type: 'boolean', required: false, description: 'Read archived records only when the source allows it.' }] : [])], contributions }] })
     }
     if (path === '/api/deployments/brain-a/workspace') return send({ deployment: { name: 'Service AI', runtimeBaseUrl: options.runtime ? 'https://runtime.example.test' : null }, access: { canEdit: !options.readonly, canOperate: !options.readonly }, template: { name: 'Support' } })
     if (path === '/api/deployments/brain-a/draft') return send(state)
@@ -138,6 +138,17 @@ const noOverflow = page => page.evaluate(() => document.documentElement.scrollWi
 const reviewConnection = async page => page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '3 Review' }).click()
 
 try {
+  await run('installer shows provider examples and declared boolean help without supplying connection values', async ({ page, requests }) => {
+    const endpoint = page.getByRole('textbox', { name: /^Service endpoint/ })
+    await endpoint.waitFor()
+    assert.equal(await endpoint.inputValue(), '')
+    assert.equal(await endpoint.getAttribute('placeholder'), 'https://api.example.com')
+    await page.getByText('Base address from your API provider, without the record route.', { exact: true }).waitFor()
+    await page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '2 Information & access' }).click()
+    await page.getByText('Read archived records only when the source allows it.', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('Include archived records', { exact: true }).isChecked(), false)
+    assert.equal(requests.filter(request => request.method !== 'GET').length, 0)
+  }, { path: 'capabilities/add?pluginId=shipping&view=setup', empty: true, guidance: true })
   await run('picker is deliberate, groups source families, hides demos and links to scoped authoring', async ({ page, requests }) => {
     await page.getByRole('tab', { name: 'Recommended', exact: true }).waitFor()
     assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)

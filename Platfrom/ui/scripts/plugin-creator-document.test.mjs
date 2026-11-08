@@ -112,6 +112,26 @@ test('explicit contract switches replace generated inputs and retain unrelated c
   assert.equal(result.presentation.adapterContract, 'S3_COMPATIBLE_OBJECT_STORAGE')
 })
 
+test('starter definitions explain installation inputs without inventing customer connection values', () => {
+  for (const kind of ['HTTP_JSON', 'S3_COMPATIBLE_OBJECT_STORAGE']) {
+    const manifest = document.parseDocument(document.newDefinition('private-guidance', kind)).document
+    for (const field of manifest.installForm) {
+      assert.ok(field.description.length > 30, `Missing installer help for ${field.id}`)
+      assert.equal(Object.hasOwn(field, 'defaultValue'), false, 'Example URLs and account IDs must not become connection values')
+    }
+    const dataset = manifest.contributions.datasets[0]
+    if (kind === 'HTTP_JSON') {
+      assert.equal(dataset.syncConnector.httpSource.path, '')
+      assert.equal(dataset.syncConnector.httpSource.mapping.idJsonPointer, '')
+      assert.equal(dataset.syncConnector.httpSource.scheduleSeconds, 900)
+      assert.deepEqual(dataset.syncConnector.httpSource.mapping.contentFields, {})
+    } else {
+      assert.equal(dataset.documentPolicy.maxSourceBytes, 1048576)
+      assert.equal(dataset.documentPolicy.trustedAutoIndexingAllowed, false)
+    }
+  }
+})
+
 test('audience labels follow exact declared access modes without guessing custom policy', () => {
   const input = document.parseDocument(document.newDefinition('private-access')).document
   assert.equal(document.audience(input, 0), 'staff')

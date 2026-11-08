@@ -61,6 +61,30 @@ the complete manifest for advanced edits, import and export. Guided edits retain
 unrelated supported fields, exact numbers, explicit nulls and array order.
 Invalid source remains visible until corrected; it is not silently replaced.
 
+### Field Examples And Starter Values
+
+Every supported source task includes field help and examples. In Source
+contract, inputs such as `providerBaseUrl`, `providerHost` and `providerKey`
+are **setup field names**, not the actual URL, hostname or credential. Their
+names must match Setup inputs; the actual connection values are entered later
+when installing the plugin for a Smart Brain. New definitions include help text
+for that installation form, which you can customize under Setup inputs.
+
+For a response such as `{"records":[{"id":"article-42","accountId":"account-7","description":"Delivery information"}]}`:
+
+- Collection JSON pointer: `/records`, relative to the whole response.
+- Stable record ID: `/id`, relative to each record.
+- Account ownership: `/accountId`, checked against the authorized installation.
+- Searchable content: source path `/description`, indexed field `description`.
+
+These are examples, not mappings saved on your behalf. New HTTP definitions keep
+the API route and record mappings empty until you supply the real contract.
+Safe starter values remain visible: HTTP refresh `900` seconds (15 minutes),
+up to `100` pages, and document files up to `1048576` bytes (1 MiB), with approval
+required and automatic indexing off. They apply only after the relevant
+connection/release workflow, not merely by visiting or saving this form.
+Existing definitions and installations are not overwritten by example values.
+
 ## Reuse And Update
 
 Select a usable version in My plugins, then Use in a Brain. Install it separately

@@ -346,15 +346,15 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
       {brain ? <Button component={RouterLink} to={brain.href('knowledge/storage')} sx={{ alignSelf: 'flex-start' }}>Manage document storage</Button> : null}
     </> : null}
     {step < 2 ? visibleFields.map((field) => storageFields.has(field.id) ? <TextField key={field.id} select fullWidth size="small" label={field.label} value={readInstallFieldValue(field, config, refs)}
-      disabled={disabled || rawConfig !== null || rawRefs !== null} onChange={event => editField(field, event.target.value)} helperText="Target-bound storage uses its own environment credentials; no credential is copied into this definition.">
+      disabled={disabled || rawConfig !== null || rawRefs !== null} onChange={event => editField(field, event.target.value)} helperText={field.description || 'Choose an existing hosted or BYO S3-compatible connection for this environment. Its own credentials stay in the storage binding, not in this definition.'}>
       <MenuItem value="">Choose a storage connection</MenuItem><MenuItem value="slot:document-storage">Use this environment's document storage binding</MenuItem>
       {(bindings.data ?? []).filter(binding => binding.targetProfileId === brain?.targetProfileId).map(binding => <MenuItem key={binding.bindingRef} value={binding.bindingRef}>{binding.bindingRef} / {binding.status}</MenuItem>)}
       {readInstallFieldValue(field, config, refs) && readInstallFieldValue(field, config, refs) !== 'slot:document-storage' && !(bindings.data ?? []).some(binding => binding.bindingRef === readInstallFieldValue(field, config, refs) && binding.targetProfileId === brain?.targetProfileId)
         ? <MenuItem value={readInstallFieldValue(field, config, refs)}>{readInstallFieldValue(field, config, refs)} (not confirmed in this environment)</MenuItem> : null}
-    </TextField> : field.type === 'boolean' ? <FormControlLabel key={field.id} label={field.label}
-      control={<Checkbox disabled={disabled || rawConfig !== null || rawRefs !== null} indeterminate={readInstallFieldValue(field, config, refs) === ''} checked={readInstallFieldValue(field, config, refs) === 'true'} onChange={(_, checked) => editField(field, String(checked))} />} /> :
+    </TextField> : field.type === 'boolean' ? <Box key={field.id}><FormControlLabel label={field.label}
+      control={<Checkbox disabled={disabled || rawConfig !== null || rawRefs !== null} indeterminate={readInstallFieldValue(field, config, refs) === ''} checked={readInstallFieldValue(field, config, refs) === 'true'} onChange={(_, checked) => editField(field, String(checked))} />} />{field.description ? <Typography variant="caption" color="text.secondary" display="block">{field.description}</Typography> : null}</Box> :
       <TextField key={field.id} fullWidth size="small" select={field.type === 'select'} required={field.required}
-        type={field.type === 'url' ? 'url' : 'text'} label={field.label}
+        type={field.type === 'url' ? 'url' : 'text'} label={field.label} placeholder={field.type === 'url' ? 'https://api.example.com' : undefined}
         value={numericInputs[field.id] ?? readInstallFieldValue(field, config, refs)} onChange={(event) => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
         helperText={field.description ?? (field.type === 'secretRef' ? 'Platform secret reference, never a raw credential.' : undefined)}>
         {field.type === 'select' ? field.options.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>) : null}

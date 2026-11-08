@@ -137,6 +137,25 @@ Resetting Git alone does not roll back the schema or its private data.
 
 ## Operational Boundaries
 
+### Field Guidance Follow-Up - 8 November 2026
+
+The creator now explains setup field names versus real connection values, uses
+safe example placeholders, and shows a collapsible HTTP-response/mapping
+example. Mapping columns name the JSON path and indexed field explicitly.
+Starter refresh, page and document limits include units and their effect.
+Setup inputs explain what the eventual installer sees; new definitions include
+editable installation descriptions. Storage and boolean controls also display
+their declared help. Example URLs, IDs and mappings are never saved as customer
+connection defaults, and existing definitions are not backfilled or overwritten.
+
+Focused unit checks pass (53); library browser checks pass (13), including
+no mutation while navigating examples and preservation of existing definitions.
+Capability browser checks pass (23), including installation URL placeholders and
+declared boolean help. Production build passes, with the existing runtime-config
+script and bundle-size warnings. Hosted rollout is not yet claimed here; its
+completion is recorded separately. This is UI-only work, not new indexing/runtime
+qualification.
+
 Definition save/check/version and Brain draft save do not call the provider,
 index data, create a release or change live app assignment. Storage binding,
 content approval, source reconciliation and publish/apply/verify remain their
