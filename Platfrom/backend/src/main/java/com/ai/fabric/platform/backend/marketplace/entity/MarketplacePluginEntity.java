@@ -35,6 +35,24 @@ public class MarketplacePluginEntity {
     @Column(nullable = false)
     private String status;
 
+    private String ownerCustomerId;
+
+    @Column(nullable = false)
+    private String visibility = "PUBLIC";
+
+    @Column(columnDefinition = "TEXT")
+    private String draftManifestJson;
+
+    @Column(nullable = false)
+    private long draftRevision;
+
+    private String catalogueFamily;
+
+    @Column(nullable = false)
+    private String catalogueAudience = "CUSTOMER";
+
+    private String adapterContract;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -44,6 +62,21 @@ public class MarketplacePluginEntity {
     public String getId() {
         return id;
     }
+
+    public String getOwnerCustomerId() { return ownerCustomerId; }
+    public void setOwnerCustomerId(String value) { ownerCustomerId = value; }
+    public String getVisibility() { return visibility; }
+    public void setVisibility(String value) { visibility = value; }
+    public String getDraftManifestJson() { return draftManifestJson; }
+    public void setDraftManifestJson(String value) { draftManifestJson = value; }
+    public long getDraftRevision() { return draftRevision; }
+    public void setDraftRevision(long value) { draftRevision = value; }
+    public String getCatalogueFamily() { return catalogueFamily; }
+    public void setCatalogueFamily(String value) { catalogueFamily = value; }
+    public String getCatalogueAudience() { return catalogueAudience; }
+    public void setCatalogueAudience(String value) { catalogueAudience = value; }
+    public String getAdapterContract() { return adapterContract; }
+    public void setAdapterContract(String value) { adapterContract = value; }
 
     public void setId(String id) {
         this.id = id;

@@ -96,6 +96,7 @@ public class MarketplacePublishingService {
             plugin.setStatus("DRAFT");
             plugin.setCreatedAt(Instant.now());
         } else {
+            requirePublicPlugin(plugin);
             if (!publisher.getSlug().equalsIgnoreCase(plugin.getPublisherSlug())) {
                 throw new ResponseStatusException(CONFLICT, "Marketplace plugin is owned by another publisher: " + plugin.getId());
             }
@@ -239,13 +240,23 @@ public class MarketplacePublishingService {
     }
 
     private MarketplacePluginVersionEntity requireVersion(String pluginVersionId) {
-        return versionRepository.findById(pluginVersionId)
+        var version = versionRepository.findById(pluginVersionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace plugin version not found: " + pluginVersionId));
+        requirePlugin(version.getPluginId());
+        return version;
     }
 
     private MarketplacePluginEntity requirePlugin(String pluginId) {
-        return pluginRepository.findById(pluginId)
+        var plugin = pluginRepository.findById(pluginId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace plugin not found: " + pluginId));
+        requirePublicPlugin(plugin);
+        return plugin;
+    }
+
+    private void requirePublicPlugin(MarketplacePluginEntity plugin) {
+        if (MarketplacePluginOwnership.isPrivate(plugin)) {
+            throw new ResponseStatusException(NOT_FOUND, "Public marketplace plugin not found.");
+        }
     }
 
     private MarketplacePublisherEntity requirePublisher(String publisherId) {

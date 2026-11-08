@@ -77,6 +77,7 @@ public class MarketplaceTemplateBootstrapService {
     private DeploymentSummary bootstrap(String pluginIdOrSlug, CreateMarketplaceTemplateBootstrapRequest request,
                                         boolean configurationOnly) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, null);
         MarketplacePluginVersionEntity version = resolveVersion(plugin, request.pluginVersion());
         // Retirement blocks new creation only, not historical resolution or original-template reset.
         if ("DEPRECATED".equalsIgnoreCase(version.getStatus()) || "RETIRED".equalsIgnoreCase(version.getStatus())

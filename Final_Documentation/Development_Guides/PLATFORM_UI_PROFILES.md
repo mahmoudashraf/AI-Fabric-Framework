@@ -35,6 +35,16 @@ unchanged. Account permissions are workspace-wide, never scoped by a Brain
 navigation query. See `verification-support/customer-account-workspace/README.md`
 for the preserved authentication/team contracts and verification evidence.
 
+The 010.66 private Data plugin library is a separate deliberate authoring task
+under `/library/plugins`, entered from a Brain's existing Knowledge/Capabilities
+picker. It is workspace-owned and has no environment selector. Keep definition
+authoring separate from Brain installation; reuse the existing installer,
+compiler and release flow. There is no new plugin type. Unsupported customer SQL
+or filesystem adapters must not be presented as connected. Preserve source/form
+fidelity and server-enforced ownership/revisions; advanced presentation is not
+permission. See `verification-support/plugin-library-01066/README.md` for delivery
+status, including the distinction between local tests and hosted qualification.
+
 The staging-only developer presentation is retained independently of that
 redesign. It uses the same existing UI and staging Platform backend, not a
 separate product, backend, authentication role or authorization bypass.

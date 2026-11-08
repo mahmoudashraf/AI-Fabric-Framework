@@ -54,7 +54,7 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
 
 const contributions = { actionIds: ['open_ticket', 'read_ticket'], knowledgeSourceIds: [], conversationChannel: null }
 const pricing = { pricingModel: 'FREE', requiresEntitlement: false }
-const plugin = (id = 'support') => ({ id, displayName: id === 'support' ? 'Customer service' : 'Shipping API', shortDescription: 'Connect your service team', publisherDisplayName: 'Example publisher', pluginType: 'ACTION', pricing, contributions })
+const plugin = (id = 'support') => ({ id, displayName: id === 'support' ? 'Customer service' : 'Shipping API', shortDescription: 'Connect your service team', publisherDisplayName: 'Example publisher', pluginType: 'ACTION', latestVersion: '1.0.0', pricing, contributions })
 const installed = (extra = {}) => ({ id: 'install-a', deploymentId: 'brain-a', pluginId: 'support', pluginDisplayName: 'Customer service', pluginType: 'ACTION', pluginVersion: '1.0.0', status: 'ENABLED', config: { endpoint: 'https://service.example.test', opaque: { preserved: [1, 2] } }, secretRefs: { token: 'service-key', opaqueRef: 'preserve' }, contributions, readinessStatus: 'READY', liveState: 'DRAFT_ONLY', warnings: [], entitlement: { status: 'ACTIVE', requiresEntitlement: false }, updatedAt: '2026-11-07T00:00:00Z', ...extra })
 const draft = () => ({ id: 'draft-a', deploymentId: 'brain-a', revisionNumber: 3, status: 'DRAFT',
   actionsConfig: { unknownRoot: { retained: true }, actions: [
@@ -81,7 +81,12 @@ async function run(name, callback, options = {}) {
     const body = request.postDataJSON()
     requests.push({ path, method, body })
     const send = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
-    if (path === '/api/marketplace/plugins') return send([plugin(), plugin('shipping'), { ...plugin('model'), pluginType: 'INFERENCE_PROFILE', displayName: 'Model profile' }])
+    if (path === '/api/marketplace/plugins') return send([plugin(), plugin('shipping'), { ...plugin('model'), pluginType: 'INFERENCE_PROFILE', displayName: 'Model profile' }, ...(options.catalogue ? [
+      { ...plugin('documents'), pluginType: 'DATA', displayName: 'Approved documents', catalogueFamily: 'DOCUMENT_STORAGE', catalogueAudience: 'CUSTOMER' },
+      { ...plugin('docs-specialized'), pluginType: 'DATA', displayName: 'Operations documents', catalogueFamily: 'DOCUMENT_STORAGE', catalogueAudience: 'CUSTOMER' },
+      { ...plugin('demo-source'), pluginType: 'DATA', displayName: 'Packaged example', catalogueAudience: 'DEMO' },
+      { ...plugin('private'), pluginType: 'DATA', displayName: 'My service records', visibility: 'CUSTOMER_PRIVATE' },
+    ] : [])])
     if (path.startsWith('/api/marketplace/plugins/')) {
       const id = path.split('/').pop()
       return send({ plugin: plugin(id), versions: [{ id: `version-${id}`, version: '1.0.0', pricing,
@@ -130,8 +135,26 @@ const technicalView = async (page, name) => {
   await page.getByRole('option', { name, exact: true }).click()
 }
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+const reviewConnection = async page => page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '3 Review' }).click()
 
 try {
+  await run('picker is deliberate, groups source families, hides demos and links to scoped authoring', async ({ page, requests }) => {
+    await page.getByRole('tab', { name: 'Recommended', exact: true }).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)
+    await page.getByRole('button', { name: /Documents from storage/ }).click()
+    await page.getByRole('link', { name: /Approved documents/ }).waitFor()
+    await page.getByRole('link', { name: /Operations documents/ }).waitFor()
+    assert.equal(await page.getByRole('link', { name: /Packaged example/ }).count(), 0)
+    await page.getByRole('checkbox', { name: 'Show demo sources' }).check()
+    await page.getByRole('link', { name: /Packaged example/ }).waitFor()
+    await page.getByRole('tab', { name: 'My plugins', exact: true }).click()
+    assert.equal(await page.getByRole('list', { name: 'Available capabilities' }).getByRole('link').count(), 1)
+    await page.getByRole('link', { name: /My service records/ }).waitFor()
+    const creator = await page.getByRole('link', { name: 'Create a data plugin' }).getAttribute('href')
+    assert.match(creator, /^\/library\/plugins\/new\/data\?/)
+    assert.match(new URL(creator, baseUrl).searchParams.get('returnTo'), /targetProfileId=target-exact/)
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  }, { catalogue: true, path: 'capabilities/add?type=DATA' })
   await run('generic master/detail, stable deep links, search and close', async ({ page, requests }) => {
     await page.getByRole('heading', { name: 'Open a support request' }).waitFor()
     await page.getByText('Required before execution.', { exact: true }).waitFor()
@@ -151,9 +174,11 @@ try {
     await page.getByRole('tab', { name: 'Available', exact: true }).click()
     await page.getByRole('link', { name: /Shipping API Connect/ }).click()
     await page.getByRole('heading', { name: 'Shipping API', exact: true }).waitFor()
+    await page.getByRole('link', { name: 'Set up for this Brain', exact: true }).click()
     await page.getByRole('textbox', { name: 'Service endpoint' }).fill('https://shipping.example.test')
-    await page.getByRole('button', { name: 'Add capability', exact: true }).click()
-    await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).waitFor()
+    await reviewConnection(page)
+    await page.getByRole('button', { name: 'Add to Brain draft', exact: true }).click()
+    await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).first().waitFor()
     assert.equal(requests.filter(item => item.method === 'POST').length, 1)
     assert.equal(requests.filter(item => item.path.startsWith('/api/deployment-drafts/') && item.method !== 'GET').length, 0)
     await page.getByRole('button', { name: 'Save connection', exact: true }).waitFor()
@@ -163,11 +188,14 @@ try {
   await run('connection update failure retains inputs, retry round-trips unknown fields and refs', async ({ page, requests, failNextSave }) => {
     await page.getByRole('link', { name: 'View connection' }).click()
     await page.getByRole('textbox', { name: 'Service endpoint' }).fill('https://new.example.test')
+    await reviewConnection(page)
     failNextSave(); await page.getByRole('button', { name: 'Save connection' }).click()
     await page.getByText('Connection update failed.', { exact: true }).first().waitFor()
+    await page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '1 Connection' }).click()
     assert.equal(await page.getByRole('textbox', { name: 'Service endpoint' }).inputValue(), 'https://new.example.test')
+    await reviewConnection(page)
     await page.getByRole('button', { name: 'Save connection' }).click()
-    await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).waitFor()
+    await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).first().waitFor()
     const saved = requests.filter(item => item.method === 'PUT').at(-1).body
     assert.deepEqual(saved.config.opaque, { preserved: [1, 2] })
     assert.deepEqual(saved.secretRefs, { token: 'service-key', opaqueRef: 'preserve' })
@@ -240,8 +268,10 @@ try {
     await page.getByRole('link', { name: 'View connection' }).click()
     const input = page.getByRole('textbox', { name: 'Service endpoint' }); await input.fill('https://local.example.test')
     connectionConflict()
+    await reviewConnection(page)
     await page.getByRole('button', { name: 'Save connection' }).click()
     await page.getByText(/This connection changed/).first().waitFor()
+    await page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '1 Connection' }).click()
     assert.equal(await input.inputValue(), 'https://local.example.test')
     assert.equal(requests.filter(item => item.method === 'PUT').length, 0)
     await page.getByRole('button', { name: 'Discard', exact: true }).click()

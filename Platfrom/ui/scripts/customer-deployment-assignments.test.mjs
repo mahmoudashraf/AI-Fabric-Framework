@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/customerDeploymentAssignments.ts', import.meta.url), 'utf8')
@@ -154,7 +155,7 @@ test('concurrent dispatch and a lost response hold the exact consumer revision a
 
 test('actual configuration API posts only the normal scoped contract without changing live activation', async () => {
   const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
-  const output = ts.transpileModule(apiSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+  const output = ts.transpileModule(withPluginJsonSupport(apiSource), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   const oldWindow = globalThis.window, oldFetch = globalThis.fetch, calls = []
   globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'https://configuration.invalid' } }
   const api = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`)

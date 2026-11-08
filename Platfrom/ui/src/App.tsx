@@ -67,6 +67,9 @@ import { SmartBrainPage } from './brain/SmartBrainPage'
 import { brainIdFromPath, brainSignInReturn } from './brain/brainNavigation'
 import { CustomerAccountShell } from './account/CustomerAccountShell'
 import { accountSignInReturn, isAccountPath } from './account/accountNavigation'
+import { PluginLibraryPage } from './pluginLibrary/PluginLibraryPage'
+import { CustomerConsoleTheme } from './theme/CustomerConsoleTheme'
+import { pluginLibraryReturn } from './auth/pluginLibraryReturn'
 
 export default function App() {
   const auth = usePlatformAuth()
@@ -76,6 +79,8 @@ export default function App() {
   const brainReturn = brainSignInReturn(location.state?.brainReturn)
   const accountReturn = accountSignInReturn(location.state?.accountReturn)
     ?? accountSignInReturn(new URLSearchParams(location.search).get('account_return'))
+  const libraryReturn = pluginLibraryReturn(location.state?.libraryReturn)
+    ?? pluginLibraryReturn(new URLSearchParams(location.search).get('library_return'))
 
   // Identity-provider consent is available to Desk agents without Console membership.
   if (window.location.pathname === '/auth/desk/authorize') return <DeskOAuthAuthorizationPage />
@@ -109,7 +114,7 @@ export default function App() {
 
   if (location.pathname === '/staff/sign-in') {
     if (customerWorkspace && auth.session?.authenticationMode === 'SESSION' && auth.customerConfig?.enabled) return <CustomerIdentityLinkPage />
-    if (auth.session?.authenticated) return <Navigate to={brainReturn ?? (customerWorkspace ? accountReturn ?? '/home' : '/deployments')} replace />
+    if (auth.session?.authenticated) return <Navigate to={brainReturn ?? libraryReturn ?? (customerWorkspace ? accountReturn ?? '/home' : '/deployments')} replace />
     return <PlatformLoginPage headerName={auth.session?.headerName ?? 'X-PLATFORM-API-KEY'}
       sessionAuthEnabled={auth.session?.sessionAuthEnabled ?? true} apiKeyAuthEnabled={auth.session?.apiKeyAuthEnabled ?? false}
       errorMessage={auth.apiKey ? 'Platform API key rejected. Please try again.' : null}
@@ -121,7 +126,7 @@ export default function App() {
   if (unlinkedCustomer) return <CustomerOnboardingPage />
 
   if (location.pathname === '/sign-in' || location.pathname === '/sign-up') {
-    if (auth.session?.authenticated) return <Navigate to={brainReturn ?? (customerWorkspace ? accountReturn ?? productStartPath(location.search) : '/deployments')} replace />
+    if (auth.session?.authenticated) return <Navigate to={brainReturn ?? libraryReturn ?? (customerWorkspace ? accountReturn ?? productStartPath(location.search) : '/deployments')} replace />
     return <CustomerSignInPage register={location.pathname === '/sign-up'} />
   }
 
@@ -137,6 +142,8 @@ export default function App() {
   }
 
   if (auth.session?.enabled && !auth.session.authenticated) {
+    const library = pluginLibraryReturn(`${location.pathname}${location.search}`)
+    if (library) return <Navigate to={`/sign-in?${new URLSearchParams({ library_return: library })}`} state={{ libraryReturn: library }} replace />
     const kit = kitSetupCode(location.pathname)
     const account = isAccountPath(location.pathname) ? accountSignInReturn(`${location.pathname}${location.search}`) : null
     return <Navigate to={kit ? `/sign-in?kit=${kit}` : account ? `/sign-in?${new URLSearchParams({ account_return: account })}` : `/sign-in${location.search}`}
@@ -158,6 +165,10 @@ export default function App() {
   if (customerWorkspace && auth.session?.authenticationMode === 'SESSION' && auth.customerConfig?.enabled) {
     return <CustomerIdentityLinkPage />
   }
+
+  if (pluginLibraryReturn(`${location.pathname}${location.search}`)) return <CustomerConsoleTheme>
+    <Routes><Route path="/library/plugins/*" element={<PluginLibraryPage />} /></Routes>
+  </CustomerConsoleTheme>
 
   return (
     <DeploymentWorkspaceProvider key={customerWorkspace ? `customer:${auth.session?.actorId}:${auth.session?.customerId}` : auth.session?.actorId ?? auth.session?.customerId ?? 'platform-operator'}>

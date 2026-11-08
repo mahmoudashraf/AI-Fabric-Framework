@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/CustomerDeploymentConsole.tsx', import.meta.url), 'utf8')
@@ -11,7 +12,7 @@ const names = new Set(['recoveryText', 'recoveryRevision', 'preparedFailureRecov
 const selected = ast.statements.filter(node => ts.isFunctionDeclaration(node) ? names.has(node.name?.text)
   : ts.isVariableStatement(node) && node.declarationList.declarations.some(item => names.has(item.name.getText(ast))))
 assert.equal(selected.length, names.size)
-const transpile = text => ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+const transpile = text => ts.transpileModule(withPluginJsonSupport(text), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
 const pure = await import(`data:text/javascript;base64,${Buffer.from(transpile(withCustomerSessionSupport(selected.map(node => node.getText(ast)).join('\n')))).toString('base64')}`)
 const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
 const previousWindow = globalThis.window

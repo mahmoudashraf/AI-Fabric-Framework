@@ -1,3 +1,5 @@
+import { parseExactJson, stringifyExactJson } from '../lib/losslessJson'
+
 export type CustomerAuthConfig = {
   enabled: boolean
   projectUrl: string | null
@@ -1846,6 +1848,11 @@ export type MarketplacePluginSummary = {
   categories: string[]
   contributions: MarketplacePluginContributionSummary | null
   updatedAt: string
+  ownerCustomerId?: string | null
+  visibility?: 'PUBLIC' | 'CUSTOMER_PRIVATE'
+  catalogueFamily?: string | null
+  catalogueAudience?: string | null
+  adapterContract?: string | null
 }
 
 export type MarketplacePluginVersionSummary = {
@@ -2042,6 +2049,7 @@ export type CreateDeploymentMarketplaceInstallRequest = {
 }
 
 export type UpdateDeploymentMarketplaceInstallRequest = {
+  expectedUpdatedAt?: string
   pluginVersion?: string
   status?: string
   config?: unknown
@@ -4623,7 +4631,7 @@ export function clearStoredPlatformApiKey() {
   platformApiKey = ''
 }
 
-async function request<T>(path: string, init?: RequestInit, policy: 'default' | 'local' | 'none' = 'default'): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, policy: 'default' | 'local' | 'none' = 'default', decode?: (source: string) => unknown): Promise<T> {
   init?.signal?.throwIfAborted()
   const apiKey = getStoredPlatformApiKey()
   const credential = await platformCredentials(path, apiKey, policy)
@@ -4686,7 +4694,7 @@ async function request<T>(path: string, init?: RequestInit, policy: 'default' | 
     return undefined as T
   }
 
-  return response.json() as Promise<T>
+  return decode ? decode(await response.text()) as T : response.json() as Promise<T>
 }
 
 export { request as platformRequest }
@@ -5063,17 +5071,19 @@ export function replayDeploymentSmartBrainOperation(deploymentId: string, operat
   )
 }
 
-export function fetchMarketplacePlugins() {
-  return request<MarketplacePluginSummary[]>('/api/marketplace/plugins')
+export function fetchMarketplacePlugins(customerId?: string | null) {
+  const params = new URLSearchParams({ includeDemo: 'true' })
+  if (customerId) params.set('customerId', customerId)
+  return request<MarketplacePluginSummary[]>(`/api/marketplace/plugins?${params}`)
 }
 
-export function fetchMarketplacePlugin(pluginId: string) {
-  return request<MarketplacePluginDetailSummary>(`/api/marketplace/plugins/${encodeURIComponent(pluginId)}`)
+export function fetchMarketplacePlugin(pluginId: string, customerId?: string | null) {
+  return request<MarketplacePluginDetailSummary>(`/api/marketplace/plugins/${encodeURIComponent(pluginId)}${customerId ? `?customerId=${encodeURIComponent(customerId)}` : ''}`, undefined, 'default', parseExactJson)
 }
 
-export function fetchMarketplacePluginVersion(pluginId: string, version: string) {
+export function fetchMarketplacePluginVersion(pluginId: string, version: string, customerId?: string | null) {
   return request<MarketplacePluginVersionSummary>(
-    `/api/marketplace/plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}`,
+    `/api/marketplace/plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}${customerId ? `?customerId=${encodeURIComponent(customerId)}` : ''}`, undefined, 'default', parseExactJson,
   )
 }
 
@@ -5554,8 +5564,8 @@ export function createMarketplacePublisherSubmission(
     `/api/marketplace/publishers/${encodeURIComponent(publisherId)}/submissions`,
     {
       method: 'POST',
-      body: JSON.stringify(payload),
-    },
+      body: stringifyExactJson(payload),
+    }, 'default', parseExactJson,
   )
 }
 
@@ -5610,7 +5620,7 @@ export function bootstrapMarketplaceTemplatePlugin(
 
 export function fetchDeploymentMarketplaceInstalls(deploymentId: string) {
   return request<DeploymentMarketplaceInstallSummary[]>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`, undefined, 'default', parseExactJson,
   )
 }
 
@@ -5628,8 +5638,8 @@ export function createDeploymentMarketplaceInstall(
     `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
     {
       method: 'POST',
-      body: JSON.stringify(payload),
-    },
+      body: stringifyExactJson(payload),
+    }, 'default', parseExactJson,
   )
 }
 
@@ -5642,14 +5652,14 @@ export function updateDeploymentMarketplaceInstall(
     `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
     {
       method: 'PUT',
-      body: JSON.stringify(payload),
-    },
+      body: stringifyExactJson(payload),
+    }, 'default', parseExactJson,
   )
 }
 
-export function deleteDeploymentMarketplaceInstall(deploymentId: string, installId: string) {
+export function deleteDeploymentMarketplaceInstall(deploymentId: string, installId: string, expectedUpdatedAt?: string) {
   return request<void>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}${expectedUpdatedAt ? `?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}` : ''}`,
     {
       method: 'DELETE',
     },

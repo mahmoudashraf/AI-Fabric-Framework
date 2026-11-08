@@ -16,6 +16,11 @@ public record MarketplacePluginSummary(
     MarketplacePluginPricingSummary pricing,
     List<String> categories,
     MarketplacePluginContributionSummary contributions,
-    Instant updatedAt
+    Instant updatedAt,
+    String ownerCustomerId,
+    String visibility,
+    String catalogueFamily,
+    String catalogueAudience,
+    String adapterContract
 ) {
 }

@@ -1,7 +1,13 @@
 import { accountSignInReturn } from '../account/accountNavigation'
+import { pluginLibraryReturn } from './pluginLibraryReturn'
 
 const returnKey = 'loomai-console-auth-return'
-type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; kit?: string; accountReturn?: string; createdAt: number }
+type AuthReturn = { purpose: 'link' | 'desk' | 'desk-entry' | 'customer'; authorizationId?: string; deskClientId?: string; product?: string; kit?: string; accountReturn?: string; libraryReturn?: string; createdAt: number }
+
+function currentLibraryReturn() {
+  return pluginLibraryReturn(`${window.location.pathname}${window.location.search}`)
+    ?? pluginLibraryReturn(new URLSearchParams(window.location.search).get('library_return'))
+}
 
 function currentAccountReturn() {
   return accountSignInReturn(`${window.location.pathname}${window.location.search}`)
@@ -23,6 +29,8 @@ export function kitSetupCode(pathname: string): string | null {
 }
 
 export function productStartPath(search: string, pathname = '') {
+  const library = pluginLibraryReturn(new URLSearchParams(search).get('library_return'))
+  if (library) return library
   const kit = selectedKit(search) ?? kitSetupCode(pathname)
   if (kit) return `/kits/new/${kit}`
   const product = selectedProduct(search)
@@ -38,6 +46,7 @@ export function rememberCustomerAuthReturn(linking: boolean) {
     ...(selectedProduct(window.location.search) ? { product: selectedProduct(window.location.search)! } : {}),
     ...(selectedKit(window.location.search) ? { kit: selectedKit(window.location.search)! } : {}),
     ...(currentAccountReturn() ? { accountReturn: currentAccountReturn()! } : {}),
+    ...(currentLibraryReturn() ? { libraryReturn: currentLibraryReturn()! } : {}),
     ...(authorizationId ? { authorizationId } : {}), createdAt: Date.now() }
   window.localStorage.setItem(returnKey, JSON.stringify(intent))
 }
@@ -52,6 +61,7 @@ export function customerAuthReturn(): AuthReturn | null {
       || (intent.deskClientId !== undefined && (typeof intent.deskClientId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(intent.deskClientId)))) return null
     if (intent.kit !== undefined && (typeof intent.kit !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(intent.kit))) return null
     if (intent.accountReturn !== undefined && !accountSignInReturn(intent.accountReturn)) return null
+    if (intent.libraryReturn !== undefined && !pluginLibraryReturn(intent.libraryReturn)) return null
     return intent
   } catch { return null }
 }
@@ -64,6 +74,8 @@ export function consumeCustomerAuthReturn() {
   if (intent?.purpose === 'desk-entry') return '/auth/desk/sign-in' + (intent.deskClientId ? '/' + intent.deskClientId : '')
   if ((!intent || intent.purpose === 'customer') && new URLSearchParams(window.location.search).get('flow') === 'desk') return deskEntryFromEmail()
   if (!intent || intent.purpose === 'customer') {
+    const library = pluginLibraryReturn(intent?.libraryReturn) ?? currentLibraryReturn()
+    if (library) return library
     const account = accountSignInReturn(intent?.accountReturn) ?? currentAccountReturn()
     if (account) return account
     const kit = intent?.kit ?? selectedKit(window.location.search)
@@ -82,7 +94,8 @@ export function identityEmailRedirect(recovery = false) {
   const client = clientId && /^[a-zA-Z0-9_-]{1,128}$/.test(clientId) ? `&desk_client=${encodeURIComponent(clientId)}` : ''
   const kit = selectedKit(window.location.search)
   const account = currentAccountReturn()
-  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : account ? '?account_return=' + encodeURIComponent(account) : kit ? '?kit=' + encodeURIComponent(kit) : ''}`
+  const library = currentLibraryReturn()
+  return `${window.location.origin}/auth/${recovery ? 'recovery' : 'callback'}${desk ? '?flow=desk' + client : account ? '?account_return=' + encodeURIComponent(account) : library ? '?library_return=' + encodeURIComponent(library) : kit ? '?kit=' + encodeURIComponent(kit) : ''}`
 }
 
 function deskEntryFromEmail() {

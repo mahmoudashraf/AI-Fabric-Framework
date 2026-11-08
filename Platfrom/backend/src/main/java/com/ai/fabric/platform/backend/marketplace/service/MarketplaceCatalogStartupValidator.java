@@ -37,6 +37,8 @@ public class MarketplaceCatalogStartupValidator implements SmartInitializingSing
                     "Marketplace plugin version " + version.getId() + " references missing plugin " + version.getPluginId()
                 );
             }
+            if (MarketplacePluginOwnership.isPrivate(plugin) && "ARCHIVED".equals(plugin.getStatus())
+                && !"DATA".equals(plugin.getPluginType())) continue; // Retained audit evidence, not an executable catalogue definition.
             manifestService.parseAndValidate(plugin, version);
         }
     }

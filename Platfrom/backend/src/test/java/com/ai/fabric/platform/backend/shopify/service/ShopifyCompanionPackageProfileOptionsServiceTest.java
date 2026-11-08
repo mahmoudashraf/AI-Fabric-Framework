@@ -237,7 +237,7 @@ class ShopifyCompanionPackageProfileOptionsServiceTest {
             null,
             List.of("shopify"),
             contributions,
-            Instant.parse("2026-04-29T00:00:00Z")
+            Instant.parse("2026-04-29T00:00:00Z"), null, "PUBLIC", null, "CUSTOMER", null
         );
     }
 

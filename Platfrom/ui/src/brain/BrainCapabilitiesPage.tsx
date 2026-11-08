@@ -4,15 +4,17 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded'
 import ExtensionRoundedIcon from '@mui/icons-material/ExtensionRounded'
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined'
 import {
   Alert, Box, Button, Chip, Divider, IconButton, InputAdornment, Link, List, ListItemButton,
-  ListItemText, Pagination, Stack, Tab, Tabs, TextField, Tooltip, Typography,
+  ListItemText, Pagination, Stack, Tab, Tabs, TextField, Tooltip, Typography, Checkbox, FormControlLabel,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useLocation, useMatch } from 'react-router-dom'
 import {
-  fetchDeploymentDraft, fetchDeploymentMarketplaceInstalls, fetchMarketplacePlugins,
+  fetchDeploymentDraft, fetchDeploymentMarketplaceInstalls, fetchMarketplacePlugins, fetchDeploymentWorkspace,
   type DeploymentMarketplaceInstallSummary, type MarketplacePluginSummary,
 } from '../api/platformApi'
 import { ActionsPage, type ActionTechnicalView } from '../pages/ActionsPage'
@@ -110,19 +112,36 @@ export function BrainCapabilitiesPage() {
   const actionPanel = params.get('panel')
   const initialActionView: ActionTechnicalView = actionPanel === 'webhooks' || actionPanel === 'deliveries' || actionPanel === 'routing' ? actionPanel : 'catalogue'
   const dataSourcesOnly = available && params.get('type') === 'DATA'
+  const setup = available && params.get('view') === 'setup'
+  const [catalogueView, setCatalogueView] = useState('recommended')
+  const [showDemo, setShowDemo] = useState(false)
+  const [expandedFamilies, setExpandedFamilies] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const installsQuery = useQuery({ queryKey: ['deployment-marketplace-installs', brainId], queryFn: () => fetchDeploymentMarketplaceInstalls(brainId) })
   const draftQuery = useQuery({ queryKey: ['deployment-draft', brainId], queryFn: () => fetchDeploymentDraft(brainId) })
-  const pluginsQuery = useQuery({ queryKey: ['marketplace-plugins'], queryFn: fetchMarketplacePlugins, enabled: available })
+  const workspaceQuery = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
+  const customerId = workspaceQuery.data?.deployment.binding?.customerId ?? ''
+  const pluginsQuery = useQuery({ queryKey: ['marketplace-plugins', customerId], queryFn: () => fetchMarketplacePlugins(customerId), enabled: available && workspaceQuery.isSuccess })
   const rows = useMemo(() => capabilityRows(installsQuery.data ?? [], draftQuery.data?.actionsConfig), [installsQuery.data, draftQuery.data?.actionsConfig])
   const plugins = useMemo(() => availableCapabilities(pluginsQuery.data ?? []).filter(plugin => !dataSourcesOnly || plugin.pluginType === 'DATA'), [pluginsQuery.data, dataSourcesOnly])
   const needle = search.trim().toLowerCase()
   const filteredRows = rows.filter((row) => `${row.label} ${row.purpose} ${row.install?.pluginDisplayName ?? ''}`.toLowerCase().includes(needle))
-  const filteredPlugins = plugins.filter((plugin) => `${plugin.displayName} ${plugin.shortDescription} ${plugin.publisherDisplayName}`.toLowerCase().includes(needle))
+  const filteredPlugins = plugins.filter((plugin) => (showDemo || !['DEMO', 'INTERNAL'].includes(plugin.catalogueAudience ?? 'CUSTOMER'))
+    && (catalogueView !== 'private' || plugin.visibility === 'CUSTOMER_PRIVATE')
+    && (catalogueView !== 'recommended' || !plugin.catalogueFamily || ['DOCUMENT_STORAGE', 'HTTP_JSON'].includes(plugin.catalogueFamily) || plugin.visibility === 'CUSTOMER_PRIVATE')
+    && `${plugin.displayName} ${plugin.shortDescription} ${plugin.publisherDisplayName}`.toLowerCase().includes(needle))
+  const groupedPlugins = useMemo(() => {
+    const groups = new Map<string, MarketplacePluginSummary[]>()
+    for (const plugin of filteredPlugins) {
+      const key = plugin.visibility === 'CUSTOMER_PRIVATE' ? plugin.id : plugin.catalogueFamily || plugin.id
+      groups.set(key, [...(groups.get(key) ?? []), plugin])
+    }
+    return [...groups].map(([key, options]) => ({ key, options }))
+  }, [pluginsQuery.data, catalogueView, showDemo, needle, dataSourcesOnly])
   const selected = params.get('view') === 'list' ? undefined : detailKey && !available ? rows.find((row) => row.key === detailKey) : rows[0]
-  const selectedPlugin = plugins.find((plugin) => plugin.id === selectedPluginId) ?? (!selectedPluginId ? filteredPlugins[0] : undefined)
-  const count = available ? filteredPlugins.length : filteredRows.length
+  const selectedPlugin = plugins.find((plugin) => plugin.id === selectedPluginId)
+  const count = available ? groupedPlugins.length : filteredRows.length
   const maxPage = Math.max(1, Math.ceil(count / PAGE_SIZE))
   const currentPage = Math.min(page, maxPage)
   const hasDetail = available ? Boolean(selectedPlugin) : Boolean(selected)
@@ -136,8 +155,21 @@ export function BrainCapabilitiesPage() {
     return `${path}${next.size ? `?${next}` : ''}`
   }
   const selectedPath = selected ? `capabilities/${encodeURIComponent(selected.key)}` : 'capabilities'
-  const loading = installsQuery.isPending || draftQuery.isPending || (available && pluginsQuery.isPending)
-  const error = installsQuery.error ?? draftQuery.error ?? (available ? pluginsQuery.error : null)
+  const loading = installsQuery.isPending || draftQuery.isPending || workspaceQuery.isPending || (available && pluginsQuery.isPending)
+  const error = installsQuery.error ?? draftQuery.error ?? workspaceQuery.error ?? (available ? pluginsQuery.error : null)
+  const libraryParams = new URLSearchParams({ returnTo: link('capabilities/add') })
+  if (customerId) libraryParams.set('customerId', customerId)
+  const libraryHref = `/library/plugins?${libraryParams}`
+  const creatorHref = `/library/plugins/new/data?${libraryParams}`
+
+  if (setup && selectedPlugin || connection && selected?.install) {
+    const pluginId = setup ? selectedPlugin!.id : selected!.install!.pluginId
+    const label = setup ? selectedPlugin!.displayName : selected!.install!.pluginDisplayName
+    return <Box sx={pageSx}>
+      <BrainPageHeader title={`Connect ${label}`} action={<Button component={RouterLink} to={setup ? link('capabilities/add', { pluginId }) : href(selectedPath)} startIcon={<ArrowBackRoundedIcon />}>Back</Button>} />
+      <Box sx={{ ...brainPaneSx, flex: 1 }}><MarketplacePage capabilityView={{ brainId, pluginId, pluginVersion: params.get('pluginVersion') ?? undefined }} /></Box>
+    </Box>
+  }
 
   if (detailKey === 'actions') return <Box sx={pageSx}>
     <BrainPageHeader title="Action configuration" action={<Button component={RouterLink} to={href('capabilities')} startIcon={<ArrowBackRoundedIcon />}>Capabilities</Button>} />
@@ -145,10 +177,15 @@ export function BrainCapabilitiesPage() {
   </Box>
 
   return <Box sx={pageSx}>
-    <BrainPageHeader title="What your AI can do" action={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+    <BrainPageHeader title={dataSourcesOnly ? 'Add knowledge' : 'What your AI can do'} action={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+      {available ? <>
+        <Button component={RouterLink} to={libraryHref} startIcon={<ExtensionRoundedIcon />}>My plugins</Button>
+        <Button component={RouterLink} to={creatorHref} variant="outlined" startIcon={<AddRoundedIcon />}>Create a data plugin</Button>
+      </> : <>
       <Button component={RouterLink} to={link('capabilities/actions', { panel: 'webhooks' })} size="small">Webhooks &amp; deliveries</Button>
       <Tooltip title="Action configuration"><IconButton component={RouterLink} to={href('capabilities/actions')} aria-label="Action configuration"><CodeRoundedIcon /></IconButton></Tooltip>
       <Button component={RouterLink} to={href('capabilities/add')} variant="contained" startIcon={<AddRoundedIcon />} sx={{ flexShrink: 0 }}>Add capability</Button>
+      </>}
     </Stack>} />
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: hasDetail ? 'minmax(280px, .95fr) minmax(340px, 1fr)' : 'minmax(0, 1fr)' }, flex: 1, minHeight: 0 }}>
       <Box sx={{ display: { xs: hasDetail && (Boolean(detailKey && !available) || Boolean(selectedPluginId)) ? 'none' : 'flex', lg: 'flex' }, flexDirection: 'column', minHeight: 0, minWidth: 0, pr: { lg: hasDetail ? 3 : 0 }, pb: { xs: 2, lg: 0 } }}>
@@ -157,19 +194,28 @@ export function BrainCapabilitiesPage() {
           <Tab component={RouterLink} to={href('capabilities/add')} label="Available" value="available" />
         </Tabs>
         {dataSourcesOnly && <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5 }}>Data sources <Link component={RouterLink} to={href('capabilities/add')} sx={{ ml: 1 }}>All capabilities</Link></Typography>}
+        {available ? <Tabs value={catalogueView} onChange={(_, value) => { setCatalogueView(value); setPage(1) }} aria-label="Plugin sources" sx={{ mt: 1 }}>
+          <Tab value="recommended" label="Recommended" /><Tab value="private" label="My plugins" /><Tab value="all" label="All plugins" />
+        </Tabs> : null}
         <TextField size="small" placeholder="Find a capability" inputProps={{ 'aria-label': 'Find a capability' }} value={search}
           onChange={(event) => { setSearch(event.target.value); setPage(1) }} sx={{ my: 2 }}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }} />
         {loading ? <Typography color="text.secondary">Loading capabilities...</Typography> : error ? <Alert severity="error" action={<Button onClick={() => { void installsQuery.refetch(); void draftQuery.refetch(); if (available) void pluginsQuery.refetch() }}>Retry</Button>}>{error.message}</Alert> : <>
           <Box sx={{ ...brainPaneSx, flex: 1 }}>
             <List disablePadding aria-label={available ? 'Available capabilities' : 'Connected capabilities'}>
-              {available ? filteredPlugins.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((plugin) => <ListItemButton key={plugin.id}
+              {available ? groupedPlugins.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map(({ key, options }) => <Box key={key}>
+                {options.length > 1 ? <ListItemButton onClick={() => setExpandedFamilies(current => current.includes(key) ? current.filter(value => value !== key) : [...current, key])} aria-expanded={expandedFamilies.includes(key)} sx={{ minHeight: 76, borderBottom: 1, borderColor: 'divider', gap: 1.5 }}>
+                  {key === 'DOCUMENT_STORAGE' ? <DescriptionOutlinedIcon color="success" /> : <SyncOutlinedIcon color="primary" />}
+                  <ListItemText primary={key === 'DOCUMENT_STORAGE' ? 'Documents from storage' : key === 'HTTP_JSON' ? 'Live information from an API' : 'Source connections'} secondary={`${options.length} options / choose the integration that fits your source`} primaryTypographyProps={{ fontWeight: 600 }} />
+                  <Typography variant="caption">{expandedFamilies.includes(key) ? 'Hide options' : 'Show options'}</Typography>
+                </ListItemButton> : null}
+                {options.length === 1 || expandedFamilies.includes(key) ? options.map(plugin => <ListItemButton key={plugin.id}
                 component={RouterLink} to={link('capabilities/add', { pluginId: plugin.id })} selected={selectedPlugin?.id === plugin.id}
-                sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 70, gap: 1.5, px: 1.5 }}>
-                <ExtensionRoundedIcon fontSize="small" color="action" />
-                <ListItemText primary={plugin.displayName} secondary={plugin.shortDescription} primaryTypographyProps={{ fontWeight: 600 }} />
+                sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 70, gap: 1.5, px: options.length > 1 ? 3 : 1.5 }}>
+                {plugin.catalogueFamily === 'DOCUMENT_STORAGE' ? <DescriptionOutlinedIcon color="success" /> : plugin.catalogueFamily === 'HTTP_JSON' ? <SyncOutlinedIcon color="primary" /> : <ExtensionRoundedIcon fontSize="small" color="action" />}
+                <ListItemText primary={plugin.displayName} secondary={<>{plugin.shortDescription}<Typography component="span" display="block" variant="caption" sx={{ mt: .5 }}>{plugin.visibility === 'CUSTOMER_PRIVATE' ? 'Private to your workspace' : plugin.publisherDisplayName}{plugin.adapterContract ? ` / ${plugin.adapterContract}` : ''}</Typography></>} primaryTypographyProps={{ fontWeight: 600 }} />
                 {installsQuery.data?.some((install) => install.pluginId === plugin.id) ? <Chip size="small" label="Added" variant="outlined" /> : null}
-              </ListItemButton>) : filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row) => <ListItemButton key={row.key}
+              </ListItemButton>) : null}</Box>) : filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row) => <ListItemButton key={row.key}
                 component={RouterLink} to={href(`capabilities/${encodeURIComponent(row.key)}`)} selected={selected?.key === row.key}
                 sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 74, px: 1.5, gap: 1.5, alignItems: 'flex-start' }}>
                 <ExtensionRoundedIcon fontSize="small" color="action" sx={{ mt: 1 }} />
@@ -177,9 +223,11 @@ export function BrainCapabilitiesPage() {
                 <Typography variant="caption" color={row.install?.status === 'DISABLED' ? 'text.secondary' : 'text.primary'} sx={{ minWidth: 88, maxWidth: 120, pt: 1, textAlign: 'right' }}>{statusLabel(row)}</Typography>
               </ListItemButton>)}
             </List>
-            {count === 0 ? <Typography color="text.secondary" sx={{ py: 3 }}>{search ? 'No matching capabilities.' : available ? 'No capabilities are available.' : 'No capabilities have been configured.'}</Typography> : null}
+            {count === 0 ? <Stack spacing={1} sx={{ py: 3 }}><Typography color="text.secondary">{search ? 'No matching capabilities.' : available && catalogueView === 'private' ? 'No reusable plugins in your workspace yet.' : available ? 'No capabilities are available in this view.' : 'No capabilities have been configured.'}</Typography>
+              {search ? <Button sx={{ alignSelf: 'flex-start' }} onClick={() => setSearch('')}>Clear search</Button> : available && catalogueView === 'private' ? <Button component={RouterLink} to={creatorHref} sx={{ alignSelf: 'flex-start' }}>Create a data plugin</Button> : null}</Stack> : null}
           </Box>
           {maxPage > 1 ? <Pagination count={maxPage} page={currentPage} onChange={(_, value) => setPage(value)} size="small" sx={{ pt: 2 }} /> : null}
+          {available ? <FormControlLabel sx={{ mt: 1, flexShrink: 0 }} control={<Checkbox size="small" checked={showDemo} onChange={(_, checked) => { setShowDemo(checked); setPage(1) }} />} label={<Typography variant="caption">Show demo sources</Typography>} /> : null}
         </>}
       </Box>
       {hasDetail && !loading && !error ? <Box component="section" aria-label="Capability details" sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, borderLeft: { lg: 1 }, borderTop: { xs: 1, lg: 0 }, borderColor: { xs: 'divider', lg: 'divider' }, pl: { lg: 3 }, pt: { xs: 2, lg: 0 } }}>
@@ -187,7 +235,13 @@ export function BrainCapabilitiesPage() {
           <Button component={RouterLink} to={href('capabilities/add')} startIcon={<ArrowBackRoundedIcon />} sx={{ display: { xs: selectedPluginId ? 'inline-flex' : 'none', lg: 'none' }, alignSelf: 'flex-start', mb: 1 }}>Available</Button>
           <Typography component="h2" sx={{ fontSize: 21, fontWeight: 650, mb: 1 }}>{selectedPlugin.displayName}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{selectedPlugin.shortDescription}</Typography>
-          <Box sx={{ ...brainPaneSx, flex: 1 }}><MarketplacePage capabilityView={{ brainId, pluginId: selectedPlugin.id }} /></Box>
+          <Stack spacing={2} sx={{ ...brainPaneSx, flex: 1 }}>
+            <Chip size="small" label={selectedPlugin.visibility === 'CUSTOMER_PRIVATE' ? 'Private to your workspace' : selectedPlugin.publisherDisplayName} sx={{ alignSelf: 'flex-start' }} />
+            <Box><Typography variant="subtitle2">What this adds</Typography><Typography variant="body2" color="text.secondary">{selectedPlugin.pluginType === 'DATA' ? 'Approved information your AI can search and use in answers. Your source system remains the source of truth.' : 'A reusable capability with its own declared inputs and access rules.'}</Typography></Box>
+            <Box><Typography variant="subtitle2">Setup</Typography><Typography variant="body2" color="text.secondary">Choose version {selectedPlugin.latestVersion ?? '(unavailable)'}, provide its declared connection inputs, then review the Brain draft.</Typography></Box>
+            <Typography variant="caption" color="text.secondary">This does not change your live experience or start indexing.</Typography>
+            <Button component={RouterLink} to={link('capabilities/add', { pluginId: selectedPlugin.id, view: 'setup' })} variant="contained" disabled={!selectedPlugin.latestVersion || !workspaceQuery.data?.access.canEdit} sx={{ alignSelf: 'flex-start' }}>Set up for this Brain</Button>
+          </Stack>
         </> : selected ? <>
           <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
             <Box sx={{ minWidth: 0 }}><Typography component="h2" sx={{ fontSize: 21, fontWeight: 650 }}>{selected.label}</Typography>

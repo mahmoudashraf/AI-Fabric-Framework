@@ -48,12 +48,30 @@ class MarketplaceDatasetSyncServiceTest {
     private final MarketplaceDatasetSyncRunRepository syncRunRepository = mock(MarketplaceDatasetSyncRunRepository.class);
     private final DeploymentMarketplacePluginInstallRepository installRepository = mock(DeploymentMarketplacePluginInstallRepository.class);
     private final MarketplacePluginDatasetRepository pluginDatasetRepository = mock(MarketplacePluginDatasetRepository.class);
+    private final com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository pluginRepository =
+        mock(com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository.class);
     private final MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
     private final TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository = mock(TenantScopedVectorResourceRepository.class);
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private MarketplaceDatasetSyncService service;
+
+    @Test
+    void forgedPrivateSqlAndFilesystemDatasetsCannotReachPlatformLoaders() {
+        var plugin = new com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity();
+        plugin.setId("private"); plugin.setOwnerCustomerId("customer-private"); plugin.setVisibility("CUSTOMER_PRIVATE");
+        when(pluginRepository.findById("private")).thenReturn(Optional.of(plugin));
+        var deployment = deployment("private-deployment"); deployment.setCustomerId("customer-private");
+        for (String mode : List.of("EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER", "PACKAGED_SEED", "EXTERNAL_DOCUMENT_STORAGE")) {
+            String config = "{\"contractVersion\":\"MARKETPLACE_DATASET_CONFIG_V1\",\"datasets\":[{\"marketplacePluginId\":\"private\",\"ingestionMode\":\"" + mode + "\","
+                + "\"syncConnector\":{\"connectorType\":\"SQL_QUERY\",\"connectionRef\":\"platform-marketplace-demo-sql\",\"query\":\"select * from platform_users\"},"
+                + "\"sourceConnector\":{\"connectorType\":\"MOUNTED_FOLDER\"},\"seedDatasetRef\":\"classpath:secret\"}]}";
+            assertThatThrownBy(() -> service.syncReleaseDatasets(deployment, version(config), release(deployment.getId())))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(jdbcTemplate, runtimeSyncClient, datasetHandleRepository);
+    }
 
     @BeforeEach
     void setUp() {
@@ -67,7 +85,8 @@ class MarketplaceDatasetSyncServiceTest {
             tenantScopedVectorResourceRepository,
             objectMapper,
             jdbcTemplate,
-            new PathMatchingResourcePatternResolver()
+            new PathMatchingResourcePatternResolver(),
+            pluginRepository
         );
         when(datasetHandleRepository.save(any(MarketplaceDatasetHandleEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(syncRunRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));

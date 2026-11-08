@@ -53,6 +53,7 @@ import {
   fetchDeploymentMarketplaceInstalls,
   fetchDeploymentTemplates,
   fetchDeploymentWorkspace,
+  fetchDocumentStorageBindings,
   fetchMarketplaceCategories,
   fetchMarketplaceInferenceServices,
   fetchMarketplacePlugin,
@@ -82,6 +83,11 @@ import {
 } from '../api/platformApi'
 import { useBrainEditor } from '../brain/BrainWorkspaceContext'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
+import { useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
+import { exactNumber, isExactNumber, parseExactObject, stringifyExactJson } from '../lib/losslessJson'
+import { Link as RouterLink } from 'react-router-dom'
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -92,7 +98,7 @@ function normalizeText(value: string | null | undefined): string {
 }
 
 function prettifyJson(value: unknown): string {
-  return JSON.stringify(value ?? {}, null, 2)
+  return stringifyExactJson(value ?? {}, 2)
 }
 
 function parseJsonObject(value: string, label: string): Record<string, unknown> {
@@ -102,7 +108,7 @@ function parseJsonObject(value: string, label: string): Record<string, unknown> 
   }
   let parsed: unknown
   try {
-    parsed = JSON.parse(trimmed)
+    parsed = parseExactObject(trimmed, label)
   } catch {
     throw new Error(`${label} must be valid JSON.`)
   }
@@ -136,7 +142,7 @@ function readInstallFieldValue(
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false'
   }
-  if (typeof value === 'number') {
+  if (typeof value === 'number' || isExactNumber(value)) {
     return `${value}`
   }
   if (typeof value === 'string') {
@@ -165,7 +171,7 @@ function updateInstallFieldValue(
       target[field.id] = rawValue === 'true'
       break
     case 'number':
-      target[field.id] = Number(rawValue)
+      target[field.id] = exactNumber(rawValue)
       break
     default:
       target[field.id] = rawValue
@@ -184,41 +190,60 @@ function validateInstallFields(
     if (field.required && value.trim().length === 0) {
       return `${field.label} (${field.id})`
     }
-    if (field.type === 'number' && value.trim().length > 0 && Number.isNaN(Number(value))) {
-      return `${field.label} (${field.id}) must be numeric`
+    if (field.type === 'number' && value.trim().length > 0) {
+      try { exactNumber(value) } catch { return `${field.label} (${field.id}) must be numeric` }
     }
     return []
   })
 }
 
-function CapabilityMarketplace({ brainId, pluginId }: CapabilityMarketplaceView) {
-  const plugin = useQuery({ queryKey: ['marketplace-plugin', pluginId], queryFn: () => fetchMarketplacePlugin(pluginId) })
+function CapabilityMarketplace({ brainId, pluginId, pluginVersion }: CapabilityMarketplaceView) {
   const installs = useQuery({ queryKey: ['deployment-marketplace-installs', brainId], queryFn: () => fetchDeploymentMarketplaceInstalls(brainId) })
   const workspace = useQuery({ queryKey: ['deployment-workspace', brainId], queryFn: () => fetchDeploymentWorkspace(brainId) })
+  const customerId = workspace.data?.deployment.binding?.customerId ?? ''
+  const plugin = useQuery({ queryKey: ['marketplace-plugin', pluginId, customerId], queryFn: () => fetchMarketplacePlugin(pluginId, customerId), enabled: workspace.isSuccess })
   const error = plugin.error ?? installs.error ?? workspace.error
   if (error) return <Alert severity="error">{error.message}</Alert>
   if (!plugin.data || !installs.data || !workspace.data) return <Typography color="text.secondary">Loading connection...</Typography>
-  return <CapabilityInstallForm brainId={brainId} detail={plugin.data}
+  return <CapabilityInstallForm brainId={brainId} detail={plugin.data} requestedVersion={pluginVersion}
     install={installs.data.find((install) => install.pluginId === pluginId) ?? null} canEdit={workspace.data.access.canEdit} />
 }
 
-function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
-  brainId: string; detail: MarketplacePluginDetailSummary; install: DeploymentMarketplaceInstallSummary | null; canEdit: boolean
+function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVersion }: {
+  brainId: string; detail: MarketplacePluginDetailSummary; install: DeploymentMarketplaceInstallSummary | null; canEdit: boolean; requestedVersion?: string
 }) {
   const client = useQueryClient()
+  const brain = useOptionalBrainWorkspace()
+  const [step, setStep] = useState(0)
+  const tasks = ['Connection', 'Information & access', 'Review']
   const initialVersion = install?.pluginVersion ?? detail.versions[0]?.version ?? ''
-  const [version, setVersion] = useState(initialVersion)
+  const [version, setVersion] = useState(requestedVersion || initialVersion)
   const [config, setConfig] = useState<Record<string, unknown>>(() => asRecord(install?.config))
   const [refs, setRefs] = useState<Record<string, unknown>>(() => asRecord(install?.secretRefs))
   const [baseline, setBaseline] = useState(() => ({ version: initialVersion, config: prettifyJson(install?.config), refs: prettifyJson(install?.secretRefs), updatedAt: install?.updatedAt ?? null }))
   const [rawConfig, setRawConfig] = useState<string | null>(null)
   const [rawRefs, setRawRefs] = useState<string | null>(null)
+  const [numericInputs, setNumericInputs] = useState<Record<string, string>>({})
   const [removeOpen, setRemoveOpen] = useState(false)
   const [message, setMessage] = useState<string>()
   const selectedVersion = detail.versions.find((candidate) => candidate.version === version)
   const fields = selectedVersion?.installForm ?? []
-  const fieldErrors = validateInstallFields(fields, config, refs)
-  const dirty = version !== baseline.version || (rawConfig ?? prettifyJson(config)) !== baseline.config || (rawRefs ?? prettifyJson(refs)) !== baseline.refs
+  const datasets = asRecord(asRecord(selectedVersion?.manifest).contributions).datasets
+  const storageFields = new Set((Array.isArray(datasets) ? datasets : []).flatMap(value => {
+    const connector = asRecord(asRecord(value).sourceConnector)
+    return connector.connectorType === 'S3_COMPATIBLE_OBJECT_STORAGE' && typeof connector.bindingRefField === 'string' ? [connector.bindingRefField] : []
+  }))
+  const bindings = useQuery({ queryKey: ['document-storage-bindings', brainId], queryFn: () => fetchDocumentStorageBindings(brainId), enabled: storageFields.size > 0 })
+  const numericErrors = Object.entries(numericInputs).flatMap(([id, value]) => {
+    try { if (value.trim()) exactNumber(value); return [] } catch { return [`${fields.find(field => field.id === id)?.label ?? id} must be numeric`] }
+  })
+  let reviewConfig = config, reviewRefs = refs, sourceError: string | null = null
+  try {
+    if (rawConfig !== null) reviewConfig = parseExactObject(rawConfig, 'Plugin configuration')
+    if (rawRefs !== null) reviewRefs = parseExactObject(rawRefs, 'Secret references')
+  } catch (error) { sourceError = error instanceof Error ? error.message : 'Invalid JSON. Your source is retained.' }
+  const fieldErrors = [...validateInstallFields(fields, reviewConfig, reviewRefs), ...numericErrors]
+  const dirty = Object.keys(numericInputs).length > 0 || version !== baseline.version || (rawConfig ?? prettifyJson(config)) !== baseline.config || (rawRefs ?? prettifyJson(refs)) !== baseline.refs
   const conflict = dirty && (install?.updatedAt ?? null) !== baseline.updatedAt
   const supported = detail.plugin.pluginType === 'ACTION' || detail.plugin.pluginType === 'DATA' || detail.plugin.pluginType === 'INTEGRATION'
 
@@ -229,6 +254,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
     setRefs(asRecord(saved?.secretRefs))
     setRawConfig(null)
     setRawRefs(null)
+    setNumericInputs({})
     setBaseline({ version: nextVersion, config: prettifyJson(saved?.config), refs: prettifyJson(saved?.secretRefs), updatedAt: saved?.updatedAt ?? null })
   }
   const refresh = async () => {
@@ -251,17 +277,18 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
       }
       if (command === 'save') {
         if (!selectedVersion) throw new Error('Select an available plugin version before saving.')
+        if (numericErrors.length) throw new Error(numericErrors.join(', '))
         const nextConfig = rawConfig === null ? config : parseJsonObject(rawConfig, 'Plugin configuration')
         const nextRefs = rawRefs === null ? refs : parseJsonObject(rawRefs, 'Secret references')
         const errors = validateInstallFields(fields, nextConfig, nextRefs)
         if (errors.length) throw new Error(`Complete the required install fields: ${errors.join(', ')}`)
-        return current ? updateDeploymentMarketplaceInstall(brainId, current.id, { pluginVersion: version, status: current.status, config: nextConfig, secretRefs: nextRefs })
+        return current ? updateDeploymentMarketplaceInstall(brainId, current.id, { expectedUpdatedAt: baseline.updatedAt ?? undefined, pluginVersion: version, status: current.status, config: nextConfig, secretRefs: nextRefs })
           : createDeploymentMarketplaceInstall(brainId, { pluginId: detail.plugin.id, pluginVersion: version, config: nextConfig, secretRefs: nextRefs })
       }
       if (!current) throw new Error('This connection is no longer installed.')
-      if (command === 'toggle') return updateDeploymentMarketplaceInstall(brainId, current.id, { status: current.status === 'ENABLED' ? 'DISABLED' : 'ENABLED' })
+      if (command === 'toggle') return updateDeploymentMarketplaceInstall(brainId, current.id, { expectedUpdatedAt: baseline.updatedAt ?? undefined, status: current.status === 'ENABLED' ? 'DISABLED' : 'ENABLED' })
       if (command === 'resolve') return resolveDeploymentMarketplaceInstall(brainId, current.id)
-      await deleteDeploymentMarketplaceInstall(brainId, current.id)
+      await deleteDeploymentMarketplaceInstall(brainId, current.id, baseline.updatedAt ?? undefined)
       return null
     },
     onSuccess: async (saved, command) => {
@@ -277,41 +304,74 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
     if (!dirty && install && install.updatedAt !== baseline.updatedAt && !operation.isPending) adopt(install)
   }, [install?.updatedAt])
   useBrainEditor({ dirty, busy: operation.isPending,
-    canSave: canEdit && supported && Boolean(selectedVersion) && !conflict && (dirty || !install),
-    save: canEdit && supported ? () => operation.mutateAsync('save').catch(() => undefined) : undefined,
+    canSave: canEdit && supported && Boolean(selectedVersion) && !conflict && (step < 2 || !sourceError && !fieldErrors.length && (dirty || !install)),
+    save: canEdit && supported ? () => step < 2 ? setStep(step + 1) : operation.mutateAsync('save').catch(() => undefined) : undefined,
     discard: canEdit ? () => { adopt(install); operation.reset(); setMessage(undefined) } : undefined,
-    primaryLabel: install ? 'Save connection' : 'Add capability',
+    primaryLabel: step < 2 ? 'Continue' : install ? 'Save connection' : 'Add to Brain draft',
     message: message && !dirty ? message : !canEdit ? 'Read-only access. Brain editor permission is required to make changes.' : undefined,
     error: operation.error?.message,
   })
   const disabled = !canEdit || operation.isPending || !supported
   const editField = (field: MarketplaceInstallField, value: string) => {
-    const next = updateInstallFieldValue(field, value, config, refs)
+    if (field.type === 'number') setNumericInputs(current => ({ ...current, [field.id]: value }))
+    let next
+    try { next = updateInstallFieldValue(field, value, config, refs) } catch { return }
     setConfig(next.config); setRefs(next.secretRefs)
     setRawConfig(null); setRawRefs(null); setMessage(undefined)
   }
-  return <Stack spacing={2.5} sx={{ pb: 2 }}>
+  const connectionField = (field: MarketplaceInstallField) => field.type === 'secretRef' || field.type === 'url' || storageFields.has(field.id)
+  const visibleFields = fields.filter(field => step === 0 ? connectionField(field) : !connectionField(field))
+  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', md: '190px minmax(0,1fr)' }, gap: 3, height: '100%', minHeight: 0 }}>
+    <Box component="nav" aria-label="Connection setup steps" sx={{ borderRight: { md: 1 }, borderColor: 'divider', pr: { md: 2 } }}>
+      <List disablePadding>{tasks.map((task, index) => <ListItemButton key={task} selected={step === index} onClick={() => setStep(index)} disabled={operation.isPending} sx={{ mb: 1, borderRadius: 1, alignItems: 'flex-start', gap: 1 }}>
+        <Chip size="small" label={index + 1} color={step === index ? 'primary' : 'default'} sx={{ width: 24, height: 24, '& .MuiChip-label': { px: 0 } }} /><ListItemText primary={task} primaryTypographyProps={{ variant: 'body2' }} />
+      </ListItemButton>)}</List>
+    </Box>
+    <Stack spacing={2.5} sx={{ pb: 2, overflow: 'auto', minWidth: 0, pr: 1 }}>
+    <Typography component="h2" sx={{ fontSize: 21, fontWeight: 650 }}>{tasks[step]}</Typography>
     {!canEdit ? <Alert severity="info">Read-only access. Brain editor permission is required to make changes.</Alert> : null}
     {!supported ? <Alert severity="info">This plugin is managed in its owning technical workspace.</Alert> : null}
     {conflict ? <Alert severity="warning">This connection changed while you were editing. Discard to load its current settings.</Alert> : null}
     {operation.isError ? <Alert severity="error">{operation.error.message}</Alert> : null}
-    <TextField select fullWidth size="small" label="Version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
+    {sourceError ? <Alert severity="error">{sourceError}</Alert> : null}
+    {step === 0 ? <><TextField select fullWidth size="small" label="Plugin version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
       {!selectedVersion && version ? <MenuItem value={version}>{version} (unavailable)</MenuItem> : null}
       {detail.versions.map((candidate) => <MenuItem key={candidate.id} value={candidate.version}>{candidate.version}</MenuItem>)}
-    </TextField>
+    </TextField><Typography variant="caption" color="text.secondary">Connection inputs are saved in the shared Brain draft. Storage bindings remain environment-specific; changing this version does not upgrade a live deployment.</Typography></> : null}
     {!selectedVersion ? <Alert severity="warning">The selected version is not available in the catalogue. Existing configuration is retained.</Alert> : null}
     <Typography variant="body2" color="text.secondary">{detail.plugin.publisherDisplayName}<CommercialContent> - {pricingLabel(selectedVersion?.pricing)}</CommercialContent></Typography>
     {selectedVersion?.pricing.requiresEntitlement ? <Alert severity="warning">Paid capabilities require an active entitlement before they can compile into the draft.</Alert> : null}
-    {fields.map((field) => field.type === 'boolean' ? <FormControlLabel key={field.id} label={field.label}
+    {storageFields.size > 0 && step === 0 ? <>
+      {bindings.isError ? <Alert severity="error">{bindings.error.message}</Alert> : bindings.isPending ? <Typography variant="body2" color="text.secondary">Loading storage connections...</Typography> : null}
+      {brain ? <Button component={RouterLink} to={brain.href('knowledge/storage')} sx={{ alignSelf: 'flex-start' }}>Manage document storage</Button> : null}
+    </> : null}
+    {step < 2 ? visibleFields.map((field) => storageFields.has(field.id) ? <TextField key={field.id} select fullWidth size="small" label={field.label} value={readInstallFieldValue(field, config, refs)}
+      disabled={disabled || rawConfig !== null || rawRefs !== null} onChange={event => editField(field, event.target.value)} helperText="Target-bound storage uses its own environment credentials; no credential is copied into this definition.">
+      <MenuItem value="">Choose a storage connection</MenuItem><MenuItem value="slot:document-storage">Use this environment's document storage binding</MenuItem>
+      {(bindings.data ?? []).filter(binding => binding.targetProfileId === brain?.targetProfileId).map(binding => <MenuItem key={binding.bindingRef} value={binding.bindingRef}>{binding.bindingRef} / {binding.status}</MenuItem>)}
+      {readInstallFieldValue(field, config, refs) && readInstallFieldValue(field, config, refs) !== 'slot:document-storage' && !(bindings.data ?? []).some(binding => binding.bindingRef === readInstallFieldValue(field, config, refs) && binding.targetProfileId === brain?.targetProfileId)
+        ? <MenuItem value={readInstallFieldValue(field, config, refs)}>{readInstallFieldValue(field, config, refs)} (not confirmed in this environment)</MenuItem> : null}
+    </TextField> : field.type === 'boolean' ? <FormControlLabel key={field.id} label={field.label}
       control={<Checkbox disabled={disabled || rawConfig !== null || rawRefs !== null} indeterminate={readInstallFieldValue(field, config, refs) === ''} checked={readInstallFieldValue(field, config, refs) === 'true'} onChange={(_, checked) => editField(field, String(checked))} />} /> :
       <TextField key={field.id} fullWidth size="small" select={field.type === 'select'} required={field.required}
-        type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'} label={field.label}
-        value={readInstallFieldValue(field, config, refs)} onChange={(event) => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
+        type={field.type === 'url' ? 'url' : 'text'} label={field.label}
+        value={numericInputs[field.id] ?? readInstallFieldValue(field, config, refs)} onChange={(event) => editField(field, event.target.value)} disabled={disabled || rawConfig !== null || rawRefs !== null}
         helperText={field.description ?? (field.type === 'secretRef' ? 'Platform secret reference, never a raw credential.' : undefined)}>
         {field.type === 'select' ? field.options.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>) : null}
-      </TextField>)}
-    {fields.length === 0 && selectedVersion ? <Typography variant="body2" color="text.secondary">No connection inputs are required by this version.</Typography> : null}
-    {fieldErrors.length && rawConfig === null && rawRefs === null ? <Alert severity="warning">Required inputs: {fieldErrors.join(', ')}</Alert> : null}
+      </TextField>) : null}
+    {step < 2 && visibleFields.length === 0 && selectedVersion ? <Typography variant="body2" color="text.secondary">{step === 0 ? 'No connection inputs are declared for this version. Check its source settings in the next step.' : 'No additional source inputs are declared by this version.'}</Typography> : null}
+    {step === 1 ? <Typography variant="body2" color="text.secondary">{detail.plugin.pluginType === 'DATA' ? 'Your source remains the source of truth. This Data connection does not grant write access or replace content approval.' : 'Access and confirmation requirements remain governed by the declared capability contract.'}</Typography> : null}
+    {step === 2 ? <>
+      <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'minmax(100px,.35fr) minmax(0,1fr)', gap: 1.5, '& dt': { color: 'text.secondary' }, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
+        <Typography component="dt" variant="body2">Plugin</Typography><Typography component="dd" variant="body2">{detail.plugin.displayName} / {version}</Typography>
+        <Typography component="dt" variant="body2">Saved to</Typography><Typography component="dd" variant="body2">Shared Brain draft</Typography>
+        {fields.map(field => <Box key={field.id} sx={{ display: 'contents' }}><Typography component="dt" variant="body2">{field.label}</Typography><Typography component="dd" variant="body2">{readInstallFieldValue(field, reviewConfig, reviewRefs) || 'Not provided'}</Typography></Box>)}
+      </Box>
+      {install && version !== baseline.version ? <Alert severity="warning">Definition version changes from {baseline.version} to {version}. Existing input values are retained; check the new version's requirements before saving.</Alert> : null}
+      <Alert severity="info">Saving checks the declared configuration and recompiles the draft. It does not test the provider, start indexing, or update a live environment.</Alert>
+      {message && brain ? <Button component={RouterLink} to={brain.href('updates')} sx={{ alignSelf: 'flex-start' }}>Review Brain changes</Button> : null}
+    </> : null}
+    {fieldErrors.length ? <Alert severity="warning">Complete these inputs: {fieldErrors.join(', ')}</Alert> : null}
     {install ? <>
       <Divider />
       <Typography variant="body2" color="text.secondary">Draft status: {install.status}. Readiness: {install.readinessStatus}. Entitlement: {install.entitlement.status}.</Typography>
@@ -321,10 +381,14 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ px: 0 }}><Typography variant="subtitle2">Technical connection settings</Typography></AccordionSummary>
       <AccordionDetails sx={{ px: 0 }}><Stack spacing={2}>
         <TextField label="Plugin configuration JSON" multiline minRows={5} maxRows={12} value={rawConfig ?? prettifyJson(config)} disabled={disabled}
-          onChange={(event) => { setRawConfig(event.target.value); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
+          onChange={(event) => { setRawConfig(event.target.value); setNumericInputs({}); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
         <TextField label="Secret references JSON" multiline minRows={3} maxRows={8} value={rawRefs ?? prettifyJson(refs)} disabled={disabled}
           helperText="References only. Stored credentials are not displayed."
           onChange={(event) => { setRawRefs(event.target.value); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
+        {rawConfig !== null || rawRefs !== null ? <Button sx={{ alignSelf: 'flex-start' }} disabled={disabled} onClick={() => {
+          try { const nextConfig = parseExactObject(rawConfig ?? prettifyJson(config)); const nextRefs = parseExactObject(rawRefs ?? prettifyJson(refs)); setConfig(nextConfig); setRefs(nextRefs); setRawConfig(null); setRawRefs(null); setNumericInputs({}); setMessage(undefined); operation.reset() }
+          catch (error) { setMessage(error instanceof Error ? error.message : 'Invalid JSON. Your source is retained.') }
+        }}>Use source in form</Button> : null}
         {install && canEdit ? <Stack direction="row" gap={1} flexWrap="wrap">
           <Button variant="outlined" disabled={disabled || dirty} onClick={() => operation.mutate('toggle')}>{install.status === 'ENABLED' ? 'Disable' : 'Enable'}</Button>
           <Button variant="outlined" startIcon={<SyncRoundedIcon />} disabled={disabled || dirty} onClick={() => operation.mutate('resolve')}>Recompile draft</Button>
@@ -332,12 +396,17 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit }: {
         </Stack> : null}
       </Stack></AccordionDetails>
     </Accordion>
+    {message ? <Typography variant="body2" color="text.secondary">{message}</Typography> : null}
+    <Stack direction="row" justifyContent="space-between" gap={1}>
+      <Button startIcon={<ArrowBackRoundedIcon />} disabled={step === 0 || operation.isPending} onClick={() => setStep(step - 1)}>Previous step</Button>
+      {step < 2 ? <Button endIcon={<ArrowForwardRoundedIcon />} onClick={() => setStep(step + 1)}>Review next step</Button> : null}
+    </Stack>
     <Dialog open={removeOpen} onClose={() => { if (!operation.isPending) setRemoveOpen(false) }}>
       <DialogTitle>Remove {detail.plugin.displayName}?</DialogTitle>
       <DialogContent>This removes the connection from the shared draft. Live configuration is unchanged until published and applied.</DialogContent>
       <DialogActions><Button disabled={operation.isPending} onClick={() => setRemoveOpen(false)}>Cancel</Button><Button color="error" disabled={operation.isPending} onClick={() => operation.mutate('remove')}>Remove connection</Button></DialogActions>
     </Dialog>
-  </Stack>
+  </Stack></Box>
 }
 
 function providerDraftSummary(draft: DeploymentDraftResponse | undefined): {
@@ -505,10 +574,10 @@ function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): st
   return `${detail.plugin.displayName} Deployment`
 }
 
-type CapabilityMarketplaceView = { brainId: string; pluginId: string }
+type CapabilityMarketplaceView = { brainId: string; pluginId: string; pluginVersion?: string }
 
 export function MarketplacePage({ deploymentScoped = false, capabilityView }: { deploymentScoped?: boolean; capabilityView?: CapabilityMarketplaceView }) {
-  return capabilityView ? <CapabilityMarketplace key={`${capabilityView.brainId}:${capabilityView.pluginId}`} {...capabilityView} /> : <LegacyMarketplacePage deploymentScoped={deploymentScoped} />
+  return capabilityView ? <CapabilityMarketplace key={`${capabilityView.brainId}:${capabilityView.pluginId}:${capabilityView.pluginVersion ?? ''}`} {...capabilityView} /> : <LegacyMarketplacePage deploymentScoped={deploymentScoped} />
 }
 
 function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?: boolean }) {
@@ -556,7 +625,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
 
   const pluginsQuery = useQuery({
     queryKey: ['marketplace-plugins'],
-    queryFn: fetchMarketplacePlugins,
+    queryFn: () => fetchMarketplacePlugins(),
   })
   const categoriesQuery = useQuery({
     queryKey: ['marketplace-categories'],
@@ -842,6 +911,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
       }
       if (selectedInstall) {
         return updateDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, {
+          expectedUpdatedAt: selectedInstall.updatedAt,
           pluginVersion: payload.pluginVersion,
           status: selectedInstall.status,
           config: payload.config,
@@ -867,6 +937,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
         throw new Error('No marketplace install selected.')
       }
       return updateDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, {
+        expectedUpdatedAt: selectedInstall.updatedAt,
         status,
       })
     },
@@ -927,7 +998,7 @@ function LegacyMarketplacePage({ deploymentScoped = false }: { deploymentScoped?
       if (!selectedInstall || targetDeploymentId.length === 0) {
         throw new Error('No marketplace install selected.')
       }
-      await deleteDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id)
+      await deleteDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, selectedInstall.updatedAt)
     },
     onSuccess: async () => {
       setFormError(null)

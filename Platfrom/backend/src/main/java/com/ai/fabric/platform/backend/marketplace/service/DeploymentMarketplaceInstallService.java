@@ -66,6 +66,7 @@ public class DeploymentMarketplaceInstallService {
     private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private final jakarta.persistence.EntityManager entityManager;
 
     public DeploymentMarketplaceInstallService(DeploymentRepository deploymentRepository,
                                                DeploymentDraftRepository deploymentDraftRepository,
@@ -79,7 +80,8 @@ public class DeploymentMarketplaceInstallService {
                                                DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                                MarketplaceEntitlementService marketplaceEntitlementService,
                                                PlatformAuditService platformAuditService,
-                                               ObjectMapper objectMapper) {
+                                               ObjectMapper objectMapper,
+                                               jakarta.persistence.EntityManager entityManager) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
@@ -93,6 +95,7 @@ public class DeploymentMarketplaceInstallService {
         this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.entityManager = entityManager;
     }
 
     public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
@@ -173,11 +176,13 @@ public class DeploymentMarketplaceInstallService {
                                                                           boolean trustedCaller,
                                                                           boolean syncDraft,
                                                                           boolean deferMissingInputs) {
-        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
+        lockDeployment(deployment);
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntityForUpdate(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
             request.pluginVersion()
         );
+        MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
         validateInstallable(plugin, version, deployment.getId(), null);
@@ -215,7 +220,7 @@ public class DeploymentMarketplaceInstallService {
         install.setConfigJson(writeJson(config));
         install.setSecretRefsJson(writeJson(secretRefs));
         install.setCreatedAt(now);
-        install.setUpdatedAt(now);
+        install.setUpdatedAt(nextInstallTimestamp(install));
         installRepository.save(install);
         marketplaceEntitlementService.ensureEntitlement(
             install,
@@ -278,10 +283,16 @@ public class DeploymentMarketplaceInstallService {
                                                                           UpdateDeploymentMarketplaceInstallRequest request,
                                                                           boolean trustedCaller,
                                                                           boolean syncDraft) {
-        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
-        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+        lockDeployment(deployment);
+        DeploymentMarketplacePluginInstallEntity install = requireInstallForUpdate(deployment.getId(), installId);
+        requireExpectedUpdatedAt(install, request.expectedUpdatedAt());
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntityForUpdate(install.getPluginId());
         MarketplacePluginVersionEntity currentVersion = requirePluginVersionById(install.getPluginVersionId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
+        MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
+        if ("ARCHIVED".equals(plugin.getStatus()) && !currentVersion.getId().equals(version.getId())) {
+            throw new ResponseStatusException(CONFLICT, "Archived definitions cannot be selected for an upgrade.");
+        }
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
@@ -320,7 +331,7 @@ public class DeploymentMarketplaceInstallService {
             readJson(install.getSecretRefsJson()),
             install.getStatus()
         );
-        install.setUpdatedAt(Instant.now());
+        install.setUpdatedAt(nextInstallTimestamp(install));
         installRepository.save(install);
         marketplaceEntitlementService.ensureEntitlement(install, parsed);
         if ("TEMPLATE".equals(parsed.pluginType())
@@ -394,8 +405,13 @@ public class DeploymentMarketplaceInstallService {
 
     @Transactional
     public void deleteInstall(String deploymentId, String installId) {
+        deleteInstall(deploymentId, installId, null);
+    }
+
+    @Transactional
+    public void deleteInstall(String deploymentId, String installId, Instant expectedUpdatedAt) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        deleteInstallForDeployment(deployment, installId, false);
+        deleteInstallForDeployment(deployment, installId, false, expectedUpdatedAt);
     }
 
     /**
@@ -404,15 +420,19 @@ public class DeploymentMarketplaceInstallService {
      */
     @Transactional
     public void deleteInstallForTrustedCaller(DeploymentEntity deployment, String installId) {
-        deleteInstallForDeployment(deployment, installId, true);
+        deleteInstallForDeployment(deployment, installId, true, null);
     }
 
-    private void deleteInstallForDeployment(DeploymentEntity deployment, String installId, boolean trustedCaller) {
-        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+    private void deleteInstallForDeployment(DeploymentEntity deployment, String installId, boolean trustedCaller, Instant expectedUpdatedAt) {
+        lockDeployment(deployment);
+        DeploymentMarketplacePluginInstallEntity install = requireInstallForUpdate(deployment.getId(), installId);
+        requireExpectedUpdatedAt(install, expectedUpdatedAt);
+        MarketplacePluginOwnership.requireVersion(marketplaceCatalogService.requirePluginEntity(install.getPluginId()),
+            requirePluginVersionById(install.getPluginVersionId()), deployment.getCustomerId());
         DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         if (installPresentInVersion(activeVersion, install.getId())) {
             install.setStatus(STATUS_DISABLED);
-            install.setUpdatedAt(Instant.now());
+            install.setUpdatedAt(nextInstallTimestamp(install));
             installRepository.save(install);
             platformAuditService.record(
                 "MARKETPLACE_INSTALL_DISABLE_FOR_REMOVAL",
@@ -474,9 +494,11 @@ public class DeploymentMarketplaceInstallService {
                                                                               String installId,
                                                                               UpdateDeploymentMarketplaceEntitlementRequest request,
                                                                               boolean syncDraft) {
-        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        lockDeployment(deployment);
+        DeploymentMarketplacePluginInstallEntity install = requireInstallForUpdate(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+        MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
         marketplaceEntitlementService.updateEntitlement(install, parsed, request);
@@ -529,6 +551,7 @@ public class DeploymentMarketplaceInstallService {
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
             MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+            MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
             MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
             MarketplacePluginContributionSummary contribution = parsed.contributions();
             InstallEvaluation evaluation = evaluateInstall(
@@ -614,6 +637,7 @@ public class DeploymentMarketplaceInstallService {
                                                           DeploymentMarketplacePluginInstallEntity install) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+        MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
         InstallEvaluation evaluation = evaluateInstall(
             deployment,
@@ -671,7 +695,7 @@ public class DeploymentMarketplaceInstallService {
                                      String deploymentId,
                                      String installId) {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
-        if (!"ACTIVE".equalsIgnoreCase(plugin.getStatus())) {
+        if (!"ACTIVE".equalsIgnoreCase(plugin.getStatus()) && !(installId != null && "ARCHIVED".equals(plugin.getStatus()))) {
             throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not active: " + plugin.getId());
         }
         if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
@@ -726,6 +750,13 @@ public class DeploymentMarketplaceInstallService {
         return install;
     }
 
+    private DeploymentMarketplacePluginInstallEntity requireInstallForUpdate(String deploymentId, String installId) {
+        var install = requireInstall(deploymentId, installId);
+        // Trusted callers may already have loaded this row before acquiring the deployment lock.
+        entityManager.refresh(install, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        return install;
+    }
+
     private MarketplacePluginVersionEntity requirePluginVersionById(String pluginVersionId) {
         return marketplaceCatalogService.requirePluginVersionEntityById(pluginVersionId);
     }
@@ -740,6 +771,23 @@ public class DeploymentMarketplaceInstallService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+    }
+
+    private void lockDeployment(DeploymentEntity deployment) {
+        deploymentRepository.findByIdForUpdate(deployment.getId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+    }
+
+    private void requireExpectedUpdatedAt(DeploymentMarketplacePluginInstallEntity install, Instant expected) {
+        if (expected != null && !expected.equals(install.getUpdatedAt())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace installation changed; reload before saving.");
+        }
+    }
+
+    private Instant nextInstallTimestamp(DeploymentMarketplacePluginInstallEntity install) {
+        Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        return install.getUpdatedAt() != null && !now.isAfter(install.getUpdatedAt())
+            ? install.getUpdatedAt().plusNanos(1000) : now;
     }
 
     private JsonNode normalizeObject(JsonNode node, String fieldName) {

@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -85,19 +86,21 @@ public class MarketplaceController {
     }
 
     @GetMapping("/marketplace/plugins")
-    public List<MarketplacePluginSummary> listPlugins() {
-        return marketplaceCatalogService.listPlugins();
+    public List<MarketplacePluginSummary> listPlugins(@RequestParam(required = false) String customerId,
+                                                     @RequestParam(defaultValue = "false") boolean includeDemo) {
+        return marketplaceCatalogService.listPlugins(customerId, includeDemo);
     }
 
     @GetMapping("/marketplace/plugins/{pluginId}")
-    public MarketplacePluginDetailSummary getPlugin(@PathVariable String pluginId) {
-        return marketplaceCatalogService.getPlugin(pluginId);
+    public MarketplacePluginDetailSummary getPlugin(@PathVariable String pluginId, @RequestParam(required = false) String customerId) {
+        return marketplaceCatalogService.getPlugin(pluginId, customerId);
     }
 
     @GetMapping("/marketplace/plugins/{pluginId}/versions/{version}")
     public MarketplacePluginVersionSummary getPluginVersion(@PathVariable String pluginId,
-                                                            @PathVariable String version) {
-        return marketplaceCatalogService.getPluginVersion(pluginId, version);
+                                                            @PathVariable String version,
+                                                            @RequestParam(required = false) String customerId) {
+        return marketplaceCatalogService.getPluginVersion(pluginId, version, customerId);
     }
 
     @GetMapping("/marketplace/categories")
@@ -268,8 +271,9 @@ public class MarketplaceController {
     @DeleteMapping("/deployments/{deploymentId}/marketplace-installs/{installId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDeploymentInstall(@PathVariable String deploymentId,
-                                        @PathVariable String installId) {
-        deploymentMarketplaceInstallService.deleteInstall(deploymentId, installId);
+                                        @PathVariable String installId,
+                                        @RequestParam(required = false) java.time.Instant expectedUpdatedAt) {
+        deploymentMarketplaceInstallService.deleteInstall(deploymentId, installId, expectedUpdatedAt);
     }
 
     @PostMapping("/deployments/{deploymentId}/marketplace-installs/{installId}/resolve")

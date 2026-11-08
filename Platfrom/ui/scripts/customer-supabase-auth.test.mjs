@@ -2,12 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 
 async function load(path) {
-  let source = await readFile(new URL(path, import.meta.url), 'utf8')
+  let source = withPluginJsonSupport(await readFile(new URL(path, import.meta.url), 'utf8'))
   if (path.endsWith('/customerAuthReturn.ts')) {
     const navigation = ts.transpileModule(await readFile(new URL('../src/account/accountNavigation.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
     source = source.replace("'../account/accountNavigation'", `'data:text/javascript;base64,${Buffer.from(navigation).toString('base64')}'`)
+    const library = ts.transpileModule(await readFile(new URL('../src/auth/pluginLibraryReturn.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+    source = source.replace("'./pluginLibraryReturn'", `'data:text/javascript;base64,${Buffer.from(library).toString('base64')}'`)
   }
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
@@ -226,6 +229,29 @@ test('account sections survive email-link return with safe Brain context but no 
     }
     storage.set('loomai-console-auth-return', JSON.stringify({ purpose: 'customer', createdAt: Date.now(), accountReturn: 'https://evil.test' }))
     assert.equal(customerAuthReturn(), null)
+  } finally { delete globalThis.window }
+})
+
+test('private plugin authoring resumes after sign-in without accepting external return routes', () => {
+  const storage = new Map()
+  const destination = '/library/plugins/private-a/edit?customerId=customer&returnTo=%2Fsmart-brains%2Fbrain-a%2Fcapabilities'
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/sign-in', search: `?library_return=${encodeURIComponent(destination)}` },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    rememberCustomerAuthReturn(false)
+    assert.equal(customerAuthReturn().libraryReturn, destination)
+    assert.equal(productStartPath(window.location.search), destination)
+    const redirect = new URL(identityEmailRedirect())
+    assert.equal(redirect.searchParams.get('library_return'), destination)
+    window.location.pathname = '/auth/callback'; window.location.search = redirect.search
+    assert.equal(consumeCustomerAuthReturn(), destination)
+    assert.equal(consumeCustomerAuthReturn(), destination)
+    for (const value of ['https://evil.test/library/plugins', '//evil.test/library/plugins', '/library/plugins/../../account/security', '/library/plugins-foreign', '/library/plugins\\evil']) {
+      window.location.search = `?library_return=${encodeURIComponent(value)}`
+      rememberCustomerAuthReturn(false)
+      assert.equal(customerAuthReturn().libraryReturn, undefined)
+      assert.equal(consumeCustomerAuthReturn(), '/start')
+    }
   } finally { delete globalThis.window }
 })
 

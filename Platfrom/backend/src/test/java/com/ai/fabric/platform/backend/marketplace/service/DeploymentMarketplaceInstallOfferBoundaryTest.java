@@ -38,6 +38,7 @@ class DeploymentMarketplaceInstallOfferBoundaryTest {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-reviewed");
         when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
         when(access.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
         service = new DeploymentMarketplaceInstallService(
@@ -53,20 +54,21 @@ class DeploymentMarketplaceInstallOfferBoundaryTest {
             mock(DeploymentMarketplaceDraftCompilerService.class),
             mock(MarketplaceEntitlementService.class),
             mock(PlatformAuditService.class),
-            new ObjectMapper()
+            new ObjectMapper(),
+            mock(jakarta.persistence.EntityManager.class)
         );
     }
 
     @Test
     void templateOriginUsesNormalInstallValidationInsteadOfAnOfferVeto() {
-        when(catalog.requirePluginEntity("plugin"))
+        when(catalog.requirePluginEntityForUpdate("plugin"))
             .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown plugin"));
         assertNotFound(() -> service.createInstall("dep-reviewed",
             new CreateDeploymentMarketplaceInstallRequest("plugin", "1.0.0", null, null)));
         assertNotFound(() -> service.updateInstall("dep-reviewed", "install",
             new UpdateDeploymentMarketplaceInstallRequest(null, null, null, null)));
         assertNotFound(() -> service.deleteInstall("dep-reviewed", "install"));
-        verify(catalog).requirePluginEntity("plugin");
+        verify(catalog).requirePluginEntityForUpdate("plugin");
     }
 
     private void assertNotFound(org.assertj.core.api.ThrowableAssert.ThrowingCallable operation) {

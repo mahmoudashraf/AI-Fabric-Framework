@@ -111,6 +111,130 @@ class DeploymentBundleExportImportServiceTest {
     private final DeploymentBundleSealingService sealingService = new DeploymentBundleSealingService(objectMapper);
 
     @Test
+    void foreignPrivatePinCannotBeExportedEvenFromAnAuthorizedDeployment() {
+        var deployment = deployment();
+        deployment.setCustomerId("customer-a");
+        stubExportState(deployment, draft(deployment.getId()));
+        var plugin = marketplacePlugin("private-b", "private-b", "DATA");
+        plugin.setOwnerCustomerId("customer-b"); plugin.setVisibility("CUSTOMER_PRIVATE");
+        var version = marketplaceVersion("private-b-version", plugin.getId(), "1.0.0", "{}");
+        var install = marketplaceInstall("foreign-pin", deployment.getId(), plugin.getId(), version.getId(), "ENABLED");
+        when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of(install));
+        when(marketplacePluginRepository.findById(plugin.getId())).thenReturn(Optional.of(plugin));
+        when(marketplacePluginVersionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        assertThatThrownBy(() -> service().exportDeployment(deployment.getId(), null))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+    }
+
+    @Test
+    void privateBundleCannotCloneAcrossCustomersOrHideOwnershipInPublicMetadata() throws Exception {
+        var bundle = objectMapper.readTree("""
+            {"manifest":{"deployment":{"id":"source","customerId":"customer-a"},
+              "marketplaceCatalog":{"plugins":[{"id":"private-a","slug":"private-a","visibility":"CUSTOMER_PRIVATE","ownerCustomerId":"customer-a"}]}}}
+            """);
+        var request = new DeploymentImportPreviewRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, null, "clone", "dev", null, "customer-b", null, null, null);
+        assertThatThrownBy(() -> service().previewImport(request)).hasMessageContaining("cannot cross customer");
+        var execution = new DeploymentImportRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, null, "clone", "dev", null, "customer-b", null, null, null);
+        assertThatThrownBy(() -> service().importDeployment(execution)).hasMessageContaining("cannot cross customer");
+        var plugin = marketplacePlugin("private-a", "private-a", "DATA");
+        plugin.setVisibility("CUSTOMER_PRIVATE"); plugin.setOwnerCustomerId("customer-a");
+        when(marketplacePluginRepository.findById(plugin.getId())).thenReturn(Optional.of(plugin));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.at("/manifest/marketplaceCatalog/plugins/0"))
+            .put("visibility", "PUBLIC").remove("ownerCustomerId");
+        assertThatThrownBy(() -> service().previewImport(request)).hasMessageContaining("404");
+        verifyNoInteractions(deploymentService);
+    }
+
+    @Test
+    void cloneScopeCannotBeBorrowedFromAnUnrelatedTargetDeployment() throws Exception {
+        var existing = deployment();
+        existing.setCustomerId("customer-a");
+        when(deploymentRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        var bundle = objectMapper.readTree("""
+            {"manifest":{"deployment":{"id":"source","customerId":"customer-a"},
+              "marketplaceCatalog":{"plugins":[{"id":"private-a","slug":"private-a","visibility":"CUSTOMER_PRIVATE","ownerCustomerId":"customer-a"}]}}}
+            """);
+        var preview = new DeploymentImportPreviewRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, existing.getId(), "clone", "dev", null, "customer-b", null, null, null);
+        var execution = new DeploymentImportRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, existing.getId(), "clone", "dev", null, "customer-b", null, null, null);
+        assertThatThrownBy(() -> service().previewImport(preview)).hasMessageContaining("cannot cross customer");
+        assertThatThrownBy(() -> service().importDeployment(execution)).hasMessageContaining("cannot cross customer");
+        verifyNoInteractions(deploymentService);
+        verify(marketplacePluginRepository, never()).save(any());
+    }
+
+    @Test
+    void newPrivateImportSeedsDraftFromLatestVersionAndPreservesExistingDraft() throws Exception {
+        var definition = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(validDataMarketplaceManifest());
+        var dataset = (com.fasterxml.jackson.databind.node.ObjectNode) definition.at("/contributions/datasets/0");
+        var entities = (com.fasterxml.jackson.databind.node.ObjectNode) definition.at("/contributions/entityConfig/ai-entities");
+        entities.set("document", entities.remove("service-category"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) definition.at("/contributions/knowledgeSources/0")).put("entityType", "document");
+        dataset.put("entityType", "document");
+        dataset.put("ingestionMode", "EXTERNAL_DOCUMENT_STORAGE").put("storageScope", "CUSTOMER_SCOPED")
+            .put("sharingScope", "DEPLOYMENT_ONLY").put("updateStrategy", "VERSIONED_REPLACE");
+        dataset.remove("seedDatasetRef");
+        dataset.putObject("sourceConnector").put("connectorType", "S3_COMPATIBLE_OBJECT_STORAGE")
+            .put("storageOwnership", "BOUND_CONNECTION").put("bindingRefField", "documentStorageBindingRef")
+            .put("deleteSourceOnRemoval", false)
+            .putArray("allowedOperations").add("LIST").add("READ").add("HEAD");
+        dataset.set("documentPolicy", objectMapper.readTree("""
+            {"allowedMediaTypes":["text/plain","application/json"],"allowedExtensions":[".txt",".json"],"jsonContentKeys":["content"],
+             "maxSourceBytes":1048576,"maxSources":100,"maxTotalIndexedBytes":104857600,"maxChunksPerSource":100,"maxChunkCharacters":8000,
+             "maxTotalCharacters":250000,"previewMaxChunks":10,"previewMaxCharactersPerChunk":500,"evidenceRetentionDays":30,"commandRetentionDays":30,
+             "retentionBatchSize":100,"allowedMetadataKeys":[],"initialIndexRequiresConfirmation":true,"trustedAutoIndexingAllowed":false}
+            """));
+        var bundle = objectMapper.createObjectNode();
+        var catalog = bundle.putObject("manifest").putObject("marketplaceCatalog");
+        catalog.putArray("plugins").addObject().put("id", "private-import").put("slug", "private-import")
+            .put("pluginType", "DATA").put("visibility", "CUSTOMER_PRIVATE").put("ownerCustomerId", "customer-a");
+        var versions = catalog.putArray("versions");
+        versions.addObject().put("id", "private-version-new").put("pluginId", "private-import").put("version", "2.0.0")
+            .put("publishedAt", "2026-11-08T10:00:00Z").set("manifest", definition.deepCopy().put("version", "2.0.0"));
+        versions.addObject().put("id", "private-version-old").put("pluginId", "private-import").put("version", "1.0.0")
+            .put("publishedAt", "2026-11-07T10:00:00Z").set("manifest", definition.deepCopy().put("version", "1.0.0"));
+        var stored = new java.util.HashMap<String, MarketplacePluginEntity>();
+        when(marketplacePluginRepository.findById(any(String.class))).thenAnswer(call -> Optional.ofNullable(stored.get(call.getArgument(0))));
+        when(marketplacePluginRepository.save(any(MarketplacePluginEntity.class))).thenAnswer(call -> {
+            MarketplacePluginEntity plugin = call.getArgument(0); stored.put(plugin.getId(), plugin); return plugin;
+        });
+        when(marketplacePluginVersionRepository.save(any(MarketplacePluginVersionEntity.class))).thenAnswer(call -> call.getArgument(0));
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "restoreMarketplaceCatalog", bundle);
+        var imported = stored.get("private-import");
+        assertThat(imported.getDraftRevision()).isEqualTo(1);
+        assertThat(objectMapper.readTree(imported.getDraftManifestJson()).path("version").asText()).isEqualTo("2.0.0");
+        imported.setDraftManifestJson("{\"unfinished\":true}");
+        imported.setDraftRevision(7);
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(), "restoreMarketplaceCatalog", bundle);
+        assertThat(imported.getDraftManifestJson()).isEqualTo("{\"unfinished\":true}");
+        assertThat(imported.getDraftRevision()).isEqualTo(7);
+    }
+
+    @Test
+    void importCannotReparentForeignPrivateVersionOrDatasetIdsUnderAPublicDefinition() throws Exception {
+        var plugin = marketplacePlugin("private-a", "private-a", "DATA");
+        plugin.setVisibility("CUSTOMER_PRIVATE"); plugin.setOwnerCustomerId("customer-a");
+        when(marketplacePluginRepository.findById("private-a")).thenReturn(Optional.of(plugin));
+        var version = marketplaceVersion("private-version", "private-a", "1.0.0", "{}");
+        when(marketplacePluginVersionRepository.findById("private-version")).thenReturn(Optional.of(version));
+        var bundle = objectMapper.readTree("""
+            {"manifest":{"deployment":{"id":"source","customerId":"customer-b"},"marketplaceCatalog":{
+              "plugins":[{"id":"public-new","slug":"public-new","visibility":"PUBLIC"}],
+              "versions":[{"id":"private-version","pluginId":"public-new","version":"1.0.0","manifest":{}}]}}}
+            """);
+        var request = new DeploymentImportPreviewRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, null, "clone", "dev", null, "customer-b", null, null, null);
+        assertThatThrownBy(() -> service().previewImport(request)).hasMessageContaining("404");
+        var ownRequest = new DeploymentImportPreviewRequest(bundle, ImportMode.CONFIG_ONLY_CLONE, null, "clone", "dev", null, "customer-a", null, null, null);
+        assertThatThrownBy(() -> service().previewImport(ownRequest)).hasMessageContaining("cannot reassign");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.path("manifest").path("marketplaceCatalog")).remove("versions");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.path("manifest").path("marketplaceCatalog")).putArray("datasets")
+            .addObject().put("id", "private-dataset").put("pluginId", "public-new");
+        var dataset = new MarketplacePluginDatasetEntity(); dataset.setId("private-dataset"); dataset.setPluginId("private-a");
+        when(marketplacePluginDatasetRepository.findById("private-dataset")).thenReturn(Optional.of(dataset));
+        assertThatThrownBy(() -> service().previewImport(request)).hasMessageContaining("404");
+        verifyNoInteractions(deploymentService);
+    }
+
+    @Test
     void configOnlyExportContainsSecretInventoryButNoSecretValueOrEnvelope() {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity deployment = deployment();
@@ -1186,14 +1310,18 @@ class DeploymentBundleExportImportServiceTest {
         stubExportState(sourceDeployment, sourceDraft);
         when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
             .thenReturn(List.of(dataInstall));
-        when(marketplacePluginRepository.findById("mkp-data-produs-safe-knowledge")).thenReturn(Optional.empty());
-        when(marketplacePluginVersionRepository.findById("mkv-safe-knowledge-v1")).thenReturn(Optional.empty());
+        when(marketplacePluginRepository.findById("mkp-data-produs-safe-knowledge")).thenReturn(Optional.of(
+            marketplacePlugin("mkp-data-produs-safe-knowledge", "produs-safe-knowledge", "DATA")));
+        when(marketplacePluginVersionRepository.findById("mkv-safe-knowledge-v1")).thenReturn(Optional.of(
+            marketplaceVersion("mkv-safe-knowledge-v1", "mkp-data-produs-safe-knowledge", "1.0.0", validDataMarketplaceManifest())));
 
         var export = service.exportDeployment(
             sourceDeployment.getId(),
             new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "old bundle compatibility", null, true, true)
         );
         var oldStyleBundle = export.bundle().deepCopy();
+        when(marketplacePluginRepository.findById("mkp-data-produs-safe-knowledge")).thenReturn(Optional.empty());
+        when(marketplacePluginVersionRepository.findById("mkv-safe-knowledge-v1")).thenReturn(Optional.empty());
         ((com.fasterxml.jackson.databind.node.ObjectNode) oldStyleBundle.path("manifest")).remove("marketplaceCatalog");
         ((com.fasterxml.jackson.databind.node.ObjectNode) oldStyleBundle.path("integrity"))
             .put("manifestHash", sealingService.sha256(oldStyleBundle.path("manifest")));
@@ -1305,7 +1433,8 @@ class DeploymentBundleExportImportServiceTest {
             customerOfferDeploymentRepository,
             deploymentService,
             platformAuditService,
-            sealingService
+            sealingService,
+            mock(com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginDatasetDefinitionService.class)
         );
     }
 

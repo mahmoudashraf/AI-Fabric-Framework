@@ -27,17 +27,30 @@ public class MarketplaceCatalogService {
     private final MarketplacePluginRepository pluginRepository;
     private final MarketplacePluginVersionRepository versionRepository;
     private final MarketplaceManifestService manifestService;
+    private final CustomerPluginLibraryService library;
 
     public MarketplaceCatalogService(MarketplacePluginRepository pluginRepository,
                                      MarketplacePluginVersionRepository versionRepository,
-                                     MarketplaceManifestService manifestService) {
+                                     MarketplaceManifestService manifestService,
+                                     CustomerPluginLibraryService library) {
         this.pluginRepository = pluginRepository;
         this.versionRepository = versionRepository;
         this.manifestService = manifestService;
+        this.library = library;
     }
 
     public List<MarketplacePluginSummary> listPlugins() {
+        return listForScope(null, true);
+    }
+
+    public List<MarketplacePluginSummary> listPlugins(String customerId, boolean includeDemo) {
+        return listForScope(catalogueScope(customerId), includeDemo);
+    }
+
+    private List<MarketplacePluginSummary> listForScope(String customerId, boolean includeDemo) {
         List<MarketplacePluginEntity> plugins = pluginRepository.findAll().stream()
+            .filter(plugin -> !MarketplacePluginOwnership.isPrivate(plugin)
+                || (customerId != null && customerId.equals(plugin.getOwnerCustomerId())))
             .filter(plugin -> "ACTIVE".equalsIgnoreCase(plugin.getStatus()))
             .sorted(Comparator.comparing(MarketplacePluginEntity::getDisplayName, String.CASE_INSENSITIVE_ORDER))
             .toList();
@@ -51,11 +64,23 @@ public class MarketplaceCatalogService {
         return plugins.stream()
             .filter(plugin -> latestVersions.containsKey(plugin.getId()))
             .map(plugin -> toSummary(plugin, latestVersions.get(plugin.getId())))
+            .filter(plugin -> includeDemo || "CUSTOMER".equals(plugin.catalogueAudience()))
             .toList();
     }
 
     public MarketplacePluginDetailSummary getPlugin(String pluginIdOrSlug) {
         MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, null);
+        return detail(plugin, pluginIdOrSlug);
+    }
+
+    public MarketplacePluginDetailSummary getPlugin(String pluginIdOrSlug, String customerId) {
+        MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, catalogueScope(customerId));
+        return detail(plugin, pluginIdOrSlug);
+    }
+
+    private MarketplacePluginDetailSummary detail(MarketplacePluginEntity plugin, String pluginIdOrSlug) {
         List<MarketplacePluginVersionEntity> versionEntities = versionRepository.findByPluginIdOrderByPublishedAtDesc(plugin.getId()).stream()
             .filter(version -> "PUBLISHED".equalsIgnoreCase(version.getStatus()))
             .toList();
@@ -71,6 +96,17 @@ public class MarketplaceCatalogService {
 
     public MarketplacePluginVersionSummary getPluginVersion(String pluginIdOrSlug, String versionLabel) {
         MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, null);
+        return versionSummary(plugin, versionLabel);
+    }
+
+    public MarketplacePluginVersionSummary getPluginVersion(String pluginIdOrSlug, String versionLabel, String customerId) {
+        MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, catalogueScope(customerId));
+        return versionSummary(plugin, versionLabel);
+    }
+
+    private MarketplacePluginVersionSummary versionSummary(MarketplacePluginEntity plugin, String versionLabel) {
         MarketplacePluginVersionEntity version = versionRepository.findByPluginIdAndVersion(plugin.getId(), versionLabel)
             .orElseThrow(() -> new ResponseStatusException(
                 NOT_FOUND,
@@ -87,11 +123,13 @@ public class MarketplaceCatalogService {
 
     public String resolveLatestPublishedVersionLabel(String pluginIdOrSlug) {
         MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        MarketplacePluginOwnership.requireCustomer(plugin, null);
         return requireLatestPublishedVersionEntity(plugin.getId()).getVersion();
     }
 
     public List<MarketplaceCategorySummary> listCategories() {
         Map<String, Long> counts = pluginRepository.findAll().stream()
+            .filter(plugin -> !MarketplacePluginOwnership.isPrivate(plugin))
             .collect(Collectors.groupingBy(
                 plugin -> normalizeType(plugin.getPluginType()),
                 Collectors.counting()
@@ -108,6 +146,16 @@ public class MarketplaceCatalogService {
 
     MarketplacePluginEntity requirePluginEntity(String pluginIdOrSlug) {
         return requirePlugin(pluginIdOrSlug);
+    }
+
+    MarketplacePluginEntity requirePluginEntityForUpdate(String pluginIdOrSlug) {
+        MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        return pluginRepository.findByIdForUpdate(plugin.getId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace plugin not found."));
+    }
+
+    public void requireConfigurationOwnership(com.fasterxml.jackson.databind.JsonNode config, String customerId) {
+        MarketplacePluginOwnership.requireReferences(config, customerId, pluginRepository, versionRepository);
     }
 
     MarketplacePluginVersionEntity requirePluginVersionEntity(String pluginId, String versionLabel) {
@@ -140,20 +188,26 @@ public class MarketplaceCatalogService {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = latestVersion == null
             ? null
             : manifestService.parseAndValidate(plugin, latestVersion);
+        boolean privateVersion = parsed != null && MarketplacePluginOwnership.isPrivate(plugin);
+        var presentation = privateVersion ? parsed.manifest().path("presentation") : null;
         return new MarketplacePluginSummary(
             plugin.getId(),
             plugin.getSlug(),
-            plugin.getDisplayName(),
+            privateVersion ? parsed.manifest().path("displayName").asText(plugin.getDisplayName()) : plugin.getDisplayName(),
             normalizeType(plugin.getPluginType()),
             plugin.getPublisherSlug(),
             plugin.getPublisherDisplayName(),
-            plugin.getShortDescription(),
+            privateVersion ? parsed.manifest().path("description").asText(plugin.getShortDescription()) : plugin.getShortDescription(),
             plugin.getStatus(),
             latestVersion == null ? null : latestVersion.getVersion(),
             parsed == null ? new com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary("FREE", null, null, null, null, false) : parsed.pricing(),
             List.of(normalizeType(plugin.getPluginType()).toLowerCase(Locale.ROOT)),
             parsed == null ? null : parsed.contributions(),
-            plugin.getUpdatedAt()
+            plugin.getUpdatedAt(),
+            plugin.getOwnerCustomerId(), plugin.getVisibility(),
+            privateVersion ? presentation.path("catalogueFamily").textValue() : plugin.getCatalogueFamily(),
+            privateVersion ? presentation.path("catalogueAudience").asText("CUSTOMER") : plugin.getCatalogueAudience(),
+            privateVersion ? presentation.path("adapterContract").textValue() : plugin.getAdapterContract()
         );
     }
 
@@ -187,6 +241,15 @@ public class MarketplaceCatalogService {
     private Optional<MarketplacePluginEntity> resolvePlugin(String pluginIdOrSlug) {
         return pluginRepository.findById(pluginIdOrSlug)
             .or(() -> pluginRepository.findBySlugIgnoreCase(pluginIdOrSlug));
+    }
+
+    private String catalogueScope(String customerId) {
+        var principal = com.ai.fabric.platform.backend.security.PlatformSecurityContext.currentPrincipal();
+        if (customerId != null || (principal != null && principal.role()
+            == com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN)) {
+            return library.requireWorkspace(customerId);
+        }
+        return null;
     }
 
     private MarketplaceCategorySummary category(String id, String label, long pluginCount) {

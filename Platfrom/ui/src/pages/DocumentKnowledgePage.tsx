@@ -305,8 +305,8 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     [dataset, installsQuery.data],
   )
   const documentVersionQuery = useQuery({
-    queryKey: ['document-knowledge-plugin-version', customerId, selectedDeploymentId, install?.pluginId, install?.pluginVersion],
-    queryFn: () => fetchMarketplacePluginVersion(install!.pluginId, install!.pluginVersion),
+    queryKey: ['document-knowledge-plugin-version', customerId, selectedDeploymentSummary?.binding?.customerId, selectedDeploymentId, install?.pluginId, install?.pluginVersion],
+    queryFn: () => fetchMarketplacePluginVersion(install!.pluginId, install!.pluginVersion, selectedDeploymentSummary?.binding?.customerId),
     enabled: Boolean(install),
     retry: false,
   })

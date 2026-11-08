@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
 const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
 const panelSource = withCustomerSessionSupport(await readFile(new URL('../src/components/customer/KnownNoEffectSettlementPanel.tsx', import.meta.url), 'utf8'))
-const transpile = (source, module) => ts.transpileModule(source, { compilerOptions: {
+const transpile = (source, module) => ts.transpileModule(withPluginJsonSupport(source), { compilerOptions: {
   target: ts.ScriptTarget.ES2022, module, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
 } }).outputText
 const originalWindow = globalThis.window

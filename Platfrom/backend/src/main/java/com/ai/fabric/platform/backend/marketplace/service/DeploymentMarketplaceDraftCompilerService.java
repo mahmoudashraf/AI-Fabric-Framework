@@ -210,9 +210,18 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (!executionExtensions.isEmpty()) mergeTemplateExecutionExtensionDefaults(behaviorRoot, executionExtensions);
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
+        for (JsonNode config : List.of(actionsRoot, entityRoot, knowledgeSourceRoot, shellRoot, marketplaceDatasetRoot, providerRoot, behaviorRoot)) {
+            marketplaceCatalogService.requireConfigurationOwnership(config, deployment.getCustomerId());
+        }
 
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+        for (var install : installs) {
+            MarketplacePluginOwnership.requireVersion(
+                marketplaceCatalogService.requirePluginEntity(install.getPluginId()),
+                marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId()),
+                deployment.getCustomerId());
+        }
         var externalProfiles = externalIntegrations.profiles(deployment);
         installs = installs.stream().map(install -> externalIntegrations.compileInput(externalProfiles, install)).toList();
         Set<String> unavailableBootstrapSources = tolerateBaselineErrors ? unavailableRequiredDataSources(installs) : Set.of();

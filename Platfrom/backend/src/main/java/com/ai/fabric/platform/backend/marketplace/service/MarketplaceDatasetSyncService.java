@@ -57,6 +57,7 @@ public class MarketplaceDatasetSyncService {
     private final MarketplaceDatasetSyncRunRepository syncRunRepository;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplacePluginDatasetRepository pluginDatasetRepository;
+    private final com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository pluginRepository;
     private final MarketplaceDatasetRuntimeSyncClient runtimeSyncClient;
     private final TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository;
     private final ObjectMapper objectMapper;
@@ -72,7 +73,8 @@ public class MarketplaceDatasetSyncService {
                                          TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository,
                                          ObjectMapper objectMapper,
                                          JdbcTemplate jdbcTemplate,
-                                         ResourcePatternResolver resourcePatternResolver) {
+                                         ResourcePatternResolver resourcePatternResolver,
+                                         com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository pluginRepository) {
         this.datasetHandleRepository = datasetHandleRepository;
         this.datasetDocumentRepository = datasetDocumentRepository;
         this.syncRunRepository = syncRunRepository;
@@ -83,6 +85,7 @@ public class MarketplaceDatasetSyncService {
         this.objectMapper = objectMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.resourcePatternResolver = resourcePatternResolver;
+        this.pluginRepository = pluginRepository;
     }
 
     @Transactional
@@ -126,6 +129,10 @@ public class MarketplaceDatasetSyncService {
             if (!(datasetNode instanceof ObjectNode dataset)) {
                 continue;
             }
+            pluginRepository.findById(dataset.path("marketplacePluginId").asText()).ifPresent(plugin -> {
+                MarketplacePluginOwnership.requireCustomer(plugin, deployment.getCustomerId());
+                MarketplacePrivateDataContract.requireCompiledDataset(plugin, dataset);
+            });
             if (!shouldProcessDataset(deployment, dataset, trigger, minimumInterval, evaluationTime)) {
                 continue;
             }

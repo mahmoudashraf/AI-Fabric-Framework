@@ -6,6 +6,10 @@ public record UpdateDeploymentMarketplaceInstallRequest(
     String pluginVersion,
     String status,
     JsonNode config,
-    JsonNode secretRefs
+    JsonNode secretRefs,
+    java.time.Instant expectedUpdatedAt
 ) {
+    public UpdateDeploymentMarketplaceInstallRequest(String pluginVersion, String status, JsonNode config, JsonNode secretRefs) {
+        this(pluginVersion, status, config, secretRefs, null);
+    }
 }

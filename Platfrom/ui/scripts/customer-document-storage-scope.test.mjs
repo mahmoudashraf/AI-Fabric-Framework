@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 import { withCustomerSessionSupport } from './customer-auth-test-support.mjs'
 
@@ -78,7 +79,7 @@ test('in-flight readback cannot submit after selected actor/target scope changes
 
 test('API errors preserve only structured code/rejection evidence, never infer it from text', async () => {
   const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
-  const compiled = ts.transpileModule(apiSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+  const compiled = ts.transpileModule(withPluginJsonSupport(apiSource), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   const oldWindow = globalThis.window, oldFetch = globalThis.fetch
   globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'http://loopback.invalid' } }
   try {

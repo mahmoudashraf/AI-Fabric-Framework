@@ -72,6 +72,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -87,6 +88,7 @@ import java.util.regex.Pattern;
 
 import static com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.SCHEMA_VERSION;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -145,6 +147,7 @@ public class DeploymentBundleExportImportService {
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
     private final DeploymentBundleSealingService sealingService;
+    private final com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginDatasetDefinitionService datasetDefinitions;
 
     public DeploymentBundleExportImportService(ObjectMapper objectMapper,
                                                DeploymentRepository deploymentRepository,
@@ -171,7 +174,8 @@ public class DeploymentBundleExportImportService {
                                                CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
                                                DeploymentService deploymentService,
                                                PlatformAuditService platformAuditService,
-                                               DeploymentBundleSealingService sealingService) {
+                                               DeploymentBundleSealingService sealingService,
+                                               com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginDatasetDefinitionService datasetDefinitions) {
         this.objectMapper = objectMapper;
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -198,6 +202,7 @@ public class DeploymentBundleExportImportService {
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
         this.sealingService = sealingService;
+        this.datasetDefinitions = datasetDefinitions;
     }
 
     public DeploymentBundleExportPreviewSummary previewExport(String deploymentId, DeploymentExportPreviewRequest request) {
@@ -307,6 +312,7 @@ public class DeploymentBundleExportImportService {
     public DeploymentBundleImportPreviewSummary previewImport(DeploymentImportPreviewRequest request) {
         ImportMode importMode = request == null ? ImportMode.CONFIG_ONLY_CLONE : request.normalizedImportMode();
         JsonNode bundle = requireBundle(request == null ? null : request.bundle());
+        requirePrivateBundleScope(bundle, importMode, request == null ? null : request.targetCustomerId(), request == null ? null : request.targetDeploymentId());
         ImportValidation validation = validateBundle(bundle, importMode, request == null ? null : request.targetDeploymentId());
         boolean secretsReadable = false;
         if (bundle.hasNonNull("secretEnvelope") && StringUtils.hasText(request == null ? null : request.privateKeyPem())) {
@@ -348,6 +354,7 @@ public class DeploymentBundleExportImportService {
     public DeploymentBundleImportExecutionSummary importDeployment(DeploymentImportRequest request) {
         ImportMode importMode = request == null ? ImportMode.CONFIG_ONLY_CLONE : request.normalizedImportMode();
         JsonNode bundle = requireBundle(request == null ? null : request.bundle());
+        requirePrivateBundleScope(bundle, importMode, request == null ? null : request.targetCustomerId(), request == null ? null : request.targetDeploymentId());
         ImportValidation validation = validateBundle(bundle, importMode, request == null ? null : request.targetDeploymentId());
         if (!validation.blockingIssues().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, String.join(" | ", validation.blockingIssues()));
@@ -405,6 +412,13 @@ public class DeploymentBundleExportImportService {
     }
 
     private BundleState buildBundleState(DeploymentEntity deployment, ExportMode exportMode) {
+        for (var install : marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())) {
+            var plugin = marketplacePluginRepository.findById(install.getPluginId())
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Marketplace install references a missing plugin."));
+            var version = marketplacePluginVersionRepository.findById(install.getPluginVersionId())
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Marketplace install references a missing plugin version."));
+            com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.requireVersion(plugin, version, deployment.getCustomerId());
+        }
         DeploymentDraftEntity draft = activeDraft(deployment);
         ObjectNode manifest = objectMapper.createObjectNode();
         manifest.put(
@@ -660,6 +674,11 @@ public class DeploymentBundleExportImportService {
         node.put("publisherDisplayName", plugin.getPublisherDisplayName());
         node.put("shortDescription", plugin.getShortDescription());
         node.put("status", plugin.getStatus());
+        node.put("ownerCustomerId", plugin.getOwnerCustomerId());
+        node.put("visibility", plugin.getVisibility());
+        node.put("catalogueFamily", plugin.getCatalogueFamily());
+        node.put("catalogueAudience", plugin.getCatalogueAudience());
+        node.put("adapterContract", plugin.getAdapterContract());
         node.put("createdAt", stringTime(plugin.getCreatedAt()));
         node.put("updatedAt", stringTime(plugin.getUpdatedAt()));
         return node;
@@ -1251,6 +1270,8 @@ public class DeploymentBundleExportImportService {
             MarketplacePluginEntity plugin = new MarketplacePluginEntity();
             plugin.setId(pluginId);
             plugin.setPluginType(text(pluginNode, "pluginType"));
+            plugin.setOwnerCustomerId(pluginNode.path("ownerCustomerId").asText(null));
+            plugin.setVisibility(pluginNode.path("visibility").asText("PUBLIC"));
 
             MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
             version.setId(text(versionNode, "id"));
@@ -1428,6 +1449,8 @@ public class DeploymentBundleExportImportService {
         }
         Map<String, String> pluginIdRemap = new LinkedHashMap<>();
         Map<String, String> versionIdRemap = new LinkedHashMap<>();
+        Map<String, MarketplacePluginEntity> newPrivateDefinitions = new LinkedHashMap<>();
+        Map<String, MarketplacePluginVersionEntity> importedPrivateDrafts = new LinkedHashMap<>();
         JsonNode plugins = catalog.path("plugins");
         if (plugins.isArray()) {
             for (JsonNode pluginNode : plugins) {
@@ -1444,6 +1467,10 @@ public class DeploymentBundleExportImportService {
                     .or(() -> marketplacePluginRepository.findBySlugIgnoreCase(slug))
                     .orElseGet(MarketplacePluginEntity::new);
                 boolean existing = StringUtils.hasText(plugin.getId());
+                if (existing && com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(plugin)) {
+                    pluginIdRemap.put(sourcePluginId, plugin.getId());
+                    continue;
+                }
                 plugin.setId(existing ? plugin.getId() : sourcePluginId);
                 plugin.setSlug(slug);
                 plugin.setDisplayName(firstNonBlank(pluginNode.path("displayName").asText(null), slug));
@@ -1452,11 +1479,19 @@ public class DeploymentBundleExportImportService {
                 plugin.setPublisherDisplayName(firstNonBlank(pluginNode.path("publisherDisplayName").asText(null), "Imported"));
                 plugin.setShortDescription(firstNonBlank(pluginNode.path("shortDescription").asText(null), "Imported Marketplace plugin."));
                 plugin.setStatus(firstNonBlank(pluginNode.path("status").asText(null), "PUBLISHED"));
+                plugin.setOwnerCustomerId(pluginNode.path("ownerCustomerId").asText(null));
+                plugin.setVisibility(pluginNode.path("visibility").asText("PUBLIC"));
+                plugin.setCatalogueFamily(pluginNode.path("catalogueFamily").asText(null));
+                plugin.setCatalogueAudience(pluginNode.path("catalogueAudience").asText("CUSTOMER"));
+                plugin.setAdapterContract(pluginNode.path("adapterContract").asText(null));
                 if (plugin.getCreatedAt() == null) {
                     plugin.setCreatedAt(timeOrNow(pluginNode.path("createdAt").asText(null)));
                 }
                 plugin.setUpdatedAt(Instant.now());
                 marketplacePluginRepository.save(plugin);
+                if (!existing && com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(plugin)) {
+                    newPrivateDefinitions.put(plugin.getId(), plugin);
+                }
                 pluginIdRemap.put(sourcePluginId, plugin.getId());
             }
         }
@@ -1482,6 +1517,15 @@ public class DeploymentBundleExportImportService {
                     .or(() -> marketplacePluginVersionRepository.findByPluginIdAndVersion(targetPluginId, versionLabel))
                     .orElseGet(MarketplacePluginVersionEntity::new);
                 boolean existing = StringUtils.hasText(version.getId());
+                var targetPlugin = marketplacePluginRepository.findById(targetPluginId).orElseThrow();
+                if (existing && com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(targetPlugin)) {
+                    if (!readJson(version.getManifestJson()).equals(versionNode.path("manifest"))) {
+                        throw new ResponseStatusException(CONFLICT, "Import cannot overwrite an immutable private plugin version.");
+                    }
+                    datasetDefinitions.syncPluginVersionDatasets(targetPlugin, version, marketplaceManifestService.parseAndValidate(targetPlugin, version));
+                    versionIdRemap.put(sourceVersionId, version.getId());
+                    continue;
+                }
                 version.setId(existing ? version.getId() : sourceVersionId);
                 version.setPluginId(targetPluginId);
                 version.setVersion(versionLabel);
@@ -1501,11 +1545,80 @@ public class DeploymentBundleExportImportService {
                     version.setPublishedAt(timeOrNow(versionNode.path("publishedAt").asText(null)));
                 }
                 marketplacePluginVersionRepository.save(version);
+                if (com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(targetPlugin)) {
+                    datasetDefinitions.syncPluginVersionDatasets(targetPlugin, version, marketplaceManifestService.parseAndValidate(targetPlugin, version));
+                    if (newPrivateDefinitions.containsKey(targetPluginId)) {
+                        importedPrivateDrafts.merge(targetPluginId, version, (left, right) ->
+                            left.getPublishedAt().isAfter(right.getPublishedAt()) ? left : right);
+                    }
+                }
                 versionIdRemap.put(sourceVersionId, version.getId());
             }
         }
+        // Import seeds new authoring drafts, never overwrites an existing customer's working copy.
+        importedPrivateDrafts.forEach((pluginId, version) -> {
+            var plugin = newPrivateDefinitions.get(pluginId);
+            plugin.setDraftManifestJson(version.getManifestJson());
+            plugin.setDraftRevision(1);
+            marketplacePluginRepository.save(plugin);
+        });
         restoreMarketplacePluginDatasets(catalog.path("datasets"), pluginIdRemap, versionIdRemap);
         return new MarketplaceCatalogRestore(pluginIdRemap, versionIdRemap);
+    }
+
+    private void requirePrivateBundleScope(JsonNode bundle, ImportMode importMode, String requestedCustomerId, String targetDeploymentId) {
+        String customerId = importMode == ImportMode.RESTORE_IN_PLACE && StringUtils.hasText(targetDeploymentId)
+            ? requireDeploymentAdmin(targetDeploymentId).getCustomerId()
+            : firstNonBlank(requestedCustomerId, bundle.path("manifest").path("deployment").path("customerId").asText(null));
+        for (JsonNode node : bundle.path("manifest").path("marketplaceCatalog").path("plugins")) {
+            String owner = node.path("ownerCustomerId").asText(null);
+            String visibility = node.path("visibility").asText("PUBLIC");
+            if ((owner == null && !"PUBLIC".equals(visibility)) || (owner != null && !"CUSTOMER_PRIVATE".equals(visibility))) {
+                throw new ResponseStatusException(BAD_REQUEST, "Invalid marketplace ownership/visibility metadata.");
+            }
+            if (owner != null || !"PUBLIC".equals(node.path("visibility").asText("PUBLIC"))) {
+                if (owner == null || !owner.equals(customerId)) {
+                    throw new ResponseStatusException(CONFLICT, "Private plugin definitions cannot cross customer ownership on import or clone.");
+                }
+            }
+            var matches = java.util.stream.Stream.concat(
+                marketplacePluginRepository.findById(node.path("id").asText()).stream(),
+                marketplacePluginRepository.findBySlugIgnoreCase(node.path("slug").asText()).stream());
+            matches.forEach(plugin -> {
+                com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.requireCustomer(plugin, customerId);
+                if (!Objects.equals(plugin.getOwnerCustomerId(), owner)) {
+                    throw new ResponseStatusException(CONFLICT, "Import cannot change marketplace definition ownership.");
+                }
+            });
+        }
+        com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.requireReferences(
+            bundle.path("manifest"), customerId, marketplacePluginRepository, marketplacePluginVersionRepository);
+        for (JsonNode node : bundle.path("manifest").path("marketplaceCatalog").path("versions")) {
+            marketplacePluginVersionRepository.findById(node.path("id").asText()).ifPresent(existing ->
+                requireImmutablePrivateOwner(existing.getPluginId(), node.path("pluginId").asText(), customerId));
+        }
+        for (JsonNode node : bundle.path("manifest").path("marketplaceCatalog").path("datasets")) {
+            marketplacePluginDatasetRepository.findById(node.path("id").asText()).ifPresent(existing ->
+                requireImmutablePrivateOwner(existing.getPluginId(), node.path("pluginId").asText(), customerId));
+        }
+        for (String versionId : bundle.path("manifest").findValuesAsText("pluginVersionId")) {
+            marketplacePluginVersionRepository.findById(versionId).ifPresent(version ->
+                marketplacePluginRepository.findById(version.getPluginId()).ifPresent(plugin -> {
+                    if (com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(plugin)) {
+                        marketplaceManifestService.parseAndValidate(plugin, version);
+                    }
+                }));
+        }
+    }
+
+    private void requireImmutablePrivateOwner(String existingPluginId, String requestedPluginId, String customerId) {
+        marketplacePluginRepository.findById(existingPluginId).ifPresent(plugin -> {
+            com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.requireCustomer(plugin, customerId);
+            if (com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership.isPrivate(plugin)
+                && !existingPluginId.equals(requestedPluginId)) {
+                throw new ResponseStatusException(CONFLICT, "Import cannot reassign an immutable private version or dataset to another definition.");
+            }
+        });
     }
 
     private void restoreMarketplacePluginDatasets(JsonNode datasets,
@@ -1529,6 +1642,9 @@ public class DeploymentBundleExportImportService {
             }
             String targetPluginId = pluginIdRemap.getOrDefault(sourcePluginId, sourcePluginId);
             String targetVersionId = versionIdRemap.getOrDefault(sourceVersionId, sourceVersionId);
+            var privatePlugin = marketplacePluginRepository.findById(targetPluginId)
+                .filter(com.ai.fabric.platform.backend.marketplace.service.MarketplacePluginOwnership::isPrivate);
+            if (privatePlugin.isPresent()) continue; // Rebuilt from the immutable manifest, never mutable bundle dataset rows.
             MarketplacePluginDatasetEntity dataset = marketplacePluginDatasetRepository
                 .findByPluginVersionIdAndDatasetId(targetVersionId, datasetId)
                 .orElseGet(MarketplacePluginDatasetEntity::new);

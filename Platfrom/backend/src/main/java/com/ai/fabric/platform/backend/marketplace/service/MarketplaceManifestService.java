@@ -471,6 +471,9 @@ public class MarketplaceManifestService {
 
         String declaredType = normalizePluginType(firstText(manifest, "pluginType", "type"));
         String expectedType = normalizePluginType(plugin.getPluginType());
+        if (MarketplacePluginOwnership.isPrivate(plugin) && !"DATA".equals(expectedType)) {
+            throw invalid(plugin, version, "Private customer definitions support the DATA contract only.");
+        }
         if (!StringUtils.hasText(declaredType)) {
             throw invalid(plugin, version, "manifest pluginType is required.");
         }
@@ -492,6 +495,7 @@ public class MarketplaceManifestService {
         List<ParsedMarketplaceDatasetDefinition> datasets = "DATA".equals(expectedType)
             ? parseDataDatasets(plugin, version, contributions)
             : List.of();
+        if ("DATA".equals(expectedType)) MarketplacePrivateDataContract.requireSupported(plugin, manifest);
         MarketplacePluginContributionSummary contributionSummary = switch (expectedType) {
             case "TEMPLATE" -> parseTemplateContribution(plugin, version, contributions);
             case "ACTION" -> parseActionContribution(plugin, version, contributions);

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import ts from 'typescript'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 import { withDeploymentTerminology } from './deployment-terminology-test-support.mjs'
 
 const source = await readFile(new URL('../src/components/customer/customerAdmissionCommands.ts', import.meta.url), 'utf8')
@@ -9,7 +10,7 @@ const compiled = ts.transpileModule(withDeploymentTerminology(source), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
 const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
-const apiCompiled = ts.transpileModule(apiSource, {
+const apiCompiled = ts.transpileModule(withPluginJsonSupport(apiSource), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
 const apiUrl = `data:text/javascript;base64,${Buffer.from(apiCompiled).toString('base64')}`

@@ -200,7 +200,7 @@ class MarketplaceTemplateBootstrapServiceTest {
     void retiredVersionsRemainResolvableForHistoricalReads() {
         var plugins = mock(MarketplacePluginRepository.class);
         var versions = mock(MarketplacePluginVersionRepository.class);
-        var historicalCatalog = new MarketplaceCatalogService(plugins, versions, manifests);
+        var historicalCatalog = new MarketplaceCatalogService(plugins, versions, manifests, mock(CustomerPluginLibraryService.class));
         var version = new MarketplacePluginVersionEntity();
         version.setId("historical-version");
         version.setPluginId("template-plugin");

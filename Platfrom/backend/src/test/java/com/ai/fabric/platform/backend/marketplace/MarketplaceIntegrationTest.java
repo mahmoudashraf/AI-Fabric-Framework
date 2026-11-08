@@ -107,7 +107,7 @@ class MarketplaceIntegrationTest {
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
-        mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins").param("includeDemo", "true")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='mkp-template-commerce-shell')].pluginType", is(List.of("TEMPLATE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-template-support-desk-shell')].pluginType", is(List.of("TEMPLATE"))))
