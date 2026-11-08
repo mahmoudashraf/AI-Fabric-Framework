@@ -106,6 +106,7 @@ try {
     await step(page, 'Records & content')
     await page.getByText('Example API response and field paths', { exact: true }).click()
     await page.getByText(/This is an example only; no mappings are added automatically/).waitFor()
+    assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true, 'Expanded mapping help must stay inside the editor scroll pane')
     await page.screenshot({ path: join(shots, 'guided-examples-mapping.png'), fullPage: true })
     assert.equal(await page.getByLabel('Stable record ID JSON pointer', { exact: true }).inputValue(), '')
     await step(page, 'Freshness & access')
@@ -206,6 +207,9 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
       if (viewport.width >= 900) assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true)
       await step(page, 'Records & content')
+      await page.getByText('Example API response and field paths', { exact: true }).click()
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+      if (viewport.width >= 900) assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true)
       await page.screenshot({ path: join(shots, `creator-${viewport.width}-${dark ? 'dark' : 'light'}.png`), fullPage: true })
     }, { path: '/library/plugins/private-a/edit', viewport, dark })
   }
