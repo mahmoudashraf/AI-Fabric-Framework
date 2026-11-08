@@ -13470,3 +13470,34 @@ test is being called hosted acceptance. UI extraction remains last.
 - Developer staging/standard production retained. Sessions signed out, temporary
   tabs closed and viewport reset. Existing local preview left running. Preserve
   unrelated dirty work. Evidence: `verification-support/brain-settings-navigation/README.md`.
+
+### Knowledge Source Clarity And Focused Search Closeout - 8 November 2026
+
+- Owner-requested All sources/Documents/Live data counts, headings, primary
+  actions and empty states are implemented over the existing source controllers.
+  Counts describe source records, not files/chunks/business records. Failed or
+  unavailable inventories never report zero. Search clearing preserves totals;
+  empty/loading lists have no misleading pager. Initial unresolved environments
+  show inventory-unavailable wording, not a premature undeployed diagnosis.
+- Knowledge/Search settings now has four focused tasks: Search service,
+  Embedding model, Service connection and Customer separation. Existing provider
+  fields, permission rules, one draft buffer and Save/Discard are reused. The
+  single vector binding stays mounted across section changes to retain inputs.
+  Loaded-state guards prevent false configuration summaries on a failed read.
+- Initial implementation `aa43751b92560db506a1e257ee63756513f2266f`; final source
+  `76b70713cb72fd8d6c131fa8e69df1fc5e5be25c` pushed on `Platform-V11`.
+  UI CI `42478846183` passed. Staging job `p13qdhycwqlgft2bl7wzteii` and
+  production `jg2x4xon8shgn6swwwsw81ec` finished; exact-source UI containers
+  healthy. No backend/framework/runtime/schema/retrieval-policy change.
+- 46 focused checks, Knowledge browser, full-shell settings browser and build
+  passed. Final inventory-wording correction has a passing browser regression.
+  All six vector engines, provider fields, save mappings, permission/dirty guards
+  and retained connection inputs covered with memory-only writes/probes.
+- Hosted owned Support fixtures passed source counts/filtering/clear/empty views,
+  four Search tasks, single binding editor, unchanged draft, dark/light desktop
+  and basic mobile. No captured console errors. No hosted settings save, source
+  or binding mutation, index command, Brain release, app assignment or AI query.
+- Staging developer / production standard confirmed via uncached runtime config.
+  Sessions signed out, temporary tabs closed and viewport reset. Existing local
+  preview remains running. Preserve all unrelated dirty work.
+- Evidence: `verification-support/knowledge-source-experience/README.md`.

@@ -215,4 +215,10 @@ provider fields and one save buffer. Connection inputs stay mounted across task
 switches; unknown settings survive focused saves. No default configuration is
 presented as loaded customer state after an initial read failure.
 
-Verification and rollout status: `verification-support/knowledge-source-experience/README.md`.
+Final source `76b70713cb72fd8d6c131fa8e69df1fc5e5be25c` is deployed and
+healthy on staging and production; UI image CI `42478846183` passed. Focused
+provider/source/navigation checks, build, hosted source filtering, all four
+Search tasks, dark/light desktop and basic mobile passed. No live AI setting,
+index or customer infrastructure change. Developer/standard profiles retained.
+
+Verification: `verification-support/knowledge-source-experience/README.md`.
