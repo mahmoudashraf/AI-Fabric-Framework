@@ -13890,3 +13890,15 @@ test is being called hosted acceptance. UI extraction remains last.
   There is no per-action definition Save API; preserve other entries when editing
   one. A future guided editor/assistant should merge one proposal into the current
   draft buffer and reuse the existing save/publish contract. No action code changed.
+
+### Compact Homepage Invitations - 9 November 2026, Local Verification
+
+- Owner corrected the invitation scale: keep the original compact founder link,
+  with a similarly sized developer entry beside it. Removed the oversized founder
+  variant and shortened developer wording. Both stay adjacent at 320px and above.
+- Astro check (87 files, no findings), build, 28-route content/static smoke and
+  nine grouped local browser checks passed. Checks now enforce compact card bounds
+  and adjacent positioning as well as light/dark, media and founder interaction.
+- Hosted size correction pending at this entry. A detailed LoomAI-owned authoring
+  architecture follow-up is being prepared under 010.37; the assistant itself is
+  still unimplemented. No AI/backend/runtime changes are part of this UI correction.

@@ -24,10 +24,10 @@ const theme = page => page.locator('html').getAttribute('data-theme')
 async function checkEntryCards(page) {
   const cards = page.locator('.business-hero__actions')
   const founder = cards.getByRole('link', { name: 'Talk to Mo', exact: true })
-  const developer = cards.getByRole('link', { name: /Are you a developer/ })
+  const developer = cards.getByRole('link', { name: /Developer\?/ })
   assert.equal(await developer.getAttribute('href'), 'https://developer.loomai.pro/')
-  await developer.getByText('Configure your own Smart Brain.', { exact: true }).waitFor()
-  await founder.getByText('Founder / AI Enablement Engineer', { exact: true }).waitFor()
+  await developer.getByText('Configure your Smart Brain', { exact: true }).waitFor()
+  await founder.getByText('AI Enablement Engineer', { exact: true }).waitFor()
   for (const image of await cards.locator('img').all()) {
     await image.evaluate(element => element.decode())
     assert.ok(await image.evaluate(element => element.naturalWidth > 0 && element.complete))
@@ -35,13 +35,11 @@ async function checkEntryCards(page) {
   const founderBox = await founder.boundingBox()
   const developerBox = await developer.boundingBox()
   assert.ok(founderBox && developerBox)
-  if (page.viewportSize().width > 800) {
-    assert.equal(founderBox.y, developerBox.y)
-    assert.equal(founderBox.height, developerBox.height)
-    assert.ok(founderBox.x + founderBox.width < developerBox.x)
-  } else {
-    assert.ok(founderBox.y + founderBox.height < developerBox.y)
-  }
+  assert.equal(founderBox.y, developerBox.y)
+  assert.equal(founderBox.height, developerBox.height)
+  assert.ok(founderBox.x + founderBox.width < developerBox.x)
+  assert.ok(founderBox.height <= 72, 'Invitations must remain compact, including narrow screens')
+  if (page.viewportSize().width > 672) assert.ok(founderBox.width <= 240 && developerBox.width <= 260, 'Desktop invitations must not expand into full-width cards')
   assert.equal(await cards.evaluate(element => [...element.querySelectorAll('a, strong, small, img')].some(child => {
     const box = child.getBoundingClientRect()
     const parent = child.closest('a').getBoundingClientRect()

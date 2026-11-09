@@ -1,16 +1,14 @@
 ---
-import { ArrowRight, CodeXml } from '@lucide/astro'
+import { ArrowRight } from '@lucide/astro'
 ---
 
 <a class="developer-entry" href="https://developer.loomai.pro/">
-  <CodeXml class="developer-entry__code" size={30} aria-hidden="true" />
+  <img class="developer-entry__brain" src="/assets/developer/smart-brain.png" width="34" height="34" alt="" decoding="async" />
   <span class="developer-entry__copy">
-    <strong>Are you a developer?</strong>
-    <span>Configure your own Smart Brain.</span>
-    <small>For your app or side project</small>
+    <strong>Developer?</strong>
+    <small>Configure your Smart Brain</small>
   </span>
-  <img class="developer-entry__brain" src="/assets/developer/smart-brain.png" width="144" height="144" alt="" decoding="async" />
-  <ArrowRight class="developer-entry__arrow" size={24} aria-hidden="true" />
+  <ArrowRight class="developer-entry__arrow" size={17} aria-hidden="true" />
 </a>
 
 <style>
@@ -19,42 +17,27 @@ import { ArrowRight, CodeXml } from '@lucide/astro'
     background: #edf9f6;
     border: 1px solid #5cb9ad;
     border-radius: 8px;
-    box-shadow: 0 3px 12px rgb(20 70 60 / 5%);
     color: var(--loom-text-primary);
-    display: grid;
-    gap: 18px;
-    grid-template-columns: 30px minmax(0, 1fr) 124px 24px;
-    min-height: 142px;
-    padding: 10px 22px;
+    display: inline-flex;
+    gap: 8px;
+    max-width: 100%;
+    min-height: 48px;
+    padding: 7px 10px;
     text-decoration: none;
     transition: background 160ms, border-color 160ms;
   }
-  .developer-entry__code { color: #087c70; }
-  .developer-entry__copy { display: grid; gap: 6px; min-width: 0; }
-  .developer-entry__copy strong { font-size: 24px; line-height: 1.25; }
-  .developer-entry__copy > span { font-size: 17px; line-height: 1.45; }
-  .developer-entry__copy small { color: var(--loom-text-secondary); font-size: 14px; line-height: 1.4; }
-  .developer-entry__brain { height: 124px; object-fit: contain; width: 124px; }
+  .developer-entry__copy { display: grid; gap: 2px; min-width: 0; }
+  .developer-entry__copy strong { font-size: 13px; line-height: 1.3; }
+  .developer-entry__copy small { color: var(--loom-text-muted); font-size: 10px; line-height: 1.3; }
+  .developer-entry__brain { flex: 0 0 34px; height: 34px; object-fit: contain; width: 34px; }
+  .developer-entry__arrow { flex-shrink: 0; margin-left: auto; }
   .developer-entry:hover { background: #e1f4ef; border-color: #147d70; text-decoration: none; }
   .developer-entry:focus-visible { outline: 2px solid #087c70; outline-offset: 4px; }
   :global(:root[data-theme='dark']) .developer-entry { background: #132d2b; border-color: #428b80; }
-  :global(:root[data-theme='dark']) .developer-entry__code { color: #64dfcd; }
   :global(:root[data-theme='dark']) .developer-entry:hover { background: #193b36; border-color: #64dfcd; }
   :global(:root[data-theme='dark']) .developer-entry:focus-visible { outline-color: #64dfcd; }
-  @media (min-width: 50rem) and (max-width: 75rem) {
-    .developer-entry { gap: 12px; grid-template-columns: 26px minmax(0, 1fr) 100px 20px; padding-inline: 18px; }
-    .developer-entry__copy strong { font-size: 21px; }
-    .developer-entry__copy > span { font-size: 15px; }
-    .developer-entry__brain { height: 100px; width: 100px; }
-  }
   @media (max-width: 42rem) {
-    .developer-entry { gap: 10px; grid-template-columns: 24px minmax(0, 1fr) 78px; min-height: 138px; padding: 16px; }
-    .developer-entry__code { align-self: start; height: 24px; margin-top: 2px; width: 24px; }
-    .developer-entry__copy { gap: 5px; }
-    .developer-entry__copy strong { font-size: 19px; }
-    .developer-entry__copy > span { font-size: 14px; }
-    .developer-entry__copy small { font-size: 12px; }
-    .developer-entry__brain { grid-column: 3; grid-row: 1; height: 78px; width: 78px; }
+    .developer-entry__brain { flex-basis: 28px; height: 28px; width: 28px; }
     .developer-entry__arrow { display: none; }
   }
 </style>

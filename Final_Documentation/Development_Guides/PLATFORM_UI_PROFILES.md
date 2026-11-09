@@ -101,9 +101,11 @@ follow-up neither implements payment nor relaxes the staging-only backend policy
 The business homepage offers Developers in its desktop/mobile navigation and a
 Brain-image developer invitation beside the founder contact card. The invitation
 links to the production developer entry; the founder card reuses the existing
-contact/booking panel. Keep these as responsive light/dark HTML cards with actual
-self-hosted portrait/Brain assets, not a flattened mockup. The larger founder
-variant is homepage-only; other contact entry points remain compact.
+contact/booking panel. Keep these as compact, adjacent light/dark links with actual
+self-hosted portrait/Brain assets, not a flattened mockup or full-width invitation
+band. The founder entry retains its original 34px portrait and compact typography;
+the developer copy is `Developer?` / `Configure your Smart Brain`. Preserve their
+side-by-side placement on narrow screens without overflowing text.
 
 The backend stamps a persisted environment policy on developer-created Brains.
 Use its `deploymentPolicy.allowedEnvironments` for target choices and show its
