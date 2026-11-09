@@ -181,6 +181,16 @@ try {
     assert.equal(await page.getByRole('link', { name: 'Build a support team' }).getAttribute('href'), 'https://console.loomai.pro/kits/new/ai-support-experience?entryPoint=DEVELOPER')
     assert.equal(await page.getByRole('link', { name: 'Open Console' }).getAttribute('href'), 'https://console.loomai.pro/sign-in?entryPoint=DEVELOPER')
   }, { origin: 'http://developer.loomai.pro' })
+  await run('secure developer entry remembers the public website landing without identity data', async page => {
+    await page.goto('https://developer.loomai.pro/')
+    await page.getByRole('heading', { name: 'Smart Brain for your app.' }).waitFor()
+    await page.waitForFunction(() => document.cookie.includes('loomai-website-experience=DEVELOPER'))
+    const cookie = (await page.context().cookies('https://loomai.pro/')).find(value => value.name === 'loomai-website-experience')
+    assert.equal(cookie.value, 'DEVELOPER')
+    assert.equal(cookie.domain, '.loomai.pro')
+    assert.equal(cookie.secure, true)
+    assert.equal(cookie.sameSite, 'Lax')
+  }, { origin: 'https://developer.loomai.pro' })
   for (const width of [390, 768, 1920]) await run(`layout fits ${width}px viewport`, async page => {
     await page.goto(base + '/developers')
     await page.getByRole('heading', { name: 'Support Team Brain' }).waitFor()

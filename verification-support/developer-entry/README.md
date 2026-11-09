@@ -237,3 +237,22 @@ The mobile header deliberately hides its secondary Sign in link; the runner
 inspects that link's target in the DOM and checks the visible Open Console target.
 This was a runner selector correction, not an application change. Public report
 and screenshots remain under `output/developer-entry/hosted/`.
+
+## Shared Public Homepage Preference - 9 November 2026
+
+The developer landing and explicit Console discovery choices now set a shared
+Secure/SameSite=Lax presentation cookie (`DEVELOPER`/`CUSTOMER` only, one year).
+The public homepage sends remembered developer visitors to the existing developer
+landing before rendering; direct business subpages are unchanged. Fresh visitors
+keep the business homepage. Explicit business choice resets the shared preference.
+Signed-out Console discovery also reads it; an unrelated signed-in account does
+not inherit it. This cookie contains no token or identity and never grants access.
+
+This is website presentation, not the paid-production upgrade flow. No backend
+business API, runtime, resource policy, billing or payment change is included.
+
+Local checks passed: 32 focused auth/entry/profile checks, 13 landing browser
+scenarios, eight Console browser scenarios, actual homepage HTTP routing tests,
+TypeScript/production UI build and Astro check/build/static smoke (28 routes).
+Both build paths retain only the existing Console bundle/runtime-config warnings.
+Hosted delivery for this follow-up is pending; record exact sources after rollout.

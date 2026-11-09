@@ -54,6 +54,17 @@ try {
   await developerCards()
   const session = await request('/api/platform/auth/session')
   assert.equal(session.role, 'CUSTOMER_ADMIN')
+  if (environment === 'production') {
+    const cookie = (await context.cookies('https://loomai.pro/')).find(value => value.name === 'loomai-website-experience')
+    assert.equal(cookie?.value, 'DEVELOPER')
+    assert.equal(cookie.domain, '.loomai.pro')
+    await page.goto('https://loomai.pro/')
+    await page.waitForURL('https://developer.loomai.pro/')
+    await page.getByRole('heading', { name: 'Smart Brain for your app.', exact: true }).waitFor()
+    await page.goto(origin + '/kits')
+    await developerCards()
+    results.push({ rememberedWebsiteHome: true })
+  }
   const before = await request('/api/customer-experience-kits')
   const beforeIds = before.map(kit => kit.id).sort()
   assert.equal(await page.locator('.ek-saved-kit').count(), before.length)
@@ -76,6 +87,10 @@ try {
   await page.getByRole('button', { name: 'Browse business kits', exact: true }).click()
   await page.locator('.ek-catalogue-card').first().waitFor()
   assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
+  if (environment === 'production') {
+    assert.equal((await context.cookies('https://loomai.pro/')).find(value => value.name === 'loomai-website-experience')?.value, 'CUSTOMER')
+    assert.equal((await context.request.get('https://loomai.pro/', { maxRedirects: 0 })).status(), 200)
+  }
   await page.reload()
   await page.locator('.ek-catalogue-card').first().waitFor()
   assert.equal(await page.locator('.ek-catalogue-card').count(), 3)

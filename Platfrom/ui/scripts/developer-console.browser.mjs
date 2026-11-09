@@ -139,6 +139,16 @@ try {
     await page.getByRole('heading', { name: 'Choose your AI experience', exact: true }).waitFor()
     assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
   })
+  await run('signed-out Console discovery respects the shared developer entry but not another account', async (page, setIdentity) => {
+    setIdentity(null)
+    await page.context().addCookies([{ name: 'loomai-website-experience', value: 'DEVELOPER', url: base }])
+    await page.goto(base + '/')
+    await developerCards(page)
+    setIdentity('ordinary-owner')
+    await page.goto(base + '/kits')
+    await page.locator('.ek-catalogue-card').first().waitFor()
+    assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
+  })
   await run('empty Brain resource screen offers developer starters without business template cards', async page => {
     await page.goto(base + '/deployments?entryPoint=DEVELOPER')
     await developerCards(page)

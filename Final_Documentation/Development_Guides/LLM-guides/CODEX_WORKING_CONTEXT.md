@@ -13788,3 +13788,21 @@ test is being called hosted acceptance. UI extraction remains last.
 - Reusable hosted runner and receipts: `verification-support/developer-entry/`.
   Private fixture credentials remain outside git; reports/screenshots remain
   ignored under `output/developer-entry/`. Unrelated dirty/untracked work retained.
+
+### 010.67 Shared Developer Website Preference - 9 November 2026, Local Only
+
+- Owner clarified developer referrals must keep developer landing/cards unless
+  deliberately browsing business content. Added a shared, non-sensitive website
+  presentation cookie and homepage-only redirect on the public-site frontend
+  server. Explicit business browsing remains available. Fresh visitors unchanged.
+- Signed-out Console discovery reads the shared preference. Signed-in Console
+  still uses actor/customer-scoped preference; another account does not inherit
+  the cookie as account policy. No auth token/identity is stored in the cookie.
+- "Upgrade" means paid production publishing, not switching display mode. No
+  production policy, payment, backend business API or runtime change is included.
+- Local: 32 auth/entry/profile checks, 13 landing and eight Console browser
+  scenarios, actual homepage HTTP routing, UI TypeScript/build and site Astro
+  check/build/static smoke passed. Hosted rollout still pending at this entry.
+- After delivery, user requested assessment of a LoomAI-powered configuration
+  assistant versus Claude integration, using the existing 010.37 plan. Analysis
+  requested only; do not implement an assistant without a new go-ahead.

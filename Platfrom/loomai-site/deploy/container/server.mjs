@@ -218,7 +218,7 @@ function contentType(targetPath, extension) {
 function serveFile(request, response, targetPath, statusCode = 200) {
   const extension = path.extname(targetPath).toLowerCase()
   response.writeHead(statusCode, {
-    'Cache-Control': cacheControl(targetPath),
+    'Cache-Control': targetPath === path.join(distDir, 'index.html') ? 'private, no-store' : cacheControl(targetPath),
     'Content-Type': contentType(targetPath, extension),
     ...securityHeaders(extension !== '.html'),
   })
@@ -250,6 +250,22 @@ const server = createServer(async (request, response) => {
     response.writeHead(405, { Allow: 'GET, HEAD', ...securityHeaders(false) })
     response.end()
     return
+  }
+
+  // The shared cookie selects a landing page only, never an account or permission.
+  if (requestUrl.pathname === '/') {
+    const explicit = requestUrl.searchParams.get('entryPoint')
+    const remembered = (request.headers.cookie || '').split(';').map(value => value.trim())
+      .find(value => value.startsWith('loomai-website-experience='))?.slice('loomai-website-experience='.length)
+    const selection = ['DEVELOPER', 'CUSTOMER'].includes(explicit) ? explicit : remembered
+    response.setHeader('Vary', 'Cookie')
+    if (['DEVELOPER', 'CUSTOMER'].includes(explicit)) response.setHeader('Set-Cookie',
+      `loomai-website-experience=${explicit}; Domain=loomai.pro; Path=/; Max-Age=31536000; SameSite=Lax; Secure`)
+    if (selection === 'DEVELOPER') {
+      response.writeHead(302, { Location: 'https://developer.loomai.pro/', 'Cache-Control': 'private, no-store', ...securityHeaders(false) })
+      response.end()
+      return
+    }
   }
 
   if (requestUrl.pathname === '/health') {

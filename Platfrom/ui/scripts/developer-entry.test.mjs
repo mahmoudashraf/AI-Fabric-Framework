@@ -42,6 +42,24 @@ test('Console experience is an exact account-scoped presentation choice', () => 
   assert.equal(entry.readConsoleExperience({ getItem: () => { throw new Error('Storage disabled') } }, key), null)
   assert.equal(entry.developerEntryPath('/sign-in?kit=ai-support-experience#form'), '/sign-in?kit=ai-support-experience&entryPoint=DEVELOPER#form')
 })
+test('shared website preference contains only a display choice and never scopes to other hosts', () => {
+  const doc = { cookie: '' }
+  entry.rememberWebsiteExperience('DEVELOPER', 'developer.loomai.pro', doc)
+  assert.equal(doc.cookie, `${entry.WEBSITE_EXPERIENCE_COOKIE}=DEVELOPER; Domain=loomai.pro; Path=/; Max-Age=31536000; SameSite=Lax; Secure`)
+  assert.equal(entry.readWebsiteExperience(doc), 'DEVELOPER')
+  entry.rememberWebsiteExperience('CUSTOMER', 'console.loomai.pro', doc)
+  assert.ok(doc.cookie.startsWith(`${entry.WEBSITE_EXPERIENCE_COOKIE}=CUSTOMER;`))
+  assert.equal(entry.readWebsiteExperience(doc), 'CUSTOMER')
+  for (const cookie of ['', 'loomai-website-experience=ADMIN', 'loomai-website-experience=DEVELOPER-extra', 'other-loomai-website-experience=DEVELOPER']) {
+    assert.equal(entry.readWebsiteExperience({ cookie }), null)
+  }
+  for (const host of ['localhost', 'developer.loomai.pro.evil.test', 'loomai-platform-ui.46.224.145.148.sslip.io']) {
+    doc.cookie = ''
+    entry.rememberWebsiteExperience('DEVELOPER', host, doc)
+    assert.equal(doc.cookie, '')
+  }
+  assert.doesNotThrow(() => entry.rememberWebsiteExperience('DEVELOPER', 'console.loomai.pro', { set cookie(_value) { throw new Error('Cookies disabled') } }))
+})
 test('UI honours persisted allowed environments without reinterpreting arbitrary tags', () => {
   const developer = { allowedEnvironments: ['staging'], tags: ['staging-only'] }
   const business = { allowedEnvironments: ['staging', 'production'], tags: [] }

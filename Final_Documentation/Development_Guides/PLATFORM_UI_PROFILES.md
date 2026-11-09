@@ -80,6 +80,24 @@ the backend creation contract. Never infer or relax allowed environments from
 this preference. Ordinary visitors without a remembered/explicit developer
 choice retain business cards.
 
+Owner follow-up, 9 November: a visitor entering through the developer URL must
+keep developer presentation unless deliberately browsing business content. A
+Secure/SameSite=Lax `loomai-website-experience` cookie on `loomai.pro` carries only
+`DEVELOPER` or `CUSTOMER`, with a one-year lifetime and no identity/token data.
+It selects the public homepage and signed-out Console discovery; signed-in
+Console preferences remain actor/customer-scoped and are not inherited by an
+unrelated account. The public site's `/` redirects remembered developer visitors
+to `https://developer.loomai.pro/` before rendering business cards. Other paths
+(products, demos, proposals, etc.) are deliberate browsing and are unchanged.
+Homepage responses are private/no-store and vary by Cookie, avoiding a cached
+personalized redirect. `/?entryPoint=CUSTOMER` or Console's explicit business
+switch restores the business homepage. Fresh visitors keep the ordinary homepage.
+
+The website cookie is not a developer session, authentication, entitlement or
+production upgrade. The owner means a paid production launch by "upgrade";
+browsing business content must never perform that transition. This presentation
+follow-up neither implements payment nor relaxes the staging-only backend policy.
+
 The backend stamps a persisted environment policy on developer-created Brains.
 Use its `deploymentPolicy.allowedEnvironments` for target choices and show its
 staging-only status. Do not infer policy from the hostname, browser preference,

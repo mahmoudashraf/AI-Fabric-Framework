@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useLocation, useNavigate } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
-import { consoleExperienceKey, developerLandingHost, explicitConsoleExperience, readConsoleExperience, type ConsoleExperience } from './developerEntry'
+import { consoleExperienceKey, developerLandingHost, explicitConsoleExperience, readConsoleExperience, readWebsiteExperience, rememberWebsiteExperience, type ConsoleExperience } from './developerEntry'
 
 const pendingKey = 'loomai-console-pending-experience'
 const changedEvent = 'loomai-console-experience-changed'
@@ -29,7 +29,12 @@ export function DeveloperExperienceProvider({ children }: { children: ReactNode 
   const pending = !auth.session?.authenticated || customer ? pendingExperience() : null
   let stored: ConsoleExperience | null = null
   try { stored = customer ? readConsoleExperience(window.localStorage, scope) : null } catch { /* Storage can be disabled by the browser. */ }
-  const mode = explicit ?? pending ?? stored ?? memory[scope] ?? 'CUSTOMER'
+  const website = !auth.session?.authenticated ? readWebsiteExperience() : null
+  const mode = explicit ?? pending ?? stored ?? memory[scope] ?? website ?? 'CUSTOMER'
+
+  useEffect(() => {
+    if (explicit || (!auth.isLoading && customer)) rememberWebsiteExperience(mode)
+  }, [auth.isLoading, explicit, customer, mode])
 
   useEffect(() => {
     const update = () => refresh(value => value + 1)
@@ -54,6 +59,7 @@ export function DeveloperExperienceProvider({ children }: { children: ReactNode 
   }, [auth.isLoading, auth.session?.authenticated, customer, explicit, pending, scope])
 
   const selectExperience = (next: ConsoleExperience) => {
+    rememberWebsiteExperience(next)
     try {
       if (customer) { localStorage.setItem(scope, next); sessionStorage.removeItem(pendingKey) }
       else sessionStorage.setItem(pendingKey, JSON.stringify({ mode: next, createdAt: Date.now() }))

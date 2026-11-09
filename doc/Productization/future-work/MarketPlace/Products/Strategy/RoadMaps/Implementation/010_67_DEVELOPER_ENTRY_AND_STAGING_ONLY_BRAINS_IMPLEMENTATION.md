@@ -100,6 +100,21 @@ phone fit, typed staging-only setup and sign-out passed on both environments.
 No backend/runtime changes or new resources. See the verification README for
 exact deployment receipts, test scope and screenshots.
 
+### Public Homepage Continuity Follow-Up
+
+Owner clarification: developer referrals keep developer presentation across
+`loomai.pro` and Console unless intentionally browsing business content. Use one
+non-sensitive shared presentation cookie, not a new session/account role.
+The public homepage redirects to the existing developer landing for this choice;
+deep product/demo/proposal links remain reachable. Fresh browsers keep the business
+homepage; explicit business choice resets the shared preference. Signed-out Console
+discovery may read it, but another signed-in account does not inherit it.
+
+"Upgrade" means paid publishing to production, not browsing business kits. Do not
+enable production, change resource policy or imply a payment flow is implemented
+as part of this minimal presentation change. Hosted verification is recorded in
+the verification README and working context after rollout.
+
 ### Previously Hosted Foundation
 
 - Complete: typed backend policy, migration 238 and focused enforcement tests.
