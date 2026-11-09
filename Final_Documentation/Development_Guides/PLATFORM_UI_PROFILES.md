@@ -92,6 +92,16 @@ claim live execution, configured specialists or successful provider calls.
 Developer-page header/footer logos are noninteractive branding, not links.
 Other product pages keep their existing logo navigation.
 
+The eight capability nodes, Web/Mobile/Backend targets and four start steps open
+read-only visual explorers. Keep provider icons named and self-hosted; distinguish
+supported options from configured or active services. Starter actions use the
+same two real Kit routes and preserve developer intent. Code examples follow the
+existing Engage installation and published runtime routes, with placeholder
+tokens/IDs, not provider credentials. Mobile delivery means the mobile-friendly
+workspace, a web view or the customer's own native client, not a new native SDK.
+These previews never provision, change settings or invoke AI. Keep dialog theme
+tokens on the portal itself so the primary action stays readable.
+
 The developer offer is one year of developer platform access and LoomAI training,
 not lifetime hosting, unlimited model credit or a quota/funding bypass. Existing
 support provides the training enquiry entry; no duplicate ticket system is added.

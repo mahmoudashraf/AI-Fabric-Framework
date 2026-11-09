@@ -37,9 +37,32 @@ try {
       await page.getByRole('button', { name: 'Close capability preview', exact: true }).click()
       await page.getByRole('dialog').waitFor({ state: 'hidden' })
     }
+    for (const button of await page.locator('.dev-app-targets > button, .dev-step-button').all()) {
+      await button.click()
+      const dialog = page.getByRole('dialog')
+      await dialog.waitFor()
+      assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true)
+      const cta = dialog.getByRole('link', { name: 'Choose your starting point' })
+      assert.equal(await cta.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(99, 239, 207)')
+      await dialog.getByRole('button', { name: 'Close capability preview' }).click()
+      await dialog.waitFor({ state: 'hidden' })
+    }
+    await page.getByRole('button', { name: /AI models Your choice/ }).click()
+    const models = page.getByRole('dialog')
+    assert.equal(await models.locator('.dev-option-grid li').count(), 5)
+    for (const img of await models.locator('img').all()) await img.evaluate(image => image.decode())
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.MuiDialog-container')).opacity === '1')
+    await models.screenshot({ path: output + `models-${width}.png`, animations: 'disabled' })
+    await models.getByRole('button', { name: 'Close capability preview' }).click()
+    await models.waitFor({ state: 'hidden' })
+    await page.locator('.dev-app-targets').getByRole('button', { name: 'Backend', exact: true }).click()
+    const api = page.getByRole('dialog')
+    assert.ok((await api.locator('pre code').innerText()).includes('/api/chat/me/conversations/$CONVERSATION_ID/messages'))
+    await api.getByRole('button', { name: 'Close capability preview' }).click()
+    await api.waitFor({ state: 'hidden' })
     await page.screenshot({ path: output + `developer-${width}.png`, fullPage: true })
     assert.deepEqual(errors, [])
-    results.push({ host: 'developer.loomai.pro', width, https: true, capabilityPreviews: 8, starters: 2, imagesLoaded: true, overflow: false, browserErrors: errors })
+    results.push({ host: 'developer.loomai.pro', width, https: true, capabilityPreviews: 8, integrationPreviews: 3, setupPreviews: 4, modelProviderIcons: 5, backendExample: true, starters: 2, imagesLoaded: true, overflow: false, browserErrors: errors })
     await page.close()
   }
   for (const [name, origin] of [
