@@ -13868,3 +13868,25 @@ test is being called hosted acceptance. UI extraction remains last.
   media, layout, themes and the founder panel. Hosted component rollout pending.
 - No Platform backend, runtime, framework, action configuration, AI calls or
   resource provisioning changed. Unrelated dirty/untracked work is retained.
+
+### Homepage Developer Invitation - 9 November 2026, Verified Live
+
+- Supersedes the local-only component status. Source
+  `892e0f95dd95ec1c6c7841cb3dede80bdbc69099` is committed/pushed. CI
+  `42649599944` passed, building only `loomai-site`. Requested the image-only
+  update after checking CI, the expected repository and an idle deployment queue.
+  Coolify job `kmqrfhp58x6ctn8yirun4uoq` finished. Native inspection confirms a
+  healthy exact-source public-site container. No backend or runtime rollout.
+- Ten live browser groups passed against `https://loomai.pro`, covering cards,
+  loaded media, contact-panel open/close, light/dark persistence, desktop header,
+  320/390/768px layouts, navigation, actual developer-card click and remembered
+  developer homepage redirect. No mocks, forced clicks or captured page errors.
+  Screenshots are ignored under
+  `Platfrom/loomai-site/test-results/developer-invitation-live/`; private image
+  receipts remain under the ignored private 010.67 source directory.
+- Action-authoring question checked against `ActionsPage.tsx` and
+  `DeploymentService.updateDraftInternal`: actions are separate definitions, but
+  the current editor/API replaces the complete `actionsConfig` document on save.
+  There is no per-action definition Save API; preserve other entries when editing
+  one. A future guided editor/assistant should merge one proposal into the current
+  draft buffer and reuse the existing save/publish contract. No action code changed.
