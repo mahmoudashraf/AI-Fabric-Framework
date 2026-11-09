@@ -13933,3 +13933,48 @@ test is being called hosted acceptance. UI extraction remains last.
 - Assistant implementation remains unstarted. No provider calls, runtime changes,
   framework release or deployed customer configuration changes were made for the
   assessment. Unrelated dirty `.gitignore` and untracked work remain untouched.
+
+### Dealership Inventory Evidence - 9 November 2026, Hosted Qualification
+
+- Approved scope is 010.63 evidence completeness only, not suggestions, behavior
+  profiles or another redesign. Source `49024a2bed8b2dada4f04be73d80cf432454c6fa`
+  is pushed. All five triggered CI workflows passed; no framework release.
+- Both backends are at `239:true`. New immutable DATA/READ/template revisions
+  preserve optional provider fields. Connector changes preserve array content
+  and omit null searchable values; no domain-specific connector normalizer or
+  semantic text matching. Dealership presentation remains in its pack.
+- Simulator is healthy at the exact source, retaining its v2 fixture override,
+  existing volume/reset identity. Six reviewed fictional records were updated;
+  ten other records and two other accounts were preserved. Website seed data
+  was not read or promoted into AI evidence. Location is advertiser town, not
+  a claim of precise branch-level vehicle tracking. Range test basis is unknown.
+- Northfield `ver-689ff79c`, artifact `dsa-b722f1e4`, framework **0.8.46**,
+  image digest `sha256:388fba71e895078795b7c39da578ab20412cafea9e75a53a79fbf17d89d23419`.
+  Previous prompts/model/security/shell/behavior and enquiry tuning are retained.
+  Plugin recomposition restored old enquiry copy; the original descriptions and
+  confirmation message were explicitly preserved before publish and checked
+  again in the published manifest.
+- Staging `rel-5846d684` passed and its existing Engage assignment was updated.
+  Six indexing jobs completed with zero failures. Same-session READ checks:
+  E1 facts pass, E1/C2 comparison partial (unnecessary uncertainty about the
+  supplied Optional equipment type), sparse E2 facts pass. Separate live RAG
+  returned actual indexed dealer-vehicle documents with the new fields and zero
+  actions. UI search -> View details works, with no business writes.
+- Production `rel-1cf5f756` passed, existing assignment updated. Six records
+  indexed independently with zero failed work. Production E1 facts, comparison
+  and RAG-only checks passed; **one E2 follow-up borrowed the E1 location** even
+  though the E2 READ record lacks it. Retain this as a model record-attribution
+  failure, not a mapping defect or a green semantic gate. No extra fix applied.
+  Production UI search -> E1 details -> E2 details passed; the raw-data E2 card
+  keeps missing fields unknown. Desktop/mobile viewport screenshots inspected,
+  no captured page errors or business writes. Seven changed serving containers
+  are natively healthy at the exact source. Private execution scripts, original
+  failures and receipts: `~/.codex/private/loomai-evidence-20261109/`.
+- Policy work remains externally blocked. Exactly three short v1 sources are
+  active per environment; no competing six-file pack was registered. Old local
+  staging reader credentials are invalid, but the live connector preview works.
+  Required for production found no approved uploader for the existing canary
+  bucket. Owner upload/scoped upload access is requested asynchronously. Do not
+  substitute Support/managed-storage credentials or create another bucket.
+- Full execution record:
+  `verification-support/ai-behaviour-01063/2026-11-09-dealership-evidence-completeness.md`.

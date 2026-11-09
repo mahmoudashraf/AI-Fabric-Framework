@@ -10,6 +10,16 @@
     "prompt": "Compare that car with the Morrow C2 for a family using current stock evidence. Compare seats, equipment, electric range and location where supplied, and say what still needs checking."
   },
   {
+    "id": "missing-vehicle-facts",
+    "session": "vehicle-evidence",
+    "prompt": "Now show the 2025 Aster E2. What seats, electric range, equipment and location are actually supplied for that car? Do not reuse another vehicle's specifications."
+  },
+  {
+    "id": "indexed-vehicle-evidence",
+    "session": "indexed-evidence",
+    "prompt": "From the indexed dealership inventory evidence, rather than a live action, what seats, electric range and equipment are recorded for the 2025 Aster E1? Say what range test basis is actually supplied."
+  },
+  {
     "id": "delivery-policy",
     "session": "policy-evidence",
     "prompt": "What does delivery cost at 20 miles and at 40 miles, and what payment, identity and insurance requirements must be met before handover? I only need information."

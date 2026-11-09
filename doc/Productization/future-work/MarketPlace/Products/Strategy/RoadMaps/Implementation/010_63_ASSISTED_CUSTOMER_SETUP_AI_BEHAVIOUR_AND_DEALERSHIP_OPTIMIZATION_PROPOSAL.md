@@ -295,6 +295,19 @@ Do not patch the AI's facts from the independent website's seeded inventory. The
 
 Source: [demo website model](../../../../../../../../product-demos/autotrader-dealership-demo/backend/src/main/java/com/loomai/demo/dealership/inventory/Vehicle.java), [current storage fixture guidance](../../../../../../../../product-demos/autotrader-dealership-demo/backend/deployment/customer-storage-policy-pack/README.md), [older fixture guidance](../../../../../../../../product-demos/autotrader-dealership-demo/backend/deployment/document-sources/README.md).
 
+**9 November 2026 implementation:** inventory evidence now reaches indexing,
+READ results, trusted targets and the dealership renderer through new immutable
+plugin/template revisions. Qualified on Northfield staging and production,
+including a real RAG query with zero actions. Optional facts remain optional;
+range test basis is unknown, and location is advertiser town rather than precise
+branch tracking. No website-seed enrichment, framework release, semantic text
+matching or prompt/profile change. One production follow-up still borrowed a
+location from another vehicle despite correct source data; retained as an open
+model-quality limitation. Policy audit found only three short active originals,
+not duplicate fixture sets. The richer replacement pack remains pending scoped
+S3 upload access and indexing qualification. See the
+[execution and verification record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-09-dealership-evidence-completeness.md).
+
 ### 6.3 Proposed layout and journey
 
 **Website dock:** keep a compact branded input, attachment indicators and minimize/open controls. No large tool rows consuming the conversation area. A useful response can open Max deliberately; adding a page attachment must not force it open.

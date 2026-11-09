@@ -413,3 +413,22 @@ Evidence: [hosted verification](../../../../../../../../verification-support/ai-
 The four other audited semantic/fallback defects and public web search remain
 deferred. The separately documented broad framework Incident Room failure is
 not relabelled green by these focused/product checks.
+
+## 9 November 2026 - Inventory Evidence Completion
+
+Source `49024a2be` adds provider-owned optional stock facts, generic array/null
+preservation and immutable DATA/READ/template evidence revisions. Both backends
+are at schema 239; Northfield `ver-689ff79c` is verified on staging
+`rel-5846d684` and production `rel-1cf5f756`, retaining existing app identities,
+AI settings and enquiry tuning. Framework remains 0.8.46. All five triggered
+CI workflows and the focused local checks passed.
+
+Six records indexed independently on each target, with zero failed work. Actual
+RAG, READ and UI detail results carry the new evidence. Missing E2 facts remain
+absent in the source/index/UI, but one production model follow-up incorrectly
+borrowed the E1 location. This is recorded, not masked or re-scored as a pass.
+The richer policy pack still needs scoped S3 upload access, source refresh/index
+reconciliation and policy-quality verification. Inventory completion is not full
+policy or perfect-answer acceptance.
+
+See [full evidence record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-09-dealership-evidence-completeness.md).
