@@ -1,11 +1,20 @@
-# 010.37 Platform Configuration Assistant Implementation Plan
+# 010.37 LoomAI Configuration Assistant - Detailed Solution And Implementation Plan
 
 - Status: planned; implementation not started.
 - Created: 2026-10-13. Expanded: 2026-11-09.
-- Source baseline: `2d4922564a707f987850ed353c13c4e9dd585d93`.
+- Latest Platform inspection: `52f71995410260a743bae67fd2a9cf59b821ee8b`, 2026-11-09. Source inspection is not evidence of an implemented assistant or a deployed framework upgrade.
 - Owner: Platform customer and staff authoring experience.
 - Scope: API documentation import, guided configuration, structured proposals and integration with existing editors. This is not a deployment or framework release record.
 - Related: [coding assistant skill](010_35_AI_FABRIC_CODING_ASSISTANT_SKILL_IMPLEMENTATION_PLAN.md), [semantic decisions](010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md), [UI entry points](../../../../../../../../Final_Documentation/Development_Guides/PLATFORM_UI_PROFILES.md).
+
+## Review Summary
+
+- **Recommendation:** LoomAI owns the assistant UX/workflow; a shared private LoomAI runtime uses the existing framework and a qualified model. No full coding agent is required.
+- **Framework verdict:** no upgrade/release is currently required by the inspected `0.8.46` contracts. New Platform, private runtime and generic chat-UI integration work is required; this is not configuration-only.
+- **First result:** describe an API-backed capability, share its documentation, review an action/route proposal, adopt it into the existing editor, then save normally. Work on one action at a time while preserving the whole catalogue.
+- **Authority:** the assistant proposes. The existing user-authorized editor saves; testing, indexing, publishing and deployment remain separate explicit actions.
+- **Read first:** [customer walkthrough](#14-detailed-customer-and-developer-walkthrough), [framework assessment](#15-framework-assessment-and-required-product-extensions), [flow/data ownership](#16-end-to-end-contract-and-data-flow) and [first release boundary](#17-first-release-boundary-and-review-decisions).
+- **Implementation status:** planned. This document is not a claim that the assistant, private route or shared assistant deployment exists today.
 
 ## 1. Product Outcome
 
@@ -21,11 +30,13 @@ The result should coordinate supported action definitions, HTTP routing, a priva
 
 ### 1.1 Architecture Decision
 
-Start with a provider-independent, schema-aware assistant using server-side OpenAI or Anthropic model APIs, structured outputs and a small scoped read/check tool surface. Do not embed a terminal, desktop application, browser automation agent or unrestricted coding workspace.
+Build a **LoomAI-owned configuration assistant**, with the existing generic chat UI in a resource-scoped editor panel, Platform-owned authoring workflows, and one shared LoomAI-managed inference runtime per environment. The runtime uses released AI Fabric structured-generation primitives. Its model provider can be OpenAI, Anthropic or another qualified framework provider; product ownership and model-provider choice are different decisions.
 
-Implement this in the existing Platform backend and UI. Do not allocate a runtime, vector store or customer business database per assistant session. The older requirement in this plan for a dedicated assistant deployment is superseded for the initial release. A shared LoomAI assistant deployment can remain a later transport option if it supports the same structured contract without authoring side effects.
+This supersedes the earlier direct-provider gateway recommendation. Platform should not build a second set of provider SDK adapters when the released framework already provides generation and structured JSON calls. A small private runtime authoring capability is new product work, not an existing Support-chat endpoint and not a new framework behavior/plugin type.
 
-Full Codex or Claude Agent SDK execution is deferred to connector-code generation and testing. JSON authoring must not depend on it. No framework binary change is expected; raise an evidenced framework gap before expanding scope.
+Platform owns authorization, documents, schemas, sessions, proposals, candidate checks and editor adoption. The shared runtime owns bounded inference and provider credentials. Do not allocate a runtime, vector store or customer business database per assistant session. No additional customer deployment slot is required for using this shared authoring service; its actual service capacity and usage remain LoomAI-operated and accounted.
+
+Start with one qualified provider/model. Keep the integration provider-independent, but do not make a second provider, multi-agent team or a full coding SDK a first-release prerequisite. No framework binary change is evidenced as necessary: section 15 records the released APIs and exact qualification boundary. Any newly discovered framework gap must be raised for owner review before a framework change/release.
 
 ### 1.2 Governing Rules
 
@@ -49,6 +60,16 @@ Full Codex or Claude Agent SDK execution is deferred to connector-code generatio
 - `Platfrom/ui/src/pages/AIWorkspacesPage.tsx`: Engage configuration, preview, installation and domains.
 - `Platfrom/ui/src/brain/brainNavigation.ts`: canonical Brain-scoped navigation. Account/app authoring keep their existing roots.
 
+The generic widget has route overrides in `max-mode-widget/src/config.ts` and
+`src/api/chat.ts`, and registered action presentation, but these still assume a
+runtime chat response/session contract. `src/entries/react.ts` does not export a
+controlled configuration-assistant conversation surface. Changing a query URL is
+not sufficient to install the proposed authoring protocol. Add a small generic
+controlled conversation/message-rendering adapter or export the relevant shared
+presentation surface; keep schema/proposal and resource-editing logic in Console.
+Do not fork the whole widget, fake a business-action result, or pull ticket/case
+behavior into the assistant merely to reuse its styling.
+
 ### 2.2 Existing Backend To Reuse
 
 Paths below are relative to `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/`.
@@ -65,9 +86,13 @@ Paths below are relative to `Platfrom/backend/src/main/java/com/ai/fabric/platfo
 
 The inspected source has no assistant facade, API-document import workflow or assistant proposal lifecycle. Runtime Swagger links are not customer API imports. Existing MCP discovery is not an OpenAPI importer.
 
-The backend has no general model-generation gateway. Provider connectivity probes are not authoring inference calls. Add a small new `ConfigurationModelGateway`; do not assume the runtime chat route accepts arbitrary output schemas.
+The backend has no general model-generation gateway. Provider connectivity probes are not authoring inference calls. Add a small `ConfigurationModelGateway` client/facade backed by the private assistant runtime capability, not provider SDKs in the control plane. The runtime chat request has no arbitrary output-schema field; do not assume normal chat accepts this new authoring contract.
+
+Existing `support/runtime/SupportRuntimeClient.java` permits only `/api/chat/...`, while `SupportWorkspaceService` binds routes to owned Support cases/episodes. Reuse suitable low-level transport/authority patterns, not those case-specific controllers, identities or permissions. Configuration sessions must be authorized against the selected draft/plugin/app. Existing Support remains a separate working product.
 
 Concurrency needs a focused fix: the draft update DTO has no expected edit version. `revisionNumber` advances when constructing a subsequent published draft, not on every edit. The repository has `findByIdForUpdate`, but ordinary `updateDraftInternal` reads through `findById`. A browser fetch-before-save is not atomic. Reuse private plugins' existing expected-revision contract and introduce shared atomic edit protection where missing.
+
+Engage already has JPA `rowVersion` and an update-request field, although the explicit stale-version comparison is conditional when the request omits it. Reuse this mechanism and always send the loaded version from the assistant-enabled editor. Its ordinary update service rejects edits to an active installation: the assistant must not disable an app to get around that rule. It may prepare a preview and explain the existing explicit disable/edit/activate path.
 
 Some legacy action-routing fields can contain authentication values. Never send an entire raw draft to a provider. Use allowlisted, redacted projections and secure existing credential controls.
 
@@ -293,9 +318,13 @@ flowchart LR
   F --> I[Bounded parser and safe fetcher]
   I --> D[Scoped document catalogue]
   F --> C[Safe schemas and resource projection]
-  C --> M[Configuration model gateway]
-  D --> M
-  M --> G[Structured proposal]
+  C --> T[Private authoring request]
+  D --> T
+  T --> A[Shared LoomAI assistant runtime]
+  A --> J[AI Fabric structured JSON executor]
+  J --> M[Configured model provider]
+  M --> J
+  J --> G[Structured proposal candidate]
   G --> V[Existing validators and compiler dry run]
   V --> P
   P --> B[Explicit merge into editor buffer]
@@ -305,11 +334,13 @@ flowchart LR
 
 ### 6.1 Components And Provider Choice
 
-Implement the facade, sessions/sources/proposals, context projections, schema catalogue, parsers and gateway under `Platfrom/backend/.../assistant/`. Keep these in the existing backend; no standalone service is required.
+Implement the facade, sessions/sources/proposals, context projections, schema catalogue, parsers and runtime client under `Platfrom/backend/.../assistant/`. Keep this product state in the existing backend, not a new orchestration service.
 
-`ConfigurationModelGateway` provides one structured authoring contract with bounded OpenAI and Anthropic adapters using official server-side APIs/clients and qualified models. Use configured model IDs. Never silently substitute a provider or present unsupported structured-output capabilities as enabled.
+Add the private inference adapter under `ai-infrastructure-module/ai-fabric-runtime/.../authoring/`. A proposed `mkp-template-configuration-assistant` uses the existing template primitive to select the reviewed image, managed authoring prompts and inference configuration. This identifier/template does not exist yet. Do not introduce a new deployment behavior merely to generate JSON.
 
-Provider keys remain in existing backend secret management. Users need no Claude/ChatGPT login and do not expose their runtime's provider key. Staff select the authoring provider independently of runtime settings. Record authoring usage separately; do not charge a customer's runtime allowance without an explicit supported funding choice.
+`ConfigurationModelGateway` sends a fixed, versioned authoring request to that assigned shared runtime. Use `StructuredJsonCallExecutor` with `AICoreService.generateContent`, `AIGenerationRequest` and the configured framework provider. Platform supplies only its registered contract IDs and safe resource/input projections; the runtime resolves the approved schema/prompt version. A customer cannot select arbitrary system instructions, provider URLs or tool permissions.
+
+Provider keys remain in the assistant runtime's existing managed secret/budget integration, not browser bundles or uploaded API documents. Users need no Claude/ChatGPT login and do not expose their customer runtime's provider key. Staff select the authoring model independently of the Brain being edited. Record authoring usage separately; do not silently charge a customer's runtime allowance. Qualification must prove the authoring path actually traverses the intended accounting/deadline controls rather than assuming chat-budget checks apply automatically.
 
 Build a versioned schema catalogue from real DTOs, manifest contracts and validators. Centralize currently implicit contract descriptions and test them against the compiler. Do not maintain a divergent schema in prompts or reject valid existing fields merely because a provider supports a smaller JSON Schema dialect.
 
@@ -326,7 +357,9 @@ Provide these logical operations, either as provider tools or facade-supplied co
 
 Do not expose save, publish, apply, secret-value retrieval, invitation, provisioning, indexing, business-action execution or arbitrary HTTP tools. Documentation fetching belongs to the dedicated bounded importer, not a general agent network tool.
 
-Because the initial gateway executes in the backend, bind context to the authenticated principal and server-resolved resource. A separate delegation service is unnecessary. If external coding agents are connected later, add short-lived resource-scoped delegation then, never administrator keys or customer bearer tokens in prompts.
+Platform binds context to the authenticated principal and server-resolved resource. Reuse the existing reviewed Platform-to-runtime authority/signing pattern, with a separately checked authoring purpose/audience, short expiry and a request/session binding. These authoring claims and route authorization are new product integration work, not current Support permissions. Never forward a customer bearer token or a Platform administrator key as model input.
+
+The private capability should initially receive the minimal complete projection for the selected task rather than a broad callback toolset. If a later turn requires another source/binding, Platform resolves it after the same authorization checks. No separate delegation service is needed. External coding agents remain deferred.
 
 ### 6.3 Proposed API
 
@@ -406,7 +439,7 @@ If saved-proposal provenance is persisted, pass an optional proposal correlation
 
 ## 7. Storage Privacy And Resource Bounds
 
-Use scoped session, source and turn/proposal tables in existing Platform PostgreSQL. No separate database or vector store. Process original uploaded binaries transiently; persist bounded normalized text/catalogue JSON and safe provenance. Provide explicit deletion.
+Use scoped session, source and turn/proposal tables in existing Platform PostgreSQL. No separate customer database or vector store. The assistant runtime performs transient authoring inference; it must not retain another independent copy of the authoring transcript/source catalogue. Process original uploaded binaries transiently; persist bounded normalized text/catalogue JSON and safe provenance in Platform. Provide explicit deletion.
 
 Session data contains customer/creator, target resource, schema/catalogue versions, provider and expiry. Sources contain a digest, safe filename/URL, media type, anchors and extraction diagnostics. Proposals contain reviewed changes, base version, findings and usage. Encrypt source/turn/proposal content using an approved application-level mechanism; do not assume current generic JSON columns already provide this protection.
 
@@ -455,7 +488,7 @@ Extend existing draft validation/compiler, private-plugin and Engage tests. Add 
 
 ### 8.3 Real Provider Quality
 
-Run identical fixtures against each enabled adapter. Record structural validity, useful completion, source citation accuracy, unresolved-binding accuracy, repair rate, latency and usage/cost. A provider failing qualification remains disabled, not silently substituted.
+Start with the selected existing framework provider/model. Run identical fixtures against any additional provider before enabling it. Record structural validity, useful completion, source citation accuracy, unresolved-binding accuracy, repair rate, latency and usage/cost. A provider failing qualification remains disabled, not silently substituted. A second provider is not a prerequisite to launch the first qualified one.
 
 Use reviewed structured expectations/compiler validation, not phrase-based answer matching. Target at least 90% useful correctly scoped proposals on representative supported tasks. Include incomplete/unsupported documentation where a precise question or limitation is the correct answer. Security and unintended-side-effect tests must all pass; semantic quality tolerance cannot waive them.
 
@@ -503,7 +536,8 @@ Exit: realistic API documents can be inspected without executing any API operati
 ### P2 Structured Authoring Gateway
 
 - [ ] Implement scoped sessions, sources, turns, proposals, expiry and bounded work execution.
-- [ ] Implement/qualify OpenAI and Anthropic adapters with configured model credentials.
+- [ ] Add the shared runtime's fixed private authoring capability, reviewed service identity and template configuration; reuse released structured-generation/provider APIs.
+- [ ] Implement the Platform runtime client and qualify the first selected provider/model. Additional providers are separately qualified, not silently substituted.
 - [ ] Add scoped read/check context and iterative collection of missing answers.
 - [ ] Implement validation, explicitly configured repair and truthful error/usage reporting.
 - [ ] Prove save/publish/apply/execute/secret-value tools are absent.
@@ -512,6 +546,7 @@ Exit: a real model returns a sourced valid proposal or useful questions for the 
 
 ### P3 Actions And Connections
 
+- [ ] Add/qualify the generic chat presentation/host seam without coupling it to Platform schemas, Support cases or business actions.
 - [ ] Add the reusable panel to Actions and related connection forms.
 - [ ] Support import, selected operations, grouped binding questions and action/routing proposals.
 - [ ] Add readable diffs, Advanced JSON, dependency-aware selection and existing-buffer adoption.
@@ -557,7 +592,7 @@ Full completion requires every P0-P6 exit, not just a panel returning plausible 
 
 - Real Swagger/OpenAPI and prose/sample imports provide source references.
 - Actions, routing, private Data, knowledge and other supported input-heavy areas reuse answers and real editors.
-- Both provider adapters are qualified; unavailable models/providers are disabled rather than advertised as working.
+- The selected authoring provider/model and output mode are qualified; other models/providers are disabled until separately verified.
 - Changes preserve unrelated/manual edits and save through atomic guards.
 - No secret, tenant boundary, staging-only policy or action-safety rule is weakened.
 - Publishing, deployment, indexing and business effects remain explicit separate operations.
@@ -574,7 +609,7 @@ Do not make draining, capacity redesign, a new billing engine, provider-account 
 - Unrestricted customer MCP, arbitrary shell/browser automation and autonomous production changes.
 - Private/authenticated crawlers, OCR, Postman, GraphQL/gRPC and repository/ZIP import adapters.
 - Customer-authored executable plugins or new plugin/behaviour types.
-- Standalone assistant services, per-customer assistant databases and distributed multi-resource transactions.
+- Bespoke standalone authoring/orchestration services, per-customer assistant runtimes/databases and distributed multi-resource transactions. The shared managed inference runtime described above is the initial integration, not a per-customer service.
 
 If a requested capability needs one of these, preserve the useful supported proposal and show the integration requirement. Do not hide the gap behind guessed JSON.
 
@@ -590,6 +625,327 @@ If a requested capability needs one of these, preserve the useful supported prop
 
 - [x] Refresh code evidence, API-import scope and customer/staff authoring boundaries.
 - [x] Define input-heavy coverage, shared panel, source/privacy handling and verification phases.
+- [x] Assess released framework contracts and refine the LoomAI-owned shared-runtime architecture, customer flow and generic UI integration gaps.
 - [ ] Start P0: atomic edit/candidate-validation contracts and parser fixtures.
 
 Implementation has not started. Preparing this plan changed no application code, deployed configuration, provider allowance or framework release.
+
+## 14. Detailed Customer And Developer Walkthrough
+
+### 14.1 What The Product Is
+
+**LoomAI Assistant is a configuration partner inside the existing Console, not another customer-support chatbot and not a general coding agent.** It helps a customer, developer or assigned integrator translate an outcome into supported configuration, explains missing information, and prepares a reviewable change.
+
+The same product serves business and developer entry points. Developer discovery does not change assistant authority: a developer Brain remains staging-only according to its persisted policy. The assistant cannot turn a developer resource into a production entitlement.
+
+Support and configuration may use the same generic chat components and underlying framework. They have different sessions, permissions, tools and results. Asking for help does not create a support ticket, and asking a configuration assistant to edit a Brain does not authorize the general Support conversation to do so.
+
+### 14.2 Entry Points And Visible Outcomes
+
+Keep `Build with AI` beside complex configuration tasks, not as a replacement for normal navigation:
+
+- **Brain -> AI capabilities:** turn an API operation into an action, update an existing action, or prepare its route. Outcome: a named capability ready for review in the current draft.
+- **Private plugin library -> source editor:** turn a documented HTTP collection or existing document connection into a supported private Data definition. Outcome: a checked reusable definition, then a separate explicit installation.
+- **Brain -> Knowledge:** explain source selection, prepare supported field/indexing settings, or guide an approved storage connection. Outcome: clear source configuration and the next preview/approval task, not a claim that indexing happened.
+- **Brain -> Responses/AI behaviour:** describe the desired voice, answer breadth, length and next steps. Outcome: visible preset/custom-prompt changes with before/after examples labelled as previews.
+- **Brain -> AI models/Search settings:** choose among authorized compatible services and prepare non-secret fields. Outcome: a selected service configuration with any credential/reindex requirement still visible.
+- **Engage app -> Branding/Tools/Installation:** describe the visitor experience. Outcome: supported branding, starters and tools in the actual existing preview, plus installation guidance.
+- **Brain -> Human support/Action reviews:** describe when to hand over and what information to collect. Outcome: supported settings and explicit links for Desk/agent assignment; no assignment or approval performed by the model.
+- **Brain -> supported specialists/plans:** describe the desired analysis and order. Outcome: a proposal using only registered workers and supported execution contracts, never invented specialists.
+- **Kit details/setup:** ask what remains to make the Kit useful. Outcome: a short ordered checklist linking to the real Brain/plugin/Engage tasks. Each resource still has its own review/save.
+
+An unavailable capability is labelled unavailable with the actual missing contract. A plausible-looking preview is not completion evidence.
+
+### 14.3 First Open And Context Selection
+
+The assistant initially shows the resource name, active task and a concise scope statement:
+
+> Helping configure Catalogue Brain / AI capabilities. Changes remain proposals until you review them and save the draft.
+
+The customer does not re-enter the Brain ID, workspace, environment or account. Platform resolves ownership from the authenticated request and the opened resource. The server, not the model or URL text, binds the authoring scope. A target environment is shown only where a connection/binding actually depends on it; definitions do not acquire an unnecessary environment selector.
+
+Suggested starting requests are task-specific and come from reviewed UI configuration, for example `Build from API documentation`, `Improve this action`, or `Explain the missing settings`. The assistant may interpret a free request, but deterministic UI code does not keyword-classify it.
+
+### 14.4 Action Setup From Swagger - Complete Interaction
+
+1. Customer opens AI capabilities and selects `Build with AI`.
+2. Customer says: `Use this API so visitors can search items and request a callback after confirmation` and uploads a specification.
+3. Importer parses the file without running an endpoint. The UI shows the real operations, document version, parsing warnings and a provider-sharing summary.
+4. The LLM recommends supported operations and explains which are reads, possible indexing sources and side effects. Customer confirms the intended subset. Descriptions and schemas, not a GET/POST heuristic, guide meaning.
+5. The assistant reuses known answers and asks only consequential missing questions, such as which existing account binding to use or which returned field is the stable item ID. It does not ask the customer to choose an internal vector-space domain unnecessarily.
+6. Credential selection happens in the secure connection form. The model can reference an authorized credential label/ID, never its value. Undocumented authorization or missing account scope stays unresolved.
+7. The assistant returns a readable proposal: `Add search items`, `Add callback request`, `Configure two routes`, with source-operation references and the proposed confirmation rules. No endpoint has been called.
+8. Customer opens the diff, optionally changes a question/setting, then selects `Use in editor`. Only accepted, dependency-consistent changes enter the current buffer. The editor says `Not saved`.
+9. Customer saves through the existing command. A successful save receipt changes the proposal status to saved. It does not imply connection success.
+10. Customer explicitly tests the connection against an authorized fixture/staging API. A write test is a separate deliberate action; the assistant cannot submit a callback as part of setup generation.
+11. Customer continues through normal Updates to publish/apply and verify. Existing production identity and app URL remain intact.
+
+If the model needs another detail, the useful proposal stays visible. `NEEDS_INPUT` is not replaced with invented defaults. If a service is unavailable, manual editing remains usable.
+
+### 14.5 One Action At A Time, Not Bulk Authoring
+
+The current API stores a complete `actionsConfig` document, but the user should work with one capability at a time. No new per-action persistence API is required just to enable this assistant journey.
+
+Example starting state: four existing actions, their route map and shared webhook/confirmation settings. User requests a fifth action. The assistant produces an **add-one-action** proposal, not a replacement catalogue containing only the new action.
+
+The editor adapter must:
+
+1. Resolve the named action against the exact current catalogue, preserving action names as stable identities.
+2. Show `Add`, `Change`, `Rename` or `Remove` explicitly. Renaming must include the actual dependent route/reference changes; a rename is not a broad string replacement.
+3. Merge only approved fields into the latest matching buffer, preserving the other actions, global configuration, route defaults and unknown-but-supported fields.
+4. Reject a stale base rather than silently overwriting another manual/assistant change.
+5. Save the complete resulting catalogue through the ordinary authorized draft update, with atomic edit protection.
+
+The user can repeat this for another action. Bulk operation selection remains optional. Importing an entire API does not automatically enable every operation or grant anonymous access.
+
+This is an editor convenience over the existing versioned catalogue, not a new action type, runtime executor or duplicated publishing mechanism.
+
+### 14.6 Data Source And Knowledge Setup
+
+A separate request such as `Keep the approved catalogue indexed for recommendations` creates a **private Data plugin** proposal from the selected list operation and sample records. It needs record identity, account ownership, content/entity/metadata mappings, supported pagination, change/deletion semantics and sync cadence.
+
+The assistant explains the separation:
+
+- Live actions request current facts from the authorized external system.
+- Data source synchronization produces derived searchable evidence; it is not the customer's inventory database.
+- Document files remain in the selected hosted/BYO S3-compatible source with the approved prefix.
+- An approved definition/version is installed into the Brain separately. Discovery, preview, approval and indexing still follow the existing flow.
+
+A shared bucket may be used for staging and production with approved prefixes. The assistant does not copy vectors on promotion, automatically publish staging-only documents or create a second customer business database.
+
+If the source cannot provide a complete snapshot, the assistant must not invent deletion reconciliation. If a response example lacks an ownership field, ask about the real contract instead of inferring tenant access from a display name.
+
+### 14.7 Behaviour And Engage Setup
+
+Customer says: `Be warm and concise. Recommend suitable alternatives, but never invent a price. Give users a useful next step.` The assistant proposes the existing tone, answer-breadth, length and next-step profiles, or a Custom proposal where needed. It shows the exact managed instructions under Advanced.
+
+Customer then says: `Call the workspace Oak & Co AI, use our green branding, and offer Search, Compare and Talk to the team.` This opens a separate Engage-scoped proposal. Tool names, configured queries, default/contextual groups and registered renderers use the current pack's actual contract. The renderer preview must show only controls that are really supported; no generated React/JavaScript is executed.
+
+The assistant distinguishes website embed, Max workspace and standalone app, and links to the existing installation page. It cannot claim that DNS, HTTPS, runtime origins, authentication redirects or a Desk assignment are ready merely because it generated settings.
+
+### 14.8 Review Layout And Exit Behaviour
+
+```text
+Catalogue Brain / AI capabilities
+-----------------------------------------------------------------------
+Existing action list/editor       | LoomAI Assistant                 [x]
+                                  | Configuring: Search items
+Search items                      | Sources: catalogue-v2.yaml
+View item                         | Need: account connection
+Request callback                  |
+                                  | Proposal
+                                  | + Search items + route
+                                  | ~ Callback confirmation
+                                  |   4 existing actions unchanged
+                                  | [Review changes] [Ask a question]
+-----------------------------------------------------------------------
+Save draft                        | [Use in editor]  No live changes
+```
+
+Review shows a concise outcome first, source links and missing details second, and exact JSON/diff in Advanced. No duplicate full editor lives inside the panel. For a visual setting, the existing preview is the authority; for an endpoint mapping, show request/response structure, not a fabricated successful call.
+
+Closing the panel never saves, resets the editor or discards an adopted change. Reopening resumes the resource's session. Moving to another Brain/app creates or selects that resource's own authorized session, with no cross-resource proposal leakage.
+
+`Discard proposal` discards only the proposal. After adoption, undo is a normal explicit editor action; after publication, use normal version controls. There is no assistant auto-rollback engine.
+
+### 14.9 What The Assistant Will Not Do
+
+- It will not retrieve secret values, choose a different customer identity, expand staff access, waive confirmation or invent trusted resource IDs.
+- It will not save, publish, apply, provision, approve documents, start indexing, assign agents or execute business actions during generation.
+- It will not remove useful response text through phrase matching, infer business intent with keywords, or silently route to all knowledge sources.
+- It will not browse the public internet for business recommendations. A bounded document importer is not web search.
+- It will not change funding, customer quotas, production entitlement or the original template's recorded reset behaviour.
+- It will not generate connector code and pretend unsupported protocols are now installed.
+
+These limits keep the first release an authoring product. They are not a claim that all future agentic operational automation is prohibited; that would be a separately authorized product contract.
+
+## 15. Framework Assessment And Required Product Extensions
+
+### 15.1 Verdict
+
+**Use the released AI Fabric `0.8.46` generation contracts. Do not plan a framework upgrade/release merely to implement this assistant.** The missing functionality is the LoomAI authoring product: scope, imports, schema catalogue, private generation adapter, proposals, validation and editor integration.
+
+The sibling framework checkout was not assumed current: the inspection compared the relevant contracts with local tag `ai-fabric-framework-v0.8.46` (`218730e5b18343576655fbd7108d63b4135f0cfc`). Its checked-out branch/dirty state was not changed. Platform's product-services parent already imports `0.8.46`. This is a source-level compatibility assessment, not a new binary build, live authoring test or assertion that every deployed image contains that version.
+
+### 15.2 Existing Framework Functionality To Reuse
+
+- **Generation:** `AIProvider.generateContent(AIGenerationRequest)` and `AICoreService.generateContent(request, LlmPurpose.GENERATION)`. The exact DTO is `AIGenerationRequest`, not a proposed `AIRequest`. Use the normal configured provider path, not a hand-built provider HTTP client.
+- **Structured parsing/execution:** `StructuredJsonCallExecutor.execute(StructuredJsonCallSpec<T>)`. The call specification accepts a generation callback, typed parsing/custom conversion and a validator. Its default is one total attempt, with provider-error retry disabled. It does not itself prove an arbitrary JSON document matches an arbitrary supplied JSON Schema; caller validation remains necessary.
+- **Output hints:** `StructuredJsonProviderHints.jsonSchemaResponseParameters(schema)` for a qualified native-schema envelope, or `schemaGuidedJsonObjectResponseParameters(schema)` for a schema-guided JSON object with dynamic maps. The latter is an explicit choice before inference, not a hidden failure fallback.
+- **Provider resolution:** existing Spring AI provider resolution maps supported hints into provider-specific options. Native schema enforcement is not universal across every provider/model. Qualify the selected adapter and schema dialect rather than making a blanket capability claim.
+- **Conversation input:** `AIGenerationRequest` supports messages, so the private adapter can include bounded prior authoring turns and confirmed answers. Platform retains the authoring workflow state; this does not require inventing another full customer chat/session engine.
+- **Optional specialists:** existing registered specialists can have JSON-schema output adapters. Existing sequential/parallel execution can coordinate actual registered workers later. Neither a multi-specialist team nor a new execution-plan engine is needed to propose an action or complete a form.
+
+Relevant framework paths under `ai-infrastructure-module/` at that tag:
+
+```text
+ai-fabric-core/src/main/java/ai/fabric/provider/AIProvider.java
+ai-fabric-core/src/main/java/ai/fabric/core/AICoreService.java
+ai-fabric-core/src/main/java/ai/fabric/llm/structured/StructuredJsonCallSpec.java
+ai-fabric-core/src/main/java/ai/fabric/llm/structured/StructuredJsonCallExecutor.java
+ai-fabric-core/src/main/java/ai/fabric/llm/structured/StructuredJsonProviderHints.java
+providers/ai-fabric-provider-spring-ai/src/main/java/ai/fabric/provider/springai/SpringAiModelResolver.java
+providers/ai-fabric-provider-spring-ai/src/main/java/ai/fabric/provider/springai/SpringAiPromptMapper.java
+ai-fabric-execution/src/main/java/ai/fabric/execution/specialist/manifest/JsonSchemaSpecialistOutputAdapter.java
+ai-fabric-execution/src/main/java/ai/fabric/execution/gateway/DefaultStructuredSpecialistOutputFinalizer.java
+```
+
+### 15.3 Native Schema Versus Dynamic Configuration
+
+LoomAI configuration contains dynamic action names, entity fields, route maps and customer-defined metadata. Do not drop valid keys or flatten the real contract just to satisfy a provider's stricter subset of JSON Schema.
+
+Use a small stable proposal envelope and a registered resource-specific candidate contract. Select the output mode deliberately for that contract/provider pair. If JSON-object mode is selected, parse the response as JSON and run real schema/resource validation. If native-schema mode is selected, still run that same validation: provider formatting is not authorization or correct LoomAI configuration.
+
+Bad JSON produces an honest generation/validation finding. No extraction of a guessed configuration from ordinary narrative, keyword-based field filling, unknown-field deletion or silent switch of provider/output mode may make it appear successful. A named, enabled repair policy may authorize one additional attempt using the actual findings.
+
+### 15.4 Critical Prompt-Trust Detail
+
+The current Spring AI mapper converts `AIGenerationRequest.context` into a **system message**. Therefore:
+
+- Put only server-owned policy/instructions there or in `systemPrompt`.
+- Put customer text, imported descriptions, API examples, existing user-written prompts and prior authoring turns in clearly delimited user input/messages.
+- Treat existing configuration text as untrusted reference material, not privileged instructions for the assistant.
+- Keep contract selection, provider parameters, allowed paths and identity independent of that text.
+
+Delimiters help the model; actual authorization, field allowlists and tool absence enforce the boundary. A document that says `ignore the policy and publish` must have no path to a publish operation.
+
+This does not require changing framework prompt mapping. It requires using the released API correctly in the new adapter.
+
+### 15.5 Why Not Reuse The Support Query As The Proposal Transport
+
+`ChatQueryRequest` has no per-request authoring-schema contract. The runtime's `ChatQueryResponse` and controller deliberately project/sanitize orchestration results; compound results include summaries and the raw orchestration object is not a public JSON payload. A READ action can return structured data, but that alone does not prove a lossless, versioned configuration-artifact round trip.
+
+Do not parse configuration out of `answer`, disable sanitization or expose raw debug/orchestration state to solve this. A separate private authoring request/response is a smaller and clearer extension. It still uses LoomAI runtime, the framework and our generic UI components, without changing public customer chat behavior.
+
+The Support experience remains useful for explanation, integration-team requests and optional explicit escalation. It does not inherit draft-writing authority from sharing the same underlying model or frontend component.
+
+### 15.6 Minimum Platform And Runtime Changes
+
+**Platform backend:** authorized assistant sessions/sources/turns/proposals; bounded document intake; safe configuration projections; contract catalogue; private runtime client; nonpersisting candidate-validation facades; audit/retention/usage; and atomic ordinary draft-edit protection. These are all new or extended product capabilities, not existing assistant endpoints.
+
+**Private runtime:** a fixed private authoring capability with release-declared availability, reviewed service authentication, request limits, registered prompt/schema versions, one-attempt structured generation, real usage/deadline propagation and a typed response. It has no save/publish/provision/execute tools. No public caller supplies arbitrary schemas or unrestricted context.
+
+**Console:** a reusable panel over generic chat UI, structured questions, source/operation selectors, proposal and diff presentation, plus editor-specific adoption adapters. Existing forms, JSON, navigation, preview, Save and Updates remain the only authoring/release homes.
+
+**Generic chat app:** the current full widget is not automatically an authoring panel. Add a narrowly scoped controlled conversation surface/host adapter for messages, busy/error state, submit/cancel and a trusted custom-message render seam. Console supplies the authoring transport and proposal component; the generic layer must know nothing about deployment drafts, actions JSON, schema imports or customer permissions. Disable unrelated cart/business controls, runtime auth probes and handover/history assumptions in this controlled surface by construction, not hidden mock endpoints. Reuse existing theme/input/message primitives and leave the normal website/Max/standalone controller unchanged. Verify that those existing modes still work.
+
+**Template/configuration:** one LoomAI-owned assistant deployment template using the existing template/plugin primitives and supported image. Initially configure one shared staging and one shared production service, not one per customer. Use existing managed model credentials and explicit authoring accounting; do not create customer inventories, business databases or per-session vector stores.
+
+**No required framework work identified:** Platform must not put its customer accounts, draft DTOs, OpenAPI import workflow, marketplace manifests, Desk assignments or UI proposal lifecycle into the public framework.
+
+### 15.7 What Could Justify A Later Framework Request
+
+- A reproducible released-provider defect that drops required structured fields or fails to propagate a supported output hint.
+- A reusable need for native-schema propagation in registered specialist finalization. The inspected finalizer uses prompt guidance plus schema validation; it does not currently establish identical native-schema-hint propagation for every specialist/provider.
+- A genuinely reusable typed artifact channel for conversational output, if later product demand justifies it across applications.
+- A demonstrated absence in generic structured-call usage/cancellation diagnostics that the private adapter cannot address at its proper boundary.
+
+None is an approved fix, release prerequisite or excuse to alter the framework now. First prove the focused candidate on the released contracts; report exact reproduction and proposed generic scope before requesting a framework change.
+
+## 16. End-To-End Contract And Data Flow
+
+### 16.1 Normal Turn And Adoption
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant UI as Existing editor + assistant panel
+  participant P as Platform authoring facade
+  participant DB as Existing Platform PostgreSQL
+  participant R as Shared private assistant runtime
+  participant F as AI Fabric structured generation
+  participant M as Qualified model provider
+  User->>UI: Outcome + selected documentation
+  UI->>P: Create/continue resource-bound session
+  P->>P: Authorize resource, import safely, redact projection
+  P->>DB: Store scoped source/turn state
+  P->>R: Versioned authoring request + reviewed service assertion
+  R->>R: Check purpose, limits, contract and prompt/schema versions
+  R->>F: StructuredJsonCallSpec, one attempt
+  F->>M: Bounded generation with selected output mode
+  M-->>F: JSON candidate or explicit failure
+  F-->>R: Parsed candidate + generation diagnostics/usage
+  R-->>P: Candidate/questions; no saved-state claims
+  P->>P: Attest identity and run nonpersisting checks
+  P->>DB: Store reviewable proposal and actual findings
+  P-->>UI: Outcome, questions, diff, unresolved bindings
+  User->>UI: Use selected changes in editor
+  UI->>UI: Check base fingerprint, merge accepted paths
+  Note over UI,P: No live state changed by generation/adoption
+  User->>UI: Save draft
+  UI->>P: Ordinary authorized save + expected edit version
+  P->>DB: Atomic version check + save + audit
+  P-->>UI: Real save receipt
+  Note over User,UI: Test, index, publish and apply remain separate explicit flows
+```
+
+Using a shared authoring service is not a change to customer-serving topology. Customer website chat, actions and indexing still go to the customer's assigned deployment. Console configuration is a control-plane task; a temporary assistant outage must not stop existing deployed customer traffic or manual editing.
+
+### 16.2 Private Runtime Request
+
+Proposed internal route, **not implemented and not a browser API**:
+
+```text
+POST /api/private/configuration-authoring/generate
+```
+
+The request contains a correlation/turn ID, registered authoring kind and contract version, safe current configuration projection, chosen API operations/document excerpts, bounded prior turns/confirmed answers and source references. Platform binds its session/resource before sending it. The runtime selects the corresponding registered schema/prompt; unsupported/mismatched contract versions produce a clear error, not an assumed nearest version.
+
+Keep a single versioned authoring contract/schema source packaged for both producer and consumer, with digest/version compatibility tests. Do not independently maintain a prompt schema and a different UI schema. The runtime inference envelope and Platform's persisted proposal can differ deliberately: Platform adds attested identity, saved-version references and actual check results.
+
+The request excludes provider credentials, raw API credentials, customer session tokens, live-save commands and unrestricted HTTP tools. The runtime service identity permits inference only. It cannot call the ordinary customer save API as an administrator.
+
+### 16.3 Result And Authority
+
+The runtime returns one of: a structured candidate, structured questions, a model refusal, an interrupted/failed call, or invalid output with safe diagnostics. Its result may include proposed field values, source pointers, assumptions and missing bindings. It cannot declare `SAVED`, `INDEXED`, `CONNECTED` or `DEPLOYED`.
+
+Platform supplies `target`, creator/customer binding, base edit version, editor digest and validation results from its own observed state. If a model echoes a different resource ID, that value cannot redirect the operation. A forged or expired session reference is an authorization error, not something to repair through the LLM.
+
+API-operation facts come from the parsed document catalogue. Connection/secret references come from authorized existing selectors. Customer-written descriptions can inform the proposal but do not prove that a connection or operation was approved.
+
+### 16.4 Where Each Kind Of Data Lives
+
+- **Existing Platform PostgreSQL:** authoring sessions, normalized source/catalogue content, turns, proposals, expiry, usage correlation and saved-proposal audit receipts. Sensitive bodies require the declared application-level protection and deletion policy.
+- **Browser:** the existing editor buffer and preview, plus the open panel state. No model/provider credentials. Reload may restore the authorized server session; it must not auto-replay a billable turn or auto-save a proposal.
+- **Shared assistant runtime:** transient bounded inference inputs/results and normal minimal operational metrics. No independent retained customer source/transcript database for this workflow.
+- **Model provider:** receives only the disclosed selected/redacted material under the configured provider's data-handling contract. Provider retention is a separate operational review, not negated by deleting Platform rows.
+- **Existing secret services:** actual API/provider credentials. The assistant only handles approved labels/references.
+- **Customer knowledge storage/vector services:** unchanged by assistant intake. Imported API documentation is not uploaded into the answer knowledge index unless a separate explicit existing knowledge workflow is chosen.
+
+### 16.5 Draft Conflicts And Save Boundaries
+
+The proposal's `baseEditorFingerprint` protects unsaved browser edits. A real persisted edit version protects against another tab, staff member or background writer. Both are necessary; neither substitutes for the other.
+
+Brain updates currently replace supplied root configuration sections. The adoption adapter must therefore create a complete preserved candidate section from accepted stable-ID changes, then use the ordinary save transaction. Do not send a one-action root expecting the server to merge it.
+
+Private Data definitions retain their existing `expectedRevision`. Engage retains `rowVersion` and its explicit active-app editing restrictions. The assistant-enabled path must never omit a known version to evade stale-save checks. If a conflict occurs, show which resource changed and offer review/regeneration, preserving manual work.
+
+## 17. First Release Boundary And Review Decisions
+
+The plan covers all section-3 areas, but delivery should prove one useful path before expanding:
+
+1. **First vertical slice:** existing Brain -> one pasted/uploaded OpenAPI document -> one READ capability + HTTP route -> real proposal review -> preserved editor merge -> atomic ordinary save -> explicit fixture connection test. One model, one output contract, one runtime adapter. No autonomous execution.
+2. **Second slice:** reuse the source catalogue for a private HTTP Data definition, including pagination/ownership, then use the existing installer and indexing preview. Add S3 guidance without provisioning during generation.
+3. **Third slice:** behaviour and Engage adapters with actual preview and preserved configuration. Then add the remaining supported models/knowledge/human-support/plan tasks in P5.
+4. **Broaden only after evidence:** additional providers, more document formats and optional specialists follow representative quality/security tests. They do not delay the first proven path unnecessarily.
+
+The initial generation runtime is not a public general-agent service. No full coding SDK, shell, repo sandbox, arbitrary tools, new plugin type, per-customer assistant infrastructure, distributed save transaction or recovery/draining redesign is required.
+
+Before implementation, the owner should review the shared-runtime choice, first authoring provider/model and usage allowance, document-sharing/retention defaults, and the proposed scope of ordinary draft edit-version protection. These decisions do not authorize any future framework change automatically.
+
+### Focused Acceptance Evidence
+
+For the first slice, retain actual imported operation references, proposed configuration, accepted diff, unchanged-action fingerprints, save version/receipt and an explicit fixture test result. Include:
+
+- A natural-language request plus API docs produces a useful candidate or the correct missing question.
+- A one-action addition preserves the existing action catalogue, routes and unrelated fields.
+- Another tab/manual edit makes the proposal stale instead of being overwritten.
+- Cross-customer/unassigned staff and forged binding attempts are denied.
+- Documentation containing prompt-injection instructions cannot publish or execute anything; credentials never reach provider inputs/logs.
+- Provider refusal, timeout, invalid JSON and disabled assistant leave normal editing available, with no silent model retry/substitution.
+- The selected output mode preserves arbitrary supported mapping keys and exact IDs/numbers.
+- A real save remains separate from connection testing, indexing and release operations.
+
+Measure semantic usefulness with the existing tolerance policy and reviewed structured expectations; do not require perfect phrasing or mask failures with text matching. All trust-boundary and unintended-side-effect cases must pass. No broad framework release matrix is required when no framework code changes.
+
+**Current outcome of this document:** detailed design and source-backed feasibility assessment only. Assistant endpoints, runtime capability, template, UI panel and authoring journeys remain to be implemented and verified. No framework release was made or requested by this analysis.

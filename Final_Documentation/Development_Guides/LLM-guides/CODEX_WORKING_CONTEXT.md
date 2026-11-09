@@ -13902,3 +13902,34 @@ test is being called hosted acceptance. UI extraction remains last.
 - Hosted size correction pending at this entry. A detailed LoomAI-owned authoring
   architecture follow-up is being prepared under 010.37; the assistant itself is
   still unimplemented. No AI/backend/runtime changes are part of this UI correction.
+
+### Compact Invitations Live And Assistant Design - 9 November 2026
+
+- Public-site size-correction source `52f71995410260a743bae67fd2a9cf59b821ee8b`
+  is committed/pushed. Serving CI `42652032155` passed, selecting only the site.
+  Image-only Coolify job `e11urukfpotpqmmkhhb4jc7f` finished; native inspection
+  confirmed the exact-source healthy container. Ten live browser groups passed:
+  compact adjacent cards at 320/390/768px and desktop, light/dark, loaded images,
+  founder open/close, menu links and actual developer navigation/remembered entry.
+  Screenshots are ignored under the site's `test-results/compact-developer-entry-live/`.
+- Expanded canonical 010.37 with detailed customer/developer journeys, supported
+  configuration areas, one-action-at-a-time preservation over the complete-catalogue
+  save contract, review/adoption/save boundaries, physical flow and data ownership.
+- Preferred assistant architecture now supersedes the earlier direct-provider
+  recommendation: Platform owns authoring/imports/proposals/checks; one shared
+  LoomAI inference runtime per environment uses released framework structured
+  generation. No per-customer assistant/runtime/business database or automatic
+  operational tools. Generic chat presentation needs a narrow controlled host seam;
+  changing the ordinary widget query URL is not a complete authoring integration.
+- Read-only framework assessment compared relevant APIs against immutable tag
+  `ai-fabric-framework-v0.8.46` (`218730e5...`), not the dirty sibling checkout.
+  Existing `AIGenerationRequest`, `AICoreService`, `StructuredJsonCallExecutor` and
+  output hints suffice at source level. No framework upgrade/release is currently
+  required. Platform save-concurrency, candidate validation, scoped imports and
+  the private runtime authoring capability remain actual implementation work.
+- Important API-use constraint: the current Spring AI generation mapper makes
+  `context` a system message. Keep imported docs/customer-authored content in
+  delimited user input; never elevate them into trusted authoring instructions.
+- Assistant implementation remains unstarted. No provider calls, runtime changes,
+  framework release or deployed customer configuration changes were made for the
+  assessment. Unrelated dirty `.gitignore` and untracked work remain untouched.
