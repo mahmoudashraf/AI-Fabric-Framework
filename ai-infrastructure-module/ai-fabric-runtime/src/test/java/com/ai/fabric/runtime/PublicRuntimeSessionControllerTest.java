@@ -1,15 +1,23 @@
 package com.ai.fabric.runtime;
 
+import ai.fabric.core.AICoreService;
+import ai.fabric.dto.AIGenerationRequest;
+import ai.fabric.dto.AIGenerationResponse;
+import ai.fabric.core.LlmPurpose;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
 import static org.springframework.http.HttpHeaders.EXPIRES;
 import static org.springframework.http.HttpHeaders.PRAGMA;
@@ -337,8 +345,13 @@ class PublicRuntimeAuthenticatedChatTest {
     @Autowired
     private com.ai.fabric.runtime.auth.RuntimePublicTokenService runtimePublicTokenService;
 
+    @MockitoBean
+    private AICoreService aiCoreService;
+
     @Test
     void authenticatedPublicTokenCanUseAuthAwareRuntimeEndpoints() throws Exception {
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder().content("[\"Explain my order details\"]").build());
         String token = runtimePublicTokenService.issueAuthenticatedToken(
             "customer-123",
             com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
@@ -368,12 +381,38 @@ class PublicRuntimeAuthenticatedChatTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.suggestions[0]").value("Explain my order details"))
             .andExpect(jsonPath("$.authContext.subjectId").value("customer-123"))
             .andExpect(jsonPath("$.authContext.authMode").value("PUBLIC_RUNTIME_AUTHENTICATED"));
 
         mockMvc.perform(get("/api/chat/me/conversations")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void authenticatedSuggestionsExposeProviderFailureWithoutFallback() throws Exception {
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenThrow(new IllegalStateException("private provider failure"));
+        String token = runtimePublicTokenService.issueAuthenticatedToken(
+            "customer-123",
+            com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
+            "session-public-provider-failure",
+            "dep-public", "cus-public", "ten-public",
+            java.util.List.of("chat:suggestions"), "commerce-app",
+            java.util.List.of("storefront-chat")
+        ).token();
+
+        mockMvc.perform(post("/api/chat/me/suggestions")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("{\"content\":\"Help me with my order\",\"maxSuggestions\":3}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").value("AI_SUGGESTIONS_UNAVAILABLE"))
+            .andExpect(jsonPath("$.suggestions").isEmpty())
+            .andExpect(jsonPath("$.raw").isEmpty())
+            .andExpect(jsonPath("$.authContext.subjectId").value("customer-123"));
     }
 
     @Test

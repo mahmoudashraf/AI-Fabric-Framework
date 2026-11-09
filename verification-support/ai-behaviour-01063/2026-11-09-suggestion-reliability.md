@@ -92,3 +92,19 @@ Raw response/model data and current configuration snapshots remain outside git:
 `~/.codex/private/loomai-suggestions-20261109/`. Existing evidence/earlier quality
 records remain historical; current source, images, release and hosted results
 will be recorded here after qualification.
+
+## Hosted Build And Auth Fixture Correction
+
+Source `4e57f95d6` passed core image run `42712323180`. Both Platform backends
+and UIs completed image-only deployment and report healthy containers at that
+source. Runtime run `42712323175` was stopped by its normal test gate: 671 of
+672 tests passed. The failing authenticated suggestion-endpoint test supplied
+only a placeholder AI key and implicitly relied on the removed successful
+fallback. No new runtime image was published from that failed run.
+
+The auth integration fixture now supplies an explicit generated JSON response
+and asserts its exact suggestion. A separate authenticated provider-failure
+case asserts empty suggestions, unavailable status, no raw response and retained
+caller identity. The focused 76-test recheck passed. No production fallback,
+authentication weakening or CI bypass was introduced; the complete runtime
+test suite is being rerun before publication.
