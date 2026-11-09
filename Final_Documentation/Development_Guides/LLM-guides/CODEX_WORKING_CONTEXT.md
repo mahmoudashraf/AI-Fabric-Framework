@@ -13989,4 +13989,15 @@ test is being called hosted acceptance. UI extraction remains last.
 - Local checks: 19 focused tests, 13 developer browser scenarios and five kit
   integration/detail tests passed. Both frontend builds passed (public site uses
   installed Node 22; the shell-default Node 20 is unsupported by Astro).
-- Frontend-only rollout and final hosted copy verification are in progress.
+- Source `5b9ec2602bd0653ae63a76e4df42e7ef5627c3b4` is pushed. UI image CI
+  `42693301941` and public-site CI `42693301949` passed; backend build skipped.
+  Staging/production Console UI and production public site are natively healthy
+  at that source after image-only deployment. No runtime/backend rollout.
+- Eight hosted browser checks passed: developer landing, public homepage,
+  Console catalogue and dealership details at 1440px and 390px. No captured
+  page errors or checked offer overflow. Mobile screenshots inspected. The
+  first check caught the old homepage during rollout; rerun passed after the
+  existing deployment completed. Local homepage smoke also passed.
+- Private receipts/screenshots:
+  `~/.codex/private/loomai-offers-20261109/`. Unrelated dirty `.gitignore` and
+  untracked work remain untouched.
