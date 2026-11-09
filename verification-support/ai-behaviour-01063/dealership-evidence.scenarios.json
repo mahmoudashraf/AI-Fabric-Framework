@@ -1,0 +1,32 @@
+[
+  {
+    "id": "vehicle-facts",
+    "session": "vehicle-evidence",
+    "prompt": "Show live details for the 2025 Aster E1. Include seats, equipment, showroom location and any supplied electric range with its units and test basis. Distinguish unknown facts from supplied facts."
+  },
+  {
+    "id": "vehicle-comparison",
+    "session": "vehicle-evidence",
+    "prompt": "Compare that car with the Morrow C2 for a family using current stock evidence. Compare seats, equipment, electric range and location where supplied, and say what still needs checking."
+  },
+  {
+    "id": "delivery-policy",
+    "session": "policy-evidence",
+    "prompt": "What does delivery cost at 20 miles and at 40 miles, and what payment, identity and insurance requirements must be met before handover? I only need information."
+  },
+  {
+    "id": "test-drive-policy",
+    "session": "policy-evidence",
+    "prompt": "What age and licence requirements apply to a test drive, how long does the drive last, and how much advance notice is required? Explain whether submitting a request confirms an appointment. Do not create a request."
+  },
+  {
+    "id": "compound-stock-policy",
+    "session": "compound-evidence",
+    "prompt": "Which electric cars cost under GBP 35,000, and what delivery charge applies if I live 40 miles away? Use current stock and the approved delivery policy. Do not submit an enquiry."
+  },
+  {
+    "id": "warranty-boundary",
+    "session": "compound-evidence",
+    "prompt": "Does the general dealership warranty establish battery cover or guaranteed battery health for the Aster E1? Explain only what the approved policy and vehicle evidence actually establish."
+  }
+]

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class SimulatorContracts {
@@ -73,7 +74,8 @@ public final class SimulatorContracts {
         @NotBlank String bodyStyle,
         @NotBlank String transmission,
         @PositiveOrZero int mileage,
-        @NotBlank @Pattern(regexp = "active|reserved|sold|deleted") String state
+        @NotBlank @Pattern(regexp = "active|reserved|sold|deleted") String state,
+        VehicleEvidence evidence
     ) {
     }
 
@@ -93,8 +95,21 @@ public final class SimulatorContracts {
         int mileage,
         String state,
         long version,
-        Instant updatedAt
+        Instant updatedAt,
+        VehicleEvidence evidence
     ) {
+    }
+
+    public record VehicleEvidence(
+        Integer seats,
+        Integer batteryRangeMiles,
+        List<VehicleFeature> features,
+        String locationTown,
+        LocalDate dateOnForecourt
+    ) {
+    }
+
+    public record VehicleFeature(String name, String type) {
     }
 
     public record FixtureRun(String fixtureVersion, String resetId, Instant resetAt) {

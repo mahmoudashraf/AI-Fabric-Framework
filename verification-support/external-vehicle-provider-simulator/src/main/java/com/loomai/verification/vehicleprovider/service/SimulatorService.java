@@ -12,6 +12,8 @@ import com.loomai.verification.vehicleprovider.model.SimulatorContracts.FixtureR
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.MutationReceipt;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.Profile;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleInput;
+import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleEvidence;
+import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleFeature;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleRecord;
 import com.loomai.verification.vehicleprovider.persistence.SimulatorRepository;
 import jakarta.annotation.PostConstruct;
@@ -23,6 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -300,30 +303,46 @@ public class SimulatorService {
 
     private static List<VehicleInput> profileAVehicles() {
         return List.of(
-            new VehicleInput("veh-a-1001", "Northstar", "Atlas", "Long Range", 2025, 3899500, "GBP", "electric", "suv", "automatic", 4100, "active"),
-            new VehicleInput("veh-a-1002", "Northstar", "Comet", "Urban", 2024, 2475000, "GBP", "electric", "hatchback", "automatic", 9200, "active"),
-            new VehicleInput("veh-a-1003", "Caldera", "Touring", "Estate Plus", 2023, 2199000, "GBP", "hybrid", "estate", "automatic", 18400, "reserved"),
-            new VehicleInput("veh-a-1004", "Arden", "Trail", "AWD", 2022, 1945000, "GBP", "petrol", "suv", "automatic", 26700, "active")
+            new VehicleInput("veh-a-1001", "Northstar", "Atlas", "Long Range", 2025, 3899500, "GBP", "electric", "suv", "automatic", 4100, "active", null),
+            new VehicleInput("veh-a-1002", "Northstar", "Comet", "Urban", 2024, 2475000, "GBP", "electric", "hatchback", "automatic", 9200, "active", null),
+            new VehicleInput("veh-a-1003", "Caldera", "Touring", "Estate Plus", 2023, 2199000, "GBP", "hybrid", "estate", "automatic", 18400, "reserved", null),
+            new VehicleInput("veh-a-1004", "Arden", "Trail", "AWD", 2022, 1945000, "GBP", "petrol", "suv", "automatic", 26700, "active", null)
         );
     }
 
     private static List<VehicleInput> profileBVehicles() {
         return List.of(
-            new VehicleInput("veh-b-2001", "Aster", "Pulse", "Performance", 2025, 4210000, "GBP", "electric", "saloon", "automatic", 2300, "active"),
-            new VehicleInput("veh-b-2002", "Aster", "Pulse", "Touring", 2024, 3650000, "GBP", "electric", "estate", "automatic", 7100, "active"),
-            new VehicleInput("veh-b-2003", "Morrow", "City", "Comfort", 2023, 1695000, "GBP", "hybrid", "hatchback", "automatic", 14100, "active"),
-            new VehicleInput("veh-b-2004", "Morrow", "Venture", "Seven Seat", 2022, 2325000, "GBP", "diesel", "suv", "automatic", 29800, "sold")
+            new VehicleInput("veh-b-2001", "Aster", "Pulse", "Performance", 2025, 4210000, "GBP", "electric", "saloon", "automatic", 2300, "active", null),
+            new VehicleInput("veh-b-2002", "Aster", "Pulse", "Touring", 2024, 3650000, "GBP", "electric", "estate", "automatic", 7100, "active", null),
+            new VehicleInput("veh-b-2003", "Morrow", "City", "Comfort", 2023, 1695000, "GBP", "hybrid", "hatchback", "automatic", 14100, "active", null),
+            new VehicleInput("veh-b-2004", "Morrow", "Venture", "Seven Seat", 2022, 2325000, "GBP", "diesel", "suv", "automatic", 29800, "sold", null)
         );
     }
 
     private static List<VehicleInput> autoTraderVehicles() {
         return List.of(
-            new VehicleInput("DEMO-1001", "Aster", "E1", "Motion Long Range", 2025, 31_950_00L, "GBP", "Electric", "SUV", "Automatic", 4850, "active"),
-            new VehicleInput("DEMO-1002", "Northstar", "S4", "Touring Hybrid", 2024, 27_400_00L, "GBP", "Hybrid", "Estate", "Automatic", 8920, "active"),
-            new VehicleInput("DEMO-1003", "Morrow", "C2", "City Electric", 2025, 22_750_00L, "GBP", "Electric", "Hatchback", "Automatic", 1980, "active"),
-            new VehicleInput("DEMO-1004", "Caldera", "X6", "Adventure AWD", 2023, 29_800_00L, "GBP", "Petrol", "SUV", "Automatic", 17420, "active"),
-            new VehicleInput("DEMO-1005", "Arden", "V3", "Executive Plug-in Hybrid", 2024, 34_600_00L, "GBP", "Plug-in hybrid", "Saloon", "Automatic", 6310, "reserved"),
-            new VehicleInput("DEMO-1006", "Aster", "E2", "Sport Dual Motor", 2025, 39_250_00L, "GBP", "Electric", "Crossover", "Automatic", 3760, "active")
+            new VehicleInput("DEMO-1001", "Aster", "E1", "Motion Long Range", 2025, 31_950_00L, "GBP", "Electric", "SUV", "Automatic", 4850, "active",
+                new VehicleEvidence(5, 287, List.of(
+                    new VehicleFeature("Heated front seats", "Standard"),
+                    new VehicleFeature("Panoramic glass roof", "Optional")
+                ), "Fictional Testhaven", LocalDate.of(2026, 10, 1))),
+            new VehicleInput("DEMO-1002", "Northstar", "S4", "Touring Hybrid", 2024, 27_400_00L, "GBP", "Hybrid", "Estate", "Automatic", 8920, "active",
+                new VehicleEvidence(5, null, List.of(
+                    new VehicleFeature("Rear parking sensors", "Standard")
+                ), "Fictional Testhaven", LocalDate.of(2026, 10, 2))),
+            new VehicleInput("DEMO-1003", "Morrow", "C2", "City Electric", 2025, 22_750_00L, "GBP", "Electric", "Hatchback", "Automatic", 1980, "active",
+                new VehicleEvidence(4, 216, List.of(
+                    new VehicleFeature("Rear parking camera", "Optional")
+                ), "Fictional Testhaven", LocalDate.of(2026, 10, 3))),
+            new VehicleInput("DEMO-1004", "Caldera", "X6", "Adventure AWD", 2023, 29_800_00L, "GBP", "Petrol", "SUV", "Automatic", 17420, "active",
+                new VehicleEvidence(7, null, List.of(
+                    new VehicleFeature("Roof rails", "Standard")
+                ), "Fictional Testhaven", LocalDate.of(2026, 10, 4))),
+            new VehicleInput("DEMO-1005", "Arden", "V3", "Executive Plug-in Hybrid", 2024, 34_600_00L, "GBP", "Plug-in hybrid", "Saloon", "Automatic", 6310, "reserved",
+                new VehicleEvidence(5, 41, List.of(
+                    new VehicleFeature("Driver memory seat", "Optional")
+                ), "Fictional Testhaven", LocalDate.of(2026, 10, 5))),
+            new VehicleInput("DEMO-1006", "Aster", "E2", "Sport Dual Motor", 2025, 39_250_00L, "GBP", "Electric", "Crossover", "Automatic", 3760, "active", null)
         );
     }
 }

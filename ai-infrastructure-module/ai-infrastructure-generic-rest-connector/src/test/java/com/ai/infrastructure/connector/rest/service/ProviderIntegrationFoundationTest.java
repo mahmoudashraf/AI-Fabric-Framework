@@ -17,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,6 +50,78 @@ class ProviderIntegrationFoundationTest {
         }
         if (executor != null) {
             executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void autoTraderFixtureMappingsPreserveOptionalEvidenceThroughIndexAndStockReadProjection() throws Exception {
+        Path fixtures = Path.of(System.getProperty("basedir", "."))
+            .resolve("../../verification-support/external-vehicle-provider-simulator/fixtures/marketplace");
+        JsonNode data = OBJECT_MAPPER.readTree(fixtures.resolve("autotrader-contract-data.json").toFile());
+        JsonNode actions = OBJECT_MAPPER.readTree(fixtures.resolve("autotrader-contract-actions.json").toFile());
+        List<JsonNode> indexed = new ArrayList<>();
+        startServer();
+        server.createContext("/catalog", exchange -> respond(exchange, 200,
+            "1".equals(query(exchange.getRequestURI()).get("page")) ? """
+            {"results":[
+              {"metadata":{"stockId":"stock-1","lastUpdated":"2026-10-09T12:00:00Z",
+                 "lastUpdatedByAdvertiser":"2026-10-08T11:00:00Z","dateOnForecourt":"2026-10-01",
+                 "lifecycleState":"FORECOURT"},
+               "advertiser":{"advertiserId":"account-17","location":{"town":"Fictional Testhaven"}},
+               "vehicle":{"make":"Aster","model":"E1","batteryRangeMiles":287,"seats":5},
+               "features":[{"name":"Heated front seats","type":"Standard"},
+                           {"name":"Panoramic glass roof","type":"Optional"}],
+               "adverts":{"reservationStatus":"Reserved","retailAdverts":{"advertiserAdvert":{"status":"PUBLISHED"}}}},
+              {"metadata":{"stockId":"stock-2","lifecycleState":"FORECOURT"},
+               "advertiser":{"advertiserId":"account-17"},
+               "vehicle":{"make":"Aster","model":"E2","batteryRangeMiles":null,"seats":null},
+               "features":null,"adverts":{"retailAdverts":{"advertiserAdvert":{"status":"PUBLISHED"}}}}
+            ]}
+            """ : "{\"results\":[]}"));
+        server.createContext("/api/internal/integrations/data-sync/batch", exchange -> respondToDataSync(exchange, indexed, false));
+        RestRoutingConfig config = baseConfig();
+        RestRoutingConfig.ConnectionProfile profile = apiKeyProfile(baseUrl());
+        profile.setCapabilityGrants(List.of("catalog:read"));
+        config.getConnectionProfiles().put("form-page", profile);
+        config.getProtectedResources().put("account-binding", binding("form-page", "account", "account-17"));
+        RestRoutingConfig.HttpDataSource source = pageSource();
+        source.setEntityType("dealer-vehicle");
+        source.setMapping(OBJECT_MAPPER.treeToValue(
+            data.at("/contributions/datasets/0/syncConnector/httpSource/mapping"), RestRoutingConfig.RecordMapping.class));
+        config.getDataSources().put("autotrader-dealership-stock-source", source);
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        services(config, repository).syncService().reconcile("autotrader-dealership-stock-source");
+
+        assertThat(indexed).hasSize(2);
+        String content = indexed.getFirst().path("content").asText();
+        assertThat(content).contains("electricRangeMiles: 287", "seats: 5", "location: Fictional Testhaven",
+            "sourceUpdatedAt: 2026-10-09T12:00:00Z", "dateOnForecourt: 2026-10-01", "Heated front seats", "Optional")
+            .doesNotContain("WLTP", "NEDC");
+        assertThat(indexed.get(1).path("content").asText()).doesNotContain("electricRangeMiles:", "seats:", "features:");
+
+        for (JsonNode action : actions.at("/contributions/actions")) {
+            RestRoutingConfig.SourceProjectionQuery projection = OBJECT_MAPPER.treeToValue(
+                action.at("/route/sourceProjection"), RestRoutingConfig.SourceProjectionQuery.class);
+            Map<String, Object> result = new SourceProjectionQueryService(repository).query(projection, Map.of());
+            JsonNode records = OBJECT_MAPPER.valueToTree(result.get("results"));
+            JsonNode complete = records.get(0);
+            assertThat(complete.path("electricRangeMiles").asInt()).isEqualTo(287);
+            assertThat(complete.path("seats").asInt()).isEqualTo(5);
+            assertThat(complete.path("location").asText()).isEqualTo("Fictional Testhaven");
+            assertThat(complete.path("sourceUpdatedAt").asText()).isEqualTo("2026-10-09T12:00:00Z");
+            assertThat(complete.path("sourceUpdatedByAdvertiserAt").asText()).isEqualTo("2026-10-08T11:00:00Z");
+            assertThat(complete.path("dateOnForecourt").asText()).isEqualTo("2026-10-01");
+            assertThat(complete.path("features")).isEqualTo(OBJECT_MAPPER.valueToTree(List.of(
+                Map.of("name", "Heated front seats", "type", "Standard"),
+                Map.of("name", "Panoramic glass roof", "type", "Optional"))));
+            assertThat(complete.path("reservationStatus").asText()).isEqualTo("Reserved");
+            if (records.size() > 1) {
+                assertThat(records.get(1).has("electricRangeMiles")).isFalse();
+                assertThat(records.get(1).has("seats")).isFalse();
+                assertThat(records.get(1).has("features")).isFalse();
+                assertThat(records.get(1).has("location")).isFalse();
+                assertThat(records.get(1).has("sourceUpdatedAt")).isFalse();
+            }
         }
     }
 

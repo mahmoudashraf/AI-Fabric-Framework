@@ -33,7 +33,7 @@
               "sourcePath": "results",
               "target": "items",
               "maxItems": 24,
-              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"]
+              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "electricRangeMiles", "seats", "location", "reservationStatus", "sourceUpdatedAt", "sourceUpdatedByAdvertiserAt", "dateOnForecourt", "imageId", "imageUrl"]
             }
           ]
         },
@@ -55,7 +55,7 @@
               {"param": "maxPriceGbp", "fields": ["priceGbp"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]},
               {"param": "maxMileage", "fields": ["mileage"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]}
             ],
-            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"],
+            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "electricRangeMiles", "seats", "location", "reservationStatus", "sourceUpdatedAt", "sourceUpdatedByAdvertiserAt", "dateOnForecourt", "imageId", "imageUrl"],
             "limitParam": "limit",
             "defaultLimit": 10,
             "maxLimit": 24,
@@ -87,7 +87,15 @@
                 "fuelType": "/fuelType",
                 "transmission": "/transmission",
                 "bodyType": "/bodyType",
-                "availability": "/availability"
+                "availability": "/availability",
+                "features": "/features",
+                "electricRangeMiles": "/electricRangeMiles",
+                "seats": "/seats",
+                "location": "/location",
+                "reservationStatus": "/reservationStatus",
+                "sourceUpdatedAt": "/sourceUpdatedAt",
+                "sourceUpdatedByAdvertiserAt": "/sourceUpdatedByAdvertiserAt",
+                "dateOnForecourt": "/dateOnForecourt"
               },
               "metadataFields": {
                 "stockId": "/stockId",
@@ -124,7 +132,7 @@
             {
               "sourcePath": "vehicleRecord",
               "target": "vehicle",
-              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"]
+              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "electricRangeMiles", "seats", "location", "reservationStatus", "sourceUpdatedAt", "sourceUpdatedByAdvertiserAt", "dateOnForecourt", "imageId", "imageUrl"]
             }
           ]
         },
@@ -151,7 +159,7 @@
             "filters": [
               {"param": "vehicle", "fields": ["stockId"], "operator": "EQUALS_IGNORE_CASE"}
             ],
-            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"],
+            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "electricRangeMiles", "seats", "location", "reservationStatus", "sourceUpdatedAt", "sourceUpdatedByAdvertiserAt", "dateOnForecourt", "imageId", "imageUrl"],
             "defaultLimit": 1,
             "maxLimit": 1,
             "requireSuccessfulSync": true,
@@ -182,7 +190,14 @@
                 "transmission": "/transmission",
                 "bodyType": "/bodyType",
                 "availability": "/availability",
-                "features": "/features"
+                "features": "/features",
+                "electricRangeMiles": "/electricRangeMiles",
+                "seats": "/seats",
+                "location": "/location",
+                "reservationStatus": "/reservationStatus",
+                "sourceUpdatedAt": "/sourceUpdatedAt",
+                "sourceUpdatedByAdvertiserAt": "/sourceUpdatedByAdvertiserAt",
+                "dateOnForecourt": "/dateOnForecourt"
               },
               "metadataFields": {
                 "stockId": "/stockId",

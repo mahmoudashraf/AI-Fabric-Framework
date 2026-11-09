@@ -95,6 +95,48 @@ class SourceProjectionQueryServiceTest {
             .hasMessageContaining("not ready");
     }
 
+    @Test
+    void projectionPreservesStructuredArraysAndDoesNotInventAbsentOptionalFields() {
+        InMemoryIntegrationStateRepository repository = readyRepository();
+        List<Object> features = List.of(
+            Map.of("name", "Fixture heated seats", "type", "Optional"),
+            Map.of("name", "Fixture camera"),
+            "Existing plain label",
+            Map.of("type", "Standard"));
+        repository.applyProjectionChanges("stock-source", "run-1", List.of(
+            new IntegrationStateRepository.SourceProjectionRecord("stock-1", "fingerprint", "stock evidence",
+                Map.of("stockId", "stock-1", "features", features),
+                Map.of("entityType", "dealer-vehicle"), Instant.now())
+        ), Set.of());
+        RestRoutingConfig.SourceProjectionQuery config = config();
+        config.setOutputFields(List.of("stockId", "features", "electricRangeMiles", "sourceUpdatedAt"));
+        Map<String, Object> result = new SourceProjectionQueryService(repository).query(config, Map.of());
+        @SuppressWarnings("unchecked")
+        var records = (List<Map<String, Object>>) result.get("results");
+        assertThat(records.getFirst()).containsEntry("features", features)
+            .doesNotContainKeys("electricRangeMiles", "sourceUpdatedAt");
+        assertThat(repository.queryProjection("stock-source",
+            new IntegrationStateRepository.ProjectionQuery(List.of(), 10)).records().getFirst().entity())
+            .containsEntry("features", features);
+    }
+
+    @Test
+    void projectionPreservesOtherEntityContracts() {
+        InMemoryIntegrationStateRepository repository = readyRepository();
+        var features = List.of(Map.of("name", "Other feature", "type", "Other"));
+        repository.applyProjectionChanges("stock-source", "run-1", List.of(
+            new IntegrationStateRepository.SourceProjectionRecord("stock-1", "fingerprint", "other evidence",
+                Map.of("stockId", "stock-1", "features", features),
+                Map.of("entityType", "catalog-entry"), Instant.now())
+        ), Set.of());
+        RestRoutingConfig.SourceProjectionQuery config = config();
+        config.setOutputFields(List.of("features"));
+        @SuppressWarnings("unchecked")
+        var records = (List<Map<String, Object>>) new SourceProjectionQueryService(repository)
+            .query(config, Map.of()).get("results");
+        assertThat(records.getFirst()).containsEntry("features", features);
+    }
+
     private InMemoryIntegrationStateRepository readyRepository() {
         InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
         repository.startSync("stock-source", "run-1", "source-v1");

@@ -2,6 +2,9 @@ package com.loomai.verification.vehicleprovider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.loomai.verification.vehicleprovider.model.SimulatorContracts.Profile;
+import com.loomai.verification.vehicleprovider.persistence.SimulatorRepository;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +19,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -68,6 +72,9 @@ class VehicleProviderSimulatorHttpTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private HttpServer webhookServer;
 
@@ -190,6 +197,91 @@ class VehicleProviderSimulatorHttpTest {
             new HttpEntity<>(headers)
         );
         assertThat(denied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void autoTraderEvidenceComesFromStoredFictionalRecordsAndRemainsOptional() throws Exception {
+        SimulatorRepository repository = new SimulatorRepository(jdbc, objectMapper);
+        var fixtureBefore = repository.currentRun();
+        var accountsBefore = repository.accountStates();
+        var profileABefore = repository.vehicles(Profile.PROFILE_A, "account-alpha");
+        var profileBBefore = repository.vehicles(Profile.PROFILE_B, "account-bravo");
+        var otherStockBefore = repository.vehicles(Profile.AUTOTRADER, "10020030").stream()
+            .filter(record -> !record.id().equals("DEMO-1001")).toList();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(autoTraderToken());
+        JsonNode original = stockRecord("DEMO-1001", headers);
+        assertThat(original.at("/vehicle/seats").asInt()).isEqualTo(5);
+        assertThat(original.at("/vehicle/batteryRangeMiles").asInt()).isEqualTo(287);
+        assertThat(original.at("/advertiser/location/town").asText()).isEqualTo("Fictional Testhaven");
+        assertThat(original.at("/metadata/dateOnForecourt").asText()).isEqualTo("2026-10-01");
+        assertThat(original.at("/features/0/name").asText()).isEqualTo("Heated front seats");
+        assertThat(original.at("/features/1/type").asText()).isEqualTo("Optional");
+        assertThat(original.path("vehicle").has("batteryRangeTestBasis")).isFalse();
+        assertThat(Instant.parse(original.at("/metadata/lastUpdated").asText()))
+            .isEqualTo(Instant.parse(original.at("/metadata/lastUpdatedByAdvertiser").asText()));
+
+        JsonNode incomplete = stockRecord("DEMO-1006", headers);
+        assertThat(incomplete.at("/vehicle/seats").isMissingNode()).isTrue();
+        assertThat(incomplete.at("/vehicle/batteryRangeMiles").isMissingNode()).isTrue();
+        assertThat(incomplete.at("/advertiser/location").isMissingNode()).isTrue();
+        assertThat(incomplete.path("features").isMissingNode()).isTrue();
+        assertThat(incomplete.at("/metadata/dateOnForecourt").isMissingNode()).isTrue();
+
+        ObjectNode input = (ObjectNode) objectMapper.readTree("""
+            {"id":"DEMO-1001","make":"Aster","model":"E1","derivative":"Motion Long Range",
+             "year":2025,"priceMinor":3195000,"currency":"GBP","fuelType":"Electric",
+             "bodyStyle":"SUV","transmission":"Automatic","mileage":4851,"state":"reserved",
+             "evidence":{"seats":6,"batteryRangeMiles":299,
+               "features":[{"name":"Revised fixture equipment","type":"Optional"}],
+               "locationTown":"Fictional Revision Bay","dateOnForecourt":"2026-09-21"}}
+            """);
+        assertThat(exchange(HttpMethod.PUT,
+            "/internal/control/accounts/autotrader/10020030/vehicles/DEMO-1001",
+            controlEntity(input.toString())).getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode updated = stockRecord("DEMO-1001", headers);
+        assertThat(updated.at("/vehicle/seats").asInt()).isEqualTo(6);
+        assertThat(updated.at("/vehicle/batteryRangeMiles").asInt()).isEqualTo(299);
+        assertThat(updated.at("/features/0/name").asText()).isEqualTo("Revised fixture equipment");
+        assertThat(updated.at("/advertiser/location/town").asText()).isEqualTo("Fictional Revision Bay");
+        assertThat(updated.at("/adverts/reservationStatus").asText()).isEqualTo("Reserved");
+        assertThat(updated.at("/metadata/dateOnForecourt").asText()).isEqualTo("2026-09-21");
+        assertThat(updated.at("/metadata/lastUpdated").asText())
+            .isNotEqualTo(original.at("/metadata/lastUpdated").asText());
+        // A fresh repository reads persisted evidence, not an in-memory fixture overlay.
+        var stored = new SimulatorRepository(jdbc, objectMapper)
+            .vehicle(Profile.AUTOTRADER, "10020030", "DEMO-1001").orElseThrow();
+        assertThat(stored.evidence().batteryRangeMiles()).isEqualTo(299);
+        assertThat(stored.evidence().dateOnForecourt().toString()).isEqualTo("2026-09-21");
+
+        input.remove("evidence");
+        assertThat(exchange(HttpMethod.PUT,
+            "/internal/control/accounts/autotrader/10020030/vehicles/DEMO-1001",
+            controlEntity(input.toString())).getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode cleared = stockRecord("DEMO-1001", headers);
+        assertThat(cleared.at("/vehicle/batteryRangeMiles").isMissingNode()).isTrue();
+        assertThat(cleared.path("features").isMissingNode()).isTrue();
+        assertThat(cleared.at("/metadata/dateOnForecourt").isMissingNode()).isTrue();
+        assertThat(repository.currentRun()).isEqualTo(fixtureBefore);
+        assertThat(repository.vehicles(Profile.PROFILE_A, "account-alpha")).isEqualTo(profileABefore);
+        assertThat(repository.vehicles(Profile.PROFILE_B, "account-bravo")).isEqualTo(profileBBefore);
+        assertThat(repository.vehicles(Profile.AUTOTRADER, "10020030").stream()
+            .filter(record -> !record.id().equals("DEMO-1001")).toList()).isEqualTo(otherStockBefore);
+        for (var before : accountsBefore) {
+            var after = repository.accountStates().stream()
+                .filter(account -> account.profile().equals(before.profile()) && account.accountId().equals(before.accountId()))
+                .findFirst().orElseThrow();
+            assertThat(after.eventSequence()).isEqualTo(before.eventSequence());
+            assertThat(after.sourceVersion()).isEqualTo(before.sourceVersion()
+                + (before.profile().equals(Profile.AUTOTRADER.value()) ? 2 : 0));
+        }
+    }
+
+    private JsonNode stockRecord(String id, HttpHeaders headers) throws Exception {
+        ResponseEntity<String> response = exchange(HttpMethod.GET,
+            "/stock?advertiserId=10020030&stockId=" + id + "&page=1&pageSize=1", new HttpEntity<>(headers));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return objectMapper.readTree(response.getBody()).path("results").get(0);
     }
 
     @Test

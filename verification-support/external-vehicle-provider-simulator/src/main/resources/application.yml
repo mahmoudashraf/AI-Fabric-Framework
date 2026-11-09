@@ -34,10 +34,10 @@ info:
   app:
     name: external-vehicle-provider-simulator
     purpose: hosted-generic-substrate-verification
-    fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v2-media}
+    fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v3-inventory-evidence}
 
 simulator:
-  fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v2-media}
+  fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v3-inventory-evidence}
   public-base-url: ${SIMULATOR_PUBLIC_BASE_URL:http://localhost:8110}
   control-api-key: ${SIMULATOR_CONTROL_API_KEY:}
   token-signing-secret: ${SIMULATOR_TOKEN_SIGNING_SECRET:}

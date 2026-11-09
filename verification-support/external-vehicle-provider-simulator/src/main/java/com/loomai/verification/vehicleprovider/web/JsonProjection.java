@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleRecord;
+import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleEvidence;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -57,6 +58,7 @@ public final class JsonProjection {
 
     public static ObjectNode autoTrader(VehicleRecord record, String publicBaseUrl) {
         ObjectNode result = object();
+        VehicleEvidence evidence = record.evidence();
         ObjectNode vehicle = object()
             .put("ownershipCondition", "Used")
             .put("registration", registration(record))
@@ -79,7 +81,15 @@ public final class JsonProjection {
             .put("fuelType", record.fuelType())
             .put("transmissionType", record.transmission()));
         result.set("vehicle", vehicle);
-        result.set("advertiser", object().put("advertiserId", record.accountId()));
+        if (evidence != null) {
+            if (evidence.seats() != null) vehicle.put("seats", evidence.seats());
+            if (evidence.batteryRangeMiles() != null) vehicle.put("batteryRangeMiles", evidence.batteryRangeMiles());
+        }
+        ObjectNode advertiser = object().put("advertiserId", record.accountId());
+        if (evidence != null && evidence.locationTown() != null) {
+            advertiser.set("location", object().put("town", evidence.locationTown()));
+        }
+        result.set("advertiser", advertiser);
 
         BigDecimal pounds = BigDecimal.valueOf(record.priceMinor(), 2);
         ObjectNode retailAdverts = object();
@@ -104,16 +114,17 @@ public final class JsonProjection {
             .put("lastUpdated", record.updatedAt().toString())
             .put("lastUpdatedByAdvertiser", record.updatedAt().toString())
             .put("versionNumber", record.version())
-            .put("lifecycleState", lifecycleState(record))
-            .put("dateOnForecourt", record.updatedAt().toString().substring(0, 10));
+            .put("lifecycleState", lifecycleState(record));
+        if (evidence != null && evidence.dateOnForecourt() != null) {
+            metadata.put("dateOnForecourt", evidence.dateOnForecourt().toString());
+        }
         metadata.putNull("externalStockId");
         metadata.putNull("externalStockReference");
         result.set("metadata", metadata);
 
-        ArrayNode features = MAPPER.createArrayNode();
-        features.add(object().put("name", "Synthetic provider contract fixture").put("type", "Standard"));
-        features.add(object().put("name", record.transmission() + " transmission").put("type", "Standard"));
-        result.set("features", features);
+        if (evidence != null && evidence.features() != null) {
+            result.set("features", MAPPER.valueToTree(evidence.features()));
+        }
         ObjectNode media = object();
         String imageId = mediaImageId(record);
         media.set("images", MAPPER.createArrayNode().add(object()

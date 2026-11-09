@@ -571,7 +571,7 @@ class RestActionExecutionServiceTest {
         RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
         RestRoutingConfig.SourceProjectionQuery projection = new RestRoutingConfig.SourceProjectionQuery();
         projection.setSourceRef("stock-source");
-        projection.setOutputFields(List.of("stockId", "make", "model", "fuelType", "priceGbp"));
+        projection.setOutputFields(List.of("stockId", "make", "model", "fuelType", "priceGbp", "features", "electricRangeMiles"));
         projection.setDefaultLimit(5);
         projection.setMaxLimit(10);
         RestRoutingConfig.SourceProjectionFilter fuelFilter = new RestRoutingConfig.SourceProjectionFilter();
@@ -590,7 +590,8 @@ class RestActionExecutionServiceTest {
         pinned.setCollectionJsonPointer("/results");
         pinned.setIdJsonPointer("/stockId");
         pinned.setVectorSpace("dealer-vehicle");
-        pinned.setContentFields(Map.of("make", "/make", "model", "/model", "priceGbp", "/priceGbp"));
+        pinned.setContentFields(Map.of("make", "/make", "model", "/model", "priceGbp", "/priceGbp",
+            "features", "/features", "electricRangeMiles", "/electricRangeMiles", "missing", "/missing"));
         pinned.setMetadataFields(Map.of("make", "/make", "model", "/model"));
         route.getResponse().setPinnedTargetsFromCollection(pinned);
         config.getActions().put("search_stock", route);
@@ -609,9 +610,11 @@ class RestActionExecutionServiceTest {
                     "make", "Northstar",
                     "model", "S4",
                     "fuelType", "Electric",
-                    "priceGbp", 20_000
+                    "priceGbp", 20_000,
+                    "features", List.of(Map.of("name", "Fixture heated seats", "type", "Optional")),
+                    "electricRangeMiles", 287
                 ),
-                Map.of(),
+                Map.of("entityType", "dealer-vehicle"),
                 Instant.now()
             )),
             Set.of()
@@ -646,6 +649,9 @@ class RestActionExecutionServiceTest {
             assertThat(target.id()).isEqualTo("stock-1");
             assertThat(target.vectorSpace()).isEqualTo("dealer-vehicle");
             assertThat(target.contentText()).contains("make: Northstar", "model: S4");
+            assertThat(target.contentText()).contains("features:", "Fixture heated seats", "Optional", "electricRangeMiles: 287")
+                .contains("\"name\":\"Fixture heated seats\"", "\"type\":\"Optional\"")
+                .doesNotContain("missing:", "WLTP", "name=", "type=");
         });
     }
 

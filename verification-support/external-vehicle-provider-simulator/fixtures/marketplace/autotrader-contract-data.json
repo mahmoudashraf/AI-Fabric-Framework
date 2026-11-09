@@ -133,7 +133,14 @@
                 "transmission": "/vehicle/transmissionType",
                 "mileage": "/vehicle/odometerReadingMiles",
                 "priceGbp": "/adverts/retailAdverts/totalPrice/amountGBP",
-                "features": "/features"
+                "features": "/features",
+                "electricRangeMiles": "/vehicle/batteryRangeMiles",
+                "seats": "/vehicle/seats",
+                "location": "/advertiser/location/town",
+                "reservationStatus": "/adverts/reservationStatus",
+                "sourceUpdatedAt": "/metadata/lastUpdated",
+                "sourceUpdatedByAdvertiserAt": "/metadata/lastUpdatedByAdvertiser",
+                "dateOnForecourt": "/metadata/dateOnForecourt"
               },
               "entityFields": {
                 "stockId": "/metadata/stockId",
@@ -149,6 +156,13 @@
                 "availability": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
                 "features": "/features",
+                "electricRangeMiles": "/vehicle/batteryRangeMiles",
+                "seats": "/vehicle/seats",
+                "location": "/advertiser/location/town",
+                "reservationStatus": "/adverts/reservationStatus",
+                "sourceUpdatedAt": "/metadata/lastUpdated",
+                "sourceUpdatedByAdvertiserAt": "/metadata/lastUpdatedByAdvertiser",
+                "dateOnForecourt": "/metadata/dateOnForecourt",
                 "imageId": "/media/images/0/imageId",
                 "imageUrl": "/media/images/0/href"
               },
@@ -158,6 +172,8 @@
                 "lifecycleState": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
                 "providerUpdatedAt": "/metadata/lastUpdated",
+                "sourceUpdatedByAdvertiserAt": "/metadata/lastUpdatedByAdvertiser",
+                "dateOnForecourt": "/metadata/dateOnForecourt",
                 "providerRecordVersion": "/metadata/versionNumber",
                 "imageId": "/media/images/0/imageId",
                 "imageUrl": "/media/images/0/href"

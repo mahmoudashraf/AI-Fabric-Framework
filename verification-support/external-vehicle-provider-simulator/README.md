@@ -102,10 +102,59 @@ The Auto Trader profile additionally permits a narrowly worded
 canary passes. It never permits `AUTOTRADER_SANDBOX_VERIFIED` or
 `AUTOTRADER_PRODUCTION_READY`.
 
-The source fixture is now `external-vehicle-provider-v2-media`. Its stock-media
-contract is locally verified, but it does not inherit the older hosted evidence.
+The source fixture is now `external-vehicle-provider-v3-inventory-evidence`.
+Its optional evidence and stock-media contracts do not inherit older hosted evidence.
 A fresh hosted simulator deployment, dealership apply/reindex, and action/RAG
 browser proof are required before recording hosted evidence for this extension.
+
+### Optional inventory evidence
+
+The protected control input's optional `evidence` object is persisted in the
+existing simulator vehicle table. Its fictional seats, battery range, equipment,
+advertiser town and forecourt date are authored here, independently of the website
+inventory. `DEMO-1006` deliberately supplies none of these optional facts. Omitting
+`evidence` on a complete control PUT clears it; no fixture overlay repairs it.
+The default fixture version changes on the next deployment and normal startup
+initialization resets the simulator when that version differs. An explicit
+`SIMULATOR_FIXTURE_VERSION` override must be considered by the rollout owner.
+Reset deletes all profiles' vehicles, account/source versions, event sequences,
+faults and fixture-run identity before reseeding. There is no persisted simulator
+callback registry: each event control request supplies its `targetUrl`. The reset
+code does not modify external connector callback bindings, but is not suitable
+for preserving the hosted inventory or other profiles.
+
+For the existing hosted fixture, preserve its exact persisted v2 fixture-version
+override and H2 volume through the upgrade. Do not call reset. Apply six bounded
+PUTs to the existing AutoTrader account/record IDs through the protected controls,
+preserving each record's current base fields and adding the reviewed evidence.
+The PUT is a complete record replacement, not a merge; omitted evidence is cleared.
+It increments only that account's source version and updates the named record,
+without resetting event sequences, other accounts or callback routing. Verify the
+same fixture reset ID and unchanged other-profile records afterward. The v3
+default is appropriate only when a fresh/reset fixture is explicitly intended.
+
+Official wire fields were checked against the
+[Stock API documentation](https://developers.autotrader.co.uk/api#stock-api):
+`vehicle.batteryRangeMiles` (miles), `vehicle.seats`, `features[].name/type`,
+`advertiser.location.town`, `adverts.reservationStatus`, `metadata.lastUpdated`,
+`metadata.lastUpdatedByAdvertiser` and `metadata.dateOnForecourt`. The public
+contract does not specify a battery-range test-basis field; none is emitted or
+inferred. A missing range is not zero, and a missing feature list does not prove
+the absence of equipment. The forecourt date is a separately supplied date,
+not the date of the latest update.
+
+The DATA/ACTION fixtures map these to `electricRangeMiles`, `seats`, `features`,
+`location` (advertiser town only), `reservationStatus`, `sourceUpdatedAt`,
+`sourceUpdatedByAdvertiserAt` and `dateOnForecourt`. Source update timestamps
+are distinct from the READ envelope's synchronization time. Stock READs and stored
+provider records retain structured features; the dealership pack renders their
+supplied names and types. Downstream LLM READ-evidence serialization may still
+display feature maps using Java Map-style strings. This cosmetic serialization
+limitation remains deferred; no domain-specific connector normalizer, framework
+change or mapping DSL is introduced. No field is inferred from
+fuel type, derivative names or website seeds. These fixture edits do not revise
+published Platform manifests; the rollout owner must revise the actual installed
+DATA/ACTION/template mappings, synchronize and verify each target independently.
 
 ## Current hosted evidence
 

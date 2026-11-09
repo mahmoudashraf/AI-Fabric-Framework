@@ -71,6 +71,9 @@ const VEHICLE_FIELDS = [
   'imageUrl',
   'sourceLabel',
   'sourceUpdatedAt',
+  'sourceUpdatedByAdvertiserAt',
+  'dateOnForecourt',
+  'reservationStatus',
   'sourceVersion',
 ]
 const STOCK_VEHICLE_FIELDS = [
@@ -185,7 +188,7 @@ export function dealershipActionPresentationConfig(
         projection: {
           fields: [{ sourcePath: '_count', target: 'count' }],
           objects: [
-            { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt'] },
+            { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt', 'sourceId', 'sourceVersion', 'synchronizedAt', 'freshnessSeconds'] },
           ],
           collections: [
             {
@@ -467,6 +470,8 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
       ['Gearbox', textValue(vehicle.transmission) || 'Unknown'],
       ['Location', textValue(vehicle.location) || 'Unknown'],
       ['Status', lifecycleLabel(vehicle.lifecycleState)],
+      ['Reservation', textValue(vehicle.reservationStatus) || 'Not supplied'],
+      ['Source updated', formatDate(vehicle.sourceUpdatedAt)],
     ])
     content.append(eyebrow, title, derivative, price, facts)
 
@@ -569,6 +574,11 @@ class DealershipVehicleDetailPresentation extends DealershipPresentationElement 
       ['Range', optionalMiles(vehicle.electricRangeMiles)],
       ['Seats', textValue(vehicle.seats) || 'Unknown'],
       ['Location', textValue(vehicle.location) || 'Unknown'],
+      ['Status', lifecycleLabel(vehicle.lifecycleState)],
+      ['Reservation', textValue(vehicle.reservationStatus) || 'Not supplied'],
+      ['Source updated', formatDate(vehicle.sourceUpdatedAt)],
+      ['Advertiser updated', formatDate(vehicle.sourceUpdatedByAdvertiserAt)],
+      ['On forecourt since', textValue(vehicle.dateOnForecourt) || 'Unknown'],
     ], 'facts-grid'))
     const summary = document.createElement('p')
     summary.className = 'summary'
@@ -584,6 +594,11 @@ class DealershipVehicleDetailPresentation extends DealershipPresentationElement 
         list.append(item)
       }
       details.append(list)
+    } else {
+      const unknownFeatures = document.createElement('p')
+      unknownFeatures.className = 'muted'
+      unknownFeatures.textContent = 'Equipment not supplied'
+      details.append(unknownFeatures)
     }
     layout.append(media, details)
     container.append(layout)
@@ -664,7 +679,11 @@ class DealershipVehicleComparisonPresentation extends DealershipPresentationElem
       ['Seats', (vehicle) => textValue(vehicle.seats) || 'Unknown'],
       ['Location', (vehicle) => textValue(vehicle.location) || 'Unknown'],
       ['Status', (vehicle) => lifecycleLabel(vehicle.lifecycleState)],
+      ['Reservation', (vehicle) => textValue(vehicle.reservationStatus) || 'Not supplied'],
+      ['Equipment', (vehicle) => stringArray(vehicle.features).join('; ') || 'Not supplied'],
       ['Source updated', (vehicle) => formatDate(vehicle.sourceUpdatedAt)],
+      ['Advertiser updated', (vehicle) => formatDate(vehicle.sourceUpdatedByAdvertiserAt)],
+      ['On forecourt since', (vehicle) => textValue(vehicle.dateOnForecourt) || 'Unknown'],
     ]
     for (const [label, formatter] of rows) {
       const row = document.createElement('tr')
@@ -920,7 +939,7 @@ function formatMileage(value: unknown) {
 
 function optionalMiles(value: unknown) {
   const miles = numberValue(value)
-  return miles === undefined ? 'Not supplied' : `${new Intl.NumberFormat('en-GB').format(miles)} miles`
+  return miles === undefined ? 'Not supplied' : `${new Intl.NumberFormat('en-GB').format(miles)} miles (test basis not supplied)`
 }
 
 function lifecycleLabel(value: unknown) {
@@ -943,8 +962,9 @@ function sourceLine(data: Readonly<SafeRecord>, vehicle?: SafeRecord) {
     || textValue(source?.sourceId)
     || textValue(vehicle?.sourceLabel)
     || 'Dealership source'
-  const updatedAt = source?.refreshedAt || source?.synchronizedAt || vehicle?.sourceUpdatedAt
-  return updatedAt ? `${label} · refreshed ${formatDate(updatedAt)}` : label
+  if (source?.synchronizedAt) return `${label} · synchronized ${formatDate(source.synchronizedAt)}`
+  if (source?.refreshedAt) return `${label} · refreshed ${formatDate(source.refreshedAt)}`
+  return vehicle?.sourceUpdatedAt ? `${label} · source updated ${formatDate(vehicle.sourceUpdatedAt)}` : label
 }
 
 function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
@@ -966,7 +986,13 @@ function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
 function featureNames(value: unknown) {
   if (!Array.isArray(value)) return []
   return value
-    .map((item) => typeof item === 'string' ? item : textValue(recordValue(item)?.name))
+    .map((item) => {
+      if (typeof item === 'string') return item
+      const feature = recordValue(item)
+      const name = textValue(feature?.name)
+      const type = textValue(feature?.type)
+      return name && type ? `${name} (${type})` : name
+    })
     .filter(Boolean)
 }
 

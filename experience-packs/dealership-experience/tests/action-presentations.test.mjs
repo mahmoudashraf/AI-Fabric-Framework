@@ -20,7 +20,9 @@ const vehicle = {
   bodyType: 'Hatchback', availability: 'Available', location: 'Example Riverside',
   summary: 'A compact electric car with current dealership facts.',
   exteriorColour: 'Blue', seats: 5, electricRangeMiles: 210,
-  features: [{ name: 'Parking sensors' }, { name: 'Heated seats' }],
+  features: [{ name: 'Parking sensors', type: 'Standard' }, { name: 'Heated seats', type: 'Optional' }],
+  sourceUpdatedAt: '2026-10-09T12:00:00Z', sourceUpdatedByAdvertiserAt: '2026-10-08T11:00:00Z',
+  dateOnForecourt: '2026-10-01', reservationStatus: 'Reserved',
   imageUrl: 'https://images.dealer.test/car.png',
   internalId: 'not-a-public-field', credentials: 'never-render-this',
 }
@@ -43,6 +45,11 @@ test('real widget projections retain declared public detail fields and exclude p
     assert.equal(record.location, 'Example Riverside')
     assert.equal(record.summary, vehicle.summary)
     assert.equal(record.seats, 5)
+    assert.equal(record.electricRangeMiles, 210)
+    assert.equal(record.sourceUpdatedAt, vehicle.sourceUpdatedAt)
+    assert.equal(record.sourceUpdatedByAdvertiserAt, vehicle.sourceUpdatedByAdvertiserAt)
+    assert.equal(record.dateOnForecourt, vehicle.dateOnForecourt)
+    assert.equal(record.reservationStatus, 'Reserved')
     assert.equal(record.availability, 'Available')
     assert.equal(record.internalId, undefined)
     assert.equal(record.credentials, undefined)
@@ -51,6 +58,7 @@ test('real widget projections retain declared public detail fields and exclude p
   assert.equal(inventory.resultReferences[0].sourceMessageId, 'message-42')
   assert.equal(inventory.context.detailNavigation, 'query')
   assert.equal(inventory.context.detailBasePath, '')
+  assert.deepEqual(resolve('dealership_compare_vehicles', { _items: [vehicle], source: stock.source }).presentationData.source, stock.source)
   assert.equal(resolve('unregistered_action', stock), null)
 })
 
@@ -206,14 +214,42 @@ test('real browser detail commands, public rendering and responsive layouts', as
     } })
     const element = page.locator('loomai-dealership-vehicle-detail')
     const content = await element.locator('.workspace').innerText()
-    for (const text of ['Example Riverside', '210 miles', 'Blue', 'Heated seats', vehicle.summary]) {
-      assert.ok(content.includes(text), `Expected detail content: ${text}`)
+    for (const text of ['Example Riverside', '210 miles (test basis not supplied)', 'Blue', 'Heated seats (Optional)',
+      'Parking sensors (Standard)', 'Source updated', 'Advertiser updated', 'On forecourt since', '2026-10-01', 'Reserved', vehicle.summary]) {
+      assert.ok(content.toLowerCase().includes(text.toLowerCase()), `Expected detail content: ${text}`)
     }
     for (const text of ['not-a-public-field', 'never-render-this', '"stockId"', '[object Object]']) {
       assert.equal(content.includes(text), false)
     }
     await element.locator('img').evaluate(image => image.decode())
     assert.equal(await element.locator('img').evaluate(image => image.complete && image.naturalWidth > 0), true)
+  })
+
+  await t.test('stock string labels and missing evidence render honestly, with synchronization distinct from stock updates', async () => {
+    await render({ actionName: 'dealership_get_vehicle', data: {
+      vehicleRecord: { ...vehicle, features: ['Parking sensors (Standard)', 'Heated seats (Optional)'] },
+      source: stock.source,
+    } })
+    const element = page.locator('loomai-dealership-vehicle-detail')
+    const content = await element.locator('.workspace').innerText()
+    assert.ok(content.includes('Heated seats (Optional)'))
+    assert.ok(content.includes('synchronized'))
+    assert.ok(content.toLowerCase().includes('source updated'))
+    assert.ok(content.includes('9 Oct 2026'))
+    assert.equal(content.includes('refreshed'), false)
+    assert.equal(content.includes('name='), false)
+    assert.equal(content.includes('WLTP'), false)
+
+    await render({ actionName: 'dealership_get_vehicle', data: { vehicleRecord: {
+      stockId: 'STOCK-SPARSE', make: 'Example', model: 'Electric Unknown', fuelType: 'Electric',
+      electricRangeMiles: null, seats: null, features: null,
+    } } })
+    const missing = await element.locator('.workspace').innerText()
+    assert.ok(missing.includes('Not supplied'))
+    assert.ok(missing.includes('Unknown'))
+    assert.ok(missing.includes('Equipment not supplied'))
+    for (const value of ['0 miles', 'Standard', 'Optional', 'WLTP', 'name=', 'type=']) assert.equal(missing.includes(value), false)
+    assert.deepEqual(await commands(), [])
   })
 
   await t.test('all enhanced inventory/detail/comparison/receipt styles inherit raw tokens; Current and status meaning stay unchanged', async () => {

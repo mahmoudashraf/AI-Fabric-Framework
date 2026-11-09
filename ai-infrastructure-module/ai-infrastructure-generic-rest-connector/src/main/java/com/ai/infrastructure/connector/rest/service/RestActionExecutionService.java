@@ -681,8 +681,10 @@ public class RestActionExecutionService {
             List<String> content = new ArrayList<>();
             config.getContentFields().forEach((label, pointer) -> {
                 JsonNode value = record.at(pointer);
-                if (value.isValueNode() && StringUtils.hasText(value.asText())) {
+                if (!value.isNull() && value.isValueNode() && StringUtils.hasText(value.asText())) {
                     content.add(label + ": " + value.asText().trim());
+                } else if (value.isArray() && !value.isEmpty()) {
+                    content.add(label + ": " + value);
                 }
             });
             String contentText = content.isEmpty() ? null : String.join("\n", content);

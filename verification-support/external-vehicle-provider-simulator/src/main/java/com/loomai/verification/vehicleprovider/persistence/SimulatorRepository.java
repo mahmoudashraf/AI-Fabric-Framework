@@ -1,11 +1,14 @@
 package com.loomai.verification.vehicleprovider.persistence;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.AccountState;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.ActiveFault;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.FaultMode;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.FixtureRun;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.Profile;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleInput;
+import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleEvidence;
 import com.loomai.verification.vehicleprovider.model.SimulatorContracts.VehicleRecord;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -23,9 +26,11 @@ import java.util.UUID;
 public class SimulatorRepository {
 
     private final JdbcTemplate jdbc;
+    private final ObjectMapper objectMapper;
 
-    public SimulatorRepository(JdbcTemplate jdbc) {
+    public SimulatorRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
+        this.objectMapper = objectMapper;
     }
 
     public Optional<FixtureRun> currentRun() {
@@ -84,7 +89,7 @@ public class SimulatorRepository {
             """
                 select profile, account_id, vehicle_id, make_name, model_name, derivative,
                        registration_year, price_minor, currency, fuel_type, body_style,
-                       transmission, mileage, lifecycle_state, record_version, updated_at
+                       transmission, mileage, lifecycle_state, record_version, updated_at, evidence_json
                   from simulator_vehicle
                  where profile = ? and account_id = ?
                  order by vehicle_id
@@ -99,7 +104,7 @@ public class SimulatorRepository {
             """
                 select profile, account_id, vehicle_id, make_name, model_name, derivative,
                        registration_year, price_minor, currency, fuel_type, body_style,
-                       transmission, mileage, lifecycle_state, record_version, updated_at
+                       transmission, mileage, lifecycle_state, record_version, updated_at, evidence_json
                   from simulator_vehicle
                  where profile = ? and account_id = ? and vehicle_id = ?
                 """,
@@ -129,12 +134,12 @@ public class SimulatorRepository {
                 update simulator_vehicle
                    set make_name = ?, model_name = ?, derivative = ?, registration_year = ?,
                        price_minor = ?, currency = ?, fuel_type = ?, body_style = ?,
-                       transmission = ?, mileage = ?, lifecycle_state = ?, record_version = ?, updated_at = ?
+                       transmission = ?, mileage = ?, lifecycle_state = ?, record_version = ?, updated_at = ?, evidence_json = ?
                  where profile = ? and account_id = ? and vehicle_id = ?
                 """,
             input.make(), input.model(), input.derivative(), input.year(), input.priceMinor(), input.currency(),
             input.fuelType(), input.bodyStyle(), input.transmission(), input.mileage(), input.state(), nextVersion,
-            Timestamp.from(now), profile.value(), accountId, input.id()
+            Timestamp.from(now), evidenceJson(input.evidence()), profile.value(), accountId, input.id()
         );
         if (updated == 0) {
             insertVehicle(profile, accountId, input, nextVersion, now);
@@ -239,12 +244,12 @@ public class SimulatorRepository {
                 insert into simulator_vehicle
                     (profile, account_id, vehicle_id, make_name, model_name, derivative,
                      registration_year, price_minor, currency, fuel_type, body_style,
-                     transmission, mileage, lifecycle_state, record_version, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     transmission, mileage, lifecycle_state, record_version, updated_at, evidence_json)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
             profile.value(), accountId, input.id(), input.make(), input.model(), input.derivative(), input.year(),
             input.priceMinor(), input.currency(), input.fuelType(), input.bodyStyle(), input.transmission(),
-            input.mileage(), input.state(), version, Timestamp.from(now)
+            input.mileage(), input.state(), version, Timestamp.from(now), evidenceJson(input.evidence())
         );
     }
 
@@ -280,8 +285,31 @@ public class SimulatorRepository {
             rs.getInt("mileage"),
             rs.getString("lifecycle_state"),
             rs.getLong("record_version"),
-            instant(rs, "updated_at")
+            instant(rs, "updated_at"),
+            evidence(rs.getString("evidence_json"))
         );
+    }
+
+    private String evidenceJson(VehicleEvidence evidence) {
+        if (evidence == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(evidence);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Could not store simulator vehicle evidence.", ex);
+        }
+    }
+
+    private VehicleEvidence evidence(String json) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, VehicleEvidence.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Could not read simulator vehicle evidence.", ex);
+        }
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {

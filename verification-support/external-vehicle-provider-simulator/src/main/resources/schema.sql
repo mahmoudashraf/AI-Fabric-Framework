@@ -47,6 +47,8 @@ create table if not exists simulator_fault (
 create index if not exists idx_simulator_vehicle_account
     on simulator_vehicle (profile, account_id, vehicle_id);
 
+alter table simulator_vehicle add column if not exists evidence_json text;
+
 create table if not exists loomai_managed_dependency_state (
     singleton_id integer primary key,
     lifecycle_state varchar(24) not null,

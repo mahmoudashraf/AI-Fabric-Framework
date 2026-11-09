@@ -613,7 +613,7 @@ public class HttpDataSyncService {
         List<String> values = new ArrayList<>();
         fields.forEach((label, pointer) -> {
             JsonNode value = at(record, pointer);
-            if (value.isValueNode() && StringUtils.hasText(value.asText())) {
+            if (!value.isNull() && value.isValueNode() && StringUtils.hasText(value.asText())) {
                 values.add(label + ": " + value.asText().trim());
             } else if (value.isArray() && !value.isEmpty()) {
                 values.add(label + ": " + value.toString());
