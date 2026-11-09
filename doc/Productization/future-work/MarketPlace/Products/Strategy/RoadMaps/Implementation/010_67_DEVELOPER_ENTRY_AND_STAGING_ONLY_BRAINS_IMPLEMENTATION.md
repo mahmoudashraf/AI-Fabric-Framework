@@ -115,6 +115,13 @@ enable production, change resource policy or imply a payment flow is implemented
 as part of this minimal presentation change. Hosted verification is recorded in
 the verification README and working context after rollout.
 
+Delivered and qualified on 2026-11-09 at
+`864239acf0651df371e3e83faafc2f57e18486ed`: public-site and Console UI images
+passed CI, both Console environments and the production public site are healthy.
+Anonymous and authenticated cross-domain developer continuity, deliberate business
+browsing/reset, ordinary visitors and mobile/desktop checks passed. No business
+backend, runtime, payment or environment-policy changes.
+
 ### Previously Hosted Foundation
 
 - Complete: typed backend policy, migration 238 and focused enforcement tests.

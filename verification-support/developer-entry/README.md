@@ -255,4 +255,28 @@ Local checks passed: 32 focused auth/entry/profile checks, 13 landing browser
 scenarios, eight Console browser scenarios, actual homepage HTTP routing tests,
 TypeScript/production UI build and Astro check/build/static smoke (28 routes).
 Both build paths retain only the existing Console bundle/runtime-config warnings.
-Hosted delivery for this follow-up is pending; record exact sources after rollout.
+Hosted source: `864239acf0651df371e3e83faafc2f57e18486ed`. Core UI image CI
+`42641996727` passed with backend skipped; public-site image CI `42641996961`
+passed, selecting only `loomai-site`.
+
+- Staging UI deployment: `icg89cu56hp6nregacdo2dh9`.
+- Production UI deployment: `wz19yy2fv4enomtzf1mqea41`.
+- Production public-site deployment: `mm6itexceoeh4qux889uil1u`.
+
+All finished, with native healthy exact-source container inspection. Public site
+image uses the existing `<source>-loomai-site` tag. Its existing health endpoint
+still reports stale environment-provided build metadata; OCI revision/image
+inspection, not that stale string, proves this rollout. No metadata fix is bundled.
+
+Hosted public checks passed eight grouped scenarios, including a real anonymous
+developer visit, subsequent `loomai.pro` redirect, developer cards on signed-out
+Console, deliberate business product browsing, explicit business reset and fresh
+ordinary visitors. All 15 explorer panels still passed at desktop/tablet/phone.
+The runner now waits for the asynchronously loaded catalogue before counting
+cards; the earlier premature count was a test wait error, not a product fallback.
+
+Real customer checks passed on staging (five groups) and production (six), now
+including actual cross-domain homepage navigation after sign-in and the shared
+cookie resetting through Console's business switch. No captured browser errors,
+new resources or provider queries. Existing ignored report/screenshot locations
+remain unchanged. These are focused presentation checks, not a full release gate.

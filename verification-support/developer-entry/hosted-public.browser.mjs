@@ -100,6 +100,7 @@ try {
   assert.equal(await website.locator('.ek-catalogue-card').count(), 0)
   await website.goto('https://console.loomai.pro/')
   await website.getByRole('heading', { name: 'Build your smart app', exact: true }).waitFor()
+  await website.waitForFunction(() => document.querySelectorAll('.dev-starter').length === 2)
   assert.equal(await website.locator('.dev-starter').count(), 2)
   assert.equal(await website.locator('.ek-catalogue-card').count(), 0)
   const product = await website.goto('https://loomai.pro/products/')

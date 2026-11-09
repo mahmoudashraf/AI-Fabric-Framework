@@ -13806,3 +13806,35 @@ test is being called hosted acceptance. UI extraction remains last.
 - After delivery, user requested assessment of a LoomAI-powered configuration
   assistant versus Claude integration, using the existing 010.37 plan. Analysis
   requested only; do not implement an assistant without a new go-ahead.
+
+### 010.67 Shared Developer Website Preference - 9 November 2026, Verified Live
+
+- Supersedes the local-only website entry above. UI/public-site source
+  `864239acf0651df371e3e83faafc2f57e18486ed` is committed/pushed. Core image CI
+  `42641996727` passed (backend skipped); serving image CI `42641996961` passed
+  (only public site selected). No Platform business-backend/runtime deployment.
+- Finished jobs: staging UI `icg89cu56hp6nregacdo2dh9`, production UI
+  `wz19yy2fv4enomtzf1mqea41`, public site `mm6itexceoeh4qux889uil1u`. Native
+  containers are healthy at exact source; private receipts are retained in the
+  existing private 010.67 source directory. Public-site health build metadata is
+  pre-existing stale environment data; exact OCI inspection establishes source.
+- Local checks: 32 focused auth/entry/profile tests, 13 landing and eight Console
+  browser scenarios, homepage GET/HEAD/opt-out/deep-link/cache routing tests,
+  TypeScript/UI production build and Astro check/build/static smoke passed.
+- Hosted public runner: eight grouped checks passed, now including actual
+  anonymous cross-domain developer homepage redirect, signed-out developer cards,
+  explicit business browsing/reset and ordinary visitors. Existing explorer
+  panels/media/mobile/desktop checks remain green. Corrected an asynchronous
+  catalogue assertion in the runner by waiting for rendered cards.
+- Real verified customer sign-in passed on staging (five groups) and production
+  (six): shared homepage choice, Home/Kits/discovery/reload, business switching,
+  phone fit, staging-only setup intent and sign-out. No captured browser errors,
+  resources created or AI calls. No paid production upgrade is implemented here.
+- Configuration-assistant assessment reviewed the current 010.37 plan, existing
+  Support workspace and current official Claude structured-output/Agent SDK docs.
+  LoomAI-owned assistance and Claude as model provider are compatible. Existing
+  Support chat is not a configuration-authoring contract: safe resource context,
+  schemas, OpenAPI import, typed proposals, review/diff and authorized saves still
+  need implementation. Do not embed a full coding subprocess for JSON forms.
+  Assistant implementation remains unstarted; no model quality comparison has
+  been run and no provider superiority is established by documentation alone.
