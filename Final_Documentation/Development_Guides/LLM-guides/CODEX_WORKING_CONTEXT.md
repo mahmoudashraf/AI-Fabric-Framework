@@ -13619,37 +13619,6 @@ test is being called hosted acceptance. UI extraction remains last.
   `/Users/mahmoudashraf/.codex/private/loomai-plugin-library-01066/`.
   Keep unrelated dirty `.gitignore` and pre-existing untracked work untouched.
 
-### 010.67 Visual Explorers - 9 November 2026, Verified Live
-
-- Current UI source is `ef1578444b3860e855c2f3ee7c4cd14f3bb573d5`, committed
-  and pushed. CI `42538922362` passed, backend skipped. Staging job
-  `f9zjxvgc3mx50zp0ei7ojp5z` and production job `wqgyeqb0vpl8p9ituaqcnpbl`
-  finished; exact-source native containers healthy. Backend remains at the
-  previously verified 010.67 policy source; no framework/runtime change.
-- Earlier UI follow-up `7b13ef16ad9960477258e1e19441390fb0dc52ee` made header
-  and footer logos noninteractive. This is retained in the current UI.
-- Eight capability cards now show named icons/options, including the existing
-  five model providers, six search engines and embedding providers. Assets are
-  self-hosted with pinned upstream revisions/licenses. Supported options are not
-  presented as already-configured services or universally available model IDs.
-- Web/Mobile/Backend targets and all four start steps open useful visual panels.
-  Template choices link to the same two real developer Kits. Connection and test
-  panels are informative, not new configuration editors or live AI simulations.
-  The mobile example describes mobile web/web-view or a customer's native client,
-  not an invented native SDK. Website code reuses the actual Engage installer.
-  Backend code shows the canonical conversation-message API, runtime bearer token
-  and required idempotency key, with enabled-control/exact-route qualifications.
-- Fixed low-contrast portal CTA by defining the developer theme variables on
-  the dialog portal as well as the landing page. No broad theme redesign.
-- TypeScript, production build and 12 focused browser scenarios passed. Hosted
-  runner passed six top-level checks across desktop/tablet/phone, including all
-  15 panels, named/loaded model icons, backend example, noninteractive logos,
-  unchanged ordinary business roots and canonical identity redirect. Local
-  clipboard checks passed. Existing runtime-config/bundle-size build warnings
-  remain; no captured hosted page errors or horizontal overflow.
-- Evidence: `verification-support/developer-entry/README.md`; ignored images and
-  reports under `output/developer-entry/hosted/`. No customer resources or provider
-  queries were created. Keep unrelated dirty `.gitignore`/untracked work intact.
   New private-source runtime indexing/AI quality/release qualification remains
   separately unrun; do not claim the full Platform gate is green.
 
@@ -13721,3 +13690,35 @@ test is being called hosted acceptance. UI extraction remains last.
   documents and assignments are unchanged. This scope does not claim a full
   Platform release gate, runtime AI quality or new starter indexing qualification.
   Keep unrelated dirty `.gitignore` and pre-existing untracked work untouched.
+
+### 010.67 Visual Explorers - 9 November 2026, Verified Live
+
+- Current UI source is `ef1578444b3860e855c2f3ee7c4cd14f3bb573d5`, committed
+  and pushed. CI `42538922362` passed, backend skipped. Staging job
+  `f9zjxvgc3mx50zp0ei7ojp5z` and production job `wqgyeqb0vpl8p9ituaqcnpbl`
+  finished; exact-source native containers healthy. Backend remains at the
+  previously verified 010.67 policy source; no framework/runtime change.
+- Earlier UI follow-up `7b13ef16ad9960477258e1e19441390fb0dc52ee` made header
+  and footer logos noninteractive. This is retained in the current UI.
+- Eight capability cards now show named icons/options, including the existing
+  five model providers, six search engines and embedding providers. Assets are
+  self-hosted with pinned upstream revisions/licenses. Supported options are not
+  presented as already-configured services or universally available model IDs.
+- Web/Mobile/Backend targets and all four start steps open useful visual panels.
+  Template choices link to the same two real developer Kits. Connection and test
+  panels are informative, not new configuration editors or live AI simulations.
+  The mobile example describes mobile web/web-view or a customer's native client,
+  not an invented native SDK. Website code reuses the actual Engage installer.
+  Backend code shows the canonical conversation-message API, runtime bearer token
+  and required idempotency key, with enabled-control/exact-route qualifications.
+- Fixed low-contrast portal CTA by defining the developer theme variables on
+  the dialog portal as well as the landing page. No broad theme redesign.
+- TypeScript, production build and 12 focused browser scenarios passed. Hosted
+  runner passed six top-level checks across desktop/tablet/phone, including all
+  15 panels, named/loaded model icons, backend example, noninteractive logos,
+  unchanged ordinary business roots and canonical identity redirect. Local
+  clipboard checks passed. Existing runtime-config/bundle-size build warnings
+  remain; no captured hosted page errors or horizontal overflow.
+- Evidence: `verification-support/developer-entry/README.md`; ignored images and
+  reports under `output/developer-entry/hosted/`. No customer resources or provider
+  queries were created. Keep unrelated dirty `.gitignore`/untracked work intact.
