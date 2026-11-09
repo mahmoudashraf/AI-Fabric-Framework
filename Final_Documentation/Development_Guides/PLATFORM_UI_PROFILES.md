@@ -145,8 +145,9 @@ workspace, a web view or the customer's own native client, not a new native SDK.
 These previews never provision, change settings or invoke AI. Keep dialog theme
 tokens on the portal itself so the primary action stays readable.
 
-The developer offer is one year of developer platform access and LoomAI training,
-not lifetime hosting, unlimited model credit or a quota/funding bypass. Existing
+The developer offer is free developer platform access and LoomAI training, with
+no one-year offer limit. It is staging only, not unlimited hosting, unlimited
+model credit or a quota/funding bypass. Existing
 support provides the training enquiry entry; no duplicate ticket system is added.
 
 ## Verification

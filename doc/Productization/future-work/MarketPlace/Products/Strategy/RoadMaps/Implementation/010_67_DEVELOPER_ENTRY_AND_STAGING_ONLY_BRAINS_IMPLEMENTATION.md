@@ -35,7 +35,9 @@ may separately create ordinary business Kits under existing permissions.
   description. Specialist readiness is not implied by selecting a starter Kit.
 - A clear connection to web, mobile and backend apps.
 - Four-step start sequence and two real Kit setup actions, not fake forms.
-- Developer offer: Free for 1 year, staging only, training by LoomAI included.
+- Developer offer: Free for developers, staging only, training by LoomAI included.
+  Owner update, 9 November 2026: remove the one-year offer limit; existing model
+  usage and infrastructure allowances remain unchanged.
   This describes developer platform access; existing model-usage, credentials,
   funding and infrastructure allowances still apply. It is not unlimited AI
   credit, an automatic quota waiver or a new billing/expiry engine.

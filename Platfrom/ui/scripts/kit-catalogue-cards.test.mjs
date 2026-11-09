@@ -57,10 +57,12 @@ test('catalogue keeps three distinct kits and existing detail destinations', () 
   for (const label of ['Website widget', 'Max workspace', 'Standalone app']) assert.ok(html.includes(label))
 })
 
-test('each kit has a launch offer, with fixed pricing and a trial only on Dealership', () => {
+test('each kit has tailored pricing, with a trial only on Dealership', () => {
   const html = render(chooser.KitChooser, { definitions })
   assert.equal((html.match(/aria-label="Dealership offer"/g) ?? []).length, 1)
-  assert.ok(html.includes(commercial.dealershipOffer.price))
+  assert.equal(commercial.dealershipOffer.price, 'Tailored pricing')
+  assert.equal((html.match(/Tailored pricing/g) ?? []).length, 3)
+  assert.doesNotMatch(html, /500 \/ month/)
   assert.ok(html.includes('Only pay when value starts'))
   assert.ok(html.includes('First 3 months free'))
   assert.ok(html.includes('Free integration'))

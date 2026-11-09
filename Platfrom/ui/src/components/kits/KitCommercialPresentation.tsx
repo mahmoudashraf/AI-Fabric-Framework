@@ -5,7 +5,7 @@ import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import type { KitPreviewKind } from './kitPreviewContent'
 
 export const dealershipOffer = {
-  price: '\u00a3500 / month',
+  price: 'Tailored pricing',
   value: 'Only pay when value starts',
   benefits: ['First 3 months free', 'Free integration'],
 } as const

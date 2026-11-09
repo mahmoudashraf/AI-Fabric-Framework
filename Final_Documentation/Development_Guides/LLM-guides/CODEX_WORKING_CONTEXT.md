@@ -13978,3 +13978,15 @@ test is being called hosted acceptance. UI extraction remains last.
   substitute Support/managed-storage credentials or create another bucket.
 - Full execution record:
   `verification-support/ai-behaviour-01063/2026-11-09-dealership-evidence-completeness.md`.
+
+### Developer And Dealership Offer Copy - 9 November 2026
+
+- Owner requested `Free for developers` instead of the one-year developer offer,
+  and `Tailored pricing` instead of the fixed dealership monthly price.
+- Updated developer landing and shared Console/homepage offer content, including
+  regression assertions. Developer staging policy, model/infrastructure limits,
+  training and existing dealership pilot/integration benefits are unchanged.
+- Local checks: 19 focused tests, 13 developer browser scenarios and five kit
+  integration/detail tests passed. Both frontend builds passed (public site uses
+  installed Node 22; the shell-default Node 20 is unsupported by Astro).
+- Frontend-only rollout and final hosted copy verification are in progress.

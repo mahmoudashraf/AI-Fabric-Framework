@@ -173,7 +173,8 @@ test('real detail pages retain offers, preview, demo, links and responsive light
     }
     const detailText = await page.locator('.ek-public-detail').innerText()
     if (definition.code === 'dealership-ai-experience') {
-      for (const copy of ['£500 / month', 'Only pay when value starts', 'First 3 months free', 'Free integration']) assert.ok(detailText.includes(copy), copy)
+      for (const copy of ['Tailored pricing', 'Only pay when value starts', 'First 3 months free', 'Free integration']) assert.ok(detailText.includes(copy), copy)
+      assert.doesNotMatch(detailText, /500 \/ month/)
       assert.match(detailText, /fictional inventory and a simulated AutoTrader integration/)
       const demo = page.getByRole('link', { name: 'Try the live demo', exact: true }).first()
       assert.equal(await demo.getAttribute('href'), definition.demoUrl)

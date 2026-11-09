@@ -111,8 +111,9 @@ try {
       const option = section.locator(`.home-kit-option[data-kind="${kind}"]`)
       assert.equal(await option.locator('.home-kit__explore').getAttribute('href'), `https://console.loomai.pro/experiences/${code}`)
       assert.equal(await option.locator('.home-kit-offer').count(), 1)
+      assert.equal(await option.getByText('Tailored pricing', { exact: true }).count(), 1)
+      assert.doesNotMatch(await option.locator('.home-kit-offer').innerText(), /500 \/ month/)
       if (kind !== 'dealership') {
-        assert.equal(await option.getByText('Tailored pricing', { exact: true }).count(), 1)
         assert.doesNotMatch(await option.locator('.home-kit-offer').innerText(), /£|months free|Only pay when value starts/)
       }
       assert.equal(await option.locator('.home-kit__desk > span img').getAttribute('src'), '/assets/experiences/whatsapp.svg')
@@ -128,7 +129,7 @@ try {
     assert.equal(await section.getByText('Knowledge onboarding included', { exact: true }).count(), 1)
     await section.getByText(/Your proposal confirms the agreed integration scope/).waitFor()
     assert.equal(await section.getByRole('link', { name: 'Try live demo', exact: true }).getAttribute('href'), '/demos/dealership-ai')
-    checks.push(`${route}:three-launch-offers-dealership-only-fixed-price-and-trial-channel-icons`)
+    checks.push(`${route}:three-tailored-launch-offers-dealership-only-trial-channel-icons`)
 
     for (const kind of Object.keys(kits)) {
       const trigger = section.locator(`[data-catalogue-preview="${kind}"]`)

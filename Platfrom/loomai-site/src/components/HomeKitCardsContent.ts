@@ -13,7 +13,7 @@ export const kitDetailUrl = (code: string) => `https://console.loomai.pro/experi
 
 export const homeKitLaunchOffers = {
   generic: { label: 'Customer experience launch offer', price: 'Tailored pricing', value: 'Integration included', benefits: ['Built around your business'] },
-  dealership: { label: 'Dealership offer', price: '\u00a3500 / month', value: 'Only pay when value starts', benefits: ['First 3 months free', 'Free integration'] },
+  dealership: { label: 'Dealership offer', price: 'Tailored pricing', value: 'Only pay when value starts', benefits: ['First 3 months free', 'Free integration'] },
   support: { label: 'Support launch offer', price: 'Tailored pricing', value: 'Setup included', benefits: ['Knowledge onboarding included'] },
 } as const
 
