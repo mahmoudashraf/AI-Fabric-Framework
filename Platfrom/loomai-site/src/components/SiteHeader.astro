@@ -10,6 +10,7 @@ const links = businessPage ? [
   { label: 'Experiences', href: 'https://console.loomai.pro/experiences', activePatterns: [] },
   { label: 'Products', href: '/products', activePatterns: ['/products'] },
   { label: 'Live demos', href: '/experiments', activePatterns: ['/experiments'] },
+  { label: 'Developers', href: 'https://developer.loomai.pro/', activePatterns: [] },
 ] : navigation
 const isActive = (patterns: string[]) =>
   patterns.some((pattern) => currentPath === pattern || currentPath.startsWith(`${pattern}/`))

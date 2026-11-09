@@ -13838,3 +13838,16 @@ test is being called hosted acceptance. UI extraction remains last.
   need implementation. Do not embed a full coding subprocess for JSON forms.
   Assistant implementation remains unstarted; no model quality comparison has
   been run and no provider superiority is established by documentation alone.
+
+### Homepage Developers Entry - 9 November 2026, Local Only
+
+- Added Developers to the homepage's shared desktop/mobile link list, pointing
+  to `https://developer.loomai.pro/`. No unrelated subpage navigation changed.
+- Site build and static/content smoke passed. The focused theme/browser runner
+  passed eight grouped checks, including header separation at 1440/1024/960px
+  and the mobile Developers link. Matching pinned Playwright Chromium was
+  installed locally after the site's expected browser revision was missing.
+- Owner additionally requested a visual proposal for a Brain-image developer
+  companion beside the founder card. A light/dark raster proposal was shown;
+  the companion itself is not implemented or approved for deployment yet.
+- Rollout pending at this entry. Existing developer continuity/policy unchanged.

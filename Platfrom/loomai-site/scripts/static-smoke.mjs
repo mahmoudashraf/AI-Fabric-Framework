@@ -112,6 +112,7 @@ for (const route of ['']) {
     'href="https://console.loomai.pro/experiences/ai-customer-experience"',
     'href="https://console.loomai.pro/experiences/dealership-ai-experience"',
     'href="https://console.loomai.pro/experiences/ai-support-experience"',
+    'href="https://developer.loomai.pro/"',
     'Only pay when value starts',
     'First 3 months free',
     'Free integration',
