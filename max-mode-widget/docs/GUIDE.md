@@ -1079,7 +1079,7 @@ useMaxModeController (orchestrator)
 ├── useAttachmentsController — item attachments
 ├── useConfirmationFlow   — confirm/reject actions
 ├── useClarificationFlow  — clarification dialogs
-├── useSuggestionsController — AI suggestions
+├── useSuggestionsController — authored starter visibility (next steps arrive with chat)
 ├── useSearchControls     — search categories
 ├── useMaxModePersistence — sessionStorage sync
 ├── useMaxModeViewSync    — scroll, focus, observers

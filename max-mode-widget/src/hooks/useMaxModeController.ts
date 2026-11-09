@@ -879,9 +879,7 @@ export function useMaxModeController({
     shownSuggestions,
     setShownSuggestions,
   } = useSuggestionsController({
-    attachedItems,
     starterSuggestions: hostStarterSuggestions,
-    requestContext: hostRequestContext,
     hasConversationMessages: chatMessages.some(message => message.type === 'user'),
   });
 

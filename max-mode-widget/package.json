@@ -34,6 +34,7 @@
     "smoke:request-context": "node scripts/request-context-smoke.mjs",
     "smoke:semantic-boundary": "node scripts/semantic-boundary-smoke.mjs",
     "smoke:compound-result": "node scripts/compound-result-smoke.mjs",
+    "smoke:suggestions": "node scripts/ai-behaviour-next-steps.test.mjs && node scripts/chat-suggestion-race.test.mjs && node scripts/suggestion-lifecycle-smoke.mjs",
     "smoke:authentication-requirement": "node scripts/authentication-requirement-smoke.mjs",
     "smoke:credential-broker": "node scripts/credential-broker-smoke.mjs",
     "smoke:backend-bearer": "node scripts/backend-bearer-smoke.mjs",

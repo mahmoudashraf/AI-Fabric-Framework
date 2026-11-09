@@ -1,6 +1,6 @@
 # LoomAI Workspace External Developer Guide
 
-**Applies to:** `@loom-ai-labs/max-mode-widget` 1.0.0
+**Applies to:** `@loom-ai-labs/max-mode-widget` 1.1.0
 
 **Audience:** customer application developers, implementation partners, and
 reviewed experience-pack authors.
@@ -42,6 +42,25 @@ It does not own:
 
 Those remain responsibilities of the customer application and its assigned
 LoomAI deployment. The browser must never call a private connector directly.
+
+### Starters And Next Steps
+
+Host-configured starter prompts appear as **Try asking** before the first user
+message. They are authored shortcuts, not generated recommendations. Attaching
+an item or navigating a page does not start a hidden suggestion request.
+
+Generated **Suggested next steps** come from the main conversation response's
+sanitized `suggestions` array. Only the latest completed AI answer exposes these
+choices; loading, pending clarification/confirmation and human control suppress
+them. Selecting one sends an ordinary governed chat query, never a direct write.
+An empty list is valid and does not affect the answer.
+
+In a managed runtime, the existing AI behaviour **Next steps: Contextual** setting
+enables a bounded result-aware generation pass inside that same query request.
+It adds one optional model call, not a separate browser request or retrieval.
+**Off** adds no call. The independent `/chat/me/suggestions` route is retained
+only for deliberate external attachment-idea requests; the widget does not call
+it automatically. It does not advertise actions or fabricate fallback ideas.
 
 ## 2. Choose an Integration Mode
 

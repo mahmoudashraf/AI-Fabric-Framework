@@ -48,7 +48,7 @@ public final class DeploymentAiBehaviourProfiles {
         new Group("nextSteps", "Next steps", List.of(
             option("off", "Off", "Answer the question without optional next-step suggestions.",
                 "Do not add optional next-step recommendations or generic assistance closers. Still ask for genuinely required clarification and follow the actual action confirmation or human-handover lifecycle when requested."),
-            option("contextual", "Contextual", "Suggest a useful next move when one genuinely helps.",
+            option("contextual", "Contextual", "Suggest useful next steps from the completed answer. Uses one additional AI call.",
                 "When helpful, suggest up to two relevant next steps grounded in the current conversation and eligible capabilities. Zero suggestions is valid. Use the framework's structured next-step field when available. Never pad with generic closers, promise an unavailable capability, imply a write is confirmed, or compete with pending confirmation or human control.")))
     );
     private static final String FACT_BOUNDARY = """

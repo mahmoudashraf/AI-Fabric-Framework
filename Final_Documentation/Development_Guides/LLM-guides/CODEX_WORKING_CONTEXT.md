@@ -14001,3 +14001,31 @@ test is being called hosted acceptance. UI extraction remains last.
 - Private receipts/screenshots:
   `~/.codex/private/loomai-offers-20261109/`. Unrelated dirty `.gitignore` and
   untracked work remain untouched.
+
+### Suggestion Reliability - 9 November 2026, Implementation
+
+- Owner approved 010.63 suggestions #1 and #2 together. Framework stays 0.8.46;
+  the private runtime uses its released PipelineStep extension, not a framework
+  fork or new recommendation service/endpoint.
+- Managed Contextual next steps now recompute from bounded sanitized final
+  answer/evidence plus caller-eligible capability descriptions. One generation
+  call maximum, up to two steps, 1,024-token ceiling respecting a lower existing
+  generation limit; no enrichment retrieval. Off/default unchanged. Optional
+  failures preserve the answer, clear provisional hints and expose diagnostics;
+  spending/control interruptions retain the hard boundary.
+- Widget has no attachment generation timer or fixed error suggestions. Starters
+  are `Try asking`; generated choices are `Suggested next steps`, latest completed
+  AI turn only, suppressed during loading/human control. Delayed main-query choices
+  cannot reactivate after a reset or newer user turn. Normal action/confirmation
+  contracts are unchanged.
+- The independent authenticated ideas endpoint remains for deliberate external
+  callers, with no global action catalogue, padding/prose-success fallback or
+  raw provider response. Empty structured output is valid; failures are explicit.
+- Local: 104 runtime/controller tests and 10 Platform profile tests passed.
+  Final output ceiling rechecked in 19 passing new-step tests. Widget typecheck,
+  suggestion lifecycle/race, compound, auth, confirmation replay, semantic-boundary
+  checks and embedded builds passed. Staging baseline reproduced three redundant
+  suggestion sets in four turns. Hosted rollout/comparison is still pending.
+- Current execution record:
+  `verification-support/ai-behaviour-01063/2026-11-09-suggestion-reliability.md`.
+  Raw receipts/configuration remain in `~/.codex/private/loomai-suggestions-20261109/`.

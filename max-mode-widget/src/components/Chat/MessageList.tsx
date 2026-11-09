@@ -38,6 +38,7 @@ export function MessageList({
   isPresentationResultAttached,
   onCustomerAccountConnect,
   onClarificationSubmit,
+  nextStepsEnabled = true,
   contentClassName = "max-w-3xl",
 }: {
   containerClassName: string;
@@ -68,6 +69,7 @@ export function MessageList({
   isPresentationResultAttached: (referenceKey: string, sourceMessageId: string) => boolean;
   onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
+  nextStepsEnabled?: boolean;
   contentClassName?: string;
 }) {
   const clarificationStatus = clarificationStates(messages);
@@ -84,6 +86,7 @@ export function MessageList({
                 key={message.id}
                 message={message}
                 isLatest={isLatest}
+                nextStepsEnabled={nextStepsEnabled && isLatest && !isLoading}
                 clarificationState={clarificationStatus.get(message.id)}
                 clarificationBusy={isLoading}
                 latestMessageRef={latestMessageRef}

@@ -89,6 +89,7 @@ export function MessageBubble({
   isPresentationResultAttached,
   onCustomerAccountConnect,
   onClarificationSubmit,
+  nextStepsEnabled = true,
 }: {
   message: ChatMessage;
   isLatest: boolean;
@@ -117,6 +118,7 @@ export function MessageBubble({
   isPresentationResultAttached: (referenceKey: string, sourceMessageId: string) => boolean;
   onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
+  nextStepsEnabled?: boolean;
 }) {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isSuggestionExpanded, setIsSuggestionExpanded] = useState(false);
@@ -828,7 +830,7 @@ export function MessageBubble({
             </motion.div>
           )}
 
-          {message.type === "ai" && message.result?.nextSteps && message.result.nextSteps.length > 0 && (
+          {nextStepsEnabled && isLatest && !clarificationBusy && !isHumanMessage && message.type === "ai" && message.result?.nextSteps && message.result.nextSteps.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -838,7 +840,7 @@ export function MessageBubble({
               <div className="flex items-center gap-1.5 mb-2">
                 <Zap className="h-3 w-3 text-blue-500" />
                 <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                  Next Steps
+                  Suggested next steps
                 </span>
               </div>
               <div className="space-y-1.5">

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "shortlist",
+    "session": "next-steps",
+    "prompt": "Find current electric cars below GBP 35,000. Briefly show their price, seats and supplied range so I can choose what to compare."
+  },
+  {
+    "id": "comparison",
+    "session": "next-steps",
+    "prompt": "Compare the Aster E1 and Morrow C2 for everyday family use. Include their price, seats and range from current evidence."
+  },
+  {
+    "id": "indexed-facts",
+    "session": "indexed-next-steps",
+    "prompt": "Use indexed dealership evidence, not a live action, to explain the Aster E1's seats, electric range and equipment. Say what range test basis is supplied."
+  },
+  {
+    "id": "compound",
+    "session": "compound-next-steps",
+    "prompt": "Which electric cars in current stock are under GBP 35,000, and what does the approved dealership delivery policy say? I only want information."
+  }
+]

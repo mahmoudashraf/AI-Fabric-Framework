@@ -16,6 +16,21 @@ class DeploymentAiBehaviourProfilesTest {
     private final DeploymentCuratedModuleCatalogService curated = new DeploymentCuratedModuleCatalogService(mapper, new DefaultResourceLoader());
 
     @Test
+    void contextualSuggestionCostIsVisibleAndTheDefaultRemainsOff() {
+        JsonNode catalogue = mapper.valueToTree(DeploymentAiBehaviourProfiles.catalogue());
+        assertThat(catalogue.path("defaults").path("nextSteps").asText()).isEqualTo("off");
+        JsonNode contextual = null;
+        for (JsonNode group : catalogue.path("groups")) {
+            if (!"nextSteps".equals(group.path("key").asText())) continue;
+            for (JsonNode option : group.path("options")) {
+                if ("contextual".equals(option.path("id").asText())) contextual = option;
+            }
+        }
+        assertThat(contextual).isNotNull();
+        assertThat(contextual.path("description").asText()).contains("completed answer", "one additional AI call");
+    }
+
+    @Test
     void absentProfilesPreserveAllExistingConfiguration() throws Exception {
         JsonNode input = mapper.readTree("{\"systemPrompt\":\"Own brand\",\"answerGenerationPrompt\":\"Own guidance\",\"ragMaxContextChars\":7000,\"customFlag\":true}");
         assertThat(DeploymentAiBehaviourProfiles.compile(input, curated.promptPreset("default"))).isEqualTo(input);

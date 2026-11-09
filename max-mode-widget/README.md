@@ -13,6 +13,15 @@ For explicit integrations, use the
 API reference, see [docs/GUIDE.md](docs/GUIDE.md). Auth-mode architecture lives
 in [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
 
+## Suggestions
+
+Configured starters are labelled **Try asking**. Model-generated **Suggested
+next steps** arrive with the main chat response and remain ordinary governed
+queries when selected. No hidden attachment-suggestion timer runs. Managed
+deployments control result-aware generation through **AI behaviour -> Next
+steps**; Contextual adds one bounded model call inside the query, while Off adds
+none. Empty or unavailable suggestions do not replace a useful answer.
+
 ## Quick Start
 
 ### Option 1: Platform-managed one-script installation (recommended)

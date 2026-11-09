@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util'
 
 const { values: args } = parseArgs({ options: {
   scope: { type: 'string' }, root: { type: 'string' }, only: { type: 'string' },
+  scenarios: { type: 'string' },
 } })
 assert.ok(args.scope && args.root, 'Provide the current installation scope and a new private output directory')
 process.umask(0o077)
@@ -14,7 +15,7 @@ assert.ok(!existsSync(root), 'Keep each observed run separate')
 mkdirSync(root, { recursive: true, mode: 0o700 })
 const save = (name, value) => writeFileSync(`${root}/${name}.private.json`, JSON.stringify(value, null, 2), { mode: 0o600 })
 const scope = JSON.parse(readFileSync(args.scope, 'utf8'))
-const scenarios = JSON.parse(readFileSync(new URL('./dealership-evidence.scenarios.json', import.meta.url)))
+const scenarios = JSON.parse(readFileSync(args.scenarios || new URL('./dealership-evidence.scenarios.json', import.meta.url)))
 const selected = args.only?.split(',')
 const queries = selected ? scenarios.filter(row => selected.includes(row.id)) : scenarios
 assert.ok(queries.length && queries.length <= 8)

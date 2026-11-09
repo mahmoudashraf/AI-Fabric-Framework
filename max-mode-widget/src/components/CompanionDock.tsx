@@ -140,6 +140,7 @@ export function CompanionDock({
                 latestMessageRef={controller.latestMessageRef}
                 messagesEndRef={controller.messagesEndRef}
                 isLoading={controller.isLoading}
+                nextStepsEnabled={controller.conversationControlState === "AI_ACTIVE"}
                 getAiStyles={controller.getResultStyles}
                 isPanelVisible={controller.isPanelVisible}
                 attachedItems={controller.attachedItems}

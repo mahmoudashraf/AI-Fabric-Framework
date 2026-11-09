@@ -72,6 +72,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         latestMessageRef={latestMessageRef}
         messagesEndRef={messagesEndRef}
         isLoading={isLoading}
+        nextStepsEnabled={controller.conversationControlState === "AI_ACTIVE"}
         getAiStyles={getResultStyles}
         isPanelVisible={isPanelVisible}
         attachedItems={attachedItems}

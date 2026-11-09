@@ -291,7 +291,13 @@ export function useChatFlow({
           debugData: messageDebugData,
         };
 
-        setChatMessages((prev) => [...prev, aiMessage]);
+        setChatMessages((prev) => {
+          // A reset, takeover or newer turn must not reactivate an older request's choices.
+          const nextStepsCurrent = prev[prev.length - 1]?.id === userMessage.id;
+          return [...prev, nextStepsCurrent || !aiMessage.result ? aiMessage : {
+            ...aiMessage, result: { ...aiMessage.result, nextSteps: [] },
+          }];
+        });
 
         if (authenticationRequirement) {
           const authentication = getWidgetConfig().host?.authentication;

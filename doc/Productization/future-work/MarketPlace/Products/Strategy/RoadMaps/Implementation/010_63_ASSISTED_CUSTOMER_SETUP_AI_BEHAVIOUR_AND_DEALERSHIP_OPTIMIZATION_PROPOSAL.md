@@ -271,6 +271,37 @@ These are illustrative model-guidance examples. They must not become query-term 
 
 **Verdict:** high-value, bounded work. Fix the canonical mapping, context freshness and origin handling before building a more elaborate recommendation system.
 
+### 5.5 Approved focused implementation, 9 November 2026
+
+The owner approved suggestions #1 and #2 as one response-first workstream.
+Canonical transport was already delivered; final-result relevance remains the
+actual backend change, not another widget adapter.
+
+- Reuse the released framework `PipelineStep` extension inside the deployment
+  runtime. When the existing managed Next steps profile is enabled, one bounded
+  generation pass uses the completed answer and authorized result context to
+  select up to two recommendations. This adds a model call within the main
+  query, not another browser request or an extra retrieval pass. Off makes no
+  additional call. No framework modification/release is needed for this path.
+- This explicit result-aware policy replaces provisional extraction-time hints.
+  Empty output is valid. Optional suggestion failure leaves the answer intact,
+  with an empty list and diagnostic outcome, never fabricated alternatives or
+  restoration of provisional hints. Spending/control interruptions retain their
+  existing hard boundary.
+- Remove automatic attachment suggestion generation from the widget entirely.
+  Configured composer starters are labelled `Try asking`; generated message
+  choices are `Suggested next steps`. Only the latest completed AI turn shows
+  those controls, not earlier turns, loading states or human-controlled chats.
+- The independent authenticated attachment-ideas API may remain for deliberate
+  external callers. It must not expose the global action catalogue, pad output,
+  turn provider failure into successful fixed suggestions, or return raw model
+  output. It is not the source of executable conversation next steps.
+- Verification is scoped to runtime contracts, widget lifecycle and live
+  suggestion quality. No provider/model change, source-routing repair, template
+  default rollout or other deferred semantic audit fix is part of this work.
+
+Execution/evidence: [suggestion reliability record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-09-suggestion-reliability.md).
+
 ## 6. A Richer Dealership Experience
 
 ### 6.1 Reuse what is already built

@@ -722,6 +722,7 @@ function ShopifyConversationColumn({
           latestMessageRef={controller.latestMessageRef}
           messagesEndRef={controller.messagesEndRef}
           isLoading={controller.isLoading}
+          nextStepsEnabled={controller.conversationControlState === "AI_ACTIVE"}
           getAiStyles={controller.getResultStyles}
           isPanelVisible={false}
           attachedItems={controller.attachedItems}
@@ -1059,6 +1060,7 @@ function ShopifyMobileWorkspace({
             latestMessageRef={controller.latestMessageRef}
             messagesEndRef={controller.messagesEndRef}
             isLoading={controller.isLoading}
+            nextStepsEnabled={controller.conversationControlState === "AI_ACTIVE"}
             getAiStyles={controller.getResultStyles}
             isPanelVisible={false}
             attachedItems={controller.attachedItems}

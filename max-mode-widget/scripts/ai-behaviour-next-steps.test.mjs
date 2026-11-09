@@ -19,6 +19,12 @@ for (const type of ['CONFIRMATION_REQUIRED', 'CLARIFICATION_REQUIRED']) {
   assert.deepEqual(canonicalChatResult({ ...base, type, suggestions: [suggestion] }).nextSteps, [])
   assert.deepEqual(canonicalChatResult({ ...base, type: 'COMPOUND_HANDLED', results: [{ type, success: true }], suggestions: [suggestion] }).nextSteps, [])
 }
+for (const type of ['ERROR', 'ACTION_DENIED', 'REVIEW_REQUIRED', 'HUMAN_MESSAGE_ACCEPTED']) {
+  assert.deepEqual(canonicalChatResult({ ...base, type, suggestions: [suggestion] }).nextSteps, [])
+}
+for (const controlState of ['HANDOVER_REQUESTED', 'HUMAN_ACTIVE', 'CLOSED']) {
+  assert.deepEqual(canonicalChatResult({ ...base, metadata: { conversationControl: { controlState } }, suggestions: [suggestion] }).nextSteps, [])
+}
 assert.deepEqual(canonicalChatResult({ ...base, suggestions: [null, {}, 'not a structured recommendation', { query: ' ' }] }).nextSteps, [])
 assert.deepEqual(canonicalChatResult({ ...base, suggestions: [suggestion, suggestion, suggestion] }).nextSteps, [suggestion, suggestion])
 assert.deepEqual(canonicalChatResult({ ...base, suggestions: [{ query: 'Explain the approved policy' }] }).nextSteps,

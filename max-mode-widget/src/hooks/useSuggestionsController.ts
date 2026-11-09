@@ -1,82 +1,26 @@
 import { useEffect, useState } from "react";
 
-import { getChatSuggestions } from "@/api/chat";
-import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
-import { toRuntimeAttachment } from "@/attachments";
-import { withRequestContext } from "@/utils";
-
 export function useSuggestionsController({
-  attachedItems,
   starterSuggestions,
-  requestContext,
   hasConversationMessages,
 }: {
-  attachedItems: Array<{ type: string; data: any }>;
   starterSuggestions: string[];
-  requestContext?: Record<string, any>;
   hasConversationMessages: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [shownSuggestions, setShownSuggestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (attachedItems.length === 0) {
-      setSuggestions(hasConversationMessages ? [] : starterSuggestions);
-      setShowSuggestions(!hasConversationMessages && starterSuggestions.length > 0);
-      return;
-    }
-
-    const timeoutId = setTimeout(async () => {
-      setIsLoadingSuggestions(true);
-      try {
-        const attachments = attachedItems.map((item, index) =>
-          toRuntimeAttachment(item, index));
-
-        const contentParts = attachedItems.map((item) => {
-          const name = item.data.name || item.data.title || item.data.code || "Item";
-          return `${item.type}: ${name}`;
-        });
-
-        const data = await getChatSuggestions(withRequestContext({
-          content: contentParts.join("; ") || "Give me suggestions based on attached items",
-          maxSuggestions: 4,
-          attachments: attachments.length > 0 ? attachments : undefined,
-        }, requestContext));
-
-        if (data.suggestions && Array.isArray(data.suggestions)) {
-          const newSuggestions = data.suggestions.filter((s: unknown): s is string => typeof s === "string" && s.length > 0);
-          if (newSuggestions.length > 0) {
-            setSuggestions(newSuggestions.slice(0, 4));
-            // Keep suggestions closed by default - user must open them explicitly
-          }
-        }
-      } catch (error) {
-        if (isPublicRuntimeSessionInvalidatedError(error)) {
-          return;
-        }
-        console.error("Failed to load suggestions:", error);
-        const genericSuggestions = [
-          "Tell me more about this",
-          "What are the key details?",
-          "How does this compare to alternatives?",
-          "What should I know before deciding?",
-        ];
-        setSuggestions(genericSuggestions);
-        // Keep suggestions closed by default - user must open them explicitly
-      } finally {
-        setIsLoadingSuggestions(false);
-      }
-    }, 10000); // 10s delay to avoid interrupting early interactions
-
-    return () => clearTimeout(timeoutId);
-  }, [attachedItems, starterSuggestions, requestContext, hasConversationMessages]);
+    // Authored starters are not model recommendations. Next steps come with the answer.
+    setSuggestions(hasConversationMessages ? [] : starterSuggestions);
+    setShowSuggestions(!hasConversationMessages && starterSuggestions.length > 0);
+  }, [starterSuggestions, hasConversationMessages]);
 
   return {
     suggestions,
     setSuggestions,
-    isLoadingSuggestions,
+    isLoadingSuggestions: false,
     showSuggestions,
     setShowSuggestions,
     shownSuggestions,

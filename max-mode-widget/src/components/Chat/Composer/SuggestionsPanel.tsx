@@ -43,7 +43,7 @@ export function SuggestionsPanel({
                 </Button>
                 <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 flex items-center gap-2">
                   <Wand2 className="h-4 w-4" />
-                  AI Suggestions
+                  Try asking
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -89,7 +89,7 @@ export function SuggestionsPanel({
             className="w-full bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700 border-2 border-blue-400 hover:border-blue-500 text-purple-700 dark:text-purple-300 shadow-lg"
           >
             <Wand2 className="h-3.5 w-3.5 mr-2" />
-            Show AI Suggestions ({suggestions.length})
+            Try asking ({suggestions.length})
           </Button>
         </motion.div>
       )}
