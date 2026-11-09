@@ -72,10 +72,12 @@ import { CustomerConsoleTheme } from './theme/CustomerConsoleTheme'
 import { pluginLibraryReturn } from './auth/pluginLibraryReturn'
 import { DeveloperLandingPage } from './pages/DeveloperLandingPage'
 import { developerLandingHost, isDeveloperEntry, isDeveloperKit } from './developer/developerEntry'
+import { useDeveloperExperience } from './developer/DeveloperExperienceProvider'
 
 export default function App() {
   const auth = usePlatformAuth()
   const location = useLocation()
+  const { developer } = useDeveloperExperience()
   const customerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
   const Shell = brainIdFromPath(location.pathname) ? SmartBrainShell : customerWorkspace && isAccountPath(location.pathname) ? CustomerAccountShell : customerWorkspace ? CustomerConsoleShell : AppShell
   const brainReturn = brainSignInReturn(location.state?.brainReturn)
@@ -152,7 +154,7 @@ export default function App() {
     if (library) return <Navigate to={`/sign-in?${new URLSearchParams({ library_return: library })}`} state={{ libraryReturn: library }} replace />
     const kit = kitSetupCode(location.pathname)
     const account = isAccountPath(location.pathname) ? accountSignInReturn(`${location.pathname}${location.search}`) : null
-    return <Navigate to={kit ? `/sign-in?kit=${kit}${isDeveloperKit(kit) && isDeveloperEntry(location.search) ? '&entryPoint=DEVELOPER' : ''}` : account ? `/sign-in?${new URLSearchParams({ account_return: account })}` : `/sign-in${location.search}`}
+    return <Navigate to={kit ? `/sign-in?kit=${kit}${isDeveloperKit(kit) && (developer || isDeveloperEntry(location.search)) ? '&entryPoint=DEVELOPER' : ''}` : account ? `/sign-in?${new URLSearchParams({ account_return: account })}` : `/sign-in${location.search}`}
       state={brainIdFromPath(location.pathname) ? { brainReturn: `${location.pathname}${location.search}` }
         : isAccountPath(location.pathname) ? { accountReturn: `${location.pathname}${location.search}` } : undefined} replace />
   }

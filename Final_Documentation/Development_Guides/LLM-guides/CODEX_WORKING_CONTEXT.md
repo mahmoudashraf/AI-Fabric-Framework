@@ -13722,3 +13722,38 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence: `verification-support/developer-entry/README.md`; ignored images and
   reports under `output/developer-entry/hosted/`. No customer resources or provider
   queries were created. Keep unrelated dirty `.gitignore`/untracked work intact.
+
+### 010.37 Configuration Assistant Plan Expanded - 9 November 2026
+
+- Expanded the existing 010.37 implementation plan for customer/staff AI-assisted
+  configuration, Swagger/OpenAPI and prose/PDF/example imports, and input-heavy
+  action, routing, private Data, Knowledge, behaviour, provider, Engage, handover
+  and supported specialist/plan editors. Implementation has not started.
+- Initial architecture is a bounded structured-output gateway in the existing
+  Platform backend, not a mandatory assistant deployment or embedded coding
+  terminal. Full Codex/Claude agent execution remains a deferred code-generation
+  extension. Preserve current plugin types, manual editors and release flow.
+- The plan names the real draft concurrency gap, safe document/reference fetches,
+  secret projection, explicit buffer adoption/save separation, scoped retention
+  and phased hosted qualification. No application code, provider call or deployed
+  configuration changed; the verified 010.67 source above remains live.
+
+### 010.67 Developer Console Continuity - 9 November 2026, Local Only
+
+- Implemented developer discovery continuity through general Sign in/Open
+  Console, email callbacks and subsequent navigation. Home, My kits, discovery
+  and empty Brain lists reuse the same two developer starter cards. Existing
+  resources remain available; an explicit switch restores business discovery.
+- Display preference is browser-local, scoped to actor + customer, with pending
+  sign-in intent. No account role, backend permission or deployment policy
+  changed. New developer Kit links still pass typed entry into the existing
+  staging-only backend contract; no infrastructure or provider calls were made.
+- Local verification: 31 focused unit tests, 12 landing browser scenarios and
+  seven new Console scenarios passed. Kit/staff/product/navigation regression
+  groups passed after their isolated renderer fixture was taught the new view
+  context. TypeScript and production build passed with existing warnings.
+- The new browser runner uses controlled API/identity fixtures, not hosted
+  sign-in. Screenshots are under `output/developer-entry/console/`; evidence and
+  repro commands are in `verification-support/developer-entry/README.md`.
+- Not committed, pushed or deployed. Previous hosted 010.67 source remains live.
+  Keep earlier 010.37 plan edits and unrelated dirty/untracked work intact.

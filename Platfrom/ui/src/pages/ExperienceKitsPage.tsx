@@ -15,6 +15,9 @@ import { ExperienceKitOverview } from '../components/kits/ExperienceKitOverview'
 import './ExperienceKits.css'
 import { isDeveloperEntry, isDeveloperKit } from '../developer/developerEntry'
 import { stagingOnly } from '../developer/deploymentPolicy'
+import { useDeveloperExperience } from '../developer/DeveloperExperienceProvider'
+import { DeveloperStarterCards } from '../developer/DeveloperStarterCards'
+import { ConsoleExperienceControl } from '../developer/DeveloperCatalogue'
 
 export function ExperienceKitsRefreshTemplates({ customerId }: { customerId: string }) {
   const queryClient = useQueryClient()
@@ -27,10 +30,11 @@ export function ExperienceKitsRefreshTemplates({ customerId }: { customerId: str
 }
 
 function ExperienceKitsList({ customerId }: { customerId: string }) {
+  const { developer } = useDeveloperExperience()
   const kits = useQuery({ queryKey: experienceKitKeys.list(customerId), queryFn: ({ signal }) => fetchExperienceKits(signal), retry: false })
   const catalogue = useQuery({ queryKey: experienceKitKeys.catalogue(customerId), queryFn: ({ signal }) => fetchExperienceKitCatalogue(signal), retry: false })
   return <>
-    <div className="ek-section-heading"><div><h1>My kits</h1><p>Help your customers. Make each experience your own.</p></div>
+    <div className="ek-section-heading"><div><h1>My kits</h1><p>{developer ? 'Your projects, data and AI workspaces.' : 'Help your customers. Make each experience your own.'}</p></div>
       <Button component={Link} to="/experiences" startIcon={<AddRounded />}>Explore experiences</Button></div>
     {kits.isPending && <div className="ek-query-state" role="status"><CircularProgress size={24} />Loading your kits...</div>}
     {kits.isError && <Alert severity="error" action={<Button onClick={() => void kits.refetch()}>Retry</Button>}>{kits.error instanceof Error ? kits.error.message : 'Your kits could not be loaded.'}</Alert>}
@@ -50,11 +54,12 @@ function ExperienceKitsList({ customerId }: { customerId: string }) {
         <Button component={Link} to={`/kits/${encodeURIComponent(kit.id)}`} endIcon={<ArrowForwardRounded />}>Open kit</Button>
       </article>
     })}</div>}
-    {kits.isSuccess && !kits.data.length && <section className="ek-empty"><KitMark product="engage" large /><h2>Start helping your customers</h2><p>Choose an experience, add your information and give it your brand. Test it before you go live.</p></section>}
+    {kits.isSuccess && !kits.data.length && <section className="ek-empty"><KitMark product="engage" large /><h2>{developer ? 'Build your first smart app' : 'Start helping your customers'}</h2><p>{developer ? 'Choose a starter, connect your data and test your Smart Brain in staging.' : 'Choose an experience, add your information and give it your brand. Test it before you go live.'}</p></section>}
     <section className="ek-available-kits"><div className="ek-section-heading"><h2>Choose a starting point</h2><ExperienceKitsRefreshTemplates customerId={customerId} /></div>
+      <ConsoleExperienceControl />
       {catalogue.isPending && <CircularProgress size={24} aria-label="Loading available kits" />}
       {catalogue.isError && <Alert severity="error" action={<Button onClick={() => void catalogue.refetch()}>Retry</Button>}>{catalogue.error instanceof Error ? catalogue.error.message : 'Available kits could not be loaded.'}</Alert>}
-      {catalogue.isSuccess && (catalogue.data.length ? <KitChooser definitions={catalogue.data.map(entry => entry.definition)} authenticated detailLinks={false} />
+      {catalogue.isSuccess && (catalogue.data.length ? developer ? <DeveloperStarterCards availableCodes={catalogue.data.map(entry => entry.definition.code)} /> : <KitChooser definitions={catalogue.data.map(entry => entry.definition)} authenticated detailLinks={false} />
         : <Alert severity="info">No kit templates are available for this account. Refresh the available templates or request integration help.</Alert>)}
     </section>
   </>
@@ -65,7 +70,8 @@ export function ExperienceKitsPage() {
   const auth = usePlatformAuth()
   const { code, id } = useParams<{ code: string; id: string }>()
   const location = useLocation()
-  const developerEntry = isDeveloperEntry(location.search) && isDeveloperKit(code)
+  const { developer } = useDeveloperExperience()
+  const developerEntry = (isDeveloperEntry(location.search) || developer) && isDeveloperKit(code)
   const { palette } = useTheme()
   if (auth.isLoading) return <CircularProgress size={24} aria-label="Loading your account" />
   if (!isCustomerSession(auth.session)) return <Alert severity="warning">Sign in with a customer administrator account to manage kits.<Button component={Link} to={code ? `/sign-in?kit=${encodeURIComponent(code)}` : '/sign-in'}>Sign in</Button></Alert>

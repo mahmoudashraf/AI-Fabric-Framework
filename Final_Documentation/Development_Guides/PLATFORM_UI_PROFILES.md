@@ -64,6 +64,22 @@ onboarding and email callbacks. It is not a role, entitlement or permission.
 The customer-experience and support Kits reuse their existing configuration and
 editors. Ordinary business templates are not globally restricted by this entry.
 
+Developer entry also preserves a Console discovery preference. General
+sign-in/Open Console links and email callbacks carry `entryPoint=DEVELOPER`, even
+without a selected Kit. The UI remembers the choice in this browser, scoped to
+the signed-in actor and customer workspace; short-lived pending intent bridges
+sign-in. This is presentation state, not an account type, analytics event or
+authorization claim. It is not a server-side preference synchronized to every
+device; email links carry their explicit entry intent across devices.
+
+Home, My kits, discovery and empty Brain lists reuse the same two developer
+starter cards. Existing Kits/resources remain accessible. A visible discovery
+switch returns to business kits without changing account roles or existing
+resource policy. New supported developer Kit links still carry typed entry into
+the backend creation contract. Never infer or relax allowed environments from
+this preference. Ordinary visitors without a remembered/explicit developer
+choice retain business cards.
+
 The backend stamps a persisted environment policy on developer-created Brains.
 Use its `deploymentPolicy.allowedEnvironments` for target choices and show its
 staging-only status. Do not infer policy from the hostname, browser preference,
@@ -115,6 +131,11 @@ all capability previews, real Kit setup links and retained authentication intent
 Verify production denial for developer Brains through the API, staging allowed,
 and ordinary business production unchanged. Check both public hostnames and
 the standard staging presentation after rollout.
+
+Run `node scripts/developer-console.browser.mjs` for general sign-in, remembered
+cards, Home/My kits/discovery navigation, business switching, account isolation,
+mobile layout and typed setup links. It uses controlled API/identity fixtures,
+not real hosted sign-in or provisioning.
 
 Evidence and rollback status:
 The old `verification-support/developer-ui-profile/README.md` is historical

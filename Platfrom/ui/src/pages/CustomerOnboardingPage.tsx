@@ -10,10 +10,10 @@ import { productStartPath, selectedProduct, selectedKit } from '../auth/customer
 import { SupabaseIdentityForm } from '../auth/SupabaseIdentityForm'
 import { CustomerConsoleTheme } from '../theme/CustomerConsoleTheme'
 import { createCustomerWorkspace, enrollPublicCustomerTemplates, fetchCustomerDeploymentPortfolio, fetchCustomerOnboarding, fetchCustomerSelfServiceCatalogue } from '../api/platformApi'
-import { isDeveloperEntry } from '../developer/developerEntry'
+import { useDeveloperExperience } from '../developer/DeveloperExperienceProvider'
 
 export function CustomerEntryLayout({ children }: { children: ReactNode }) {
-  const developer = isDeveloperEntry(useLocation().search)
+  const { developer } = useDeveloperExperience()
   return <CustomerConsoleTheme><Box sx={{ minHeight: '100vh', bgcolor: 'background.paper', px: { xs: 2.5, md: 7 }, py: 3 }}>
     <Button component={Link} to={developer ? '/developers' : '/'} startIcon={<ArrowBack />} sx={{ mb: 5 }}>{developer ? 'Back to developers' : 'Back to products'}</Button>
     <Stack spacing={3} sx={{ maxWidth: 470, mx: 'auto', pb: 6 }}>
@@ -27,10 +27,10 @@ export function CustomerSignInPage({ register = false }: { register?: boolean })
   const location = useLocation()
   const product = selectedProduct(location.search)
   const kit = selectedKit(location.search)
-  const developer = isDeveloperEntry(location.search)
+  const { developer } = useDeveloperExperience()
   return <CustomerEntryLayout>
     <Box><Typography variant="h4" component="h1">{register ? 'Create your LoomAI account' : 'Welcome to LoomAI'}</Typography>
-      <Typography color="text.secondary" sx={{ mt: 1 }}>{developer && kit ? 'Use your existing account, or create one, to build a staging-only Smart Brain for your app.' : kit ? 'Continue setting up your AI experience.' : product ? `Continue with LoomAI ${product === 'platform' ? 'Platform' : product === 'engage' ? 'Engage' : 'Desk'}.` : 'One account for Console and LoomAI Desk.'}</Typography></Box>
+      <Typography color="text.secondary" sx={{ mt: 1 }}>{developer ? 'Use your existing account, or create one, to build a staging-only Smart Brain for your app.' : kit ? 'Continue setting up your AI experience.' : product ? `Continue with LoomAI ${product === 'platform' ? 'Platform' : product === 'engage' ? 'Engage' : 'Desk'}.` : 'One account for Console and LoomAI Desk.'}</Typography></Box>
     {auth.customerConfig?.enabled ? <SupabaseIdentityForm key={register ? 'register' : 'login'} allowRegistration initialMode={register ? 'register' : 'login'} />
       : <Alert severity="warning">Customer sign-in is currently unavailable. Please try again later.</Alert>}
     {auth.error ? <Alert severity="error">{auth.error.message}</Alert> : null}

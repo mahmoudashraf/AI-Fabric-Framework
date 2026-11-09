@@ -26,6 +26,7 @@ const integrationConfig = await load('../src/integrationTeam.ts')
 const integrationCall = await load('../src/components/IntegrationCallButton.tsx', { '../integrationTeam': integrationConfig })
 const consoleEntry = await load('../src/components/ConsoleEntryButton.tsx')
 const identity = await load('../src/components/kits/KitIdentity.tsx', {
+  '../../developer/DeveloperExperienceProvider': { useDeveloperExperience: () => ({ developer: false }) },
   '../../theme/CustomerConsoleTheme': { useCustomerColorPreference: () => ({ setPreference() {} }) },
   '../IntegrationCallButton': integrationCall,
   '../ConsoleEntryButton': consoleEntry,

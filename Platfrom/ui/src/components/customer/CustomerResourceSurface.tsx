@@ -16,6 +16,8 @@ import { appResource, deploymentResource, releaseEnvironment, releaseIssues, res
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerProductHome } from './CustomerProductHome'
+import { useDeveloperExperience } from '../../developer/DeveloperExperienceProvider'
+import { DeveloperCatalogue } from '../../developer/DeveloperCatalogue'
 import { CustomerProductTasks } from './CustomerProductTasks'
 import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 import { CustomerDeskLink } from './CustomerDeskLink'
@@ -41,6 +43,7 @@ export type CustomerResourceSurfaceProps = {
 }
 
 export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
+  const { developer } = useDeveloperExperience()
   const location = useLocation()
   const navigate = useNavigate()
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
@@ -159,15 +162,17 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     <Box sx={{ p: { xs: 2, md: 3.5 }, flex: 1, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
         <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : `Your ${deploymentTerm.lowercase} configurations and verified target releases.`}</Typography></Box>
-        {props.mode !== 'home' ? <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : `Create ${deploymentTerm.lowercase}`}</Button> : null}
+        {props.mode !== 'home' ? <Button component={RouterLink} to={developer && props.mode === 'deployments' ? '/kits' : setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : `Create ${deploymentTerm.lowercase}`}</Button> : null}
       </Stack>
       {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
       {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
-        <Typography variant="h6" sx={{ mb: 2 }}>Choose a starting template</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
-        {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
+        <Typography variant="h6" sx={{ mb: 2 }}>{developer ? 'Choose a developer starter' : 'Choose a starting template'}</Typography>
+        {developer ? <DeveloperCatalogue /> : <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
+          {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
+        </>}
       </Box> : <>
         <TextField size="small" placeholder="Find a resource..." inputProps={{ 'aria-label': 'Find a customer resource' }} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 2.5, maxWidth: 300 }} />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selected ? '1fr' : 'repeat(2,minmax(0,1fr))' }, gap: 2 }}>

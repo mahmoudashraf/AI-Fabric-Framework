@@ -27,6 +27,21 @@ test('only the dedicated public hostname gets a developer root and canonical Con
     assert.equal(entry.developerConsoleHref('/sign-in', host), '/sign-in')
   }
 })
+test('Console experience is an exact account-scoped presentation choice', () => {
+  assert.equal(entry.explicitConsoleExperience('?entryPoint=DEVELOPER'), 'DEVELOPER')
+  assert.equal(entry.explicitConsoleExperience('?entryPoint=CUSTOMER'), 'CUSTOMER')
+  assert.equal(entry.explicitConsoleExperience('?entryPoint=developer'), null)
+  assert.equal(entry.explicitConsoleExperience(''), null)
+  assert.notEqual(entry.consoleExperienceKey('customer-a', 'owner'), entry.consoleExperienceKey('customer-b', 'owner'))
+  assert.notEqual(entry.consoleExperienceKey('customer', 'owner-a'), entry.consoleExperienceKey('customer', 'owner-b'))
+  assert.notEqual(entry.consoleExperienceKey('customer:a', 'b'), entry.consoleExperienceKey('customer', 'a:b'))
+  const key = entry.consoleExperienceKey('customer', 'owner')
+  assert.equal(entry.readConsoleExperience({ getItem: () => 'DEVELOPER' }, key), 'DEVELOPER')
+  assert.equal(entry.readConsoleExperience({ getItem: () => 'CUSTOMER' }, key), 'CUSTOMER')
+  assert.equal(entry.readConsoleExperience({ getItem: () => 'ADMIN' }, key), null)
+  assert.equal(entry.readConsoleExperience({ getItem: () => { throw new Error('Storage disabled') } }, key), null)
+  assert.equal(entry.developerEntryPath('/sign-in?kit=ai-support-experience#form'), '/sign-in?kit=ai-support-experience&entryPoint=DEVELOPER#form')
+})
 test('UI honours persisted allowed environments without reinterpreting arbitrary tags', () => {
   const developer = { allowedEnvironments: ['staging'], tags: ['staging-only'] }
   const business = { allowedEnvironments: ['staging', 'production'], tags: [] }

@@ -163,3 +163,34 @@ unchanged ordinary Console/staging root pages. Canonical sign-in redirects retai
 the selected developer Kit. No captured page errors or horizontal overflow.
 Screenshots and the structured report are under `output/developer-entry/hosted/`.
 No customer configuration, runtime, backend or AI decision behavior changed.
+
+## Remembered Developer Console Discovery
+
+The November 9 follow-up reuses the two developer starters on Home, My kits,
+discovery and empty Brain lists. General sign-in/Open Console links and email
+callbacks retain typed intent without a selected Kit. Browser preference is
+scoped to customer + actor, not shared across unrelated users. The user can
+switch to business kits. Existing resources remain visible; authorization and
+allowed environments stay server-owned.
+
+Local checks:
+
+```sh
+cd Platfrom/ui
+node --test scripts/developer-entry.test.mjs scripts/customer-supabase-auth.test.mjs scripts/ui-profile.test.mjs
+node scripts/developer-landing.browser.mjs
+node scripts/developer-console.browser.mjs
+npm run build
+```
+
+The focused unit group passed 31 tests, the landing runner passed 12 scenarios
+and the new Console runner passed seven: general sign-in, navigation/reload,
+business switching, different actors, ordinary discovery, empty Brain lists and
+mobile setup links. The Console runner uses a mocked identity exchange and
+read-only API fixtures, not hosted login/provisioning. It minimizes the existing
+support dock through its real control; no forced clicks or hidden UI.
+
+Ignored screenshots: `output/developer-entry/console/`. Production build passed
+with existing runtime-config/large-bundle warnings. This follow-up is locally
+verified, not yet committed or deployed; the prior hosted source above remains
+live.

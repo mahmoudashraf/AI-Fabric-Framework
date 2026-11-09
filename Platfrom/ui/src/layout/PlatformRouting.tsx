@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import App from '../App'
+import { DeveloperExperienceProvider } from '../developer/DeveloperExperienceProvider'
+
+function ConsoleApp() {
+  return <DeveloperExperienceProvider><App /></DeveloperExperienceProvider>
+}
 
 function AuthenticatedRouting() {
   const [router, setRouter] = useState<ReturnType<typeof createBrowserRouter> | null>(null)
   useEffect(() => {
-    const next = createBrowserRouter([{ path: '*', element: <App /> }])
+    const next = createBrowserRouter([{ path: '*', element: <ConsoleApp /> }])
     setRouter(next)
     return () => next.dispose()
   }, [])
@@ -20,5 +25,5 @@ export function PlatformRouting() {
     || window.location.pathname.startsWith('/auth/desk/sign-in/')
   return (session?.authenticated || session?.enabled === false) && !identityProtocolRoute
     ? <AuthenticatedRouting />
-    : <BrowserRouter useTransitions={false}><App /></BrowserRouter>
+    : <BrowserRouter useTransitions={false}><ConsoleApp /></BrowserRouter>
 }

@@ -179,7 +179,7 @@ try {
     await page.goto('http://developer.loomai.pro/')
     await page.getByRole('heading', { name: 'Smart Brain for your app.' }).waitFor()
     assert.equal(await page.getByRole('link', { name: 'Build a support team' }).getAttribute('href'), 'https://console.loomai.pro/kits/new/ai-support-experience?entryPoint=DEVELOPER')
-    assert.equal(await page.getByRole('link', { name: 'Open Console' }).getAttribute('href'), 'https://console.loomai.pro/sign-in')
+    assert.equal(await page.getByRole('link', { name: 'Open Console' }).getAttribute('href'), 'https://console.loomai.pro/sign-in?entryPoint=DEVELOPER')
   }, { origin: 'http://developer.loomai.pro' })
   for (const width of [390, 768, 1920]) await run(`layout fits ${width}px viewport`, async page => {
     await page.goto(base + '/developers')

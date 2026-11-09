@@ -13,6 +13,8 @@ import { appResource, deploymentResource, safeCustomerAppUrl, type CustomerResou
 import { activeProductDeployments, customerProducts, productSetupPath } from './customerProductModels'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { experienceKitKeys, fetchExperienceKits } from '../../api/experienceKitsApi'
+import { useDeveloperExperience } from '../../developer/DeveloperExperienceProvider'
+import { ConsoleExperienceControl, DeveloperCatalogue } from '../../developer/DeveloperCatalogue'
 
 export function CustomerProductHome({ offers, deployments, apps, errors, onInspect }: {
   offers: CustomerOfferSummary[]
@@ -22,6 +24,7 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
   onInspect: (resource: CustomerResource) => void
 }) {
   const customerId = usePlatformAuth().session?.customerId ?? ''
+  const { developer } = useDeveloperExperience()
   const kits = useQuery({ queryKey: experienceKitKeys.list(customerId), queryFn: ({ signal }) => fetchExperienceKits(signal), enabled: Boolean(customerId), retry: false })
   const products = customerProducts(offers, deployments, apps)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -32,21 +35,23 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
   const inactiveApps = apps.filter(app => app.status !== 'ACTIVE')
   return <Stack spacing={3}>
     <Box component="section" aria-label="Your AI experiences">
-      <Stack direction="row" justifyContent="space-between" gap={2} alignItems="center"><Typography variant="h6">Your AI experiences</Typography><Button component={RouterLink} to="/kits">My kits</Button></Stack>
+      <Stack direction="row" justifyContent="space-between" gap={2} alignItems="center"><Typography variant="h6">{developer ? 'Your AI projects' : 'Your AI experiences'}</Typography><Button component={RouterLink} to="/kits">My kits</Button></Stack>
       {kits.isSuccess && kits.data.length ? <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1 }}>{kits.data.map(kit => <Button key={kit.id} component={RouterLink} to={`/kits/${encodeURIComponent(kit.id)}`} variant="outlined">{kit.name}</Button>)}</Stack>
         : <Typography variant="body2" color="text.secondary">Start with a connected kit, or configure the individual products below.</Typography>}
       {kits.isError && <Alert severity="warning">Your kits could not be loaded. Existing product resources remain available.<Button onClick={() => void kits.refetch()}>Retry</Button></Alert>}
       <Button component={RouterLink} to="/experiences" startIcon={<AddRounded />} sx={{ mt: 1 }}>Explore AI experiences</Button>
     </Box>
+    <ConsoleExperienceControl />
+    {developer && <Box component="section" aria-label="Developer starting points"><Typography variant="h6" sx={{ mb: 2 }}>Build your next smart app</Typography><DeveloperCatalogue /></Box>}
     <Divider />
     {activeIssues.length > 0 ? <Stack spacing={1} aria-label="Active app issues">
       {activeIssues.map(({ app, issue }) => <Alert key={`${app.installationId}:${issue.code}`} severity={issue.severity}
         action={<Button onClick={() => onInspect(appResource(app))}>Inspect</Button>}><strong>{app.displayName}</strong>: {issue.message}</Alert>)}
     </Stack> : null}
     <Box>
-      <Typography variant="h6" sx={{ mb: 2 }}>Your products</Typography>
+      <Typography variant="h6" sx={{ mb: 2 }}>{developer ? 'Your connected resources' : 'Your products'}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2,minmax(0,1fr))' }, gap: 2 }}>
-        {products.map(product => {
+        {products.filter(product => !developer || activeProductDeployments(product).length > 0).map(product => {
           const active = activeProductDeployments(product)
           const usableOffers = product.offers.filter(offer => offer.entitlement.status === 'ACTIVE')
           return <Card key={product.id} component="section" aria-label={`${product.name} product`}><CardContent>
@@ -84,7 +89,7 @@ export function CustomerProductHome({ offers, deployments, apps, errors, onInspe
           {activeApps.filter(app => !products.some(product => product.apps.some(item => item.installationId === app.installationId))).map(app => <Box key={app.installationId} sx={{ mt: 2 }}><Button onClick={() => onInspect(appResource(app))}>{app.displayName}</Button>{safeCustomerAppUrl(app.appUrl) ? <Button component="a" href={safeCustomerAppUrl(app.appUrl)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}</Box>)}
         </CardContent></Card>
       </Box>
-      {!products.length && !errors.length ? <Alert severity="info" sx={{ mt: 2 }}>No {deploymentTerm.lowercase} template is currently available. <Button component={RouterLink} to="/deployments?view=setup&step=template">Review invitations</Button></Alert> : null}
+      {!developer && !products.length && !errors.length ? <Alert severity="info" sx={{ mt: 2 }}>No {deploymentTerm.lowercase} template is currently available. <Button component={RouterLink} to="/deployments?view=setup&step=template">Review invitations</Button></Alert> : null}
     </Box>
     <Divider />
     <Accordion expanded={historyOpen} onChange={(_, open) => setHistoryOpen(open)} disableGutters elevation={0} sx={{ bgcolor: 'transparent', '&:before': { display: 'none' } }}>

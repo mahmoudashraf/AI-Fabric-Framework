@@ -1,4 +1,4 @@
-.dev-landing, .dev-capability-dialog {
+.dev-landing, .dev-capability-dialog, .dev-starter-catalogue {
   --dev-bg: #0c1214;
   --dev-surface: #131e22;
   --dev-line: #2d4248;
@@ -20,6 +20,11 @@
 .dev-landing button { font: inherit; }
 .dev-landing :is(a, button):focus-visible { outline: 2px solid var(--dev-mint); outline-offset: 5px; }
 .dev-landing svg { flex-shrink: 0; }
+.dev-starter-catalogue { color: var(--dev-text); color-scheme: dark; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; }
+.dev-starter-catalogue *, .dev-starter-catalogue *::before, .dev-starter-catalogue *::after { box-sizing: border-box; letter-spacing: 0; }
+.dev-starter-catalogue a { text-decoration: none; }
+.dev-starter-catalogue svg { flex-shrink: 0; }
+.dev-starter-catalogue a:focus-visible { outline: 2px solid var(--dev-mint); outline-offset: 4px; }
 .dev-header, .dev-footer { max-width: 1360px; margin: 0 auto; padding: 24px 40px; display: flex; align-items: center; gap: 24px; }
 .dev-brand { display: inline-flex; align-items: center; gap: 9px; font-size: 23px; }
 .dev-brand img { filter: brightness(0) invert(1); }

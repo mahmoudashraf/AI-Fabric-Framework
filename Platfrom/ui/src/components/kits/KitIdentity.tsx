@@ -14,6 +14,7 @@ import { IntegrationCallButton } from '../IntegrationCallButton'
 import { ConsoleEntryButton } from '../ConsoleEntryButton'
 import { integrationTeam } from '../../integrationTeam'
 import { useCustomerColorPreference } from '../../theme/CustomerConsoleTheme'
+import { useDeveloperExperience } from '../../developer/DeveloperExperienceProvider'
 
 export const kitAsset = (name: string) => `${import.meta.env.BASE_URL}products/${name}`
 
@@ -39,12 +40,15 @@ export function KitProductLine({ dealership = false, support = false }: { dealer
 export function KitPublicHeader({ authenticated, selectedCode, consolePath = '/kits', catalogue = false }: { authenticated: boolean; selectedCode?: string; consolePath?: string; catalogue?: boolean }) {
   const theme = useTheme()
   const { setPreference } = useCustomerColorPreference()
+  const { developer } = useDeveloperExperience()
   const label = theme.palette.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
-  const query = selectedCode ? `?kit=${encodeURIComponent(selectedCode)}` : ''
+  const params = new URLSearchParams(selectedCode ? { kit: selectedCode } : {})
+  if (developer) params.set('entryPoint', 'DEVELOPER')
+  const query = params.size ? `?${params}` : ''
   return <header className={`ek-public-header${catalogue ? ' ek-catalogue-header' : ''}`}>
     <div className="ek-brand-home"><a href={integrationTeam.websiteUrl} className="ek-logo" aria-label="LoomAI home"><img src={kitAsset('box.svg')} width="32" height="32" alt="" />LoomAI<span>Console</span></a>
       <a className="ek-site-return" href={integrationTeam.websiteUrl}><ArrowBackRounded />LoomAI website</a></div>
-    {catalogue && <div className="ek-catalogue-title"><h1>Choose your AI experience</h1><p>Start with a kit. Make it yours.</p></div>}
+    {catalogue && <div className="ek-catalogue-title"><h1>{developer ? 'Build your smart app' : 'Choose your AI experience'}</h1><p>{developer ? 'Choose a Brain. Connect your project. Test in staging.' : 'Start with a kit. Make it yours.'}</p></div>}
     <div className="ek-header-actions"><IntegrationCallButton size="small" /><Tooltip title={label}><IconButton aria-label={label}
       onClick={() => setPreference(theme.palette.mode === 'dark' ? 'light' : 'dark')}>
       {theme.palette.mode === 'dark' ? <LightModeOutlined /> : <DarkModeOutlined />}</IconButton></Tooltip>

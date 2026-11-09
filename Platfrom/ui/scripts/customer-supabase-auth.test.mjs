@@ -231,6 +231,26 @@ test('developer Kit entry survives sign-in, onboarding and cross-device email li
   } finally { delete globalThis.window }
 })
 
+test('general developer sign-in retains its experience without requiring a selected Kit', () => {
+  const storage = new Map()
+  globalThis.window = { location: { origin: 'https://console.example.test', pathname: '/sign-in', search: '?entryPoint=DEVELOPER' },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } }
+  try {
+    assert.equal(productStartPath(window.location.search), '/kits?entryPoint=DEVELOPER')
+    rememberCustomerAuthReturn(false)
+    assert.equal(customerAuthReturn().entryPoint, 'DEVELOPER')
+    const redirect = new URL(identityEmailRedirect())
+    assert.equal(redirect.searchParams.get('entryPoint'), 'DEVELOPER')
+    assert.equal(consumeCustomerAuthReturn(), '/kits?entryPoint=DEVELOPER')
+    storage.clear()
+    window.location.pathname = '/auth/callback'
+    window.location.search = redirect.search
+    assert.equal(consumeCustomerAuthReturn(), '/kits?entryPoint=DEVELOPER', 'Email carries the presentation choice across devices')
+    window.location.search = '?entryPoint=OTHER'
+    assert.equal(productStartPath(window.location.search), '/start')
+  } finally { delete globalThis.window }
+})
+
 test('account sections survive email-link return with safe Brain context but no arbitrary destination', () => {
   const storage = new Map()
   const destination = '/account/team?fromBrain=dep-a&targetProfileId=staging'

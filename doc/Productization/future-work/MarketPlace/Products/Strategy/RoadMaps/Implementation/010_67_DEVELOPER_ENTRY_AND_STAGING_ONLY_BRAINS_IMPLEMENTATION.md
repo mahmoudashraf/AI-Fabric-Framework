@@ -74,6 +74,25 @@ the existing production frontend route, and qualify HTTPS.
 
 ## Execution Status
 
+### Console Discovery Continuity Follow-Up
+
+Owner request, 2026-11-09: retain developer entry through sign-in and general
+Console navigation, showing developer rather than business starter cards.
+
+- Reuse the approved two developer cards on Home, My kits, discovery and empty
+  Brain lists, retaining all existing resources and their settings.
+- Carry typed intent on general account links/email callbacks without requiring
+  a selected Kit.
+- Remember display choice per actor/customer in this browser, with short-lived
+  pending intent. No new account type or retired staging-global profile.
+- Allow explicit business switching. Existing resource policy stays authoritative;
+  new developer Kit setup retains its typed staging-only creation intent.
+- Verify account isolation, ordinary business cards, navigation/reload,
+  desktop/mobile and no infrastructure mutations. Record hosted delivery
+  separately from local verification.
+
+### Previously Hosted Foundation
+
 - Complete: typed backend policy, migration 238 and focused enforcement tests.
   Backend source `6f5d59b7ac224e99c90dd510b9167c24a2c7f922` is healthy on
   staging and production; migration 238 succeeded on both databases.
