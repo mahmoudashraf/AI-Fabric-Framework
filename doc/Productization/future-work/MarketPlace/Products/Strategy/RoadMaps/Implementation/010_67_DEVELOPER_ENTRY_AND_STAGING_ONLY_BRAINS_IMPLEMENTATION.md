@@ -91,6 +91,15 @@ Console navigation, showing developer rather than business starter cards.
   desktop/mobile and no infrastructure mutations. Record hosted delivery
   separately from local verification.
 
+Delivered on 2026-11-09: frontend source
+`04e5f653de3ea31aace2f9dbeeb96bbee04edf18`, image CI `42632868209` passed,
+staging/production containers healthy at that exact revision. All 93 focused
+regression checks and seven local Console browser scenarios passed. Real hosted
+customer sign-in, Home/My kits/discovery/reload, explicit business switching,
+phone fit, typed staging-only setup and sign-out passed on both environments.
+No backend/runtime changes or new resources. See the verification README for
+exact deployment receipts, test scope and screenshots.
+
 ### Previously Hosted Foundation
 
 - Complete: typed backend policy, migration 238 and focused enforcement tests.

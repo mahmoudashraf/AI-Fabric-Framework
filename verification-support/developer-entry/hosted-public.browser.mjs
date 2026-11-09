@@ -21,6 +21,10 @@ try {
     assert.equal(await page.locator('.dev-starter').count(), 2)
     assert.equal(await page.locator('span.dev-brand').count(), 2)
     assert.equal(await page.locator('.dev-brand[href], a:has(.dev-brand), button:has(.dev-brand)').count(), 0)
+    assert.equal(await page.getByRole('navigation', { name: 'Developer account' }).getByRole('link', { name: 'Sign in', exact: true, includeHidden: true }).getAttribute('href'),
+      'https://console.loomai.pro/sign-in?entryPoint=DEVELOPER')
+    assert.equal(await page.getByRole('navigation', { name: 'Developer account' }).getByRole('link', { name: 'Open Console', exact: true }).getAttribute('href'),
+      'https://console.loomai.pro/sign-in?entryPoint=DEVELOPER')
     for (const image of await page.locator('.dev-landing img').all()) {
       await image.scrollIntoViewIfNeeded()
       await image.evaluate(img => img.decode())
@@ -83,6 +87,10 @@ try {
   assert.equal(response.status, 302)
   assert.equal(response.headers.get('location'), 'https://console.loomai.pro/sign-in?kit=ai-support-experience&entryPoint=DEVELOPER')
   results.push({ canonicalIdentityRedirect: true, selectedKitRetained: true })
+  const general = await fetch('https://developer.loomai.pro/sign-in?entryPoint=DEVELOPER', { redirect: 'manual' })
+  assert.equal(general.status, 302)
+  assert.equal(general.headers.get('location'), 'https://console.loomai.pro/sign-in?entryPoint=DEVELOPER')
+  results.push({ generalDeveloperIdentityRedirect: true })
   await writeFile(output + 'report.json', JSON.stringify({ checkedAt: new Date().toISOString(), results }, null, 2))
   console.log(JSON.stringify({ passed: results.length, results }))
 } finally { await browser.close() }

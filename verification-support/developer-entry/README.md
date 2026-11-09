@@ -191,6 +191,49 @@ read-only API fixtures, not hosted login/provisioning. It minimizes the existing
 support dock through its real control; no forced clicks or hidden UI.
 
 Ignored screenshots: `output/developer-entry/console/`. Production build passed
-with existing runtime-config/large-bundle warnings. This follow-up is locally
-verified, not yet committed or deployed; the prior hosted source above remains
-live.
+with existing runtime-config/large-bundle warnings. The combined focused
+unit/Kit/staff/product/navigation group subsequently passed all 93 checks, and
+the seven Console browser scenarios passed again before rollout.
+
+### Hosted Continuity Rollout - 9 November 2026
+
+Frontend source `04e5f653de3ea31aace2f9dbeeb96bbee04edf18` is committed, pushed
+and deployed to both environments. Image CI `42632868209` passed with backend
+correctly skipped. Staging deployment `xxbop1ne189h8ummlpvu4a85` and production
+deployment `avqoq6dl01hx1nivdocytjek` finished. Native container inspection
+confirmed healthy containers with that exact source label and image tag.
+
+The new `hosted-console.browser.mjs` uses a private verified customer's real
+email/password through the ordinary sign-in form; it mocks no identity/API
+requests and creates no resources. Supply `DEVELOPER_LOGIN_FIXTURE` pointing to
+a private JSON file with `email` and `password`; never commit that fixture.
+
+Both environments passed five grouped hosted checks:
+
+- General developer sign-in reaches the two developer starters without a Kit
+  preselected. Production starts by clicking Sign in on the developer hostname.
+- Home, My kits, discovery and reload retain the developer cards.
+- Explicit business switching restores all three business cards, survives reload
+  and can return to developer starters.
+- At 390 pixels the starter images load, the document has no horizontal overflow
+  and Support setup retains typed developer intent and staging-only wording.
+- Sign-out prevents reopening Home as an authenticated customer.
+
+Before/after Kit IDs were unchanged. This fixture currently has zero Kits; these
+checks do not claim a new nonempty-portfolio qualification or runtime provisioning.
+No AI query, infrastructure allocation or backend/runtime update was performed.
+Reports and reviewed desktop/mobile screenshots are ignored under
+`output/developer-entry/hosted-console/`.
+
+An initial production run began before Coolify completed its route handover and
+loaded the old bundle (untyped sign-in). After the deployment reported finished,
+a fresh-browser run passed without changing code or weakening assertions.
+
+The public runner also passed seven grouped checks after rollout: all 15 visual
+explorers and loaded media at 1440/768/390 pixels, canonical selected-Kit and
+general developer sign-in redirects, and unchanged fresh-browser business entry
+on production/staging. No page errors or horizontal overflow were captured.
+The mobile header deliberately hides its secondary Sign in link; the runner
+inspects that link's target in the DOM and checks the visible Open Console target.
+This was a runner selector correction, not an application change. Public report
+and screenshots remain under `output/developer-entry/hosted/`.

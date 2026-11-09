@@ -13757,3 +13757,34 @@ test is being called hosted acceptance. UI extraction remains last.
   repro commands are in `verification-support/developer-entry/README.md`.
 - Not committed, pushed or deployed. Previous hosted 010.67 source remains live.
   Keep earlier 010.37 plan edits and unrelated dirty/untracked work intact.
+
+### 010.67 Developer Console Continuity - 9 November 2026, Verified Live
+
+- Supersedes the local-only entry above. UI source
+  `04e5f653de3ea31aace2f9dbeeb96bbee04edf18` is committed and pushed.
+  Configuration-assistant plan changes were committed separately as `e9b7580e5`;
+  that assistant is still a plan, not implemented application behavior.
+- UI image CI `42632868209` passed; backend image was skipped. Staging job
+  `xxbop1ne189h8ummlpvu4a85` and production job `avqoq6dl01hx1nivdocytjek`
+  finished. Native inspection confirmed healthy exact-source UI containers.
+  Backend remains unchanged at the prior 010.67 source; no framework/runtime,
+  infrastructure allocation, customer configuration or AI queries changed.
+- Combined focused auth/entry/Kit/staff/product/Brain regression group: 93 passed.
+  Seven local developer Console browser scenarios passed again. Prior TypeScript,
+  build and 12 landing-browser checks remain green, with existing build warnings.
+- Real verified customer sign-in on staging and production passed, including
+  general developer entry without a selected Kit, Home/My kits/discovery and
+  reload, explicit business/developer switching, mobile rendering and images,
+  typed staging-only Support setup, and sign-out/protected-route denial. No API
+  mocks or forced clicks. Kit IDs unchanged; the fixture currently has zero Kits,
+  so this is not a new nonempty-resource or infrastructure qualification.
+- A production probe initially loaded the prior bundle during route handover.
+  Fresh-browser verification after Coolify finished passed without a code change.
+- Public hosted runner passed seven grouped checks: all 15 capability/channel/
+  setup explorers at 1440/768/390, loaded media, unchanged ordinary Console and
+  staging entries, canonical selected-Kit and general developer sign-in redirects.
+  No captured page errors/overflow. The mobile selector now accounts for the
+  existing hidden secondary Sign in link and checks visible Open Console.
+- Reusable hosted runner and receipts: `verification-support/developer-entry/`.
+  Private fixture credentials remain outside git; reports/screenshots remain
+  ignored under `output/developer-entry/`. Unrelated dirty/untracked work retained.
