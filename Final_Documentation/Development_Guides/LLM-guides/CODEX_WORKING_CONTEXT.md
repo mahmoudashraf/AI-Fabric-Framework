@@ -13851,3 +13851,20 @@ test is being called hosted acceptance. UI extraction remains last.
   companion beside the founder card. A light/dark raster proposal was shown;
   the companion itself is not implemented or approved for deployment yet.
 - Rollout pending at this entry. Existing developer continuity/policy unchanged.
+
+### Homepage Developer Invitation - 9 November 2026, Local Verification
+
+- The earlier Developers navigation source `2e6413112` is live. Serving image CI
+  `42647683939` passed; the existing automatic updater completed public-site job
+  `a112c3hauafggef8s1waix32`. Native container is healthy at exact source. Four
+  live desktop/mobile navigation checks passed, including developer entry and
+  the remembered homepage redirect. This supersedes the prior local-only note.
+- Owner approved the light/dark companion-card proposal. Implemented two equal-
+  height homepage invitations: existing founder contact panel on the left and
+  developer entry with the shared silver/teal Brain asset on the right. Cards
+  stack on mobile. Other contact links keep their compact variant.
+- Astro check: 87 files, zero errors/warnings/hints. Production build and
+  content/static smoke (28 routes) passed. Focused browser verification covers
+  media, layout, themes and the founder panel. Hosted component rollout pending.
+- No Platform backend, runtime, framework, action configuration, AI calls or
+  resource provisioning changed. Unrelated dirty/untracked work is retained.

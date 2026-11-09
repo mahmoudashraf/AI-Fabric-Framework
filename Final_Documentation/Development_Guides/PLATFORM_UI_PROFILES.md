@@ -98,6 +98,13 @@ production upgrade. The owner means a paid production launch by "upgrade";
 browsing business content must never perform that transition. This presentation
 follow-up neither implements payment nor relaxes the staging-only backend policy.
 
+The business homepage offers Developers in its desktop/mobile navigation and a
+Brain-image developer invitation beside the founder contact card. The invitation
+links to the production developer entry; the founder card reuses the existing
+contact/booking panel. Keep these as responsive light/dark HTML cards with actual
+self-hosted portrait/Brain assets, not a flattened mockup. The larger founder
+variant is homepage-only; other contact entry points remain compact.
+
 The backend stamps a persisted environment policy on developer-created Brains.
 Use its `deploymentPolicy.allowedEnvironments` for target choices and show its
 staging-only status. Do not infer policy from the hostname, browser preference,

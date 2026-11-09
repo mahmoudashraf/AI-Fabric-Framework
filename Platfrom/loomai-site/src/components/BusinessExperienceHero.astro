@@ -1,6 +1,7 @@
 ---
 import { ArrowRight } from '@lucide/astro'
 import IntegrationCallAction from './IntegrationCallAction.astro'
+import DeveloperEntryCard from './DeveloperEntryCard.astro'
 ---
 
 <section class="business-hero" aria-labelledby="business-title">
@@ -18,9 +19,11 @@ import IntegrationCallAction from './IntegrationCallAction.astro'
         <p>
           Help customers find answers, choose confidently and take the next step.
         </p><p>Your business information. Your brand. Your team when they need a person.</p>
-      </div><div class="business-hero__actions">
-        <IntegrationCallAction />
       </div>
+    </div>
+    <div class="business-hero__actions">
+      <IntegrationCallAction variant="card" />
+      <DeveloperEntryCard />
     </div>
   </div>
 </section>
@@ -70,18 +73,14 @@ import IntegrationCallAction from './IntegrationCallAction.astro'
     margin: 0;
   }
   .business-hero__actions {
-    align-items: center;
-    display: flex;
-    flex-shrink: 0;
-    flex-wrap: wrap;
-    gap: 1.2rem;
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
-  @media (max-width: 75rem) {
-    .business-hero__intro {
-      align-items: start;
-      flex-direction: column;
-      gap: 1rem;
-    }
+  @media (max-width: 50rem) {
+    .business-hero__actions { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 42rem) {
     .business-hero {

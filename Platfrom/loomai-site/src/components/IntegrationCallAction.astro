@@ -1,13 +1,14 @@
 ---
 import { ArrowRight } from '@lucide/astro'
 import { integrationTeam } from '../data/integrationTeam'
-interface Props { label?: string; class?: string }
-const { label, class: className = '' } = Astro.props
+interface Props { label?: string; class?: string; variant?: 'compact' | 'card' }
+const { label, class: className = '', variant = 'compact' } = Astro.props
+const portraitSize = variant === 'card' ? 72 : 34
 ---
-<a class:list={['integration-call', className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" aria-label={label || 'Talk to Mo'} aria-haspopup="dialog" data-integration-call>
-  <img src={integrationTeam.portraitUrl} width="34" height="34" alt="" />
-  <span><strong>{label || 'Talk to Mo'}</strong>{!label && <small>AI Enablement Engineer</small>}</span>
-  <ArrowRight size={17} aria-hidden="true" />
+<a class:list={['integration-call', { 'integration-call--card': variant === 'card' }, className]} href={integrationTeam.bookingUrl} target="_blank" rel="noopener noreferrer" aria-label={label || 'Talk to Mo'} aria-haspopup="dialog" data-integration-call>
+  <img src={integrationTeam.portraitUrl} width={portraitSize} height={portraitSize} alt="" />
+  <span><strong>{label || 'Talk to Mo'}</strong>{!label && <small>{variant === 'card' ? integrationTeam.role : 'AI Enablement Engineer'}</small>}</span>
+  <ArrowRight size={variant === 'card' ? 24 : 17} aria-hidden="true" />
 </a>
 <style>
   .integration-call { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--loom-border-default); border-radius: 8px; background: var(--loom-surface); color: var(--loom-text-primary); text-decoration: none; transition: border-color 160ms, background 160ms; }
@@ -18,4 +19,15 @@ const { label, class: className = '' } = Astro.props
   .integration-call svg { flex-shrink: 0; margin-left: auto; }
   .integration-call:hover { border-color: var(--loom-success); background: var(--loom-surface-soft); text-decoration: none; }
   .integration-call:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+  .integration-call--card { width: 100%; min-height: 142px; padding: 22px; gap: 18px; box-shadow: 0 3px 12px rgb(20 40 50 / 4%); }
+  .integration-call--card img { flex-basis: 72px; width: 72px; height: 72px; }
+  .integration-call--card span { gap: 7px; }
+  .integration-call--card strong { font-size: 24px; }
+  .integration-call--card small { max-width: 225px; font-size: 14px; line-height: 1.5; color: var(--loom-text-secondary); }
+  @media (max-width: 42rem) {
+    .integration-call--card { min-height: 120px; padding: 18px; gap: 14px; }
+    .integration-call--card img { flex-basis: 60px; width: 60px; height: 60px; }
+    .integration-call--card strong { font-size: 21px; }
+    .integration-call--card small { font-size: 13px; }
+  }
 </style>
