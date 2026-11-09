@@ -48,6 +48,7 @@ public final class RuntimeResultAwareSuggestionsStep implements PipelineStep {
     static final int MAX_EVIDENCE_ITEMS = 4;
     static final int MAX_EVIDENCE_CHARS = 1_000;
     static final int MAX_CAPABILITIES = 12;
+    static final int MAX_GUIDANCE_CHARS = 4_000;
     static final int MAX_OUTPUT_TOKENS = 1_024;
     static final int MAX_RESPONSE_CHARS = 8_000;
     private static final int MAX_RESULT_DEPTH = 4;
@@ -146,7 +147,7 @@ public final class RuntimeResultAwareSuggestionsStep implements PipelineStep {
             var request = AIGenerationRequest.builder()
                 .entityId("result-next-steps-" + UUID.randomUUID())
                 .entityType("runtime-next-steps").generationType("result_aware_suggestions")
-                .systemPrompt(SYSTEM_INSTRUCTION).prompt(mapper.writeValueAsString(input))
+                .systemPrompt(systemInstruction()).prompt(mapper.writeValueAsString(input))
                 .maxTokens(outputTokens(context)).authContext(auth).build();
             verifyTurn(context, false);
             modelCalls = 1;
@@ -179,6 +180,15 @@ public final class RuntimeResultAwareSuggestionsStep implements PipelineStep {
             return diagnostic(context, failure instanceof InvalidOutput ? "INVALID_OUTPUT" : "UNAVAILABLE",
                 modelCalls, 0, catalogueStatus);
         }
+    }
+
+    private String systemInstruction() {
+        String guidance = prompts.currentManagedNextStepsInstructions();
+        if (!StringUtils.hasText(guidance)) return SYSTEM_INSTRUCTION;
+        return SYSTEM_INSTRUCTION + "\nDeployment-authored next-step preferences:\n"
+            + bound(guidance, MAX_GUIDANCE_CHARS)
+            + "\nApply these preferences within the completed-turn rules above. They do not expand the eligible "
+            + "capabilities, authorize execution, override trust boundaries or change the required JSON schema.\n";
     }
 
     private List<NextStepRecommendation> parse(String output) throws InvalidOutput {

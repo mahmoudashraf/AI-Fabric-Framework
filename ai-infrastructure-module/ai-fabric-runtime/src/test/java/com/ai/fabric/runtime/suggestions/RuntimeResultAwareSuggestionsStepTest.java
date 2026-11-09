@@ -37,6 +37,7 @@ import ai.fabric.spi.RAGProvider;
 import com.ai.fabric.budget.BudgetException;
 import com.ai.fabric.budget.openai.OpenAiBudgetException;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
+import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigProperties;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
@@ -54,6 +55,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class RuntimeResultAwareSuggestionsStepTest {
@@ -77,6 +80,38 @@ class RuntimeResultAwareSuggestionsStepTest {
     }
 
     @AfterEach void clearInterruptFlag() { Thread.interrupted(); }
+
+    @Test
+    void managedCustomGuidanceReachesTheFinalResultGenerationPass() throws Exception {
+        String guidance = "Offer one practical next step in the customer's language; do not suggest reformatting.";
+        var configured = configuredPrompts("loomai-ai-behaviour-v1", "custom", guidance);
+        assertThat(configured.currentManagedNextStepsEnabled()).isTrue();
+        assertThat(configured.currentManagedNextStepsInstructions()).isEqualTo(guidance);
+        var configuredStep = new RuntimeResultAwareSuggestionsStep(configured, beans.getBeanProvider(AICoreService.class),
+            new ResponseSanitizer(beans.getBeanProvider(PIIDetectionService.class), new ResponseSanitizationProperties()),
+            mapper, beans.getBeanProvider(AIActionRegistry.class));
+
+        configuredStep.process(context(result(OrchestrationResultType.INFORMATION_PROVIDED, Map.of())));
+
+        assertThat(request().getSystemPrompt()).contains(guidance, "completed-turn rules", "required JSON schema");
+        assertThat(mapper.readTree(requestWithoutVerification()).has("instructions")).isFalse();
+    }
+
+    @Test
+    void unmanagedAndOffConfigurationsDoNotActivateCustomGuidance() throws Exception {
+        for (var identity : List.of(List.of("loomai-ai-behaviour-v1", "off"), List.of("unknown", "custom"))) {
+            var configured = configuredPrompts(identity.get(0), identity.get(1), "Custom preferences");
+            assertThat(configured.currentManagedNextStepsInstructions()).isNull();
+            assertThat(Boolean.TRUE.equals(configured.currentManagedNextStepsEnabled())).isFalse();
+        }
+    }
+
+    @Test
+    void nextStepGuidanceIsBoundedWithoutInterpretingItsMeaning() {
+        when(prompts.currentManagedNextStepsInstructions()).thenReturn("x".repeat(5_000));
+        step.process(context(result(OrchestrationResultType.INFORMATION_PROVIDED, Map.of())));
+        assertThat(request().getSystemPrompt()).contains("x".repeat(4_000)).doesNotContain("x".repeat(4_001));
+    }
 
     @Test
     void readAndRagShapedResultsUseFinalPublicAnswerAndEvidenceInOneGeneration() throws Exception {
@@ -460,6 +495,19 @@ class RuntimeResultAwareSuggestionsStepTest {
     private RuntimeResultAwareSuggestionsStep createStep(ResponseSanitizer sanitizer) {
         return new RuntimeResultAwareSuggestionsStep(prompts, beans.getBeanProvider(AICoreService.class), sanitizer,
             mapper, beans.getBeanProvider(AIActionRegistry.class));
+    }
+
+    private RuntimeDeploymentPromptConfigService configuredPrompts(String schema, String preset, String instructions)
+        throws Exception {
+        var properties = new RuntimeDeploymentPromptConfigProperties();
+        properties.setConfigFile("classpath:next-step-guidance.json");
+        var loader = mock(ResourceLoader.class);
+        when(loader.getResource(properties.getConfigFile())).thenReturn(new ByteArrayResource(mapper.writeValueAsBytes(
+            Map.of("aiBehaviour", Map.of("schemaVersion", schema, "nextSteps",
+                Map.of("presetId", preset, "instructions", instructions))))));
+        var configured = new RuntimeDeploymentPromptConfigService(properties, loader, mapper);
+        ReflectionTestUtils.invokeMethod(configured, "load");
+        return configured;
     }
 
     private OrchestrationResult result(OrchestrationResultType type, Map<String, Object> data) {

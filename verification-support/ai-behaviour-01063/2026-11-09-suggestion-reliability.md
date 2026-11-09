@@ -13,7 +13,7 @@ and normal release/assignment mechanisms remain in force.
 - [x] Distinguish authored starters and generated next steps; hide old controls.
 - [x] Implement/qualify the opt-in runtime post-result extension.
 - [x] Clean up the independent attachment-ideas endpoint and focused tests.
-- [ ] Build images, apply to staging, compare live results and inspect the UI.
+- [x] Build images, apply to staging, compare live results and inspect the UI.
 - [ ] Adopt qualified runtime in production and repeat focused verification.
 
 Checked items above describe actual completed work, not future hosted adoption.
@@ -106,5 +106,72 @@ The auth integration fixture now supplies an explicit generated JSON response
 and asserts its exact suggestion. A separate authenticated provider-failure
 case asserts empty suggestions, unavailable status, no raw response and retained
 caller identity. The focused 76-test recheck passed. No production fallback,
-authentication weakening or CI bypass was introduced; the complete runtime
-test suite is being rerun before publication.
+authentication weakening or CI bypass was introduced. The complete local runtime
+suite then passed all 673 tests with zero skipped, including PostgreSQL-backed
+tests. Corrective source `4dd738c75` is pushed; its normal runtime CI is
+`42713707940`. The independent core images remain at `4e57f95d6` because the
+correction changed only the runtime auth test fixture and this evidence record.
+
+## Qualified Staging Observation
+
+Runtime CI `42713707940` passed and published source
+`4dd738c75eb9a4dff21ce6bc54724fec4f383311`, index digest
+`sha256:dbce449f6e79c4755ff5450b835a12365858694bbf8302307f47d4d8f1416b66`.
+Artifact `dsa-c812478a`, existing version `ver-689ff79c` and release
+`rel-a5e3ff33` reached `APPLIED_VERIFIED` / `PASSED`. The existing staging app
+and consumer were retained and rebound normally; native runtime source/digest
+and the new pipeline step were observed. Existing connector credential scrubbing
+adds another restart to the normal apply path; no deployment bypass was used.
+
+The same four READ-only queries all succeeded, each reporting one result-aware
+model call, a scoped capability catalogue and no enrichment retrieval. Durations
+were 10.228 / 7.824 / 6.404 / 7.737 seconds, compared with baseline
+8.490 / 5.778 / 4.780 / 5.796 seconds. These are single observations, not a
+latency benchmark or an isolated measurement of model-call time.
+
+Manual assessment, without semantic text filters or quality-specific retries:
+
+- Shortlist: first suggestion usefully compares the two returned cars; the
+  second asks for more matching stock despite an already complete shortlist.
+- Comparison: suggestions move to missing family-use factors and a concrete
+  use-case decision. The first may be unproductive because the answer already
+  says some requested facts are unavailable; no new data capability is implied.
+- Indexed facts: first suggestion compares against another stocked vehicle;
+  the second mainly reformats facts already given.
+- Stock plus policy: first suggestion advances to comparison/value; the second
+  mainly repeats the delivery policy as a shorter summary.
+
+This is an improvement in first-choice relevance, not a claim that every model
+suggestion is useful. Redundant secondary reformatting remains an observed
+quality limitation. No canned replacement, duplicate detector or repeated
+generation was added to conceal it.
+
+Real staging UI proof `staging-ui-1794265104487` passed a manually reviewed READ
+suggestion click, ordinary query submission and same-conversation continuation.
+Adding a vehicle to context followed by a 12-second wait made zero independent
+suggestion requests. Only the latest completed turn exposed next-step controls.
+Desktop/mobile screenshots were captured and inspected; no page errors or
+document-level horizontal overflow were observed. Existing narrow mobile
+suggestion labels still truncate; this task does not claim a mobile redesign.
+The private harness initially kept its TTY open after successful completion;
+EOF closed it and its stdin is now paused after selection. No UI/product fix
+was made for that harness-only issue.
+
+## Advanced Guidance Preservation
+
+Before closing the rollout, review found that the new generation pass read the
+managed opt-in but not the customer's custom next-step instructions. That would
+let Advanced preferences influence provisional extraction but not the final
+recommendations replacing it. The runtime now reads the existing managed
+`aiBehaviour.nextSteps.instructions` and passes up to 4,000 characters as
+deployment-authored preferences, subordinate to the output/trust contract.
+Nothing is inferred from the wording, and no client-supplied context is promoted
+to trusted instructions. Off and unmanaged configurations remain inactive.
+
+Three regressions cover real configuration loading/custom guidance reaching
+generation, Off/unmanaged isolation, and the size bound without semantic
+interpretation. All 112 focused runtime/controller tests passed. This requires
+another immutable runtime image and ordinary apply; it is not being hidden as
+a prompt-only hosted change. The first production release `rel-b9a28355` at
+`4dd738c75` already reached `APPLIED_VERIFIED` / `PASSED` and its existing app
+binding was refreshed. Final closure will name the guidance-preserving source.

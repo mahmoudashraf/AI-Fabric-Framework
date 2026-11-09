@@ -31,6 +31,7 @@ public class RuntimeDeploymentPromptConfigService {
     private volatile Integer ragMaxContextChars;
     private volatile Boolean smartSuggestionsEnabled;
     private volatile Boolean managedNextStepsEnabled;
+    private volatile String managedNextStepsInstructions;
     private volatile Integer responseGenerationMaxTokensConcise;
     private volatile Integer responseGenerationMaxTokensStandard;
     private volatile Integer responseGenerationMaxTokensDeep;
@@ -54,6 +55,7 @@ public class RuntimeDeploymentPromptConfigService {
             ragMaxContextChars = null;
             smartSuggestionsEnabled = null;
             managedNextStepsEnabled = null;
+            managedNextStepsInstructions = null;
             responseGenerationMaxTokensConcise = null;
             responseGenerationMaxTokensStandard = null;
             responseGenerationMaxTokensDeep = null;
@@ -76,6 +78,8 @@ public class RuntimeDeploymentPromptConfigService {
             JsonNode behaviour = root.path("aiBehaviour");
             managedNextStepsEnabled = "loomai-ai-behaviour-v1".equals(behaviour.path("schemaVersion").asText())
                 ? !"off".equals(behaviour.path("nextSteps").path("presetId").asText()) : null;
+            managedNextStepsInstructions = Boolean.TRUE.equals(managedNextStepsEnabled)
+                ? behaviour.path("nextSteps").path("instructions").asText(null) : null;
             responseGenerationMaxTokensConcise = sanitizePositiveInteger(root, "responseGenerationMaxTokensConcise");
             responseGenerationMaxTokensStandard = sanitizePositiveInteger(root, "responseGenerationMaxTokensStandard");
             responseGenerationMaxTokensDeep = sanitizePositiveInteger(root, "responseGenerationMaxTokensDeep");
@@ -118,6 +122,10 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Boolean currentManagedNextStepsEnabled() {
         return managedNextStepsEnabled;
+    }
+
+    public String currentManagedNextStepsInstructions() {
+        return managedNextStepsInstructions;
     }
 
     public Integer currentResponseGenerationMaxTokensConcise() {
