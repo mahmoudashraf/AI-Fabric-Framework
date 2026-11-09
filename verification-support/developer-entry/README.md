@@ -117,3 +117,49 @@ Existing credentials, usage accounting, quotas and readiness checks still apply.
 Do not roll back the backend to a version lacking the policy guard while
 developer resources exist without first restricting their infrastructure access.
 The public landing alone may be reverted independently of that server boundary.
+
+## Visual Explorers Follow-Up
+
+The developer page's logos are noninteractive branding. The eight capability
+cards now open named, icon-led previews. Five configuration-editor model providers
+and six search engines match the existing provider editor; embedding providers
+are shown separately. Provider-family names are not a promise that every model
+ID is enabled for every account. Icons are self-hosted with pinned upstream
+revisions and license files in `Platfrom/ui/public/developer/providers/`.
+
+Web app, Mobile app and Backend targets and all four start steps are clickable:
+
+- Web: embedded workspace illustration and the existing one-script installer.
+- Mobile: mobile-friendly standalone/web-view delivery and the option of the
+  customer's own native interface, not a new native SDK.
+- Backend: copyable canonical conversation-message request with runtime token,
+  conversation ID and idempotency-key explanations. It is conditional on enabled
+  conversation control and does not replace published route discovery.
+- Choose a template: the two real developer starters, with icons, names and
+  developer-intent setup links.
+- Connect your tools: S3 documents, HTTP JSON sources, action endpoints and Desk.
+- Test your Brain: an explicitly illustrative test plus evidence/action/follow-up
+  checks, with no actual runtime request.
+- Use it in your app: the same three integration previews, not duplicate guides.
+
+The primary action's theme variables now also scope to the dialog portal,
+correcting its earlier dark-on-dark appearance. Dialog screenshots wait for
+transition completion rather than capturing a partially faded panel.
+
+Local qualification: 12 browser scenarios passed, including all 15 panels on
+mobile, both existing starter paths, named/decoded provider icons, readable
+portal actions, clipboard contents and zero configuration commands. TypeScript
+and the production build passed, with only existing build warnings.
+
+Current follow-up source: `ef1578444b3860e855c2f3ee7c4cd14f3bb573d5`.
+Image CI `42538922362` passed with backend skipped. Staging UI job
+`f9zjxvgc3mx50zp0ei7ojp5z` and production job `wqgyeqb0vpl8p9ituaqcnpbl`
+finished; healthy exact-source containers were verified natively on both hosts.
+
+The hosted runner passed six top-level checks: all eight capability, three
+integration and four setup previews at 1440/768/390 pixels, loaded named model
+icons, the backend example, readable portal actions, noninteractive logos and
+unchanged ordinary Console/staging root pages. Canonical sign-in redirects retain
+the selected developer Kit. No captured page errors or horizontal overflow.
+Screenshots and the structured report are under `output/developer-entry/hosted/`.
+No customer configuration, runtime, backend or AI decision behavior changed.
