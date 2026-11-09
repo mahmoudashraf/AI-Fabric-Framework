@@ -14,7 +14,7 @@ and normal release/assignment mechanisms remain in force.
 - [x] Implement/qualify the opt-in runtime post-result extension.
 - [x] Clean up the independent attachment-ideas endpoint and focused tests.
 - [x] Build images, apply to staging, compare live results and inspect the UI.
-- [ ] Adopt qualified runtime in production and repeat focused verification.
+- [x] Adopt qualified runtime in production and repeat focused verification.
 
 Checked items above describe actual completed work, not future hosted adoption.
 
@@ -175,3 +175,83 @@ another immutable runtime image and ordinary apply; it is not being hidden as
 a prompt-only hosted change. The first production release `rel-b9a28355` at
 `4dd738c75` already reached `APPLIED_VERIFIED` / `PASSED` and its existing app
 binding was refreshed. Final closure will name the guidance-preserving source.
+
+## Final-Source Staging Qualification
+
+Source `4ab47a25e6649125fc26d97fc85ea31ffb51bdfc` passed CI `42718700904`:
+676 runtime tests, zero failures/errors/skips, plus image publication. Index
+digest `sha256:c470a66f8c541b53132d4badc539e19846bff40cd2ea61f6624a2867b23b0f95`,
+artifact `dsa-df4eb2f4`, staging release `rel-a16e6198` reached
+`APPLIED_VERIFIED` / `PASSED` and the existing app binding was refreshed.
+
+The same four scenarios in `after-staging-guidance/` all succeeded, with one
+generation call/scoped catalogue/no suggestion retrieval each. Durations were
+11.797 / 10.345 / 7.540 / 8.965 seconds. First suggestions generally extend the
+comparison; secondary suggestions still include repeat stock searches, repeat
+policy summaries or further source checks after missing data was already noted.
+The comparison suggestions can also request missing facts. The new data path
+does not guarantee semantic usefulness, and no scoring/retry/filter hides this.
+
+**A real failure is retained, not counted as a green answer:**
+`staging-ui-1794267213324` clicked a suggested comparison without selected
+vehicles. It used the correct normal query route and conversation but returned
+`CLARIFICATION_REQUIRED`: extraction chose `dealership_compare_vehicles` while
+omitting required internal `vehicleReferences`. Diagnostics show
+`hiddenContextMissingCount=1`, `pinned=false`, provenance `WARN` (not blocking),
+and the configured missing-target repair was not attempted on this path.
+There was no business write. The suggestion pass correctly skipped the
+incomplete result (`modelCalls=0`); the answer was not replaced or rerun.
+This is a follow-up action/target-resolution limitation, not a stale widget
+request or a newly tightened validator. No framework change is proposed as
+part of this work; that execution/recovery path needs separate review.
+
+A separately identified normal UI scenario explicitly selected both returned
+vehicles with **Keep in context** before clicking a READ comparison suggestion.
+`staging-ui-1794267328921` passed the same-conversation query, comparison answer,
+two attachments, 12-second zero-independent-suggestion-request check, latest-turn
+controls and desktop/mobile captures without page errors/outer overflow. This
+qualifies the selected-context flow, not the failed unselected case. The answer
+used RAG evidence; it does not prove that the comparison action's internal
+parameter-resolution path was corrected. No production code was changed to
+make that test pass.
+
+## Final Production And Closure
+
+Final production release `rel-a679937f`, version `ver-689ff79c`, artifact
+`dsa-df4eb2f4` reached `APPLIED_VERIFIED` / `PASSED`. The existing consumer/app
+binding was refreshed normally; the app remains at
+`https://northfield-console-live.apps.loomai.pro`. Staging remains at
+`https://northfield-staging.apps.loomai.pro`, release `rel-a16e6198`.
+
+The final-source production suite `after-production-guidance/` passed all four
+READ-only answer/transport cases. Each reported one result-aware generation
+call, scoped catalogue and disabled enrichment retrieval. Durations were
+9.117 / 9.784 / 6.541 / 8.020 seconds. Manual assessment remains mixed rather
+than a perfect semantic pass: shortlist/indexed facts lead to comparisons,
+comparison asks about missing family-use facts, and compound recommendations
+are mainly a comparison-table reformat plus a redundant policy summary. Missing
+facts remain qualified as unavailable; there is no hidden data-fetch success.
+
+Production UI proof `production-ui-1794268226690` passed with both vehicles
+explicitly selected before the READ suggestion click: ordinary query route,
+same conversation, successful comparison, two attachments and zero independent
+suggestion requests after 12 seconds. Mode/position remained `executor` /
+`landing`; the comparison used RAG rather than the comparison action. Desktop
+and 390px mobile captures were inspected, with no captured page errors or outer
+horizontal overflow. This is functional qualification, not a claim that the
+existing narrow mobile layout is polished or that the unselected case is fixed.
+
+Final native receipt `source-and-health.private.json` checks eight containers:
+Platform backend/UI on both hosts at `4e57f95d6`, runtime/connector on both
+hosts at `4ab47a25e`, all healthy. Both runtime image IDs match the exact final
+index digest above. Core CI `42712323180` and runtime CI `42718700904` passed.
+No framework release, provider/model switch, configuration/source rewrite,
+business write, new infrastructure or safety-gate override was made.
+
+**Closure:** implementation and selected-context hosted functionality are
+qualified. Semantic relevance is not universally green. Redundant/low-value
+secondary suggestions and the recorded unselected comparison's missing trusted
+`vehicleReferences` remain visible follow-up items, not silently repaired or
+counted as passing answers. Any framework recovery change requires separate
+owner review. Default next steps remains Off; Advanced custom guidance is now
+honoured by the result-aware pass. Raw model/network data remains private.

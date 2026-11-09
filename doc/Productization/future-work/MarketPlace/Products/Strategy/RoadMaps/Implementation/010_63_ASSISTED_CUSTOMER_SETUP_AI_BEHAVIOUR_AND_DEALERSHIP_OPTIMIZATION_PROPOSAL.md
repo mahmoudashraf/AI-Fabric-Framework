@@ -302,6 +302,18 @@ actual backend change, not another widget adapter.
 
 Execution/evidence: [suggestion reliability record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-09-suggestion-reliability.md).
 
+Hosted status, 9 November: implemented and functionally qualified on staging
+and production using the existing Northfield app/consumer identities. Final
+runtime/connector source `4ab47a25e`, 676 runtime CI tests passed; final four-query
+READ suites succeeded in each environment. Explicitly selected-context UI
+follow-ups and zero independent attachment-suggestion requests passed. Advanced
+custom next-step guidance is preserved; defaults remain Off. This is not a
+perfect semantic-quality verdict: redundant secondary recommendations remain,
+and one unselected comparison hit the existing trusted-reference clarification
+path. Its failure and the separate selected-context proof are both retained in
+the evidence record. No framework recovery fix or text-based substitute was
+introduced to make that case appear green.
+
 ## 6. A Richer Dealership Experience
 
 ### 6.1 Reuse what is already built

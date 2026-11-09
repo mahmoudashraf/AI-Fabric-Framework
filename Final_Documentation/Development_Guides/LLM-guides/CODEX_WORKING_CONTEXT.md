@@ -14029,3 +14029,66 @@ test is being called hosted acceptance. UI extraction remains last.
 - Current execution record:
   `verification-support/ai-behaviour-01063/2026-11-09-suggestion-reliability.md`.
   Raw receipts/configuration remain in `~/.codex/private/loomai-suggestions-20261109/`.
+
+### Suggestion Reliability - 9 November 2026, Hosted Checkpoint
+
+- Source `4e57f95d6` core images passed CI `42712323180`; both backends and UIs
+  are natively healthy at that source. Its runtime CI failed one auth integration
+  fixture relying on the removed fallback. Fixture correction `4dd738c75` passed
+  all 673 runtime tests locally and CI `42713707940`; no fallback was restored.
+- Initial runtime artifact `dsa-c812478a` / digest `dbce449f6e79...` is verified
+  on existing Northfield `dep-3c4dbe4f`, version `ver-689ff79c`: staging
+  `rel-a5e3ff33`, production `rel-b9a28355`. Existing apps/consumers retained and
+  normally rebound. Staging four-query comparison and actual UI suggestion click,
+  same conversation, attachment + zero background suggestion requests passed.
+  Secondary summaries/repeated searches remain imperfect model suggestions;
+  no text filter, canned replacement or quality retry was added.
+- Final review found the new pass omitted Advanced custom next-step preferences.
+  Fixed in `4ab47a25e6649125fc26d97fc85ea31ffb51bdfc`: reads the existing managed
+  instructions, bounded to 4,000 chars, subordinate to trust/output rules.
+  112 focused tests and all 676 runtime tests in CI `42718700904` passed.
+  No framework release, model/config/source change, extra endpoint or DB migration.
+- Guidance-preserving image digest `c470a66f8c541b53132d4badc539e19846bff40cd2ea61f6624a2867b23b0f95`,
+  artifact `dsa-df4eb2f4`; staging apply `rel-a16e6198` is IN PROGRESS, observer
+  exec `24109`, script `~/.codex/private/loomai-suggestions-20261109/apply-runtime.mjs`.
+  Next: finish staging verification, `assign-verified.mjs staging`, run the same
+  four scenarios to a NEW `after-staging-guidance` directory + real `verify-ui.mjs`
+  (choose a manually reviewed READ suggestion). Then ordinary production apply,
+  assignment and equivalent checks; finish evidence/doc commit. No new code work
+  is currently required. Scripts point at source4ab/run42718700904. Earlier receipt
+  copies are preserved in `initial-4dd738c75/`; do not conflate sources.
+- Preserve unrelated dirty `.gitignore` and longstanding untracked work. Primary
+  evidence: `verification-support/ai-behaviour-01063/2026-11-09-suggestion-reliability.md`.
+
+### Suggestion Reliability - 9 November 2026, Final Hosted Status
+
+- Supersedes the in-progress checkpoint above. Final runtime/connector source
+  `4ab47a25e6649125fc26d97fc85ea31ffb51bdfc`, artifact `dsa-df4eb2f4`, digest
+  `c470a66f8c541b53132d4badc539e19846bff40cd2ea61f6624a2867b23b0f95` is healthy
+  on both hosts. Same Northfield dep/version/apps/consumers: staging
+  `rel-a16e6198`, production `rel-a679937f`, both APPLIED_VERIFIED/PASSED and
+  normal bindings refreshed. Backend/UI on both hosts remain healthy at source
+  `4e57f95d6`; eight-container native receipt captured privately.
+- Final runtime CI `42718700904` passed 676 tests/zero skip and publication.
+  Focused 112 runtime/controller tests passed. Earlier widget lifecycle/race,
+  canonical/auth/confirmation/semantic-boundary checks, embedded build and ten
+  Platform profile tests passed. Framework stays released 0.8.46; same OpenAI
+  model, executor/landing, settings, sources, confirmation and budget boundaries.
+- Final four-query READ suites succeeded on each target, one result-aware call
+  per completed answer/no enrichment retrieval. Real selected-context UI proofs
+  `staging-ui-1794267328921` and `production-ui-1794268226690` passed suggestion
+  click/same conversation/two attachments/zero independent requests after12s,
+  desktop/mobile basic checks. Comparisons used RAG; no action-resolution claim.
+- Important NOT-GREEN semantic case retained: unselected UI comparison
+  `staging-ui-1794267213324` got CLARIFICATION_REQUIRED because extraction omitted
+  INTERNAL `vehicleReferences` for dealership_compare_vehicles. WARN provenance
+  was not blocking; hiddenContextMissingCount1, missing-target repair not
+  attempted. No write; suggestions correctly skipped incomplete result. No
+  framework fix, trust bypass, canned fallback or quality retry concealed it.
+  Secondary suggestions still sometimes repeat/reformat or ask for missing
+  facts. Implementation/selected-context functionality qualified, not universal
+  semantic quality. Separate framework recovery review requires owner approval.
+- All task exec sessions are closed. Raw receipts/logs/screenshots are private
+  under `~/.codex/private/loomai-suggestions-20261109/`; initial4dd receipts are
+  separately archived. Full evidence and 010.63 status updated. Unrelated dirty
+  `.gitignore` and longstanding untracked work remain untouched.
