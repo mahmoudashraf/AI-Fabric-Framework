@@ -110,6 +110,7 @@ public class ConfigurationAssistantService {
                 catch (ResponseStatusException denied) { continue; }
                 for (var source : content(prior).path("sources")) result.addObject().put("sessionId", prior.id)
                     .put("sourceId", source.path("sourceId").asText()).put("title", source.path("title").asText())
+                    .put("resourceKind", prior.resourceKind).put("resourceId", prior.resourceId)
                     .put("task", prior.task).put("mediaType", source.path("mediaType").asText());
             }
             return result;
@@ -181,13 +182,13 @@ public class ConfigurationAssistantService {
     }
     public JsonNode turn(String id, TurnRequest request, String key) {
         requireEnabled();
-        if (request == null || request.query() == null || request.query().isBlank() || request.query().length() > 8_000)
-            throw bad("Describe the configuration change in at most 8,000 characters.");
+        if (request == null) throw bad("Provide a configuration request or preparation command.");
         if (key == null || key.isBlank() || key.length() > 128) throw bad("An Idempotency-Key is required.");
         var feedback = AuthoringFeedbackPolicy.resolve(request.validationFeedback(), properties);
         String commandHash = digest(mapper.valueToTree(request).toString());
         var claim = tx.execute(ignored -> {
             var session = owned(id, true); var resource = resource(session); var content = content(session);
+            var intent = AuthoringTaskIntent.resolve(session.task, request.query(), request.command(), request.editorContext());
             for (JsonNode turn : content.path("turns")) if (key.equals(turn.path("requestKey").asText())) {
                 if (!commandHash.equals(turn.path("commandHash").asText())) throw new ResponseStatusException(CONFLICT, "This turn key already belongs to a different request.");
                 return new Claim(session.id, null, view(session, resource));
@@ -208,9 +209,11 @@ public class ConfigurationAssistantService {
             var turns = (ArrayNode) content.path("turns");
             if (turns.size() >= 30) throw bad("This session has reached 30 turns. Start a new session to keep the configuration context bounded.");
             String turnId = "cat-" + UUID.randomUUID();
-            var turn = turns.addObject().put("id", turnId).put("query", documents.redactText(request.query()))
+            var turn = turns.addObject().put("id", turnId).put("query", documents.redactText(intent.query()))
                 .put("previewOnly", request.previewOnly()).put("requestKey", key).put("commandHash", commandHash)
                 .put("status", "RUNNING").put("createdAt", Instant.now().toString());
+            if (intent.command() != null) turn.put("command", intent.command()).put("hint", documents.redactText(request.query() == null ? "" : request.query()));
+            turn.set("editorContext", mapper.valueToTree(intent.editorContext()));
             turn.set("validationFeedback", mapper.valueToTree(feedback)); turn.putArray("attempts");
             turn.set("sourceIds", mapper.valueToTree(request.sourceIds() == null ? sourceIds : request.sourceIds()));
             turn.set("operationIds", mapper.valueToTree(request.operationIds() == null ? List.of() : request.operationIds()));
@@ -367,6 +370,7 @@ public class ConfigurationAssistantService {
             .put("query", turn.path("query").asText());
         input.set("currentConfiguration", changes.project(resource.configuration()));
         ObjectNode catalogue = resource.catalogue().deepCopy();
+        if (turn.has("editorContext")) catalogue.set("editorContext", changes.project(turn.get("editorContext")));
         JsonNode findings;
         try {
             findings = resources.check(session.resourceKind, session.resourceId, resource, resource.configuration());
@@ -582,9 +586,13 @@ public class ConfigurationAssistantService {
     public record ReuseSources(String sessionId, List<String> sourceIds) { }
     public record CancelRequest(String turnId) { }
     public record TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
-                              AuthoringFeedbackPolicy validationFeedback) {
+                              AuthoringFeedbackPolicy validationFeedback, String command, AuthoringTaskIntent.EditorContext editorContext) {
+        public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
+                           AuthoringFeedbackPolicy validationFeedback) {
+            this(query, previewOnly, sourceIds, operationIds, validationFeedback, null, null);
+        }
         public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds) {
-            this(query, previewOnly, sourceIds, operationIds, null);
+            this(query, previewOnly, sourceIds, operationIds, null, null, null);
         }
     }
 }

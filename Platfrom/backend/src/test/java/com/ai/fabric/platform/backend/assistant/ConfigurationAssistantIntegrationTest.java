@@ -78,6 +78,49 @@ class ConfigurationAssistantIntegrationTest {
         assistant.proposal(id, state.at("/turns/0/id").asText(), "undo");
         assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
     }
+    @Test void explicitPreparationWithNoMessageUsesCurrentPageAndSelectedDocumentation() throws Exception {
+        String id = create();
+        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Brand guide", "text/plain",
+            "Use a welcoming, concise style. Avoid unnecessary jargon.", null, null));
+        verify(runtime, never()).generate(any());
+        String sourceId = imported.at("/sources/0/id").asText();
+        var request = new ConfigurationAssistantService.TurnRequest("", false, List.of(sourceId), List.of(), null, "PREPARE",
+            new AuthoringTaskIntent.EditorContext("INSTRUCTIONS", List.of("systemPrompt")));
+        assistant.turn(id, request, "document-first");
+        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
+        var input = captured.getValue();
+        assertThat(input.path("query").asText()).startsWith("Prepare the Smart Brain's response instructions");
+        assertThat(input.at("/catalogue/editorContext/section").asText()).isEqualTo("INSTRUCTIONS");
+        assertThat(input.at("/catalogue/editorContext/selectedDefinitionIds/0").asText()).isEqualTo("systemPrompt");
+        assertThat(input.at("/sources/0/content").asText()).contains("welcoming");
+        assertThat(assistant.get(id).at("/turns/0/command").asText()).isEqualTo("PREPARE");
+        assistant.turn(id, request, "document-first");
+        verify(runtime, times(1)).generate(any());
+        assertThat(configuration.get().at("/promptConfig/other").asBoolean()).isTrue();
+    }
+    @Test void invalidTaskFocusIsRejectedBeforeInferenceAndDoesNotClaimAWriter() {
+        String id = create();
+        assertThatThrownBy(() -> assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", false, List.of(), List.of(), null,
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "wrong-page"))
+            .hasMessageContaining("does not match");
+        verify(runtime, never()).generate(any());
+        assertThat(assistant.get(id).path("activeTurnId").isNull()).isTrue();
+    }
+    @Test void sameTaskPageFocusIsCapturedPerTurnWithoutLeakingIntoLaterRequests() throws Exception {
+        String id = create();
+        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(), List.of(), null, "PREPARE",
+            new AuthoringTaskIntent.EditorContext("INSTRUCTIONS", List.of("old-editor"))), "instructions");
+        await(id);
+        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(), List.of(), null, "PREPARE",
+            new AuthoringTaskIntent.EditorContext("BEHAVIOUR", List.of())), "behaviour");
+        await(id);
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(captured.capture());
+        assertThat(captured.getAllValues().get(0).at("/catalogue/editorContext/section").asText()).isEqualTo("INSTRUCTIONS");
+        assertThat(captured.getAllValues().get(1).at("/catalogue/editorContext/section").asText()).isEqualTo("BEHAVIOUR");
+        assertThat(captured.getAllValues().get(1).at("/catalogue/editorContext/selectedDefinitionIds")).isEmpty();
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
     @Test void retryingTheSameTurnDoesNotBillOrSaveTwice() throws Exception {
         String id = create(); assistant.turn(id, request(false), "same-command"); await(id);
         assistant.turn(id, request(false), "same-command");
