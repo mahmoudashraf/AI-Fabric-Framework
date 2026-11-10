@@ -84,5 +84,9 @@ assets. `qualify-ui.mjs` uses a normal customer, creates an empty Brain and a
 fictional key, checks a public LoomAI health GET and a protected read denial,
 then verifies auto-save checks, failed-only retry and credential invalidation.
 The public health GET proves reachability only, not credential enforcement.
+It additionally uses the test customer's short-lived bearer, sent only to the
+same Platform hostname, to prove actual authenticated read success, then rotates
+to an invalid value and back. This temporary scoped key is deleted in cleanup;
+no identity value, body or provider credential enters the report or Git.
 Its cleanup deletes fictional keys, archives the empty Brain and signs out.
 No live result is implied until that hosted runner has completed.
