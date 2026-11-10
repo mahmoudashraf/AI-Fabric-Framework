@@ -12,6 +12,8 @@ import { AssistantSources } from './AssistantSources'
 import { operation, scopeIdentity } from './scope'
 import { useAssistant, type AssistantController } from './useAssistant'
 import type { AssistantScope, AssistantTurn } from './types'
+import { ChangeSummary, ValidationOutcome } from './TurnDetails'
+import { validationSummary } from './turnPresentation'
 
 type Props = {
   scope: AssistantScope | null
@@ -150,12 +152,17 @@ export function AssistantPanel({ controller: c, scope, onClose, editorBusy, read
 function TurnView({ turn, controller: c, readOnly, editorBusy }: { turn: AssistantTurn; controller: AssistantController; readOnly: boolean; editorBusy?: boolean }) {
   const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status === 'SAVED')?.id
   const disabled = c.busy || editorBusy
+  const validation = validationSummary(turn)
   return <>
-    <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75 }}><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip size="small" variant="outlined" color={turn.status === 'SAVED' ? 'success' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={turn.status.split('_').join(' ')} /></Stack>
+    <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75 }}><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip size="small" variant="outlined" color={turn.status === 'SAVED' ? validation.outcome === 'attention' ? 'warning' : 'default' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={turn.status.split('_').join(' ')} /></Stack>
+    <ValidationOutcome turn={turn} />
     {turn.message && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{turn.message}</Typography>}
     {turn.notice && <Alert severity="info" sx={{ mt: 1 }}>{turn.notice}</Alert>}
     {turn.questions?.map(question => <Alert severity="info" key={question.id} sx={{ mt: 1, whiteSpace: 'normal' }}>{question.question}{question.field && <Typography display="block" variant="caption">{question.field}</Typography>}</Alert>)}
-    <JsonDetails label={turn.status === 'SAVED' ? 'Saved diff' : 'Proposed diff'} value={turn.diff ?? turn.changes} />
+    <ChangeSummary turn={turn} />
+    <Box component="details" sx={{ mt: 1, fontSize: 12, whiteSpace: 'normal' }}><summary>Advanced</summary>
+    <JsonDetails label={turn.status === 'SAVED' || turn.status === 'UNDONE' ? 'Saved diff' : 'Proposed diff'} value={turn.diff ?? turn.changes} />
+    <JsonDetails label="Validation" value={turn.validation} />
     <JsonDetails label="Findings, uncertainty and source references" value={turn.findings} />
     <JsonDetails label="Assumptions and uncertainty" value={turn.assumptions} />
     <JsonDetails label="Source references" value={turn.sourceReferences} />
@@ -164,6 +171,7 @@ function TurnView({ turn, controller: c, readOnly, editorBusy }: { turn: Assista
     <JsonDetails label="Usage" value={turn.usage} />
     <JsonDetails label="Runtime, usage and accounting" value={turn.runtime} />
     <JsonDetails label="Diagnostics" value={turn.diagnostics} />
+    </Box>
     <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
       {turn.status === 'PREVIEW' && <><Button size="small" disabled={disabled} onClick={() => void c.proposal(turn.id, 'check')}>Check preview</Button><Button size="small" disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'apply')}>Save preview to draft</Button></>}
       {turn.status === 'SAVED' && turn.id === latestSaved && <Button size="small" startIcon={<UndoOutlined />} disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'undo')}>Undo saved change</Button>}

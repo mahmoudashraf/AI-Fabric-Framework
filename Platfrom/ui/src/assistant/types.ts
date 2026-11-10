@@ -10,7 +10,7 @@ export type AssistantSource = { id: string; title: string; mediaType: string; op
 export type AssistantTurn = {
   id: string; query: string; status: TurnStatus; message: string
   changes?: unknown; diff?: unknown; questions?: { id: string; question: string; field?: string }[]
-  findings?: unknown; receipt?: unknown; undoReceipt?: unknown; createdAt: string; usage?: unknown
+  findings?: unknown; validation?: unknown; receipt?: unknown; undoReceipt?: unknown; createdAt: string; usage?: unknown
   assumptions?: unknown; sourceReferences?: unknown; diagnostics?: unknown; notice?: string
   runtime?: { requestId?: string; modelCalls?: unknown; accountingReceipt?: unknown; usage?: unknown; [key: string]: unknown }
 }

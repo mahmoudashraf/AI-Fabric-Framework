@@ -57,6 +57,7 @@ const base = `http://127.0.0.1:${server.httpServer.address().port}`
 const panel = page => page.getByRole('complementary', { name: 'Build with AI' })
 const plugin = () => ({ id: 'plugin-37', ownerCustomerId: 'customer-37', visibility: 'CUSTOMER_PRIVATE', displayName: 'Private source', status: 'DRAFT', revision: 1, manifest: { schemaVersion: 1, pluginId: 'plugin-37', pluginType: 'DATA', displayName: 'Private source', version: '1.0.0', contributions: { datasets: [] }, installForm: [] }, versions: [], canManage: true, installs: { savedCount: 0, appliedCount: 0, saved: [], applied: [] } })
 async function run(name, work, options = {}) {
+  if (process.env.ASSISTANT_CASE_FILTER && !name.includes(process.env.ASSISTANT_CASE_FILTER)) return
   const page = await browser.newPage({ viewport: options.viewport ?? { width: 1440, height: 900 } })
   page.setDefaultTimeout(20000)
   const calls = [], errors = [], unexpected = []
@@ -93,7 +94,7 @@ async function run(name, work, options = {}) {
       if (complete && session?.activeTurnId) {
         const turn = session.turns.at(-1)
         turn.status = options.result ?? (options.active || turn.preview ? 'PREVIEW' : 'SAVED'); turn.message = 'Fixture response: requested configuration processed.'
-        turn.diff = [{ path: '/promptConfig/tone', before: 'manual', after: 'concise' }]; turn.findings = { uncertainty: ['Pagination is not documented.'], sourceRefs: [{ sourceId: 'source-1', sourcePointer: '/paths/~1catalogue/get' }] }
+        turn.diff = options.diff ?? [{ path: '/promptConfig/tone', before: 'manual', after: 'concise' }]; turn.findings = structuredClone(options.findings ?? { uncertainty: ['Pagination is not documented.'], sourceRefs: [{ sourceId: 'source-1', sourcePointer: '/paths/~1catalogue/get' }] })
         turn.questions = [{ id: 'q1', question: 'Which account owns these records?', field: '/accountId' }]
         turn.receipt = turn.status === 'SAVED' ? { revision: 2, published: false } : null
         turn.runtime = { requestId: 'runtime-request-37', modelCalls: 1, accountingReceipt: { recorded: true }, usage: { tokens: 123 } }
@@ -149,6 +150,51 @@ async function send(page, text = 'Use a concise response style') { await panel(p
 async function review(page) { const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
 try {
   browser = await chromium.launch({ headless: true })
+  const dataValidation = { valid: false, revision: 2, issues: [{ path: '/contributions', code: 'MANIFEST_CONTRACT_INVALID', message: 'The saved manifest requires a source mapping.' }], connectionTested: false }
+  await run('validation immediately distinguishes invalid saved Data from a valid follow-up', async ({ page, calls, finish }) => {
+    await open(page); await send(page); finish()
+    const p = panel(page), first = p.getByRole('article', { name: 'Assistant', exact: true }).first()
+    await first.getByText('Draft saved. Needs attention.', { exact: true }).waitFor()
+    await first.getByText('The saved manifest requires a source mapping.', { exact: true }).waitFor()
+    await first.getByText('Connection not tested.', { exact: true }).waitFor()
+    assert.equal(await first.getByText('SAVED', { exact: true }).evaluate(node => node.closest('.MuiChip-root').classList.contains('MuiChip-colorSuccess')), false)
+    assert.equal(await first.locator('details[open]').count(), 0, 'Validation is visible without expanding raw JSON')
+    await page.screenshot({ path: join(evidence, 'saved-invalid-validation-desktop.png') })
+    dataValidation.valid = true; dataValidation.revision = 3; dataValidation.issues = []
+    await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
+    await send(page, 'Correct the source mapping')
+    const second = p.getByRole('article', { name: 'Assistant', exact: true }).nth(1)
+    await second.getByText('Draft saved. Configuration validation passed.', { exact: true }).waitFor()
+    await second.getByText('Connection not tested.', { exact: true }).waitFor()
+    assert.equal(await first.getByText('Draft saved. Needs attention.', { exact: true }).count(), 1, 'History retains its actual invalid result')
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 2)
+  }, { findings: dataValidation })
+  const longPath = '/actionsConfig/actions/route/' + 'long-field-name-'.repeat(8)
+  await run('validation and structural diff remain readable at 320px without unchanged object fields', async ({ page, finish }) => {
+    await open(page); await send(page); finish()
+    const p = panel(page), article = p.getByRole('article', { name: 'Assistant', exact: true })
+    await article.getByText('Draft saved. Configuration validation passed.', { exact: true }).waitFor()
+    await article.getByText('0 validation errors; 4 warnings', { exact: true }).waitFor()
+    const summary = article.getByRole('region', { name: 'Saved changes', exact: true })
+    await summary.getByText(longPath, { exact: true }).waitFor()
+    assert.equal(await summary.getByRole('listitem').count(), 1)
+    assert.equal((await summary.innerText()).includes('unchanged-description'), false)
+    assert.equal((await summary.innerText()).includes('unchanged-endpoint'), false)
+    assert.equal(await article.getByText('Connection not tested.', { exact: true }).count(), 0, 'Absent connectivity metadata is not invented')
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
+    assert.equal(await summary.evaluate(node => node.scrollWidth > node.clientWidth + 1), false)
+    await summary.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(evidence, 'saved-valid-field-diff-light-320.png') })
+    await article.getByText('Advanced', { exact: true }).click()
+    await article.getByText('Saved diff', { exact: true }).click()
+    await article.getByText('unchanged-description', { exact: false }).waitFor()
+    await article.getByText('Findings, uncertainty and source references', { exact: true }).click()
+    await article.getByText('"warningCount": 4', { exact: false }).waitFor()
+  }, { viewport: { width: 320, height: 740 }, dark: false,
+    findings: { publishReady: true, errorCount: 0, warningCount: 4, issues: [] },
+    diff: [{ path: '/actionsConfig/actions', operation: 'UPSERT_ITEM', key: 'read', existed: true,
+      before: { name: 'read', description: 'unchanged-description', route: { endpoint: 'unchanged-endpoint', ['long-field-name-'.repeat(8)]: 'before-' + 'a'.repeat(100) } },
+      after: { description: 'unchanged-description', route: { ['long-field-name-'.repeat(8)]: 'after-' + 'b'.repeat(100), endpoint: 'unchanged-endpoint' }, name: 'read' } }] })
   await run('saved turn pauses manual input, reloads requested values and exposes real receipts and undo', async ({ page, calls, finish }) => {
     await page.getByLabel('Manual value', { exact: true }).fill('Unsaved requested manual value')
     await page.getByLabel('Unrelated value', { exact: true }).fill('Unrelated unsaved value')
@@ -163,6 +209,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'AI saved value')
     assert.equal(await page.getByLabel('Unrelated value', { exact: true }).inputValue(), 'Unrelated unsaved value')
+    await panel(page).getByText('Advanced', { exact: true }).click()
     await panel(page).getByText('Save receipt', { exact: true }).click(); await panel(page).getByText('Findings, uncertainty and source references', { exact: true }).click()
     await panel(page).getByText('Which account owns these records?', { exact: false }).waitFor()
     assert.ok((await panel(page).innerText()).includes('Pagination is not documented.'))
