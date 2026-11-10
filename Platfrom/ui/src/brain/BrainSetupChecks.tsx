@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from 'react'
 import CheckCircleOutlineRounded from '@mui/icons-material/CheckCircleOutlineRounded'
 import ErrorOutlineRounded from '@mui/icons-material/ErrorOutlineRounded'
-import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
+import CloseRounded from '@mui/icons-material/CloseRounded'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
-import { Alert, Box, Button, Collapse, LinearProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Drawer, IconButton, LinearProgress, Stack, Tooltip, Typography } from '@mui/material'
 import { setupChecksMatchDraft, type BrainSetupChecksState } from './setupChecks'
 
 const time = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not checked'
@@ -41,11 +42,11 @@ export function BrainSetupChecks({ checks, canCheck = false, draftId, revisionNu
               : checks.isFetching ? 'Loading connection status...' : checks.isError ? 'Connection status unavailable' : 'Connections not checked yet'}
         </Typography>
       </Stack>
-      {result && <Button size="small" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls={detailsId}
-        endIcon={<ExpandMoreRounded sx={{ transform: expanded ? 'rotate(180deg)' : undefined }} />}>
-        {expanded ? 'Hide details' : 'Details'}
+      {result && <Button size="small" onClick={() => setExpanded(true)} aria-expanded={expanded} aria-controls={detailsId}
+        endIcon={<ChevronRightRounded />}>
+        Details
       </Button>}
-      {canCheck && Boolean(result?.failedCount) && <Button size="small" startIcon={<RefreshRounded />} disabled={checks.pending}
+      {!expanded && canCheck && Boolean(result?.failedCount) && <Button size="small" startIcon={<RefreshRounded />} disabled={checks.pending}
         onClick={() => { void checks.run('FAILED').catch(() => undefined) }}>Retry failed checks</Button>}
     </Stack>
     {checks.pending && <LinearProgress aria-label="Checking connections" sx={{ mt: 1 }} />}
@@ -53,7 +54,15 @@ export function BrainSetupChecks({ checks, canCheck = false, draftId, revisionNu
     {checks.isError && !checks.runError && <Alert severity="warning" sx={{ mt: 1 }}>Recorded connection checks could not be loaded. Saving and publishing status are separate.</Alert>}
     {result && !current && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: .5 }}>{expired ? 'These connection results have expired. Check setup again.'
       : draftKnown ? 'These results are from another draft revision. Check setup again for the saved changes.' : 'Current draft details are unavailable. Recorded checks are shown.'}</Typography>}
-    <Collapse in={expanded} unmountOnExit><Box id={detailsId} sx={{ mt: 1, maxHeight: 300, overflow: 'auto' }}>
+    <Drawer anchor="right" open={expanded} onClose={() => setExpanded(false)} slotProps={{ paper: {
+      role: 'dialog', 'aria-label': 'Connection checks', id: detailsId,
+      sx: { width: { xs: '100%', sm: 480 }, maxWidth: '100%', display: 'flex', flexDirection: 'column' },
+    } }}>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ px: 2.5, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography component="h2" fontSize={19} fontWeight={600} sx={{ flex: 1 }}>Connection checks</Typography>
+        <Tooltip title="Close connection details"><IconButton aria-label="Close connection details" onClick={() => setExpanded(false)}><CloseRounded /></IconButton></Tooltip>
+      </Stack>
+      <Box sx={{ px: 2.5, flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {result?.services.length === 0 && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>No external services are configured for this draft.</Typography>}
       {result?.services.map(service => <Box key={service.id} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', overflowWrap: 'anywhere' }}>
         <Stack direction="row" justifyContent="space-between" gap={1}><Typography variant="body2" fontWeight={600}>{service.label}</Typography>
@@ -65,7 +74,14 @@ export function BrainSetupChecks({ checks, canCheck = false, draftId, revisionNu
         <Typography variant="caption" display="block" color="text.secondary">{time(service.checkedAt)}{service.httpStatus !== null ? ` · HTTP ${service.httpStatus}` : ''}</Typography>
       </Box>)}
       {result?.checkedAt && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>Last setup check: {time(result.checkedAt)}</Typography>}
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>Checks use supported provider probes or an explicitly configured safe GET endpoint. They do not run AI inference or business actions, or verify permission for every action.</Typography>
-    </Box></Collapse>
+      </Box>
+      <Stack gap={1} sx={{ px: 2.5, py: 2, borderTop: 1, borderColor: 'divider' }}>
+        {canCheck && Boolean(result?.failedCount) && <Button size="small" startIcon={<RefreshRounded />} disabled={checks.pending}
+          sx={{ alignSelf: 'flex-start' }} onClick={() => { void checks.run('FAILED').catch(() => undefined) }}>Retry failed checks</Button>}
+        {checks.pending && <LinearProgress aria-label="Checking connections" />}
+        {checks.runError && <Alert severity="warning">{checks.runError}</Alert>}
+        <Typography variant="caption" color="text.secondary">Checks use a supported provider probe or a configured safe GET endpoint. They do not run AI inference or business actions, or verify permission for every action.</Typography>
+      </Stack>
+    </Drawer>
   </Box>
 }

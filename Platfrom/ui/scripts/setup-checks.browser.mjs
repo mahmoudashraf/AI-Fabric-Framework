@@ -112,8 +112,8 @@ async function run(name, test, options = {}) {
       setResult: next => { recorded = next } })
     assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
-    if (await page.getByRole('button', { name: 'Hide details', exact: true }).count()) {
-      await page.locator('.MuiCollapse-entered').waitFor()
+    if (await page.getByRole('dialog', { name: 'Connection checks', exact: true }).count()) {
+      await page.getByRole('dialog', { name: 'Connection checks', exact: true }).evaluate(node => Promise.all(node.getAnimations({subtree:true}).filter(a => a.playState === 'running').map(a => a.finished.catch(() => {}))))
     }
     await page.screenshot({ path: join(output, `${++passed}.png`), fullPage: true })
     console.log(`PASS ${name}`)

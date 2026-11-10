@@ -2,7 +2,7 @@
 
 In **Smart Brain -> Updates**, choose **Check setup**. This checks the saved
 draft's configuration and summarizes supported service connection checks in one
-place. Expand **Details** for each service's result, affected capabilities and
+place. Open **Details** for a side panel with each service's result, affected capabilities and
 time. **Retry failed checks** does not rerun successful services.
 
 Saving an action connection, plugin installation or model/search configuration

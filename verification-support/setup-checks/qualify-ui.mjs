@@ -62,6 +62,8 @@ try {
   assert.ok(!JSON.stringify(result).includes('fictional-check-key'))
   await page.getByRole('button', { name: 'Details', exact: true }).click()
   await page.getByText('Action connection', { exact: true }).waitFor()
+  await page.getByRole('dialog', { name: 'Connection checks', exact: true }).waitFor()
+  await page.getByRole('dialog', { name: 'Connection checks', exact: true }).evaluate(node => Promise.all(node.getAnimations({subtree:true}).filter(a => a.playState === 'running').map(a => a.finished.catch(() => {}))))
   await page.screenshot({ path: resolve(output, 'updates-desktop.png'), fullPage: true })
   report.cases.push('one-real-safe-GET-shared-by-read-and-write-actions; no-on-mount-probe')
 
@@ -99,6 +101,8 @@ try {
   await page.getByRole('status').filter({ hasText: /Connections: 1 verified/ }).waitFor()
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Details', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Connection checks', exact: true }).waitFor()
+  await page.getByRole('dialog', { name: 'Connection checks', exact: true }).evaluate(node => Promise.all(node.getAnimations({subtree:true}).filter(a => a.playState === 'running').map(a => a.finished.catch(() => {}))))
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
   await page.screenshot({ path: resolve(output, 'updates-mobile.png'), fullPage: true })
   assert.equal((await request(`/api/deployments/${brain.id}/versions`)).length, 0)
@@ -114,10 +118,17 @@ try {
     try {
       const keys = `/api/deployments/${brain.id}/secrets`
       for (const key of (await request(keys)).secrets) await request(keys + '/' + key.name, { method: 'DELETE', statuses: [204] })
+      assert.equal((await request(keys)).secrets.length, 0)
       await request(`/api/deployments/${brain.id}/archive`, { method: 'POST' }); cleanup.push('fictional-keys-deleted-and-empty-brain-archived')
-    } catch (error) { cleanup.push(error.message) }
+    } catch (error) { cleanup.push(error.message); report.status = 'FAIL' }
   }
-  try { await page.goto(ui + '/home'); await page.getByRole('button', { name: 'Sign out', exact: true }).click(); cleanup.push('signed-out') } catch { cleanup.push('browser-context-closed') }
+  try {
+    await page.goto(ui + '/home', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/' || url.pathname.includes('sign-in'))
+    cleanup.push('signed-out')
+  } catch { cleanup.push('sign-out-not-confirmed'); report.status = 'FAIL' }
+  report.finishedAt = new Date().toISOString()
   await context.close(); await browser.close(); await save()
 }
 console.log(JSON.stringify(report, null, 2))

@@ -88,5 +88,10 @@ It additionally uses the test customer's short-lived bearer, sent only to the
 same Platform hostname, to prove actual authenticated read success, then rotates
 to an invalid value and back. This temporary scoped key is deleted in cleanup;
 no identity value, body or provider credential enters the report or Git.
+Hosted screenshots exposed inline-detail clipping inside the Updates pane.
+Details now open in the existing right-drawer pattern with a bounded scrollable
+list and fixed footer/close control. The seven focused browser scenarios and
+production build were repeated for this presentation-only correction. Initial
+captures remain private historical evidence, not proof of the final layout.
 Its cleanup deletes fictional keys, archives the empty Brain and signs out.
 No live result is implied until that hosted runner has completed.
