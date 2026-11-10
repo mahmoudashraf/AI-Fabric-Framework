@@ -8,6 +8,7 @@ const [rootArgument, planArgument, outputArgument] = process.argv.slice(2)
 assert.ok(rootArgument && planArgument && outputArgument, 'Provide private capture root, edit plan and output MP4')
 const root = resolve(rootArgument), output = resolve(outputArgument)
 const take = JSON.parse(readFileSync(resolve(root, 'take.private.json'), 'utf8'))
+assert.notEqual(take.status, 'FAIL', 'Review and retain failed takes; do not render them as a successful demonstration')
 const plan = JSON.parse(readFileSync(resolve(planArgument), 'utf8'))
 assert.ok(!existsSync(output), 'Preserve earlier recordings; select a new output name')
 mkdirSync(dirname(output), { recursive: true })
@@ -66,7 +67,7 @@ writeFileSync(list, 'ffconcat version 1.0\n' + parts.map(file => `file '${file.r
 run('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', output])
 const metadata = { recordedAt: take.startedAt, renderedAt: new Date().toISOString(), output,
   durationSeconds: duration(output), format: 'Actual hosted Console recording, edited pauses, synthetic Daniel narration',
-  scope: 'Fresh draft only. Real model responses, visible validation failure and explicit correction. No publication, provisioning or business API execution.',
+  scope: plan.scope ?? take.scope ?? 'Fresh draft only. Real model responses, visible validation failure and explicit correction. No publication, provisioning or business API execution.',
   chapters }
 writeFileSync(output.replace(/\.mp4$/i, '.chapters.json'), JSON.stringify(metadata, null, 2) + '\n')
 run('ffmpeg', ['-v', 'error', '-y', '-ss', String(Math.min(18, metadata.durationSeconds / 2)), '-i', output,

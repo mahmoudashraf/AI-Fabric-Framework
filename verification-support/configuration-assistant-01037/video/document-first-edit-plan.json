@@ -1,0 +1,65 @@
+{
+  "scope": "Real production Console and AI responses. Fresh configuration-only Brain; API actions prepared without a message. Short hint for response guidance. No publication, provisioning, indexing, assignment or business API execution. The response take left next steps off for user review.",
+  "segments": [
+    {
+      "start": 1.389, "end": 9.24,
+      "title": "01  Start with an empty Smart Brain",
+      "detail": "Actual production Console. New draft prepared before recording. No runtime deployed.",
+      "narration": "This is the live Loom A I Console, starting with a fresh, empty draft prepared before recording. We will configure it from documentation, without writing JSON or a technical prompt. Nothing is deployed."
+    },
+    {
+      "start": 9.24, "end": 19.305,
+      "title": "02  The assistant knows the page",
+      "detail": "Page-aware guidance. Draft-only changes. Optional bounded validation corrections.",
+      "narration": "Build with A I knows the selected Brain and the Actions page. Its command already describes the task. Turn options show up to two corrections using actual validation findings. Opening the assistant alone does not call the model."
+    },
+    {
+      "start": 19.305, "end": 34.305,
+      "title": "03  Share the API document",
+      "detail": "A fictional dealership OpenAPI file: stock search, vehicle details and comparison.",
+      "narration": "Upload the API reference. This is our fictional dealership demo, not the Auto Trader partner API. It describes stock search, vehicle details and comparison. Review the selected source when needed. Importing a document does not execute its endpoints or start paid generation."
+    },
+    {
+      "start": 34.305, "end": 45.328,
+      "title": "04  Prepare actions with no message",
+      "detail": "Empty message box. One explicit Prepare actions command. Real model response.",
+      "narration": "The message box is empty. Click Prepare actions. Platform supplies the task, current configuration, selected documentation and supported contracts automatically. The model prepares definitions and routing. The configured correction policy may use actual findings, but it cannot publish or execute business operations."
+    },
+    {
+      "start": 45.328, "end": 56.607,
+      "title": "05  Review the saved actions",
+      "detail": "Three READ actions and routes in the ordinary editor. Zero errors; setup warnings remain visible.",
+      "narration": "Three read-only actions and their routes now appear in the normal editor. This preparation passed on its first model attempt, with zero configuration errors. Existing setup warnings remain visible. These are editable draft settings, not proof of a connected or deployed business integration."
+    },
+    {
+      "start": 56.607, "end": 71.95,
+      "title": "06  Refine with a short follow-up",
+      "detail": "Rename the stock search. No API details or schema instructions need repeating.",
+      "narration": "A short follow-up is enough for a small change. Rename the stock search to Find current stock. The assistant already has the document, selected action and current draft. It saves the new display name while keeping the routing and other actions unchanged."
+    },
+    {
+      "start": 71.95, "end": 81.544,
+      "title": "07  Undo the saved change",
+      "detail": "A real Undo receipt restores the previous draft label. Live applications are unchanged.",
+      "narration": "Undo restores the previous action label through the existing draft service. The conversation keeps an Undone receipt. You stay in control, and neither a published version nor a running application is changed."
+    },
+    {
+      "start": 81.544, "end": 90.868,
+      "title": "08  Guidance follows the task",
+      "detail": "Responses has its own command. Explicitly reuse documents already shared with this Brain.",
+      "narration": "On the Responses page, the assistant offers different guidance and a Prepare responses command. Brain documents lets us reuse the API file explicitly, without uploading it again. Navigation and document reuse do not trigger another model request."
+    },
+    {
+      "start": 90.868, "end": 123.316,
+      "title": "09  Use a plain-language style guide",
+      "detail": "Paste the guide and add a short optional hint. No JSON or configuration syntax.",
+      "narration": "Paste a short response guide using normal business language. Here we add the optional hint: Use the Northfield response guide. Then click Prepare responses. The model saves custom instructions for warm, brief, grounded replies. Existing actions, routes, model settings and security are preserved."
+    },
+    {
+      "start": 123.316, "end": 131.3,
+      "title": "10  Review before going live",
+      "detail": "Next-step recommendations remain off in this take. Review the draft before publishing.",
+      "narration": "The draft still needs human review. Next-step recommendations remained off in this take, despite the guide, so that preference is not complete. Updates is the ordinary review and publication workflow. Three explicit A I requests were made. No version was published, no runtime deployed, and no business API called."
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # Build A Smart Brain With AI
 
+The newer [document-first recording](README-document-first.md) demonstrates
+page-aware preparation, source reuse and Undo. This earlier video is retained
+as a separate walkthrough, not overwritten or presented as the latest UX.
+
 Recorded against the actual production Console on 10 November 2026. This is a
 configuration demonstration, not a mock UI or a deployment demonstration.
 

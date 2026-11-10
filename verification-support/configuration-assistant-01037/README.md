@@ -17,6 +17,10 @@ original customer/staff journeys, costs, cleanup and accepted limitations.
 Do not infer a later deployment from a source commit. The canonical plan is
 `010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md`.
 
+The [document-first demo video](video/README-document-first.md) records the new
+UX against production, including its actual partial response-preference result.
+Its recording artifacts do not represent another product deployment or release.
+
 The implementation uses existing Brain, private Data plugin and Engage save
 services. The dedicated shared inference profile has no mutation credentials,
 business action tools, vector services or customer business database. It consumes

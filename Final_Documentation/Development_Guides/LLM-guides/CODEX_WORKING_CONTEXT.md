@@ -14353,3 +14353,26 @@ test is being called hosted acceptance. UI extraction remains last.
   ~/.codex/private/loomai-authoring-01037/read-only-evidence-546da00/.
   Agent-owned test processes exited. Phone-video gallery/tunnel intentionally
   unchanged; the earlier recording predates this UX. Unrelated dirty work kept.
+
+### Configuration Assistant - 10 November 2026, Document-First Demo Video
+
+- New actual production-UI recording:3m10s, chapter captions, pointer highlights,
+  synthetic narration. Source/repro/evidence:
+  verification-support/configuration-assistant-01037/video/README-document-first.md.
+  MP4 stays out of Git. Earlier5m23s recording preserved separately.
+- Selected take:API file + empty message ->3READ actions/routes, short rename,
+  UI Undo, Responses guidance, explicit same-Brain document reuse and plain-text
+  response guide with a short optional hint. Three turns, one attempt each,
+  26646tokens, zero formal errors/browser errors; no runtime or publication.
+- Do not overstate semantic quality:nextSteps stayedOff despite selected guide;
+  closing narration/caption explicitly flag it. First take's no-hint Responses
+  kept defaults and failed the demo assertion; retained privately, not disguised.
+  No product/framework/prompt changes or hidden retries for the video.
+- Across both takes:6attempts/53629tokens/USD0.053744250 incremental. Production
+  ledger21/181330/USD0.177787500; allocation/limits/expiry unchanged. Both config
+  Brains archived,4sessions deleted/404, recording customers signed out.
+- Full decode/contact-sheet checks PASS. Public range206;390x844 actual playback,
+  chapters, nonblank pixels, old-video selection and no overflow/errors PASS.
+  Existing temporary phone gallery/tunnel intentionally running; not permanent
+  hosting or authenticated access. No new product deployment, no serving-image
+  change. Earlier page-aware UX release SHAs/digests remain authoritative.
