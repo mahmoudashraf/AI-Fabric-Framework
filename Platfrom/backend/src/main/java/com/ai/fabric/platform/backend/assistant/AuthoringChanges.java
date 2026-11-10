@@ -86,15 +86,24 @@ public class AuthoringChanges {
                 throw invalid("The proposed field is outside this configuration task.");
             List<String> parts = pointers(path);
             String operation = text(change, "operation");
+            boolean namedOperation = Set.of("UPSERT", "REMOVE_ITEM").contains(operation);
             JsonNode before = candidate.at(path).deepCopy();
             JsonNode parent = candidate;
             for (int i = 0; i < parts.size() - 1; i++) {
                 String part = parts.get(i);
-                if (!parent.isObject()) throw invalid("Use an UPSERT operation to change a named array item.");
-                if (!parent.has(part)) ((ObjectNode) parent).set(part, mapper.createObjectNode());
-                parent = parent.get(part);
+                if (parent.isArray()) {
+                    if (!part.matches("0|[1-9][0-9]*")) throw invalid("Array traversal requires an exact existing numeric index.");
+                    int index;
+                    try { index = Integer.parseInt(part); }
+                    catch (NumberFormatException tooLarge) { throw invalid("Array index is outside the existing array."); }
+                    if (index >= parent.size()) throw invalid("Array index is outside the existing array.");
+                    parent = parent.get(index);
+                } else if (parent.isObject()) {
+                    if (!parent.has(part)) ((ObjectNode) parent).set(part, mapper.createObjectNode());
+                    parent = parent.get(part);
+                } else throw invalid("Only object fields and existing array indices can be traversed.");
             }
-            if (!parent.isObject()) throw invalid("Only declared object fields and named array items can be edited.");
+            if (!parent.isObject()) throw invalid("Use UPSERT or REMOVE_ITEM to replace or remove an entire array item; the final parent must be an object.");
             String field = parts.getLast();
             var target = (ObjectNode) parent;
             if (credential(parts.subList(0, parts.size() - 1), field, target.get(field), target))
@@ -132,9 +141,9 @@ public class AuthoringChanges {
                 default -> throw invalid("Unsupported structured change operation.");
             }
             var diff = diffs.addObject().put("path", path).put("operation", operation);
-            if (change.has("key")) diff.set("key", change.get("key"));
+            if (namedOperation) diff.set("key", change.get("key"));
             JsonNode after = candidate.at(path);
-            if (change.has("key") && Set.of("UPSERT", "REMOVE_ITEM").contains(operation)) {
+            if (namedOperation) {
                 String identity = identity(field);
                 before = item(before, identity, change.path("key").asText());
                 after = item(after, identity, change.path("key").asText());
@@ -194,7 +203,7 @@ public class AuthoringChanges {
         for (int i = diff.size() - 1; i >= 0; i--) {
             var original = diff.get(i); boolean existed = original.path("existed").asBoolean();
             var change = result.addObject().put("path", original.path("path").asText());
-            if (original.has("key")) {
+            if (Set.of("UPSERT", "REMOVE_ITEM").contains(original.path("operation").asText()) && original.has("key")) {
                 change.set("key", original.get("key")); change.put("operation", existed ? "UPSERT" : "REMOVE_ITEM");
             } else change.put("operation", existed ? "SET" : "REMOVE");
             if (existed) change.set("value", original.get("before"));
