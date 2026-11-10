@@ -14261,3 +14261,48 @@ test is being called hosted acceptance. UI extraction remains last.
   no forced assistant opening, no new framework/specialist requirement identified.
   This next UX is documented, NOT implemented. Existing serving identities in
   Hosted Closeout above remain unchanged. Unrelated dirty work is preserved.
+
+### Configuration Assistant - 10 November 2026, Feedback Loop Hosted Closeout
+
+- CURRENT: supersedes the prior in-progress checkpoint. Explicit bounded
+  validation-feedback correction is committed/pushed and qualified on BOTH hosts.
+  Core/private authoring source546da001a0586a087ea5ea96289f6ddc41571cb8;
+  Console44c5aee15d112f1978e42c8ee4b43eb5c9fb9473. Exact native OCI digests:
+  backend884b3736472dede90925034f7c0f6ccbed7248df177bc091cd66441a31a075bc,
+  authoring3ba106bb0e17b434a272ccc7c194c6c677bad7f112355b5b9073cfaa51b4bff0,
+  UI551c5461f3dad77c9463a95ebdd68978813159de86e2b8c998b13eabc534fa8f.
+  All six native containers healthy; CI42754742947/42754743131/42757028157 PASS.
+  Framework stays0.8.46; Northfield/Support/ProdUS serving runtimes untouched.
+- Final local checks:230 focused backend/69 focused runtime/45UI units,
+  30assistant browser groups/13Support fixture groups and fullUI build PASS.
+  Independent review's paid-invalid-output cancellation receipt race was fixed
+  and regression-tested. UI follow-up preserves unsent text/source+operation
+  selections/preview/explanation/correction preferences across responsive
+  remount and dismissal, resetting on formal scope. No global state service.
+- Real customer UI staging-1794284798937 and production-1794285808495 PASS:
+  API import,3documented anonymous READ actions/routes,zero errors,attempt
+  history,off-policy one call,actual UI undo,cancelled preview and390px width.
+  Enabled calls passed on attemptONE; controlled tests prove actual correction/
+  exhaustion mechanics, not a fabricated live provider failure/recovery.
+  Final staging-1794285650100 control-only resize proof PASS with zero AI turns
+  and no ledger increase. Screenshots inspected; no business API/publication/
+  provisioning/indexing/assignment. Three sessions deleted/404 and three
+  configuration-only Brains archived; fixture UI sessions signed out.
+- Incremental hosted usage6attempts/53814reported tokens/USD0.051963000.
+  Final cumulative ledger:stage26/154240/USD0.147258750;
+  prod13/109828/USD0.106176000. Store/allocation/limits/expiry unchanged; no
+  initialize/activate/reset. Financial truth remains existing runtime ledger.
+- Full public verification record:
+  verification-support/configuration-assistant-01037/2026-11-10-validation-feedback-loop.md.
+  Raw receipts/operations/UI proofs private under
+  ~/.codex/private/loomai-feedback-loop-20261110/ and read-only ledger evidence
+  under ~/.codex/private/loomai-authoring-01037/read-only-evidence-546da00/.
+  Documentation commits after these source SHAs are not new serving images.
+- Latest user assessment answered: page-specific welcome/document-first commands
+  are useful next, not implemented. 010.37section19 and external guide record
+  document+optionalhint -> Prepareactions -> bounded correction -> draft review,
+  existing task/catalogue/current-config context, typed editor-section hints and
+  no paid generation on navigation/import alone. No additional framework change
+  identified. Do not start this new UX merely because the loop is now closed.
+  Owner's phone video gallery/tunnel intentionally remain running; recording
+  predates the loop. Unrelated root.gitignore/untracked work preserved.

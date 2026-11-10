@@ -51,9 +51,9 @@ not need a knowledge collection merely because it retrieves business data.
 
 ## Optional Validation Corrections
 
-**Rollout note:** this bounded-feedback addition is implemented locally and
-awaits hosted rollout and qualification. The controls described here are not a
-claim that the addition is already available in your live Console.
+**Hosted status (10 November 2026):** bounded validation feedback is deployed
+and qualified on staging and production Console. Availability and the allowed
+correction limit still come from the configured service.
 
 When available, **Let AI fix validation errors** lets the assistant use the
 actual configuration findings to correct its candidate within the same turn.
@@ -65,6 +65,9 @@ Turn the toggle off for a single attempt with no automatic correction.
 The controls pause while the assistant is busy. Corrections are disabled for
 **Explain only** and Kit guidance. **Preview only** still does not save the draft;
 allowing corrections does not grant permission to publish or change live state.
+Your unsent message, document selections and correction/preview preferences stay
+intact when the panel changes between desktop and mobile or is dismissed and
+reopened. Changing the selected resource/task starts its own scoped inputs.
 Each model attempt can consume usage. Provider, network and budget failures are
 not automatically retried by this feedback policy.
 
@@ -84,6 +87,8 @@ findings, answer any questions, continue in another explicit turn or edit
 manually.
 
 Only the final candidate may be saved through the existing editor save rules.
+When enabled feedback stops to ask for essential information, its partial
+proposal is retained without saving a draft change.
 Those rules may permit an editable draft with remaining validation findings,
 or reject a candidate that cannot be saved. **Draft saved. Needs attention.**
 means there is still work to review; it does not mean the errors were fixed.

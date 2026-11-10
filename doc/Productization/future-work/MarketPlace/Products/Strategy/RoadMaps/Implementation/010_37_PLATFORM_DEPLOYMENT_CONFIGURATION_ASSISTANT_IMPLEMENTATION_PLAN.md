@@ -794,6 +794,35 @@ If a requested capability needs one of these, preserve the useful supported prop
   No fixture infrastructure was provisioned. Test sign-in/browser state and
   temporary viewport overrides were cleaned up. Raw evidence remains private.
 
+### 2026-11-10 Bounded Validation Feedback Hosted Closeout
+
+- Section 6.5's explicitly configured feedback extension is implemented and
+  qualified on both hosts. Backend/private authoring source is `546da001a`;
+  Console source is `44c5aee15`. Exact immutable digests, CI/deployment jobs and
+  qualification boundaries are recorded in
+  `verification-support/configuration-assistant-01037/2026-11-10-validation-feedback-loop.md`.
+  The serving identities above are historical, not the current images.
+- Final local checks: 230 focused backend tests, 69 focused runtime tests,
+  45 UI unit tests, 30 assistant browser groups, 13 Support fixture groups and
+  full UI build pass. Runtime/core/UI image CI passed. AI Fabric stays 0.8.46;
+  no framework release or unrelated customer-runtime update was required.
+- Real customer UI journeys on staging and production imported the demo API,
+  saved three documented READ actions/routes with zero errors, showed attempt
+  history, proved off-policy single inference, undo, cancellation and basic
+  mobile layout. Both enabled cases passed on attempt one; multi-attempt
+  correction/exhaustion is proven by controlled tests, not falsely claimed as
+  an observed real-provider failure/recovery.
+- Resizing retains unsent text, selected documents/operations and preview/
+  correction settings. The staging control-only recheck created no AI turn and
+  consumed no additional provider usage. No automatic publication, apply,
+  provision, index, assignment or business call occurred.
+- Shared authoring allocation/store identities and prior counters survived
+  upgrades. Test sessions were deleted, configuration-only Brains archived and
+  customer fixture accounts signed out. Raw evidence remains private.
+- Section 19's page-aware welcome and document-first commands are proposed
+  next, not implemented by this extension. Existing page/task/configuration
+  context already exists; the current UI still requires a typed request.
+
 ## 14. Detailed Customer And Developer Walkthrough
 
 ### 14.1 What The Product Is

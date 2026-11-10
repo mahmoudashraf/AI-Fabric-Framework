@@ -7,9 +7,11 @@ directory. A healthy deployment is not evidence that every model answer is corre
 
 ## Current Delivery
 
-Implemented and qualified on staging and production on 10 November 2026. See
-[hosted qualification](2026-11-10-hosted-qualification.md) for actual image
-identities, customer/staff journeys, costs, cleanup and accepted limitations.
+Implemented and qualified on staging and production on 10 November 2026. The
+latest [bounded validation-feedback qualification](2026-11-10-validation-feedback-loop.md)
+records current image identities and the explicit correction-policy extension.
+The earlier [hosted qualification](2026-11-10-hosted-qualification.md) records the
+original customer/staff journeys, costs, cleanup and accepted limitations.
 Do not infer a later deployment from a source commit. The canonical plan is
 `010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md`.
 
@@ -33,7 +35,9 @@ released AI Fabric 0.8.46; no framework change/release is part of this work.
 - `hosted-turn.mjs`: one explicitly selected real-model turn against a disposable
   authorized resource. Requires `AUTHORING_PRIVATE_STATE`, `--environment`,
   `--case` and `--command`. It refuses to overwrite evidence or retry a failed
-  generation automatically. JSON cases under `cases/` contain fictional data.
+  turn automatically. An explicit `validationFeedback` policy in the command
+  enables the server's bounded corrections; omitted policy makes one inference.
+  JSON cases under `cases/` contain fictional data.
 
 ## Retained Failures And Corrections
 
