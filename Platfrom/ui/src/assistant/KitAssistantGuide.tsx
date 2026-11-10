@@ -15,7 +15,7 @@ export function KitAssistantGuide(props: Props) {
 
 function ScopedKitAssistantGuide({ brainId, targetProfileId, engageHref }: Props) {
   const [open, setOpen] = useState(false), [activated, setActivated] = useState(false)
-  const scope: AssistantScope = { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task: 'KIT' }
+  const scope: AssistantScope = { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task: 'KIT', editorContext: { section: 'KIT' } }
   const controller = useAssistant(scope, activated, async () => {})
   const inputs = useAssistantPanelInputs()
   const links = [

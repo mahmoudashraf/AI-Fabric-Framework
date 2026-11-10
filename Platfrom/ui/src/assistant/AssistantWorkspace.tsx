@@ -6,6 +6,9 @@ import CloseOutlined from '@mui/icons-material/CloseOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined'
 import UndoOutlined from '@mui/icons-material/UndoOutlined'
+import TuneOutlined from '@mui/icons-material/TuneOutlined'
+import InfoOutlined from '@mui/icons-material/InfoOutlined'
+import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined'
 import { ControlledConversation, type ControlledConversationMessage } from '../../../../max-mode-widget/src/controlledConversation'
 import { stringifyExactJson } from '../lib/losslessJson'
 import { AssistantSources } from './AssistantSources'
@@ -15,6 +18,7 @@ import type { AssistantScope, AssistantTurn, ValidationFeedbackPolicy } from './
 import { ChangeSummary, ValidationOutcome } from './TurnDetails'
 import { validationSummary } from './turnPresentation'
 import { feedbackCeiling, feedbackPolicy, feedbackProgress, feedbackReason } from './validationFeedback'
+import { assistantPage, editorContext, userTurnText } from './pagePresentation'
 
 type Props = {
   scope: AssistantScope | null
@@ -73,7 +77,8 @@ export function useAssistantPanelInputs() {
   const [query, setQuery] = useState(''), [preview, setPreview] = useState(false), [explain, setExplain] = useState(false)
   const [sourceIds, setSourceIds] = useState<string[]>([]), [operationIds, setOperationIds] = useState<string[]>([])
   const [feedbackPreference, setFeedbackPreference] = useState<Partial<ValidationFeedbackPolicy>>({})
-  return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference }
+  const [optionsOpen, setOptionsOpen] = useState(false), [prepareOpen, setPrepareOpen] = useState(false)
+  return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference, optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen }
 }
 
 function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller' | 'inputs'> & {
@@ -104,12 +109,18 @@ function JsonDetails({ label, value }: { label: string; value: unknown }) {
   return <Box component="details" sx={{ mt: 1, fontSize: 12, whiteSpace: 'normal' }}><summary>{label}</summary><Box component="pre" sx={{ m: 0, mt: 1, p: 1, bgcolor: 'action.hover', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11, maxHeight: 260, overflow: 'auto' }}>{stringifyExactJson(value, 2)}</Box></Box>
 }
 
-export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBusy, readOnlyReason, guideOnly, links }: {
+export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBusy, readOnlyReason, guideOnly: requestedGuideOnly, links }: {
   controller: AssistantController; scope: AssistantScope; onClose: () => void; editorBusy?: boolean; readOnlyReason?: string
   inputs: ReturnType<typeof useAssistantPanelInputs>
   guideOnly?: boolean; links?: { label: string; href: string }[]
 }) {
   const { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference } = inputs
+  const { optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen } = inputs
+  const context = editorContext(scope), page = assistantPage(scope)
+  const guideOnly = requestedGuideOnly || scope.task === 'KIT' || context.section === 'ACTION_REVIEWS'
+  const hasTurns = Boolean(c.session?.turns.length), showPreparation = !hasTurns || prepareOpen
+  const turns = c.session?.turns
+  const needsInput = turns?.[turns.length - 1]?.status === 'NEEDS_INPUT'
   const [deleteOpen, setDeleteOpen] = useState(false)
   const sources = c.session?.sources
   useEffect(() => {
@@ -126,12 +137,18 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
   const correctionAllowed = !explain && !guideOnly && scope.task !== 'KIT'
   const validationFeedback = feedbackPolicy(feedbackCapability, feedbackPreference, correctionAllowed)
   const correctionLimit = feedbackPolicy(feedbackCapability, { ...feedbackPreference, enabled: true }).maxCorrections
+  const submitLabel = explain || guideOnly ? 'Explain' : preview || readOnly ? 'Preview' : 'Send'
   const messages: Message[] = (c.session?.turns ?? []).flatMap(turn => [
-    { id: `${turn.id}:query`, role: 'user', text: turn.query },
+    { id: `${turn.id}:query`, role: 'user', text: userTurnText(turn, scope) },
     { id: turn.id, role: 'assistant', text: turn.message ?? '', turn },
   ])
-  const submit = async (value: string) => {
-    if (await c.submit({ query: explain || guideOnly ? `Explain only; do not change the draft.\n\n${value}` : value, previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds, validationFeedback })) setQuery('')
+  const submit = async (value: string, command?: 'PREPARE') => {
+    if (command && (value.length > 6000 || explain && !guideOnly)) return
+    if (await c.submit({ query: !command && (explain || guideOnly) ? `Explain only; do not change the draft.\n\n${value}` : value,
+      ...(command ? { command } : {}), editorContext: context,
+      previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds, validationFeedback })) {
+      setQuery(''); setPrepareOpen(false)
+    }
   }
   return <Box id="configuration-assistant-panel" component="aside" aria-label="Build with AI" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, p: 2, bgcolor: 'background.paper', color: 'text.primary', '& .MuiTypography-root': { overflowWrap: 'anywhere' } }}>
     <Stack direction="row" alignItems="center" gap={1} sx={{ flexShrink: 0 }}><AutoAwesomeOutlined fontSize="small" color="primary" /><Typography fontSize={15} fontWeight={650} sx={{ flex: 1 }}>Build with AI</Typography>
@@ -139,20 +156,38 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
       <Tooltip title="Delete session and its sources"><span><IconButton size="small" aria-label="Delete assistant session" disabled={!c.session || c.busy} onClick={() => setDeleteOpen(true)}><DeleteOutline fontSize="small" /></IconButton></span></Tooltip>
       <Tooltip title="Close assistant"><IconButton size="small" aria-label="Close assistant" onClick={onClose}><CloseOutlined fontSize="small" /></IconButton></Tooltip>
     </Stack>
-    <Typography variant="caption" color="text.secondary" sx={{ my: 1 }}>{c.session?.displayName ?? scope.resourceId} / {scope.task.split('_').join(' ')}</Typography>
-    {!guideOnly && <Typography variant="caption" color="text.secondary">AI saves requested draft changes, including manual values. Review or refine afterward. Publishing remains a separate explicit step.</Typography>}
+    <Box component="section" aria-label="Page guidance" sx={{ my: 1, flexShrink: 0 }}>
+      <Stack direction="row" alignItems="center" gap={.5}><Typography variant="caption" fontWeight={600} sx={{ flex: 1 }}>{c.session?.displayName ?? scope.resourceId} / {page.title}</Typography>
+        {hasTurns && <Tooltip title={showPreparation ? 'Collapse page guidance' : 'Show page guidance'}><IconButton size="small" aria-label="Page guidance" aria-expanded={showPreparation} onClick={() => setPrepareOpen(!prepareOpen)}><ExpandMoreOutlined fontSize="small" sx={{ transform: showPreparation ? 'rotate(180deg)' : undefined }} /></IconButton></Tooltip>}
+      </Stack>
+      {showPreparation && <Typography variant="body2" color="text.secondary" sx={{ mt: .5, fontSize: 12 }}>{page.welcome}</Typography>}
+      {context.selectedDefinitionIds?.length ? <Typography variant="caption" color="text.secondary">Selected: {context.selectedDefinitionIds.join(', ')}</Typography> : null}
+    </Box>
+    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>{guideOnly ? 'Guidance only. No draft changes.' : explain ? 'Explanation only. No draft changes.' : preview || readOnly ? 'Preview only. No draft save.' : 'Saves draft only. Review or undo after. Never publishes.'}</Typography>
     {readOnly && <Alert severity="info" sx={{ mt: 1 }}>{readOnly}{!guideOnly && ' Preview only; no live resource is changed.'}</Alert>}
     {Boolean(links?.length) && <Box component="details" sx={{ mt: 1, fontSize: 12, maxHeight: '24dvh', overflow: 'auto', flexShrink: 0 }}><summary>Open resource editor</summary><Stack alignItems="flex-start">{links?.map(link => <Button key={link.href} size="small" component={RouterLink} to={link.href} onClick={onClose}>{link.label}</Button>)}</Stack></Box>}
     {unavailable && <Alert severity="warning" sx={{ mt: 1 }}>{c.status.data?.unavailableReason || 'The configuration assistant is unavailable. Manual editing is still available.'}</Alert>}
     {editorBusy && <Alert severity="info" sx={{ mt: 1 }}>Wait for the editor's current operation to finish.</Alert>}
     {c.pending && <LinearProgress sx={{ my: 1, flexShrink: 0 }} />}
     {!c.session && !c.pending && c.status.data?.ready && <Button onClick={() => void c.newSession()}>Start new session</Button>}
-    <AssistantSources controller={c} sourceIds={sourceIds} setSourceIds={setSourceIds} operationIds={operationIds} setOperationIds={setOperationIds} />
+    <AssistantSources controller={c} scope={scope} sourceIds={sourceIds} setSourceIds={setSourceIds} operationIds={operationIds} setOperationIds={setOperationIds} />
     <ControlledConversation<Message> className="configuration-conversation" messages={messages} value={query} onValueChange={setQuery} onSubmit={value => void submit(value)} busy={c.busy} disabled={disabled || c.retryTurn} onCancel={c.running || c.retryTurn ? c.cancel : undefined} error={c.error}
-      submitLabel={explain || guideOnly ? 'Explain' : preview || readOnly ? 'Preview' : 'Send'}
+      submitLabel={submitLabel}
       style={{ fontSize: 13 }}
       composerExtras={<>
         {c.retryTurn && <Alert severity="warning" action={<Button disabled={c.pending} onClick={() => void c.retry()}>Retry same turn</Button>}>The turn response was not confirmed. Retry uses the same request key; no second turn is created.</Alert>}
+        <Stack direction="row" gap={.5} alignItems="center" flexWrap="wrap">
+          {showPreparation ? <Button type="button" size="small" variant="outlined" startIcon={<AutoAwesomeOutlined fontSize="small" />} disabled={disabled || c.busy || c.retryTurn || query.length > 6000 || explain && !guideOnly}
+            onClick={() => void submit(query, 'PREPARE')} sx={{ mr: 'auto', minWidth: 0, textAlign: 'left', fontSize: 12 }}>{page.command}{preview || readOnly && !guideOnly ? ' (preview)' : ''}</Button>
+            : <Button type="button" size="small" startIcon={<AutoAwesomeOutlined fontSize="small" />} disabled={c.busy || disabled} onClick={() => setPrepareOpen(true)} sx={{ mr: 'auto', fontSize: 12 }}>New preparation</Button>}
+          <Typography variant="caption" color="text.secondary">{validationFeedback.enabled ? `${validationFeedback.maxCorrections} corrections` : 'Corrections off'}</Typography>
+          <Tooltip title="Turn options"><IconButton type="button" size="small" aria-label="Turn options" aria-expanded={optionsOpen} onClick={() => setOptionsOpen(!optionsOpen)}><TuneOutlined fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Your request, selected documents and scoped configuration are shared with LoomAI's AI provider. Do not include credentials or unnecessary personal data."><IconButton type="button" size="small" aria-label="AI data sharing"><InfoOutlined sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+        </Stack>
+        {showPreparation && query.length > 6000 && <Typography role="alert" variant="caption" color="error.main">Keep the optional preparation hint to 6,000 characters. Typed requests can use up to 8,000.</Typography>}
+        {needsInput && !showPreparation && <Typography variant="caption" color="text.secondary">Answer the question, then {submitLabel}.</Typography>}
+        {!needsInput && <Typography variant="caption" color="text.secondary">{showPreparation ? 'Optional focus hint, or type a request' : 'Type a follow-up request'}</Typography>}
+        {optionsOpen && <Box component="section" aria-label="Turn options" sx={{ maxHeight: 144, overflowY: 'auto', borderTop: 1, borderColor: 'divider', pt: .5 }}>
         {!guideOnly && <Stack direction="row" gap={1} flexWrap="wrap"><FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={preview || Boolean(readOnly)} disabled={c.busy || Boolean(readOnly)} onChange={event => setPreview(event.target.checked)} />} label="Preview only" />
           <FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={explain} disabled={c.busy} onChange={event => setExplain(event.target.checked)} />} label="Explain only" /></Stack>
         }
@@ -166,11 +201,11 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
             {Array.from({ length: correctionCeiling || 1 }, (_, index) => <MenuItem key={index + 1} value={index + 1}>{index + 1}</MenuItem>)}
           </TextField>
         </Stack>
-        <Typography variant="caption" color="text.secondary">Your request, selected sources and scoped configuration are shared with LoomAI's AI provider. Do not include credentials or unnecessary personal data.</Typography>
+        </Box>}
       </>}
       renderMessage={message => message.turn ? <TurnView turn={message.turn} controller={c} readOnly={Boolean(readOnly)} editorBusy={editorBusy} /> : <><Typography variant="caption" color="text.secondary">You</Typography><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography></>} />
     <Typography variant="caption" color="text.secondary" sx={{ pt: 1 }}>{c.session ? `Session expires ${new Date(c.session.expiresAt).toLocaleString()}` : ''}</Typography>
-    <Box component="style">{`.configuration-conversation form button{font:inherit;min-height:34px;padding:5px 14px;border-radius:4px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}.configuration-conversation form button:disabled{opacity:.45;cursor:default}.configuration-conversation form button:focus-visible,.configuration-conversation textarea:focus-visible{outline:2px solid currentColor;outline-offset:2px}.configuration-conversation [role=alert]{color:inherit}`}</Box>
+    <Box component="style">{`.configuration-conversation form button:not(.MuiButtonBase-root){font:inherit;min-height:34px;padding:5px 14px;border-radius:4px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}.configuration-conversation form button:disabled{opacity:.45;cursor:default}.configuration-conversation form button:focus-visible,.configuration-conversation textarea:focus-visible{outline:2px solid currentColor;outline-offset:2px}.configuration-conversation [role=alert]{color:inherit}`}</Box>
     <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth><DialogTitle>Delete this assistant session?</DialogTitle><DialogContent>Its conversation and imported sources will be deleted. Saved resource changes are not undone.</DialogContent><DialogActions><Button onClick={() => setDeleteOpen(false)}>Keep session</Button><Button color="error" disabled={c.busy} onClick={async () => { await c.remove(); setDeleteOpen(false); setSourceIds([]); setOperationIds([]) }}>Delete session</Button></DialogActions></Dialog>
   </Box>
 }

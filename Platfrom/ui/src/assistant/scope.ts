@@ -1,16 +1,23 @@
-import type { AssistantScope, AssistantTask } from './types'
+import type { AssistantScope, AssistantSection, AssistantTask } from './types'
 
 // Formal route identities only. The user's prose never selects a resource or task.
-const tasks: Record<string, AssistantTask> = {
+const sections: Record<string, AssistantSection> = {
   '': 'KIT', capabilities: 'ACTIONS', 'capabilities/actions': 'ACTIONS',
-  'knowledge/connections': 'CONNECTIONS', knowledge: 'KNOWLEDGE',
-  'knowledge/documents': 'KNOWLEDGE', 'knowledge/live-data': 'KNOWLEDGE',
-  'knowledge/search': 'MODELS', 'knowledge/storage': 'KNOWLEDGE',
-  'knowledge/discover': 'KNOWLEDGE', 'knowledge/proof': 'KNOWLEDGE', 'knowledge/retention': 'KNOWLEDGE',
-  responses: 'BEHAVIOUR', 'responses/instructions': 'BEHAVIOUR', 'responses/advanced': 'BEHAVIOUR',
-  models: 'MODELS', 'human-support': 'HUMAN_SUPPORT', 'action-reviews': 'HUMAN_SUPPORT',
+  'knowledge/connections': 'LIVE_DATA', knowledge: 'KNOWLEDGE',
+  'knowledge/documents': 'DOCUMENTS', 'knowledge/live-data': 'LIVE_DATA',
+  'knowledge/search': 'SEARCH', 'knowledge/storage': 'STORAGE',
+  'knowledge/discover': 'DOCUMENTS', 'knowledge/proof': 'DOCUMENTS', 'knowledge/retention': 'DOCUMENTS',
+  responses: 'BEHAVIOUR', 'responses/instructions': 'INSTRUCTIONS', 'responses/advanced': 'INSTRUCTIONS',
+  models: 'MODELS', 'human-support': 'HUMAN_SUPPORT', 'action-reviews': 'ACTION_REVIEWS',
   'human-support/specialists': 'SPECIALISTS', 'advanced/providers': 'MODELS',
   'advanced/configuration': 'KIT',
+}
+
+const sectionTasks: Record<AssistantSection, AssistantTask> = {
+  ACTIONS: 'ACTIONS', CONNECTIONS: 'CONNECTIONS', KNOWLEDGE: 'KNOWLEDGE', BEHAVIOUR: 'BEHAVIOUR',
+  MODELS: 'MODELS', HUMAN_SUPPORT: 'HUMAN_SUPPORT', SPECIALISTS: 'SPECIALISTS', KIT: 'KIT', DATA_PLUGIN: 'DATA_PLUGIN', ENGAGE: 'ENGAGE',
+  DOCUMENTS: 'KNOWLEDGE', LIVE_DATA: 'KNOWLEDGE', STORAGE: 'KNOWLEDGE', SEARCH: 'MODELS',
+  INSTRUCTIONS: 'BEHAVIOUR', ACTION_REVIEWS: 'HUMAN_SUPPORT',
 }
 
 export function brainAssistantScope(pathname: string, search: string, brainId: string): AssistantScope | null {
@@ -19,16 +26,25 @@ export function brainAssistantScope(pathname: string, search: string, brainId: s
   const path = pathname.slice(root.length).replace(/^\//, '').replace(/\/$/, '')
   const params = new URLSearchParams(search)
   const parts = path.split('/')
-  let task = tasks[path]
-  if (path === 'capabilities' && params.get('view') === 'connection') task = 'CONNECTIONS'
-  if (parts.length === 3 && parts[2] && parts[0] === 'knowledge' && parts[1] === 'connections') task = 'CONNECTIONS'
-  if (parts.length === 3 && parts[2] && parts[0] === 'knowledge' && parts[1] === 'sources') task = 'KNOWLEDGE'
-  if (parts.length === 2 && parts[0] === 'capabilities' && !task) {
+  let section = sections[path]
+  let selectedId = ''
+  if (path === 'capabilities' && params.get('view') === 'connection') section = 'CONNECTIONS'
+  if (parts.length === 3 && parts[2] && parts[0] === 'knowledge' && ['connections', 'sources'].includes(parts[1])) {
+    section = parts[1] === 'connections' ? 'LIVE_DATA' : 'DOCUMENTS'
+    try { selectedId = decodeURIComponent(parts[2]) } catch { return null }
+  }
+  if (parts.length === 2 && parts[0] === 'capabilities' && !section) {
     let id = ''
     try { id = decodeURIComponent(parts[1]) } catch { return null }
-    if (id.startsWith('action:') || id.startsWith('install:')) task = params.get('view') === 'connection' ? 'CONNECTIONS' : 'ACTIONS'
+    if (id.startsWith('action:') || id.startsWith('install:')) {
+      section = params.get('view') === 'connection' ? 'CONNECTIONS' : 'ACTIONS'
+      selectedId = id.startsWith('action:') ? id.slice('action:'.length) : id
+    }
   }
-  return task ? { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task } : null
+  if (!section) return null
+  const task = sectionTasks[section]
+  return { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task,
+    editorContext: { section, ...(selectedId && selectedId.length <= 256 ? { selectedDefinitionIds: [selectedId] } : {}) } }
 }
 
 export function scopeIdentity(scope: AssistantScope) { return `${scope.resourceKind}:${scope.resourceId}:${scope.task}` }

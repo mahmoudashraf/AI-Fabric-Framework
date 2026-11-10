@@ -12,13 +12,40 @@ const expected = {
   '/capabilities/action%3Aread': 'ACTIONS', '/capabilities/install%3Aplugin%3Aaction%3Aread': 'ACTIONS',
   '/knowledge': 'KNOWLEDGE', '/knowledge/documents': 'KNOWLEDGE', '/knowledge/sources/source-1': 'KNOWLEDGE',
   '/knowledge/storage': 'KNOWLEDGE', '/knowledge/discover': 'KNOWLEDGE', '/knowledge/proof': 'KNOWLEDGE', '/knowledge/retention': 'KNOWLEDGE',
-  '/knowledge/connections': 'CONNECTIONS', '/knowledge/connections/source-1': 'CONNECTIONS', '/knowledge/search': 'MODELS',
+  '/knowledge/connections': 'KNOWLEDGE', '/knowledge/connections/source-1': 'KNOWLEDGE', '/knowledge/live-data': 'KNOWLEDGE', '/knowledge/search': 'MODELS',
   '/responses': 'BEHAVIOUR', '/responses/instructions': 'BEHAVIOUR', '/responses/advanced': 'BEHAVIOUR',
   '/models': 'MODELS', '/human-support': 'HUMAN_SUPPORT', '/action-reviews': 'HUMAN_SUPPORT',
   '/human-support/specialists': 'SPECIALISTS', '/advanced/providers': 'MODELS', '/advanced/configuration': 'KIT',
 }
+const contexts = {
+  '/capabilities/action%3Aread': { section: 'ACTIONS', selectedDefinitionIds: ['read'] },
+  '/capabilities/install%3Aplugin%3Aaction%3Aread': { section: 'ACTIONS', selectedDefinitionIds: ['install:plugin:action:read'] },
+  '/knowledge/documents': { section: 'DOCUMENTS' }, '/knowledge/sources/source-1': { section: 'DOCUMENTS', selectedDefinitionIds: ['source-1'] },
+  '/knowledge/storage': { section: 'STORAGE' }, '/knowledge/discover': { section: 'DOCUMENTS' }, '/knowledge/proof': { section: 'DOCUMENTS' }, '/knowledge/retention': { section: 'DOCUMENTS' },
+  '/knowledge/connections': { section: 'LIVE_DATA' }, '/knowledge/connections/source-1': { section: 'LIVE_DATA', selectedDefinitionIds: ['source-1'] },
+  '/knowledge/live-data': { section: 'LIVE_DATA' }, '/knowledge/search': { section: 'SEARCH' },
+  '/responses/instructions': { section: 'INSTRUCTIONS' }, '/responses/advanced': { section: 'INSTRUCTIONS' }, '/action-reviews': { section: 'ACTION_REVIEWS' },
+}
 for (const [path, task] of Object.entries(expected)) test(`route ${path || '/'} binds ${task}`, () => {
-  assert.deepEqual(brainAssistantScope(root + path, '?targetProfileId=production&query=change+models', 'brain-37'), { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task })
+  assert.deepEqual(brainAssistantScope(root + path, '?targetProfileId=production&query=change+models', 'brain-37'), { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task, editorContext: contexts[path] ?? { section: task } })
+})
+test('same-task subpages refresh context without changing formal session identity', () => {
+  for (const [from, to] of [['/models', '/knowledge/search'], ['/responses', '/responses/instructions'], ['/knowledge/documents', '/knowledge/storage'], ['/knowledge/documents', '/knowledge/connections']]) {
+    const before = brainAssistantScope(root + from, '', 'brain-37'), after = brainAssistantScope(root + to, '', 'brain-37')
+    assert.equal(scopeIdentity(before), scopeIdentity(after))
+    assert.notEqual(before.editorContext.section, after.editorContext.section)
+  }
+})
+test('live source pages use Knowledge authority, endpoint connection editors retain Connections authority', () => {
+  assert.equal(brainAssistantScope(root + '/knowledge/connections/source-1', '', 'brain-37').task, 'KNOWLEDGE')
+  const route = brainAssistantScope(root + '/capabilities/action%3Aread', '?view=connection', 'brain-37')
+  assert.equal(route.task, 'CONNECTIONS'); assert.equal(route.editorContext.section, 'CONNECTIONS')
+})
+test('definition hints come only from formal selections, with bounded exact identifiers', () => {
+  const route = brainAssistantScope(root + '/models', '?selectedDefinitionIds=forged&section=SEARCH', 'brain-37')
+  assert.deepEqual(route.editorContext, { section: 'MODELS' })
+  assert.deepEqual(brainAssistantScope(root + '/capabilities/' + encodeURIComponent('action:' + 'x'.repeat(257)), '', 'brain-37').editorContext, { section: 'ACTIONS' })
+  assert.equal(brainAssistantScope(root + '/knowledge/sources/%ZZ', '', 'brain-37'), null)
 })
 test('formal connection and specialist selectors bind their tasks', () => {
   assert.equal(brainAssistantScope(root + '/capabilities', '?view=connection', 'brain-37').task, 'CONNECTIONS')

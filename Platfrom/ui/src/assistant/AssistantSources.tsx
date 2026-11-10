@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material'
 import AttachFileOutlined from '@mui/icons-material/AttachFileOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
+import LibraryBooksOutlined from '@mui/icons-material/LibraryBooksOutlined'
 import { assistantApi, fileSource } from './api'
 import { operation } from './scope'
+import { sameResourceSources } from './pagePresentation'
 import type { AssistantController } from './useAssistant'
-import type { ReusableSource } from './types'
+import type { AssistantScope, ReusableSource } from './types'
 
-export function AssistantSources({ controller: c, sourceIds, setSourceIds, operationIds, setOperationIds }: {
+export function AssistantSources({ controller: c, scope, sourceIds, setSourceIds, operationIds, setOperationIds }: {
+  scope: AssistantScope
   controller: AssistantController; sourceIds: string[]; setSourceIds: (ids: string[]) => void
   operationIds: string[]; setOperationIds: (ids: string[]) => void
 }) {
@@ -33,11 +36,11 @@ export function AssistantSources({ controller: c, sourceIds, setSourceIds, opera
     if (!open || mode !== 'reuse' || !c.session) return
     let current = true
     setReuseLoading(true); setError(''); setReuseIndex('')
-    void assistantApi.reusableSources(c.session.id).then(result => { if (current) setReusable(result) })
+    void assistantApi.reusableSources(c.session.id).then(result => { if (current) setReusable(sameResourceSources(result, scope)) })
       .catch(error => { if (current) setError(error instanceof Error ? error.message : String(error)) })
       .finally(() => { if (current) setReuseLoading(false) })
     return () => { current = false }
-  }, [open, mode, c.session?.id])
+  }, [open, mode, c.session?.id, scope.resourceKind, scope.resourceId])
   const toggle = (values: string[], id: string) => values.includes(id) ? values.filter(value => value !== id) : [...values, id]
   const importSource = async () => {
     setLoading(true); setError('')
@@ -50,16 +53,26 @@ export function AssistantSources({ controller: c, sourceIds, setSourceIds, opera
       const result = mode === 'reuse' && selected ? await c.reuseSource(selected.sessionId, selected.sourceId) : await c.addSource(data)
       if (result) {
         const added = result.sources.filter(source => !previous.has(source.id))
-        setSourceIds([...new Set([...sourceIds, ...added.map(source => source.id)])])
+        const chosenIds = added.map(source => source.id)
+        if (mode === 'reuse' && selected && result.sources.some(source => source.id === selected.sourceId)) chosenIds.push(selected.sourceId)
+        setSourceIds([...new Set([...sourceIds, ...chosenIds])])
         setOpen(false); setFile(null); setContent(''); setTitle(''); setUrl('')
-        if (added[0]) setReview({ id: added[0].id, title: added[0].title })
       }
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
   }
   return <>
-    <Button size="small" startIcon={<AttachFileOutlined />} onClick={() => setOpen(true)} disabled={!c.session || c.busy}>Add source</Button>
-    {Boolean(c.session?.sources.length) && <Box component="details" sx={{ fontSize: 12, py: 1, borderBottom: 1, borderColor: 'divider', maxHeight: '28dvh', overflow: 'auto' }}>
+    <Stack direction="row" gap={1} flexWrap="wrap" sx={{ flexShrink: 0 }}>
+      <Button size="small" startIcon={<AttachFileOutlined />} onClick={() => { setMode('file'); setOpen(true) }} disabled={!c.session || c.busy}>Add source</Button>
+      <Button size="small" startIcon={<LibraryBooksOutlined />} onClick={() => { setMode('reuse'); setOpen(true) }} disabled={!c.session || c.busy}>{scope.resourceKind === 'DEPLOYMENT_DRAFT' ? 'Brain documents' : 'Resource documents'}</Button>
+    </Stack>
+    <Box component="section" aria-label="Selected documents" sx={{ my: .5, maxHeight: 80, overflowY: 'auto', flexShrink: 0 }}>
+      <Stack direction="row" gap={.5} flexWrap="wrap">{c.session?.sources.filter(source => sourceIds.includes(source.id)).map(source => <Chip key={source.id} size="small" variant="outlined" icon={<DescriptionOutlined />}
+        label={source.title} onClick={() => setReview({ id: source.id, title: source.title })} title={`Review ${source.title}`} sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', py: .25 } }} />)}
+        {!sourceIds.length && <Typography variant="caption" color="text.secondary">No documents selected</Typography>}
+      </Stack>
+    </Box>
+    {Boolean(c.session?.sources.length) && <Box component="details" sx={{ fontSize: 12, py: .5, borderBottom: 1, borderColor: 'divider', maxHeight: '20dvh', overflow: 'auto', flexShrink: 0 }}>
       <summary>Sources ({sourceIds.length} selected) / {operationIds.length ? `${operationIds.length} selected operations` : 'all operations in selected sources'}</summary>
       {c.session?.sources.map(source => <Box key={source.id} sx={{ py: 1 }}>
         <Stack direction="row" alignItems="center">
@@ -94,7 +107,8 @@ export function AssistantSources({ controller: c, sourceIds, setSourceIds, opera
           </TextField>
           <TextField label="Documentation" multiline minRows={7} value={content} onChange={event => setContent(event.target.value)} />
         </> : mode === 'url' ? <TextField label="Public documentation URL" type="url" value={url} onChange={event => setUrl(event.target.value)} /> : <>
-          {reuseLoading ? <Typography role="status">Loading reusable sources...</Typography> : !reusable.length ? <Typography variant="body2">No reusable sources are available in this workspace.</Typography> : <TextField select label="Available source" value={reuseIndex} onChange={event => setReuseIndex(event.target.value)}>
+          <Typography variant="body2">{scope.resourceKind === 'DEPLOYMENT_DRAFT' ? 'Documents previously shared with this Brain. Choose one to attach to this session.' : 'Documents previously shared with this resource. Choose one to attach to this session.'}</Typography>
+          {reuseLoading ? <Typography role="status">Loading reusable sources...</Typography> : !reusable.length ? <Typography variant="body2">No reusable documents for this {scope.resourceKind === 'DEPLOYMENT_DRAFT' ? 'Brain' : 'resource'}.</Typography> : <TextField select label="Available source" value={reuseIndex} onChange={event => setReuseIndex(event.target.value)}>
             {reusable.map((source, index) => <MenuItem key={`${source.sessionId}:${source.sourceId}`} value={String(index)} sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{source.title} / {source.task} / {source.mediaType}</MenuItem>)}
           </TextField>}
         </>}

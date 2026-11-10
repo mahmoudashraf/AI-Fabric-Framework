@@ -9,8 +9,9 @@ COPY support that source boundary in clean builds.
 
 ## Entry Points
 
-- Smart Brain: `capabilities` / action identities -> ACTIONS; formal connection
-  view and `knowledge/connections` -> CONNECTIONS.
+- Smart Brain: `capabilities` / action identities -> ACTIONS; formal action
+  connection view -> CONNECTIONS. `knowledge/connections` is the live-data
+  source view and uses KNOWLEDGE, not outbound action routing.
 - `knowledge` documents/source/storage tasks -> KNOWLEDGE; `knowledge/search`,
   `models` and `advanced/providers` -> MODELS.
 - `responses`, `responses/instructions`, `responses/advanced` -> BEHAVIOUR.
@@ -43,19 +44,32 @@ Restoration GETs the session; it never replays inference or saves. Lost turn
 responses offer retry using the original Idempotency-Key. Poll/cancel errors are
 visible; old poll responses cannot supersede a newer command.
 
-New imports and explicit same-workspace reuse are selected by ID and open an
-authenticated redacted-content review dialog. Every turn sends sourceIds
+New imports and explicit same-resource reuse are selected by ID. Visible document
+chips open an authenticated redacted-content review dialog on request; import
+does not force another modal step. Every turn sends sourceIds
 explicitly: [] shares no sources. operationIds:[] means whole selected sources.
 Paste MIME is explicitly selected; no prose-based format or intent matching.
 Source removal confirms that conversation history is also cleared, while saved
 draft changes remain. All rich content is rendered as escaped React text.
+
+`pagePresentation.ts` and typed `editorContext` register task guidance and
+preparation commands. `PREPARE` sends an optional hint, including an empty query,
+to the existing turn endpoint; Platform resolves its registered intent. Plain
+messages retain the existing path. No navigation, opening, source import or
+guidance expansion triggers inference. Same-task sections refresh their context
+per turn without creating another assistant or granting new writable paths.
+The transcript uses the server-retained command/context/hint for concise request
+labels, not interpretation or rewriting of model output. Missing-information
+answers use the ordinary message composer. Preview, guide-only, bounded feedback,
+save and undo still use the same controller. Turn options disclose correction,
+preview and explanation settings without crowding the default composer.
 
 ## Verification
 
 From `Platfrom/ui`:
 
 ```sh
-node --test src/assistant/scope.test.mjs
+node --test src/assistant/*.test.mjs
 node src/assistant/assistant.browser.mjs
 npm run build
 ```

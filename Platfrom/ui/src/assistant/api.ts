@@ -11,7 +11,7 @@ const post = <T>(path: string, body: unknown = {}, key?: string) => request<T>(p
 
 export const assistantApi = {
   status: () => request<AssistantStatus>(`${root}/status`),
-  create: (scope: AssistantScope) => post<AssistantSession>(`${root}/sessions`, scope),
+  create: ({ resourceKind, resourceId, task }: AssistantScope) => post<AssistantSession>(`${root}/sessions`, { resourceKind, resourceId, task }),
   get: (id: string) => request<AssistantSession>(sessionPath(id)),
   source: (id: string, input: SourceInput) => post<AssistantSession>(`${sessionPath(id)}/sources`, input),
   removeSource: (id: string, sourceId: string) => request<AssistantSession>(`${sessionPath(id)}/sources/${encodeURIComponent(sourceId)}`, { method: 'DELETE' }),

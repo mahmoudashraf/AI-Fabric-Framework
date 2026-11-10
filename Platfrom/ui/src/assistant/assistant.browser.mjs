@@ -28,7 +28,8 @@ function Editor(){const[value,setValue]=useState('Saved manual value');const[oth
  return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
  onSaved={async()=>{const saved=await platformRequest('/api/editor');setValue(saved.value)}}>
  <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/>
- {params.has('scopeTest')&&<><Link to="/smart-brains/brain-37/models?scopeTest">Select Models task</Link><Link to="/smart-brains/brain-38/models?scopeTest">Select another Brain</Link></>}</Box>
+ {params.has('scopeTest')&&<><Link to="/smart-brains/brain-37/models?scopeTest">Select Models task</Link><Link to="/smart-brains/brain-38/models?scopeTest">Select another Brain</Link></>}
+ {params.has('contextTest')&&[['models','Models context'],['knowledge/search','Search context'],['responses','Behaviour context'],['responses/instructions','Instructions context'],['knowledge/documents','Documents context'],['knowledge/connections/source-1','Live data context'],['knowledge/storage','Storage context'],['capabilities/action%3Aread','Selected action context']].map(([path,label])=><Link key={path} to={'/smart-brains/brain-37/'+path+'?contextTest'}>{label}</Link>)}</Box>
  </AssistantWorkspace></Box>}
 function KitGuideFixture(){const[brainId,setBrainId]=useState('brain-37');return <><button onClick={()=>setBrainId('brain-38')}>Select another Kit Brain</button><KitAssistantGuide brainId={brainId}/></>}
 const router=createBrowserRouter([{path:'/library/plugins/*',element:<PluginLibraryPage/>},{path:'/kits/scope-fixture',element:<KitGuideFixture/>},{path:'/kits/:id',element:<ExperienceKitOverview customerId="customer-37" id="kit-37"/>},{path:'/smart-brains/:brainId/*',element:<Editor/>}]);
@@ -64,6 +65,7 @@ async function run(name, work, options = {}) {
   const page = await browser.newPage({ viewport: options.viewport ?? { width: 1440, height: 900 } })
   page.setDefaultTimeout(20000)
   const calls = [], errors = [], unexpected = []
+  const sessions = new Map()
   let session, currentPlugin = plugin(), complete = false, cancelled = false, loseResponse = options.loseResponse, editorValue = 'AI saved value', sequence = 0, reloadError = options.reloadError, model = 'saved-model'
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(dark => localStorage.setItem('loomai-customer-console-color-scheme', dark ? 'dark' : 'light'), options.dark !== false)
@@ -72,6 +74,8 @@ async function run(name, work, options = {}) {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method(), input = req.postDataJSON()
     calls.push({ path, method, input, key: req.headers()['idempotency-key'], auth: req.headers().authorization })
     const send = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
+    const requestedSession = path.match(/\/sessions\/(session-\d+)/)?.[1]
+    if (requestedSession) session = sessions.get(requestedSession)
     if (path === '/api/platform/auth/session') return send({ actorId: 'actor-37', customerId: 'customer-37', role: 'CUSTOMER_ADMIN', authenticated: true })
     if (path === '/api/configuration-assistant/status') return send({ enabled: !options.unavailable, ready: !options.unavailable, documentFetchEnabled: Boolean(options.url), unavailableReason: options.unavailable ? 'Authoring provider is not configured.' : '', validationFeedback: options.validationFeedback === null ? undefined : options.validationFeedback ?? { defaultEnabled: true, maxCorrections: 2 } })
     if (path === '/api/editor') return reloadError ? send({ message: 'Saved editor could not be read.' }, 503) : send({ value: editorValue })
@@ -90,13 +94,14 @@ async function run(name, work, options = {}) {
     if (path === '/api/customer/plugin-library/plugin-37/versions/1.0.0') return send({ version: '1.0.0', manifest: currentPlugin.manifest })
     if (path === '/api/configuration-assistant/sessions' && method === 'POST') {
       session = { ...input, id: `session-${++sequence}`, displayName: 'Customer knowledge', status: 'IDLE', editable: !options.active, readOnlyReason: options.active ? 'Active app preview only.' : '', activeTurnId: null, expiresAt: '2026-11-11T00:00:00Z', sources: [], turns: [] }
+      sessions.set(session.id, session)
       return send(session)
     }
     if (path.match(/\/sessions\/session-\d+$/)) {
-      if (method === 'DELETE') { session = undefined; return route.fulfill({ status: 204 }) }
+      if (method === 'DELETE') { sessions.delete(session.id); session = undefined; return route.fulfill({ status: 204 }) }
       if (complete && session?.activeTurnId) {
         const turn = session.turns.at(-1)
-        turn.status = options.result ?? (options.active || turn.preview ? 'PREVIEW' : 'SAVED'); turn.message = 'Fixture response: requested configuration processed.'
+        turn.status = options.results?.[session.turns.indexOf(turn)] ?? options.result ?? (turn.command && ['KIT', 'ACTION_REVIEWS'].includes(turn.editorContext.section) ? 'EXPLAIN' : options.active || turn.preview ? 'PREVIEW' : 'SAVED'); turn.message = 'Fixture response: requested configuration processed.'
         turn.diff = options.diff ?? [{ path: '/promptConfig/tone', before: 'manual', after: 'concise' }]; turn.findings = structuredClone(options.findings ?? { uncertainty: ['Pagination is not documented.'], sourceRefs: [{ sourceId: 'source-1', sourcePointer: '/paths/~1catalogue/get' }] })
         turn.questions = [{ id: 'q1', question: 'Which account owns these records?', field: '/accountId' }]
         turn.receipt = turn.status === 'SAVED' ? { revision: 2, published: false } : null
@@ -109,8 +114,13 @@ async function run(name, work, options = {}) {
       }
       return session ? send(session) : send({ message: 'Session expired.' }, 410)
     }
-    if (path.endsWith('/reusable-sources')) return send([{ sessionId: 'old-session', sourceId: 'old-source', title: 'Previously imported API', task: 'ACTIONS', mediaType: 'application/json' }])
+    if (path.endsWith('/reusable-sources')) return send([
+      { sessionId: options.existingReuse ? session.id : 'old-session', sourceId: options.existingReuse ? 'source-1' : 'old-source', title: 'Previously imported API', task: 'ACTIONS', mediaType: 'application/json', resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37' },
+      { sessionId: 'other-session', sourceId: 'other-source', title: 'Other Brain API', task: 'ACTIONS', mediaType: 'application/json', resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-38' },
+      { sessionId: 'plugin-session', sourceId: 'plugin-source', title: 'Plugin API', task: 'DATA_PLUGIN', mediaType: 'application/json', resourceKind: 'PRIVATE_DATA_PLUGIN', resourceId: 'brain-37' },
+    ])
     if (path.endsWith('/sources/reuse')) {
+      if (options.existingReuse) return send(session)
       session.sources.push({ id: 'source-reused', title: 'Previously imported API', mediaType: 'application/json', characters: 123, warnings: [], operations: [] }); return send(session)
     }
     if (path.includes('/sources/') && path.endsWith('/content')) return send({ id: path.split('/').at(-2), title: 'Imported source', content: 'Redacted imported documentation. <script>window.sourceExecuted=true</script>' })
@@ -123,7 +133,7 @@ async function run(name, work, options = {}) {
       if (options.turnError) return send({ message: 'The requested task is not supported.' }, 422)
       const existing = session.turns.find(turn => turn.key === req.headers()['idempotency-key'])
       if (!existing) {
-        session.turns.push({ id: `turn-${session.turns.length + 1}`, key: req.headers()['idempotency-key'], query: input.query, status: 'RUNNING', message: '', preview: input.previewOnly, createdAt: '2026-11-10T12:00:00Z', usage: { tokens: 123 }, validationFeedback: input.validationFeedback, attempts: structuredClone(options.runningAttempts ?? [{ number: 1, status: 'RUNNING', startedAt: '2026-11-10T12:00:00Z' }]), feedbackStopReason: options.runningStopReason })
+        session.turns.push({ id: `turn-${session.turns.length + 1}`, key: req.headers()['idempotency-key'], query: input.command ? 'Registered server intent, not transcript copy.' : input.query, hint: input.command ? input.query : undefined, command: input.command, editorContext: input.editorContext, status: 'RUNNING', message: '', preview: input.previewOnly, createdAt: '2026-11-10T12:00:00Z', usage: { tokens: 123 }, validationFeedback: input.validationFeedback, attempts: structuredClone(options.runningAttempts ?? [{ number: 1, status: 'RUNNING', startedAt: '2026-11-10T12:00:00Z' }]), feedbackStopReason: options.runningStopReason })
         session.activeTurnId = session.turns.at(-1).id; session.status = 'RUNNING'
       }
       if (loseResponse) { loseResponse = false; return route.abort('failed') }
@@ -150,9 +160,10 @@ async function run(name, work, options = {}) {
   } catch (error) { await page.screenshot({ path: join(evidence, 'failure.png'), fullPage: true }); console.error(name, errors, unexpected, await page.locator('body').innerText()); throw error }
   finally { await page.close() }
 }
-async function open(page) { await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled) }
+async function turnOptions(page, visible = true) { const toggle = panel(page).getByRole('button', { name: 'Turn options', exact: true }); if (await toggle.getAttribute('aria-expanded') !== String(visible)) await toggle.click() }
+async function open(page, optionsVisible = true) { await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await turnOptions(page, optionsVisible) }
 async function send(page, text = 'Use a concise response style') { await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill(text); await panel(page).getByRole('button', { name: 'Send', exact: true }).click() }
-async function review(page) { const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
+async function review(page) { await panel(page).getByRole('region', { name: 'Selected documents', exact: true }).getByRole('button').last().click(); const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
 async function addResizeSource(page) {
   await panel(page).getByRole('button', { name: 'Add source' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add documentation' })
@@ -191,6 +202,7 @@ async function resizeWorkspace(page, viewport) {
   })
 }
 async function latestSaved(page) {
+  await turnOptions(page, false)
   const status = panel(page).getByRole('article', { name: 'Assistant', exact: true }).last().getByText('SAVED', { exact: true })
   await status.waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await status.scrollIntoViewIfNeeded()
   assert.equal(await status.evaluate(node => {
@@ -198,8 +210,155 @@ async function latestSaved(page) {
     return rect.top >= Math.max(0, log.top) - 1 && rect.bottom <= Math.min(innerHeight, log.bottom) + 1
   }), true, 'Latest authoritative SAVED terminal is inside the visible conversation viewport')
 }
+async function importDocumentation(page, mode = 'paste', title = 'API reference') {
+  await panel(page).getByRole('button', { name: 'Add source', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add documentation' })
+  if (mode === 'file') await dialog.locator('input[type=file]').setInputFiles({ name: 'API reference.json', mimeType: 'application/json', buffer: Buffer.from('{"openapi":"3.1.0"}') })
+  else if (mode === 'url') { await dialog.getByRole('tab', { name: 'URL', exact: true }).click(); await dialog.getByLabel('Source title').fill(title); await dialog.getByLabel('Public documentation URL').fill('https://docs.example.test/openapi.json') }
+  else { await dialog.getByRole('tab', { name: 'Paste', exact: true }).click(); await dialog.getByLabel('Source title').fill(title); await dialog.getByLabel('Documentation', { exact: true }).fill('openapi: 3.1.0') }
+  await dialog.getByRole('button', { name: 'Share source', exact: true }).click(); await dialog.waitFor({ state: 'hidden' })
+  assert.equal(await page.getByRole('dialog', { name: /^Review / }).count(), 0, 'Import never forces the review dialog')
+}
 try {
   browser = await chromium.launch({ headless: true })
+  for (const mode of ['paste', 'file', 'url']) {
+    await run(`page aware ${mode} documentation prepares actions with no hint and no inference on import`, async ({ page, calls, finish }) => {
+      await open(page, false); const p = panel(page)
+      await p.getByText('Saves draft only. Review or undo after. Never publishes.', { exact: true }).waitFor()
+      await p.getByRole('region', { name: 'Page guidance', exact: true }).getByText('Share API documentation', { exact: false }).waitFor()
+      assert.equal(await p.getByRole('button', { name: 'Turn options', exact: true }).getAttribute('aria-expanded'), 'false')
+      await importDocumentation(page, mode)
+      assert.ok((await p.getByRole('region', { name: 'Selected documents', exact: true }).innerText()).includes('API reference'))
+      assert.equal(calls.filter(call => call.path.endsWith('/content')).length, 0, 'Source review is an explicit separate action')
+      assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0, 'Open and import do not invoke AI')
+      assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
+      await page.screenshot({ path: join(evidence, `page-aware-${mode}-ready.png`) })
+      await p.getByRole('button', { name: 'Prepare actions', exact: true }).click()
+      await p.getByText('RUNNING', { exact: true }).waitFor()
+      const input = calls.find(call => call.path.endsWith('/turns')).input
+      assert.deepEqual(input, { query: '', command: 'PREPARE', editorContext: { section: 'ACTIONS' }, previewOnly: false, sourceIds: ['source-1'], operationIds: [], validationFeedback: { enabled: true, maxCorrections: 2 } })
+      assert.equal((await p.innerText()).includes('Registered server intent'), false)
+      assert.equal(await p.getByRole('article', { name: 'You', exact: true }).getByText('Prepare actions', { exact: true }).count(), 1)
+      finish(); await latestSaved(page)
+      assert.equal(await p.getByRole('button', { name: 'Prepare actions', exact: true }).count(), 0, 'Initial preparation collapses after the first turn')
+      assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
+      assert.equal(calls.filter(call => /publish|activate|\/apply$|index/.test(call.path)).length, 0)
+      await page.screenshot({ path: join(evidence, `page-aware-${mode}-saved.png`) })
+    }, { path: '/smart-brains/brain-37/capabilities/actions', url: mode === 'url', findings: { valid: true }, ...(mode === 'file' ? { viewport: { width: 390, height: 844 }, dark: false } : {}) })
+  }
+  await run('page aware short hint and selected operations clarify through normal Send, not another preparation', async ({ page, calls, finish }) => {
+    await open(page, false); await importDocumentation(page)
+    const p = panel(page)
+    await p.locator('summary').filter({ hasText: 'Sources (' }).click(); await p.getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).check()
+    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Catalogue reads only')
+    await p.getByRole('button', { name: 'Prepare actions', exact: true }).click(); finish()
+    await p.getByText('NEEDS INPUT', { exact: true }).waitFor()
+    await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+    assert.equal(await p.getByRole('button', { name: 'Prepare actions', exact: true }).count(), 0)
+    await p.getByText('Answer the question, then Send.', { exact: true }).waitFor()
+    assert.equal(await p.getByRole('region', { name: 'Page guidance', exact: true }).getByText('Share API documentation', { exact: false }).count(), 0)
+    const first = calls.find(call => call.path.endsWith('/turns')).input
+    assert.equal(first.query, 'Catalogue reads only'); assert.deepEqual(first.operationIds, ['catalogue'])
+    assert.ok((await p.getByRole('article', { name: 'You', exact: true }).innerText()).includes('Prepare actions\nCatalogue reads only'))
+    await send(page, 'Use the accountId field'); await latestSaved(page)
+    const second = calls.filter(call => call.path.endsWith('/turns'))[1].input
+    assert.equal(second.query, 'Use the accountId field'); assert.equal(second.command, undefined)
+    assert.deepEqual(second.editorContext, { section: 'ACTIONS' }); assert.deepEqual(second.sourceIds, ['source-1'])
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 2)
+    await page.screenshot({ path: join(evidence, 'page-aware-clarification-follow-up.png') })
+  }, { path: '/smart-brains/brain-37/capabilities/actions', results: ['NEEDS_INPUT', 'SAVED'], findings: { valid: true } })
+  await run('page aware same-task models-search navigation refreshes per-turn context without inference or input reset', async ({ page, calls, finish }) => {
+    await open(page, false); const p = panel(page)
+    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this optional hint')
+    await page.getByRole('link', { name: 'Search context', exact: true }).click()
+    await p.getByRole('button', { name: 'Prepare search settings', exact: true }).waitFor()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Keep this optional hint')
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('')
+    await p.getByRole('button', { name: 'Prepare search settings', exact: true }).click(); finish(); await latestSaved(page)
+    assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.editorContext, { section: 'SEARCH' })
+    await page.getByRole('link', { name: 'Models context', exact: true }).click()
+    await send(page, 'Use the response model I selected'); await latestSaved(page)
+    assert.deepEqual(calls.filter(call => call.path.endsWith('/turns'))[1].input.editorContext, { section: 'MODELS' })
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 1)
+    await page.screenshot({ path: join(evidence, 'page-aware-models-search-context.png') })
+  }, { path: '/smart-brains/brain-37/models?contextTest', findings: { valid: true } })
+  await run('page aware registered subpages show refreshed guidance and exact definition hints', async ({ page, calls, finish }) => {
+    await open(page, false); const p = panel(page)
+    let task = 'BEHAVIOUR'
+    for (const [link, command, nextTask] of [['Instructions context', 'Prepare instructions', 'BEHAVIOUR'], ['Documents context', 'Prepare document sources', 'KNOWLEDGE'], ['Live data context', 'Prepare live data', 'KNOWLEDGE'], ['Storage context', 'Prepare storage', 'KNOWLEDGE'], ['Selected action context', 'Prepare actions', 'ACTIONS']]) {
+      await page.getByRole('link', { name: link, exact: true }).click()
+      if (task !== nextTask) { await page.waitForFunction(() => document.querySelector('[data-assistant-workspace]')?.getAttribute('data-assistant-open') === 'false'); await open(page, false) }
+      task = nextTask
+      await p.getByRole('button', { name: command, exact: true }).waitFor()
+      assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+    }
+    await p.getByText('Selected: read', { exact: true }).waitFor()
+    await p.getByRole('button', { name: 'Prepare actions', exact: true }).click(); finish(); await latestSaved(page)
+    assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.editorContext, { section: 'ACTIONS', selectedDefinitionIds: ['read'] })
+    assert.ok(calls.some(call => call.path.endsWith('/sessions') && call.input?.task === 'KNOWLEDGE'))
+  }, { path: '/smart-brains/brain-37/responses?contextTest' })
+  await run('page aware same-Brain reuse is offered explicitly and reselects only the chosen attached source', async ({ page, calls }) => {
+    await open(page, false); await importDocumentation(page, 'paste', 'First reference'); await importDocumentation(page, 'paste', 'Second reference')
+    const p = panel(page), summary = p.locator('summary').filter({ hasText: 'Sources (' })
+    await summary.click(); await p.getByRole('checkbox', { name: 'First reference', exact: true }).uncheck(); await p.getByRole('checkbox', { name: 'Second reference', exact: true }).uncheck()
+    assert.equal(calls.filter(call => call.path.endsWith('/reusable-sources')).length, 0)
+    await p.getByRole('button', { name: 'Brain documents', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add documentation' })
+    await dialog.getByRole('combobox', { name: 'Available source' }).click()
+    assert.deepEqual(await page.getByRole('option').allTextContents(), ['Previously imported API / ACTIONS / application/json'])
+    await page.getByRole('option', { name: 'Previously imported API / ACTIONS / application/json', exact: true }).click()
+    assert.equal(calls.filter(call => call.path.endsWith('/sources/reuse')).length, 0, 'Listing reuse candidates does not attach them')
+    await dialog.getByRole('button', { name: 'Reuse source', exact: true }).click(); await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await p.getByRole('checkbox', { name: 'First reference', exact: true }).isChecked(), true)
+    assert.equal(await p.getByRole('checkbox', { name: 'Second reference', exact: true }).isChecked(), false)
+    assert.equal((await p.getByRole('region', { name: 'Selected documents', exact: true }).innerText()).trim(), 'First reference')
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+    assert.equal(calls.filter(call => call.path.endsWith('/content')).length, 0)
+  }, { existingReuse: true, path: '/smart-brains/brain-37/capabilities/actions' })
+  for (const [path, command, section] of [['/smart-brains/brain-37/action-reviews', 'Explain action reviews', 'ACTION_REVIEWS'], ['/smart-brains/brain-37/', 'Explain Kit setup', 'KIT']]) {
+    await run(`page aware ${section} command is guidance only without a hint`, async ({ page, calls, finish }) => {
+      await open(page, false); const p = panel(page)
+      await p.getByText('Guidance only. No draft changes.', { exact: true }).waitFor()
+      await p.getByRole('button', { name: command, exact: true }).click(); finish(); await p.getByText('EXPLAIN', { exact: true }).waitFor()
+      const input = calls.find(call => call.path.endsWith('/turns')).input
+      assert.equal(input.query, ''); assert.equal(input.previewOnly, true)
+      assert.deepEqual(input.editorContext, { section }); assert.deepEqual(input.validationFeedback, { enabled: false, maxCorrections: 0 })
+      assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
+    }, { path })
+  }
+  await run('page aware active Engage prepares preview only with no draft save', async ({ page, calls, finish }) => {
+    await open(page, false); const p = panel(page)
+    await p.getByRole('button', { name: 'Prepare appearance (preview)', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    const input = calls.find(call => call.path.endsWith('/turns')).input
+    assert.equal(input.command, 'PREPARE'); assert.equal(input.previewOnly, true); assert.deepEqual(input.editorContext, { section: 'ENGAGE' })
+    assert.equal(await p.getByRole('button', { name: 'Save preview to draft' }).isDisabled(), true)
+    assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
+    await page.screenshot({ path: join(evidence, 'page-aware-active-engage-preview.png') })
+  }, { path: '/smart-brains/brain-37/channels?kind=ENGAGE_APP&active', active: true, viewport: { width: 390, height: 844 } })
+  await run('page aware preview and Explain only retain their existing nonmutating contracts', async ({ page, calls, finish }) => {
+    await open(page); const p = panel(page)
+    await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('button', { name: 'Prepare actions (preview)', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+    await p.getByRole('checkbox', { name: 'Explain only' }).check(); await p.getByRole('button', { name: 'New preparation', exact: true }).click()
+    assert.equal(await p.getByRole('button', { name: 'Prepare actions (preview)', exact: true }).isDisabled(), true)
+    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Explain the current source mapping'); await p.getByRole('button', { name: 'Explain', exact: true }).click()
+    await p.getByRole('article', { name: 'Assistant', exact: true }).nth(1).getByText('PREVIEW', { exact: true }).waitFor()
+    const second = calls.filter(call => call.path.endsWith('/turns'))[1].input
+    assert.equal(second.command, undefined); assert.equal(second.previewOnly, true); assert.ok(second.query.startsWith('Explain only;'))
+    assert.deepEqual(second.validationFeedback, { enabled: false, maxCorrections: 0 })
+    assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
+  }, { path: '/smart-brains/brain-37/capabilities/actions' })
+  await run('page aware preparation hint bound does not reduce normal typed request capacity', async ({ page, calls }) => {
+    await open(page, false); const p = panel(page), message = p.getByRole('textbox', { name: 'Message', exact: true }), prepare = p.getByRole('button', { name: 'Prepare actions', exact: true })
+    await message.fill('x'.repeat(6000)); assert.equal(await prepare.isEnabled(), true)
+    await message.fill('x'.repeat(6001)); assert.equal(await prepare.isDisabled(), true)
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+    await message.fill('x'.repeat(7000)); await p.getByRole('button', { name: 'Send', exact: true }).click(); await p.getByText('RUNNING', { exact: true }).waitFor()
+    const input = calls.find(call => call.path.endsWith('/turns')).input
+    assert.equal(input.query.length, 7000); assert.equal(input.command, undefined)
+  }, { path: '/smart-brains/brain-37/capabilities/actions' })
   const invalidAttempt = { number: 1, status: 'VALIDATION_ERRORS', startedAt: '2026-11-10T12:00:00Z', completedAt: '2026-11-10T12:00:10Z', message: 'Candidate requires correction.', findings: { valid: false, issues: [{ path: '/manifest', message: 'Missing source mapping.' }] }, changes: { proposed: 'intermediate-only' }, runtime: { requestId: 'attempt-runtime-1' } }
   const runningCorrection = { number: 2, status: 'RUNNING', startedAt: '2026-11-10T12:00:11Z' }
   await run('validation feedback defaults, bounded selection, opt out and busy controls send explicit policy', async ({ page, calls }) => {
@@ -516,7 +675,7 @@ try {
     await p.getByRole('button', { name: 'Send', exact: true }).click(); finish(); await latestSaved(page)
     const turns = calls.filter(call => call.path.endsWith('/turns'))
     assert.equal(turns.length, 1)
-    assert.deepEqual(turns[0].input, { query, previewOnly: false, sourceIds: ['source-1'], operationIds: ['catalogue'], validationFeedback: { enabled: false, maxCorrections: 0 } })
+    assert.deepEqual(turns[0].input, { query, previewOnly: false, sourceIds: ['source-1'], operationIds: ['catalogue'], validationFeedback: { enabled: false, maxCorrections: 0 }, editorContext: { section: 'BEHAVIOUR' } })
     await page.screenshot({ path: join(evidence, 'resize-retained-inputs-saved-desktop.png') })
     await resizeWorkspace(page, { width: 390, height: 844 }); await latestSaved(page)
     await page.screenshot({ path: join(evidence, 'resize-retained-inputs-saved-mobile.png') })
@@ -543,7 +702,7 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
   }, { path: '/smart-brains/brain-37/responses?scopeTest' })
   await run('Kit panel inputs survive dismissal and resize but reset for another Brain', async ({ page, calls }) => {
-    const openKit = async () => { await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled) }
+    const openKit = async () => { await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await turnOptions(page) }
     await openKit(); const p = panel(page)
     await addResizeSource(page); await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Retained Kit question')
     await p.getByRole('button', { name: 'Close assistant' }).click(); await page.setViewportSize({ width: 390, height: 844 }); await openKit()
@@ -599,6 +758,7 @@ try {
   await run('real Kit details guide binds the saved Kit Brain and links to real resource editors', async ({ page, calls }) => {
     await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); const p = panel(page)
     await p.getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+    await turnOptions(page)
     assert.deepEqual(calls.find(call => call.path.endsWith('/sessions')).input, { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'KIT' })
     assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isDisabled(), true)
     assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isChecked(), false)
