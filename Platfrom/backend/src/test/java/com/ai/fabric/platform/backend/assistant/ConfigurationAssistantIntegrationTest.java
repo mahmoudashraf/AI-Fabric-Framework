@@ -86,6 +86,25 @@ class ConfigurationAssistantIntegrationTest {
             new ConfigurationAssistantService.TurnRequest("Different request", false, null, null), "same-command"))
             .hasMessageContaining("different request");
     }
+    @Test void inferenceReceivesActualCurrentFindingsWithoutLeakingDeclaredSecretValues() throws Exception {
+        ((ObjectNode) configuration.get()).putObject("routingConfig").putObject("upstream").putObject("auth")
+            .put("value", "private-current-secret");
+        when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode()
+            .put("valid", false).put("message", "The saved source mapping is incomplete; private-current-secret must remain private."));
+        String id = create(); assistant.turn(id, request(false), "current-findings"); await(id);
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
+        assertThat(captured.getValue().at("/catalogue/currentValidation/valid").asBoolean()).isFalse();
+        assertThat(captured.getValue().at("/catalogue/currentValidation/message").asText()).contains("saved source mapping", "[REDACTED]");
+        assertThat(captured.getValue().toString()).doesNotContain("private-current-secret");
+    }
+    @Test void aCheckAuthorizationFailureStopsBeforeInference() throws Exception {
+        when(resources.check(anyString(), anyString(), any(), any())).thenThrow(
+            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Access revoked"));
+        String id = create(); assistant.turn(id, request(false), "revoked-at-check");
+        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("FAILED");
+        verify(runtime, never()).generate(any());
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
     @Test void previewRequiresExplicitApplyButNormalConfigurationDoesNot() throws Exception {
         String id = create(); assistant.turn(id, request(true), "preview-one"); var preview = await(id);
         assertThat(preview.at("/turns/0/status").asText()).isEqualTo("PREVIEW");

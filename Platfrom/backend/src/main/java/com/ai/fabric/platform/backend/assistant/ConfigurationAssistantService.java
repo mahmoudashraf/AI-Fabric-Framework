@@ -246,7 +246,21 @@ public class ConfigurationAssistantService {
         var input = mapper.createObjectNode().put("contractVersion", CONTRACT).put("sessionId", session.id)
             .put("turnId", turnId).put("resourceKind", session.resourceKind).put("task", session.task)
             .put("query", turn.path("query").asText());
-        input.set("currentConfiguration", changes.project(resource.configuration())); input.set("catalogue", resource.catalogue());
+        input.set("currentConfiguration", changes.project(resource.configuration()));
+        ObjectNode catalogue = resource.catalogue().deepCopy();
+        JsonNode findings;
+        try {
+            findings = resources.check(session.resourceKind, session.resourceId, resource, resource.configuration());
+        } catch (ResponseStatusException invalidCurrent) {
+            if (invalidCurrent.getStatusCode().value() != 400) throw invalidCurrent;
+            findings = mapper.createObjectNode().put("checked", false).put("status", 400)
+                .put("message", invalidCurrent.getReason() == null ? "The current draft requires correction." : invalidCurrent.getReason());
+        }
+        // Include the original configuration only in the local redaction pass, never as a second model input.
+        var diagnosticContext = mapper.createObjectNode();
+        diagnosticContext.set("configuration", resource.configuration()); diagnosticContext.set("findings", findings);
+        catalogue.set("currentValidation", changes.project(diagnosticContext).path("findings"));
+        input.set("catalogue", catalogue);
         var selected = input.putArray("sources");
         for (var source : content.path("sources")) {
             if (!contains(turn.path("sourceIds"), source.path("sourceId").asText())) continue;
