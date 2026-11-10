@@ -14420,3 +14420,50 @@ test is being called hosted acceptance. UI extraction remains last.
   receipts under ~/.codex/private/loomai-feedback-loop-20261110/. No private data
   or captures added to Git. Unrelated root.gitignore/untracked work preserved;
   prior phone-video gallery/tunnel intentionally left running.
+
+### Combined Setup Connection Checks - 10 November 2026, Hosted Closeout
+
+- CURRENT core serving sources on BOTH staging/production: backend
+  6e1021210b5471bf4a08a3d91d70237dd781b926, Console
+  ba602061afe71d27c7408b54631946deaf2eb3ba. Exact digests: backend
+  54b3ffd893579a7411f9ba915def324e959fb0ba5d0e46329a3586b065529de3;
+  Console19c45bc9700058b22c63c0f4c7806481f5e4c109a6952f9b1ee36dd15cce0d70.
+  CI42834435905 passed both initial images;42836223842 passed final UI only,
+  backend intentionally skipped. Native source/digest/health confirmed; subsequent
+  documentation commits are not serving-image changes.
+- One Updates -> Check setup combines existing validation with safe connection
+  checks. Connection-form saves launch CHANGED, not per-field/per-action buttons.
+  Compact summary, service details in a right drawer, failed-only retry. Results
+  are advisory saved-draft evidence, not a new publish gate or runtime proof.
+  Assistant/API-only draft saves do not initiate outbound network checks.
+- New GET/POST /api/deployments/:id/setup-checks reuses Brain permissions and
+  scoped secret resolution. GET never probes/DNS. Explicit safe HTTPS GET paths,
+  same connection headers, public/pinned DNS, TLS checks, strict request bounds,
+  no redirects/proxies/retries/body retention, no write/token exchange/inference.
+  Custom endpoints cannot receive global/foreign/target keys. Shared provider
+  keys go only to fixed official vendor hosts. Endpoint/auth changes invalidate
+  five-minute in-memory results; no schema/database/job/service was introduced.
+- Adapters: OpenAI model metadata, public Pinecone/Qdrant/Weaviate metadata,
+  explicit API-key action/data profile check paths. Unsupported/target-bound/
+  private-network/token-exchange/document access uses existing verification and
+  is never passed by assumption. Public health success is reachability only;
+  least-privilege keys must not be broadened merely for a metadata probe.
+- Reused existing inline/explicit route merge in DeploymentConfigCompiler.
+  Installer check paths compile into existing route/profile config, with no
+  business route or runtime protocol change. Narrow pre-existing 409 editor
+  defect fixed: preserve rejected local edits until explicit Discard, without
+  preventing requested assistant refresh. No framework release or semantic
+  matching/fallback; AI Fabric remains0.8.46 and AI runtime images untouched.
+- Local242 backend tests,57UI checks,7new browser groups,29Updates groups,
+  33capability/installer scenarios and build passed. Initial auth/API/old-selector
+  harness errors fixed explicitly. Hosted screenshot clipping prompted the
+  final drawer correction; focused browser/build and hosted runs repeated.
+- Final ordinary-customer five-case journeys PASS on both hosts: shared read/
+  write connection GET, no probe on navigation, auto-save checks, real rejected
+  and accepted authorization, failed-only retry, rotation invalidation and390px
+  layout. All canary keys deleted/4empty Brains archived; fixture browsers signed
+  out. No inference, publication, provisioning, indexing, actual business calls
+  or budget reset. Final reports under ~/.codex/private/setup-checks-20261110-
+  {staging,production}-final/. Evidence:verification-support/setup-checks/README.md;
+  guide:External_User_Guides/SMART_BRAIN_SETUP_CHECKS.md. Prior phone gallery
+  intentionally unchanged; unrelated.gitignore/untracked work preserved.

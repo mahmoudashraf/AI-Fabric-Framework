@@ -95,3 +95,45 @@ production build were repeated for this presentation-only correction. Initial
 captures remain private historical evidence, not proof of the final layout.
 Its cleanup deletes fictional keys, archives the empty Brain and signs out.
 No live result is implied until that hosted runner has completed.
+
+### Hosted Closeout - 10 November 2026
+
+Both native environments are healthy and qualified on these exact images:
+
+- Backend source `6e1021210b5471bf4a08a3d91d70237dd781b926`, digest
+  `sha256:54b3ffd893579a7411f9ba915def324e959fb0ba5d0e46329a3586b065529de3`.
+- Console source `ba602061afe71d27c7408b54631946deaf2eb3ba`, digest
+  `sha256:19c45bc9700058b22c63c0f4c7806481f5e4c109a6952f9b1ee36dd15cce0d70`.
+- CI `42834435905`: both initial images passed. CI `42836223842`: final
+  Console image passed, backend correctly skipped for the UI-only correction.
+- Exact completed Coolify jobs: staging backend `i3f01fh4m7u8uw2jmpex0oga`,
+  staging final Console `gg1ugp6y3ypqw96nup09ro2u`, production backend
+  `np30u9g76r7o6yqm0j25ng0p`, production Console `kmf08yiffmarncutaizs8r04`.
+
+Final ordinary-customer hosted runs passed all five groups on each environment:
+one real GET shared by read/write capabilities with no probe on navigation;
+real connection-editor save -> CHANGED check and protected-endpoint rejection;
+failed-only retry and authenticated read success; actual key rotation invalidating
+cached success; mobile layout with no publication/provisioning/inference.
+Zero page errors. A temporary copy of the fixture customer's short-lived bearer
+was confined to its own Brain and sent only to that same Platform's protected
+read endpoint, then deleted. No upstream business action was called.
+
+Final raw reports/screenshots:
+
+- `~/.codex/private/setup-checks-20261110-staging-final/`
+- `~/.codex/private/setup-checks-20261110-production-final/`
+
+Final desktop/mobile drawer captures were inspected after animation completion.
+Initial two staging runs passed behavior but predated the drawer correction;
+their captures are historical and retained privately. All four canary Brains
+(`dep-e8f2bdad`, `dep-9dc32ed2`, `dep-2b8a5a6f`, `dep-7e442271`) were archived,
+all test keys deleted, and all fixture browser sessions signed out. No runtime,
+vector service, customer data store, version/release or provider allowance was
+created or reset. Anonymous access to the new hosted API returned HTTP 401.
+
+Exact native image/source/health receipts remain in
+`~/.codex/private/loomai-feedback-loop-20261110/`; the reused helper's
+`page-aware-deploy` filename is historical. Framework remains 0.8.46, and private
+authoring/customer AI runtime images are unchanged. Later documentation commits
+are not new serving-image sources. Unrelated dirty files remain untouched.

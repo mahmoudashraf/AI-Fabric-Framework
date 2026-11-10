@@ -9,6 +9,8 @@ Saving an action connection, plugin installation or model/search configuration
 also checks new or changed supported connections. Saving remains separate from
 checking: a failed check does not undo your saved draft. Neither operation
 publishes, deploys, indexes documents or executes a business action.
+Configuration-assistant preparation and API-only draft saves do not initiate
+network checks. Review those changes and run **Check setup** explicitly.
 
 ## Results
 
@@ -26,6 +28,8 @@ Platform backend restarts. Endpoint and credential changes invalidate previous
 evidence. Configuration-only edits do not require repeating an unchanged service
 check. Results apply to the **saved draft**, not the running deployment or an
 unsaved editor buffer.
+Checks originate from the Platform backend; the runtime's network access is
+still verified through the existing apply/runtime workflow.
 
 ## Safe API Checks
 
@@ -52,6 +56,8 @@ answers. Supported Pinecone/Qdrant/Weaviate connections use read-only metadata
 endpoints. Other providers and Milvus use their existing verification workflow.
 Document storage continues through source preview/approval/indexing; this check
 does not read or upload customer files. No source vectors are copied.
+Do not broaden a least-privilege key solely to permit a metadata probe. If that
+endpoint is outside its intended permissions, use the actual runtime verification.
 
 ## Security
 
