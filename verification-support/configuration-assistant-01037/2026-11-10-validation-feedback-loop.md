@@ -46,7 +46,7 @@ backend builds were serialized and the focused suite rerun normally.
 
 The runtime slice passed 69 focused tests. Final UI verification after natural-
 language correction-stop labels replaced raw internal reason codes passed:
-45 unit tests, 27 assistant browser groups, 13 actual-Support fixture groups and
+45 unit tests, 30 assistant browser groups, 13 actual-Support fixture groups and
 the full TypeScript/Vite build. Existing build warnings remain unchanged.
 These are controlled fixtures, not live model quality or a full release matrix.
 
@@ -58,6 +58,30 @@ persisted the original receipt. The worker now retains that receipt before the
 guard and passes it to failure recording, without retry/save authority. A focused
 regression proves CANCELLED state, retained receipt, one inference and no save.
 The reviewer confirmed the correction by inspection; the final suite passed it.
+
+A live staging resize also exposed panel-local input state being reset when the
+desktop pane became a mobile Drawer. The scoped owner now retains unsent text,
+selected documents/operations, preview/explanation and correction preferences
+across that remount and dismissal, resetting on formal resource/task changes.
+Three focused browser groups cover retention, scope reset and no turn on resize.
+This is a narrow UI follow-up, not a new shared state/persistence service.
+
+## Initial Staging Hosted Result
+
+The real customer UI run `staging-1794284798937` passed document import, three
+documented anonymous READ actions/routes saved with zero errors, visible attempt
+history, corrections off (one inference), actual UI undo, preview cancellation,
+390px document width, cleanup and sign-out. The enabled query passed on its first
+attempt; it did not need a real-provider correction. Deterministic multi-attempt
+correction/exhaustion is proven by the controlled integration/browser tests, not
+misrepresented as an observed provider mistake in this sample.
+
+The run made three real provider attempts, including the cancelled preview:
+26,763 reported tokens / USD 0.025221000 ledger delta. Both store/allocation
+identity and earlier counters survived upgrade. Its desktop capture shows actual
+in-progress status, not a claimed final saved screen; the production capture
+must wait for visible terminal UI state. The resize finding above is addressed
+locally and awaits its final UI image rollout/hosted control check.
 
 ## Hosted Qualification To Complete
 

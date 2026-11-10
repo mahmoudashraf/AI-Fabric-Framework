@@ -1255,6 +1255,13 @@ limits; the welcome must not promise unavailable editing capabilities.
 
 - Register presentation copy and task commands by existing typed task identity;
   do not infer page purpose or user intent through URL/text keyword matching.
+- Include a typed active editor section and selected definition IDs where useful.
+  Two pages may share a task (for example, response models and embedding/search
+  settings) without sharing the same introduction or focus. These are guidance
+  hints, not new resource/path authority. Refresh them on subpage navigation.
+- Offer authorized document reuse for the same Brain so related setup pages do
+  not require another upload. Keep the selected material visible; do not silently
+  attach documentation from a different resource or workspace.
 - Reuse the current source importer, scoped assistant session and turn API.
   No new framework release, specialist engine or independent chat service is
   currently required. Add a narrowly typed command only if the existing turn

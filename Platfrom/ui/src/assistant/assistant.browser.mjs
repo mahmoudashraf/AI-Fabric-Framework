@@ -12,23 +12,26 @@ const evidence = process.env.ASSISTANT_EVIDENCE_DIR || await mkdtemp(join(tmpdir
 await mkdir(evidence, { recursive: true })
 const harness = `
 import React,{useState} from 'react';import{createRoot}from'react-dom/client';
-import{createBrowserRouter,RouterProvider}from'react-router-dom';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';
+import{createBrowserRouter,RouterProvider,Link,useLocation,useParams}from'react-router-dom';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';
 import{Box,TextField}from'@mui/material';import{CustomerConsoleTheme}from'/src/theme/CustomerConsoleTheme.tsx';
 import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{brainAssistantScope}from'/src/assistant/scope.ts';
+import{KitAssistantGuide}from'/src/assistant/KitAssistantGuide.tsx';
 import{PluginLibraryPage}from'/src/pluginLibrary/PluginLibraryPage.tsx';
 import{SmartBrainShell}from'/src/brain/SmartBrainShell.tsx';import{BrainModelsPage}from'/src/brain/BrainSettingsPage.tsx';
 import{BrainHumanSupportPage}from'/src/brain/BrainExperiencePages.tsx';import{BrainActionReviewsPage}from'/src/brain/BrainActionReviewsPage.tsx';
 import{ExperienceKitOverview}from'/src/components/kits/ExperienceKitOverview.tsx';import'/src/pages/ExperienceKits.css';
 import{setPlatformAccessTokenProvider,platformRequest}from'/src/api/platformApi.ts';setPlatformAccessTokenProvider(async()=> 'assistant-fixture-token');
-function Editor(){const[value,setValue]=useState('Saved manual value');const[other,setOther]=useState('Keep this manual value');
- const params=new URLSearchParams(location.search);const kind=params.get('kind');
- if(params.has('real'))return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:<BrainModelsPage/>}</SmartBrainShell>;
- const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:brainAssistantScope(location.pathname,location.search,'brain-37');
+function Editor(){const[value,setValue]=useState('Saved manual value');const[other,setOther]=useState('Keep this manual value');const[real]=useState(()=>new URLSearchParams(window.location.search).has('real'));
+ const location=useLocation();const{brainId}=useParams();const params=new URLSearchParams(location.search);const kind=params.get('kind');
+ if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:<BrainModelsPage/>}</SmartBrainShell>;
+ const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:brainAssistantScope(location.pathname,location.search,brainId??'brain-37');
  return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
  onSaved={async()=>{const saved=await platformRequest('/api/editor');setValue(saved.value)}}>
- <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/></Box>
+ <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/>
+ {params.has('scopeTest')&&<><Link to="/smart-brains/brain-37/models?scopeTest">Select Models task</Link><Link to="/smart-brains/brain-38/models?scopeTest">Select another Brain</Link></>}</Box>
  </AssistantWorkspace></Box>}
-const router=createBrowserRouter([{path:'/library/plugins/*',element:<PluginLibraryPage/>},{path:'/kits/:id',element:<ExperienceKitOverview customerId="customer-37" id="kit-37"/>},{path:'/smart-brains/:brainId/*',element:<Editor/>}]);
+function KitGuideFixture(){const[brainId,setBrainId]=useState('brain-37');return <><button onClick={()=>setBrainId('brain-38')}>Select another Kit Brain</button><KitAssistantGuide brainId={brainId}/></>}
+const router=createBrowserRouter([{path:'/library/plugins/*',element:<PluginLibraryPage/>},{path:'/kits/scope-fixture',element:<KitGuideFixture/>},{path:'/kits/:id',element:<ExperienceKitOverview customerId="customer-37" id="kit-37"/>},{path:'/smart-brains/:brainId/*',element:<Editor/>}]);
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false,refetchOnWindowFocus:false}}})}><CustomerConsoleTheme><RouterProvider router={router}/></CustomerConsoleTheme></QueryClientProvider>);
 `
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, logLevel: 'error', server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
@@ -150,6 +153,51 @@ async function run(name, work, options = {}) {
 async function open(page) { await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled) }
 async function send(page, text = 'Use a concise response style') { await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill(text); await panel(page).getByRole('button', { name: 'Send', exact: true }).click() }
 async function review(page) { const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
+async function addResizeSource(page) {
+  await panel(page).getByRole('button', { name: 'Add source' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add documentation' })
+  await dialog.getByRole('tab', { name: 'Paste' }).click(); await dialog.getByLabel('Source title').fill('Resize API'); await dialog.getByLabel('Documentation', { exact: true }).fill('openapi: 3.1.0')
+  await dialog.getByRole('button', { name: 'Share source' }).click(); await dialog.waitFor({ state: 'hidden' }); await review(page)
+  await panel(page).locator('summary').filter({ hasText: 'Sources (' }).click()
+  await panel(page).getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).check()
+}
+async function enterPanelInputs(page, query) {
+  await addResizeSource(page)
+  const p = panel(page)
+  await p.getByRole('combobox', { name: 'Max corrections' }).click(); await page.getByRole('option', { name: '1', exact: true }).click()
+  await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).uncheck()
+  await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('checkbox', { name: 'Explain only' }).check()
+  await p.getByRole('textbox', { name: 'Message', exact: true }).fill(query)
+}
+async function assertPanelInputs(page, query) {
+  const p = panel(page)
+  assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), query)
+  assert.equal(await p.getByRole('checkbox', { name: 'Preview only' }).isChecked(), true)
+  assert.equal(await p.getByRole('checkbox', { name: 'Explain only' }).isChecked(), true)
+  assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isChecked(), false)
+  assert.equal(await p.getByRole('combobox', { name: 'Max corrections' }).innerText(), '1')
+  const sources = p.locator('summary').filter({ hasText: 'Sources (' })
+  assert.equal(await sources.innerText(), 'Sources (1 selected) / 1 selected operations')
+  if (!await sources.evaluate(node => node.parentElement.open)) await sources.click()
+  assert.equal(await p.getByRole('checkbox', { name: 'Resize API', exact: true }).isChecked(), true)
+  assert.equal(await p.getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).isChecked(), true)
+  assert.equal(await p.getByRole('checkbox', { name: 'POST /enquiries Submit enquiry' }).isChecked(), false)
+}
+async function resizeWorkspace(page, viewport) {
+  await page.setViewportSize(viewport)
+  await page.waitForFunction(() => {
+    const node = document.getElementById('configuration-assistant-panel'), rect = node?.getBoundingClientRect()
+    return rect && Boolean(node.closest('.MuiDrawer-paper')) === (innerWidth < 1200) && rect.left >= -1 && rect.right <= innerWidth + 1
+  })
+}
+async function latestSaved(page) {
+  const status = panel(page).getByRole('article', { name: 'Assistant', exact: true }).last().getByText('SAVED', { exact: true })
+  await status.waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await status.scrollIntoViewIfNeeded()
+  assert.equal(await status.evaluate(node => {
+    const rect = node.getBoundingClientRect(), log = node.closest('[role="log"]').getBoundingClientRect()
+    return rect.top >= Math.max(0, log.top) - 1 && rect.bottom <= Math.min(innerHeight, log.bottom) + 1
+  }), true, 'Latest authoritative SAVED terminal is inside the visible conversation viewport')
+}
 try {
   browser = await chromium.launch({ headless: true })
   const invalidAttempt = { number: 1, status: 'VALIDATION_ERRORS', startedAt: '2026-11-10T12:00:00Z', completedAt: '2026-11-10T12:00:10Z', message: 'Candidate requires correction.', findings: { valid: false, issues: [{ path: '/manifest', message: 'Missing source mapping.' }] }, changes: { proposed: 'intermediate-only' }, runtime: { requestId: 'attempt-runtime-1' } }
@@ -211,6 +259,7 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1, 'UI never posts correction turns')
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'AI saved value')
     assert.equal(await page.getByLabel('Unrelated value', { exact: true }).inputValue(), 'Unrelated retained buffer')
+    await latestSaved(page); await page.screenshot({ path: join(evidence, 'validation-feedback-final-saved-desktop.png') })
   }, { runningAttempts: [invalidAttempt, runningCorrection], runningStopReason: 'CORRECTING_VALIDATION_ERRORS', finalAttempts: [invalidAttempt, { ...runningCorrection, status: 'CHECKED', completedAt: '2026-11-10T12:01:00Z' }], feedbackStopReason: 'VALIDATION_PASSED', findings: { valid: true } })
   for (const result of ['INVALID', 'FAILED', 'CANCELLED']) {
     await run(`validation feedback ${result} retains unfinished findings without a saved claim at 320px`, async ({ page, calls, finish }) => {
@@ -279,6 +328,7 @@ try {
     await second.getByText('Connection not tested.', { exact: true }).waitFor()
     assert.equal(await first.getByText('Draft saved. Needs attention.', { exact: true }).count(), 1, 'History retains its actual invalid result')
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 2)
+    await latestSaved(page); await page.screenshot({ path: join(evidence, 'latest-follow-up-saved-desktop.png') })
   }, { findings: dataValidation })
   const longPath = '/actionsConfig/actions/route/' + 'long-field-name-'.repeat(8)
   await run('validation and structural diff remain readable at 320px without unchanged object fields', async ({ page, finish }) => {
@@ -326,6 +376,7 @@ try {
     assert.ok((await panel(page).innerText()).includes('Pagination is not documented.'))
     await panel(page).getByText('Runtime, usage and accounting', { exact: true }).click(); await panel(page).getByText('runtime-request-37', { exact: false }).waitFor()
     assert.equal(calls.filter(call => /publish|activate|disable|index/.test(call.path)).length, 0)
+    await latestSaved(page)
     await page.screenshot({ path: join(evidence, 'saved-dark-desktop.png') })
     await panel(page).getByRole('button', { name: 'Undo saved change' }).click(); await panel(page).getByText('UNDONE', { exact: true }).waitFor()
     await page.waitForFunction(() => document.querySelector('input[aria-label]')?.value !== 'AI saved value')
@@ -447,14 +498,75 @@ try {
     assert.equal(calls.filter(call => call.path.startsWith('/api/configuration-assistant')).length, 0)
     await page.goto(base + '/library/plugins/new/data'); await page.getByLabel('Display name', { exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Build with AI', exact: true }).count(), 0)
   }, { path: '/library/plugins/plugin-37/versions/1.0.0' })
+  await run('panel inputs survive desktop-mobile-desktop resize and dismissal without model turns', async ({ page, calls, finish }) => {
+    await open(page); const query = 'Keep this unsent configuration request', p = panel(page)
+    await enterPanelInputs(page, query); await assertPanelInputs(page, query)
+    await resizeWorkspace(page, { width: 390, height: 844 }); await assertPanelInputs(page, query)
+    await p.getByRole('button', { name: 'Close assistant' }).click(); await open(page); await assertPanelInputs(page, query)
+    await resizeWorkspace(page, { width: 1440, height: 900 }); await assertPanelInputs(page, query)
+    await p.getByRole('button', { name: 'Close assistant' }).click(); await open(page); await assertPanelInputs(page, query)
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0, 'Resize and dismissal never trigger inference')
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 1, 'Resize does not recreate the scoped controller/session')
+    assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
+    await p.getByRole('checkbox', { name: 'Explain only' }).uncheck()
+    assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isChecked(), false, 'Correction off was retained independently of Explain only')
+    await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).check()
+    assert.equal(await p.getByRole('combobox', { name: 'Max corrections' }).innerText(), '1', 'Correction limit remains one when re-enabled')
+    await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).uncheck(); await p.getByRole('checkbox', { name: 'Preview only' }).uncheck()
+    await p.getByRole('button', { name: 'Send', exact: true }).click(); finish(); await latestSaved(page)
+    const turns = calls.filter(call => call.path.endsWith('/turns'))
+    assert.equal(turns.length, 1)
+    assert.deepEqual(turns[0].input, { query, previewOnly: false, sourceIds: ['source-1'], operationIds: ['catalogue'], validationFeedback: { enabled: false, maxCorrections: 0 } })
+    await page.screenshot({ path: join(evidence, 'resize-retained-inputs-saved-desktop.png') })
+    await resizeWorkspace(page, { width: 390, height: 844 }); await latestSaved(page)
+    await page.screenshot({ path: join(evidence, 'resize-retained-inputs-saved-mobile.png') })
+    await resizeWorkspace(page, { width: 1440, height: 900 }); await latestSaved(page)
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1, 'Resizing a terminal saved turn never replays it')
+  })
+  await run('panel inputs reset on formal task and resource scope changes', async ({ page, calls }) => {
+    await page.getByLabel('Manual value', { exact: true }).fill('Retain the manual editor buffer')
+    await open(page); await enterPanelInputs(page, 'Old task query')
+    const assertReset = async () => {
+      await open(page); const p = panel(page)
+      assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), '')
+      assert.equal(await p.getByRole('checkbox', { name: 'Preview only' }).isChecked(), false)
+      assert.equal(await p.getByRole('checkbox', { name: 'Explain only' }).isChecked(), false)
+      assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isChecked(), true)
+      assert.equal(await p.getByRole('combobox', { name: 'Max corrections' }).innerText(), '2')
+      assert.equal(await p.locator('summary').filter({ hasText: 'Sources (' }).count(), 0)
+      assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'Retain the manual editor buffer')
+    }
+    await page.getByRole('link', { name: 'Select Models task', exact: true }).click(); await assertReset()
+    await enterPanelInputs(page, 'Old resource query')
+    await page.getByRole('link', { name: 'Select another Brain', exact: true }).click(); await assertReset()
+    assert.deepEqual(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').map(call => [call.input.resourceId, call.input.task]), [['brain-37', 'BEHAVIOUR'], ['brain-37', 'MODELS'], ['brain-38', 'MODELS']])
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+  }, { path: '/smart-brains/brain-37/responses?scopeTest' })
+  await run('Kit panel inputs survive dismissal and resize but reset for another Brain', async ({ page, calls }) => {
+    const openKit = async () => { await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled) }
+    await openKit(); const p = panel(page)
+    await addResizeSource(page); await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Retained Kit question')
+    await p.getByRole('button', { name: 'Close assistant' }).click(); await page.setViewportSize({ width: 390, height: 844 }); await openKit()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained Kit question')
+    assert.equal(await p.getByRole('checkbox', { name: 'Resize API', exact: true }).isChecked(), true)
+    assert.equal(await p.getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).isChecked(), true)
+    await p.getByRole('button', { name: 'Close assistant' }).click(); await page.setViewportSize({ width: 1440, height: 900 }); await openKit()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained Kit question')
+    await p.getByRole('button', { name: 'Close assistant' }).click(); await page.getByRole('button', { name: 'Select another Kit Brain', exact: true }).click(); await openKit()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), '')
+    assert.equal(await p.locator('summary').filter({ hasText: 'Sources (' }).count(), 0)
+    assert.deepEqual(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').map(call => call.input.resourceId), ['brain-37', 'brain-38'])
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+  }, { path: '/kits/scope-fixture' })
   await run('desktop resize, dismissal retains input, narrow light layout fits and Enter submits', async ({ page, finish }) => {
     await open(page); const p = panel(page); await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Retained question')
     const before = await p.boundingBox(); await page.getByRole('separator', { name: 'Resize assistant' }).focus(); await page.keyboard.press('ArrowLeft'); const after = await p.boundingBox(); assert.ok(after.width > before.width)
     await p.getByRole('button', { name: 'Close assistant' }).click(); await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained question')
     await p.getByRole('textbox', { name: 'Message', exact: true }).press('Shift+Enter'); assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained question\n')
     await p.getByRole('textbox', { name: 'Message', exact: true }).press('Enter'); finish(); await p.getByText('SAVED', { exact: true }).waitFor()
-    await page.setViewportSize({ width: 320, height: 740 }); await p.waitFor(); assert.ok((await p.boundingBox()).width <= 320)
+    await resizeWorkspace(page, { width: 320, height: 740 }); assert.ok((await p.boundingBox()).width <= 320)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    await latestSaved(page)
     await page.screenshot({ path: join(evidence, 'assistant-light-320.png') })
   }, { dark: false })
   await run('real Smart Brain editor replaces requested unsaved values even with the same draft ID and revision', async ({ page, calls, finish }) => {
@@ -471,6 +583,7 @@ try {
     await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'ai-model'))
     assert.equal(await field.inputValue(), 'ai-model'); assert.equal(await page.getByRole('dialog').count(), 0, 'No conflict approval')
     assert.ok(calls.filter(call => call.path === '/api/deployments/brain-37/draft').length >= 2)
+    await latestSaved(page)
     await page.screenshot({ path: join(evidence, 'real-brain-same-revision-dark.png') })
   }, { path: '/smart-brains/brain-37/models?real&targetProfileId=target-stage' })
   await run('actual Human support links bind Specialists and reviews with their own draft/guide scopes', async ({ page, calls }) => {

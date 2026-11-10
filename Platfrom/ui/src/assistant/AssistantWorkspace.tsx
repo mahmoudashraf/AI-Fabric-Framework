@@ -69,14 +69,23 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
   </Box>
 }
 
-function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller'> & {
+export function useAssistantPanelInputs() {
+  const [query, setQuery] = useState(''), [preview, setPreview] = useState(false), [explain, setExplain] = useState(false)
+  const [sourceIds, setSourceIds] = useState<string[]>([]), [operationIds, setOperationIds] = useState<string[]>([])
+  const [feedbackPreference, setFeedbackPreference] = useState<Partial<ValidationFeedbackPolicy>>({})
+  return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference }
+}
+
+function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller' | 'inputs'> & {
   enabled: boolean; open: boolean; onSaved: () => Promise<void>; onBusyChange: (busy: boolean) => void
 }) {
   const controller = useAssistant(scope, enabled, onSaved)
+  // This scope-keyed owner survives the desktop/Drawer panel remount.
+  const inputs = useAssistantPanelInputs()
   const [width, setWidth] = useState(420)
   const theme = useTheme(), narrow = useMediaQuery(theme.breakpoints.down('lg'))
   useLayoutEffect(() => { onBusyChange(controller.busy); return () => onBusyChange(false) }, [controller.busy, onBusyChange])
-  const panel = <AssistantPanel controller={controller} scope={scope} {...panelProps} />
+  const panel = <AssistantPanel controller={controller} inputs={inputs} scope={scope} {...panelProps} />
   if (narrow) return <Drawer anchor="right" open={open} onClose={panelProps.onClose} ModalProps={{ keepMounted: true }} sx={{ '& .MuiDrawer-paper': { width: 'min(100%, 520px)', height: '100dvh' } }}>{panel}</Drawer>
   return <Box sx={{ display: open ? 'flex' : 'none', flexShrink: 0, width: `min(${width}px, 50%)`, minWidth: 310, borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
     <Box role="separator" aria-label="Resize assistant" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={320} aria-valuemax={680} tabIndex={0}
@@ -95,13 +104,13 @@ function JsonDetails({ label, value }: { label: string; value: unknown }) {
   return <Box component="details" sx={{ mt: 1, fontSize: 12, whiteSpace: 'normal' }}><summary>{label}</summary><Box component="pre" sx={{ m: 0, mt: 1, p: 1, bgcolor: 'action.hover', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11, maxHeight: 260, overflow: 'auto' }}>{stringifyExactJson(value, 2)}</Box></Box>
 }
 
-export function AssistantPanel({ controller: c, scope, onClose, editorBusy, readOnlyReason, guideOnly, links }: {
+export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBusy, readOnlyReason, guideOnly, links }: {
   controller: AssistantController; scope: AssistantScope; onClose: () => void; editorBusy?: boolean; readOnlyReason?: string
+  inputs: ReturnType<typeof useAssistantPanelInputs>
   guideOnly?: boolean; links?: { label: string; href: string }[]
 }) {
-  const [query, setQuery] = useState(''), [preview, setPreview] = useState(false), [explain, setExplain] = useState(false), [deleteOpen, setDeleteOpen] = useState(false)
-  const [sourceIds, setSourceIds] = useState<string[]>([]), [operationIds, setOperationIds] = useState<string[]>([])
-  const [feedbackPreference, setFeedbackPreference] = useState<Partial<ValidationFeedbackPolicy>>({})
+  const { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference } = inputs
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const sources = c.session?.sources
   useEffect(() => {
     const validSources = new Set(sources?.map(source => source.id))
