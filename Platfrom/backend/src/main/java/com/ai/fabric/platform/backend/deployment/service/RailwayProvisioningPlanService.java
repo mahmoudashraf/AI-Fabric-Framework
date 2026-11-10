@@ -378,6 +378,7 @@ public class RailwayProvisioningPlanService {
             ));
         }
         boolean specialistAssistanceEnabled = SpecialistAssistanceCompiler.enabled(behaviorConfig);
+        boolean managedTasksEnabled = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
         boolean structuredBehavior = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
             || "SMART_BRAIN".equals(deploymentBehaviorType) || specialistAssistanceEnabled;
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -401,11 +402,31 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_MANAGER_DECISIONS", limits.path("maxDecisions").asText()));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_WORKER_INVOCATIONS", limits.path("maxWorkerInvocations").asText()));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_PARALLEL_WORKERS", limits.path("maxParallelWorkers").asText()));
+        }
+        if (managedTasksEnabled) {
+            var compiler = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper);
+            JsonNode tasks = behaviorConfig.path("managedTasks");
+            compiler.verifyCompiled(tasks.path("compiled"), tasks.path("contentHash").asText());
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_BASE64", java.util.Base64.getEncoder().encodeToString(
+                compiler.serialized(tasks.path("compiled")).getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_HASH", tasks.path("contentHash").asText()));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_MANIFESTS_ENABLED", "true"));
+        } else {
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_BASE64", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_HASH", ""));
+        }
+        if (specialistAssistanceEnabled || managedTasksEnabled) {
             LinkedHashSet<String> spaces = new LinkedHashSet<>(List.of("document"));
             LinkedHashSet<String> reads = new LinkedHashSet<>();
-            for (JsonNode area : assistance.path("areas")) {
+            for (JsonNode area : behaviorConfig.path("specialistAssistance").path("areas")) {
+                if (!specialistAssistanceEnabled) break;
                 area.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
                 area.path("readActions").forEach(value -> reads.add(value.asText()));
+            }
+            for (JsonNode task : behaviorConfig.path("managedTasks").path("tasks")) {
+                if (!managedTasksEnabled) break;
+                task.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
+                task.path("readActions").forEach(value -> reads.add(value.asText()));
             }
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_REGISTERED_VECTOR_SPACES", String.join(",", spaces)));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", String.join(",", reads)));

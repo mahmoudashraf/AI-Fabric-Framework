@@ -38,6 +38,19 @@ Never execute writes, paid inference or guessed health routes in these checks.
 Not tested must stay distinct from verified; saved-draft results are not live
 release verification. See `External_User_Guides/SMART_BRAIN_SETUP_CHECKS.md`.
 
+Managed intelligence Tasks have one Brain-scoped home at
+`/smart-brains/:brainId/tasks`, using the same approved shell and shared draft.
+Keep Outcome, Resources, Try and Use in your app as focused views of that same
+definition; do not duplicate model/connection editors or create a global Task
+dashboard. The initial synchronous contract inherits the Brain model and permits
+only configured knowledge/READ capabilities, including input-only tasks without
+vectors. Try identifies the selected environment's applied version; it is not an
+unsaved-draft preview. Inference starts only on an explicit Run task command.
+Publishing/applying stay in Updates. No async job, per-task model or external-agent
+callback should be advertised until separately implemented and qualified. See
+`External_User_Guides/SMART_BRAIN_MANAGED_TASKS.md` and the 010.68 execution record
+for current verification/deployment status.
+
 Knowledge's All sources / Documents / Live data tabs are filtered views, not
 parallel editors. Keep their source counts and empty-state wording specific;
 unknown or failed reads are not zero. Search settings uses four focused tasks

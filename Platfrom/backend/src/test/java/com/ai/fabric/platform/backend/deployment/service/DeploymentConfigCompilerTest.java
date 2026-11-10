@@ -22,6 +22,25 @@ class DeploymentConfigCompilerTest {
     private final DeploymentConfigCompiler compiler = new DeploymentConfigCompiler(objectMapper);
 
     @Test
+    void publicationIncludesTaskPromptsSchemasAndHashWithoutChangingEditableDefinitions() throws Exception {
+        var draft = draft("{\"actions\":[]}", "{}", "{}");
+        draft.setBehaviorConfigJson(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskFixtures.behavior(objectMapper).toString());
+        String original = draft.getBehaviorConfigJson();
+        var first = compiler.compile(deployment(), draft, "task-v1", "Tasks v1", false);
+        JsonNode behavior = objectMapper.readTree(first.behaviorConfigJson());
+        assertThat(behavior.at("/managedTasks/compiled/resources")).hasSize(4);
+        assertThat(objectMapper.readTree(first.manifestJson()).path("behaviorConfig")).isEqualTo(behavior);
+        assertThat(draft.getBehaviorConfigJson()).isEqualTo(original);
+        var changed = (ObjectNode) objectMapper.readTree(original);
+        ((ObjectNode) changed.at("/managedTasks/tasks/0")).put("instructions", "Return a concise assessment using the supplied request.");
+        draft.setBehaviorConfigJson(changed.toString());
+        var second = compiler.compile(deployment(), draft, "task-v2", "Tasks v2", false);
+        assertThat(second.configHash()).isNotEqualTo(first.configHash());
+        assertThat(objectMapper.readTree(second.behaviorConfigJson()).at("/managedTasks/contentHash"))
+            .isNotEqualTo(behavior.at("/managedTasks/contentHash"));
+    }
+
+    @Test
     void aiBehaviourPublishesExpandedImmutablePromptsWithoutChangingTheEditableDraft() throws Exception {
         var baseline = new DeploymentCuratedModuleCatalogService(objectMapper, new org.springframework.core.io.DefaultResourceLoader()).promptPreset("default");
         var prompts = DeploymentAiBehaviourProfiles.select(baseline,

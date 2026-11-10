@@ -65,6 +65,19 @@ public class DeploymentTargetContextService {
         return resolve(deployment, targetProfileId, releaseId);
     }
 
+    @Transactional(readOnly = true)
+    public Context resolveCurrent(String deploymentId, String targetProfileId, boolean mutate) {
+        DeploymentEntity deployment = deployments.findById(required(deploymentId, "deploymentId"))
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        if (mutate) access.requireDeploymentOperatorAccess(deployment);
+        else access.requireDeploymentAccess(deployment);
+        String target = required(targetProfileId, "targetProfileId");
+        DeploymentReleaseEntity release = releases.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deployment.getId(), target).stream()
+            .filter(value -> "ACTIVE".equals(value.getProvisioningStatus())).findFirst()
+            .orElseThrow(() -> conflict("Apply a version to this environment before using its runtime."));
+        return resolve(deployment, target, release.getId());
+    }
+
     /** Internal read integration after its own session/consent checks; never infers an owner or target. */
     @Transactional(readOnly = true)
     public Context resolveOwnedRead(String deploymentId, String targetProfileId, String releaseId,

@@ -82,6 +82,35 @@ class DeploymentTargetContextServiceTest {
     }
 
     @Test
+    void currentTargetResolvesOnlyItsOwnLatestActiveRelease() {
+        var stopped = new DeploymentReleaseEntity();
+        stopped.setProvisioningStatus("STOPPED");
+        when(releases.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("dep-1", "stage"))
+            .thenReturn(java.util.List.of(stopped, release));
+        var context = service.resolveCurrent("dep-1", "stage", true);
+        assertThat(context.version().getId()).isEqualTo("ver-stage");
+        assertThat(context.runtimeBaseUrl()).isEqualTo("https://stage.example");
+        verify(access).requireDeploymentOperatorAccess(deployment);
+    }
+
+    @Test
+    void currentTargetRequiresOwnershipBeforeLookingForItsRelease() {
+        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN))
+            .when(access).requireDeploymentAccess(deployment);
+        assertThatThrownBy(() -> service.resolveCurrent("dep-1", "stage", false)).isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(releases, profiles, handles, versions);
+    }
+
+    @Test
+    void missingCurrentTargetDoesNotUseGlobalProduction() {
+        when(releases.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("dep-1", "stage"))
+            .thenReturn(java.util.List.of());
+        assertThatThrownBy(() -> service.resolveCurrent("dep-1", "stage", false))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Apply a version");
+        verifyNoInteractions(profiles, handles, versions);
+    }
+
+    @Test
     void ownedReadReusesExactTargetEvidenceWithoutImpersonatingBrowserOperator() {
         deployment.setCustomerId("customer-a"); deployment.setTenantId("tenant-a");
         var context = service.resolveOwnedRead("dep-1", "stage", "rel-stage", "customer-a", "tenant-a");

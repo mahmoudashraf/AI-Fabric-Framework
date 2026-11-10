@@ -42,6 +42,39 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void tasksInjectPublishedResourcesWithoutChangingChatOrAddingStateInfrastructure() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), mapper);
+        var compiler = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(mapper);
+        var behavior = compiler.compileBehavior(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskFixtures.behavior(mapper), null);
+        var version = version(); version.setBehaviorConfigJson(behavior.toString());
+        var plan = service.buildPlan(deployment(), version);
+        var env = envMap(plan.services().runtime().env());
+        assertThat(java.util.Base64.getDecoder().decode(env.get("LOOMAI_MANAGED_TASKS_BUNDLE_BASE64")))
+            .isEqualTo(mapper.writeValueAsBytes(behavior.at("/managedTasks/compiled")));
+        assertThat(env).containsEntry("LOOMAI_MANAGED_TASKS_BUNDLE_HASH", behavior.at("/managedTasks/contentHash").asText())
+            .containsEntry("AI_EXECUTION_MANIFESTS_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
+            .containsEntry("LOOMAI_SMART_BRAIN_ENABLED", "false")
+            .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1");
+        assertThat(env).doesNotContainKeys("AI_EXECUTION_ASYNC_REPOSITORY", "AI_EXECUTION_ASYNC_ENCRYPTION_SECRET");
+        var disabledBehavior = behavior.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) disabledBehavior.path("managedTasks")).put("enabled", false);
+        version.setBehaviorConfigJson(disabledBehavior.toString());
+        var disabled = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+        assertThat(disabled).containsEntry("LOOMAI_MANAGED_TASKS_BUNDLE_BASE64", "").containsEntry("LOOMAI_MANAGED_TASKS_BUNDLE_HASH", "");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) behavior.at("/managedTasks/compiled/tasks/0")).put("specialistRef", "foreign@1");
+        version.setBehaviorConfigJson(behavior.toString());
+        assertThatThrownBy(() -> service.buildPlan(deployment(), version)).hasMessageContaining("hash");
+    }
+
+    @Test
     void canonicalConversationFoundationDoesNotEnableOrRequireAHumanChannel() {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

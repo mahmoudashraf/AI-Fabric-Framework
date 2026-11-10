@@ -2,6 +2,7 @@ export const brainSections = [
   { path: '', label: 'Overview', group: 'Build' },
   { path: 'knowledge', label: 'Knowledge', group: 'Build' },
   { path: 'capabilities', label: 'AI capabilities', group: 'Build' },
+  { path: 'tasks', label: 'Managed Tasks', group: 'Build' },
   { path: 'responses', label: 'Responses', group: 'Build' },
   { path: 'models', label: 'AI models', group: 'Build' },
   { path: 'channels', label: 'Channels', group: 'Experience' },

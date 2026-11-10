@@ -185,6 +185,14 @@ public class DeploymentDraftValidationService {
                 issues
             );
             validateBehavior(behaviorNode, expectedBehaviorType, issues);
+            if (com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorNode)) {
+                try {
+                    new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).compileBehavior(behaviorNode,
+                        specialistAuthority == null ? null : specialistAuthority.resolve(draft.getDeploymentId(), actionsNode, knowledgeSourceNode));
+                } catch (org.springframework.web.server.ResponseStatusException ex) {
+                    issues.add(error("behavior", "MANAGED_TASKS_INVALID", "$.behaviorConfig.managedTasks", ex.getReason()));
+                }
+            }
             if (SpecialistAssistanceCompiler.enabled(behaviorNode)) {
                 try {
                     new SpecialistAssistanceCompiler(objectMapper).compileBehavior(behaviorNode,

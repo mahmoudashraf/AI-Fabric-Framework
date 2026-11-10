@@ -48,6 +48,18 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         }
     }
 
+    /** Synchronous specialist tasks share the existing accounting turn, not chat authorization. */
+    public Turn openTask(RuntimeResolvedIdentity verifiedIdentity, String taskCode) {
+        requireNoScope();
+        try {
+            return open(budgets.recordVerifiedTaskIngress(verifiedIdentity, taskCode), null);
+        } catch (BudgetException denied) {
+            throw control(denied);
+        } catch (RuntimeBudgetBindingException denied) {
+            throw control(denied);
+        }
+    }
+
     public Turn openSuggestions(RuntimeResolvedIdentity verifiedIdentity) {
         requireNoScope();
         try {

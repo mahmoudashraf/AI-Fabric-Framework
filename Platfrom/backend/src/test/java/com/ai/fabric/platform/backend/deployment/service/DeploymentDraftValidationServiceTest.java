@@ -23,6 +23,18 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void taskValidationAcceptsInputOnlyTaskAndReportsUninstalledCapabilities() throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", "{}", "{}");
+        var behavior = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskFixtures.behavior(mapper);
+        draft.setBehaviorConfigJson(behavior.toString());
+        assertThat(service.validate(draft).issues()).extracting("code").doesNotContain("MANAGED_TASKS_INVALID");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) behavior.at("/managedTasks/tasks/0")).putArray("readActions").add("uninstalled_read");
+        draft.setBehaviorConfigJson(behavior.toString());
+        assertThat(service.validate(draft).issues()).extracting("code").contains("MANAGED_TASKS_INVALID");
+    }
+
+    @Test
     void aiBehaviourMetadataIsValidatedAsOperatorConfigurationNotModelOutput() {
         var mapper = new ObjectMapper();
         var configured = DeploymentAiBehaviourProfiles.select(mapper.createObjectNode(), mapper.createObjectNode());

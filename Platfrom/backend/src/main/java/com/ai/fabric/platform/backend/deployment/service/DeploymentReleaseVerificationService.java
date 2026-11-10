@@ -534,6 +534,9 @@ public class DeploymentReleaseVerificationService {
                 addSkippedCheck(checks, SpecialistAssistanceVerificationPack.RELEASE_CHECK,
                     "Specialist assistance qualification requires a live runtime, not stub provisioning.");
             }
+            if (com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(expectations.behaviorConfig())) {
+                addSkippedCheck(checks, "runtime_managed_tasks_match_expected", "Managed Tasks qualification requires a live runtime, not stub provisioning.");
+            }
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_knowledge_sources_match_expected",
@@ -597,6 +600,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
         validateSpecialistAssistance(checks, runtimeOverview, expectations);
+        validateManagedTasks(checks, runtimeOverview, expectations);
 
         JsonProbeResult runtimeAuthOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
@@ -1554,6 +1558,27 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime specialist assistance matches the immutable compiled bundle and registered invocation catalogue."
                 : "Runtime specialist assistance does not match the published bundle, capability contract or ready invocation catalogue.",
             qualification.details());
+    }
+
+    private void validateManagedTasks(ArrayNode checks, JsonProbeResult probe, VerificationExpectations expectations) {
+        JsonNode expected = expectations.behaviorConfig().path("managedTasks");
+        JsonNode actual = probe.success() && probe.body() != null ? probe.body().path("managedTasks") : objectMapper.createObjectNode();
+        if (!com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(expectations.behaviorConfig())) {
+            if (actual.isMissingNode() || actual.isEmpty()) return;
+            boolean disabled = !actual.path("enabled").asBoolean(true);
+            addCheck(checks, "runtime_managed_tasks_match_expected", disabled ? "PASSED" : "FAILED",
+                disabled ? "Managed Tasks are disabled in the applied runtime." : "Runtime still exposes Tasks that are disabled in this version.", null);
+            return;
+        }
+        boolean matches = actual.path("enabled").asBoolean(false) && actual.path("ready").asBoolean(false)
+            && com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CONTRACT.equals(actual.path("contractVersion").asText())
+            && expected.path("contentHash").equals(actual.path("contentHash"))
+            && expected.path("compiled").path("tasks").equals(actual.path("tasks"));
+        addCheck(checks, "runtime_managed_tasks_match_expected", matches ? "PASSED" : "FAILED",
+            matches ? "Runtime Tasks match the applied catalogue and registered specialists."
+                : "Runtime Tasks do not match the applied catalogue, bundle hash or registered specialists.",
+            objectMapper.valueToTree(Map.of("expectedHash", expected.path("contentHash").asText(), "actualHash", actual.path("contentHash").asText(),
+                "expectedTaskCount", expected.path("compiled").path("tasks").size(), "actualTaskCount", actual.path("tasks").size())));
     }
 
     private void validateRuntimeOverview(ArrayNode checks,

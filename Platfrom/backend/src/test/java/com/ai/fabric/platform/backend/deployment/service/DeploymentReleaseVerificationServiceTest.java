@@ -63,6 +63,47 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseVerificationServiceTest {
 
     @Test
+    void taskReleaseReadbackRequiresExactPublishedCatalogueAndRegisteredReadiness() throws Exception {
+        var compiler = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper);
+        var behavior = compiler.compileBehavior(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskFixtures.behavior(objectMapper), null);
+        var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));
+        var version = runtimeOnlyImageVersion(); version.setBehaviorConfigJson(behavior.toString());
+        Object expectations = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version, runtimeOnlyImageRelease(), artifactBundle(), null);
+        ObjectNode overview = objectMapper.createObjectNode().put("success", true);
+        var state = overview.putObject("managedTasks").put("enabled", true).put("ready", true)
+            .put("contractVersion", "LOOMAI_MANAGED_TASKS_V1").put("contentHash", behavior.at("/managedTasks/contentHash").asText());
+        state.set("tasks", behavior.at("/managedTasks/compiled/tasks"));
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/overview", exchange -> writeJson(exchange, 200, overview.toString()));
+        server.start();
+        try {
+            for (String variant : List.of("valid", "hash", "catalogue", "not-ready")) {
+                state.put("contentHash", "hash".equals(variant) ? "sha256:wrong" : behavior.at("/managedTasks/contentHash").asText());
+                state.set("tasks", "catalogue".equals(variant) ? objectMapper.createArrayNode() : behavior.at("/managedTasks/compiled/tasks"));
+                state.put("ready", !"not-ready".equals(variant));
+                Object probe = ReflectionTestUtils.invokeMethod(service, "probeJson",
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "/api/admin/overview", Map.of());
+                var checks = objectMapper.createArrayNode();
+                ReflectionTestUtils.invokeMethod(service, "validateManagedTasks", checks, probe, expectations);
+                assertThat(checks.get(0).path("status").asText()).isEqualTo("valid".equals(variant) ? "PASSED" : "FAILED");
+            }
+            ((ObjectNode) behavior.path("managedTasks")).put("enabled", false);
+            version.setBehaviorConfigJson(behavior.toString());
+            Object disabledExpectations = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+                deployment("https://runtime.example", null), version, runtimeOnlyImageRelease(), artifactBundle(), null);
+            for (boolean actualEnabled : List.of(true, false)) {
+                state.put("enabled", actualEnabled);
+                Object probe = ReflectionTestUtils.invokeMethod(service, "probeJson",
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "/api/admin/overview", Map.of());
+                var checks = objectMapper.createArrayNode();
+                ReflectionTestUtils.invokeMethod(service, "validateManagedTasks", checks, probe, disabledExpectations);
+                assertThat(checks.get(0).path("status").asText()).isEqualTo(actualEnabled ? "FAILED" : "PASSED");
+            }
+        } finally { server.stop(0); }
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void specialistAssistanceExpectationsIncludeOnlyItsNativeReadAndConfiguredChains() {
         var behavior = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper);

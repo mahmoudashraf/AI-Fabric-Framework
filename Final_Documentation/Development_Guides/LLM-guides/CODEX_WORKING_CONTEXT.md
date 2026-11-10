@@ -14467,3 +14467,35 @@ test is being called hosted acceptance. UI extraction remains last.
   {staging,production}-final/. Evidence:verification-support/setup-checks/README.md;
   guide:External_User_Guides/SMART_BRAIN_SETUP_CHECKS.md. Prior phone gallery
   intentionally unchanged; unrelated.gitignore/untracked work preserved.
+
+### Managed Tasks - 10 November 2026, Local Qualification Complete
+
+- Owner authorized starting Managed Tasks after 010.68 assessment. First slice:
+  Brain-scoped definitions/instructions/input-output schemas, JSON/text results,
+  selected deployment model, synchronous private API and Console applied testing.
+  No async Task polling, external-agent waiting, per-task model override, new
+  database or framework release. These remain later reviewed work, not blockers
+  to the synchronous slice or permission to redesign recovery/capacity.
+- Definitions live in behaviorConfig.managedTasks and compile into existing
+  specialist/schema/prompt resources. Reuse the existing draft/publish/apply and
+  installed READ/knowledge authority. Pure-input tasks require no vectors.
+- Implemented Platform compilation, exact-target Console bridge, provisioning,
+  existing manifest-loader registration, task-specific private auth/budget scope,
+  schema-checked JSON/text execution and actual runtime readback verification.
+  Disabled tasks explicitly clear stale bundle environment values. No new
+  semantic matching, answer fallback, public task grant or hidden model switch.
+- Console/customer/delegated staff share the approved Brain shell and Tasks
+  editor: Outcome/Resources/Try/Use, forms plus Advanced JSON, installed resource
+  authority, explicit applied-version execution and existing Updates comparison.
+  Pre-save conflict checks are not CAS; the shared draft read/PUT race remains.
+- Final local qualification:256Platform tests,158runtime regressions,61focused
+  UI checks,17fixture browser scenarios and UI production build PASS. Runtime
+  registration uses actual0.8.46; task-result tests mock specialist responses.
+  Desktop/basic390px light/dark screenshots reviewed. Fixture preview runs at
+  http://127.0.0.1:5173/smart-brains/brain/tasks/assess-request?targetProfileId=target&customer=1.
+  It is not a hosted authentication or real-provider quality proof.
+- NO hosted change, framework release or paid query. Staging/production rollout
+  and real-model task qualification remain open; previously recorded serving
+  sources remain current. Exact commands, failures corrected and exclusions:
+  010_68_MANAGED_TASKS_IMPLEMENTATION_RECORD.md. Root.gitignore and unrelated
+  untracked work preserved; prior gallery/tunnel intentionally unchanged.

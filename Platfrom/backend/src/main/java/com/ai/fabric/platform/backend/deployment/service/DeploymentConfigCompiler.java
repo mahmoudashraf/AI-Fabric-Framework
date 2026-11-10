@@ -93,6 +93,9 @@ public class DeploymentConfigCompiler {
             behaviorNode = new SpecialistAssistanceCompiler(objectMapper).compileBehavior(behaviorNode,
                 SpecialistAssistanceCompiler.enabled(behaviorNode) && specialistAuthority != null
                     ? specialistAuthority.resolve(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
+            behaviorNode = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).compileBehavior(behaviorNode,
+                com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorNode) && specialistAuthority != null
+                    ? specialistAuthority.resolve(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
             JsonNode effectiveRoutingNode = compileRoutingConfig(
                 actionsNode,
                 routingNode,
@@ -701,6 +704,11 @@ public class DeploymentConfigCompiler {
             String expectedEntityHash = sha256(canonicalJson(expectedRuntimeConfig));
             requireManifestText(manifest, "entityConfigHash", expectedEntityHash, issues);
             JsonNode persistedBehavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(persistedBehavior)) {
+                var tasks = persistedBehavior.path("managedTasks");
+                new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).verifyCompiled(
+                    tasks.path("compiled"), tasks.path("contentHash").asText());
+            }
             if (SpecialistAssistanceCompiler.enabled(persistedBehavior)) {
                 var assistance = persistedBehavior.path(SpecialistAssistanceCompiler.FIELD);
                 new SpecialistAssistanceCompiler(objectMapper).verifyCompiled(

@@ -149,6 +149,11 @@ function ChangeTable({ changes, nextLabel = 'Saved draft', maxHeight }: { change
 export function outcomeSummary(key: string, value: unknown, catalogue?: AiBehaviourCatalogue): string {
   if (key === 'promptConfig') return responseSummary(value, catalogue) ?? (record(value) && Object.keys(value).length ? 'Reply preferences and instructions' : summary(value))
   if (!record(value)) return summary(value)
+  if (key === 'behaviorConfig' && record(value.managedTasks) && Array.isArray(value.managedTasks.tasks)) {
+    const tasks = value.managedTasks.tasks.filter(record)
+    const names = tasks.map(task => typeof task.name === 'string' ? task.name : '').filter(Boolean)
+    return `Managed Tasks ${value.managedTasks.enabled === true ? 'enabled' : 'disabled'} · ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}${names.length ? `: ${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}` : ''} · Conversation and execution settings`
+  }
   const list = key === 'actionsConfig' ? value.actions : key === 'entityConfig' ? value.entities : key === 'knowledgeSourceConfig' ? value.sources : null
   if (Array.isArray(list)) {
     const names = list.filter(record).map(item => typeof item.displayName === 'string' ? item.displayName : '').filter(Boolean)

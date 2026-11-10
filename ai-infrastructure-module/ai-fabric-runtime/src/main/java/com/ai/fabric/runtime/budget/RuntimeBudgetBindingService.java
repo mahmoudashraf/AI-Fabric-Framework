@@ -189,6 +189,13 @@ public final class RuntimeBudgetBindingService {
         return recordVerifiedInteractiveIngress(identity, "chat:query");
     }
 
+    /** A managed task consumes one existing request allowance, with no unrelated chat grant. */
+    public ChatReceipt recordVerifiedTaskIngress(RuntimeResolvedIdentity identity, String taskCode) {
+        if (taskCode == null || taskCode.length() > 40 || !taskCode.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)*"))
+            throw new IllegalArgumentException("A stable managed task code is required.");
+        return recordVerifiedInteractiveIngress(identity, "task:" + taskCode + ":execute");
+    }
+
     /** Queries and suggestions share the allocation's nonrefundable interactive-request ceiling. */
     public ChatReceipt recordVerifiedSuggestionsIngress(RuntimeResolvedIdentity identity) {
         return recordVerifiedInteractiveIngress(identity, "chat:suggestions");

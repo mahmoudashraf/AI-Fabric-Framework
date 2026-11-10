@@ -26,6 +26,7 @@
     "SPECIALIST_ASSISTANCE"
   ],
   "capabilities": [
+    "managed-intelligence-tasks",
     "ai-fabric-chat-session",
     "ai-fabric-core",
     "ai-fabric-execution",
@@ -62,6 +63,7 @@
     "provider-webhook-ingress"
   ],
   "endpointClasses": [
+    "managed-task-execute",
     "chat-query",
     "canonical-conversation-message",
     "owner-handover-control",

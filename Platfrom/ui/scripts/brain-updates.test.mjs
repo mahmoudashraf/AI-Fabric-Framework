@@ -169,6 +169,10 @@ test('outcome summaries use declared names/counts, not raw action names or promp
   assert.equal(exports.outcomeSummary('knowledgeSourceConfig', { sources: [{}] }), '1 source')
   assert.equal(exports.outcomeSummary('promptConfig', { prompt: 'HIDDEN_PROMPT' }), 'Reply preferences and instructions')
   assert.ok(!exports.outcomeSummary('providerConfig', { token: 'HIDDEN_KEY' }).includes('HIDDEN_KEY'))
+  const tasks = exports.outcomeSummary('behaviorConfig', { managedTasks: { enabled: true,
+    tasks: [{ name: 'Assess request', instructions: 'HIDDEN_INSTRUCTIONS' }, { name: 'Summarise' }, { name: 'Classify' }] } })
+  assert.match(tasks, /Managed Tasks enabled.*3 tasks: Assess request, Summarise \+1/)
+  assert.equal(tasks.includes('HIDDEN_INSTRUCTIONS'), false)
 })
 
 test('advanced existing controls remain scoped, permission checked, and preference writes disabled', () => {

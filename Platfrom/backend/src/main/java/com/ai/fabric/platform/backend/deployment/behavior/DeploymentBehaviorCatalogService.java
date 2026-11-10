@@ -240,6 +240,11 @@ public class DeploymentBehaviorCatalogService {
         } catch (ResponseStatusException ex) {
             return Validation.invalid("SPECIALIST_ASSISTANCE_INVALID", ex.getReason());
         }
+        try {
+            new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).validateConfiguration(config);
+        } catch (ResponseStatusException ex) {
+            return Validation.invalid("MANAGED_TASKS_INVALID", ex.getReason());
+        }
         JsonNode authority = config.path("authority");
         if (!authority.path("trustedContextRequired").asBoolean(false)
             || authority.path("requestMaySelectIdentityOrAuthority").asBoolean(true)
@@ -603,6 +608,12 @@ public class DeploymentBehaviorCatalogService {
         LinkedHashSet<String> migrationIds = new LinkedHashSet<>(behavior.requiredRuntimeMigrationIds());
         LinkedHashSet<String> verificationPackIds = new LinkedHashSet<>(behavior.baselineVerificationPackIds());
         LinkedHashSet<String> executionExtensions = stringSet(behaviorConfig.path("executionExtensions"));
+        boolean managedTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
+        if (managedTasks) {
+            capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CAPABILITY);
+            capabilities.add("ai-fabric-execution");
+            endpointClasses.add("managed-task-execute");
+        }
         for (String extensionCode : executionExtensions) {
             ExecutionExtensionContract extension = requireExecutionExtension(extensionCode);
             if (!extension.compatibleBehaviorTypes().contains(behaviorType)) {
@@ -629,7 +640,7 @@ public class DeploymentBehaviorCatalogService {
                 behaviorConfig.path("specialistBundles"),
                 behavior.requiredSpecialistBundles()
             ),
-            behavior.releaseRequiresCapabilityManifest() || !executionExtensions.isEmpty()
+            behavior.releaseRequiresCapabilityManifest() || !executionExtensions.isEmpty() || managedTasks
         );
     }
 

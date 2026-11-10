@@ -23,6 +23,7 @@ import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import PsychologyOutlined from '@mui/icons-material/PsychologyOutlined'
 import KeyOutlined from '@mui/icons-material/KeyOutlined'
+import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined'
 import { fetchDeploymentReleases, fetchDeploymentTargetOptions, fetchDeploymentTargetProfiles, fetchDeploymentVersions, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
@@ -41,7 +42,7 @@ import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpe
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
   responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
-  'human-support': HeadsetMicOutlined, 'action-reviews': FactCheckOutlined, try: PlayArrowOutlined,
+  'human-support': HeadsetMicOutlined, 'action-reviews': FactCheckOutlined, tasks: TaskAltOutlined, try: PlayArrowOutlined,
   updates: SystemUpdateAltOutlined, secrets: KeyOutlined, advanced: SettingsOutlined }
 
 type Props = { session: PlatformAuthSessionSummary | null; onSignOut: () => Promise<void>; children: ReactNode }
