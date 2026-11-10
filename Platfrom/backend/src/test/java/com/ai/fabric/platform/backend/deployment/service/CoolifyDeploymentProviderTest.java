@@ -240,6 +240,21 @@ class CoolifyDeploymentProviderTest {
 
 
     @Test
+    void privateManagedTasksRequireFrozenAuthorityWithoutAnOfferOrPublicAccess() {
+        var provider = provider();
+        var candidate = version();
+        candidate.setSecurityConfigJson("{\"publicRuntimeBootstrapEnabled\":false}");
+        candidate.setBehaviorConfigJson("{\"managedTasks\":{\"enabled\":true}}");
+
+        assertThatThrownBy(() -> provider.mergeFrozenRuntimeAuthorityEnvironment(
+            deployment(), candidate, release(), "runtime", new LinkedHashMap<>()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("frozen target authority");
+
+        candidate.setBehaviorConfigJson("{\"managedTasks\":{\"enabled\":false}}");
+        provider.mergeFrozenRuntimeAuthorityEnvironment(deployment(), candidate, release(), "runtime", new LinkedHashMap<>());
+    }
+
+    @Test
     void exactReleaseAuthorityOverridesServicePlanAndResolvesManagedSecretsWithoutLeakingReferences() {
         PlatformSecretService secrets = mock(PlatformSecretService.class);
         when(secrets.resolveSecret("TARGET_KEY")).thenReturn("resolved-target-secret");

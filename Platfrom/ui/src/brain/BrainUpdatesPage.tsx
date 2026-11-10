@@ -177,13 +177,16 @@ function OutcomeChanges({ changes, config, currentConfig, catalogue, baseline = 
     const runtimeOnly = !preview.fieldChanges.length && preview.runtimeFieldChanges.length > 0
     const headline = preview.baseline === 'unavailable' ? previewHeadline(preview) ?? 'Applied comparison unavailable'
       : item.changed === false ? 'No changes' : runtimeOnly ? 'Saved reply inputs match · runtime guidance differs' : previewHeadline(preview)
+    const behavior = item.key === 'behaviorConfig' && record(config) ? config.behaviorConfig : null
+    const taskSummary = record(behavior) && record(behavior.managedTasks) && Array.isArray(behavior.managedTasks.tasks)
+      ? `${preview.baseline === 'unavailable' ? 'Saved draft: ' : ''}${outcomeSummary('behaviorConfig', behavior, catalogue)}` : null
     const Icon = ['entityConfig', 'knowledgeSourceConfig', 'marketplaceDatasetConfig'].includes(item.key) ? LayersOutlined
       : item.key === 'promptConfig' ? ChatBubbleOutlineRounded : item.key === 'actionsConfig' ? AutoAwesomeOutlined : HubOutlined
     const content = <>
       <Box sx={{ width: 34, height: 34, borderRadius: 1, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon sx={{ fontSize: 21 }} /></Box>
       <Box sx={{ flex: 1, minWidth: 0 }}><Typography fontSize={14} fontWeight={600}>{preview.title}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {headline ?? (item.changed === false ? 'No changes' : 'Settings updated · inspect details')}
+          {taskSummary ?? headline ?? (item.changed === false ? 'No changes' : 'Settings updated · inspect details')}
         </Typography></Box>
       <Typography variant="caption" color={preview.baseline === 'unavailable' ? 'warning.main' : 'text.secondary'} sx={{ flexShrink: 0 }}>
         {preview.baseline === 'unavailable' ? 'Unavailable' : baseline === 'new' ? 'New' : item.changed && preview.fieldChanges.length ? `${preview.fieldChanges.length} ${preview.fieldChanges.length === 1 ? 'field' : 'fields'}` : runtimeOnly ? 'Runtime details' : item.changed ? 'Changed' : 'Unchanged'}

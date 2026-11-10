@@ -14499,3 +14499,32 @@ test is being called hosted acceptance. UI extraction remains last.
   sources remain current. Exact commands, failures corrected and exclusions:
   010_68_MANAGED_TASKS_IMPLEMENTATION_RECORD.md. Root.gitignore and unrelated
   untracked work preserved; prior gallery/tunnel intentionally unchanged.
+
+### Managed Tasks - 10 November 2026, Hosted Qualification In Progress
+
+- Owner requested deployment and heavy live verification after local commit
+  4f5d459d174d8840eea797eadb19f200794614da. Source pushed; core42860717388,
+  full runtime verification/build42860717126 and storage42860717444 passed.
+  Backend4f is healthy on both hosts; initial Console4f healthy on staging.
+  Runtime artifactdsa-54bddc22/digest995deaf4d9e854d8cda3363b4dffcd955b5452bc6a947c65b1ab539565f7c4ea
+  remains AI Fabric0.8.46. Existing dealership/support runtimes unchanged.
+- Fixture-owned canarydep-695b9c7a on production control plane targets staging;
+  separate staging configuration-onlydep-caed3ec7 has no infrastructure. No
+  personal account or production customer deployment is being repurposed.
+- First neutral-starter smoke correctly denied because REMOTE_HTTP had no
+  external policy service. v2ver-bdc24a09 explicitly uses existing managed
+  ALLOW_VERIFIED; direct private API succeeded in4.9sec with correct uncertainty.
+  Task grants/tenant/resource boundaries stay enforced; no framework fix/bypass.
+- Heavy checks found missing frozen authority for private Tasks-only apply:
+  initial rel-b77a7b3d and rel-8e9ad478 have no authority snapshot. Apply and
+  Coolify predicates corrected with174focused backend tests passing. Must create
+  a new normal release after corrected core rollout; never repair these records
+  with SQL or mark their failed verification green. Runtime code is unchanged.
+- UI correction exposes Tasks summary in actual Updates row, not just an unused
+  helper.45UI checks/31rendered browser groups/build passed. Hosted staging CRUD
+  ten groups passed, zero inference/page errors, canary archived/signed out.
+- IN PROGRESS: corrected core image publication/rollout, fresh frozen staging
+  release, real-model/private API matrix, production canary, customer UI execution
+  and cleanup. Raw evidence/private helper state:
+  ~/.codex/private/loomai-managed-tasks-01068/. Implementation record010_68 lists
+  exact digests, failures and commands. Do not treat this as hosted completion.

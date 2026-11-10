@@ -19,6 +19,15 @@ Save to the existing shared draft, then use **Updates** to publish and apply.
 Saving is not deployment. Removing a draft task also does not remove it from an
 already applied environment until an update is applied.
 
+Tasks retain the Brain's existing authorization policy. A managed deployment
+without a separate authorization service can use the existing `ALLOW_VERIFIED`
+mode; private identity and task-specific grants are still required. A Brain
+using `REMOTE_HTTP` needs its real authorization service configured and granting
+the operation. Enabling Tasks never bypasses a denying or unavailable policy.
+Use a compatible image-source deployment destination and the runtime artifact
+advertising Managed Tasks; a Git-build destination cannot prove that artifact
+is the image being executed.
+
 ## Test The Applied Task
 
 Select the intended staging or production environment and open **Try**. Supply

@@ -1868,7 +1868,9 @@ public class DeploymentService {
         boolean productized = customerOfferDeploymentRepository.existsById(deployment.getId());
         boolean publicRuntimeRequested = ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         JsonNode drain = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled");
-        boolean authorityRequired = productized || publicRuntimeRequested || drain.isBoolean() && drain.booleanValue();
+        boolean privateTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(
+            readJson(version.getBehaviorConfigJson()));
+        boolean authorityRequired = productized || publicRuntimeRequested || privateTasks || drain.isBoolean() && drain.booleanValue();
         if (!authorityRequired) {
             return null;
         }

@@ -31,6 +31,12 @@ if (mode === 'manifest-unavailable') delete state.manifests['version-12'];
 if (mode === 'first-deployment') state.releases = [];
 if (mode === 'past-verified') state.releases.push({...active,id:'old-version-release',deploymentVersionId:'version-11',provisioningStatus:'DELETED',createdAt:'2026-11-05T10:00:00Z'});
 if (mode === 'in-progress') state.releases.unshift({...active,id:'pending-release',status:'PROVISIONING',provisioningStatus:'RUNNING',verificationStatus:'NOT_RUN',createdAt:'2026-11-07T12:01:00Z'});
+if (mode === 'managed-tasks' || mode === 'managed-tasks-disabled') state.draft.behaviorConfig = {
+  managedTasks: { enabled: mode !== 'managed-tasks-disabled', tasks: [
+    {code:'assess-request',name:'Assess request',instructions:'HIDDEN_TASK_INSTRUCTIONS',inputSchema:{secretExample:'HIDDEN_TASK_INPUT'}},
+    {code:'summarise',name:'Summarise'}, {code:'classify',name:'Classify'},
+  ] }, conversationHandover: {enabled:true},
+};
 if (mode === 'preview' || mode === 'preview-unavailable') {
   state.manifests['version-12'].promptConfig = {aiBehaviour:{schemaVersion:'loomai-ai-behaviour-v1',tone:{presetId:'professional',instructions:'Use concise, professional language.'}}};
   state.draft.promptConfig = {aiBehaviour:{schemaVersion:'loomai-ai-behaviour-v1',tone:{presetId:'consultative',instructions:'Use a warm, consultative tone. Ask one useful follow-up question when it helps.'}},secretRef:'HIDDEN_CREDENTIAL_VALUE'};
@@ -238,6 +244,19 @@ try {
   assert.equal(await page.getByRole('dialog').getByText('Use concise, professional language.',{exact:true}).count(),0)
   assert.deepEqual(await calls(),[])
 
+  for (const [mode, status] of [['managed-tasks','enabled'],['managed-tasks-disabled','disabled']]) {
+    await open('?mode='+mode)
+    const row = page.getByRole('button',{name:'Preview How conversations run',exact:true})
+    await row.getByText('Managed Tasks '+status+' · 3 tasks: Assess request, Summarise +1 · Conversation and execution settings',{exact:true}).waitFor()
+    const text = await page.locator('body').innerText()
+    assert.ok(!text.includes('HIDDEN_TASK_INSTRUCTIONS'))
+    assert.ok(!text.includes('HIDDEN_TASK_INPUT'))
+    assert.deepEqual(await calls(),[],'task summaries must not trigger writes or inference')
+    await page.screenshot({path:output+'/updates-'+mode+'.png',fullPage:true})
+  }
+  await open()
+  assert.equal(await page.getByText(/Managed Tasks (enabled|disabled)/).count(),0,'legacy behavior summaries remain unchanged')
+
   await open('?mode=retry')
   await publishToReview()
   await chooseSource()
@@ -399,7 +418,7 @@ try {
   assert.equal(await page.getByRole('link',{name:'Review go-live',exact:true}).count(),0)
   assert.deepEqual(await calls(),[])
   assert.deepEqual(errors,[])
-  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview','ordinary production selection and promotion review retained','developer staging-only shell and update apply','developer production URL blocked without silent fallback','developer promotion panel does not mount'],screenshots:output},null,2))
+  console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview','ordinary production selection and promotion review retained','developer staging-only shell and update apply','developer production URL blocked without silent fallback','developer promotion panel does not mount','rendered enabled/disabled task summaries with no instructions or input values','legacy behavior row unchanged'],screenshots:output},null,2))
 } catch (error) {
   await page.screenshot({path: `${output}/failure.png`,fullPage:true}).catch(()=>{})
   console.error({output,errors,body:(await page.locator('body').innerText()).slice(-5000)})

@@ -171,6 +171,36 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     }
 
     @Test
+    void privateManagedTasksFreezeExactAuthorityWithoutRequiringBrowserOrigins() {
+        version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\",\"publicRuntimeBootstrapEnabled\":false}");
+        version.setProviderConfigJson("{\"operationalDrainEnabled\":false}");
+        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"managedTasks\":{\"enabled\":true}}");
+        var candidate = new RuntimeAuthorityBinding.Snapshot("task-candidate", null, "task-fingerprint", null);
+        when(authorities.freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of()))
+            .thenReturn(candidate);
+        RuntimeAuthorityBinding.Snapshot result = ReflectionTestUtils.invokeMethod(
+            service, "freezeRuntimeAuthorityCandidateIfRequired", deployment, version, target);
+
+        verify(authorities).freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of());
+        assertThat(result).isEqualTo(candidate);
+        assertThat(version.getSecurityConfigJson()).doesNotContain("\"publicRuntimeBootstrapEnabled\":true");
+        verifyNoInteractions(releases, execution);
+    }
+
+    @Test
+    void privateManagedTasksCannotQueueWithoutFreezingAuthority() {
+        version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\"}");
+        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"managedTasks\":{\"enabled\":true}}");
+        doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "TASK_AUTHORITY_UNAVAILABLE"))
+            .when(authorities).freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of());
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+            service, "freezeRuntimeAuthorityCandidateIfRequired", deployment, version, target))
+            .hasMessageContaining("TASK_AUTHORITY_UNAVAILABLE");
+        verifyNoInteractions(releases, execution, operations);
+    }
+
+    @Test
     void reviewedCompositionDriftFailsBeforeAuthorityFreezeOrReleasePersistence() {
         var approved = mock(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization.class);
         when(offerBoundary.require(eq(deployment), eq(target.getId()), org.mockito.ArgumentMatchers.isNull(),

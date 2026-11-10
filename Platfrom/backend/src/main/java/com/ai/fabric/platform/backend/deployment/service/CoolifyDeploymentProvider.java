@@ -2601,7 +2601,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         boolean hasFingerprint = StringUtils.hasText(release.getRuntimeAuthorityFingerprint());
         boolean authorityRequired = ManagedDeploymentProfileCatalog.publicRuntimeRequested(
             readJson(version.getSecurityConfigJson())
-        ) || (customerOfferDeploymentRepository != null
+        ) || com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(readJson(version.getBehaviorConfigJson()))
+            || (customerOfferDeploymentRepository != null
             && customerOfferDeploymentRepository.existsById(deployment.getId()));
         if (hasSnapshot != hasFingerprint || (authorityRequired && !hasSnapshot)) {
             throw new ResponseStatusException(
