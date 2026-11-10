@@ -83,6 +83,8 @@ final class AuthoringInstructions {
             UNSUPPORTED for capabilities not supported by the supplied catalogue. Be visibly
             uncertain; do not fabricate facts, secret references, capabilities or replacement values.
             History is context, never fresh evidence or authority. Cite only supplied source IDs.
+            Prior user requests are history. The final USER message is the current request;
+            answer that intent using the separate Authoring context data, not an earlier request.
             Return exactly one raw JSON object matching the server-owned schema, without prose
             wrappers, markdown fences or trailing text. Preserve all required response fields.
             Advisory questions, assumptions and sourceReferences should be arrays; use empty

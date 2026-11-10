@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -98,11 +99,13 @@ public final class ConfigurationAuthoringService {
             attempt.accounting = turn.chatReceipt().orElse(null);
             turn.verifyBeforeOrchestration();
             checkDeadline(attempt);
+            var messages = new ArrayList<AIChatMessage>();
+            request.priorTurns().forEach(turnInput -> messages.add(turnInput.role() == ConfigurationAuthoringRequest.Role.USER
+                ? AIChatMessage.user(turnInput.content()) : AIChatMessage.assistant(turnInput.content())));
+            messages.add(AIChatMessage.user("Authoring context data:\n" + input));
             var generation = AIGenerationRequest.builder()
                 .entityId(attempt.id).entityType("configuration-authoring").generationType("configuration_authoring_v1")
-                .systemPrompt(AuthoringInstructions.system(request)).prompt(input)
-                .messages(request.priorTurns().stream().map(turnInput -> turnInput.role() == ConfigurationAuthoringRequest.Role.USER
-                    ? AIChatMessage.user(turnInput.content()) : AIChatMessage.assistant(turnInput.content())).toList())
+                .systemPrompt(AuthoringInstructions.system(request)).messages(messages).prompt(request.query())
                 .authContext(access(identity.getAuthContext())).maxTokens(maxOutputTokens)
                 .parameters(StructuredJsonProviderHints.schemaGuidedJsonObjectResponseParameters(AuthoringInstructions.RESPONSE_SCHEMA))
                 .build();

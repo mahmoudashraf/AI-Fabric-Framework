@@ -92,7 +92,13 @@ as data, never HTML, authority, a source-link target or instructions.
 Server-owned task instructions and output schema are selected before inference.
 `schemaGuidedJsonObjectResponseParameters` intentionally chooses JSON-object
 mode, retaining dynamic values. Imported/current/catalogue data are user input,
-never system `context`. Whole raw provider output is parsed strictly before the
+never system `context`. After whole-input validation, history is native USER/
+ASSISTANT messages, followed by a USER `Authoring context data:` JSON message
+without duplicated `query`/`priorTurns`. `.prompt(request.query())` supplies the
+final USER message containing only the current query. This is prompt clarity,
+not a framework ordering fix: released 0.8.46 preserves that order and requires
+`.prompt()` or current `inputParts` alongside nonempty `.messages()`.
+Whole raw provider output is parsed strictly before the
 framework helper: no prose/fences, trailing JSON/text, duplicate keys or repair.
 Exactly one `AICoreService.generateContent(..., GENERATION)` call maximum; helper
 gets the already-validated response, `maxAttempts=1`, no call-error retry.

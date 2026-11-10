@@ -31,6 +31,7 @@ final class AuthoringJsonContract {
                 if (!ids.add(source.id())) throw new IllegalArgumentException();
             }
             ((ObjectNode) node).remove("priorTurns");
+            ((ObjectNode) node).remove("query");
             return mapper.writeValueAsString(node);
         } catch (Exception invalid) {
             throw new AuthoringFailure(HttpStatus.BAD_REQUEST, "AUTHORING_INPUT_LIMIT", "Authoring input exceeds bounds or has duplicate source IDs.");

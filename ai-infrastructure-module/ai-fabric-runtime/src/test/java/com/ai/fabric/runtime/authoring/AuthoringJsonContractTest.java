@@ -244,6 +244,18 @@ class AuthoringJsonContractTest {
     }
 
     @Test
+    void contextSeparationStillCountsQueryAndHistoryAgainstWholeInputBound() {
+        for (String field : List.of("query", "priorTurns")) {
+            ObjectNode input = MAPPER.valueToTree(request());
+            input.putObject("currentConfiguration").put("large", "x".repeat(AuthoringJsonContract.MAX_PROMPT_CHARS - 2_000));
+            if (field.equals("query")) input.put("query", "q".repeat(4_000));
+            else input.withArray("priorTurns").addObject().put("role", "USER").put("content", "h".repeat(4_000));
+            assertThatThrownBy(() -> contract.input(MAPPER.treeToValue(input, ConfigurationAuthoringRequest.class)))
+                .isInstanceOf(AuthoringFailure.class);
+        }
+    }
+
+    @Test
     void boundsCombinedInputAndTreeDepthWithoutTruncatingCustomerData() {
         var request = MAPPER.valueToTree(request());
         var config = ((ObjectNode) request).putObject("currentConfiguration");

@@ -5,20 +5,29 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import ai.fabric.config.AIProviderConfig;
 import ai.fabric.core.AICoreService;
 import ai.fabric.core.LlmPurpose;
+import ai.fabric.dto.AIChatMessage;
 import ai.fabric.dto.AIGenerationRequest;
+import ai.fabric.dto.AIGenerationRequestContracts;
 import ai.fabric.dto.AIGenerationResponse;
 import ai.fabric.llm.structured.DefaultStructuredJsonCallExecutor;
 import ai.fabric.llm.structured.StructuredJsonCallExecutor;
 import ai.fabric.llm.structured.StructuredJsonExtractor;
 import ai.fabric.llm.structured.StructuredJsonProviderHints;
+import ai.fabric.prompt.PromptRenderer;
+import ai.fabric.prompt.PromptTemplateResolver;
+import ai.fabric.provider.AIProviderManager;
+import ai.fabric.provider.springai.SpringAiChatProvider;
+import ai.fabric.provider.springai.SpringAiModelResolver;
 import com.ai.fabric.budget.BudgetException;
 import com.ai.fabric.budget.openai.OpenAiBudgetException;
 import com.ai.fabric.budget.openai.OpenAiBudgetInvocation;
 import com.ai.fabric.runtime.budget.RuntimeBudgetBindingException;
 import com.ai.fabric.runtime.budget.RuntimeBudgetBindingService;
 import com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -30,6 +39,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.beans.factory.ObjectProvider;
 
 class ConfigurationAuthoringServiceTest {
     private final AICoreService ai = mock(AICoreService.class);
@@ -66,15 +84,85 @@ class ConfigurationAuthoringServiceTest {
         verify(ai).generateContent(capture.capture(), eq(LlmPurpose.GENERATION));
         var generation = capture.getValue();
         assertThat(generation.getSystemPrompt()).contains("Server response schema", "Task: ACTIONS").doesNotContain("Imported document");
-        assertThat(generation.getPrompt()).contains("Imported document").doesNotContain("priorTurns");
-        assertThat(generation.getMessages()).hasSize(2);
+        assertThat(generation.getPrompt()).isEqualTo(request().query());
+        assertThat(generation.getMessages()).hasSize(3);
         assertThat(generation.getMessages().get(0).getContent()).isEqualTo("Search inventory");
+        assertThat(generation.getMessages().getLast().getContent()).isEqualTo(
+            "Authoring context data:\n" + new AuthoringJsonContract(MAPPER).input(request()));
         assertThat(generation.getContext()).isNull();
         assertThat(StructuredJsonProviderHints.outputSchema(generation.getParameters())).isEqualTo(AuthoringInstructions.RESPONSE_SCHEMA.trim());
         assertThat(generation.getParameters().toString()).contains("json_object");
         assertThat(generation.getAuthContext().getDeploymentId()).isEqualTo("dedicated-authoring");
         verify(budgets).recordVerifiedAuthoringIngress(any());
         assertUnscoped();
+    }
+
+    @Test
+    void releasedPipelineKeepsExactCurrentQueryLastAndContextSeparateFromConflictingHistory() throws Exception {
+        var config = new AIProviderConfig();
+        config.setLlmProvider("openai");
+        config.setEnableFallback(false);
+        config.getOpenai().setModel("fixture-model");
+        var options = ChatOptions.builder().model("fixture-model").build();
+        var model = mock(ChatModel.class);
+        when(model.getOptions()).thenReturn(options);
+        when(model.call(any(Prompt.class))).thenReturn(new ChatResponse(
+            List.of(new Generation(new AssistantMessage(output().toString())))));
+        var resolver = mock(SpringAiModelResolver.class);
+        when(resolver.isChatAvailable("openai")).thenReturn(true);
+        when(resolver.isChatAvailable(eq("openai"), any())).thenReturn(true);
+        when(resolver.resolveChatModel(eq("openai"), any())).thenReturn(model);
+        when(resolver.resolveChatOptions(eq("openai"), any())).thenReturn(options);
+        var provider = spy(new SpringAiChatProvider("openai", resolver));
+        var manager = new AIProviderManager(List.of(provider), config);
+        manager.initialize();
+        var core = new AICoreService(config, manager, mock(ObjectProvider.class), mock(ObjectProvider.class),
+            mock(PromptTemplateResolver.class), new PromptRenderer());
+        when(ai.generateContent(any(), eq(LlmPurpose.GENERATION)))
+            .thenAnswer(call -> core.generateContent(call.getArgument(0), LlmPurpose.GENERATION));
+        var current = new ConfigurationAuthoringRequest(request().contractVersion(), request().sessionId(), request().turnId(),
+            request().resourceKind(), request().task(), request().query(), request().currentConfiguration(), request().sources(),
+            request().catalogue(), List.of(
+                new ConfigurationAuthoringRequest.PriorTurn(ConfigurationAuthoringRequest.Role.USER,
+                    "Only change displayName to Lookup Current record"),
+                new ConfigurationAuthoringRequest.PriorTurn(ConfigurationAuthoringRequest.Role.ASSISTANT,
+                    "Proposed the displayName edit")));
+        assertThat(service(5_000).generate(current, identity()).getStatusCode().value()).isEqualTo(200);
+
+        var original = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(ai).generateContent(original.capture(), eq(LlmPurpose.GENERATION));
+        var copied = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(provider).generateContent(copied.capture());
+        assertThat(copied.getValue()).isNotSameAs(original.getValue());
+        assertThat(copied.getValue().getPrompt()).isEqualTo(current.query());
+        assertThat(copied.getValue().getMessages()).isEqualTo(original.getValue().getMessages());
+        assertThat(copied.getValue().getContext()).isNull();
+        var captured = ArgumentCaptor.forClass(Prompt.class);
+        verify(model).call(captured.capture());
+        var messages = captured.getValue().getInstructions();
+        assertThat(messages).extracting(Message::getMessageType)
+            .containsExactly(MessageType.SYSTEM, MessageType.USER, MessageType.ASSISTANT, MessageType.USER, MessageType.USER);
+        assertThat(messages).extracting(Message::getText).containsExactly(
+            AuthoringInstructions.system(current).trim(), current.priorTurns().get(0).content(),
+            current.priorTurns().get(1).content(), "Authoring context data:\n" + new AuthoringJsonContract(MAPPER).input(current),
+            current.query());
+        assertThat(messages.getLast().getText()).isEqualTo(current.query());
+        var context = MAPPER.readTree(new AuthoringJsonContract(MAPPER).input(current));
+        assertThat(context.has("query")).isFalse();
+        assertThat(context.has("priorTurns")).isFalse();
+        assertThat(context.path("sources")).isEqualTo(MAPPER.valueToTree(current.sources()));
+        assertThat(messages.getFirst().getText()).doesNotContain("Imported document", "Lookup Current record");
+        assertThat(messages.getFirst().getText()).contains("Prior user requests are history", "final USER message is the current request");
+        assertUnscoped();
+    }
+
+    @Test
+    void releasedContractRejectsMessagesOnlyEvenWhenFinalMessageIsCurrentUserQuery() {
+        var generation = AIGenerationRequest.builder().systemPrompt(AuthoringInstructions.system(request()))
+            .messages(List.of(AIChatMessage.user("Earlier request"), AIChatMessage.user(request().query()))).build();
+        assertThatThrownBy(() -> AIGenerationRequestContracts.validateStandardChatPrompting(generation))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("AIGenerationRequest.prompt or inputParts must provide the current user input when messages are present");
     }
 
     @Test
@@ -204,8 +292,10 @@ class ConfigurationAuthoringServiceTest {
         var capture = ArgumentCaptor.forClass(AIGenerationRequest.class);
         verify(ai, times(2)).generateContent(capture.capture(), any());
         var next = capture.getAllValues().get(1);
-        assertThat(next.getPrompt()).contains("other_config").doesNotContain("Imported document", "Search inventory");
-        assertThat(next.getMessages()).isEmpty();
+        assertThat(next.getPrompt()).isEqualTo(other.query());
+        assertThat(next.getMessages()).hasSize(1);
+        assertThat(next.getMessages().getFirst().getContent()).contains("other_config")
+            .doesNotContain("Imported document", "Search inventory", "\"query\":", "\"priorTurns\":");
         assertThat(next.getSystemPrompt()).contains("Task: CONNECTIONS").doesNotContain("Task: ACTIONS");
     }
 
