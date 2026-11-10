@@ -1,8 +1,9 @@
 # 010.37 LoomAI Configuration Assistant - Detailed Solution And Implementation Plan
 
-- Status: planned; implementation not started.
+- Status: implementation in progress, 2026-11-10; hosted qualification pending.
 - Created: 2026-10-13. Expanded: 2026-11-09.
 - Latest Platform inspection: `52f71995410260a743bae67fd2a9cf59b821ee8b`, 2026-11-09. Source inspection is not evidence of an implemented assistant or a deployed framework upgrade.
+- Capability reassessment: `171010aed53d305ba7643ea8b7d076eb1aeba641`, 2026-11-10; released framework 0.8.46, 27 scoped scenarios assessed and 17 offline binary-contract probes passed. See section 18; no hosted assistant qualification is claimed.
 - Owner: Platform customer and staff authoring experience.
 - Scope: API documentation import, guided configuration, structured proposals and integration with existing editors. This is not a deployment or framework release record.
 - Related: [coding assistant skill](010_35_AI_FABRIC_CODING_ASSISTANT_SKILL_IMPLEMENTATION_PLAN.md), [semantic decisions](010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md), [UI entry points](../../../../../../../../Final_Documentation/Development_Guides/PLATFORM_UI_PROFILES.md).
@@ -11,16 +12,44 @@
 
 - **Recommendation:** LoomAI owns the assistant UX/workflow; a shared private LoomAI runtime uses the existing framework and a qualified model. No full coding agent is required.
 - **Framework verdict:** no upgrade/release is currently required by the inspected `0.8.46` contracts. New Platform, private runtime and generic chat-UI integration work is required; this is not configuration-only.
-- **First result:** describe an API-backed capability, share its documentation, review an action/route proposal, adopt it into the existing editor, then save normally. Work on one action at a time while preserving the whole catalogue.
-- **Authority:** the assistant proposes. The existing user-authorized editor saves; testing, indexing, publishing and deployment remain separate explicit actions.
+- **First result:** describe an API-backed capability and share its documentation; the assistant updates the authorized draft through the existing save service, then shows the saved diff in the editor. Work on one action at a time while preserving the whole catalogue.
+- **Authority:** owner decision, 2026-11-10: the assistant may save changes to any editable draft within the user's authorized task/resource scope, without per-turn acceptance. Review remains available before explicit user publication. Testing, indexing, publishing and deployment remain separate explicit actions. The inference runtime itself receives no save credentials.
 - **Read first:** [customer walkthrough](#14-detailed-customer-and-developer-walkthrough), [framework assessment](#15-framework-assessment-and-required-product-extensions), [flow/data ownership](#16-end-to-end-contract-and-data-flow) and [first release boundary](#17-first-release-boundary-and-review-decisions).
-- **Implementation status:** planned. This document is not a claim that the assistant, private route or shared assistant deployment exists today.
+- **Implementation status:** local backend/runtime/UI implementation in progress. No hosted assistant qualification is claimed until P6 evidence is recorded.
 
 ## 1. Product Outcome
 
 Help customers and authorized staff configure useful AI capabilities without manually translating every API endpoint, parameter, response field and connection setting into LoomAI JSON.
 
-The customer describes the outcome, supplies documentation or examples, answers a small number of missing questions, and reviews a configuration proposal. Accepted changes enter the existing editor. Saving, publishing, deploying, testing connections and indexing retain their existing explicit workflows.
+The customer describes the outcome, supplies documentation or examples and answers consequential missing questions. The assistant may save supported changes directly into the authorized editable draft through Platform's existing save service. The editor shows what changed and lets the user review, edit or undo it before publication. The user does not have to accept each proposal and then press Save after every turn. Publishing, deployment, connection tests and indexing retain their existing explicit workflows.
+
+### Owner Decision: Draft Editing Is Allowed
+
+The 10 November 2026 decision supersedes the earlier proposal-only/manual-save
+restriction. A request to configure the selected resource authorizes draft edits,
+not live changes. Explanations and document import alone do not mutate drafts.
+An optional preview-only request remains supported. No new staff approval or
+mandatory per-turn review gate is introduced.
+
+`Any draft` means an editable resource the caller can configure within the task's
+server-bound scope, not every customer draft or another user's resource. Brain
+and private-plugin drafts can use their normal save APIs. An active Engage app
+is not a draft: retain its existing explicit lifecycle rather than secretly
+disabling it. Do not silently publish a plugin version or enable/install a
+capability merely because a definition draft was saved.
+
+Latest owner clarification: **AI first, manual refinement afterward.** When the
+user requests configuration changes, the assistant may replace existing manual
+values in that requested scope, including unsaved values shown in the editor.
+Do not require a conflict-approval dialog or protect those manual values from
+the requested AI edit. Show the saved result so the user can refine it afterward.
+
+Preserve configuration outside the requested scope. While AI is updating the
+selected resource, pause its manual editing and additional modifying turns;
+restore editing from the saved result when complete. Use ordinary database
+transactions and existing resource save checks, not a new cross-editor conflict
+or recovery system. A changed manual value is not itself a reason to reject an
+otherwise authorized AI edit. Cancelled/superseded turns cannot write afterward.
 
 Example customer request:
 
@@ -34,7 +63,7 @@ Build a **LoomAI-owned configuration assistant**, with the existing generic chat
 
 This supersedes the earlier direct-provider gateway recommendation. Platform should not build a second set of provider SDK adapters when the released framework already provides generation and structured JSON calls. A small private runtime authoring capability is new product work, not an existing Support-chat endpoint and not a new framework behavior/plugin type.
 
-Platform owns authorization, documents, schemas, sessions, proposals, candidate checks and editor adoption. The shared runtime owns bounded inference and provider credentials. Do not allocate a runtime, vector store or customer business database per assistant session. No additional customer deployment slot is required for using this shared authoring service; its actual service capacity and usage remain LoomAI-operated and accounted.
+Platform owns authorization, documents, schemas, sessions, proposals, candidate checks and authorized draft persistence through existing resource services. The shared runtime owns bounded inference and provider credentials. Do not allocate a runtime, vector store or customer business database per assistant session. No additional customer deployment slot is required for using this shared authoring service; its actual service capacity and usage remain LoomAI-operated and accounted.
 
 Start with one qualified provider/model. Keep the integration provider-independent, but do not make a second provider, multi-agent team or a full coding SDK a first-release prerequisite. No framework binary change is evidenced as necessary: section 15 records the released APIs and exact qualification boundary. Any newly discovered framework gap must be raised for owner review before a framework change/release.
 
@@ -90,9 +119,16 @@ The backend has no general model-generation gateway. Provider connectivity probe
 
 Existing `support/runtime/SupportRuntimeClient.java` permits only `/api/chat/...`, while `SupportWorkspaceService` binds routes to owned Support cases/episodes. Reuse suitable low-level transport/authority patterns, not those case-specific controllers, identities or permissions. Configuration sessions must be authorized against the selected draft/plugin/app. Existing Support remains a separate working product.
 
-Concurrency needs a focused fix: the draft update DTO has no expected edit version. `revisionNumber` advances when constructing a subsequent published draft, not on every edit. The repository has `findByIdForUpdate`, but ordinary `updateDraftInternal` reads through `findById`. A browser fetch-before-save is not atomic. Reuse private plugins' existing expected-revision contract and introduce shared atomic edit protection where missing.
+Observed save contract: the Brain draft update DTO has no expected edit version;
+`revisionNumber` advances for the next published draft, not every edit. The
+repository has `findByIdForUpdate`, while ordinary update reads through
+`findById`. Under the latest owner decision, a new universal optimistic-version
+contract across all writers is **not an assistant launch prerequisite**. Use a
+fresh draft and the ordinary transaction/save service for the scoped update.
+Keep existing plugin/app version checks without turning manual changes into a
+user approval gate.
 
-Engage already has JPA `rowVersion` and an update-request field, although the explicit stale-version comparison is conditional when the request omits it. Reuse this mechanism and always send the loaded version from the assistant-enabled editor. Its ordinary update service rejects edits to an active installation: the assistant must not disable an app to get around that rule. It may prepare a preview and explain the existing explicit disable/edit/activate path.
+Engage already has JPA `rowVersion` and an update-request field, although the explicit stale-version comparison is conditional when the request omits it. Reuse this mechanism with the current version when saving the assistant result; do not deliberately omit it to bypass the service contract. Its ordinary update service rejects edits to an active installation: the assistant must not disable an app to get around that rule. It may prepare a preview and explain the existing explicit disable/edit/activate path.
 
 Some legacy action-routing fields can contain authentication values. Never send an entire raw draft to a provider. Use allowlisted, redacted projections and secure existing credential controls.
 
@@ -158,7 +194,7 @@ Do not promise every model ID is available, guess credentials, change funding or
 
 Entry: existing branding, tools, preview, installation and domain configuration.
 
-Prepare branding, starter questions, supported tool groups/rail items, authentication/handover presentation and registered renderer selections. Accepted changes feed the existing real preview.
+Prepare branding, starter questions, supported tool groups/rail items, authentication/handover presentation and registered renderer selections. Draft edits or preview-only candidates feed the existing real preview.
 
 Use supported configuration, not generated executable JavaScript. Distinguish website embed, Max mode and standalone app. No silent deployment reassignment, origin grant, DNS verification, domain activation or identity-provider redirect change; link to the existing explicit operation.
 
@@ -201,9 +237,9 @@ Action list and selected form   | Sources: catalogue-api.yaml
                                 | Understand -> Choose -> Review
 Unchanged fields remain visible | 3 operations selected
                                 | 2 connection details needed
-                                | [Review proposed changes]
+                                | Saved to draft [View changes]
 -------------------------------------------------------------------
-Existing Save draft command     | No live changes
+Existing manual editor controls | Not published; live unchanged
 ```
 
 Use outcome language: `What should your AI help people do?`, `Share your API documentation`, `What I can configure`, `Details I still need` and `Review changes`. Keep JSON, schema details and diagnostics under Advanced.
@@ -212,12 +248,12 @@ Use outcome language: `What should your AI help people do?`, `Share your API doc
 
 1. **Describe the outcome.** Add a capability or improve the selected existing configuration.
 2. **Share documentation.** Upload/paste a specification, provide a documentation URL, paste prose or add request/response examples. Allow multiple named sources with extraction status.
-3. **Choose capabilities.** Show method/path, readable purpose, source reference and suggested use: live read, indexing source or proposed write. The LLM recommends a bounded subset; the user confirms it. Never select by keyword heuristics.
+3. **Choose capabilities.** Show method/path, readable purpose, source reference and suggested use: live read, indexing source or proposed write. The LLM selects a bounded subset consistent with the user's configuration request; ask if the intended scope is ambiguous. Selection grants no execution permission. Never select by keyword heuristics.
 4. **Resolve missing details.** Reuse session answers, group related questions and keep optional inputs optional. Provide secure binding selectors rather than a wall of empty fields.
-5. **Review changes.** Show added/changed/removed fields, before/after values, citations, assumptions, dependencies, unresolved bindings and validation.
-6. **Use in editor.** Merge reviewed changes into the current buffer after a stale-buffer check. Update forms and preview; mark `Not saved`.
-7. **Save and test.** Use the existing save command. Offer the appropriate explicit connection test, validation or indexing-preview link, separate from generation.
-8. **Publish and deploy.** Continue through normal Updates; the assistant cannot perform it.
+5. **Prepare changes.** Build the bounded candidate with before/after values, source references, dependencies, unresolved bindings and actual validation findings.
+6. **Update the draft.** Platform checks the current edit version, preserves unrelated configuration and saves through the existing authorized resource service. Synchronize the editor/preview from its real receipt; show `Saved to draft`, not `Published`. Preview-only requests do not persist.
+7. **Review and test.** The user can inspect the diff, edit or undo the draft now or later before publication. Offer the existing explicit connection test or indexing-preview link, separate from inference and draft saving.
+8. **Publish and deploy.** Continue through normal Updates with explicit user intent; draft-writing authority does not grant publication/apply authority.
 
 ### 4.3 Avoid Repeated Inputs
 
@@ -225,7 +261,7 @@ Maintain one session answer sheet containing confirmed choices, discovered schem
 
 Pre-fill only documented structural facts, current configuration, explicit answers or declared technical defaults. Label suggestions. Never fill required secrets, trusted account IDs or undocumented endpoints with invented values that appear executable.
 
-Offer focused commands: `Use this operation`, `Add another endpoint`, `Use this response example`, `Explain this field`, `Revise` and `Discard`. Subsequent manual edits must not be overwritten by another turn without conflict review.
+Offer focused commands: `Use this operation`, `Add another endpoint`, `Use this response example`, `Explain this field`, `Revise` and `Discard`. A later user request to change configuration allows the assistant to replace manual values in that scope. Manual refinement follows completion, without a conflict-review ceremony.
 
 Closing preserves the editor buffer. Reopening restores the original resource session. Switching resources never carries credentials, proposals or authority across boundaries.
 
@@ -245,7 +281,7 @@ These are neutral qualification-fixture endpoints, not existing LoomAI routes. T
 2. Propose search filters from documented parameters, with the account supplied by a trusted installation binding. IDs for detail requests must follow the actual action target contract, not become trusted because they appear in a model answer.
 3. Propose Data mappings `/items`, `/id`, `/accountId`, declared content fields and documented cursor handling. Confirm that the list includes the authorized complete collection and how removals are detected.
 4. Prepare enquiry parameters from its request schema and show the proposed confirmation policy. Do not call the endpoint, invent contact information or enable anonymous writes implicitly.
-5. Ask the customer to select an existing stored credential, confirm the account/environment connection and review unresolved questions. Save action/routing changes and the reusable Data definition separately through their existing editors.
+5. Ask the customer to select an existing stored credential, confirm the account/environment connection and review unresolved questions. The assistant may save action/routing and private Data drafts separately through their existing authorized services; the normal editors display each receipt and diff.
 
 If the API lacks an ownership field or supported auth mechanism, the assistant explains that gap instead of claiming the integration is complete. The user can retain the safe partial draft and request integration assistance.
 
@@ -326,17 +362,18 @@ flowchart LR
   M --> J
   J --> G[Structured proposal candidate]
   G --> V[Existing validators and compiler dry run]
-  V --> P
-  P --> B[Explicit merge into editor buffer]
+  V --> B[Preserved merge within authorized draft]
   B --> S[Existing authorized save with edit guard]
-  S --> R[Existing publish apply and verification]
+  S --> P
+  P --> U2[User reviews saved changes]
+  U2 --> R[Explicit publish apply and verification]
 ```
 
 ### 6.1 Components And Provider Choice
 
 Implement the facade, sessions/sources/proposals, context projections, schema catalogue, parsers and runtime client under `Platfrom/backend/.../assistant/`. Keep this product state in the existing backend, not a new orchestration service.
 
-Add the private inference adapter under `ai-infrastructure-module/ai-fabric-runtime/.../authoring/`. A proposed `mkp-template-configuration-assistant` uses the existing template primitive to select the reviewed image, managed authoring prompts and inference configuration. This identifier/template does not exist yet. Do not introduce a new deployment behavior merely to generate JSON.
+The private inference adapter lives under `ai-infrastructure-module/ai-fabric-runtime/.../authoring/`. Implementation qualification established that this is an internal shared inference service, not a customer conversational deployment. Its versioned `configuration-authoring` operator profile selects explicit minimal imports, private ingress, managed prompts, the reviewed provider and internal accounting state. Do not expose the earlier proposed `mkp-template-configuration-assistant` as a customer-installable Marketplace template: the ordinary customer template would advertise chat/vector/execution contracts this service intentionally does not provide. This corrects that planning assumption without adding a behavior/plugin type or changing the existing customer template system.
 
 `ConfigurationModelGateway` sends a fixed, versioned authoring request to that assigned shared runtime. Use `StructuredJsonCallExecutor` with `AICoreService.generateContent`, `AIGenerationRequest` and the configured framework provider. Platform supplies only its registered contract IDs and safe resource/input projections; the runtime resolves the approved schema/prompt version. A customer cannot select arbitrary system instructions, provider URLs or tool permissions.
 
@@ -344,7 +381,7 @@ Provider keys remain in the assistant runtime's existing managed secret/budget i
 
 Build a versioned schema catalogue from real DTOs, manifest contracts and validators. Centralize currently implicit contract descriptions and test them against the compiler. Do not maintain a divergent schema in prompts or reject valid existing fields merely because a provider supports a smaller JSON Schema dialect.
 
-### 6.2 Scoped Read And Check Tools
+### 6.2 Scoped Context And Draft-Write Authority
 
 Provide these logical operations, either as provider tools or facade-supplied context under identical authorization:
 
@@ -355,7 +392,13 @@ Provide these logical operations, either as provider tools or facade-supplied co
 - Validate proposed resource configuration without saving it.
 - Return structured questions, changes, assumptions and unresolved bindings.
 
-Do not expose save, publish, apply, secret-value retrieval, invitation, provisioning, indexing, business-action execution or arbitrary HTTP tools. Documentation fetching belongs to the dedicated bounded importer, not a general agent network tool.
+The inference runtime has no save credentials or unrestricted mutation tools.
+Platform may apply returned draft edits through the existing authorized resource
+save service, as part of the caller's configuration turn, without a separate
+acceptance click. Recheck current permissions and load the current draft before
+that write. Do not expose publish, apply, secret-value retrieval, invitation,
+provisioning, indexing, business-action execution or arbitrary HTTP tools.
+Documentation fetching belongs to the dedicated bounded importer.
 
 Platform binds context to the authenticated principal and server-resolved resource. Reuse the existing reviewed Platform-to-runtime authority/signing pattern, with a separately checked authoring purpose/audience, short expiry and a request/session binding. These authoring claims and route authorization are new product integration work, not current Support permissions. Never forward a customer bearer token or a Platform administrator key as model input.
 
@@ -377,11 +420,17 @@ POST   /api/configuration-assistant/sessions/{sessionId}/proposals/{proposalId}/
 DELETE /api/configuration-assistant/sessions/{sessionId}
 ```
 
-Session creation supplies one resource kind (`DEPLOYMENT_DRAFT`, `PRIVATE_DATA_PLUGIN` or `ENGAGE_APP`), resource ID, purpose, active section and editor fingerprint. Backend access services resolve the customer and allowed paths. Request-supplied customer IDs never establish ownership.
+Session creation supplies one resource kind (`DEPLOYMENT_DRAFT`, `PRIVATE_DATA_PLUGIN` or `ENGAGE_APP`), resource ID, purpose and active section. Backend access services resolve the customer and allowed paths. Request-supplied customer IDs never establish ownership. An editor snapshot can inform the requested edit, but a fingerprint match is not a mandatory permission gate.
 
 Sources use typed upload/paste/URL requests. A turn names selected source/operation IDs and explicit answers. Return a persisted turn ID and result/progress state. Polling is sufficient initially; use bounded work execution rather than a new durable workflow engine. An interrupted turn stays interrupted, with no automatic billable replay on reload. Deduplicate logical turn requests with an idempotency key; changed content under the same key conflicts.
 
-There is no assistant direct-save or apply-to-production route. Existing editors save. Recheck resource access on reads, generation, checks and deletion. Losing editor access invalidates further generation/adoption even if a session ID is known.
+No duplicate deployment-save or apply-to-production API is needed. A configuration
+turn may invoke the existing resource save service in Platform and return its real
+receipt plus diff. Sessions expose whether the turn edits the draft or is
+preview-only; a plain explanation/import request is not a write request. Recheck
+resource access on reads, generation, checks, draft saves and deletion. Losing
+editor access prevents further edits even if a session ID is known. Turn replay
+returns its existing outcome/receipt; it never reapplies an already saved edit.
 
 ### 6.4 Proposal Contract
 
@@ -391,7 +440,6 @@ There is no assistant direct-save or apply-to-production route. Existing editors
   "status": "READY_FOR_REVIEW",
   "target": { "kind": "DEPLOYMENT_DRAFT", "id": "server-bound-draft-id" },
   "baseEditVersion": 12,
-  "baseEditorFingerprint": "sha256:server-checked-editor-content",
   "summary": "Add catalogue search and its HTTP route",
   "changes": [],
   "questions": [],
@@ -409,7 +457,13 @@ Each change has a stable ID, allowed section/path, operation, before/after value
 
 `NEEDS_INPUT` permits useful incomplete proposals. Optional hints and low confidence are warnings, not automatic rejection. Missing necessary execution fields and unsupported/unauthorized contracts cannot appear ready to execute.
 
-Lifecycle: `NEEDS_INPUT`, `READY_FOR_REVIEW`, `INVALID`, `ADOPTED_IN_EDITOR`, `SAVED`, `STALE`, `DISMISSED`, `EXPIRED`. Validation findings are separate. `SAVED` requires the ordinary editor's successful save receipt, not an adoption click. None of these states means connectivity, indexing or deployment was verified.
+Lifecycle: `NEEDS_INPUT`, `READY_FOR_REVIEW`, `INVALID`, `ADOPTED_IN_EDITOR`,
+`SAVED`, `STALE`, `DISMISSED`, `EXPIRED`. Validation findings are separate. Normal
+draft-edit turns may proceed to `SAVED` through the existing authorized resource
+service without passing through a manual acceptance state. Preview-only output
+can remain `READY_FOR_REVIEW` or be adopted into the editor. `SAVED` requires the
+actual backend save receipt, never a model or browser success claim. None of
+these states means connectivity, indexing or deployment was verified.
 
 ### 6.5 Validation And Repair
 
@@ -425,15 +479,35 @@ Only the first two block affected executable changes. Existing save contracts ma
 
 Repair is server-configured and named. Default to no automatic semantic repair. If `STRUCTURED_AUTHORING_REPAIR_V1` is explicitly enabled, permit at most one repair using real validation findings. Retain safe original/result/repair diagnostics. No keyword substitutions, invented defaults, silent provider fallback or automatic search-all can disguise failure.
 
-### 6.6 Unsaved Changes And Atomic Saving
+### 6.6 AI First, Then Manual Refinement
 
-The UI supplies its current unsaved redacted projection and fingerprint. Candidate input is never authorization. `Use in editor` changes only the reviewed paths through an adapter owned by that existing page.
+The default configuration flow saves the assistant's scoped changes to the
+editable draft through the existing Platform service, then refreshes the normal
+editor and shows a reviewable before/after diff and real save receipt. No
+per-turn approval is required. `Use in editor` remains an optional preview-only
+path, not the mandatory route for every change.
 
-Compare the current buffer fingerprint before adoption. If it changed, show conflicts and preserve manual work or explicitly regenerate. Do not silently rebase semantic changes or restore an old whole-document snapshot.
+Use this simple sequence:
 
-Add one real edit-version/optimistic concurrency contract to ordinary Brain draft saves. Checking and mutation must be atomic. All draft writers, relevant compiler updates and publication paths must cooperate with the same version/locking convention. Reuse JPA versioning or the existing repository lock, not an assistant-specific copy of the draft. Private plugins keep their existing `expectedRevision`; audit and protect Engage saves if needed.
+1. Capture the current safe editor/resource context and the user's requested
+   change. Pause manual edits to that selected resource while AI is working.
+2. Generate the scoped change. Platform loads the current draft and applies it
+   through the existing authorized transaction/save service. Requested values
+   may replace earlier manual values; unrelated settings remain intact.
+3. Show the actual saved result and diff, refresh the editor, and restore manual
+   editing. The user can refine or undo it before publication.
 
-Use the existing normal page save handler/backend service. Retain access checks, immutable published history and current resource policy. A stale proposal may remain visible but cannot overwrite newer saved work.
+No unsaved-buffer fingerprint gate, three-way merge, global writer-version
+redesign or per-change conflict acceptance is required. Existing private-plugin
+`expectedRevision` and Engage `rowVersion` checks remain normal service details:
+use current state when applying the scoped edit rather than bypassing checks.
+Ordinary save errors stay visible; do not build a new recovery engine.
+
+Use the existing backend save service for assistant edits and page save handler
+for manual refinement; share schemas and audit. Keep ownership, secret/trusted-ID
+boundaries, immutable published history and existing resource policy. A cancelled
+or superseded AI turn cannot apply later. Review before publication uses Updates,
+not a second staff/approval mechanism.
 
 If saved-proposal provenance is persisted, pass an optional proposal correlation ID through the normal authorized save command. The backend must verify its customer/resource, accepted change digest and actual resulting edit version before recording `SAVED`. It must not accept a browser-only success report as an audit receipt. This metadata neither grants save access nor changes the configuration schema.
 
@@ -441,7 +515,7 @@ If saved-proposal provenance is persisted, pass an optional proposal correlation
 
 Use scoped session, source and turn/proposal tables in existing Platform PostgreSQL. No separate customer database or vector store. The assistant runtime performs transient authoring inference; it must not retain another independent copy of the authoring transcript/source catalogue. Process original uploaded binaries transiently; persist bounded normalized text/catalogue JSON and safe provenance in Platform. Provide explicit deletion.
 
-Session data contains customer/creator, target resource, schema/catalogue versions, provider and expiry. Sources contain a digest, safe filename/URL, media type, anchors and extraction diagnostics. Proposals contain reviewed changes, base version, findings and usage. Encrypt source/turn/proposal content using an approved application-level mechanism; do not assume current generic JSON columns already provide this protection.
+Session data contains customer/creator, target resource, schema/catalogue versions, provider and expiry. Sources contain a digest, safe filename/URL, media type, anchors and extraction diagnostics. Proposals contain generated changes, base version, findings, usage and actual save/review state; do not label an automatic draft save as a completed human review. Encrypt source/turn/proposal content using an approved application-level mechanism; do not assume current generic JSON columns already provide this protection.
 
 Proposed configurable defaults to qualify:
 
@@ -456,7 +530,7 @@ Proposed configurable defaults to qualify:
 
 These are resource bounds, not semantic validators or existing runtime defaults. Tune with fixtures and real calls. Session expiry alone must not permit unlimited lifetime spend: apply per-turn/session and workspace accounting limits through existing compatible accounting services, or a small explicit authoring allowance if none fits. Do not create another general billing/recovery engine.
 
-Source deletion invalidates dependent proposals and removes derived source content from stored turns. Keep only nonreconstructive audit digests. Warn that accepted configuration may contain user-reviewed descriptions derived from the source and persists with the saved resource; deleting source material does not undo that legitimate configuration. Provider retention needs explicit operational review; local deletion is not a guarantee of provider deletion.
+Source deletion invalidates unsaved dependent proposals and removes derived source content from stored turns. Keep only nonreconstructive audit digests. Warn that already saved configuration may contain descriptions derived from the source and persists with the resource; deleting source material does not undo that legitimate draft edit. Provider retention needs explicit operational review; local deletion is not a guarantee of provider deletion.
 
 ## 8. Verification
 
@@ -481,8 +555,8 @@ Extend existing draft validation/compiler, private-plugin and Engage tests. Add 
 - Data definitions retain form/JSON fidelity and install through the real installer.
 - Unsupported auth/protocols remain visible, never falsely connected.
 - Raw authentication fields never enter provider input or diagnostics.
-- Concurrent manual/assistant saves cannot overwrite newer edits; missing edit tokens cannot silently bypass the checked customer path.
-- Adoption is not saving; saving is not publication; publication is not deployment verification.
+- A requested AI edit can replace earlier saved/unsaved manual values in scope without a conflict dialog. Unrelated settings remain intact; manual refinement works after AI completes. Existing resource save contracts still apply, and cancelled/superseded turns cannot write.
+- Preview/adoption is not saving; automatic draft editing requires a real save receipt. Saving is not publication; publication is not deployment verification.
 - Engage uses real preview configuration, contextual groups and registered renderers, without generated code.
 - Staging-only policy, source ownership, write confirmation, permissions and accounting remain enforced.
 
@@ -500,10 +574,10 @@ The checked-in scenario manifest must include: OpenAPI 3.0 read action; OpenAPI 
 
 Verify staging first, then a production canary through actual UI:
 
-1. Import a neutral catalogue OpenAPI file, choose search/detail operations, select test credentials through secure forms, review action/routing changes and save.
+1. Import a neutral catalogue OpenAPI file, request search/detail capabilities and select test credentials through secure forms. Verify the assistant saves the authorized action/routing draft without per-turn acceptance; inspect/edit/undo its diff before explicit publication. Separately verify preview-only mode.
 2. Reuse documentation to author a private HTTP Data plugin; review mapping, pagination and ownership, create a reusable version and install through the existing Brain flow.
 3. Supply prose/PDF and samples; obtain supported configuration or precise missing questions without a false connectivity claim.
-4. Adjust behaviour/Engage tools, observe the real preview, discard/revise proposals and retain manual edits.
+4. Adjust behaviour/Engage tools, observe the real preview and refine/undo the resulting draft. Verify an explicit AI request replaces earlier manual values in scope without extra approval. Do not silently deactivate an active app to save a candidate.
 5. Assigned staff use the same surface; unassigned staff/other customers cannot read session content.
 6. Follow separate explicit connection/indexing-preview/publication controls against owned mock services. Only these authorized test stages perform API calls/indexing.
 
@@ -517,11 +591,11 @@ Each phase has a focused commit group and verification record. Parallelize only 
 
 - [ ] Inventory current fields, schema versions, auth strategies and catalogue IDs for each supported editor.
 - [ ] Define safe projections, operation catalogue and the canonical proposal envelope.
-- [ ] Add atomic edit protection shared with ordinary draft writers; retain private-plugin revision checks.
+- [ ] Use existing transactional resource saves and current plugin/app revisions; serialize AI then manual editing in the selected editor. No new universal writer-version contract or manual-edit conflict gate.
 - [ ] Expose nonpersisting candidate validation using existing services/compiler.
 - [ ] Define flags, provider setup, content encryption/retention and bounded authoring usage.
 
-Exit: manual editing still works, concurrent saves are protected and validation has no live side effects.
+Exit: the AI-first/manual-after flow uses ordinary saves, preserves unrelated configuration and keeps validation free of live side effects.
 
 ### P1 Documentation Intake
 
@@ -536,21 +610,22 @@ Exit: realistic API documents can be inspected without executing any API operati
 ### P2 Structured Authoring Gateway
 
 - [ ] Implement scoped sessions, sources, turns, proposals, expiry and bounded work execution.
-- [ ] Add the shared runtime's fixed private authoring capability, reviewed service identity and template configuration; reuse released structured-generation/provider APIs.
+- [ ] Add the shared runtime's fixed private authoring capability, reviewed service identity and versioned internal service profile; reuse released structured-generation/provider APIs.
 - [ ] Implement the Platform runtime client and qualify the first selected provider/model. Additional providers are separately qualified, not silently substituted.
 - [ ] Add scoped read/check context and iterative collection of missing answers.
 - [ ] Implement validation, explicitly configured repair and truthful error/usage reporting.
-- [ ] Prove save/publish/apply/execute/secret-value tools are absent.
+- [ ] Prove the inference runtime has no mutation credentials and Platform can save authorized draft edits through existing services. Publish/apply/execute/secret-value tools remain absent.
 
 Exit: a real model returns a sourced valid proposal or useful questions for the selected authorized resource.
 
 ### P3 Actions And Connections
 
 - [ ] Add/qualify the generic chat presentation/host seam without coupling it to Platform schemas, Support cases or business actions.
+- [ ] Complete the per-action form: purpose/access, typed inputs and trusted/internal sources, confirmation, connector request/response mappings and supported presentation. Retain Advanced JSON and preserve the rest of the catalogue. Assistant and manual editing use the same form/serialization, not parallel action systems.
 - [ ] Add the reusable panel to Actions and related connection forms.
 - [ ] Support import, selected operations, grouped binding questions and action/routing proposals.
-- [ ] Add readable diffs, Advanced JSON, dependency-aware selection and existing-buffer adoption.
-- [ ] Connect normal save handlers/receipts, protecting manual edits and stale conflicts.
+- [ ] Add readable saved diffs, Advanced JSON, preserved dependency-aware merging and optional preview-only/editor adoption.
+- [ ] Connect assistant draft editing to existing backend save services and real receipts; allow requested replacement of manual values, preserve unrelated fields and restore manual editing afterward. No per-turn acceptance or manual-conflict gate.
 - [ ] Complete the neutral catalogue hosted flow and explicit mock-API connection test.
 
 Exit: a customer configures a supported API-backed action without assembling the whole JSON manually. Generation executes no business action.
@@ -593,7 +668,7 @@ Full completion requires every P0-P6 exit, not just a panel returning plausible 
 - Real Swagger/OpenAPI and prose/sample imports provide source references.
 - Actions, routing, private Data, knowledge and other supported input-heavy areas reuse answers and real editors.
 - The selected authoring provider/model and output mode are qualified; other models/providers are disabled until separately verified.
-- Changes preserve unrelated/manual edits and save through atomic guards.
+- Changes preserve unrelated configuration, may replace requested manual values, and save through existing resource transactions. Manual refinement follows AI completion.
 - No secret, tenant boundary, staging-only policy or action-safety rule is weakened.
 - Publishing, deployment, indexing and business effects remain explicit separate operations.
 - Retention, deletion, accounting and failure states work hosted.
@@ -626,9 +701,19 @@ If a requested capability needs one of these, preserve the useful supported prop
 - [x] Refresh code evidence, API-import scope and customer/staff authoring boundaries.
 - [x] Define input-heavy coverage, shared panel, source/privacy handling and verification phases.
 - [x] Assess released framework contracts and refine the LoomAI-owned shared-runtime architecture, customer flow and generic UI integration gaps.
-- [ ] Start P0: atomic edit/candidate-validation contracts and parser fixtures.
+- [x] Start P0: existing save-service integration, candidate-validation contracts and parser fixtures.
 
-Implementation has not started. Preparing this plan changed no application code, deployed configuration, provider allowance or framework release.
+### 2026-11-10 Implementation Checkpoint
+
+- Added encrypted, actor/resource-scoped authoring sessions in the existing Platform database, bounded sources/turns, cancellation, idempotent turn submission, seven-day expiry, real saved diffs and undo.
+- Brain/private-plugin/inactive-Engage adapters use their existing save services. Active Engage remains preview-only. No authoring endpoint publishes, applies infrastructure, indexes, executes business actions or changes assignments.
+- Added opt-in private runtime inference with existing assertions, structured generation and provider accounting. Local runtime verification: 75 focused tests, then 719 full runtime tests passed with zero skips. No framework source/release change.
+- Added structured per-action editing with Advanced JSON and unknown-field preservation. Local action-model checks: 32 passed; six browser scenario groups passed.
+- Shared assistant panel, source selectors and remaining editor adapters are being integrated. Import parser/public-URL qualification and Platform transaction tests are in progress.
+- First Platform lifecycle run: encrypted sessions, direct save/undo, retry deduplication, preview/apply, source redaction, actor isolation, cancellation and deletion passed. One case-sensitive assertion in the separate patch unit suite was corrected and is being rerun; no product failure was hidden.
+- Remaining before completion: qualified dedicated service boot, actual-provider generation/save quality, complete UI build/browser checks, rollout, customer/staff hosted evidence and external usage guidance. Local fixture results are not live-provider proof.
+- Subsequent local integration: 151 Platform assistant tests pass, including actual resource-service adapters; 106 parser/fetcher cases are included. The UI full build, 68 model/scope checks and 16 browser scenario groups pass. The dedicated runtime profile boots with PostgreSQL internal state and no business/vector/indexing services. Later advisory-metadata and form refinements require their own final rerun before delivery.
+- Prepared one isolated `loomai_authoring_v1` schema on each existing Platform PostgreSQL service and one private, not-yet-started authoring app per host. Credentials remain private; authoring is not enabled on the live control planes. These are shared internal service resources, not per-customer infrastructure.
 
 ## 14. Detailed Customer And Developer Walkthrough
 
@@ -660,7 +745,7 @@ An unavailable capability is labelled unavailable with the actual missing contra
 
 The assistant initially shows the resource name, active task and a concise scope statement:
 
-> Helping configure Catalogue Brain / AI capabilities. Changes remain proposals until you review them and save the draft.
+> Helping configure Catalogue Brain / AI capabilities. I can update this draft. You can review or undo changes before publishing; your live Brain stays unchanged.
 
 The customer does not re-enter the Brain ID, workspace, environment or account. Platform resolves ownership from the authenticated request and the opened resource. The server, not the model or URL text, binds the authoring scope. A target environment is shown only where a connection/binding actually depends on it; definitions do not acquire an unnecessary environment selector.
 
@@ -671,18 +756,18 @@ Suggested starting requests are task-specific and come from reviewed UI configur
 1. Customer opens AI capabilities and selects `Build with AI`.
 2. Customer says: `Use this API so visitors can search items and request a callback after confirmation` and uploads a specification.
 3. Importer parses the file without running an endpoint. The UI shows the real operations, document version, parsing warnings and a provider-sharing summary.
-4. The LLM recommends supported operations and explains which are reads, possible indexing sources and side effects. Customer confirms the intended subset. Descriptions and schemas, not a GET/POST heuristic, guide meaning.
+4. The LLM selects supported operations within the requested configuration scope and explains reads, possible indexing sources and side effects. It asks if the intended scope is ambiguous, not for mandatory approval of every draft change. Descriptions and schemas, not a GET/POST heuristic, guide meaning.
 5. The assistant reuses known answers and asks only consequential missing questions, such as which existing account binding to use or which returned field is the stable item ID. It does not ask the customer to choose an internal vector-space domain unnecessarily.
 6. Credential selection happens in the secure connection form. The model can reference an authorized credential label/ID, never its value. Undocumented authorization or missing account scope stays unresolved.
-7. The assistant returns a readable proposal: `Add search items`, `Add callback request`, `Configure two routes`, with source-operation references and the proposed confirmation rules. No endpoint has been called.
-8. Customer opens the diff, optionally changes a question/setting, then selects `Use in editor`. Only accepted, dependency-consistent changes enter the current buffer. The editor says `Not saved`.
-9. Customer saves through the existing command. A successful save receipt changes the proposal status to saved. It does not imply connection success.
+7. The assistant prepares `Add search items`, `Add callback request`, `Configure two routes`, with source-operation references and declared confirmation rules. No external business endpoint has been called.
+8. Platform checks permission/current edit version, merges the task's changes without losing other actions and saves through the normal draft service. The editor shows `Saved to draft` and a readable diff. No separate proposal-acceptance click is required. A preview-only request stops before this save.
+9. The customer can review/edit/undo the saved changes now or later before publication. The real save receipt does not imply connection success. Requested AI values may replace prior manual values; unrelated settings are preserved. Manual refinement resumes after this AI turn.
 10. Customer explicitly tests the connection against an authorized fixture/staging API. A write test is a separate deliberate action; the assistant cannot submit a callback as part of setup generation.
 11. Customer continues through normal Updates to publish/apply and verify. Existing production identity and app URL remain intact.
 
 If the model needs another detail, the useful proposal stays visible. `NEEDS_INPUT` is not replaced with invented defaults. If a service is unavailable, manual editing remains usable.
 
-### 14.5 One Action At A Time, Not Bulk Authoring
+### 14.5 Individual Editing And Bounded Multi-Action Proposals
 
 The current API stores a complete `actionsConfig` document, but the user should work with one capability at a time. No new per-action persistence API is required just to enable this assistant journey.
 
@@ -692,13 +777,22 @@ The editor adapter must:
 
 1. Resolve the named action against the exact current catalogue, preserving action names as stable identities.
 2. Show `Add`, `Change`, `Rename` or `Remove` explicitly. Renaming must include the actual dependent route/reference changes; a rename is not a broad string replacement.
-3. Merge only approved fields into the latest matching buffer, preserving the other actions, global configuration, route defaults and unknown-but-supported fields.
-4. Reject a stale base rather than silently overwriting another manual/assistant change.
-5. Save the complete resulting catalogue through the ordinary authorized draft update, with atomic edit protection.
+3. Merge only task-scoped authorized changes into the matching draft, preserving the other actions, global configuration, route defaults and unknown-but-supported fields. A separate approval for each change is not required.
+4. Apply requested values against the current draft, allowing replacement of earlier manual values in scope. Do not restore an old unrelated whole-document snapshot or apply a cancelled/superseded turn.
+5. Save the complete resulting catalogue through the ordinary authorized draft update, then return the editor for manual refinement.
 
 The user can repeat this for another action. Bulk operation selection remains optional. Importing an entire API does not automatically enable every operation or grant anonymous access.
 
 This is an editor convenience over the existing versioned catalogue, not a new action type, runtime executor or duplicated publishing mechanism.
+
+The one-action form is a UX choice, not a framework inference limit. A deliberate
+request such as `configure search, details and a confirmed enquiry` may produce
+several proposed definitions and routes in one bounded `changes[]` envelope for
+the same Brain draft. Review related dependencies together and edit one selected
+action at a time. The adapter still preserves the complete existing catalogue.
+No separate specialist or generation call per action is required. The first
+vertical slice remains a single READ action; batch authoring is not an excuse to
+delay that proof or execute any generated business action.
 
 ### 14.6 Data Source And Knowledge Setup
 
@@ -739,19 +833,25 @@ Request callback                  |
                                   |   4 existing actions unchanged
                                   | [Review changes] [Ask a question]
 -----------------------------------------------------------------------
-Save draft                        | [Use in editor]  No live changes
+Manual editor controls            | Saved to draft [View changes] [Undo]
 ```
 
 Review shows a concise outcome first, source links and missing details second, and exact JSON/diff in Advanced. No duplicate full editor lives inside the panel. For a visual setting, the existing preview is the authority; for an endpoint mapping, show request/response structure, not a fabricated successful call.
 
-Closing the panel never saves, resets the editor or discards an adopted change. Reopening resumes the resource's session. Moving to another Brain/app creates or selects that resource's own authorized session, with no cross-resource proposal leakage.
+Closing the panel does not trigger another save or discard already saved changes.
+Reopening restores the resource session and real outcome/receipt. Navigation must
+not cause an old turn to write again. Moving to another Brain/app uses that
+resource's authorized session, with no cross-resource authority leakage.
 
-`Discard proposal` discards only the proposal. After adoption, undo is a normal explicit editor action; after publication, use normal version controls. There is no assistant auto-rollback engine.
+`Discard proposal` affects unsaved/preview material only; it cannot pretend a saved
+edit disappeared. Undo a saved assistant change through the ordinary authorized
+draft save, replacing the requested values and preserving unrelated settings.
+After publication, use normal version controls. No auto-rollback engine is needed.
 
 ### 14.9 What The Assistant Will Not Do
 
 - It will not retrieve secret values, choose a different customer identity, expand staff access, waive confirmation or invent trusted resource IDs.
-- It will not save, publish, apply, provision, approve documents, start indexing, assign agents or execute business actions during generation.
+- It may save authorized editable drafts through Platform. It will not publish, apply, provision, approve documents, start indexing, assign agents or execute business actions as a side effect of generation/draft saving.
 - It will not remove useful response text through phrase matching, infer business intent with keywords, or silently route to all knowledge sources.
 - It will not browse the public internet for business recommendations. A bounded document importer is not web search.
 - It will not change funding, customer quotas, production entitlement or the original template's recorded reset behaviour.
@@ -821,11 +921,16 @@ The Support experience remains useful for explanation, integration-team requests
 
 ### 15.6 Minimum Platform And Runtime Changes
 
-**Platform backend:** authorized assistant sessions/sources/turns/proposals; bounded document intake; safe configuration projections; contract catalogue; private runtime client; nonpersisting candidate-validation facades; audit/retention/usage; and atomic ordinary draft-edit protection. These are all new or extended product capabilities, not existing assistant endpoints.
+**Platform backend:** authorized assistant sessions/sources/turns/proposals; bounded document intake; safe configuration projections; contract catalogue; private runtime client; nonpersisting candidate-validation facades; audit/retention/usage; and scoped writes through existing resource save services. These are new or extended product capabilities, not existing assistant endpoints. A universal concurrency redesign is not required.
 
 **Private runtime:** a fixed private authoring capability with release-declared availability, reviewed service authentication, request limits, registered prompt/schema versions, one-attempt structured generation, real usage/deadline propagation and a typed response. It has no save/publish/provision/execute tools. No public caller supplies arbitrary schemas or unrestricted context.
 
-**Console:** a reusable panel over generic chat UI, structured questions, source/operation selectors, proposal and diff presentation, plus editor-specific adoption adapters. Existing forms, JSON, navigation, preview, Save and Updates remain the only authoring/release homes.
+**Console:** a reusable panel over generic chat UI, structured questions,
+source/operation selectors, saved-diff presentation and existing-editor adapters.
+Refresh forms/preview from assistant save receipts, allowing requested values to
+replace manual values and restoring manual editing afterward. Existing forms,
+JSON, manual Save and Updates remain the authoring/release
+homes; do not require manual Save after a successful assistant draft save.
 
 **Generic chat app:** the current full widget is not automatically an authoring panel. Add a narrowly scoped controlled conversation surface/host adapter for messages, busy/error state, submit/cancel and a trusted custom-message render seam. Console supplies the authoring transport and proposal component; the generic layer must know nothing about deployment drafts, actions JSON, schema imports or customer permissions. Disable unrelated cart/business controls, runtime auth probes and handover/history assumptions in this controlled surface by construction, not hidden mock endpoints. Reuse existing theme/input/message primitives and leave the normal website/Max/standalone controller unchanged. Verify that those existing modes still work.
 
@@ -842,9 +947,16 @@ The Support experience remains useful for explanation, integration-team requests
 
 None is an approved fix, release prerequisite or excuse to alter the framework now. First prove the focused candidate on the released contracts; report exact reproduction and proposed generic scope before requesting a framework change.
 
+The 10 November binary probes also reproduce two important adapter constraints:
+the generic structured extractor accepts prose wrappers and selects the first
+JSON payload. Strictly parse the complete raw authoring response, including
+trailing-token checks, before feeding it to the helper or using an equivalent
+strict path. This is syntax/integrity enforcement, not semantic text matching.
+The generic executor is not a replacement for real resource/schema validation.
+
 ## 16. End-To-End Contract And Data Flow
 
-### 16.1 Normal Turn And Adoption
+### 16.1 Normal Turn And Draft Save
 
 ```mermaid
 sequenceDiagram
@@ -868,14 +980,16 @@ sequenceDiagram
   R-->>P: Candidate/questions; no saved-state claims
   P->>P: Attest identity and run nonpersisting checks
   P->>DB: Store reviewable proposal and actual findings
-  P-->>UI: Outcome, questions, diff, unresolved bindings
-  User->>UI: Use selected changes in editor
-  UI->>UI: Check base fingerprint, merge accepted paths
-  Note over UI,P: No live state changed by generation/adoption
-  User->>UI: Save draft
-  UI->>P: Ordinary authorized save + expected edit version
-  P->>DB: Atomic version check + save + audit
-  P-->>UI: Real save receipt
+  alt Authorized configuration turn
+    P->>P: Recheck access, merge scoped changes, preserve unrelated fields
+    P->>DB: Existing transaction/save checks + draft save + audit
+    P-->>UI: Saved diff, real receipt, questions/unresolved bindings
+    UI->>UI: Refresh result; allow manual refinement afterward
+  else Preview-only, missing authority or failed save
+    P-->>UI: Candidate/questions/actual error; no claimed save
+  end
+  User->>UI: Review, edit or undo before publishing
+  Note over UI,P: A draft save does not change the live deployment
   Note over User,UI: Test, index, publish and apply remain separate explicit flows
 ```
 
@@ -906,32 +1020,44 @@ API-operation facts come from the parsed document catalogue. Connection/secret r
 ### 16.4 Where Each Kind Of Data Lives
 
 - **Existing Platform PostgreSQL:** authoring sessions, normalized source/catalogue content, turns, proposals, expiry, usage correlation and saved-proposal audit receipts. Sensitive bodies require the declared application-level protection and deletion policy.
-- **Browser:** the existing editor buffer and preview, plus the open panel state. No model/provider credentials. Reload may restore the authorized server session; it must not auto-replay a billable turn or auto-save a proposal.
+- **Browser:** the existing editor buffer/preview and panel state, without provider credentials. Reload restores the authorized session and any completed save receipt; it never replays a billable turn or reapplies a saved edit. Unsaved preview-only material stays unsaved.
 - **Shared assistant runtime:** transient bounded inference inputs/results and normal minimal operational metrics. No independent retained customer source/transcript database for this workflow.
 - **Model provider:** receives only the disclosed selected/redacted material under the configured provider's data-handling contract. Provider retention is a separate operational review, not negated by deleting Platform rows.
 - **Existing secret services:** actual API/provider credentials. The assistant only handles approved labels/references.
 - **Customer knowledge storage/vector services:** unchanged by assistant intake. Imported API documentation is not uploaded into the answer knowledge index unless a separate explicit existing knowledge workflow is chosen.
 
-### 16.5 Draft Conflicts And Save Boundaries
+### 16.5 Simple Draft Replacement Boundaries
 
-The proposal's `baseEditorFingerprint` protects unsaved browser edits. A real persisted edit version protects against another tab, staff member or background writer. Both are necessary; neither substitutes for the other.
+The user's requested change permits replacement of prior manual values in scope.
+Do not require an unchanged browser fingerprint or manual-conflict approval. Use
+current resource state and ordinary save transactions, and keep the UI sequential:
+AI work first, manual refinement afterward. Source/base versions can be retained
+for explanation/audit; they are not a new blanket veto on requested draft edits.
 
-Brain updates currently replace supplied root configuration sections. The adoption adapter must therefore create a complete preserved candidate section from accepted stable-ID changes, then use the ordinary save transaction. Do not send a one-action root expecting the server to merge it.
+Brain updates currently replace supplied root configuration sections. The Platform
+merge adapter must create a complete preserved candidate section from the task's
+authorized stable-ID changes, then use the ordinary save transaction. Do not send
+a one-action root expecting the server to merge it. The same mapping/contract is
+shared with manual forms and optional preview adoption, not a second action model.
 
-Private Data definitions retain their existing `expectedRevision`. Engage retains `rowVersion` and its explicit active-app editing restrictions. The assistant-enabled path must never omit a known version to evade stale-save checks. If a conflict occurs, show which resource changed and offer review/regeneration, preserving manual work.
+Private Data definitions retain their existing `expectedRevision`. Engage retains
+`rowVersion` and its active-app restrictions. Load the current version when
+applying the scoped edit; do not omit it to bypass the existing service. Report
+actual failed saves plainly rather than adding a user approval gate or a new
+recovery system. Unrelated configuration and resource authority remain protected.
 
 ## 17. First Release Boundary And Review Decisions
 
 The plan covers all section-3 areas, but delivery should prove one useful path before expanding:
 
-1. **First vertical slice:** existing Brain -> one pasted/uploaded OpenAPI document -> one READ capability + HTTP route -> real proposal review -> preserved editor merge -> atomic ordinary save -> explicit fixture connection test. One model, one output contract, one runtime adapter. No autonomous execution.
+1. **First vertical slice:** existing Brain -> one pasted/uploaded OpenAPI document -> one READ capability + HTTP route -> preserved merge and authorized assistant draft save -> user reviews/edits/undoes the saved diff -> explicit fixture connection test. One model, one output contract, one runtime adapter. No per-turn acceptance or autonomous business/live execution.
 2. **Second slice:** reuse the source catalogue for a private HTTP Data definition, including pagination/ownership, then use the existing installer and indexing preview. Add S3 guidance without provisioning during generation.
 3. **Third slice:** behaviour and Engage adapters with actual preview and preserved configuration. Then add the remaining supported models/knowledge/human-support/plan tasks in P5.
 4. **Broaden only after evidence:** additional providers, more document formats and optional specialists follow representative quality/security tests. They do not delay the first proven path unnecessarily.
 
 The initial generation runtime is not a public general-agent service. No full coding SDK, shell, repo sandbox, arbitrary tools, new plugin type, per-customer assistant infrastructure, distributed save transaction or recovery/draining redesign is required.
 
-Before implementation, the owner should review the shared-runtime choice, first authoring provider/model and usage allowance, document-sharing/retention defaults, and the proposed scope of ordinary draft edit-version protection. These decisions do not authorize any future framework change automatically.
+Before implementation, the owner should review the shared-runtime choice, first authoring provider/model and usage allowance, and document-sharing/retention defaults. The owner has already approved scoped draft writes and requested AI-first/manual-after editing without extra manual-conflict gates. These decisions do not authorize any future framework change automatically.
 
 ### Focused Acceptance Evidence
 
@@ -939,13 +1065,62 @@ For the first slice, retain actual imported operation references, proposed confi
 
 - A natural-language request plus API docs produces a useful candidate or the correct missing question.
 - A one-action addition preserves the existing action catalogue, routes and unrelated fields.
-- Another tab/manual edit makes the proposal stale instead of being overwritten.
+- An AI configuration request replaces prior manual values in its scope without a conflict dialog; the user can then refine them. Unrelated fields remain intact and cancelled/superseded turns cannot write.
 - Cross-customer/unassigned staff and forged binding attempts are denied.
 - Documentation containing prompt-injection instructions cannot publish or execute anything; credentials never reach provider inputs/logs.
 - Provider refusal, timeout, invalid JSON and disabled assistant leave normal editing available, with no silent model retry/substitution.
 - The selected output mode preserves arbitrary supported mapping keys and exact IDs/numbers.
-- A real save remains separate from connection testing, indexing and release operations.
+- A normal configuration turn saves through the real resource service without a per-change acceptance click; preview-only and explanation turns do not save. Review/edit/undo remain available before publication. Connection testing, indexing and release operations remain separate.
 
 Measure semantic usefulness with the existing tolerance policy and reviewed structured expectations; do not require perfect phrasing or mask failures with text matching. All trust-boundary and unintended-side-effect cases must pass. No broad framework release matrix is required when no framework code changes.
+
+## 18. Validated Capability Coverage - 10 November 2026
+
+Full scenario/source assessment and reproducible probe:
+[framework/runtime capability evidence](../../../../../../../../verification-support/configuration-assistant-01037/2026-11-10-framework-runtime-capability-assessment.md).
+
+This covers all ten section 3 authoring areas, the existing 20-case quality
+manifest requirements and their lifecycle/security scenarios (S01-S27). It is a
+compatibility assessment, not a claim that those customer journeys are live.
+
+### 18.1 Decisions
+
+- **No specialist team needed for the assistant initially.** Reuse generation,
+  native history and structured contracts. Platform owns sources, confirmed
+  answers, scope, proposal state and UI review.
+- **Multiple action definitions are supported as data.** One model response can
+  propose several definitions/routes. A selected action form and optional bounded
+  batch review share the same saved catalogue.
+- **Existing multi-action execution is a different facility.** Multiple intents
+  and bounded read planning already select registered actions. They do not
+  create handlers or offer arbitrary atomic execution; terminal/confirmation
+  rules still apply.
+- **Customer specialist configuration remains in scope.** Use actual installed
+  workers and supported contracts. The current support-oriented specialist
+  output is not automatically a lossless authoring envelope. Fixed event plans
+  reject interactive input; do not use them as the authoring dialogue engine.
+- **No framework upgrade/release currently justified.** New private runtime,
+  Platform and generic UI wiring is required; existing chat alone is insufficient.
+
+### 18.2 Product Work Confirmed
+
+Retain the P0-P6 work: document import, registered schema catalogue, safe context,
+private generation route and service authority, authoring accounting/deadlines,
+typed proposals, complete action form, dependency-aware preserved merging,
+existing transactional saves, candidate checks and adapters for every existing
+editor. Owner clarification on 10 November permits Platform to save scoped draft
+changes without per-turn acceptance; review/edit/undo remain available before
+publication. Do not duplicate save/publish/apply or give mutation credentials to
+the inference service. Active Engage editing retains its explicit lifecycle.
+
+### 18.3 Verification Boundary
+
+The Java 21 probe passed **17 offline checks against the 20 packaged 0.8.46
+framework libraries**: single/multiple definitions, dynamic fields, missing-input
+output, explicit validation/repair/failure behavior, strict-parser feasibility,
+native history, context trust, OpenAI output modes, multiple-intent DTO and
+specialist JSON schema arrays. Mocked provider content is deliberate and labelled.
+No real inference or hosted authoring was performed. P2/P3/P6 must still prove
+the selected model and complete user journey; the assistant remains planned.
 
 **Current outcome of this document:** detailed design and source-backed feasibility assessment only. Assistant endpoints, runtime capability, template, UI panel and authoring journeys remain to be implemented and verified. No framework release was made or requested by this analysis.

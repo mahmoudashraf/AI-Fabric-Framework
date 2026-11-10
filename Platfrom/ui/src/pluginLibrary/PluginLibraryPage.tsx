@@ -22,6 +22,7 @@ import { missingCreatorRequirements, pointerPath, type CreatorRequirement } from
 import { pluginLibraryApi as api } from './pluginLibraryApi'
 import type { PluginCheck, PluginDetail, PluginSummary } from './types'
 import './pluginLibrary.css'
+import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
 
 const tasks = [ ['Name & purpose', 'Describe the outcome'], ['Source contract', 'Choose an existing adapter'],
   ['Records & content', 'Map what AI can use'], ['Freshness & access', 'Keep knowledge current'],
@@ -136,7 +137,9 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const [source, setSource] = useState(() => immutableSource ?? detail?.manifestJson ?? newDefinition(`source-${crypto.randomUUID().slice(0, 8)}`))
   const [baseline, setBaseline] = useState(source), [step, setStep] = useState(0), [dataset, setDataset] = useState(0), [showSource, setShowSource] = useState(false)
   const feedback = location.state?.pluginFeedback as { error?: string; message?: string; check?: PluginCheck } | undefined
-  const [busy, setBusy] = useState(false), [error, setError] = useState(feedback?.error ?? ''), [message, setMessage] = useState(feedback?.message ?? ''), [check, setCheck] = useState<PluginCheck | null>(feedback?.check ?? null)
+  const [manualBusy, setBusy] = useState(false), [error, setError] = useState(feedback?.error ?? ''), [message, setMessage] = useState(feedback?.message ?? ''), [check, setCheck] = useState<PluginCheck | null>(feedback?.check ?? null)
+  const [assistantBusy, setAssistantBusy] = useState(false)
+  const busy = manualBusy || assistantBusy
   const [archiveOpen, setArchiveOpen] = useState(false), [sourceChange, setSourceChange] = useState<SourceKind | null>(null)
   const [reloadOpen, setReloadOpen] = useState(false)
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({})
@@ -167,7 +170,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
     setFocusPath(pointerPath(item.path))
   }
   const dirty = !readOnly && (source !== baseline || invalidFields)
-  const blocker = useBlocker(() => !leaving.current && (busy || dirty))
+  const blocker = useBlocker(() => !leaving.current && (busy || assistantBusy || dirty))
   useEffect(() => {
     if (detail || !saved || busy) return
     leaving.current = true
@@ -176,17 +179,17 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
     })
   }, [saved, busy, detail, error, message, check, navigate, location.search])
   useEffect(() => {
-    if (!busy && !dirty) return
+    if (!busy && !assistantBusy && !dirty) return
     const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', prevent); return () => window.removeEventListener('beforeunload', prevent)
-  }, [busy, dirty])
+  }, [busy, assistantBusy, dirty])
   const resetFeedback = () => { setMessage(''); setError(''); setCheck(null) }
   const edit = (edits: Parameters<typeof patchDocument>[1]) => {
     try { setSource(current => patchDocument(current, edits)); resetFeedback() } catch (error) { setError(error instanceof Error ? error.message : 'Unable to edit this field.') }
   }
   const adopt = (result: PluginDetail) => { setSaved(result); setBaseline(result.manifestJson); setSource(result.manifestJson); clearNumeric(); client.setQueryData([...key(customerId), result.pluginId], result) }
   const command = async (action: 'save' | 'check' | 'version' | 'archive') => {
-    if (readOnly || busy || !document || invalidFields) return
+    if (readOnly || busy || assistantBusy || !document || invalidFields) return
     if (action === 'check') setReviewRequired(true)
     if (action === 'version' && missing.length) {
       setReviewRequired(true); setStep(5); setShowSource(false); setCheck(null); setError(''); setMessage('')
@@ -228,7 +231,13 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const back = safeBrainReturn(location.search)
   const chosenVersion = immutableSource && document ? textAt(document, ['version']) : saved?.latestVersion
   const useHref = saved && saved.status !== 'ARCHIVED' && chosenVersion && back ? (() => { const url = new URL(back, 'https://console.invalid'); const brainId = url.pathname.split('/')[2]; url.pathname = `/smart-brains/${brainId}/capabilities/add`; url.searchParams.set('pluginId', saved.pluginId); url.searchParams.set('pluginVersion', chosenVersion); url.searchParams.set('view', 'setup'); url.searchParams.set('type', 'DATA'); return `${url.pathname}${url.search}` })() : null
-  return <>
+  return <AssistantWorkspace scope={saved && !immutableSource ? { resourceKind: 'PRIVATE_DATA_PLUGIN', resourceId: saved.pluginId, task: 'DATA_PLUGIN' } : null}
+    editorBusy={manualBusy} onBusyChange={setAssistantBusy} readOnlyReason={readOnly ? 'This private definition is read-only.' : undefined}
+    onSaved={async () => {
+      if (!saved || immutableSource) return
+      adopt(await api.get(saved.pluginId, customerId)); resetFeedback()
+      await client.invalidateQueries({ queryKey: key(customerId) }, { throwOnError: true })
+    }}>
     <div className="pl-heading"><div><h1>{immutableSource ? `${name || 'Data plugin'} / immutable version` : 'Teach your AI from a new source'}</h1><p>{readOnly ? 'Read-only reusable definition.' : 'Create a reusable Data plugin, private to your workspace.'}</p></div>
       <Button variant="outlined" startIcon={<CodeOutlined />} onClick={() => setShowSource(!showSource)}>{showSource ? 'Guided form' : 'Source'}</Button></div>
     <div className="pl-editor-content">
@@ -270,7 +279,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
         <Button disabled={busy || step === 0} startIcon={<ArrowBackOutlined />} onClick={() => setStep(step - 1)}>Back</Button>
         {step < 5 ? <Button variant="contained" disabled={busy} endIcon={<ArrowForwardOutlined />} onClick={() => setStep(step + 1)}>Continue</Button> : !readOnly ? <Button variant="contained" disabled={busy || !document || invalidFields} onClick={() => void command('version')}>Save reusable version</Button> : null}
       </div></footer>
-    <Dialog open={sourceChange !== null} onClose={() => setSourceChange(null)}><DialogTitle>Change the source contract?</DialogTitle><DialogContent>The selected dataset's connector settings will be replaced. Other definition fields stay unchanged. Review setup inputs before saving a reusable version.</DialogContent><DialogActions><Button onClick={() => setSourceChange(null)}>Cancel</Button><Button onClick={() => { try { setSource(replaceSourceContract(source, dataset, sourceChange!)); clearNumeric(); resetFeedback(); setSourceChange(null) } catch (error) { setError(error instanceof Error ? error.message : 'Unable to change source.') } }}>Change source</Button></DialogActions></Dialog>
+    <Dialog open={sourceChange !== null} onClose={busy ? undefined : () => setSourceChange(null)}><DialogTitle>Change the source contract?</DialogTitle><DialogContent>The selected dataset's connector settings will be replaced. Other definition fields stay unchanged. Review setup inputs before saving a reusable version.</DialogContent><DialogActions><Button disabled={busy} onClick={() => setSourceChange(null)}>Cancel</Button><Button disabled={busy} onClick={() => { try { setSource(replaceSourceContract(source, dataset, sourceChange!)); clearNumeric(); resetFeedback(); setSourceChange(null) } catch (error) { setError(error instanceof Error ? error.message : 'Unable to change source.') } }}>Change source</Button></DialogActions></Dialog>
     <Dialog open={starterOpen} onClose={() => setStarterOpen(false)} fullWidth maxWidth="sm"><DialogTitle>Start from an existing Data plugin</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
       <Typography variant="body2" color="text.secondary">Copy a version's complete definition, including advanced settings. No installed connections, credentials or live data are copied. This replaces the current unsaved form.</Typography>
       {catalogue.isError || starter.isError ? <Alert severity="error">{catalogue.error?.message ?? starter.error?.message}</Alert> : null}
@@ -281,7 +290,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
       {starter.data ? <><TextField select required label="Starting version" size="small" value={starterVersion || starter.data.versions[0]?.version || ''} onChange={event => setStarterVersion(event.target.value)} fullWidth>{starter.data.versions.map(version => <MenuItem key={version.id} value={version.version}>{version.version}</MenuItem>)}</TextField>
         <Alert severity={starterError ? 'warning' : 'info'}>{starterError || 'You will get a separate private draft. The original plugin and its installations stay unchanged. Dataset and advanced contract settings are retained.'}</Alert>
       </> : starterId && starter.isPending ? <Typography variant="body2">Loading reusable versions...</Typography> : null}
-    </Stack></DialogContent><DialogActions><Button onClick={() => setStarterOpen(false)}>Keep current form</Button><Button variant="contained" disabled={!starter.data || starter.isFetching || Boolean(starterError)} onClick={() => {
+    </Stack></DialogContent><DialogActions><Button disabled={busy} onClick={() => setStarterOpen(false)}>Keep current form</Button><Button variant="contained" disabled={busy || !starter.data || starter.isFetching || Boolean(starterError)} onClick={() => {
       try {
         setSource(copyDefinition(starterManifest, document ? textAt(document, ['pluginId']) || `source-${crypto.randomUUID().slice(0, 8)}` : `source-${crypto.randomUUID().slice(0, 8)}`)); clearNumeric(); resetFeedback(); setReviewRequired(false); setDataset(0); setStep(0); setStarterOpen(false)
       } catch (error) { setError(error instanceof Error ? error.message : 'Unable to copy this definition.'); setStarterOpen(false) }
@@ -294,6 +303,6 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
       catch (error) { setError(error instanceof Error ? error.message : 'The current draft could not be loaded.') }
       finally { setBusy(false) }
     }}>Discard &amp; reload</Button></DialogActions></Dialog>
-    <Dialog open={blocker.state === 'blocked'}><DialogTitle>{busy ? 'An operation is still running' : 'Leave this definition?'}</DialogTitle><DialogContent>{busy ? 'Wait for its result before leaving.' : 'Your unsaved edits will be discarded. Saved versions and installed Brains are unchanged.'}</DialogContent><DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button><Button color="warning" disabled={busy} onClick={() => { leaving.current = true; if (blocker.state === 'blocked') blocker.proceed() }}>Discard &amp; leave</Button></DialogActions></Dialog>
-  </>
+    <Dialog open={blocker.state === 'blocked'}><DialogTitle>{busy || assistantBusy ? 'An operation is still running' : 'Leave this definition?'}</DialogTitle><DialogContent>{busy || assistantBusy ? 'Wait for its result before leaving.' : 'Your unsaved edits will be discarded. Saved versions and installed Brains are unchanged.'}</DialogContent><DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button><Button color="warning" disabled={busy || assistantBusy} onClick={() => { leaving.current = true; if (blocker.state === 'blocked') blocker.proceed() }}>Discard &amp; leave</Button></DialogActions></Dialog>
+  </AssistantWorkspace>
 }

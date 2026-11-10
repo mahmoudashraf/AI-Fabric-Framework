@@ -1,0 +1,70 @@
+# Explicit opt-in shared inference service. JDBC is internal runtime/accounting state only.
+spring:
+  application:
+    name: ai-fabric-configuration-authoring
+  config:
+    import: ""
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./data/configuration-authoring-state;DB_CLOSE_ON_EXIT=FALSE}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+
+ai:
+  chat:
+    enabled: false
+    control:
+      enabled: false
+  service:
+    features:
+      enable-generation: true
+      enable-embeddings: false
+      enable-search: false
+      enable-rag: false
+  providers:
+    enable-fallback: false
+    generation-fallback-providers: []
+    embedding-fallback-providers: []
+    openai:
+      model: ${OPENAI_MODEL:gpt-5.4-mini}
+      max-tokens: ${LOOMAI_AUTHORING_MAX_OUTPUT_TOKENS:4096}
+      timeout: ${LOOMAI_AUTHORING_PROVIDER_TIMEOUT_SECONDS:40}
+  vector-db:
+    type: none
+  data-sync:
+    enabled: false
+  indexing:
+    enabled: false
+    documents:
+      enabled: false
+  infrastructure:
+    rag:
+      advanced:
+        enabled: false
+  execution:
+    enabled: false
+    manifests:
+      enabled: false
+  retrieval:
+    connector:
+      enabled: false
+
+loomai:
+  provider-budget:
+    enabled: true
+    rate-card-reference: ${LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE:openai-gpt4omini-gpt54mini-embedding3small-20261024-v2}
+    output-cap-mode: MAX_COMPLETION_TOKENS
+  conversation-control:
+    enabled: false
+  conversation-handover:
+    enabled: false
+  documents:
+    enabled: false
+  smart-brain:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

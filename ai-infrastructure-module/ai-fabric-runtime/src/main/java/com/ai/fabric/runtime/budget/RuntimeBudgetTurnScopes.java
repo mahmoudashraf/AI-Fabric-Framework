@@ -59,6 +59,18 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         }
     }
 
+    /** Open on the inference worker itself; never borrow a customer-serving chat scope. */
+    public Turn openAuthoring(RuntimeResolvedIdentity verifiedIdentity) {
+        requireNoScope();
+        try {
+            return open(budgets.recordVerifiedAuthoringIngress(verifiedIdentity), null);
+        } catch (BudgetException denied) {
+            throw control(denied);
+        } catch (RuntimeBudgetBindingException denied) {
+            throw control(denied);
+        }
+    }
+
     /** Capture at model resolution, not inside an interceptor/SDK async callback on another thread. */
     @Override
     public OpenAiBudgetInvocation capture(OpenAiBudgetInvocation.Operation operation) {

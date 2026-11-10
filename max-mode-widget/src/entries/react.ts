@@ -8,6 +8,8 @@
 
 // Core widget component
 export { MaxModeWidget } from "./MaxModeWidget";
+export { ControlledConversation } from '../controlledConversation';
+export type { ControlledConversationMessage, ControlledConversationProps } from '../controlledConversation';
 
 // Provider (wraps the widget for context isolation)
 export { MaxModeProvider } from "@/context";

@@ -11,6 +11,7 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded'
 import {
   Alert,
@@ -75,6 +76,7 @@ import { EngageDomainInstructions } from '../components/customer/EngageDomainIns
 import { EngageDeploymentUpdatePanel } from '../components/customer/EngageDeploymentUpdatePanel'
 import { applyWorkspaceAppearance, readWorkspaceAppearance, workspaceAppearanceError, type WorkspaceAppearance } from './aiWorkspaceAppearance'
 import type { PreviewInteractionPolicy } from '../components/customer/buildWorkspacePreviewConfiguration'
+import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
 
 type FormState = {
   packCode: string
@@ -162,6 +164,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
   const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : initialCustomerId ?? '')
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
+  const [assistantBusy, setAssistantBusy] = useState(false), [assistantInitiallyOpen, setAssistantInitiallyOpen] = useState(false)
   const [form, setForm] = useState<FormState>(defaultForm)
   const [appearance, setAppearance] = useState<WorkspaceAppearance>(() => readWorkspaceAppearance({}, defaultForm.packCode))
   const [appearanceEdited, setAppearanceEdited] = useState(false)
@@ -584,7 +587,8 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
   }
 
   const operationError = saveMutation.error || activateMutation.error || disableMutation.error || deleteMutation.error
-  const appCommandPending = saveMutation.isPending || activateMutation.isPending || disableMutation.isPending || deleteMutation.isPending
+  const manualCommandPending = saveMutation.isPending || activateMutation.isPending || disableMutation.isPending || deleteMutation.isPending
+  const appCommandPending = manualCommandPending || assistantBusy
   const requestDestructive = (command: 'disable' | 'delete', installation: AIWorkspaceInstallationSummary) => {
     if (customerScopeLocked) setPendingDestructive({ command, installation, actorId: auth.session?.actorId })
     else if (command === 'disable') disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })
@@ -595,6 +599,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
     && item.status === pendingDestructive.installation.status)
   const pendingCurrent = Boolean(pendingInstallation && pendingDestructive?.actorId === auth.session?.actorId)
   const installationActions = (installation: AIWorkspaceInstallationSummary) => <>
+    <Tooltip title="Build with AI"><span><IconButton aria-label="Build app with AI" size="small" disabled={appCommandPending} onClick={() => { setAssistantInitiallyOpen(true); openEdit(installation) }}><AutoAwesomeOutlined /></IconButton></span></Tooltip>
     <Tooltip title="Edit"><span><IconButton aria-label="Edit app" size="small" disabled={appCommandPending || installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
     {installation.status === 'ACTIVE' ? (
       detailSection !== 'configuration' ? <Tooltip title="Disable"><span><IconButton aria-label="Disable app" size="small" disabled={appCommandPending} onClick={() => requestDestructive('disable', installation)}><PauseCircleOutlineRoundedIcon /></IconButton></span></Tooltip> : null
@@ -709,13 +714,24 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       <Dialog open={editing != null} onClose={appCommandPending ? undefined : () => setEditing(null)} maxWidth={false} fullWidth
         PaperProps={{ sx: { width: 'min(1440px, calc(100vw - 32px))', maxWidth: 'none', m: 2, height: 'calc(100dvh - 32px)' } }}>
         <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Appearance & preview'}</DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <AssistantWorkspace scope={editing && editing !== 'new' ? { resourceKind: 'ENGAGE_APP', resourceId: editing.installationId, task: 'ENGAGE' } : null}
+            initiallyOpen={assistantInitiallyOpen} editorBusy={manualCommandPending} onBusyChange={setAssistantBusy}
+            readOnlyReason={editingActive ? 'Active Engage apps can only be previewed.' : undefined}
+            onSaved={async () => {
+              if (!editing || editing === 'new') return
+              const result = await installationsQuery.refetch({ throwOnError: true })
+              const fresh = result.data?.find(item => item.installationId === editing.installationId)
+              if (!fresh) throw new Error('The saved app could not be reloaded.')
+              const tab = editorTab
+              openEdit(fresh); setEditorTab(tab); setSelected(fresh)
+            }}>
           <CustomerEditorNotices />
           <CustomerEditorDepthSwitch label="App configuration depth" />
           <Tabs value={editorTab} onChange={(_, value) => setEditorTab(value)} aria-label="Engage editor view" sx={{ display: { xs: 'flex', lg: 'none' }, mb: 2 }}>
             <Tab value="settings" label="Settings" /><Tab value="preview" label="Preview" />
           </Tabs>
-          <Box sx={{ display: { lg: 'grid' }, gridTemplateColumns: 'minmax(320px, 0.85fr) minmax(420px, 1.15fr)', gap: 3, alignItems: 'start' }}>
+          <Box sx={{ display: { lg: 'grid' }, gridTemplateColumns: 'minmax(0, 0.85fr) minmax(0, 1.15fr)', gap: 3, alignItems: 'start' }}>
           <Stack component="fieldset" disabled={appCommandPending} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0, display: { xs: editorTab === 'settings' ? 'flex' : 'none', lg: 'flex' } }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Workspace name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
@@ -908,6 +924,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
               ? <Alert severity="info" sx={{ mt: 1 }}>Private adapter responses are not invoked by this preview. Adapter-controlled history and support availability require a live integration check.</Alert> : null}
           </Box>
           </Box>
+          </AssistantWorkspace>
         </DialogContent>
         <DialogActions>
           {editingActive ? <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', px: 1 }}>Preview only. Your active app is unchanged.</Typography> : null}
@@ -938,7 +955,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{pendingDestructive?.command === 'delete' ? (pendingDestructive.installation.status === 'DRAFT' ? 'Delete draft app?' : 'Delete app?') : 'Disable app?'}</DialogTitle>
         <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? `This permanently removes this inactive app and its web addresses. It does not delete its ${deploymentTerm.lowercase}, documents or conversations.` : `This disables the selected app installation. It does not stop or delete its ${deploymentTerm.lowercase}.`}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
-        <DialogActions><Button onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={!pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
+        <DialogActions><Button disabled={assistantBusy} onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={assistantBusy || !pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
           if (!pendingCurrent || !pendingInstallation || !pendingDestructive) return
           if (pendingDestructive.command === 'delete') deleteMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })
           else disableMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })

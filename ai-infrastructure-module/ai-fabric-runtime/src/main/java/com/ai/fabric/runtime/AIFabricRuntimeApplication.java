@@ -1,22 +1,13 @@
 package com.ai.fabric.runtime;
 
-import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigProperties;
-import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigProperties;
-import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigProperties;
-import com.ai.fabric.runtime.documents.DocumentKnowledgeProperties;
+import com.ai.fabric.runtime.boot.ServingRuntimeConfiguration;
+import com.ai.fabric.runtime.authoring.boot.ConfigurationAuthoringBootConfiguration;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.context.annotation.Import;
 
-@SpringBootApplication
-@EnableScheduling
-@EnableConfigurationProperties({
-    RuntimeDeploymentPromptConfigProperties.class,
-    RuntimeDeploymentKnowledgeSourceConfigProperties.class,
-    RuntimeDeploymentShellConfigProperties.class,
-    DocumentKnowledgeProperties.class
-})
+@SpringBootConfiguration
+@Import({ServingRuntimeConfiguration.class, ConfigurationAuthoringBootConfiguration.class})
 public class AIFabricRuntimeApplication {
 
     public static void main(String[] args) {

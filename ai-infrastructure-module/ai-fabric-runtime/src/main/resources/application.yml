@@ -361,6 +361,10 @@ app:
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
 
 loomai:
+  authoring:
+    enabled: ${LOOMAI_AUTHORING_ENABLED:false}
+    deadline-ms: ${LOOMAI_AUTHORING_DEADLINE_MS:45000}
+    max-output-tokens: ${LOOMAI_AUTHORING_MAX_OUTPUT_TOKENS:4096}
   conversation-control:
     enabled: ${LOOMAI_CONVERSATION_CONTROL_ENABLED:${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}}
   conversation-handover:

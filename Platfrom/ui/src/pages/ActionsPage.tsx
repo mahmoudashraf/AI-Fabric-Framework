@@ -23,7 +23,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentWebhookOverview,
   fetchDeploymentDraft,
@@ -36,6 +36,8 @@ import {
 import { useBrainEditor } from '../brain/BrainWorkspaceContext'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
+import { ActionDefinitionEditor } from '../actions/ActionDefinitionEditor'
+import { cloneExactJson, isExactNumber, parseExactJson, stringifyExactJson } from '../lib/losslessJson'
 
 type ActionPreview = {
   name: string
@@ -75,11 +77,11 @@ type ActionWebhookPolicyPreview = {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && !isExactNumber(value)
 }
 
 function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value ?? null)) as T
+  return cloneExactJson(value ?? null) as T
 }
 
 function asArray(value: unknown): unknown[] {
@@ -361,10 +363,9 @@ function createRouteEditor(route: unknown): RouteEditorState {
     mode: readStringValue(routeRecord, 'url').trim().length > 0 ? 'url' : 'path',
     method: readStringValue(routeRecord, 'method', 'POST'),
     target: readStringValue(routeRecord, 'url') || readStringValue(routeRecord, 'path'),
-    queryJson: JSON.stringify(asRecord(request.query), null, 2),
-    bodyJson: JSON.stringify(
+    queryJson: stringifyExactJson(asRecord(request.query), 2),
+    bodyJson: stringifyExactJson(
       Object.prototype.hasOwnProperty.call(request, 'body') ? request.body : null,
-      null,
       2,
     ),
     successStatuses: readStatusValues(response).join(', '),
@@ -452,7 +453,6 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   const queryClient = useQueryClient()
   const [technicalView, setTechnicalView] = useState<string>(initialTechnicalView)
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
-  const bufferDirty = useRef(false)
   const [editorValue, setEditorValue] = useState('{\n  "actions": []\n}')
   const [parseError, setParseError] = useState<string | null>(null)
   const [routingConfig, setRoutingConfig] = useState<Record<string, unknown>>(normalizeRoutingConfig(null))
@@ -474,11 +474,10 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
     if (!draftQuery.data) {
       return
     }
-    if (workspaceMode && loadedDraft && bufferDirty.current) return
-
+    // Refreshed query data is the saved baseline, including assistant draft saves.
     setLoadedDraft(draftQuery.data)
 
-    setEditorValue(JSON.stringify(draftQuery.data.actionsConfig, null, 2))
+    setEditorValue(stringifyExactJson(draftQuery.data.actionsConfig, 2))
     setParseError(null)
 
     const nextRoutingConfig = normalizeRoutingConfig(draftQuery.data.routingConfig)
@@ -507,19 +506,19 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
 
   const actionPreview = useMemo(() => {
     try {
-      return extractActions(JSON.parse(editorValue))
+      return extractActions(parseExactJson(editorValue))
     } catch {
       return []
     }
   }, [editorValue])
 
   const invalidActionJson = useMemo(() => {
-    try { JSON.parse(editorValue); return false } catch { return true }
+    try { parseExactJson(editorValue); return false } catch { return true }
   }, [editorValue])
 
   const routingActionNames = useMemo(() => {
     try {
-      return actionNamesFromConfig(JSON.parse(editorValue))
+      return actionNamesFromConfig(parseExactJson(editorValue))
     } catch {
       return draftQuery.data ? actionNamesFromConfig(draftQuery.data.actionsConfig) : []
     }
@@ -527,7 +526,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
 
   const effectiveActionsConfig = useMemo(() => {
     try {
-      return JSON.parse(editorValue) as unknown
+      return parseExactJson(editorValue)
     } catch {
       return draftQuery.data?.actionsConfig ?? {}
     }
@@ -609,7 +608,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
   const savedActionsJson = useMemo(
-    () => ((workspaceMode ? loadedDraft : draftQuery.data) ? JSON.stringify((workspaceMode ? loadedDraft : draftQuery.data)?.actionsConfig, null, 2) : ''),
+    () => ((workspaceMode ? loadedDraft : draftQuery.data) ? stringifyExactJson((workspaceMode ? loadedDraft : draftQuery.data)?.actionsConfig, 2) : ''),
     [draftQuery.data, loadedDraft, workspaceMode],
   )
   const actionsDraftDirty = useMemo(
@@ -624,18 +623,17 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
       if (workspaceMode && loadedDraft) {
         const savedRouting = normalizeRoutingConfig(loadedDraft.routingConfig)
         const savedEditors = buildRouteEditors(routingActionNames, savedRouting, loadedDraft.actionsConfig)
-        return JSON.stringify(routingConfig) !== JSON.stringify(savedRouting)
-          || JSON.stringify(routeEditors) !== JSON.stringify(savedEditors)
+        return stringifyExactJson(routingConfig) !== stringifyExactJson(savedRouting)
+          || stringifyExactJson(routeEditors) !== stringifyExactJson(savedEditors)
       }
       const currentRouting = buildRoutingConfigForSave()
       const savedRouting = normalizeRoutingConfig((workspaceMode ? loadedDraft : draftQuery.data)?.routingConfig)
-      return JSON.stringify(currentRouting) !== JSON.stringify(savedRouting)
+      return stringifyExactJson(currentRouting) !== stringifyExactJson(savedRouting)
     } catch {
       return true
     }
   }, [draftQuery.data, loadedDraft, routeEditors, routingActionNames, routingConfig, workspaceMode])
   const draftDirty = actionsDraftDirty || routingDraftDirty
-  bufferDirty.current = draftDirty
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -693,7 +691,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
     }
 
     try {
-      const parsed = JSON.parse(editorValue) as unknown
+      const parsed = parseExactJson(editorValue)
       setParseError(null)
       saveMutation.mutate({
         draftId: draftQuery.data.id,
@@ -706,9 +704,9 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
 
   const handleToggleAnonymousAllowed = (actionName: string, anonymousAllowed: boolean) => {
     try {
-      const parsed = JSON.parse(editorValue) as unknown
+      const parsed = parseExactJson(editorValue)
       const updated = updateActionAnonymousAllowed(parsed, actionName, anonymousAllowed)
-      setEditorValue(JSON.stringify(updated, null, 2))
+      setEditorValue(stringifyExactJson(updated, 2))
       setParseError(null)
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Invalid JSON')
@@ -719,14 +717,14 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
     try {
       const baseConfig = (() => {
         try {
-          return JSON.parse(editorValue) as unknown
+          return parseExactJson(editorValue)
         } catch {
           return draftQuery.data?.actionsConfig ?? {}
         }
       })()
       const nextConfig = normalizeActionsConfigForEdit(baseConfig)
       mutator(nextConfig)
-      setEditorValue(JSON.stringify(nextConfig, null, 2))
+      setEditorValue(stringifyExactJson(nextConfig, 2))
       setParseError(null)
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Invalid webhook configuration')
@@ -920,12 +918,12 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
       }
 
       const request = asRecord(existingRoute.request)
-      const parsedQuery = editor.queryJson.trim().length === 0 ? {} : JSON.parse(editor.queryJson)
+      const parsedQuery = editor.queryJson.trim().length === 0 ? {} : parseExactJson(editor.queryJson)
       if (!isRecord(parsedQuery)) {
         throw new Error(`Route query for ${actionName} must be a JSON object.`)
       }
       request.query = parsedQuery
-      request.body = editor.bodyJson.trim().length === 0 ? null : JSON.parse(editor.bodyJson)
+      request.body = editor.bodyJson.trim().length === 0 ? null : parseExactJson(editor.bodyJson)
       existingRoute.request = request
 
       const response = asRecord(existingRoute.response)
@@ -976,9 +974,8 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   }
 
   const restoreDraft = (draft: DeploymentDraftResponse) => {
-    bufferDirty.current = false
     setLoadedDraft(draft)
-    setEditorValue(JSON.stringify(draft.actionsConfig, null, 2))
+    setEditorValue(stringifyExactJson(draft.actionsConfig, 2))
     const routing = normalizeRoutingConfig(draft.routingConfig)
     setRoutingConfig(routing)
     setRouteEditors(buildRouteEditors(actionNamesFromConfig(draft.actionsConfig), routing, draft.actionsConfig))
@@ -988,7 +985,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   const workspaceSave = useMutation({
     mutationFn: async () => {
       if (!canEdit || !loadedDraft) throw new Error('Editing this draft requires editor access.')
-      const actionsConfig: unknown = JSON.parse(editorValue)
+      const actionsConfig = parseExactJson(editorValue)
       const routingConfig = routingDraftDirty ? buildRoutingConfigForSave() : undefined
       const current = await fetchDeploymentDraft(selectedDeploymentId)
       if (current.id !== loadedDraft.id || current.revisionNumber !== loadedDraft.revisionNumber) {
@@ -1076,7 +1073,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
 
       {workspaceMode ? <>
         <TextField select size="small" label="Technical view" value={technicalView} onChange={(event) => setTechnicalView(event.target.value)}>
-          <MenuItem value="catalogue">Action JSON & anonymous access</MenuItem>
+          <MenuItem value="catalogue">Action definitions & access</MenuItem>
           <MenuItem value="routing">HTTP routes & connector</MenuItem>
           <MenuItem value="webhooks">Webhook targets & policies</MenuItem>
           <MenuItem value="deliveries">Live webhook deliveries</MenuItem>
@@ -1094,13 +1091,6 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
               <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                 <CardContent>
                   <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="h6">Raw actions config</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        The catalog remains editable as raw JSON so the full action contract stays visible.
-                      </Typography>
-                    </Box>
-
                     {draftQuery.isLoading ? (
                       <Typography color="text.secondary">Loading draft actions...</Typography>
                     ) : draftQuery.isError ? (
@@ -1111,6 +1101,15 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
                       </Alert>
                     ) : (
                       <>
+                        <ActionDefinitionEditor
+                          editorValue={editorValue}
+                          onChange={(value) => { setEditorValue(value); setParseError(null) }}
+                          disabled={!canEdit || workspaceSave.isPending || saveMutation.isPending || !draftQuery.data}
+                          initialActionName={actionName}
+                          routedActionNames={Object.keys(asRecord(routingConfig.actions))}
+                          onEditRoute={workspaceMode ? (name) => { setSelectedRouteActionName(name); setTechnicalView('routing') } : undefined}
+                        />
+                        <ConfigurationDetails label="Advanced catalogue JSON">
                         <TextField
                           multiline
                           minRows={16}
@@ -1127,6 +1126,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
                             },
                           }}
                         />
+                        </ConfigurationDetails>
 
                         {parseError ? <Alert severity="error">{parseError}</Alert> : null}
                         {saveMutation.isError ? (
@@ -1153,7 +1153,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
                             variant="outlined"
                             onClick={() => {
                               if (draftQuery.data) {
-                                setEditorValue(JSON.stringify(draftQuery.data.actionsConfig, null, 2))
+                                setEditorValue(stringifyExactJson(draftQuery.data.actionsConfig, 2))
                                 setParseError(null)
                               }
                             }}

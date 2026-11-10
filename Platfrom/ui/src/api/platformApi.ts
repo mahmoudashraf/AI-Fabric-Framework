@@ -4959,7 +4959,7 @@ export function updateDeploymentGuardrails(deploymentId: string, payload: Update
 }
 
 export function fetchDeploymentDraft(deploymentId: string) {
-  return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`)
+  return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`, undefined, 'default', parseExactJson)
 }
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
@@ -7022,8 +7022,8 @@ export function validateDeploymentDraft(draftId: string) {
 export function updateDeploymentDraft(draftId: string, payload: UpdateDeploymentDraftRequest) {
   return request<DeploymentDraftResponse>(`/api/deployment-drafts/${draftId}`, {
     method: 'PUT',
-    body: JSON.stringify(payload),
-  })
+    body: stringifyExactJson(payload),
+  }, 'default', parseExactJson)
 }
 
 export function resetDeploymentToTemplate(deploymentId: string) {

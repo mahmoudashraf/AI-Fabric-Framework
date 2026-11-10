@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-class RuntimeJacksonCompatibilityConfiguration {
+public class RuntimeJacksonCompatibilityConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ObjectMapper.class)

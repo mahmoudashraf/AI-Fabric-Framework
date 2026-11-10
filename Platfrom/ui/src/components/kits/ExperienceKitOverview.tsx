@@ -27,6 +27,7 @@ import { brainPath } from '../../brain/brainNavigation'
 import { kitAppPresentation, kitDeploymentPath, kitDisplayName, kitEditorPath, kitExperienceErrors, kitFormFromSummary, kitLatestAttempt, kitReadinessText, kitRelease, kitUpdateRequest, safeKitExternalUrl } from './kitModels'
 import { deploymentTerm } from '../../deploymentTerminology'
 import { stagingOnly, environmentAllowed } from '../../developer/deploymentPolicy'
+import { KitAssistantGuide } from '../../assistant/KitAssistantGuide'
 
 export function ExperienceKitOverview({ customerId, id }: { customerId: string; id: string }) {
   const kit = useQuery({ queryKey: experienceKitKeys.detail(customerId, id), queryFn: ({ signal }) => fetchExperienceKit(id, signal), retry: false })
@@ -86,6 +87,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       <div className="ek-section-heading ek-overview-heading"><div><div className="ek-title-status"><h1>{kit.name}</h1><span className={`ek-badge${allReady ? ' ek-badge-mint' : ' ek-badge-amber'}`}>{missingChannel ? 'Setup needed' : allActive ? 'Live' : allReady ? 'Ready to go live' : 'Not live yet'}</span></div>
         <p>{kitDisplayName(kit.kitCode)}</p></div>
         <div className="ek-overview-commands"><Tooltip title="Refresh kit status"><IconButton aria-label="Refresh kit" onClick={refreshAll} disabled={pending}><RefreshRounded /></IconButton></Tooltip>
+          {deployment && <KitAssistantGuide brainId={kit.deploymentId} targetProfileId={release?.targetProfileId ?? undefined} engageHref={primary ? kitEditorPath(kit, true) : undefined} />}
           {primary && kit.installationId && <Button component={Link} to={kitEditorPath(kit, true)} variant="outlined" startIcon={<OpenInNewRounded />}>Preview workspace</Button>}
         </div>
       </div>

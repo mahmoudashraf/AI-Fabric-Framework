@@ -40,6 +40,18 @@ management:
         include: health,info
 
 platform:
+  assistant:
+    enabled: ${PLATFORM_ASSISTANT_ENABLED:false}
+    document-fetch-enabled: ${PLATFORM_ASSISTANT_DOCUMENT_FETCH_ENABLED:false}
+    runtime-url: ${PLATFORM_ASSISTANT_RUNTIME_URL:}
+    encryption-key: ${PLATFORM_ASSISTANT_ENCRYPTION_KEY:}
+    api-key-secret-ref: ${PLATFORM_ASSISTANT_API_KEY_SECRET_REF:MANAGED_CONFIGURATION_ASSISTANT_API_KEY}
+    signing-key-secret-ref: ${PLATFORM_ASSISTANT_SIGNING_KEY_SECRET_REF:MANAGED_CONFIGURATION_ASSISTANT_SIGNING_KEY}
+    deployment-id: ${PLATFORM_ASSISTANT_DEPLOYMENT_ID:loomai-configuration-assistant}
+    customer-id: ${PLATFORM_ASSISTANT_CUSTOMER_ID:loomai-internal}
+    tenant-id: ${PLATFORM_ASSISTANT_TENANT_ID:loomai-platform}
+    issuer: ${PLATFORM_ASSISTANT_ISSUER:loomai-platform-authoring}
+    audience: ${PLATFORM_ASSISTANT_AUDIENCE:loomai-configuration-authoring}
   name: AI Enablement Platform
   stage: bootstrap
   current-phase: phase-21-public-provisioning-api

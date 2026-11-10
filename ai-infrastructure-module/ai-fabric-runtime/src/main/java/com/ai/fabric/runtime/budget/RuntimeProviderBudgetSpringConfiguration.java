@@ -113,6 +113,7 @@ public class RuntimeProviderBudgetSpringConfiguration {
     RuntimeBudgetHealthGroups runtimeBudgetHealthGroups() { return new RuntimeBudgetHealthGroups(); }
 
     @Bean
+    @ConditionalOnProperty(prefix = "ai.indexing", name = "enabled", havingValue = "true", matchIfMissing = true)
     RuntimeBudgetIndexingOperationExecutor runtimeBudgetIndexingOperationExecutor(AIEmbeddingService embeddings,
         VectorManagementService vectors, VectorDatabaseService vectorDatabase, ObjectProvider<AIIndexAnalysisHandler> analysis,
         ObjectMapper mapper, RuntimeBudgetTurnScopes turns) {

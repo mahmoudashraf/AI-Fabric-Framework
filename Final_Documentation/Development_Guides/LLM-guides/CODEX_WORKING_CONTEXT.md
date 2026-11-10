@@ -14092,3 +14092,85 @@ test is being called hosted acceptance. UI extraction remains last.
   under `~/.codex/private/loomai-suggestions-20261109/`; initial4dd receipts are
   separately archived. Full evidence and 010.63 status updated. Unrelated dirty
   `.gitignore` and longstanding untracked work remain untouched.
+
+### Configuration Assistant - 10 November 2026, Capability Investigation
+
+- Owner asked whether current runtime/framework cover the proposed assistant,
+  whether specialists are needed and whether several actions can be suggested.
+- Inspected Platform/runtime `171010aed53d305ba7643ea8b7d076eb1aeba641` and the
+  immutable framework 0.8.46 tag `218730e5...`, not the old dirty sibling HEAD.
+- No framework upgrade identified. Structured generation/history can propose
+  multiple action definitions in one envelope; registered compound business
+  action execution is separate. Specialists are optional, not a prerequisite.
+  The customer can still configure supported specialists/chains through an
+  eventual editor adapter. Fixed event plans reject interactive requests.
+- Added a reproducible Java21 offline probe: 17 checks pass against the local
+  runtime's 20 packaged 0.8.46 framework JARs, with explicit fixture provider
+  replies. This is not live inference, editor integration, empty-cache Central
+  verification or a new framework release gate.
+- Confirmed new authoring work: import/catalogue, private route/authority/usage,
+  full action form, typed proposal, preserved merging, candidate checks and
+  ordinary atomic Brain saves. Existing chat lacks a versioned authoring
+  envelope. The generic JSON helper accepts prose and only the first payload;
+  the adapter needs strict whole-response parsing. Imported docs must stay in
+  user messages because generation `context` maps to a system message.
+- All scoped scenarios S01-S27 and source evidence recorded in
+  `verification-support/configuration-assistant-01037/2026-11-10-framework-runtime-capability-assessment.md`;
+  010.37 sections14.5/15/18 and P3 updated. Assistant remains unimplemented.
+- No application/framework code, provider credentials, live deployment or
+  allowance changed. Unrelated `.gitignore` and other untracked work preserved.
+
+### Configuration Assistant - 10 November 2026, Draft-Write Owner Decision
+
+- Owner explicitly allows the assistant to change/save any editable draft within
+  the authorized task/resource scope, provided the user can review before
+  publication. This supersedes 010.37's earlier mandatory proposal acceptance
+  and manual Save on every turn. No new per-turn/staff approval gate.
+- Platform executes these changes through existing authorized save services;
+  the private inference runtime receives no mutation credentials. Return the
+  actual saved diff/receipt and let the user edit/undo before explicit publish.
+  Preview-only/explanation/import-only requests do not mutate drafts.
+- Preserve unrelated config and unsaved/newer manual edits. Keep simple atomic
+  version/conflict checks; they prevent lost work, not assistant draft authority.
+  Tests, indexing, publication, apply, business actions and assignment remain
+  separate. An active Engage app is not secretly disabled to make it editable.
+- Updated 010.37's authority, journey, flow diagrams, API/save contracts, phases
+  and acceptance criteria plus the assessment annotation. Documentation only;
+  no assistant implementation or live configuration change in this clarification.
+
+### Configuration Assistant - 10 November 2026, AI-First Editing Clarification
+
+- Latest owner direction supersedes the previous protection of manual values
+  against requested AI changes: the assistant may replace saved/unsaved manual
+  values within the requested authorized draft scope, without conflict approval.
+- Keep the flow simple: pause the selected editor's manual input while AI works,
+  save via existing resource services, show the saved result/diff, then let the
+  user refine manually. Preserve unrelated settings, not requested old values.
+- No dual buffer-fingerprint gate, three-way conflict UI or universal new
+  optimistic-version contract across ordinary writers is a launch prerequisite.
+  Existing transactional saves and plugin/app revision checks still apply;
+  ownership/secret boundaries and cancelled/superseded-turn checks remain.
+- Publication/apply remain explicit user operations after review opportunity.
+  Updated 010.37 and annotated the capability assessment. Documentation only;
+  assistant implementation remains unstarted and live deployments unchanged.
+
+### Configuration Assistant - 10 November 2026, Implementation In Progress
+
+- Executing full 010.37 under the latest AI-first/direct-draft-save decision.
+  Uncommitted assistant work is intentional; unrelated `.gitignore` and old
+  untracked files are not part of this task.
+- Main owns `backend/assistant`, V240 migration/H2 mirror and integration.
+  Runtime private inference, document importer, action form and generic UI panel
+  are bounded parallel slices. Existing resource save APIs are reused; no new
+  action/plugin type or framework release.
+- Runtime local verification: 75 focused, then 719 full tests passed, no skips.
+  Structured action editor: 32 model tests and six browser scenario groups pass.
+  Main Platform lifecycle fixtures pass; patch tests rerunning after correcting
+  one case-sensitive expected error assertion.
+- Hard boundaries: exact resource/actor authority, credential-safe projections,
+  no late saves after cancellation, actual existing service checks. Requested
+  manual values may be replaced; unrelated config retained. No automatic
+  publish/apply/index/execute/assignment. Active Engage is preview-only.
+- Pending: dedicated service boot/provisioning, actual-provider quality,
+  complete UI integration/browser checks, hosted rollout/qualification and
+  guides. Do not claim P0-P6 complete or deployed. See canonical010.37 section13.

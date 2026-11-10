@@ -194,6 +194,11 @@ public final class RuntimeBudgetBindingService {
         return recordVerifiedInteractiveIngress(identity, "chat:suggestions");
     }
 
+    /** Dedicated authoring service calls consume the same nonrefundable interactive ceiling. */
+    public ChatReceipt recordVerifiedAuthoringIngress(RuntimeResolvedIdentity identity) {
+        return recordVerifiedInteractiveIngress(identity, "configuration:author");
+    }
+
     private ChatReceipt recordVerifiedInteractiveIngress(RuntimeResolvedIdentity identity, String requiredScope) {
         RuntimeAuthContext auth = requireVerifiedDeployment(identity);
         if (auth.getGrantedScopes() == null || !auth.getGrantedScopes().contains(requiredScope)) {

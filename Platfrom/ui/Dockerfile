@@ -27,6 +27,7 @@ COPY experience-packs/generic-workspace-experience/src /workspace/experience-pac
 COPY experience-packs/support-experience/src /workspace/experience-packs/support-experience/src
 COPY max-mode-widget/src/preview/configuration.ts /workspace/max-mode-widget/src/preview/configuration.ts
 COPY max-mode-widget/src/stylePresets.ts /workspace/max-mode-widget/src/stylePresets.ts
+COPY max-mode-widget/src/controlledConversation.tsx /workspace/max-mode-widget/src/controlledConversation.tsx
 COPY max-mode-widget/src/theme.ts /workspace/max-mode-widget/src/theme.ts
 COPY max-mode-widget/src/styleFonts.ts /workspace/max-mode-widget/src/styleFonts.ts
 COPY max-mode-widget/src/assets/fonts /workspace/max-mode-widget/src/assets/fonts

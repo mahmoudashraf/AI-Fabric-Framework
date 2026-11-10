@@ -86,6 +86,47 @@
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
+        <!-- Qualified against the official v2.1.48 parser/converter source; importer disables all I/O resolution. -->
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <version>2.1.48</version>
+            <exclusions>
+                <!-- Swagger 1.x conversion/JavaScript and its HttpClient 4 transport are outside this contract. -->
+                <exclusion>
+                    <groupId>io.swagger</groupId>
+                    <artifactId>swagger-compat-spec-parser</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- https://pdfbox.apache.org/download.html and /3.0/migration.html -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- Apache 5.6.5 GA uses Core 5.4.4; pin Core too, ahead of Boot 3.2's older managed version. -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.6.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <version>5.4.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5-h2</artifactId>
+            <version>5.4.4</version>
+        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>

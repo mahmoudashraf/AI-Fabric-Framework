@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Avatar, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, Drawer, IconButton, Link, List, ListItemButton, ListItemIcon,
   ListItemText, Stack, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
@@ -34,6 +34,9 @@ import { deploymentTerm } from '../deploymentTerminology'
 import { accountPath } from '../account/accountNavigation'
 import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
+import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
+import { brainAssistantScope } from '../assistant/scope'
+import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpecialistAssistance'
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
   responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
@@ -52,11 +55,14 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const location = useLocation()
   const navigate = useNavigate()
   const workspace = useDeploymentWorkspace()
+  const queryClient = useQueryClient()
+  const mutations = useIsMutating()
   const theme = useTheme()
   const compact = useMediaQuery(theme.breakpoints.down('md'))
   const color = useCustomerColorPreference()
   const [menuOpen, setMenuOpen] = useState(false)
   const [editor, setEditor] = useState<BrainEditorState | null>(null)
+  const [assistantBusy, setAssistantBusy] = useState(false)
   const footerRef = useRef<HTMLElement>(null)
   const [footerHeight, setFooterHeight] = useState(64)
   const registerEditor = useCallback((value: BrainEditorState | null) => setEditor(value), [])
@@ -81,9 +87,13 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const section = currentBrainSection(location.pathname)
   const sectionLabel = brainSections.find(item => item.path === section)?.label ?? 'Overview'
   const childLabel = section === 'advanced' ? brainAdvancedSections.find(item => item.path === location.pathname.split('/')[4])?.label
-    : section === 'knowledge' && location.pathname.split('/')[4] === 'search' ? 'Search settings' : null
+    : section === 'knowledge' && location.pathname.split('/')[4] === 'search' ? 'Search settings'
+      : section === 'human-support' && location.pathname.split('/')[4] === 'specialists' ? 'Specialists' : null
   const dirty = Boolean(editor?.dirty)
-  const busy = Boolean(editor?.busy)
+  const specialistRoute = location.pathname === `/smart-brains/${encodeURIComponent(brainId)}/human-support/specialists`
+  const manualBusy = Boolean(editor?.busy) || specialistRoute && mutations > 0
+  const busy = manualBusy || assistantBusy
+  const assistantScope = valid ? brainAssistantScope(location.pathname, location.search, brainId) : null
   const editingRelease = useRef<{ scope: string; release: typeof candidateRelease } | null>(null)
   editingRelease.current = retainEditingRelease(editingRelease.current, `${brainId}:${targetProfileId}`, candidateRelease, dirty || busy)
   const release = editingRelease.current.release
@@ -201,6 +211,12 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
         <Drawer variant={compact ? 'temporary' : 'permanent'} open={!compact || menuOpen} onClose={() => setMenuOpen(false)}
           sx={{ width: compact ? 0 : 210, flexShrink: 0, '& .MuiDrawer-paper': { width: 210, position: compact ? 'fixed' : 'relative', height: '100%', bgcolor: 'background.paper', boxSizing: 'border-box' } }}>{nav}</Drawer>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <AssistantWorkspace scope={assistantScope} editorBusy={manualBusy} onBusyChange={setAssistantBusy}
+            guideOnly={assistantScope?.task === 'KIT' || section === 'action-reviews'}
+            readOnlyReason={workspace.workspace?.access.canEdit === false ? 'You do not have draft editing access.' : undefined}
+            onSaved={async () => { await queryClient.invalidateQueries({ predicate: query => query.queryKey.includes(brainId)
+              || query.queryKey[0] === 'customer-specialist-assistance' && query.queryKey[1] === JSON.stringify([session?.actorId, session?.customerId, session?.authenticationMode, brainId]) }, { throwOnError: true }) }}>
+          {({ revision }) => <>
           <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap" sx={{ px: { xs: 2, md: 3 }, py: 1.5, minHeight: 64, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
             <BrainEnvironmentSwitch profiles={options} releases={releases.data ?? []} versions={versions.data ?? []}
               selectedId={requestedTarget} loading={profiles.isPending || releases.isPending} unavailable={profiles.isError || releases.isError}
@@ -210,10 +226,15 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
             {!customer && <Typography sx={{ ml: 'auto', fontSize: 11, color: 'text.secondary' }}>{brain?.binding?.customerName ? `Assisting ${brain.binding.customerName}` : 'Staff access'}</Typography>}
           </Stack>
           <Box component="main" id="brain-main" sx={{ flex: 1, minHeight: 0, overflow: { md: 'hidden' }, display: 'flex', flexDirection: 'column', p: { xs: 2, md: 3 } }}>
+            {['human-support', 'action-reviews'].includes(section) && <Stack component="nav" aria-label="Human support tasks" direction="row" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
+              <Button component={RouterLink} to={href('human-support')} aria-current={section === 'human-support' && !specialistRoute ? 'page' : undefined}>Handover</Button>
+              <Button component={RouterLink} to={href('action-reviews')} aria-current={section === 'action-reviews' ? 'page' : undefined}>Action reviews</Button>
+              <Button component={RouterLink} to={href('human-support/specialists')} aria-current={specialistRoute ? 'page' : undefined}>Specialists</Button>
+            </Stack>}
             {releaseHeld && <Alert severity="info" sx={{ mb: 2 }}>A newer release is available. Finish or discard your current task before switching its context. The header shows the latest applied state.</Alert>}
             {workspace.deploymentsLoading ? <CircularProgress size={26} aria-label={`Loading ${deploymentTerm.singular}`} /> : !valid ? <Alert severity="error">This {deploymentTerm.lowercase} is unavailable or you do not have access. <Link component={RouterLink} to="/deployments">Return to your {deploymentTerm.pluralLowercase}</Link></Alert> : <>
               {profiles.isError && <Alert severity="error">{profiles.error.message}</Alert>}
-              {requestedTarget && profiles.isSuccess && !targetProfile ? <Alert severity="error">The requested environment is not available. No alternative environment has been selected.</Alert> : requestedRelease && releases.isSuccess && !release ? <Alert severity="error">The requested release is not active in this environment. Choose a current environment before continuing.</Alert> : children}
+              {requestedTarget && profiles.isSuccess && !targetProfile ? <Alert severity="error">The requested environment is not available. No alternative environment has been selected.</Alert> : requestedRelease && releases.isSuccess && !release ? <Alert severity="error">The requested release is not active in this environment. Choose a current environment before continuing.</Alert> : <Fragment key={revision}>{specialistRoute ? <Box sx={{ overflow: 'auto' }}><Typography component="h1" fontSize={20} fontWeight={650} sx={{ mb: 2 }}>Specialists</Typography><CustomerSpecialistAssistance deploymentId={brainId} /></Box> : children}</Fragment>}
             </>}
           </Box>
           {valid && <Box component="footer" ref={footerRef} aria-label="Workspace actions" sx={{ borderTop: 1, borderColor: 'divider', flexShrink: 0, px: { xs: 2, md: 3 }, py: 1.5, bgcolor: 'background.paper' }}>
@@ -227,6 +248,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
               </Stack>
             </Stack>
           </Box>}
+          </>}
+          </AssistantWorkspace>
         </Box>
       </Box>
       {customer && <CustomerSupportAssistant bottomOffset={footerHeight} initiallyMinimized />}
