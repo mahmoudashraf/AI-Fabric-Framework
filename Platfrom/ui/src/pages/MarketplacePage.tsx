@@ -1,4 +1,6 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
+import { BrainSetupChecks } from '../brain/BrainSetupChecks'
+import { useBrainSetupChecks } from '../brain/setupChecks'
 import { ConfigurationSurface } from '../components/ConfigurationSurface'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
@@ -212,6 +214,8 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
   brainId: string; detail: MarketplacePluginDetailSummary; install: DeploymentMarketplaceInstallSummary | null; canEdit: boolean; requestedVersion?: string
 }) {
   const client = useQueryClient()
+  const setupChecks = useBrainSetupChecks(brainId, { enabled: false })
+  const savedDraft = useQuery({ queryKey: ['deployment-draft', brainId], queryFn: () => fetchDeploymentDraft(brainId) })
   const brain = useOptionalBrainWorkspace()
   const [step, setStep] = useState(0)
   const [checkedSteps, setCheckedSteps] = useState<number[]>([])
@@ -229,7 +233,13 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
   const [message, setMessage] = useState<string>()
   const selectedVersion = detail.versions.find((candidate) => candidate.version === version)
   const fields = selectedVersion?.installForm ?? []
-  const datasets = asRecord(asRecord(selectedVersion?.manifest).contributions).datasets
+  const contributions = asRecord(asRecord(selectedVersion?.manifest).contributions)
+  const datasets = contributions.datasets
+  const httpBacked = (Array.isArray(datasets) ? datasets : []).some(value => {
+    const connector = asRecord(asRecord(value).syncConnector)
+    return connector.type === 'HTTP_JSON' || connector.connectorType === 'HTTP_JSON'
+      || Boolean(connector.httpSource && typeof connector.httpSource === 'object' && !Array.isArray(connector.httpSource))
+  }) || (Array.isArray(contributions.actionRoutes) ? contributions.actionRoutes.length > 0 : Object.keys(asRecord(contributions.actionRoutes)).length > 0)
   const storageFields = new Set((Array.isArray(datasets) ? datasets : []).flatMap(value => {
     const connector = asRecord(asRecord(value).sourceConnector)
     return connector.connectorType === 'S3_COMPATIBLE_OBJECT_STORAGE' && typeof connector.bindingRefField === 'string' ? [connector.bindingRefField] : []
@@ -320,6 +330,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
       if (command === 'remove') adopt(null)
       setMessage('Draft updated; live configuration unchanged.')
       setRemoveOpen(false)
+      setupChecks.runAfterSave()
       await refresh()
     },
   })
@@ -335,6 +346,19 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     error: operation.error?.message,
   })
   const disabled = !canEdit || operation.isPending || !supported
+  const safeCheckField = !fields.some(field => field.id === 'setupCheckPath') ? <TextField fullWidth size="small"
+    label="Safe connection check path (optional)" placeholder="/health" value={readRecordString(config, 'setupCheckPath')}
+    disabled={disabled || rawConfig !== null}
+    onChange={event => {
+      setConfig(previous => {
+        const next = { ...previous }
+        if (event.target.value) next.setupCheckPath = event.target.value
+        else delete next.setupCheckPath
+        return next
+      })
+      setMessage(undefined)
+    }}
+    helperText="Optional read-only HTTPS GET path, for example /health. Uses the HTTP connection's existing credentials. Never executes actions or starts indexing; leave blank without a safe endpoint." /> : null
   const editField = (field: MarketplaceInstallField, value: string) => {
     if (field.type === 'number') setNumericInputs(current => ({ ...current, [field.id]: value }))
     let next
@@ -355,6 +379,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     {!supported ? <Alert severity="info">This plugin is managed in its owning technical workspace.</Alert> : null}
     {conflict ? <Alert severity="warning">This connection changed while you were editing. Discard to load its current settings.</Alert> : null}
     {operation.isError ? <Alert severity="error">{operation.error.message}</Alert> : null}
+    {(setupChecks.data || setupChecks.pending || setupChecks.runError) && <BrainSetupChecks checks={setupChecks} canCheck={canEdit} draftId={savedDraft.data?.id} revisionNumber={savedDraft.data?.revisionNumber} />}
     {sourceError ? <Alert severity="error">{sourceError}</Alert> : null}
     {step === 0 ? <><TextField select fullWidth size="small" required label="Plugin version" value={version} disabled={disabled} onChange={(event) => { setVersion(event.target.value); setMessage(undefined) }}>
       {!selectedVersion && version ? <MenuItem value={version}>{version} (unavailable)</MenuItem> : null}
@@ -392,18 +417,22 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
       </TextField>
     }) : null}
     {step < 2 && visibleFields.length === 0 && selectedVersion ? <Typography variant="body2" color="text.secondary">{step === 0 ? 'No connection inputs are declared for this version. Check its source settings in the next step.' : 'No additional source inputs are declared by this version.'}</Typography> : null}
+    {step === 0 && httpBacked ? safeCheckField : null}
     {step === 1 ? <Typography variant="body2" color="text.secondary">{detail.plugin.pluginType === 'DATA' ? 'Your source remains the source of truth. This Data connection does not grant write access or replace content approval.' : 'Access and confirmation requirements remain governed by the declared capability contract.'}</Typography> : null}
     {step === 2 ? <>
       <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'minmax(100px,.35fr) minmax(0,1fr)', gap: 1.5, '& dt': { color: 'text.secondary' }, '& dd': { m: 0, overflowWrap: 'anywhere' } }}>
         <Typography component="dt" variant="body2">Plugin</Typography><Typography component="dd" variant="body2">{detail.plugin.displayName} / {version}</Typography>
         <Typography component="dt" variant="body2">Saved to</Typography><Typography component="dd" variant="body2">Shared Brain draft</Typography>
+        {readRecordString(reviewConfig, 'setupCheckPath') && !fields.some(field => field.id === 'setupCheckPath') ? <>
+          <Typography component="dt" variant="body2">Safe check path</Typography><Typography component="dd" variant="body2">{readRecordString(reviewConfig, 'setupCheckPath')}</Typography>
+        </> : null}
         {fields.map(field => {
           const value = numericInputs[field.id] ?? readInstallFieldValue(field, reviewConfig, reviewRefs)
           return <Box key={field.id} sx={{ display: 'contents' }}><Typography component="dt" variant="body2">{field.label} <Box component="span" sx={{ fontSize: 12 }}>({field.required ? 'required' : 'optional'})</Box></Typography><Typography component="dd" variant="body2">{field.type === 'boolean' && value ? value === 'true' ? 'Yes' : 'No' : value || 'Not provided'}</Typography></Box>
         })}
       </Box>
       {install && version !== baseline.version ? <Alert severity="warning">Definition version changes from {baseline.version} to {version}. Existing input values are retained; check the new version's requirements before saving.</Alert> : null}
-      <Alert severity="info">Saving checks the declared configuration and recompiles the draft. It does not test the provider, start indexing, or update a live environment.</Alert>
+      <Alert severity="info">Saving recompiles the draft and starts safe checks for changed connections where supported. Untested services are shown explicitly. It does not run AI inference, execute actions, start indexing, or update a live environment.</Alert>
       {message && brain ? <Button component={RouterLink} to={brain.href('updates')} sx={{ alignSelf: 'flex-start' }}>Review Brain changes</Button> : null}
     </> : null}
     {visibleIssues.length ? <Alert severity="warning"><Typography variant="body2">Complete {visibleIssues.length === 1 ? 'this input' : 'these inputs'} before {step === 2 ? 'saving' : 'continuing'}:</Typography>
@@ -420,6 +449,7 @@ function CapabilityInstallForm({ brainId, detail, install, canEdit, requestedVer
     <Accordion disableGutters sx={{ background: 'none', boxShadow: 'none', borderTop: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ px: 0 }}><Typography variant="subtitle2">Technical connection settings</Typography></AccordionSummary>
       <AccordionDetails sx={{ px: 0 }}><Stack spacing={2}>
+        {!httpBacked && storageFields.size === 0 ? safeCheckField : null}
         <TextField label="Plugin configuration JSON" multiline minRows={5} maxRows={12} value={rawConfig ?? prettifyJson(config)} disabled={disabled}
           onChange={(event) => { setRawConfig(event.target.value); setNumericInputs({}); setMessage(undefined) }} InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }} />
         <TextField label="Secret references JSON" multiline minRows={3} maxRows={8} value={rawRefs ?? prettifyJson(refs)} disabled={disabled}

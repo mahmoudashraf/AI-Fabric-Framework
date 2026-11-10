@@ -11,9 +11,13 @@ const cacheDir = await mkdtemp(join(tmpdir(), 'brain-capabilities-vite-'))
 const screenshots = await mkdtemp(join(tmpdir(), 'brain-capabilities-screenshots-'))
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false, server: { host: '127.0.0.1', port: 0, hmr: false },
   plugins: [{ name: 'brain-capabilities-fixture', enforce: 'pre',
-    resolveId(id) { if (id === '/__capabilities-entry.jsx') return '\0capabilities-entry.jsx' },
+    resolveId(id) {
+      if (id === '/__capabilities-entry.jsx') return '\0capabilities-entry.jsx'
+      if (id.endsWith('/auth/PlatformAuthProvider')) return '\0capabilities-auth.js'
+    },
     transform(code, id) { if (id === '\0capabilities-entry.jsx') return transformWithEsbuild(code, 'capabilities-entry.jsx', { loader: 'jsx', jsx: 'automatic' }) },
     load(id) {
+      if (id === '\0capabilities-auth.js') return `export const usePlatformAuth = () => ({session:{actorId:'fixture',customerId:'fixture-customer',role:'CUSTOMER_ADMIN'}})`
       if (id !== '\0capabilities-entry.jsx') return
       return `import React, { useCallback, useState } from 'react'; import { createRoot } from 'react-dom/client';
         import { BrowserRouter, Routes, Route, useLocation, useParams } from 'react-router-dom';
@@ -96,6 +100,8 @@ async function run(name, callback, options = {}) {
     if (path === '/api/deployments/brain-a/workspace') return send({ deployment: { name: 'Service AI', runtimeBaseUrl: options.runtime ? 'https://runtime.example.test' : null }, access: { canEdit: !options.readonly, canOperate: !options.readonly }, template: { name: 'Support' } })
     if (path === '/api/deployments/brain-a/document-storage-bindings') return send(options.storageBindings ?? [])
     if (path === '/api/deployments/brain-a/draft') return send(state)
+    if (path === '/api/deployments/brain-a/setup-checks') return send({ deploymentId: 'brain-a', draftId: state.id,
+      revisionNumber: state.revisionNumber, checkedAt: null, services: [], verifiedCount: 0, failedCount: 0, notTestedCount: 0 })
     if (path === '/api/deployments/brain-a/webhooks/overview') return send({ counts: { FAILED: 1 }, retryEligibleCount: 1, recentDeliveries: [{ id: 'delivery-a', eventType: 'request.created', actionName: 'open_ticket', targetRef: 'receipt', status: 'FAILED', attemptCount: 1, maxAttempts: 3, retryEligible: true }] })
     if (path === '/api/deployments/brain-a/webhooks/deliveries/delivery-a/retry') return send({ summaryMessage: 'Retry requested.' })
     if (path === '/api/deployment-drafts/draft-a' && method === 'PUT') {
@@ -135,6 +141,12 @@ async function run(name, callback, options = {}) {
 const technicalView = async (page, name) => {
   await page.getByRole('combobox', { name: 'Technical view' }).click()
   await page.getByRole('option', { name, exact: true }).click()
+}
+const actionJson = async page => {
+  const editor = page.getByRole('textbox', { name: 'Actions JSON configuration' })
+  if (!await editor.isVisible()) await page.getByRole('button', { name: 'Advanced catalogue JSON', exact: true }).click()
+  await editor.waitFor()
+  return editor
 }
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
 const reviewConnection = async page => page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '3 Review' }).click()
@@ -235,11 +247,12 @@ try {
     await page.getByRole('heading', { name: 'Review', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Add to Brain draft', exact: true }).click()
     await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).first().waitFor()
-    const mutations = requests.filter(request => request.method !== 'GET')
+    const mutations = requests.filter(request => request.method !== 'GET' && !request.path.endsWith('/setup-checks'))
     assert.equal(mutations.length, 1)
     assert.equal(mutations[0].method, 'POST')
     assert.deepEqual(mutations[0].body.config, { endpoint: 'https://records.example.test', documentStorage: 'slot:document-storage', includeArchived: value === 'Yes' })
     assert.deepEqual(mutations[0].body.secretRefs, {})
+    assert.deepEqual(requests.filter(request => request.path.endsWith('/setup-checks') && request.method === 'POST').map(request => request.body), [{ mode: 'CHANGED' }])
   }, { path: setupPath, empty: true, installFields, manifest: storageManifest })
   await run('incomplete numeric input remains editable across review and is never silently replaced', async ({ page, requests }) => {
     await page.getByRole('textbox', { name: 'Service endpoint', exact: true }).fill('https://records.example.test')
@@ -281,7 +294,7 @@ try {
     await reviewConnection(page)
     await page.getByRole('button', { name: 'Add to Brain draft', exact: true }).click()
     await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).first().waitFor()
-    const mutations = requests.filter(request => request.method !== 'GET')
+    const mutations = requests.filter(request => request.method !== 'GET' && !request.path.endsWith('/setup-checks'))
     assert.equal(mutations.length, 1)
     assert.deepEqual(mutations[0].body.config.future, { retained: [1, 2] })
   }, { path: setupPath, empty: true })
@@ -338,7 +351,8 @@ try {
     await reviewConnection(page)
     await page.getByRole('button', { name: 'Add to Brain draft', exact: true }).click()
     await page.getByText('Draft updated; live configuration unchanged.', { exact: true }).first().waitFor()
-    assert.equal(requests.filter(item => item.method === 'POST').length, 1)
+    assert.equal(requests.filter(item => item.method === 'POST' && item.path.endsWith('/marketplace-installs')).length, 1)
+    assert.deepEqual(requests.filter(item => item.method === 'POST' && item.path.endsWith('/setup-checks')).map(item => item.body), [{ mode: 'CHANGED' }])
     assert.equal(requests.filter(item => item.path.startsWith('/api/deployment-drafts/') && item.method !== 'GET').length, 0)
     await page.getByRole('button', { name: 'Save connection', exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Save connection', exact: true }).isDisabled(), true)
@@ -360,8 +374,7 @@ try {
     assert.deepEqual(saved.secretRefs, { token: 'service-key', opaqueRef: 'preserve' })
   })
   await run('full technical action/anonymous/route/webhook edits save together without loss', async ({ page, requests, state }) => {
-    const editor = page.getByRole('textbox', { name: 'Actions JSON configuration' })
-    await editor.waitFor()
+    const editor = await actionJson(page)
     await page.getByTestId('editor-state').filter({ hasText: /^Shared draft$/ }).waitFor()
     const original = JSON.parse(await editor.inputValue()); original.futureRoot = { nested: ['retained'] }
     await editor.fill(JSON.stringify(original))
@@ -385,7 +398,7 @@ try {
     assert.equal(requests.filter(item => item.method === 'PUT').length, 1)
   }, { path: 'capabilities/actions' })
   await run('stale draft revision retains the local buffer and does not write', async ({ page, requests, conflict }) => {
-    const editor = page.getByRole('textbox', { name: 'Actions JSON configuration' }); await editor.waitFor()
+    const editor = await actionJson(page)
     const modified = JSON.parse(await editor.inputValue()); modified.custom = 'retained'
     await editor.fill(JSON.stringify(modified)); conflict()
     await page.getByRole('button', { name: 'Save draft', exact: true }).click()
@@ -403,8 +416,9 @@ try {
     assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
   }, { readonly: true })
   await run('read-only technical editor retains navigation but disables all configuration inputs', async ({ page }) => {
-    await page.getByRole('textbox', { name: 'Actions JSON configuration' }).waitFor()
-    assert.equal(await page.getByRole('textbox', { name: 'Actions JSON configuration' }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Advanced catalogue JSON', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Advanced catalogue JSON', exact: true }).isDisabled(), true)
+    assert.equal(await page.getByRole('textbox', { name: 'Actions JSON configuration', includeHidden: true }).isDisabled(), true)
     await technicalView(page, 'HTTP routes & connector')
     assert.equal(await page.getByRole('textbox', { name: 'Relative path', exact: true }).isDisabled(), true)
     await technicalView(page, 'Webhook targets & policies')
@@ -412,14 +426,14 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).count(), 0)
   }, { readonly: true, path: 'capabilities/actions' })
   await run('invalid action JSON is visible and blocks route edits without losing the buffer', async ({ page, requests }) => {
-    const editor = page.getByRole('textbox', { name: 'Actions JSON configuration' }); await editor.waitFor()
+    const editor = await actionJson(page)
     await editor.fill('{invalid JSON')
     await page.getByText(/Action JSON is invalid/).waitFor()
     await technicalView(page, 'HTTP routes & connector')
     assert.equal(await page.getByRole('textbox', { name: 'Relative path', exact: true }).isDisabled(), true)
     await page.getByRole('button', { name: 'Save draft', exact: true }).click()
     await page.getByRole('alert').filter({ hasText: /JSON/ }).last().waitFor()
-    await technicalView(page, 'Action JSON & anonymous access')
+    await technicalView(page, 'Action definitions & access')
     assert.equal(await editor.inputValue(), '{invalid JSON')
     assert.equal(requests.filter(item => item.method === 'PUT').length, 0)
   }, { path: 'capabilities/actions' })

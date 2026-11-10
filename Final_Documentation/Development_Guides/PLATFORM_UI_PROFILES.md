@@ -29,6 +29,15 @@ read back or sent to configuration assistance; only scoped references are used.
 Target-specific storage/vector bindings remain with their existing workflows.
 See `verification-support/customer-secrets/README.md`.
 
+Connection testing has one aggregate entry at Smart Brain -> Updates -> Check
+setup, combining existing draft validation with safe service checks. Saving a
+connection runs only changed/new checks and shows a compact shared summary;
+Details and Retry failed checks replace per-field/per-action test buttons. A
+safe GET path is optional connection metadata, not an AI business action.
+Never execute writes, paid inference or guessed health routes in these checks.
+Not tested must stay distinct from verified; saved-draft results are not live
+release verification. See `External_User_Guides/SMART_BRAIN_SETUP_CHECKS.md`.
+
 Knowledge's All sources / Documents / Live data tabs are filtered views, not
 parallel editors. Keep their source counts and empty-state wording specific;
 unknown or failed reads are not zero. Search settings uses four focused tasks

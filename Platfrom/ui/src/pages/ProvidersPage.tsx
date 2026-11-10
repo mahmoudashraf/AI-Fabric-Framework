@@ -1,4 +1,6 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
+import { BrainSetupChecks } from '../brain/BrainSetupChecks'
+import { useBrainSetupChecks } from '../brain/setupChecks'
 import { ConfigurationDetails, ConfigurationSurface } from '../components/ConfigurationSurface'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
@@ -1726,6 +1728,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   workspace: DeploymentWorkspaceSummary | null; configurationOnly: boolean; scoped?: boolean; view?: ProviderSettingsView; technicalSection?: ProviderTechnicalSection
 }) {
   const queryClient = useQueryClient()
+  const setupChecks = useBrainSetupChecks(selectedDeploymentId, { enabled: false })
   const brainWorkspace = useOptionalBrainWorkspace()
   const [formState, setFormState] = useState<ProviderFormState>(DEFAULT_PROVIDER_FORM_STATE)
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
@@ -1876,6 +1879,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
       setFormState(readProviderForm(data.providerConfig))
       queryClient.setQueryData(['deployment-draft', selectedDeploymentId], data)
       connectivityMutation.reset()
+      setupChecks.runAfterSave(data.deploymentId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation', variables.draftId] }),
@@ -1977,6 +1981,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
       '& > .MuiGrid-container > .MuiGrid-item': { p: 0 },
     } : undefined}>
       {!scoped ? <LegacyProviderEditorRegistration state={selectedDeploymentId ? editorState : null} /> : null}
+      {(setupChecks.data || setupChecks.pending || setupChecks.runError) && <BrainSetupChecks checks={setupChecks} canCheck={canEdit} draftId={loadedDraft?.id} revisionNumber={loadedDraft?.revisionNumber} />}
       {!scoped ? <Box>
         <Typography variant="h4">
           AI providers

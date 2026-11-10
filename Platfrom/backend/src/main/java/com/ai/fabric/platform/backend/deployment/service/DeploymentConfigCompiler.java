@@ -293,15 +293,10 @@ public class DeploymentConfigCompiler {
                                   JsonNode marketplaceDatasetNode,
                                   String deploymentId,
                                   String tenantId) {
-        ObjectNode root = routingNode != null && routingNode.isObject()
-            ? routingNode.deepCopy()
-            : objectMapper.createObjectNode();
+        ObjectNode root = resolveActionRouting(actionsNode, routingNode);
         ObjectNode connector = object(root, "connector");
         ObjectNode inboundAuth = object(connector, "inbound-auth");
         ObjectNode apiKey = object(inboundAuth, "api-key");
-        ObjectNode actions = object(root, "actions");
-
-        applyInlineActionRoutes(actionsNode, actions);
         applyHttpDataSources(root, marketplaceDatasetNode, deploymentId, tenantId);
         validateProviderActionRoutes(root);
 
@@ -312,6 +307,13 @@ public class DeploymentConfigCompiler {
             apiKey.put("header", ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER);
         }
         apiKey.put("value", connectorApiKeyEnabled ? "${CONNECTOR_API_KEY}" : "");
+        return root;
+    }
+
+    public ObjectNode resolveActionRouting(JsonNode actionsNode, JsonNode routingNode) {
+        ObjectNode root = routingNode != null && routingNode.isObject()
+                ? routingNode.deepCopy() : objectMapper.createObjectNode();
+        applyInlineActionRoutes(actionsNode, object(root, "actions"));
         return root;
     }
 

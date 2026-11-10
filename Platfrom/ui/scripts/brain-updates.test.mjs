@@ -61,6 +61,8 @@ const dependencies = {
   './BrainReleaseVersions': versionView,
   './brainChangePreview': previews,
   './BrainChangeComparison': previewView,
+  './BrainSetupChecks': { BrainSetupChecks: () => null },
+  './setupChecks': { useBrainSetupChecks: () => ({ data: undefined, pending: false, run: async () => {} }) },
   'react-router-dom': { useNavigate: () => () => {}, useLocation: () => ({ pathname: '/smart-brains/brain-1/updates', search: '?targetProfileId=target-1' }),
     Link: ({ to, children }) => React.createElement('a', { href: to }, children) },
   '@tanstack/react-query': {

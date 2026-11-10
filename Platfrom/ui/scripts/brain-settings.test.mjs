@@ -201,6 +201,8 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
     plugins: [{ name: 'brain-settings-fixtures', enforce: 'pre',
       resolveId(id, importer) {
         if (id === '/settings-harness.tsx') return '\0settings-harness.tsx'
+        if (id.endsWith('/auth/PlatformAuthProvider')) return '\0settings-auth.js'
+        if (id.endsWith('/api/setupChecksApi')) return '\0settings-checks.js'
         if (id.endsWith('/api/platformApi')) return '\0settings-api.js'
         if (id.endsWith('/components/DeploymentProviderOperationsPanel')) return '\0settings-operations.jsx'
         if (id.endsWith('/components/customer/CustomerExistingVectorBinding')) return '\0settings-vector.jsx'
@@ -208,6 +210,11 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
         if (id.endsWith('/workspace/useDeploymentWorkspaceEditorState')) return '\0settings-legacy.js'
       },
       load(id) {
+        if (id === '\0settings-auth.js') return `export const usePlatformAuth=()=>({session:{actorId:'fixture',customerId:'fixture-customer',role:'CUSTOMER_ADMIN'}})`
+        if (id === '\0settings-checks.js') return `
+          export const fetchDeploymentSetupChecks=async()=>({deploymentId:'brain/a & b',draftId:window.__settingsTest.draft.id,revisionNumber:window.__settingsTest.draft.revisionNumber,services:[],verifiedCount:0,failedCount:0,notTestedCount:0,checkedAt:null});
+          export const runDeploymentSetupChecks=fetchDeploymentSetupChecks;
+        `
         if (id === '\0settings-harness.tsx') return harness
         if (id === '\0settings-api.js') return apiModule
         if (id === '\0settings-operations.jsx') return 'export function DeploymentProviderOperationsPanel() { throw new Error("Staff-only operations rendered") }'

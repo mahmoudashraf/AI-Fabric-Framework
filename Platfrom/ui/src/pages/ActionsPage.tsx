@@ -34,6 +34,8 @@ import {
   type DeploymentWorkspaceSummary,
 } from '../api/platformApi'
 import { useBrainEditor } from '../brain/BrainWorkspaceContext'
+import { BrainSetupChecks } from '../brain/BrainSetupChecks'
+import { useBrainSetupChecks } from '../brain/setupChecks'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 import { ActionDefinitionEditor } from '../actions/ActionDefinitionEditor'
@@ -56,6 +58,7 @@ type RouteEditorState = {
   bodyJson: string
   successStatuses: string
   message: string
+  setupCheckPath: string
 }
 
 type WebhookTargetPreview = {
@@ -370,6 +373,7 @@ function createRouteEditor(route: unknown): RouteEditorState {
     ),
     successStatuses: readStatusValues(response).join(', '),
     message: readStringValue(response, 'message'),
+    setupCheckPath: readStringValue(routeRecord, 'setup-check-path'),
   }
 }
 
@@ -451,8 +455,10 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   selectedDeploymentId: string; workspace: DeploymentWorkspaceSummary | null; workspaceMode?: boolean; actionName?: string; initialTechnicalView?: ActionTechnicalView
 }) {
   const queryClient = useQueryClient()
+  const setupChecks = useBrainSetupChecks(selectedDeploymentId, { enabled: false })
   const [technicalView, setTechnicalView] = useState<string>(initialTechnicalView)
   const [loadedDraft, setLoadedDraft] = useState<DeploymentDraftResponse | null>(null)
+  const [conflictingDraft, setConflictingDraft] = useState<DeploymentDraftResponse | null>(null)
   const [editorValue, setEditorValue] = useState('{\n  "actions": []\n}')
   const [parseError, setParseError] = useState<string | null>(null)
   const [routingConfig, setRoutingConfig] = useState<Record<string, unknown>>(normalizeRoutingConfig(null))
@@ -476,6 +482,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
     }
     // Refreshed query data is the saved baseline, including assistant draft saves.
     setLoadedDraft(draftQuery.data)
+    setConflictingDraft(null)
 
     setEditorValue(stringifyExactJson(draftQuery.data.actionsConfig, 2))
     setParseError(null)
@@ -648,7 +655,8 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   const saveMutation = useMutation({
     mutationFn: ({ draftId, actionsConfig }: { draftId: string; actionsConfig: unknown }) =>
       updateDeploymentDraft(draftId, { actionsConfig }),
-    onSuccess: async () => {
+    onSuccess: async (draft) => {
+      setupChecks.runAfterSave(draft.deploymentId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
@@ -661,7 +669,8 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   const saveRoutingMutation = useMutation({
     mutationFn: ({ draftId, nextRoutingConfig }: { draftId: string; nextRoutingConfig: unknown }) =>
       updateDeploymentDraft(draftId, { routingConfig: nextRoutingConfig }),
-    onSuccess: async () => {
+    onSuccess: async (draft) => {
+      setupChecks.runAfterSave(draft.deploymentId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
@@ -908,6 +917,9 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
         ? resolvedRouteRecordForAction(nextRoutingConfig, effectiveActionsConfig, actionName)
         : routeRecordForAction(nextRoutingConfig, actionName))
       existingRoute.method = editor.method.trim() || 'POST'
+      if (editor.setupCheckPath.trim() || Object.prototype.hasOwnProperty.call(existingRoute, 'setup-check-path')) {
+        existingRoute['setup-check-path'] = editor.setupCheckPath.trim()
+      }
 
       if (editor.mode === 'url') {
         existingRoute.url = target
@@ -989,7 +1001,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
       const routingConfig = routingDraftDirty ? buildRoutingConfigForSave() : undefined
       const current = await fetchDeploymentDraft(selectedDeploymentId)
       if (current.id !== loadedDraft.id || current.revisionNumber !== loadedDraft.revisionNumber) {
-        queryClient.setQueryData(['deployment-draft', selectedDeploymentId], current)
+        setConflictingDraft(current)
         throw new Error('The saved draft changed. Your edits are retained; discard to reload the latest draft before retrying.')
       }
       return updateDeploymentDraft(loadedDraft.id, {
@@ -998,8 +1010,10 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
       })
     },
     onSuccess: async (draft) => {
+      setConflictingDraft(null)
       restoreDraft(draft)
       queryClient.setQueryData(['deployment-draft', selectedDeploymentId], draft)
+      setupChecks.runAfterSave(draft.deploymentId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
@@ -1013,7 +1027,12 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
     canSave: canEdit && draftDirty && Boolean(loadedDraft),
     save: canEdit ? () => workspaceSave.mutateAsync().then(() => undefined).catch(() => undefined) : undefined,
     discard: canEdit ? () => {
-      if (draftQuery.data) restoreDraft(draftQuery.data)
+      const current = conflictingDraft ?? draftQuery.data
+      if (current) {
+        restoreDraft(current)
+        if (conflictingDraft) queryClient.setQueryData(['deployment-draft', selectedDeploymentId], current)
+      }
+      setConflictingDraft(null)
       workspaceSave.reset()
     } : undefined,
     message: workspaceSave.isSuccess && !draftDirty ? 'Draft saved; live configuration unchanged.' : undefined,
@@ -1028,6 +1047,7 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
       '& .MuiTable-root': { minWidth: 0 },
     } : undefined}>
       {workspaceMode ? <BrainEditorRegistration state={brainEditor} /> : <LegacyEditorRegistration state={selectedDeploymentId ? editorState : null} />}
+      {(setupChecks.data || setupChecks.pending || setupChecks.runError) && <BrainSetupChecks checks={setupChecks} canCheck={canEdit} draftId={(loadedDraft ?? draftQuery.data)?.id} revisionNumber={(loadedDraft ?? draftQuery.data)?.revisionNumber} />}
       {!workspaceMode ? <Box>
         <Typography variant="h4">
           Actions & connections
@@ -1662,6 +1682,17 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
+                    <TextField fullWidth label="Safe connection check path (optional)" placeholder="/health"
+                      value={readStringValue(connectorUpstream, 'setup-check-path')}
+                      disabled={!canEdit || workspaceSave.isPending || saveRoutingMutation.isPending}
+                      onChange={(event) => updateRoutingConfig(next => {
+                        const upstream = ensureRecord(ensureRecord(next, 'connector'), 'upstream')
+                        if (event.target.value) upstream['setup-check-path'] = event.target.value
+                        else delete upstream['setup-check-path']
+                      })}
+                      helperText="Optional read-only HTTPS GET path, such as /health. Uses this connection's credentials; no action is executed. Leave blank if your API has no safe endpoint." />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
                     <TextField
                       select
                       fullWidth
@@ -1973,6 +2004,13 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
                               helperText="Comma-separated list. Leave empty for default 2xx handling."
                             />
                           </Grid>
+                          {selectedRouteEditor?.mode === 'url' && <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="Safe action connection check path (optional)" placeholder="/health"
+                              value={selectedRouteEditor.setupCheckPath}
+                              disabled={!canEdit || workspaceSave.isPending || saveRoutingMutation.isPending}
+                              onChange={event => updateSelectedRoute({ setupCheckPath: event.target.value })}
+                              helperText="Read-only HTTPS GET path on this route's service. Uses its configured authorization; never calls the action itself." />
+                          </Grid>}
                           <Grid item xs={12} md={6}>
                             <TextField
                               fullWidth

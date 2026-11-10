@@ -52,6 +52,8 @@ export async function fetchDeploymentTargetContext() { return {runtimeBaseUrl:'h
 export async function fetchDeploymentVersionManifest(brain, version) { if (!state.manifests[version]) throw new Error('Manifest access unavailable'); return copy(state.manifests[version]) }
 export async function fetchCompatibleDeploymentSourceArtifacts() { return mode === 'no-source' ? [] : [{id:'image-1', imageTag:'runtime-reviewed', imageReference:'runtime@sha256:fixture'}] }
 export async function validateDeploymentDraft(id) { state.calls.push({type:'validate',id}); return {publishReady:true,errorCount:0,warningCount:1,issues:[{severity:'WARNING',message:'Example warning retained'}]} }
+export async function fetchDeploymentSetupChecks() { return {deploymentId:'brain-1',draftId:state.draft.id,revisionNumber:state.draft.revisionNumber,checkedAt:null,services:[],verifiedCount:0,failedCount:0,notTestedCount:0} }
+export async function runDeploymentSetupChecks(brain, mode) { state.calls.push({type:'setup-check',brain,mode}); return fetchDeploymentSetupChecks() }
 export async function publishDeploymentDraft(id) {
   state.calls.push({type:'publish',id});
   const version = {id:'version-13',deploymentId:'brain-1',versionLabel:'v13',status:'PUBLISHED',publishedAt:'2026-11-07T13:00:00Z',sourceCapabilityManifestRequired:true};
@@ -109,6 +111,8 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
     name: 'brain-updates-memory-only', enforce: 'pre',
     resolveId(id, importer) {
       if (id.startsWith('virtual:brain-updates-')) return `\0${id}`
+      if (importer?.endsWith('/setupChecks.ts') && id === '../auth/PlatformAuthProvider') return '\0virtual:brain-updates-auth'
+      if (importer?.endsWith('/setupChecks.ts') && id === '../api/setupChecksApi') return '\0virtual:brain-updates-fixture'
       if (!importer?.endsWith('/BrainUpdatesPage.tsx') && !importer?.endsWith('/SmartBrainShell.tsx')) return
       if (id === '../api/platformApi') return '\0virtual:brain-updates-fixture'
       if (id === '../auth/PlatformAuthProvider') return '\0virtual:brain-updates-auth'
@@ -280,9 +284,10 @@ try {
   assert.deepEqual(await calls(),[],'polling and displaying progress makes no mutations')
 
   await open()
-  await page.getByRole('button',{name:'Check draft',exact:true}).click()
+  await page.getByRole('button',{name:'Check setup',exact:true}).click()
   await page.getByText('WARNING: Example warning retained',{exact:true}).waitFor()
-  assert.deepEqual((await calls()).map(item=>item.type),['validate'])
+  assert.deepEqual((await calls()).map(item=>item.type),['validate','setup-check'])
+  assert.equal((await calls()).find(item=>item.type==='setup-check').mode,'ALL')
 
   await open()
   await publishToReview()
@@ -395,6 +400,10 @@ try {
   assert.deepEqual(await calls(),[])
   assert.deepEqual(errors,[])
   console.log(JSON.stringify({result:'PASS',scenarios:['no writes on mount/cancel','dark/light desktop/mobile','no overflow','secret-safe details','target history','publish/apply retry without republish','stable idempotency key','no compatible source','version-only publish','concurrent draft change','read-only permissions','pending release is not a success','explicit readiness check with warnings','concurrent target change','existing version apply without publication','historical inspection preserves publication','past verification is not current completion','all-version search and details','first deployment','read-only clickable before-after previews','action and source preview','collapsed technical details hide unknown values','preview light/mobile and scoped edit link','unknown baseline preview','first setup preview','ordinary production selection and promotion review retained','developer staging-only shell and update apply','developer production URL blocked without silent fallback','developer promotion panel does not mount'],screenshots:output},null,2))
+} catch (error) {
+  await page.screenshot({path: `${output}/failure.png`,fullPage:true}).catch(()=>{})
+  console.error({output,errors,body:(await page.locator('body').innerText()).slice(-5000)})
+  throw error
 } finally {
   await browser?.close()
   await server.close()

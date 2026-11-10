@@ -2,12 +2,19 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+import * as lossless from 'lossless-json'
+
+const jsonExports = {}
+const jsonSource = await readFile(new URL('../src/lib/losslessJson.ts', import.meta.url), 'utf8')
+new Function('require', 'exports', ts.transpileModule(jsonSource, { compilerOptions: {
+  target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS,
+} }).outputText)(() => lossless, jsonExports)
 
 async function load(path, extra = '') {
   const source = await readFile(new URL(path, import.meta.url), 'utf8')
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText
   const exports = {}
-  new Function('require', 'exports', `${compiled}\n${extra}`)(() => ({}), exports)
+  new Function('require', 'exports', `${compiled}\n${extra}`)(id => id === '../lib/losslessJson' ? jsonExports : {}, exports)
   return exports
 }
 const page = await load('../src/brain/BrainCapabilitiesPage.tsx')

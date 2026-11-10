@@ -292,6 +292,7 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         config.put("providerBaseUrl", "${MANAGED_PROVIDER_BASE_URL}");
         config.put("providerHost", "${MANAGED_PROVIDER_HOST}");
         config.put("accountId", "${MANAGED_PROVIDER_ACCOUNT_ID}");
+        config.put("setupCheckPath", "/health");
         ObjectNode secretRefs = objectMapper.createObjectNode();
         secretRefs.put("providerKey", "MANAGED_PROVIDER_KEY");
         secretRefs.put("providerSecret", "MANAGED_PROVIDER_SECRET");
@@ -299,6 +300,7 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         ObjectNode resolved = compilerService.resolveSyncConnector(dataset, config, secretRefs);
 
         JsonNode profile = resolved.path("connectionProfile");
+        assertThat(profile.path("setupCheckPath").asText()).isEqualTo("/health");
         assertThat(profile.path("baseUrl").asText()).isEqualTo("${MANAGED_PROVIDER_BASE_URL}");
         assertThat(profile.path("allowedHosts").path(0).asText()).isEqualTo("${MANAGED_PROVIDER_HOST}");
         assertThat(profile.path("auth").path("tokenBaseUrl").asText())

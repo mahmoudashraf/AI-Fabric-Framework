@@ -42,6 +42,8 @@ import { environmentLabel, releaseInProgress, targetReleaseState } from './brain
 import { buildChangePreview, configurationFieldChanges, previewHeadline, sectionPreviewBaseline, type PreviewBaseline } from './brainChangePreview'
 import { BrainChangeComparison } from './BrainChangeComparison'
 import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
+import { BrainSetupChecks } from './BrainSetupChecks'
+import { useBrainSetupChecks } from './setupChecks'
 
 const sections = [
   ['actionsConfig', 'AI capabilities', 'actions'],
@@ -234,6 +236,7 @@ function UpdatesWorkspace() {
   const operationRunning = useRef(false)
 
   const draft = useQuery({ queryKey: ['deployment-draft', brainId], queryFn: () => fetchDeploymentDraft(brainId), enabled: Boolean(brainId) })
+  const setupChecks = useBrainSetupChecks(brainId, { enabled: view === 'review' })
   const diff = useQuery({ queryKey: ['deployment-config-diff-center', brainId], queryFn: () => fetchDeploymentConfigDiffCenter(brainId), enabled: Boolean(brainId) })
   const catalogue = useQuery({ queryKey: ['deployment-ai-behaviour-profiles'], queryFn: fetchDeploymentAiBehaviourProfiles })
   const versions = useQuery({ queryKey: ['deployment-versions', brainId], queryFn: () => fetchDeploymentVersions(brainId), enabled: Boolean(brainId) })
@@ -473,11 +476,16 @@ function UpdatesWorkspace() {
             <Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
               <Typography component="h2" fontSize={17} fontWeight={650}>Before publishing</Typography>
               <Stack direction="row" gap={1} alignItems="center"><InfoOutlined fontSize="small" color={validationCurrent && validate.data.publishReady ? 'success' : 'action'} />
-                <Typography variant="body2" sx={{ flex: 1 }}>{validationCurrent ? `${validate.data.publishReady ? 'Ready to publish' : 'Needs attention'} · ${validate.data.warningCount} warnings` : `Not checked for draft r${draft.data?.revisionNumber ?? '—'}`}</Typography>
-                {canEdit && <Button size="small" variant="outlined" disabled={!draft.data || busy || validate.isPending} onClick={() => { validatedStamp.current = draftStamp(draft.data); validate.mutate() }}>Check draft</Button>}
+                <Typography variant="body2" sx={{ flex: 1 }}>{validationCurrent ? `${validate.data.publishReady ? 'Configuration valid' : 'Configuration needs attention'} · ${validate.data.warningCount} warnings` : `Not checked for draft r${draft.data?.revisionNumber ?? '—'}`}</Typography>
+                {canEdit && <Button size="small" variant="outlined" startIcon={<CheckCircleOutlineRounded />} disabled={!draft.data || busy || validate.isPending || setupChecks.pending} onClick={() => {
+                  validatedStamp.current = draftStamp(draft.data)
+                  validate.mutate()
+                  void setupChecks.run('ALL').catch(() => undefined)
+                }}>{validate.isPending || setupChecks.pending ? 'Checking setup...' : 'Check setup'}</Button>}
               </Stack>
               {validate.isError && <Alert severity="error">{errorMessage(validate.error)}</Alert>}
               {validationCurrent && validate.data.issues.length > 0 && <Box sx={{ maxHeight: 70, overflow: 'auto' }}>{validate.data.issues.map((item, index) => <Typography key={index} variant="caption" display="block">{item.severity}: {item.message}</Typography>)}</Box>}
+              <BrainSetupChecks checks={setupChecks} canCheck={canEdit} draftId={draft.data?.id} revisionNumber={draft.data?.revisionNumber} />
               <Typography variant="caption" color="text.secondary">Publishing saves the shared draft. {environment} stays unchanged until you apply a version.</Typography>
             </Stack>
           </Stack>

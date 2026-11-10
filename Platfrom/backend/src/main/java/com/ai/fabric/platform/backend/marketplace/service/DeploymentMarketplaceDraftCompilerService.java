@@ -1478,6 +1478,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                                   JsonNode installSecretRefs,
                                   String actionName) {
         ObjectNode route = ((ObjectNode) routeEntry).deepCopy();
+        String setupCheckPath = text(installConfig, "setupCheckPath");
+        if (StringUtils.hasText(setupCheckPath)) route.put("setup-check-path", setupCheckPath);
         String managedUrlField = text(route, "managedUrlField");
         if (StringUtils.hasText(managedUrlField)) {
             route.put("url", requiredManagedActionEnvironmentPlaceholder(installConfig, managedUrlField, actionName));
@@ -2480,6 +2482,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                                           JsonNode installSecretRefs) {
         ObjectNode profile = requireObject(connector, "connectionProfile", dataset.datasetId());
         resolveHttpConnectionProfile(profile, dataset.datasetId(), installConfig);
+        String setupCheckPath = text(installConfig, "setupCheckPath");
+        if (StringUtils.hasText(setupCheckPath)) profile.put("setupCheckPath", setupCheckPath);
         ObjectNode auth = requireObject(profile, "auth", dataset.datasetId());
         String tokenBaseUrlField = text(auth, "managedTokenBaseUrlField");
         if (StringUtils.hasText(tokenBaseUrlField)) {
