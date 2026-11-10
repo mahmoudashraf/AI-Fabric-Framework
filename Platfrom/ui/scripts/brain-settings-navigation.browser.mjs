@@ -60,11 +60,13 @@ const stubs = {
   './BrainActionReviewsPage': 'export const BrainActionReviewsPage=()=>null;',
 }
 const server = await createServer({ root, configFile: false, cacheDir: cache,
+  resolve: { dedupe: ['react', 'react-dom'] },
   plugins: [react(), {
     name: 'settings-navigation-memory-only', enforce: 'pre',
-    resolveId(id) {
+    resolveId(id, importer) {
       if (id.startsWith('virtual:settings-')) return '\0' + id
-      if (id === '../api/platformApi' || id === '../workspace/DeploymentWorkspaceContext') return '\0virtual:settings-fixture'
+      if (id === '../api/platformApi' && !importer?.includes('/src/assistant/') && !importer?.includes('/src/auth/')) return '\0virtual:settings-fixture'
+      if (id === '../workspace/DeploymentWorkspaceContext') return '\0virtual:settings-fixture'
       if (id in stubs) return '\0virtual:settings-stub:' + id
     },
     async load(id) {
@@ -83,7 +85,10 @@ try {
   await mkdir(output,{recursive:true});await server.listen();browser=await chromium.launch({headless:true})
   const page=await browser.newPage({viewport:{width:1280,height:720}});page.setDefaultTimeout(20000)
   const errors=[];page.on('pageerror',error=>errors.push(error.message))
-  await page.route('**/api/**',route=>{throw Error('Real API request forbidden: '+route.request().url())})
+  await page.route('**/api/**',route=>{
+    if (!new URL(route.request().url()).pathname.startsWith('/api/')) return route.continue()
+    throw Error('Real API request forbidden: '+route.request().url())
+  })
   const origin=server.resolvedUrls.local[0].replace(/\/$/,'')
   const url=section=>origin+'/smart-brains/brain/'+section+'?targetProfileId=exact-target&releaseId=exact-release'
   const nav=()=>page.getByRole('navigation',{name:'Smart Brain navigation'})
@@ -113,12 +118,17 @@ try {
   await page.getByLabel('Runtime profile',{exact:true}).waitFor()
   await nav().getByRole('link',{name:'Provider parameters',exact:true}).click()
   await page.getByLabel('OpenAI base URL',{exact:true}).fill('https://unsaved-provider.example.test')
+  await nav().getByRole('link',{name:'Recovery policy',exact:true}).click()
+  await page.getByLabel('Unknown or unavailable action',{exact:true}).waitFor()
+  await nav().getByRole('link',{name:'Provider parameters',exact:true}).click()
+  assert.equal(await page.getByLabel('OpenAI base URL',{exact:true}).inputValue(),'https://unsaved-provider.example.test','Round-trip through unsupported assistant routes retains the manual buffer')
   await nav().getByRole('link',{name:'Provider checks',exact:true}).click()
   await page.getByRole('button',{name:'Probe current edits',exact:true}).click()
   await page.waitForFunction(()=>window.fixture.calls.some(call=>call.type==='probe'))
   const probe=await page.evaluate(()=>window.fixture.calls.find(call=>call.type==='probe'))
   assert.equal(probe.payload.providerConfig.openaiBaseUrl,'https://unsaved-provider.example.test')
   assert.equal(await page.evaluate(()=>window.fixture.calls.filter(call=>call.type==='save').length),0,'Probing does not save')
+  await page.screenshot({path:path.join(output,'provider-checks-retained-edits-dark-1280.png')})
   await nav().getByRole('link',{name:'AI models',exact:true}).click()
   await page.getByRole('dialog',{name:'Leave unsaved changes?'}).waitFor()
   await page.getByRole('button',{name:'Keep editing',exact:true}).click()
@@ -190,4 +200,8 @@ try {
   assert.deepEqual(await page.evaluate(()=>window.fixture.calls),[])
   assert.deepEqual(errors,[])
   console.log('PASS: canonical routes/legacy redirects, every advanced child, exact target/release, raw-JSON navigation guard, save preservation, storage/search separation, single vector editor, action panels, pinned short-desktop navigation, light/dark/mobile and read-only access. Screenshots: '+output)
+} catch (error) {
+  console.error('FAIL: evidence=' + output)
+  for (const context of browser?.contexts() ?? []) for (const page of context.pages()) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{})
+  throw error
 } finally {await browser?.close();await server.close();await rm(cache,{recursive:true,force:true})}

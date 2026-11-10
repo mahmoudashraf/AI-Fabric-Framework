@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const cacheDir = await mkdtemp(join(tmpdir(), 'plugin-library-vite-'))
 const shots = fileURLToPath(new URL('../../../output/plugin-library-implementation/', import.meta.url))
 await mkdir(shots, { recursive: true })
-const server = await createServer({ root, cacheDir, configFile: false, envFile: false, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
+const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
   name: 'plugin-library-fixture', enforce: 'pre',
   resolveId(id) { if (id === '/__library.jsx') return '\0library.jsx' },
   transform(code, id) { if (id === '\0library.jsx') return transformWithEsbuild(code, 'library.jsx', { loader: 'jsx', jsx: 'automatic' }) },

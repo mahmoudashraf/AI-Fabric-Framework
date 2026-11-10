@@ -182,6 +182,22 @@ class AuthoringResourceServiceTest {
         assertThat(catalogue.path("actionContract").asText()).contains("READ_WRITE", "WRITE_ONLY");
     }
 
+    @Test void behaviorGuidanceUsesAnActualNormalizedExampleWithoutApplyingItsDefaults() throws Exception {
+        var draft = brainFixture();
+        var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "BEHAVIOUR");
+        var example = snapshot.catalogue().path("aiBehaviourConfigurationExample");
+        assertThat(example.path("schemaVersion").asText()).isEqualTo(DeploymentAiBehaviourProfiles.SCHEMA);
+        for (String group : List.of("tone", "answerBreadth", "answerLength", "nextSteps")) {
+            assertThat(example.path(group).path("presetId").isTextual()).isTrue();
+            assertThat(example.path(group).path("instructions").isTextual()).isTrue();
+            assertThat(example.path(group).path("revision").asInt()).isEqualTo(1);
+        }
+        var prompts = mapper.createObjectNode().set("aiBehaviour", example);
+        assertThatCode(() -> DeploymentAiBehaviourProfiles.normalize(prompts)).doesNotThrowAnyException();
+        assertThat(snapshot.configuration().path("promptConfig")).isEqualTo(draft.promptConfig());
+        verify(brains, never()).updateDraft(anyString(), any());
+    }
+
     @Test void catalogueNamesParameterVisibilityRatherThanInventingASourceField() throws Exception {
         brainFixture();
         var contract = resources.load("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS").catalogue().path("actionContract").asText();

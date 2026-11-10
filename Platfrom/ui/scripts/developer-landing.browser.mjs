@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const cacheDir = await mkdtemp(join(tmpdir(), 'developer-landing-vite-'))
 const shots = fileURLToPath(new URL('../../../output/developer-entry/', import.meta.url))
 await mkdir(shots, { recursive: true })
-const server = await createServer({ root, cacheDir, configFile: false, envFile: false, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
+const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
   name: 'developer-entry-fixture',
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!/^\/(?:developers\/?|sign-in|kits\/new\/[^?]+)?(?:\?|$)/.test(req.url)) return next()

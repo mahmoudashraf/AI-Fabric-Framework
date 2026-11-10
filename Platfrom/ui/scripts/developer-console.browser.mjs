@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const cacheDir = await mkdtemp(join(tmpdir(), 'developer-console-vite-'))
 const shots = fileURLToPath(new URL('../../../output/developer-entry/console/', import.meta.url))
 await mkdir(shots, { recursive: true })
-const server = await createServer({ root, cacheDir, configFile: false, envFile: false, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
+const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
   name: 'developer-console-fixture',
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!/^\/(?:developers|sign-in|home|kits(?:\/[^?]*)?|experiences(?:\/[^?]*)?|deployments)(?:\?|$)/.test(req.url) && req.url !== '/') return next()
@@ -115,6 +115,7 @@ try {
     assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
     await page.goto(base + '/experiences')
     await page.getByRole('heading', { name: 'Choose your AI experience', exact: true }).waitFor()
+    await page.locator('.ek-catalogue-card').first().waitFor()
     assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
     await page.getByRole('button', { name: 'Browse developer starters', exact: true }).click()
     await developerCards(page)
@@ -137,6 +138,7 @@ try {
     assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
     await page.goto(base + '/')
     await page.getByRole('heading', { name: 'Choose your AI experience', exact: true }).waitFor()
+    await page.locator('.ek-catalogue-card').first().waitFor()
     assert.equal(await page.locator('.ek-catalogue-card').count(), 3)
   })
   await run('signed-out Console discovery respects the shared developer entry but not another account', async (page, setIdentity) => {

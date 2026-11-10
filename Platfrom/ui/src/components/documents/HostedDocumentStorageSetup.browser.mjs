@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL('../../..', import.meta.url))
 const cacheDir = await mkdtemp(join(tmpdir(), 'hosted-document-storage-vite-'))
 const screenshots = await mkdtemp(join(tmpdir(), 'hosted-document-storage-screenshots-'))
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false,
+  resolve: { dedupe: ['react', 'react-dom'] },
   server: { host: '127.0.0.1', port: 0 },
   plugins: [{ name: 'hosted-document-storage-fixture', enforce: 'pre',
     resolveId(id) {

@@ -154,6 +154,52 @@ class ConfigurationAssistantIntegrationTest {
         assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
         verify(resources, never()).save(anyString(), anyString(), anyString(), any());
     }
+    @Test void validationFailureRetainsGeneratedProposalAndChargedRuntimeWithoutChangingTheSavedDraft() throws Exception {
+        assertGeneratedFailureRetained(false);
+    }
+    @Test void saveFailureRetainsGeneratedProposalAndChargedRuntimeWithoutClaimingItWasSaved() throws Exception {
+        assertGeneratedFailureRetained(true);
+    }
+    private void assertGeneratedFailureRetained(boolean failSave) throws Exception {
+        var generated = output("READY");
+        generated.putArray("questions").add("Which profile should this use?");
+        generated.putArray("assumptions").add("Keep existing unrelated behaviour settings.");
+        generated.putArray("sourceReferences").addObject().put("sourceId", "source-fixture").put("operationId", "wording");
+        generated.putObject("diagnostics").put("providerResponse", "HTTP_200").put("apiKey", "must-not-be-disclosed");
+        var runtimeReceipt = generated.putObject("runtime").put("requestId", "paid-generation")
+            .put("modelCalls", 1).put("accountingPath", "RUNTIME_PROVIDER_BUDGET").put("providerStatus", "SUCCESS");
+        runtimeReceipt.putObject("usage").put("promptTokens", 123).put("completionTokens", 57);
+        runtimeReceipt.putObject("accountingReceipt").put("newlyCounted", true).put("eventId", "charged-event");
+        when(runtime.generate(any())).thenReturn(generated);
+        String error = failSave ? "The draft could not be saved." : "AI behaviour tone requires a presetId and instructions string.";
+        var failure = new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, error);
+        if (failSave) when(resources.save(anyString(), anyString(), anyString(), any())).thenThrow(failure);
+        else when(resources.check(anyString(), anyString(), any(), any())).thenThrow(failure);
+        var before = configuration.get().deepCopy();
+        String id = create();
+        String key = failSave ? "save-failure" : "check-failure";
+        assistant.turn(id, request(false), key);
+        var state = await(id);
+        var turn = state.at("/turns/0");
+        assertThat(turn.path("status").asText()).isEqualTo("FAILED");
+        assertThat(turn.path("message").asText()).isEqualTo(error);
+        assertThat(turn.path("notice").asText()).contains("proposal was not saved", "unverified", "last saved draft is unchanged");
+        assertThat(turn.path("unverifiedModelMessage")).isEqualTo(generated.path("message"));
+        for (String field : List.of("changes", "questions", "assumptions", "sourceReferences", "runtime"))
+            assertThat(turn.path(field)).as(field).isEqualTo(generated.path(field));
+        assertThat(turn.at("/diagnostics/providerResponse").asText()).isEqualTo("HTTP_200");
+        assertThat(turn.at("/diagnostics/apiKey").asText()).isEqualTo("[REDACTED]");
+        assertThat(state.toString()).doesNotContain("must-not-be-disclosed");
+        assertThat(turn.has("receipt")).isFalse();
+        assertThat(turn.has("diff")).isFalse();
+        assertThat(configuration.get()).isEqualTo(before);
+        assertThat(state.path("status").asText()).isEqualTo("IDLE");
+        assertThat(assistant.get(id).at("/turns/0")).isEqualTo(turn);
+        verify(resources, times(failSave ? 1 : 0)).save(anyString(), anyString(), anyString(), any());
+        assistant.turn(id, request(false), key);
+        verify(runtime, times(1)).generate(any());
+        verify(resources, times(failSave ? 1 : 0)).save(anyString(), anyString(), anyString(), any());
+    }
     @Test void deletingSessionErasesSourcesAndDoesNotUndoSavedConfiguration() throws Exception {
         String id = create(); assistant.turn(id, request(false), "save-before-delete"); await(id); assistant.delete(id);
         assertThat(sessions.findById(id)).isEmpty();

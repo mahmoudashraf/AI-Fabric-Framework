@@ -104,6 +104,7 @@ const shellRouter = params.has('shell') ? createMemoryRouter([{path:'/smart-brai
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={queryClient}>{shellRouter?<RouterProvider router={shellRouter}/>:<MemoryRouter initialEntries={[initialRoute]}><Harness/></MemoryRouter>}</QueryClientProvider>);
 `
 const server = await createServer({ root, configFile: false, cacheDir: `${output}/vite-cache`,
+  resolve: { dedupe: ['react', 'react-dom'] },
   plugins: [react(), {
     name: 'brain-updates-memory-only', enforce: 'pre',
     resolveId(id, importer) {
@@ -149,7 +150,10 @@ try {
   const errors = []
   page.on('pageerror', error => { errors.push(error.message); console.error(error.message) })
   page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
-  await page.route('**/api/**', route => { throw new Error(`Real API request forbidden: ${route.request().url()}`) })
+  await page.route('**/api/**', route => {
+    if (!new URL(route.request().url()).pathname.startsWith('/api/')) return route.continue()
+    throw new Error(`Real API request forbidden: ${route.request().url()}`)
+  })
   const open = async (query = '', heading = 'Updates') => {
     await page.goto(`${url}${query}`)
     await page.getByRole('heading', {name:heading,exact:true}).waitFor()

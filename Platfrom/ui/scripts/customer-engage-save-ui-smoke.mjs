@@ -30,6 +30,7 @@ const report = { status: 'RUNNING', checks: [] }
 const collection = '/api/platform/customers/customer/ai-workspace-installations'
 let base, browser, page
 const server = await createServer({ configFile: false, envFile: false, esbuild: { jsx: 'automatic' },
+  resolve: { dedupe: ['react', 'react-dom'] },
   server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'engage-save-fixture', enforce: 'pre',
     resolveId(id) {
       if (id === '/engage-entry.jsx') return '\0engage-entry.jsx'
@@ -65,6 +66,9 @@ try {
     if (path === '/api/platform/auth/session') return state.accountDenied ? json({ message: 'Current customer account denied' }, 403)
       : json({ authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' })
     if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, connectionProfiles: [], experiencePacks: [], authenticationProfiles: [] })
+    if (path === '/api/platform/customers/customer/ai-workspaces/connections/chosen/preview-capabilities') return json({
+      runtimeConfigured: false, handover: { enabled: false, userCanCancelPending: false, userCanResumeAi: false },
+    })
     if (path === collection && method === 'GET') return json(state.apps)
     if (path === collection && method === 'POST') {
       if (state.saveDenied) return json({ message: 'Save blocked by current entitlement' }, 409)
@@ -77,8 +81,8 @@ try {
     return json({ message: 'Unhandled fixture request' }, 500)
   })
   await page.goto(base + 'engage-fixture')
-  await page.getByRole('button', { name: 'Create AI App', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create AI App', exact: true })
+  await page.getByRole('button', { name: 'Create Engage app', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create Engage app', exact: true })
   await dialog.getByLabel('Workspace name', { exact: true }).fill('My support workspace')
   await dialog.getByLabel('App slug', { exact: true }).fill('my-support')
   assert.equal(state.calls.filter(call => call.method === 'POST').length, 0)
@@ -105,7 +109,7 @@ try {
   }
   assert.equal(state.calls.some(call => /admission|production-apply|staging-releases/.test(call.path)), false)
   assert.equal(state.calls.some(call => /placement-evidence|\/probe(?:\/|$)/.test(call.path)), false)
-  await page.getByRole('button', { name: 'Create AI App', exact: true }).click()
+  await page.getByRole('button', { name: 'Create Engage app', exact: true }).click()
   assert.equal(await dialog.getByRole('alert').filter({ hasText: 'Save blocked' }).count(), 0)
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   assert.deepEqual(state.errors, [])

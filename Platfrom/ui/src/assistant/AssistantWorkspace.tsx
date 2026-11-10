@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, Stack, Switch, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
@@ -25,50 +25,64 @@ type Props = {
   links?: { label: string; href: string }[]
 }
 
-export function AssistantWorkspace(props: Props) {
-  if (!props.scope) return <>{typeof props.children === 'function' ? props.children({ paused: false, revision: 0 }) : props.children}</>
-  return <ScopedWorkspace key={scopeIdentity(props.scope)} {...props} scope={props.scope} />
-}
-
-function ScopedWorkspace({ scope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, guideOnly, links }: Props & { scope: AssistantScope }) {
-  const [open, setOpen] = useState(initiallyOpen), [activated, setActivated] = useState(initiallyOpen), [revision, setRevision] = useState(0), [width, setWidth] = useState(420)
-  const theme = useTheme(), narrow = useMediaQuery(theme.breakpoints.down('lg'))
+export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, guideOnly, links }: Props) {
+  const identity = scope ? scopeIdentity(scope) : null
+  const [visibility, setVisibility] = useState({ identity, open: initiallyOpen, activated: initiallyOpen })
+  const current = visibility.identity === identity ? visibility : { identity, open: initiallyOpen, activated: initiallyOpen }
+  const open = Boolean(scope && current.open)
+  const [activity, setActivity] = useState({ identity, busy: false })
+  const busy = activity.identity === identity && activity.busy
+  const [revision, setRevision] = useState(0)
   const editor = useRef<HTMLDivElement>(null), opener = useRef<HTMLButtonElement>(null)
-  const c = useAssistant(scope, activated, async () => { await onSaved(); setRevision(value => value + 1) })
+  const savedCallback = useRef(onSaved); savedCallback.current = onSaved
+  const refreshEditor = useCallback(async () => { await savedCallback.current(); setRevision(value => value + 1) }, [])
+  const reportActivity = useCallback((value: boolean) => setActivity({ identity, busy: value }), [identity])
   const busyCallback = useRef(onBusyChange); busyCallback.current = onBusyChange
-  useEffect(() => { busyCallback.current?.(c.busy); return () => busyCallback.current?.(false) }, [c.busy])
+  useEffect(() => { busyCallback.current?.(busy); return () => busyCallback.current?.(false) }, [busy])
   useEffect(() => {
     const node = editor.current
     if (!node) return
-    node.toggleAttribute('inert', c.busy)
-    if (c.busy && node.contains(document.activeElement)) (document.activeElement as HTMLElement)?.blur()
+    node.toggleAttribute('inert', busy)
+    if (busy && node.contains(document.activeElement)) (document.activeElement as HTMLElement)?.blur()
     return () => node.removeAttribute('inert')
-  }, [c.busy])
-  const close = () => { setOpen(false); requestAnimationFrame(() => opener.current?.focus()) }
-  const panel = <AssistantPanel controller={c} scope={scope} onClose={close} editorBusy={editorBusy} readOnlyReason={readOnlyReason} guideOnly={guideOnly} links={links} />
+  }, [busy])
+  const close = () => { setVisibility({ ...current, open: false }); requestAnimationFrame(() => opener.current?.focus()) }
   return <Box data-assistant-workspace sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
-    <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
-      {c.busy && <Typography role="status" variant="caption" sx={{ mr: 'auto' }}>AI is updating this editor</Typography>}
-      <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => { setActivated(true); setOpen(value => !value) }}>Build with AI</Button>
-    </Stack>
+    {scope && <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
+      {busy && <Typography role="status" variant="caption" sx={{ mr: 'auto' }}>AI is updating this editor</Typography>}
+      <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity, activated: true, open: !open })}>Build with AI</Button>
+    </Stack>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
-      <Box ref={editor} aria-busy={c.busy} sx={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <Box component="fieldset" disabled={c.busy} sx={{ border: 0, p: 0, m: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', opacity: c.busy ? .6 : 1 }}>
-          {typeof children === 'function' ? children({ paused: c.busy, revision }) : children}
+      {/* Scope changes reset the assistant, never an editor's retained manual buffer. */}
+      <Box ref={editor} aria-busy={busy} sx={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', opacity: busy ? .6 : 1 }}>
+          {typeof children === 'function' ? children({ paused: busy, revision }) : children}
         </Box>
-        {c.busy && <Box sx={{ position: 'absolute', inset: 0, zIndex: 5, cursor: 'wait' }} />}
+        {busy && <Box sx={{ position: 'absolute', inset: 0, zIndex: 5, cursor: 'wait' }} />}
       </Box>
-      {!narrow && <Box sx={{ display: open ? 'flex' : 'none', flexShrink: 0, width: `min(${width}px, 50%)`, minWidth: 310, borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-        <Box role="separator" aria-label="Resize assistant" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={320} aria-valuemax={680} tabIndex={0}
-          onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWidth(value => Math.max(320, Math.min(680, value + (event.key === 'ArrowLeft' ? 20 : -20)))) } }}
-          onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId) }}
-          onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(320, Math.min(680, event.currentTarget.parentElement!.getBoundingClientRect().right - event.clientX))) }}
-          onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
-          sx={{ width: 6, flexShrink: 0, cursor: 'col-resize', touchAction: 'none', '&:hover, &:focus-visible': { bgcolor: 'primary.main' } }} />
-        {panel}
-      </Box>}
+      {scope && <ScopedAssistant key={identity} scope={scope} enabled={current.activated} open={open} onSaved={refreshEditor} onBusyChange={reportActivity}
+        onClose={close} editorBusy={editorBusy} readOnlyReason={readOnlyReason} guideOnly={guideOnly} links={links} />}
     </Box>
-    {narrow && <Drawer anchor="right" open={open} onClose={close} ModalProps={{ keepMounted: true }} sx={{ '& .MuiDrawer-paper': { width: 'min(100%, 520px)', height: '100dvh' } }}>{panel}</Drawer>}
+  </Box>
+}
+
+function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller'> & {
+  enabled: boolean; open: boolean; onSaved: () => Promise<void>; onBusyChange: (busy: boolean) => void
+}) {
+  const controller = useAssistant(scope, enabled, onSaved)
+  const [width, setWidth] = useState(420)
+  const theme = useTheme(), narrow = useMediaQuery(theme.breakpoints.down('lg'))
+  useLayoutEffect(() => { onBusyChange(controller.busy); return () => onBusyChange(false) }, [controller.busy, onBusyChange])
+  const panel = <AssistantPanel controller={controller} scope={scope} {...panelProps} />
+  if (narrow) return <Drawer anchor="right" open={open} onClose={panelProps.onClose} ModalProps={{ keepMounted: true }} sx={{ '& .MuiDrawer-paper': { width: 'min(100%, 520px)', height: '100dvh' } }}>{panel}</Drawer>
+  return <Box sx={{ display: open ? 'flex' : 'none', flexShrink: 0, width: `min(${width}px, 50%)`, minWidth: 310, borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+    <Box role="separator" aria-label="Resize assistant" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={320} aria-valuemax={680} tabIndex={0}
+      onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWidth(value => Math.max(320, Math.min(680, value + (event.key === 'ArrowLeft' ? 20 : -20)))) } }}
+      onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId) }}
+      onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(320, Math.min(680, event.currentTarget.parentElement!.getBoundingClientRect().right - event.clientX))) }}
+      onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
+      sx={{ width: 6, flexShrink: 0, cursor: 'col-resize', touchAction: 'none', '&:hover, &:focus-visible': { bgcolor: 'primary.main' } }} />
+    {panel}
   </Box>
 }
 

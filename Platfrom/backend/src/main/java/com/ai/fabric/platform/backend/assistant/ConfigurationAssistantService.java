@@ -222,12 +222,14 @@ public class ConfigurationAssistantService {
         return get(id);
     }
     private void run(String id, String turnId) {
+        JsonNode generated = null;
         try {
             JsonNode input = tx.execute(ignored -> {
                 var session = owned(id, false); var resource = resource(session);
                 requireCurrent(session, turnId); return input(session, content(session), resource, turnId);
             });
             JsonNode output = runtime.generate(input);
+            generated = output;
             tx.executeWithoutResult(ignored -> {
                 var session = owned(id, true); var resource = resource(session); requireCurrent(session, turnId);
                 var content = content(session); var turn = findTurn(content, turnId);
@@ -236,7 +238,7 @@ public class ConfigurationAssistantService {
         } catch (Exception failure) {
             String message = failure instanceof ResponseStatusException known && known.getReason() != null
                 ? documents.redactText(known.getReason()) : "AI configuration could not complete. Your last saved draft remains available.";
-            fail(id, turnId, message, failure instanceof AuthoringRuntimeClient.AuthoringRuntimeFailure known ? known.receipt() : null);
+            fail(id, turnId, message, failure instanceof AuthoringRuntimeClient.AuthoringRuntimeFailure known ? known.receipt() : null, generated);
         } finally { pending.remove(turnId); }
     }
     private JsonNode input(AuthoringSessionEntity session, ObjectNode content, AuthoringResourceService.Snapshot resource, String turnId) {
@@ -336,10 +338,23 @@ public class ConfigurationAssistantService {
         fail(id, turnId, message, null);
     }
     private void fail(String id, String turnId, String message, JsonNode receipt) {
+        fail(id, turnId, message, receipt, null);
+    }
+    private void fail(String id, String turnId, String message, JsonNode receipt, JsonNode generated) {
         tx.executeWithoutResult(ignored -> sessions.lock(id).ifPresent(session -> {
             if (!turnId.equals(session.activeTurnId) || !"RUNNING".equals(session.status)) return;
-            var content = content(session); findTurn(content, turnId).put("status", "FAILED").put("message", message);
-            if (receipt != null) findTurn(content, turnId).set("runtime", changes.project(receipt));
+            var content = content(session); var turn = findTurn(content, turnId);
+            // Completion can roll back after paid generation; preserve evidence in this separate transaction.
+            if (generated != null) {
+                var safe = changes.project(generated);
+                for (String field : List.of("changes", "questions", "assumptions", "sourceReferences", "runtime", "diagnostics"))
+                    if (safe.has(field)) turn.set(field, safe.get(field));
+                if (safe.path("message").isTextual() && safe.path("message").asText().length() <= 8_000)
+                    turn.put("unverifiedModelMessage", documents.redactText(safe.path("message").asText()));
+                turn.put("notice", "The generated proposal was not saved. Retained model output is unverified; your last saved draft is unchanged.");
+            }
+            turn.put("status", "FAILED").put("message", message);
+            if (receipt != null) turn.set("runtime", changes.project(receipt));
             session.status = "IDLE"; session.activeTurnId = null; session.deadline = null; write(session, content);
         }));
     }
