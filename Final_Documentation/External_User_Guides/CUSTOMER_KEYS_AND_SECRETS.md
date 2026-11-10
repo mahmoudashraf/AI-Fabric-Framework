@@ -31,7 +31,7 @@ Brains cannot read, replace or materialize them. Reusing the same friendly name
 on another Brain creates a separate reference, not shared credentials.
 
 Customer owners can grant or revoke LoomAI operator access through
-**Account -> LoomAI access**. Operators use the same Brain page; each request
+**Account -> LoomAI collaboration**. Operators use the same Brain page; each request
 rechecks the current delegation, including after revocation. A legacy deployment
 assignment alone does not permit the new credential-management API. Platform
 administrators retain their existing administrative authority.
@@ -49,7 +49,7 @@ deleted: rotate it or save a replacement provider key first. A custom integratio
 key can be deleted, but connections referencing it will fail when they next load
 credentials. Deleting a reference does not revoke it at the external provider.
 
-Customer provider bindings use `REQUIRE_OVERRIDE`: a missing bound key must not
+New provider bindings from this page use `REQUIRE_OVERRIDE`: a missing bound key must not
 silently fall back to a LoomAI provider credential. Existing deployments without
 a customer override keep their existing provider policy. Saving a provider key
 does not change the selected model, provider or vector service.
@@ -58,8 +58,8 @@ does not change the selected model, provider or vector service.
 
 This reuses the existing Platform backend database's `platform_secrets` store,
 provider bindings, audit system, scoped materializer and hard-delete cleanup.
-There is no second vault, customer database or framework service. It does not
-change the existing store's at-rest encryption model.
+There is no second vault, customer database or framework service. This change
+does not add application-level at-rest encryption to the existing secret store.
 
 The Console receives names, purpose, presence, selection and update time, never
 stored values. The Configuration Assistant receives authorized reference names,

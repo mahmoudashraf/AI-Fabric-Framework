@@ -14376,3 +14376,47 @@ test is being called hosted acceptance. UI extraction remains last.
   Existing temporary phone gallery/tunnel intentionally running; not permanent
   hosting or authenticated access. No new product deployment, no serving-image
   change. Earlier page-aware UX release SHAs/digests remain authoritative.
+
+### Customer Secrets And Pack-Owned Authoring - 10 November 2026, Hosted Closeout
+
+- CURRENT: backend/Console source19cd4506c0f2c5fe898aa336896f4d7313beef1b
+  is committed/pushed and healthy on BOTH native hosts, superseding the earlier
+  core image identities. CI42821967977 PASS. Exact OCI digests:
+  backend ac3c368c7c9316316dff22459627544baf683435bcb35c6c7f18f3b5d2d6b1e1;
+  Console359c7190a21ef46becfc7f1c823abf6cbd2b9dfb070741d9b1586875b52503d0.
+  Later documentation commits are not new serving-image upgrades.
+- Engage-specific field paths now belong to selected experience-pack registry
+  metadata, not shared assistant prompts. Only selectedExperiencePack is supplied,
+  not all other packs. Shared authoring source has no dealership-specific field
+  guidance. Only scoped customer secret reference names, never values, enter
+  authoring context. Framework stays0.8.46/private authoring image unchanged.
+- Customer/staff canonical UI:/smart-brains/:id/secrets, pinned Keys & secrets,
+  with links from Models/Search. Uses existing platform_secrets/provider bindings,
+  no new database/schema/vault/role. Customer Admin owns through the Brain;
+  delegated operators need current customer grant on every request, not just a
+  legacy assignment. Existing Platform-admin authority/global Security remain.
+- Write-only create/replace/delete, value-free summaries/audits, immutable
+  server-selected Brain scope, current managed/foreign/global/target denial.
+  Provider save joins existing binding transaction with REQUIRE_OVERRIDE and
+  paired-credential atomicity; selected keys cannot be deleted. Custom deletion
+  is explicit and can break a referenced connection, never silently substitute.
+  Staging/prod share ordinary Brain credentials; existing target-specific S3/
+  vector workflows remain. No automatic deployment/restart/model/provider change.
+  Existing storage encryption model was not redesigned.
+- Local269 backend tests passed, including11 real PostgreSQL/cookie checks and
+  56 assistant task/lifecycle/feedback regressions. New6browser groups,34existing
+  UI checks, canonical navigation browser journey and full production build PASS.
+  First SQL table-name test error and navigation fixture import failure were
+  fixed as harness issues, not hidden or treated as green original runs.
+- Hosted normal-customer6-case journeys PASS on staging and production: creation,
+  write-only rotation, global API/key-write denial, provider selection/deletion
+  protection,390px/cancel and confirmed deletion; zero page errors. All canary
+  keys/bindings deleted,2empty Brains archived, customers signed out. No inference,
+  publication, provisioning, business calls or allocation reset; customer serving
+  runtimes untouched. Core cold replacement used the normal exact-image flow.
+- Full evidence:verification-support/customer-secrets/README.md and external
+  CUSTOMER_KEYS_AND_SECRETS.md. Raw reports/screenshots under
+  ~/.codex/private/customer-secrets-20261110-{staging,production}/; exact deployment
+  receipts under ~/.codex/private/loomai-feedback-loop-20261110/. No private data
+  or captures added to Git. Unrelated root.gitignore/untracked work preserved;
+  prior phone-video gallery/tunnel intentionally left running.

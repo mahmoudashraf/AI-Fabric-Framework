@@ -65,6 +65,8 @@ PostgreSQL/cookie tests, all passed without skips. UI: six new browser groups,
 34 existing navigation/settings/scoped-operation checks, the complete canonical
 settings-navigation browser journey, and production build passed. Light/dark
 desktop/mobile screenshots were inspected. Generated captures stay outside Git.
+An additional 56 assistant lifecycle, task-intent and bounded-feedback regressions
+passed on the same source, bringing the focused backend total to 269.
 
 ## Hosted Qualification
 
@@ -77,3 +79,49 @@ Cleanup removes all canary keys/bindings, archives its empty Brain and signs out
 Raw hosted evidence and login material remain outside Git. Hosted source/digest
 and exact completed rollout evidence are recorded after native verification;
 source changes alone are not deployment proof.
+
+### Hosted Closeout - 10 November 2026
+
+Source `19cd4506c0f2c5fe898aa336896f4d7313beef1b` is committed, pushed and
+qualified on both native hosts. CI `42821967977` passed both image jobs.
+Exact serving OCI digests on staging and production:
+
+- Backend: `sha256:ac3c368c7c9316316dff22459627544baf683435bcb35c6c7f18f3b5d2d6b1e1`.
+- Console: `sha256:359c7190a21ef46becfc7f1c823abf6cbd2b9dfb070741d9b1586875b52503d0`.
+
+Exact Coolify jobs completed and new source/digest/native health were confirmed:
+
+- Staging backend: `u11v8s3h2ytc748zi436woiw`.
+- Staging Console: `w11dju2w3qpg4anxqn1i38hr`.
+- Production backend: `vloy3zmq62uc268tzygq0t0e`.
+- Production Console: `bv9mv88c21kb6xcnhjtzvjq1`.
+
+Normal-customer hosted checks passed six cases per host: UI creation and
+write-only rotation, global-key API/write denial, actual existing provider
+binding with required override, bound deletion denial, 390px layout/cancel and
+confirmed custom deletion. Zero page errors. Selected-pack metadata also has
+focused service/registry regression proof; no new hosted semantic-quality claim
+or paid generation is made. Framework/private authoring/customer serving
+runtimes and their allocations were not upgraded or reset.
+
+Private reports/screenshots:
+
+`~/.codex/private/customer-secrets-20261110-staging/`
+
+`~/.codex/private/customer-secrets-20261110-production/`
+
+Deployment receipts are the four matching `*-page-aware-deploy-*.private.json`
+files in `~/.codex/private/loomai-feedback-loop-20261110/`; the reused helper's
+filename is historical, not a claim about which source was deployed.
+
+All fictional keys and bindings were deleted; empty canary Brains `dep-0eb480d8`
+and `dep-73ab6f1d` were archived. Both test customers signed out. No customer
+version/release, infrastructure, business API request or model call was created. Staff
+grant/revoke and rollback were verified against real local PostgreSQL/cookie
+sessions, not by changing an existing hosted customer's delegation.
+
+The global auth-session `canManageSecrets` flag still means global Platform
+administration. The customer page uses Brain `access.canAdmin`, with authoritative
+ownership and current delegation enforced by its scoped backend service. The
+existing secret store is reused; application-level at-rest encryption was not
+introduced. Later documentation commits are not newer serving-image identities.
