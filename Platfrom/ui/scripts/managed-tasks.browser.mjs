@@ -25,17 +25,22 @@ const manifest = { id: 'plugin-v1', pluginId: 'plugin', version: '1.0.0', status
 function fixture(options = {}) {
   const saved = { id: 'draft', deploymentId: 'brain', revisionNumber: 3, status: 'DRAFT',
     behaviorConfig: { type: 'CONVERSATIONAL', executionExtensions: ['CONVERSATION_HANDOVER'], conversationHandover: { enabled: true },
-      managedTasks: { enabled: !options.empty, tasks: options.empty ? [] : [structuredClone(task)], compiled: { serverOwned: true }, contentHash: 'server-owned' } },
+      managedTasks: { enabled: !options.empty && !options.disabledDraft, tasks: options.empty ? [] : [structuredClone(task)], compiled: { serverOwned: true }, contentHash: 'server-owned' } },
     actionsConfig: { actions: [{ name: 'read_account', displayName: 'Read account', accessMode: 'READ', ...provenance },
       { name: 'manual_read', accessMode: 'READ' }, { name: 'update_account', accessMode: 'WRITE_ONLY', ...provenance }] },
     entityConfig: { 'ai-entities': { unrelated: {} } }, knowledgeSourceConfig: { sources: [{ id: 'guide', displayName: 'Approved guide', entityType: 'document', enabled: true, ...provenance }] } }
-  return { saved, options, failSave: false, changed: false, failExecute: false, canonicalFailure: false, appliedHash: 'tasks-hash', metadataReads: 0 }
+  if (options.pendingTaskConfig) Object.assign(saved.behaviorConfig.managedTasks.tasks[0], {
+    instructions: 'DRAFT_ONLY_INSTRUCTIONS', inputSchema: { type: 'object', properties: { draftOnly: { type: 'boolean' } }, required: ['draftOnly'] },
+  })
+  return { saved, options, failSave: false, changed: false, failExecute: false, canonicalFailure: false,
+    appliedVersion: 'v1', appliedHash: 'tasks-hash', metadataReads: 0 }
 }
 function workspace(state) {
   return { access: { canEdit: !state.options.readonly, canOperate: !state.options.noOperate, canAdmin: true },
     deployment: { id: 'brain', name: 'Service intelligence', binding: { customerId: 'customer' }, deploymentPolicy: null },
     draft: { id: 'draft', revisionNumber: state.saved.revisionNumber },
-    lifecycle: { savedDraftMatchesLatestPublished: !state.changed && !state.options.newer, latestPublishedVersionId: 'v1' }, latestVersion: { id: 'v1' } }
+    lifecycle: { savedDraftMatchesLatestPublished: !state.changed && !state.options.newer,
+      latestPublishedVersionId: state.options.latestPublishedVersionId ?? 'v1' }, latestVersion: { id: state.options.latestPublishedVersionId ?? 'v1' } }
 }
 function result(state) {
   return { runId: 'run-fixture', taskCode: 'assess-request', status: state.canonicalFailure ? 'FAILED' : 'SUCCEEDED',
@@ -64,7 +69,7 @@ function handle(state, method, url, body) {
     assert.equal(url.searchParams.get('targetProfileId'), 'target')
     state.metadataReads++
     if (state.options.metadataError) return send({ message: 'Applied configuration unavailable.' }, 503)
-    return send({ configurationVersion: 'v1', taskConfigurationHash: state.appliedHash, runtimeBaseUrl: 'https://runtime.example.test', tasks: state.options.missingTask ? [] : [task] })
+    return send({ configurationVersion: state.appliedVersion, taskConfigurationHash: state.appliedHash, runtimeBaseUrl: 'https://runtime.example.test', tasks: state.options.missingTask ? [] : [task] })
   }
   if (path === '/api/deployments/brain/tasks/assess-request/execute' && method === 'POST') {
     assert.equal(url.searchParams.get('targetProfileId'), 'target')
@@ -271,7 +276,57 @@ try {
     await page.getByText('Execution access denied.', { exact: true }).waitFor()
     assert.equal(executions(calls).length, 3)
   })
-  for (const mode of ['newer', 'missingTask', 'noRelease']) await run('applied gate ' + mode, async ({ page, calls }) => {
+  await run('customer pending global draft runs the applied task without using draft settings', async ({ page, state, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByText('This view uses the applied version. Pending changes are not used.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Run task', exact: true }).isEnabled(), true)
+    await page.getByText('Applied input schema', { exact: true }).click()
+    const schema = await page.locator('details').filter({ hasText: 'Applied input schema' }).locator('pre').innerText()
+    assert.deepEqual(JSON.parse(schema), task.inputSchema)
+    await page.getByLabel('Task input JSON').fill('{"message":"Use only the applied task inputs"}')
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('region', { name: 'Task result' }).getByText('SUCCEEDED', { exact: true }).waitFor()
+    assert.equal(executions(calls).length, 1)
+    assert.deepEqual(executions(calls)[0].body, { input: { message: 'Use only the applied task inputs' } })
+    assert.equal(state.saved.behaviorConfig.managedTasks.enabled, false)
+    assert.equal(state.saved.behaviorConfig.managedTasks.tasks[0].instructions, 'DRAFT_ONLY_INSTRUCTIONS')
+    assert.equal(saves(calls).length, 0)
+    await page.getByRole('tab', { name: 'Use in your app', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Copy request', exact: true }).isEnabled(), true)
+    assert.equal(executions(calls).length, 1)
+  }, { customer: true, newer: true, latestPublishedVersionId: 'v2', disabledDraft: true, pendingTaskConfig: true })
+  await run('local unsaved task edits still block testing until saved or discarded', async ({ page, calls }) => {
+    await page.getByRole('textbox', { name: 'Task name', exact: false }).fill('Unsaved task title')
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByText('Save or discard your local task edits before testing the applied version.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Run task', exact: true }).isDisabled(), true)
+    assert.equal(executions(calls).length, 0); assert.equal(saves(calls).length, 0)
+  })
+  for (const mode of ['appliedVersion', 'appliedHash', 'missingTask', 'permission', 'draftId', 'draftRevision', 'draftTask']) {
+    await run('command boundary rejects changed ' + mode, async ({ page, state, calls }) => {
+      await page.getByRole('tab', { name: 'Try', exact: true }).click()
+      await page.getByText('Applied version: v1', { exact: true }).waitFor()
+      await page.getByLabel('Task input JSON').fill('{"message":"Check the current applied context"}')
+      if (mode === 'appliedVersion') state.appliedVersion = 'v2'
+      if (mode === 'appliedHash') state.appliedHash = 'changed-hash'
+      if (mode === 'missingTask') state.options.missingTask = true
+      if (mode === 'permission') state.options.noOperate = true
+      if (mode === 'draftId') state.saved.id = 'new-draft'
+      if (mode === 'draftRevision') state.saved.revisionNumber++
+      if (mode === 'draftTask') state.saved.behaviorConfig.managedTasks.tasks[0].description = 'Another editor changed this task.'
+      await page.getByRole('button', { name: 'Run task', exact: true }).click()
+      const message = mode.startsWith('draft') ? 'The saved task configuration changed. Reload it before testing the applied version.'
+        : mode === 'missingTask' ? 'This task is not available in the applied version. Apply an update first.'
+          : 'The applied configuration or your access changed. Refresh the applied tasks before running again.'
+      await page.getByText(message, { exact: true }).waitFor()
+      assert.equal(executions(calls).length, 0); assert.equal(saves(calls).length, 0)
+      assert.equal(await page.getByRole('region', { name: 'Task result' }).count(), 0)
+    })
+  }
+  for (const mode of ['missingTask', 'noRelease']) await run('applied gate ' + mode, async ({ page, calls }) => {
     await page.getByRole('tab', { name: 'Try', exact: true }).click()
     if (mode !== 'noRelease') await page.getByText('Applied version: v1', { exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Run task', exact: true }).isDisabled(), true)

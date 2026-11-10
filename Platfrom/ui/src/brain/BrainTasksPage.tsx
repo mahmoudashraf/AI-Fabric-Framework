@@ -119,11 +119,10 @@ export function BrainTasksPage() {
     enabled: runtimeView && Boolean(targetProfileId && release), retry: false,
     refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: 0 })
   const appliedTask = applied.data?.tasks.find(task => task.code === selected?.code)
-  const gate = taskTestBlock({ dirty, enabled: editor.enabled, targetProfileId,
-    releaseVersionId: release?.deploymentVersionId, draftRevision: loaded?.revisionNumber,
-    workspaceRevision: workspace?.draft.revisionNumber,
-    savedDraftMatchesLatestPublished: workspace?.lifecycle.savedDraftMatchesLatestPublished,
-    latestPublishedVersionId: workspace?.lifecycle.latestPublishedVersionId, hasAppliedTask: Boolean(appliedTask) })
+  const gate = taskTestBlock({ dirty, targetProfileId,
+    releaseVersionId: release?.deploymentVersionId, hasAppliedTask: Boolean(appliedTask) })
+  const pendingPublishedChanges = Boolean(workspace && release && (workspace.lifecycle.savedDraftMatchesLatestPublished === false
+    || workspace.lifecycle.latestPublishedVersionId !== release.deploymentVersionId))
   let parsedInput: JsonObject | null = null
   let inputError: string | null = null
   try { parsedInput = parseExactObject(input, 'Task input') } catch (error) { inputError = (error as Error).message }
@@ -137,12 +136,11 @@ export function BrainTasksPage() {
       const current = await fetchDeploymentDraft(brainId)
       const currentWorkspace = await fetchDeploymentWorkspace(brainId)
       const currentApplied = await fetchAppliedManagedTasks(brainId, targetProfileId, controller.current.signal)
-      const block = taskTestBlock({ dirty: current.revisionNumber !== loaded.revisionNumber || current.id !== loaded.id
-        || managedTasksConfigIdentity(current.behaviorConfig) !== managedTasksConfigIdentity(loaded.behaviorConfig),
-        enabled: editor.enabled, targetProfileId, releaseVersionId: release?.deploymentVersionId,
-        draftRevision: current.revisionNumber, workspaceRevision: currentWorkspace.draft.revisionNumber,
-        savedDraftMatchesLatestPublished: currentWorkspace.lifecycle.savedDraftMatchesLatestPublished,
-        latestPublishedVersionId: currentWorkspace.lifecycle.latestPublishedVersionId,
+      if (current.revisionNumber !== loaded.revisionNumber || current.id !== loaded.id
+        || managedTasksConfigIdentity(current.behaviorConfig) !== managedTasksConfigIdentity(loaded.behaviorConfig)) {
+        throw new Error('The saved task configuration changed. Reload it before testing the applied version.')
+      }
+      const block = taskTestBlock({ dirty, targetProfileId, releaseVersionId: release?.deploymentVersionId,
         hasAppliedTask: currentApplied.tasks.some(task => task.code === appliedTask.code) })
       if (block || !currentWorkspace.access.canOperate || currentApplied.configurationVersion !== release?.deploymentVersionId
         || currentApplied.configurationVersion !== applied.data.configurationVersion
@@ -249,6 +247,7 @@ export function BrainTasksPage() {
               </Stack>}
               {runtimeView && <Stack gap={2}>
                 <Alert severity="info">{view === 'try' ? 'Tests run the applied task, not your draft. Provider usage applies.' : 'These integration details describe the applied release, not unsaved changes.'} The summary is saved release configuration, not a live runtime probe.</Alert>
+                {pendingPublishedChanges && <Alert severity="warning">This view uses the applied version. Pending changes are not used.</Alert>}
                 {gate && <Alert severity="warning" action={<Button component={RouterLink} to={href('updates')}>Open Updates</Button>}>{gate}</Alert>}
                 {!canOperate && view === 'try' && <Alert severity="info">Running a task requires permission to operate this Brain.</Alert>}
                 {targetProfileId && release && <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">

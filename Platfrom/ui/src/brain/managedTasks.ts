@@ -149,15 +149,10 @@ export function editSchemaField(source: string, name: string, operation: { type?
 }
 
 export function taskTestBlock(input: {
-  dirty: boolean; enabled: boolean; targetProfileId: string; releaseVersionId?: string | null
-  draftRevision?: number; workspaceRevision?: number; savedDraftMatchesLatestPublished?: boolean
-  latestPublishedVersionId?: string | null; hasAppliedTask: boolean
+  dirty: boolean; targetProfileId: string; releaseVersionId?: string | null; hasAppliedTask: boolean
 }): string | null {
-  if (input.dirty) return 'Save and apply your task changes before testing.'
-  if (!input.enabled) return 'Enable Managed Tasks, then save and apply an update before testing.'
+  if (input.dirty) return 'Save or discard your local task edits before testing the applied version.'
   if (!input.targetProfileId || !input.releaseVersionId) return 'Apply a version to this environment before testing.'
-  if (!input.savedDraftMatchesLatestPublished || input.draftRevision !== input.workspaceRevision
-    || input.latestPublishedVersionId !== input.releaseVersionId) return 'This draft is newer than, or different from, the applied version. Publish and apply your changes in Updates first.'
   if (!input.hasAppliedTask) return 'This task is not available in the applied version. Apply an update first.'
   return null
 }

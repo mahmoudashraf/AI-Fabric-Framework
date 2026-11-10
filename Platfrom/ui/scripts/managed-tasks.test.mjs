@@ -113,12 +113,12 @@ test('malformed saved configuration is not silently replaced with defaults', () 
     { managedTasks: { enabled: true, tasks: [{}] } }]) assert.throws(() => m.readTasksEditor(config))
 })
 
-test('testing requires current saved and applied configuration, never a new or dirty task', () => {
-  const current = { dirty: false, enabled: true, targetProfileId: 'staging', releaseVersionId: 'v1', draftRevision: 4,
-    workspaceRevision: 4, savedDraftMatchesLatestPublished: true, latestPublishedVersionId: 'v1', hasAppliedTask: true }
+test('testing requires a selected applied task and no local edits, not whole-Brain publication alignment', () => {
+  const current = { dirty: false, targetProfileId: 'staging', releaseVersionId: 'v1', hasAppliedTask: true }
   assert.equal(m.taskTestBlock(current), null)
-  for (const patch of [{ dirty: true }, { enabled: false }, { targetProfileId: '' }, { releaseVersionId: null },
-    { draftRevision: 5 }, { savedDraftMatchesLatestPublished: false }, { latestPublishedVersionId: 'v2' }, { hasAppliedTask: false }]) {
+  assert.equal(m.taskTestBlock({ ...current, enabled: false, draftRevision: 4, workspaceRevision: 5,
+    savedDraftMatchesLatestPublished: false, latestPublishedVersionId: 'v2' }), null)
+  for (const patch of [{ dirty: true }, { targetProfileId: '' }, { releaseVersionId: null }, { hasAppliedTask: false }]) {
     assert.equal(typeof m.taskTestBlock({ ...current, ...patch }), 'string')
   }
 })
