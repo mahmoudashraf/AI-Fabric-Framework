@@ -49,6 +49,46 @@ not need a knowledge collection merely because it retrieves business data.
 - **Kit setup:** get guidance and move to the relevant existing resource editor.
   A Kit guide does not silently install products or change live assignments.
 
+## Optional Validation Corrections
+
+**Rollout note:** this bounded-feedback addition is implemented locally and
+awaits hosted rollout and qualification. The controls described here are not a
+claim that the addition is already available in your live Console.
+
+When available, **Let AI fix validation errors** lets the assistant use the
+actual configuration findings to correct its candidate within the same turn.
+The initial setting comes from the service's declared default. Choose **Max
+corrections** before sending: one or two, up to the service's allowed limit.
+Two corrections means at most three attempts, including the original attempt.
+Turn the toggle off for a single attempt with no automatic correction.
+
+The controls pause while the assistant is busy. Corrections are disabled for
+**Explain only** and Kit guidance. **Preview only** still does not save the draft;
+allowing corrections does not grant permission to publish or change live state.
+Each model attempt can consume usage. Provider, network and budget failures are
+not automatically retried by this feedback policy.
+
+While work runs, **Attempt N of M** shows the active attempt and the maximum
+allowed for that turn; it does not promise that every attempt will be used.
+Expand **Validation feedback** to review the turn's policy and each attempt's
+status, timing, message, findings, candidate changes and runtime details. Failed
+or unfinished attempts remain in that history; intermediate candidates are not
+saved as separate draft versions.
+
+The result explains why correction stopped: available checks passed, the
+correction limit was reached, no further correction was proposed, a check was
+unavailable, more information is needed, or a failure occurred. Cancellation
+and the shared turn deadline can also stop work. An unavailable check is not a
+passed check, and reaching the limit is not success. Review the retained
+findings, answer any questions, continue in another explicit turn or edit
+manually.
+
+Only the final candidate may be saved through the existing editor save rules.
+Those rules may permit an editable draft with remaining validation findings,
+or reject a candidate that cannot be saved. **Draft saved. Needs attention.**
+means there is still work to review; it does not mean the errors were fixed.
+Inspect the actual validation outcome and saved diff before publishing.
+
 ## Review, Cancel And Undo
 
 Normal configuration requests authorize draft saves, including replacement of
@@ -106,3 +146,12 @@ configuration and audit records remain. Explicitly reused documents are copies
 in the selected session and follow that session's lifecycle.
 
 Manual forms and Advanced JSON remain available if the assistant is unavailable.
+
+## Proposed Next UX (Not Implemented)
+
+The configuration-assistant implementation plan, section 19, proposes page-aware
+welcome guidance and document-first commands such as **Prepare actions**, with
+an optional focus hint. This is a proposed next enhancement, not an implemented
+workflow. Today, import and review your documents, select any relevant
+operations, then type and send a request. Opening a page or importing a document
+alone does not start generation or save configuration.

@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 public class AuthoringProperties {
     private boolean enabled;
     private boolean documentFetchEnabled;
+    private boolean validationFeedbackEnabled = true;
+    private int validationFeedbackMaxCorrections = 2;
     private String runtimeUrl = "";
     private String encryptionKey = "";
     private String apiKeySecretRef = "MANAGED_CONFIGURATION_ASSISTANT_API_KEY";
@@ -21,6 +23,10 @@ public class AuthoringProperties {
     public void setEnabled(boolean value) { enabled = value; }
     public boolean isDocumentFetchEnabled() { return documentFetchEnabled; }
     public void setDocumentFetchEnabled(boolean value) { documentFetchEnabled = value; }
+    public boolean isValidationFeedbackEnabled() { return validationFeedbackEnabled; }
+    public void setValidationFeedbackEnabled(boolean value) { validationFeedbackEnabled = value; }
+    public int getValidationFeedbackMaxCorrections() { return validationFeedbackMaxCorrections; }
+    public void setValidationFeedbackMaxCorrections(int value) { validationFeedbackMaxCorrections = value; }
     public String getRuntimeUrl() { return runtimeUrl; }
     public void setRuntimeUrl(String value) { runtimeUrl = value; }
     public String getEncryptionKey() { return encryptionKey; }

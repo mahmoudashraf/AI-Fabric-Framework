@@ -141,6 +141,32 @@ proposals; a provider that ignores interruption can still spend until its own
 transport timeout. Its existing captured ledger operation remains accountable;
 unknown/ambiguous usage keeps the existing conservative hold. No refund/replay.
 
+## Platform-Owned Validation Feedback
+
+The 10 November extension keeps this endpoint at **one accounted inference per
+HTTP request**. Platform may explicitly request up to two correction attempts
+after the first response, using its actual resource validator and one overall
+140-second turn deadline. It supplies server-owned
+`catalogue.validationFeedback` with `attempt`, `maxAttempts`, `deadlineAt`, and,
+on correction, safe `previousFindings`/`previousChanges`. The current configuration
+is the cumulative unsaved candidate; the final query remains the original user
+intent. Runtime instructions ask the model to correct those findings without
+inventing bindings, expanding authority or disabling checks. Imported content
+and findings remain evidence, not privileged instructions.
+
+Platform binds each attempt to its own turn correlation, clamps the private
+assertion/HTTP timeout to remaining time, and retains every runtime receipt.
+The only output-rejection correction category is typed
+`AUTHORING_INVALID_OUTPUT`; rejected raw output is not returned or replayed.
+Provider/network/budget failures, missing authority/information and explicit
+model stop decisions do not cause a correction. Runtime structured parsing keeps
+`maxAttempts=1`; do not add a nested retry loop. No framework upgrade, new
+allocation, ledger reset, source indexing or business execution is involved.
+
+The UI's page-specific welcome/document-first commands are a separate proposed
+follow-up, not part of this endpoint extension. Current implementation and hosted
+qualification are tracked in Platform's dated validation-feedback evidence.
+
 ## Dedicated Boot
 
 Use the same executable JAR with `SPRING_PROFILES_ACTIVE=configuration-authoring`.

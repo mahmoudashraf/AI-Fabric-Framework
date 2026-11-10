@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: Northfield dealership demo API
+  version: 1.0.0
+  description: |
+    Fictional dealership API for the Build with AI recording. This reference
+    describes existing InventoryController endpoints in the LoomAI dealership
+    demo; it is not the Auto Trader partner API. The server below is deliberately
+    non-routable. Importing this document must not execute requests.
+    Public read operations need no upstream credential. A real installation must
+    bind its own authorized dealership endpoint and scope. The fictional demo
+    dealershipId is dealer-demo-001; it is not a real advertiser account.
+servers:
+  - url: https://dealership-api.example.invalid
+security: []
+paths:
+  /api/public/vehicles:
+    get:
+      operationId: search_stock
+      summary: Search current dealership stock
+      description: Search fictional vehicles by budget, fuel, make or body style.
+      parameters:
+        - $ref: '#/components/parameters/DealershipId'
+        - in: query
+          name: q
+          description: Optional free-text stock search.
+          schema: { type: string }
+        - in: query
+          name: make
+          schema: { type: string }
+        - in: query
+          name: fuelType
+          schema: { type: string }
+        - in: query
+          name: bodyType
+          schema: { type: string }
+        - in: query
+          name: maxPriceGbp
+          description: Maximum price in whole pounds, not minor currency units.
+          schema: { type: integer, minimum: 0 }
+        - in: query
+          name: maxMileage
+          schema: { type: integer, minimum: 0 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 24 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Stock, total count, facets and source freshness.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  total: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Vehicle' }
+                  source: { $ref: '#/components/schemas/Source' }
+                  dataNotice: { type: string }
+        '404': { description: Unknown dealership. }
+  /api/public/vehicles/by-reference:
+    get:
+      operationId: vehicle_details
+      summary: Get details for one vehicle
+      parameters:
+        - $ref: '#/components/parameters/DealershipId'
+        - in: query
+          name: reference
+          required: true
+          description: Vehicle reference supplied by the user or selected context.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Exactly one vehicle and its current source.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  vehicle: { $ref: '#/components/schemas/Vehicle' }
+                  source: { $ref: '#/components/schemas/Source' }
+        '404': { description: Vehicle or dealership not found. }
+        '409': { description: Reference matches multiple vehicles; clarify selection. }
+  /api/public/vehicles/compare:
+    get:
+      operationId: compare_vehicles
+      summary: Compare two to four vehicles
+      parameters:
+        - $ref: '#/components/parameters/DealershipId'
+        - in: query
+          name: references
+          required: true
+          description: Comma-separated references for two to four selected vehicles.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Comparable vehicles and their current source.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  count: { type: integer }
+                  vehicles:
+                    type: array
+                    items: { $ref: '#/components/schemas/Vehicle' }
+                  source: { $ref: '#/components/schemas/Source' }
+        '400': { description: Select between two and four vehicles. }
+        '404': { description: A vehicle or dealership was not found. }
+        '409': { description: A reference is ambiguous. }
+components:
+  parameters:
+    DealershipId:
+      in: query
+      name: dealershipId
+      required: true
+      description: Configured dealership identifier, not a shopper question.
+      schema: { type: string, example: dealer-demo-001 }
+  schemas:
+    Vehicle:
+      type: object
+      properties:
+        id: { type: string }
+        stockId: { type: string }
+        slug: { type: string }
+        make: { type: string }
+        model: { type: string }
+        registrationYear: { type: integer }
+        priceGbp: { type: number }
+        priceFormatted: { type: string }
+        mileage: { type: integer }
+        fuelType: { type: string }
+        transmission: { type: string }
+        bodyType: { type: string }
+        seats: { type: integer }
+        electricRangeMiles: { type: integer, nullable: true }
+        location: { type: string }
+        features: { type: array, items: { type: string } }
+        sourceUpdatedAt: { type: string, format: date-time }
+    Source:
+      type: object
+      properties:
+        label: { type: string }
+        refreshedAt: { type: string, format: date-time }
+        authoritativeFor: { type: array, items: { type: string } }

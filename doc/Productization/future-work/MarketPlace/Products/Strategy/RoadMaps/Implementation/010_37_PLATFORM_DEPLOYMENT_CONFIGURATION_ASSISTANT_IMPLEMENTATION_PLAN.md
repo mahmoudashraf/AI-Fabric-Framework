@@ -477,7 +477,40 @@ Present three categories:
 
 Only the first two block affected executable changes. Existing save contracts may still allow a safe unfinished draft, but it must not look publishable or connected. Partial adoption requires a coherent dependency group and revalidation; never silently remove denied changes and report complete success.
 
-Repair is server-configured and named. Default to no automatic semantic repair. If `STRUCTURED_AUTHORING_REPAIR_V1` is explicitly enabled, permit at most one repair using real validation findings. Retain safe original/result/repair diagnostics. No keyword substitutions, invented defaults, silent provider fallback or automatic search-all can disguise failure.
+The owner approved bounded validation feedback on 10 November 2026, superseding
+the earlier one-repair proposal. Each turn explicitly supplies
+`validationFeedback: {enabled, maxCorrections}`. Omitted/disabled policy makes
+one inference; enabled policy permits one or two corrections after the first
+inference, within the same 140-second overall turn deadline. The UI defaults to
+the capability advertised by Platform, shows an off switch and the correction
+limit, and always sends the selected policy explicitly. Operator configuration
+may disable this capability or lower its ceiling; it cannot raise the product
+limit above two corrections.
+
+Only actual candidate-configuration errors or the typed
+`AUTHORING_INVALID_OUTPUT` whole-response category can request another accounted
+LLM inference. Feed safe structured findings and the cumulative in-memory
+candidate back with the original user intent. Warnings alone do not trigger
+correction. Missing information, explanation/unsupported decisions, trust
+failures, cancellation, deadline, provider/network and budget failures stop the
+turn. Never weaken checks to obtain a pass or silently change providers.
+
+Retain each attempt's proposal, findings, status and runtime receipt, including
+paid invalid output received after cancellation. Intermediate candidates are
+not separately saved. Save the final scoped changes once through the existing
+resource service, or keep preview-only output. An enabled-feedback NEEDS_INPUT
+result retains its proposal without saving it. Exhaustion is visible; an invalid
+draft can remain editable only where the existing save contract allows it. One
+undo restores the pre-turn configuration. No publication, provisioning, indexing
+or business execution is included.
+
+Platform owns this resource-validation loop; the private authoring runtime makes
+one inference per HTTP request. Released AI Fabric 0.8.46 already provides
+structured-generation capabilities, so no framework change/release is required
+and no nested autonomous retry loop is added. No keyword substitutions, invented
+defaults, silent provider fallback or automatic search-all can disguise failure.
+See the dated feedback-loop verification record for implementation/deployment
+status; this contract is not itself a hosted success claim.
 
 ### 6.6 AI First, Then Manual Refinement
 
@@ -1172,3 +1205,70 @@ and `verification-support/configuration-assistant-01037/`; do not interpret this
 historical assessment as current deployment status.
 
 **Outcome of the original assessment:** proceed using released framework contracts, with new Platform/runtime/UI authoring integration. No framework release was made or requested by the assessment.
+
+## 19. Next Enhancement: Page-Aware, Document-First Assistance
+
+**Status (10 November 2026): proposed after the bounded validation-feedback loop;
+not implemented by this assessment.** This improves how customers start a task,
+not the assistant's authority or the underlying save/release mechanism.
+
+### 19.1 Existing Foundation And Remaining Gap
+
+The assistant already receives the registered page/task, selected resource,
+current configuration, supported contracts/catalogues, actual validation findings
+and selected documentation/operations. File, pasted text and policy-enabled
+public documentation URL import already exist. Customers should not have to
+restate these technical instructions in their own message.
+
+The missing experience is page-specific introductory guidance and a clear,
+document-first command that works without a mandatory free-text prompt. The
+current generic conversation still expects a typed request after source import.
+Completing the feedback loop alone does not close this usability gap.
+
+### 19.2 Customer Flow
+
+1. Open Build with AI from a supported editor. Show a concise task-specific
+   welcome, what it can prepare, and which resource it will change. Keep the
+   assistant dismissible; navigation must not force it open.
+2. Supply documentation as text, an attachment or an allowed public URL. On
+   Actions, say: "Share your API documentation. I'll prepare actions, parameters
+   and endpoint routing for this Smart Brain. Add a hint if you only want part
+   of the API." Source review and optional operation selection remain available.
+3. Offer **Prepare actions** and an optional "What should I focus on?" hint.
+   This explicit command supplies the registered task intent; it does not require
+   customers to write schemas, JSON instructions, route syntax or repair prompts.
+4. Assemble the authorized current configuration, exact contracts, selected
+   documents/operations and the user's unmodified hint automatically. Let the
+   LLM interpret the documentation, select relevant supported definitions and
+   ask only for essential missing facts or genuinely ambiguous scope.
+5. Run the selected bounded validation-feedback policy, then show saved draft
+   changes, unresolved findings and review/edit/undo. Publishing and all external
+   side effects remain separate explicit operations.
+
+Apply the same generic pattern to other supported tasks: connection setup,
+Data-plugin mappings, knowledge sources, behaviour, models, Engage and human
+support. Each uses its existing task adapter and outcomes, not a new assistant
+implementation per page. Guide-only and preview-only resources retain those
+limits; the welcome must not promise unavailable editing capabilities.
+
+### 19.3 Implementation Boundaries And Acceptance
+
+- Register presentation copy and task commands by existing typed task identity;
+  do not infer page purpose or user intent through URL/text keyword matching.
+- Reuse the current source importer, scoped assistant session and turn API.
+  No new framework release, specialist engine or independent chat service is
+  currently required. Add a narrowly typed command only if the existing turn
+  contract cannot express the chosen UI action clearly.
+- The welcome is product-owned guidance, not a fabricated model response or a
+  paid inference. Page navigation, assistant opening and source import alone
+  must not start billable generation or save configuration. The explicit
+  preparation command is the customer's configuration request.
+- Keep documentation, examples and user hints as untrusted evidence, separate
+  from server-owned policy. Importing a URL is not permission to execute its
+  endpoints, crawl a site or transmit credentials.
+- Refresh scope and configuration on page/resource changes. Never save a late
+  result into a different resource or reuse a previous task's command silently.
+- Qualify Actions using file, text and URL input with no hint, a short hint and
+  selected operations. Check useful multi-action/routes output or a focused
+  missing-information question, retained unrelated configuration, visible
+  corrections, cancellation and no paid call merely from navigation.

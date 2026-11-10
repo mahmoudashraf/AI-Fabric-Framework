@@ -136,6 +136,31 @@ business execution remain separate explicit operations. No semantic matcher,
 silent model retry or canned configuration repair is allowed. See 010.37 and
 its verification evidence for the supported contracts and limits.
 
+### Bounded Validation Feedback (Owner Decision, 2026-11-10)
+
+Treat visible, explicitly configured validation-feedback correction as a genuine
+agent capability, not a prohibited fallback. The owner approved implementing it
+after the configuration-assistant video. The selected policy must bound total
+attempts and one overall deadline, retain each attempt's actual validation and
+provider-accounting evidence, and remain cancellable. The initial supported
+policy allows at most two corrections after the first generation. A typed invalid
+structured-output category or actual configuration errors may be fed back to the
+LLM; warnings alone, model prose or lexical heuristics must not drive correction.
+
+Missing information/authority and explicit model stop decisions stop the loop.
+Provider/network/budget failures are not validation feedback. Do not silently
+retry them, enable another provider, fabricate values or weaken checks. Scope,
+ownership, secrets and final publication boundaries remain unchanged. Intermediate
+candidates are not separate live writes. Final invalid drafts may remain editable
+with visible findings where the existing save contract permits them.
+
+Framework structured-output finalization already offers bounded generation.
+Platform-specific resource validation stays in Platform; the private authoring
+runtime makes one accounted inference per request, with no nested autonomous
+loop. Implementation and hosted status must be proven separately; this owner
+decision is not a deployment receipt. Track the extension in 010.37 and its
+dated feedback-loop verification record.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

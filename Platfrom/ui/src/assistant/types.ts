@@ -4,7 +4,11 @@ export type AssistantScope = {
   resourceId: string
   task: AssistantTask
 }
-export type AssistantStatus = { enabled: boolean; ready: boolean; documentFetchEnabled: boolean; unavailableReason?: string }
+export type ValidationFeedbackPolicy = { enabled: boolean; maxCorrections: number }
+export type AssistantStatus = {
+  enabled: boolean; ready: boolean; documentFetchEnabled: boolean; unavailableReason?: string
+  validationFeedback?: { defaultEnabled: boolean; maxCorrections: number }
+}
 export type TurnStatus = 'SAVED' | 'PREVIEW' | 'NEEDS_INPUT' | 'EXPLAIN' | 'UNSUPPORTED' | 'INVALID' | 'FAILED' | 'CANCELLED' | 'RUNNING' | 'UNDONE' | 'READY'
 export type AssistantSource = { id: string; title: string; mediaType: string; operations: unknown[]; warnings: string[]; characters: number }
 export type AssistantTurn = {
@@ -13,6 +17,12 @@ export type AssistantTurn = {
   findings?: unknown; validation?: unknown; receipt?: unknown; undoReceipt?: unknown; createdAt: string; usage?: unknown
   assumptions?: unknown; sourceReferences?: unknown; diagnostics?: unknown; notice?: string
   runtime?: { requestId?: string; modelCalls?: unknown; accountingReceipt?: unknown; usage?: unknown; [key: string]: unknown }
+  validationFeedback?: ValidationFeedbackPolicy
+  attempts?: {
+    number: number; status: string; startedAt?: string; completedAt?: string; message?: string
+    findings?: unknown; changes?: unknown; runtime?: unknown
+  }[]
+  feedbackStopReason?: string
 }
 export type AssistantSession = AssistantScope & {
   id: string; status: string; displayName: string; editable: boolean; readOnlyReason?: string
@@ -20,4 +30,4 @@ export type AssistantSession = AssistantScope & {
 }
 export type SourceInput = { title: string; mediaType: string; content?: string; base64?: string; url?: string }
 export type ReusableSource = { sessionId: string; sourceId: string; title: string; task: string; mediaType: string }
-export type TurnInput = { query: string; previewOnly: boolean; sourceIds: string[]; operationIds: string[] }
+export type TurnInput = { query: string; previewOnly: boolean; sourceIds: string[]; operationIds: string[]; validationFeedback?: ValidationFeedbackPolicy }

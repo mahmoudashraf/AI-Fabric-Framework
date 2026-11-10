@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, Stack, Switch, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import CloseOutlined from '@mui/icons-material/CloseOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
@@ -11,9 +11,10 @@ import { stringifyExactJson } from '../lib/losslessJson'
 import { AssistantSources } from './AssistantSources'
 import { operation, scopeIdentity } from './scope'
 import { useAssistant, type AssistantController } from './useAssistant'
-import type { AssistantScope, AssistantTurn } from './types'
+import type { AssistantScope, AssistantTurn, ValidationFeedbackPolicy } from './types'
 import { ChangeSummary, ValidationOutcome } from './TurnDetails'
 import { validationSummary } from './turnPresentation'
+import { feedbackCeiling, feedbackPolicy, feedbackProgress, feedbackReason } from './validationFeedback'
 
 type Props = {
   scope: AssistantScope | null
@@ -100,6 +101,7 @@ export function AssistantPanel({ controller: c, scope, onClose, editorBusy, read
 }) {
   const [query, setQuery] = useState(''), [preview, setPreview] = useState(false), [explain, setExplain] = useState(false), [deleteOpen, setDeleteOpen] = useState(false)
   const [sourceIds, setSourceIds] = useState<string[]>([]), [operationIds, setOperationIds] = useState<string[]>([])
+  const [feedbackPreference, setFeedbackPreference] = useState<Partial<ValidationFeedbackPolicy>>({})
   const sources = c.session?.sources
   useEffect(() => {
     const validSources = new Set(sources?.map(source => source.id))
@@ -110,12 +112,17 @@ export function AssistantPanel({ controller: c, scope, onClose, editorBusy, read
   const readOnly = readOnlyReason || (guideOnly ? 'Guide only. Open the selected resource editor to make changes.' : '') || (c.session?.editable === false ? c.session.readOnlyReason || 'This resource is read-only.' : '')
   const unavailable = c.status.data && (!c.status.data.enabled || !c.status.data.ready)
   const disabled = Boolean(!c.session || unavailable || editorBusy)
+  const feedbackCapability = c.status.data?.validationFeedback
+  const correctionCeiling = feedbackCeiling(feedbackCapability)
+  const correctionAllowed = !explain && !guideOnly && scope.task !== 'KIT'
+  const validationFeedback = feedbackPolicy(feedbackCapability, feedbackPreference, correctionAllowed)
+  const correctionLimit = feedbackPolicy(feedbackCapability, { ...feedbackPreference, enabled: true }).maxCorrections
   const messages: Message[] = (c.session?.turns ?? []).flatMap(turn => [
     { id: `${turn.id}:query`, role: 'user', text: turn.query },
     { id: turn.id, role: 'assistant', text: turn.message ?? '', turn },
   ])
   const submit = async (value: string) => {
-    if (await c.submit({ query: explain || guideOnly ? `Explain only; do not change the draft.\n\n${value}` : value, previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds })) setQuery('')
+    if (await c.submit({ query: explain || guideOnly ? `Explain only; do not change the draft.\n\n${value}` : value, previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds, validationFeedback })) setQuery('')
   }
   return <Box id="configuration-assistant-panel" component="aside" aria-label="Build with AI" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, p: 2, bgcolor: 'background.paper', color: 'text.primary', '& .MuiTypography-root': { overflowWrap: 'anywhere' } }}>
     <Stack direction="row" alignItems="center" gap={1} sx={{ flexShrink: 0 }}><AutoAwesomeOutlined fontSize="small" color="primary" /><Typography fontSize={15} fontWeight={650} sx={{ flex: 1 }}>Build with AI</Typography>
@@ -140,6 +147,16 @@ export function AssistantPanel({ controller: c, scope, onClose, editorBusy, read
         {!guideOnly && <Stack direction="row" gap={1} flexWrap="wrap"><FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={preview || Boolean(readOnly)} disabled={c.busy || Boolean(readOnly)} onChange={event => setPreview(event.target.checked)} />} label="Preview only" />
           <FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={explain} disabled={c.busy} onChange={event => setExplain(event.target.checked)} />} label="Explain only" /></Stack>
         }
+        <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+          <FormControlLabel sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { fontSize: 12, overflowWrap: 'anywhere' } }}
+            control={<Switch size="small" checked={validationFeedback.enabled} disabled={c.busy || disabled || !correctionAllowed || !correctionCeiling}
+              onChange={event => setFeedbackPreference(value => ({ ...value, enabled: event.target.checked }))} />} label="Let AI fix validation errors" />
+          <TextField select size="small" label="Max corrections" value={correctionLimit || 1} disabled={c.busy || disabled || !validationFeedback.enabled}
+            onChange={event => setFeedbackPreference(value => ({ ...value, maxCorrections: Number(event.target.value) }))}
+            sx={{ width: 128, flexShrink: 0, mt: .5 }}>
+            {Array.from({ length: correctionCeiling || 1 }, (_, index) => <MenuItem key={index + 1} value={index + 1}>{index + 1}</MenuItem>)}
+          </TextField>
+        </Stack>
         <Typography variant="caption" color="text.secondary">Your request, selected sources and scoped configuration are shared with LoomAI's AI provider. Do not include credentials or unnecessary personal data.</Typography>
       </>}
       renderMessage={message => message.turn ? <TurnView turn={message.turn} controller={c} readOnly={Boolean(readOnly)} editorBusy={editorBusy} /> : <><Typography variant="caption" color="text.secondary">You</Typography><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography></>} />
@@ -153,13 +170,29 @@ function TurnView({ turn, controller: c, readOnly, editorBusy }: { turn: Assista
   const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status === 'SAVED')?.id
   const disabled = c.busy || editorBusy
   const validation = validationSummary(turn)
+  const progress = feedbackProgress(turn)
   return <>
     <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75 }}><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip size="small" variant="outlined" color={turn.status === 'SAVED' ? validation.outcome === 'attention' ? 'warning' : 'default' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={turn.status.split('_').join(' ')} /></Stack>
     <ValidationOutcome turn={turn} />
+    {progress && <Typography role="status" variant="caption" sx={{ display: 'block', mb: .75 }}>{progress}</Typography>}
     {turn.message && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{turn.message}</Typography>}
     {turn.notice && <Alert severity="info" sx={{ mt: 1 }}>{turn.notice}</Alert>}
     {turn.questions?.map(question => <Alert severity="info" key={question.id} sx={{ mt: 1, whiteSpace: 'normal' }}>{question.question}{question.field && <Typography display="block" variant="caption">{question.field}</Typography>}</Alert>)}
     <ChangeSummary turn={turn} />
+    {turn.feedbackStopReason && <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>{feedbackReason(turn.feedbackStopReason)}</Typography>}
+    {(turn.validationFeedback || turn.attempts?.length || turn.feedbackStopReason) && <Box component="details" sx={{ mt: 1, minWidth: 0, fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+      <summary>Validation feedback ({turn.attempts?.length ?? 0} attempts)</summary>
+      <JsonDetails label="Turn correction policy" value={turn.validationFeedback} />
+      <Box component="ol" sx={{ pl: 2, m: 0 }}>{turn.attempts?.map((attempt, index) => <Box component="li" key={`${attempt.number}:${index}`} sx={{ py: 1, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
+        <Typography variant="body2" fontWeight={600}>Attempt {attempt.number} / {attempt.status}</Typography>
+        {attempt.startedAt && <Typography variant="caption" display="block">Started: {attempt.startedAt}</Typography>}
+        <Typography variant="caption" display="block">{attempt.completedAt ? `Completed: ${attempt.completedAt}` : 'Not completed'}</Typography>
+        {attempt.message && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{attempt.message}</Typography>}
+        <JsonDetails label="Attempt findings" value={attempt.findings} />
+        <JsonDetails label="Attempt changes" value={attempt.changes} />
+        <JsonDetails label="Attempt runtime" value={attempt.runtime} />
+      </Box>)}</Box>
+    </Box>}
     <Box component="details" sx={{ mt: 1, fontSize: 12, whiteSpace: 'normal' }}><summary>Advanced</summary>
     <JsonDetails label={turn.status === 'SAVED' || turn.status === 'UNDONE' ? 'Saved diff' : 'Proposed diff'} value={turn.diff ?? turn.changes} />
     <JsonDetails label="Validation" value={turn.validation} />

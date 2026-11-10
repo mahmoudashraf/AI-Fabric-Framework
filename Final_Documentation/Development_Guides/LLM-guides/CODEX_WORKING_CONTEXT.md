@@ -14234,3 +14234,30 @@ test is being called hosted acceptance. UI extraction remains last.
   is now deliberately revoked; obtain a fresh normal sign-in for later tests.
   Never publish these files. Root dirty `.gitignore` and unrelated old untracked
   work were preserved; only this task's verification directory is added.
+
+### Configuration Assistant - 10 November 2026, Feedback Loop And Next UX
+
+- Owner approved a visible bounded validation-feedback loop after the assistant
+  recording. Backend/UI/private authoring instructions are implemented locally,
+  uncommitted and NOT deployed. Explicit per-turn opt-in, at most two corrections,
+  one overall deadline, actual findings/attempt receipts, one final draft save,
+  cancellation and no provider/network/budget retry. No framework change/release.
+- Focused runtime69/UI45-unit and earlier UI27-browser/13-Support groups passed;
+  final backend rerun and UI copy/build requalification remain in progress.
+  Read-only review found one paid invalid-output receipt cancellation race;
+  Main retained the receipt across the guarded transaction and added its focused
+  regression. Do not infer a hosted or full-suite pass from these local results.
+- Shareable pre-loop recording is complete under
+  Final_Documentation/Demo_Videos/configuration-assistant-20261110/ and reproducible
+  sources under verification-support/configuration-assistant-01037/video/.
+  It shows explicit user correction, not the new automatic loop. Temporary phone
+  gallery/tunnel intentionally remain running; recording-only Brain archived and
+  sessions deleted. Private receipts stay outside git.
+- Latest owner assessment: add page-specific welcome and document-first task
+  commands after the loop. Existing task/catalogue/current config/source context
+  already exists; current UI still requires a typed request. Recorded proposed
+  Actions flow in 010.37 section19: document + optional hint -> Prepare actions ->
+  bounded correction -> review/edit/undo. No paid call on navigation/import alone,
+  no forced assistant opening, no new framework/specialist requirement identified.
+  This next UX is documented, NOT implemented. Existing serving identities in
+  Hosted Closeout above remain unchanged. Unrelated dirty work is preserved.

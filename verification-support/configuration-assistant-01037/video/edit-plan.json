@@ -1,0 +1,82 @@
+{
+  "segments": [
+    {
+      "start": 1.3, "end": 12.5, "minimumSeconds": 20,
+      "title": "01  Start with a new Smart Brain",
+      "detail": "Actual hosted Console. Empty draft. No runtime or customer business database created.",
+      "narration": "This is a real Console session, starting with a new, empty Smart Brain draft. The draft was created through the normal creation API before recording. No runtime has been deployed. We will use Build with AI to configure its capabilities, connections, response style and model."
+    },
+    {
+      "start": 12.5, "end": 40.5,
+      "title": "02  Share the dealership API document",
+      "detail": "Import YAML, review its content, and inspect the three discovered GET operations.",
+      "narration": "First, add an API document. This fictional dealership reference describes the demo application's stock search, vehicle details and comparison endpoints. It is not the Auto Trader partner API. The imported document and selected configuration are shared with the AI provider. Importing documentation does not execute any of its endpoints."
+    },
+    {
+      "start": 41.25, "end": 88.7, "speed": 1.6,
+      "title": "03  Describe the customer outcome",
+      "detail": "Create stock search, vehicle details and comparison as anonymous-enabled READ capabilities.",
+      "narration": "Instead of writing the action catalogue by hand, describe the outcome. We ask for three public, read-only capabilities, using the documented inputs and presentation hints. The dealership identifier belongs in business configuration, not in a question to the shopper. This is a real model request. Some processing time has been shortened in the edit."
+    },
+    {
+      "start": 88.74, "end": 126.2, "speed": 1.4,
+      "title": "04  Inspect the saved actions",
+      "detail": "The normal editor now contains three actions. Actual validation and changed fields remain visible.",
+      "narration": "The assistant saves the requested changes to the draft. The normal capability list now shows stock search, vehicle details and comparison. The actual validation result is visible alongside the saved changes. There are two setup warnings, and no deployed environment. Saved configuration is not the same as a live, verified integration."
+    },
+    {
+      "start": 126.22, "end": 158.85, "speed": 1.2,
+      "title": "05  Follow up to configure HTTP mappings",
+      "detail": "Same session, same imported document. The sample API address is deliberately non-routable.",
+      "narration": "Next, we ask for the documented request and response mappings. For this fictional example, the dealership identifier gets its documented demo value. The sample server address is deliberately non-routable, so this recording cannot call a real dealership API. Existing inbound connector protection remains unchanged."
+    },
+    {
+      "start": 158.92, "end": 197.85, "speed": 1.3,
+      "title": "06  Visible feedback, explicit correction",
+      "detail": "A route-format error is shown. The user asks the LLM to correct it; there is no hidden repair loop.",
+      "narration": "This turn reveals a real limitation. The model placed an absolute URL in a relative path field. The checker reports three errors instead of hiding them. We explicitly send a follow-up message asking the model to separate the upstream base address from the relative paths and use the supported response template. The assistant is not autonomously retrying."
+    },
+    {
+      "start": 197.87, "end": 215.65, "minimumSeconds": 21,
+      "title": "07  Review the correction",
+      "detail": "Zero configuration errors after the explicit follow-up. Two unrelated setup warnings remain.",
+      "narration": "The correction is saved. The authoritative result now shows zero configuration errors, with the two existing setup warnings still visible. These receipts and checks describe what the Platform actually did, even when the model's explanation is overly cautious. Publication and deployment remain separate user decisions."
+    },
+    {
+      "start": 215.67, "end": 244.93,
+      "title": "08  Refine the result in ordinary forms",
+      "detail": "Change the action label manually, save it, and inspect the generated routes.",
+      "narration": "You keep control of the configuration. Here, we manually change the stock search label to Find your next car, save it through the existing editor, and inspect the generated HTTP routes. The assistant has not replaced the forms or created a second configuration system. Manual refinement follows the AI work."
+    },
+    {
+      "start": 244.95, "end": 274.35, "speed": 1.25,
+      "title": "09  Tune how the Brain responds",
+      "detail": "Ask for Warm, Grounded, Brief and Contextual next-step profiles.",
+      "narration": "Build with AI also works on response behaviour. We ask for a warm tone, grounded answers, brief replies and contextual next steps, while preserving the actions, routes and our manual label. The selected editor determines the authorized scope of the request. This does not enable internet research or relax factual boundaries."
+    },
+    {
+      "start": 274.38, "end": 284.95, "minimumSeconds": 20,
+      "title": "10  See the profiles in the existing editor",
+      "detail": "The controls update to Warm, Your information only, Brief and When useful.",
+      "narration": "The saved profiles appear in the existing response controls. The nearby customer example is explicitly marked as an illustrative preview, not a generated live answer. The action catalogue and connection mappings remain unchanged. You can continue editing normally after the assistant finishes."
+    },
+    {
+      "start": 284.97, "end": 304, "minimumSeconds": 22,
+      "title": "11  Prepare the response model",
+      "detail": "Update only the supported LLM setting. Keep credentials, embeddings and storage unchanged.",
+      "narration": "On the AI models page, we ask the assistant to prepare GPT five point four mini as the response model. This changes the draft model setting only. It does not reveal credentials, allocate funding, provision a service, or alter the embeddings and vector storage configuration."
+    },
+    {
+      "start": 344.43, "end": 360, "minimumSeconds": 21,
+      "title": "12  Review the complete draft",
+      "detail": "Actions, routes, response profiles and model settings are saved. No version has been published.",
+      "narration": "Finally, open Updates to review the configuration as a whole. This is the ordinary publication workflow, not an assistant-only shortcut. It shows the draft changes, zero published versions and no runtime address. We check the draft, but deliberately do not publish or apply anything."
+    },
+    {
+      "start": 360, "end": 369.49, "minimumSeconds": 25,
+      "title": "13  The user decides when to go live",
+      "detail": "Real AI configuration, visible findings, manual refinement and explicit publication.",
+      "narration": "Five real assistant requests configured this new draft, including one explicit correction. The final check has zero errors and two setup warnings. A real installation still needs its authorized API endpoint and remaining connection settings verified. Nothing in this demonstration changed the live dealership deployment. This is AI-assisted configuration with the user in control."
+    }
+  ]
+}

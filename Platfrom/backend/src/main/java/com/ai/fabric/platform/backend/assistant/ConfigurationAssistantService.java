@@ -62,9 +62,12 @@ public class ConfigurationAssistantService {
     }
     public JsonNode status() {
         boolean ready = properties.isEnabled() && crypto.configured() && runtime.configured();
-        return mapper.createObjectNode().put("enabled", properties.isEnabled()).put("ready", ready)
+        var result = mapper.createObjectNode().put("enabled", properties.isEnabled()).put("ready", ready)
             .put("documentFetchEnabled", properties.isDocumentFetchEnabled())
             .put("unavailableReason", ready ? "" : "AI configuration is not configured on this environment. Manual editing remains available.");
+        result.putObject("validationFeedback").put("defaultEnabled", properties.isValidationFeedbackEnabled() && properties.getValidationFeedbackMaxCorrections() > 0)
+            .put("maxCorrections", Math.max(0, Math.min(AuthoringFeedbackPolicy.MAX_CORRECTIONS, properties.getValidationFeedbackMaxCorrections())));
+        return result;
     }
     public JsonNode create(CreateSession request) {
         requireEnabled();
@@ -181,6 +184,7 @@ public class ConfigurationAssistantService {
         if (request == null || request.query() == null || request.query().isBlank() || request.query().length() > 8_000)
             throw bad("Describe the configuration change in at most 8,000 characters.");
         if (key == null || key.isBlank() || key.length() > 128) throw bad("An Idempotency-Key is required.");
+        var feedback = AuthoringFeedbackPolicy.resolve(request.validationFeedback(), properties);
         String commandHash = digest(mapper.valueToTree(request).toString());
         var claim = tx.execute(ignored -> {
             var session = owned(id, true); var resource = resource(session); var content = content(session);
@@ -207,6 +211,7 @@ public class ConfigurationAssistantService {
             var turn = turns.addObject().put("id", turnId).put("query", documents.redactText(request.query()))
                 .put("previewOnly", request.previewOnly()).put("requestKey", key).put("commandHash", commandHash)
                 .put("status", "RUNNING").put("createdAt", Instant.now().toString());
+            turn.set("validationFeedback", mapper.valueToTree(feedback)); turn.putArray("attempts");
             turn.set("sourceIds", mapper.valueToTree(request.sourceIds() == null ? sourceIds : request.sourceIds()));
             turn.set("operationIds", mapper.valueToTree(request.operationIds() == null ? List.of() : request.operationIds()));
             session.status = "RUNNING"; session.activeTurnId = turnId; session.deadline = Instant.now().plusSeconds(140);
@@ -223,23 +228,137 @@ public class ConfigurationAssistantService {
     }
     private void run(String id, String turnId) {
         JsonNode generated = null;
+        JsonNode failedInferenceReceipt = null;
         try {
-            JsonNode input = tx.execute(ignored -> {
-                var session = owned(id, false); var resource = resource(session);
-                requireCurrent(session, turnId); return input(session, content(session), resource, turnId);
-            });
-            JsonNode output = runtime.generate(input);
-            generated = output;
-            tx.executeWithoutResult(ignored -> {
-                var session = owned(id, true); var resource = resource(session); requireCurrent(session, turnId);
-                var content = content(session); var turn = findTurn(content, turnId);
-                complete(session, content, turn, resource, output, turn.path("previewOnly").asBoolean());
-            });
+            ArrayNode accumulated = mapper.createArrayNode();
+            JsonNode previousFindings = null;
+            for (int number = 1; ; number++) {
+                failedInferenceReceipt = null;
+                final int attemptNumber = number;
+                final JsonNode feedbackFindings = previousFindings;
+                JsonNode inferenceInput = tx.execute(ignored -> {
+                    var session = owned(id, true); var resource = resource(session); requireCurrent(session, turnId);
+                    var content = content(session); var turn = findTurn(content, turnId);
+                    var policy = policy(turn);
+                    if (attemptNumber > policy.maxAttempts()) throw bad("The configured correction limit was reached.");
+                    ObjectNode input = (ObjectNode) input(session, content, resource, turnId);
+                    var candidate = changes.apply(resource.configuration(), accumulated, resource.allowedPaths()).candidate();
+                    input.set("currentConfiguration", changes.project(candidate));
+                    if (policy.enabled()) {
+                        input.put("turnId", turnId + "-attempt-" + attemptNumber);
+                        var context = ((ObjectNode) input.path("catalogue")).putObject("validationFeedback")
+                            .put("attempt", attemptNumber).put("maxAttempts", policy.maxAttempts())
+                            .put("deadlineAt", session.deadline.toString());
+                        if (feedbackFindings != null) {
+                            var diagnostic = mapper.createObjectNode(); diagnostic.set("configuration", candidate);
+                            diagnostic.set("findings", feedbackFindings); diagnostic.set("changes", accumulated);
+                            var safe = changes.project(diagnostic);
+                            context.set("previousFindings", safe.path("findings"));
+                            context.set("previousChanges", safe.path("changes"));
+                            ((ObjectNode) input.path("catalogue")).set("currentValidation", safe.path("findings"));
+                        }
+                    }
+                    if (input.toString().length() > 120_000) throw bad("The correction context is too large. Continue in the editor or narrow the request.");
+                    turn.withArray("attempts").addObject().put("number", attemptNumber).put("status", "RUNNING")
+                        .put("startedAt", Instant.now().toString());
+                    write(session, content);
+                    return input;
+                });
+                generated = null;
+                JsonNode output;
+                try { output = runtime.generate(inferenceInput); }
+                catch (AuthoringRuntimeClient.AuthoringRuntimeFailure invalidOutput) {
+                    if (!"AUTHORING_INVALID_OUTPUT".equals(invalidOutput.getReason())) throw invalidOutput;
+                    // A concurrent cancellation/authority check must not discard paid inference evidence.
+                    failedInferenceReceipt = invalidOutput.receipt();
+                    var result = tx.execute(ignored -> invalidOutputAttempt(id, turnId, attemptNumber, invalidOutput.receipt()));
+                    if (!result.again()) throw invalidOutput;
+                    previousFindings = result.findings();
+                    continue;
+                }
+                generated = output;
+                validateEnvelope(output);
+                var result = tx.execute(ignored -> evaluateAttempt(id, turnId, attemptNumber, accumulated, output));
+                previousFindings = result.findings();
+                if (!result.again()) {
+                    generated = result.output();
+                    tx.executeWithoutResult(ignored -> {
+                        var session = owned(id, true); var resource = resource(session); requireCurrent(session, turnId);
+                        var content = content(session); var turn = findTurn(content, turnId);
+                        complete(session, content, turn, resource, result.output(), turn.path("previewOnly").asBoolean());
+                    });
+                    break;
+                }
+            }
         } catch (Exception failure) {
             String message = failure instanceof ResponseStatusException known && known.getReason() != null
                 ? documents.redactText(known.getReason()) : "AI configuration could not complete. Your last saved draft remains available.";
-            fail(id, turnId, message, failure instanceof AuthoringRuntimeClient.AuthoringRuntimeFailure known ? known.receipt() : null, generated);
+            fail(id, turnId, message, failure instanceof AuthoringRuntimeClient.AuthoringRuntimeFailure known ? known.receipt() : failedInferenceReceipt, generated);
         } finally { pending.remove(turnId); }
+    }
+
+    private AttemptResult evaluateAttempt(String id, String turnId, int number, ArrayNode accumulated, JsonNode output) {
+        var session = owned(id, true); var resource = resource(session); requireCurrent(session, turnId);
+        var content = content(session); var turn = findTurn(content, turnId);
+        var policy = policy(turn);
+        var attempt = (ObjectNode) turn.withArray("attempts").get(number - 1);
+        var safe = changes.project(output);
+        for (String field : List.of("runtime", "message", "changes", "questions", "diagnostics"))
+            if (safe.has(field)) attempt.set(field, safe.get(field));
+        attempt.put("completedAt", Instant.now().toString());
+        String state = output.path("status").asText();
+        boolean writableResult = "READY".equals(state);
+        // A request for information/explanation is a model stop decision, not permission to keep trying.
+        if (writableResult) for (var change : output.path("changes")) accumulated.add(change.deepCopy());
+        var finalOutput = output.deepCopy();
+        if (writableResult) ((ObjectNode) finalOutput).set("changes", accumulated.deepCopy());
+        JsonNode findings = null;
+        if (writableResult && !accumulated.isEmpty()) {
+            var candidate = changes.apply(resource.configuration(), accumulated, resource.allowedPaths());
+            try { findings = resources.check(session.resourceKind, session.resourceId, resource, candidate.candidate()); }
+            catch (ResponseStatusException invalid) {
+                if (!policy.enabled() || invalid.getStatusCode().value() != 400) throw invalid;
+                findings = mapper.createObjectNode().put("valid", false).put("errorCount", 1);
+                ((ObjectNode) findings).putArray("issues").addObject().put("severity", "ERROR")
+                    .put("code", "CONFIGURATION_CHECK_REJECTED").put("message", invalid.getReason() == null ? "The candidate configuration requires correction." : invalid.getReason());
+            }
+            var diagnostic = mapper.createObjectNode(); diagnostic.set("configuration", candidate.candidate()); diagnostic.set("findings", findings);
+            findings = changes.project(diagnostic).path("findings");
+            attempt.set("findings", findings);
+        }
+        boolean errors = AuthoringFeedbackPolicy.errors(findings);
+        boolean again = policy.enabled() && writableResult && errors && !output.path("changes").isEmpty() && number < policy.maxAttempts();
+        attempt.put("status", errors ? "VALIDATION_ERRORS" : AuthoringFeedbackPolicy.checked(findings) ? "CHECKED" : state);
+        if (again) {
+            turn.put("feedbackStopReason", "CORRECTING_VALIDATION_ERRORS"); write(session, content);
+        } else {
+            String reason = !policy.enabled() ? "DISABLED" : !writableResult ? state
+                : errors ? number >= policy.maxAttempts() ? "CORRECTION_LIMIT_REACHED" : "NO_CORRECTION_PROPOSED"
+                : AuthoringFeedbackPolicy.checked(findings) ? "VALIDATION_PASSED" : "CHECK_NOT_AVAILABLE";
+            turn.put("feedbackStopReason", reason);
+            write(session, content);
+        }
+        return new AttemptResult(again, findings, finalOutput);
+    }
+
+    private AttemptResult invalidOutputAttempt(String id, String turnId, int number, JsonNode receipt) {
+        var session = owned(id, true); resource(session); requireCurrent(session, turnId);
+        var content = content(session); var turn = findTurn(content, turnId); var policy = policy(turn);
+        var findings = mapper.createObjectNode().put("valid", false).put("errorCount", 1);
+        findings.putArray("issues").addObject().put("severity", "ERROR").put("code", "AUTHORING_INVALID_OUTPUT")
+            .put("message", "The previous response did not meet the whole JSON authoring contract. Return the required structured envelope.");
+        var attempt = (ObjectNode) turn.withArray("attempts").get(number - 1);
+        attempt.put("status", "INVALID_OUTPUT").put("completedAt", Instant.now().toString());
+        attempt.set("findings", findings); attempt.set("runtime", changes.project(receipt));
+        boolean again = policy.enabled() && number < policy.maxAttempts();
+        turn.put("feedbackStopReason", again ? "CORRECTING_VALIDATION_ERRORS" : policy.enabled() ? "CORRECTION_LIMIT_REACHED" : "DISABLED");
+        write(session, content);
+        return new AttemptResult(again, findings, null);
+    }
+
+    private AuthoringFeedbackPolicy policy(JsonNode turn) {
+        var node = turn.path("validationFeedback");
+        return new AuthoringFeedbackPolicy(node.path("enabled").asBoolean(), node.path("maxCorrections").asInt());
     }
     private JsonNode input(AuthoringSessionEntity session, ObjectNode content, AuthoringResourceService.Snapshot resource, String turnId) {
         var turn = findTurn(content, turnId);
@@ -284,16 +403,14 @@ public class ConfigurationAssistantService {
     }
     private void complete(AuthoringSessionEntity session, ObjectNode content, ObjectNode turn,
         AuthoringResourceService.Snapshot resource, JsonNode output, boolean preview) {
-        if (!CONTRACT.equals(output.path("contractVersion").asText()) || !Set.of("READY", "NEEDS_INPUT", "EXPLAIN", "UNSUPPORTED").contains(output.path("status").asText()))
-            throw bad("The assistant returned an unsupported structured result. No draft change was made.");
-        if (!output.path("message").isTextual() || output.path("message").asText().length() > 8_000 || !output.path("changes").isArray())
-            throw bad("The assistant returned an incomplete structured result. No draft change was made.");
+        validateEnvelope(output);
         String status = output.path("status").asText();
-        if (Set.of("EXPLAIN", "UNSUPPORTED").contains(status) && !output.path("changes").isEmpty()) throw bad("An explanation cannot carry draft writes.");
         turn.put("message", documents.redactText(output.path("message").asText()));
         for (String field : List.of("changes", "questions", "assumptions", "sourceReferences", "runtime", "diagnostics"))
             if (output.has(field)) turn.set(field, changes.project(output.get(field)));
-        if (!output.path("changes").isEmpty()) {
+        boolean awaitingInput = "NEEDS_INPUT".equals(status) && policy(turn).enabled();
+        if (awaitingInput) turn.put("notice", "More information is needed. Proposed changes remain in the attempt history; no draft change was saved.");
+        if (!awaitingInput && !output.path("changes").isEmpty()) {
             var candidate = changes.apply(resource.configuration(), output.path("changes"), resource.allowedPaths());
             turn.set("diff", candidate.diff());
             turn.set("findings", resources.check(session.resourceKind, session.resourceId, resource, candidate.candidate()));
@@ -305,6 +422,15 @@ public class ConfigurationAssistantService {
             } else { status = "PREVIEW"; if (!resource.editable()) turn.put("notice", resource.readOnlyReason()); }
         }
         turn.put("status", status); session.status = "IDLE"; session.activeTurnId = null; session.deadline = null; write(session, content);
+    }
+
+    private void validateEnvelope(JsonNode output) {
+        if (!CONTRACT.equals(output.path("contractVersion").asText()) || !Set.of("READY", "NEEDS_INPUT", "EXPLAIN", "UNSUPPORTED").contains(output.path("status").asText()))
+            throw bad("The assistant returned an unsupported structured result. No draft change was made.");
+        if (!output.path("message").isTextual() || output.path("message").asText().length() > 8_000 || !output.path("changes").isArray())
+            throw bad("The assistant returned an incomplete structured result. No draft change was made.");
+        String status = output.path("status").asText();
+        if (Set.of("EXPLAIN", "UNSUPPORTED").contains(status) && !output.path("changes").isEmpty()) throw bad("An explanation cannot carry draft writes.");
     }
     public JsonNode proposal(String id, String turnId, String command) {
         requireEnabled();
@@ -356,8 +482,21 @@ public class ConfigurationAssistantService {
     }
     private void fail(String id, String turnId, String message, JsonNode receipt, JsonNode generated) {
         tx.executeWithoutResult(ignored -> sessions.lock(id).ifPresent(session -> {
-            if (!turnId.equals(session.activeTurnId) || !"RUNNING".equals(session.status)) return;
-            var content = content(session); var turn = findTurn(content, turnId);
+            var content = content(session);
+            ObjectNode turn = null;
+            for (var candidate : content.path("turns")) if (turnId.equals(candidate.path("id").asText())) turn = (ObjectNode) candidate;
+            if (turn == null) return;
+            boolean current = turnId.equals(session.activeTurnId) && "RUNNING".equals(session.status);
+            if (turn.path("attempts").isArray() && !turn.path("attempts").isEmpty()) {
+                var attempt = (ObjectNode) turn.withArray("attempts").get(turn.path("attempts").size() - 1);
+                if ("RUNNING".equals(attempt.path("status").asText())) {
+                    attempt.put("status", current ? "FAILED" : turn.path("status").asText())
+                        .put("completedAt", Instant.now().toString()).put("message", message);
+                    if (receipt != null) attempt.set("runtime", changes.project(receipt));
+                    else if (generated != null && generated.has("runtime")) attempt.set("runtime", changes.project(generated.path("runtime")));
+                }
+            }
+            if (!current) { write(session, content); return; }
             // Completion can roll back after paid generation; preserve evidence in this separate transaction.
             if (generated != null) {
                 var safe = changes.project(generated);
@@ -368,6 +507,7 @@ public class ConfigurationAssistantService {
                 turn.put("notice", "The generated proposal was not saved. Retained model output is unverified; your last saved draft is unchanged.");
             }
             turn.put("status", "FAILED").put("message", message);
+            if ("CORRECTING_VALIDATION_ERRORS".equals(turn.path("feedbackStopReason").asText())) turn.put("feedbackStopReason", "FAILED");
             if (receipt != null) turn.set("runtime", changes.project(receipt));
             session.status = "IDLE"; session.activeTurnId = null; session.deadline = null; write(session, content);
         }));
@@ -436,9 +576,15 @@ public class ConfigurationAssistantService {
     private String digest(String value) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private ResponseStatusException bad(String message) { return new ResponseStatusException(BAD_REQUEST, message); }
     private record Claim(String sessionId, String turnId, JsonNode view) { }
+    private record AttemptResult(boolean again, JsonNode findings, JsonNode output) { }
     public record CreateSession(String resourceKind, String resourceId, String task) { }
     public record SourceRequest(String title, String mediaType, String content, String base64, String url) { }
     public record ReuseSources(String sessionId, List<String> sourceIds) { }
     public record CancelRequest(String turnId) { }
-    public record TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds) { }
+    public record TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
+                              AuthoringFeedbackPolicy validationFeedback) {
+        public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds) {
+            this(query, previewOnly, sourceIds, operationIds, null);
+        }
+    }
 }

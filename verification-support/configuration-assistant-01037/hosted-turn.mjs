@@ -51,7 +51,8 @@ for (const source of command.sources ?? []) {
 }
 const sourceIds = command.sourceIds ?? session.sources.map(source => source.id)
 const operationIds = command.operationIds ?? []
-const turnInput = { query: command.query, previewOnly: Boolean(command.previewOnly), sourceIds, operationIds }
+const turnInput = { query: command.query, previewOnly: Boolean(command.previewOnly), sourceIds, operationIds,
+  ...(command.validationFeedback ? { validationFeedback: command.validationFeedback } : {}) }
 const key = randomUUID()
 const startedAt = new Date().toISOString()
 session = await request(`/api/configuration-assistant/sessions/${session.id}/turns`, { method: 'POST', body: turnInput, key })
@@ -86,4 +87,5 @@ writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o60
 console.log(JSON.stringify({ environment, name, sessionId: session.id, turnId, status: turn.status,
   message: turn.message, changes: turn.changes, questions: turn.questions, findings: turn.findings,
   receipt: turn.receipt ?? turn.undoReceipt, runtime: turn.runtime, diagnostics: turn.diagnostics,
+  validationFeedback: turn.validationFeedback, feedbackStopReason: turn.feedbackStopReason, attempts: turn.attempts,
   evidence: resultPath }, null, 2))
