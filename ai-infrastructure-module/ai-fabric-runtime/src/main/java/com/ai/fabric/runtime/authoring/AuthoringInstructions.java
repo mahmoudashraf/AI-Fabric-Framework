@@ -14,7 +14,9 @@ final class AuthoringInstructions {
           "message":{"type":"string","maxLength":8000},
           "changes":{"type":"array","maxItems":30,"items":{"type":"object","required":["path","operation"],
            "properties":{"path":{"type":"string","description":"RFC 6901 JSON pointer"},
-            "operation":{"enum":["SET","REMOVE","UPSERT","REMOVE_ITEM"]},"key":{"type":"string"},"value":{}},
+            "operation":{"enum":["SET","REMOVE","UPSERT","REMOVE_ITEM"]},"key":{},"value":{}},
+           "if":{"properties":{"operation":{"enum":["UPSERT","REMOVE_ITEM"]}}},
+           "then":{"required":["key"],"properties":{"key":{"type":"string","minLength":1,"maxLength":512,"pattern":"\\\\S"}}},
            "additionalProperties":false}},
           "questions":{"type":"array","maxItems":32,"items":{"type":"object","required":["id","question"],
            "properties":{"id":{"type":"string"},"question":{"type":"string"},"field":{"type":"string"}},"additionalProperties":false}},
@@ -90,6 +92,8 @@ final class AuthoringInstructions {
             Changes are proposals: path is an RFC 6901 JSON pointer relative to currentConfiguration.
             SET requires value (including explicit null). REMOVE removes that path. UPSERT and
             REMOVE_ITEM are array-only, addressing a named array by key; UPSERT requires value.
+            UPSERT/REMOVE_ITEM require a nonblank string key. Omit unused key on SET/REMOVE;
+            any supplied unused key is not authority and is preserved unchanged, never repaired.
             Use collectionShapes to distinguish named arrays from object maps, not to grant authority.
             Object-map entries use SET at their exact escaped path, never array UPSERT/REMOVE_ITEM.
             Platform SET merges named collections by their existing identity fields: actions and

@@ -22,6 +22,57 @@ class AuthoringJsonContractTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"SET", "REMOVE"})
+    void preservesUnusedNullKeysWithoutRewritingOperations(String operation) throws Exception {
+        var raw = output();
+        var change = raw.putArray("changes").addObject().put("path", "/setting")
+            .put("operation", operation).putNull("key");
+        if (operation.equals("SET")) change.put("value", 600);
+        assertThat(contract.strictResponse(raw.toString(), request())).isEqualTo(raw);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UPSERT", "REMOVE_ITEM"})
+    void rejectsMissingNullBlankOrInvalidKeysForArrayOperations(String operation) throws Exception {
+        var raw = output();
+        var change = raw.putArray("changes").addObject().put("path", "/actions")
+            .put("operation", operation);
+        if (operation.equals("UPSERT")) change.putObject("value").put("name", "example");
+        assertInvalid(raw.toString());
+        change.putNull("key");
+        assertInvalid(raw.toString());
+        change.put("key", " \t\n");
+        assertInvalid(raw.toString());
+        change.put("key", 42);
+        assertInvalid(raw.toString());
+        change.put("key", "x".repeat(513));
+        assertInvalid(raw.toString());
+        change.put("key", "example");
+        assertThat(contract.strictResponse(raw.toString(), request())).isEqualTo(raw);
+    }
+
+    @Test
+    void schemaAndGuidanceRequireKeysOnlyForArrayOperations() throws Exception {
+        var changeSchema = MAPPER.readTree(AuthoringInstructions.RESPONSE_SCHEMA)
+            .path("properties").path("changes").path("items");
+        assertThat(changeSchema.path("properties").path("key").isEmpty()).isTrue();
+        assertThat(changeSchema.path("if").path("properties").path("operation").path("enum"))
+            .isEqualTo(MAPPER.readTree("[\"UPSERT\",\"REMOVE_ITEM\"]"));
+        assertThat(changeSchema.path("then").path("required"))
+            .isEqualTo(MAPPER.readTree("[\"key\"]"));
+        var requiredKey = changeSchema.path("then").path("properties").path("key");
+        assertThat(requiredKey.path("type").asText()).isEqualTo("string");
+        assertThat(requiredKey.path("minLength").asInt()).isEqualTo(1);
+        assertThat(requiredKey.path("maxLength").asInt()).isEqualTo(512);
+        var nonblank = java.util.regex.Pattern.compile(requiredKey.path("pattern").asText());
+        assertThat(nonblank.matcher(" \t\n").find()).isFalse();
+        assertThat(nonblank.matcher("example").find()).isTrue();
+        assertThat(AuthoringInstructions.system(request())).contains(
+            "UPSERT/REMOVE_ITEM require a nonblank string key", "Omit unused key on SET/REMOVE",
+            "preserved unchanged, never repaired");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"READY", "NEEDS_INPUT", "EXPLAIN", "UNSUPPORTED"})
     void allModelStatusesSurviveWithoutManufacturingADecision(String status) throws Exception {
         var output = output().put("status", status);

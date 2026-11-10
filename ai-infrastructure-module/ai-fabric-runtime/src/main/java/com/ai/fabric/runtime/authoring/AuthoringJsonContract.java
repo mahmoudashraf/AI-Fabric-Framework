@@ -55,7 +55,6 @@ final class AuthoringJsonContract {
                 pointer(text(change, "path", 2_048));
                 String operation = text(change, "operation", 32);
                 if (!Set.of("SET", "REMOVE", "UPSERT", "REMOVE_ITEM").contains(operation)) throw new IllegalArgumentException();
-                if (change.has("key")) text(change, "key", 512);
                 if ((operation.equals("UPSERT") || operation.equals("REMOVE_ITEM"))
                     && text(change, "key", 512).isBlank()) throw new IllegalArgumentException();
                 if ((operation.equals("SET") || operation.equals("UPSERT")) && !change.has("value")) throw new IllegalArgumentException();

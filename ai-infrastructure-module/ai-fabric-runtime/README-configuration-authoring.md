@@ -50,9 +50,14 @@ HTTP 200 preserves the model's execution envelope: `contractVersion`, `status`
 is at most 8,000 characters, matching Platform storage and history limits.
 
 `changes[]` contains `path` (RFC 6901 pointer relative to current configuration),
-`operation` (`SET|REMOVE|UPSERT|REMOVE_ITEM`), optional string `key`, optional
+`operation` (`SET|REMOVE|UPSERT|REMOVE_ITEM`), operation-dependent `key`, optional
 arbitrary JSON `value`. SET/UPSERT require a present value, including explicit
-null; UPSERT/REMOVE_ITEM require a nonblank key. System guidance describes
+null; UPSERT/REMOVE_ITEM require a nonblank string key (at most 512 characters).
+SET/REMOVE do not use `key`: any supplied unused value, including null, is
+preserved unchanged as non-authority, not validated or used to rewrite the
+operation. Guidance asks the model to omit unused keys; consumers must dispatch
+by operation, not key presence. Whole-response/tree bounds still apply.
+System guidance describes
 Platform's SET merge identities: `actions`/`params` use `name`, `sources` use `id`,
 `knowledgeSources` use `sourceKey`, `datasets` use `datasetId`. Use explicit
 REMOVE/REMOVE_ITEM for deletions, not omission from SET. Main enforces the actual
