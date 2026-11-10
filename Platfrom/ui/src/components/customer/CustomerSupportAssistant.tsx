@@ -23,7 +23,8 @@ export function CustomerSupportAssistant({ bottomOffset = 0, initiallyMinimized 
   return <>
     {hidden && <Button variant="contained" startIcon={<ChatBubbleOutlineRounded />}
       onClick={() => support.setMinimized(false)} aria-label="Open LoomAI support"
-      sx={{ position: 'fixed', bottom: bottomOffset + 20, ...controlPosition, zIndex: 1100, borderRadius: 1, boxShadow: 4, py: 1.25, textTransform: 'none' }}>LoomAI Support</Button>}
+      sx={{ position: 'fixed', bottom: bottomOffset + 20, ...controlPosition, zIndex: 1100, borderRadius: 1, boxShadow: 4, py: 1.25, textTransform: 'none',
+        'body:has([data-assistant-workspace][data-assistant-open="true"]) &': { display: 'none' } }}>LoomAI Support</Button>}
     <Box data-testid="customer-support-assistant" data-presentation={inPage ? 'page' : 'dock'}
       sx={{ display: hidden ? 'none' : 'flex', flexDirection: 'column', minWidth: 0, bgcolor: 'background.paper',
         ...(inPage ? { mt: 2, height: 'max(480px, calc(100dvh - 200px))', minHeight: 480 }

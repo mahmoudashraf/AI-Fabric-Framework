@@ -30,10 +30,12 @@ const server = await createServer({ root, configFile: false, envFile: false, log
       if (id === entry) return `import React from'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{BrowserRouter,Routes,Route}from'react-router-dom';
         import{CustomerSupportPage}from'/src/pages/CustomerSupportPage.tsx';import{CustomerShellLayout}from'/src/layout/CustomerConsoleShell.tsx';
         import{AppShell}from'/src/layout/AppShell.tsx';import{DeploymentWorkspaceProvider}from'/src/workspace/DeploymentWorkspaceContext.tsx';
+        import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';
         import{setPlatformAccessTokenProvider}from'/src/api/platformApi.ts';
         window.__fixtureToken??=${JSON.stringify(token)};setPlatformAccessTokenProvider(async()=>window.__signedOut?null:window.__fixtureToken);
         const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});const staff=location.pathname==='/staff-fixture';
-        const routes=React.createElement(Routes,null,React.createElement(Route,{path:'/home',element:React.createElement('h1',null,'Customer home')}),
+        const home=React.createElement(AssistantWorkspace,{scope:{resourceKind:'DEPLOYMENT_DRAFT',resourceId:'fixture-brain',task:'BEHAVIOUR'},onSaved:async()=>{}},React.createElement('h1',null,'Customer home'));
+        const routes=React.createElement(Routes,null,React.createElement(Route,{path:'/home',element:home}),
           React.createElement(Route,{path:'/support',element:React.createElement(CustomerSupportPage)}),
           React.createElement(Route,{path:'/support/requests',element:React.createElement(CustomerSupportPage,{view:'requests'})}),
           React.createElement(Route,{path:'/support/:caseId',element:React.createElement(CustomerSupportPage)}));
@@ -87,6 +89,8 @@ try {
     calls.push({ path, method, body, key: request.headers()['idempotency-key'], authorization: request.headers().authorization })
     const json = (value, status = 200) => route.fulfill({ status, json: value })
     if (request.headers().authorization !== `Bearer ${token}`) return json({ message: 'Console authentication required' }, 401)
+    if (path === '/api/platform/auth/session') return json(session)
+    if (path === '/api/configuration-assistant/status') return json({ enabled: false, ready: false, documentFetchEnabled: false, unavailableReason: 'Authoring disabled in support fixture.' })
     if (path === '/api/support/workspace') return json(bootstrap())
     if (path === '/api/support/notifications') return json({ available: true, enabled: false, deliveryStatus: 'NONE' })
     if (path === '/api/support/session') return sessionError ? json({ message: 'Synthetic session failure' }, sessionError)
@@ -175,6 +179,36 @@ try {
   })
   const assistant = page.getByTestId('customer-support-assistant')
   const frame = page.frameLocator('iframe[data-loomai-workspace-frame]')
+  const checkAuthoringLauncher = async label => {
+    const launcher = page.getByRole('button', { name: 'Open LoomAI support', exact: true })
+    await launcher.waitFor({ state: 'visible' })
+    const button = await launcher.elementHandle(), supportFrame = await page.locator('iframe[data-loomai-workspace-frame]').elementHandle()
+    const unsent = await frame.locator('textarea').inputValue()
+    const originalDisplay = await button.evaluate(node => getComputedStyle(node).display)
+    const writes = calls.filter(call => call.method !== 'GET').length
+    await page.getByRole('button', { name: 'Build with AI', exact: true }).click()
+    await page.locator('[data-assistant-workspace][data-assistant-open="true"]').waitFor()
+    assert.equal(await button.evaluate(node => node.isConnected && getComputedStyle(node).display === 'none'), true, 'Actual minimized launcher CSS hides it while authoring is open')
+    await page.waitForFunction(() => {
+      const rect = document.getElementById('configuration-assistant-panel')?.getBoundingClientRect()
+      return rect && rect.x >= 0 && rect.right <= innerWidth + 1
+    })
+    assert.equal(await page.getByRole('textbox', { name: 'Message', exact: true }).evaluate(node => {
+      const rect = node.getBoundingClientRect()
+      return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === node
+    }), true, 'Authoring composer is not covered by the minimized launcher')
+    await assistant.waitFor({ state: 'hidden' })
+    await page.screenshot({ path: `${evidence}/authoring-open-launcher-hidden-${label}.png`, fullPage: true })
+    await page.getByRole('button', { name: 'Close assistant', exact: true }).click()
+    await page.locator('[data-assistant-workspace][data-assistant-open="false"]').waitFor()
+    await launcher.waitFor({ state: 'visible' })
+    assert.equal(await button.evaluate((node, display) => node.isConnected && getComputedStyle(node).display === display, originalDisplay), true, 'Same launcher returns without a support state transition')
+    await assistant.waitFor({ state: 'hidden' })
+    assert.equal(await supportFrame.evaluate(node => node.isConnected), true, 'Support frame never remounts')
+    assert.equal(await frame.locator('textarea').inputValue(), unsent, 'Unsent support draft survives')
+    assert.equal(calls.filter(call => call.method !== 'GET').length, writes, 'Open/close makes no mutation calls')
+    passed(`authoring ${label} hides/restores actual minimized launcher CSS without changing support frame or draft`)
+  }
   await page.goto(base + 'support')
   await frame.locator('textarea').waitFor({ timeout: 60_000 })
   await page.getByText('Sam Support', { exact: true }).waitFor()
@@ -216,6 +250,7 @@ try {
   assert.ok((await page.getByTestId('support-dock-controls').boundingBox()).x < 750)
   await page.getByRole('button', { name: 'Minimize support', exact: true }).click()
   await assistant.waitFor({ state: 'hidden' })
+  await checkAuthoringLauncher('desktop')
   await page.getByRole('button', { name: 'Open LoomAI support', exact: true }).click()
   await retained('dock move and minimize')
   await page.getByRole('combobox', { name: 'Customer color theme' }).click()
@@ -346,6 +381,8 @@ try {
   await page.screenshot({ path: `${evidence}/06-native-support-dock-mobile.png`, fullPage: true })
   const mobileInput = await frame.locator('textarea').boundingBox()
   assert.ok(mobileInput.x >= 0 && mobileInput.x + mobileInput.width <= 391)
+  await page.getByRole('button', { name: 'Minimize support', exact: true }).click()
+  await checkAuthoringLauncher('mobile')
 
   const photos = await page.evaluate(() => window.__photoObjectUrls)
   await page.evaluate(() => { window.__signedOut = true; dispatchEvent(new Event('fixture-auth')) })

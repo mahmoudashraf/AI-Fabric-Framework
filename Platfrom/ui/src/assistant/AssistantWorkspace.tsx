@@ -49,7 +49,7 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
     return () => node.removeAttribute('inert')
   }, [busy])
   const close = () => { setVisibility({ ...current, open: false }); requestAnimationFrame(() => opener.current?.focus()) }
-  return <Box data-assistant-workspace sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+  return <Box data-assistant-workspace data-assistant-open={open} sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
     {scope && <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
       {busy && <Typography role="status" variant="caption" sx={{ mr: 'auto' }}>AI is updating this editor</Typography>}
       <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity, activated: true, open: !open })}>Build with AI</Button>
