@@ -14528,3 +14528,48 @@ test is being called hosted acceptance. UI extraction remains last.
   and cleanup. Raw evidence/private helper state:
   ~/.codex/private/loomai-managed-tasks-01068/. Implementation record010_68 lists
   exact digests, failures and commands. Do not treat this as hosted completion.
+
+### Managed Tasks - 10 November 2026, Hosted Synchronous Slice Qualified
+
+- CURRENT at18:24UTC: backend eddd61eec9bdc78cd4a316f26e12ac84d77bfc45 and
+  Console e036fb05fed17ff904621947b42f00a723ba5af3 native-source/digest healthy
+  on BOTH hosts. Runtime4f5d459d174d8840eea797eadb19f200794614da is registered
+  on both control planes and promoted production; AI Fabric remains0.8.46.
+  No framework release, separate Task service/database or bulk customer upgrade.
+- Fresh private-authority staging rel-2996057a and production rel-59557b37 both
+  APPLIED_VERIFIED/PASSED at v2ver-bdc24a09. Final64boundary checks PASS,
+  32real-model Task runs passed checked contracts/expected fields,4hosted customer
+  UI executions succeeded exactversion/hash,3indexed Task runs returned real
+  evidence. Tasks are synchronous/read-only; reasoning is not deterministic.
+- Fixed bounded defects: missing frozen authority for private Tasks-only
+  apply, and unused rendered Updates summary (eddd). e036 removes whole-Brain
+  publication mismatch as a Try blocker; tests execute APPLIED task only, keep
+  permissions/target/version/hash and stale-draft checks, warn about pending edits.
+  Latest UI45tests/25browser scenarios/build PASS; hosted CRUD10groups perhost.
+- No false perfect-quality claim: API planner omitted missing-auth notes;
+  staging UI retained literal ReferenceCASE-UI input token. Acme current S3 has
+  only1eligible guide; oldscope records correctly excluded, other2guides absent
+  fromcurrentdiscovery. No input-handoff bug proved, filter weakened, documents
+  invented or extra inference retried. External READ Task/genuine readonlystaff
+  browser/live load testing remain unqualified; see01068record for exactscope.
+- Acme internalfixture restored through fresh ver-b5e397a1/rel-6cab74b8, now
+  APPLIED_VERIFIED/PASSED with Tasksdisabled, emptycatalogue andbundleenvcleared.
+  Oldversion reapply lackedcurrentreviewed documentbinding; no guardoverridden.
+  Existing Northfieldprodrel-a679937f and Supportprodrel-1f5533c5 unchanged/UP.
+- Five temporaryBrains deleted, sixnativecanaryservices/fourownedvolumes absent.
+  Storage-safe directdeletion blocked; coldRETIRE foruntemplatedfixture rejected
+  RESOURCE_SCOPE_MISMATCH. Explicitowner-native Coolify cleanup thennormalAPI
+  deletionretry del-33373bb7 succeeded. Recordgenericnon-offerretirementgap for
+  separatework; noSQL/receiptforge/sharedresource deletion. Fixtures signedout,
+  primaryfixture Supabase refreshsessions globallysignedout204; credentialssame.
+- CoreCI42860717388/42865694202 andUI42871118094/fullruntime42860717126/storage
+  42860717444 PASS. Quota/Desk42865694198 FAILED runnerDockerAPI1.32<minimum1.40;
+  equivalent232tests passed locallyagainstrealDocker/PostgreSQL, nofail/skip.
+  Do not describe that hostedjob as green. iframe sandboxwarnings recorded,
+  noTaskpageerrors; noexploitassessmentorunrelatediframechange.
+- Exactdigests, receipts, knownlimits/cleanuprepro:010_68_MANAGED_TASKS_IMPLEMENTATION_RECORD.md;
+  guide:External_User_Guides/SMART_BRAIN_MANAGED_TASKS.md;
+  reusableverification:verification-support/managed-tasks/;
+  rawreceipts:~/.codex/private/loomai-managed-tasks-01068/ andmanaged-tasks-ui-20261110-*.
+  ExistingBrains neednormalUpdates/apply ofTask-capableruntime to useTasks.
+  Root.gitignore/unrelatedwork andexistinggallery/firewallaccess preserved.

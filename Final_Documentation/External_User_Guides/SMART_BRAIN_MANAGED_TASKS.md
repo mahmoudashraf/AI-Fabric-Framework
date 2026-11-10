@@ -35,6 +35,10 @@ an input object matching the applied task's schema and select **Run task**.
 The view shows the result, actual configuration version and failure/evidence
 metadata. It does not run unsaved draft instructions or automatically invoke AI
 while navigating or editing. Apply pending changes before testing those changes.
+Pending changes elsewhere in the Brain do not prevent testing the already
+applied task. The view identifies the applied version and warns that pending
+changes are not used. Save or discard local task edits before running; an applied
+task must exist on that exact target.
 
 Console uses its existing customer/delegated-staff authorization and the exact
 selected target's private runtime authority. It does not send browser-owned
@@ -124,6 +128,10 @@ Structured output guarantees the checked shape on success, not factual
 certainty or identical reasoning across requests. Express unknown information
 in the task's result contract rather than forcing invented values. Your backend
 remains responsible for enforcing business rules and applying any recommendation.
+For important completeness requirements, use explicit result fields, such as
+whether required information was supplied, rather than relying on a free-text
+answer to mention every omission. Those fields still require semantic judgement;
+schema validation alone cannot prove the answer is complete.
 
 External-agent job submission/completion events, durable Task polling and
 independent per-task models are deferred. Existing chat and older Smart Brain
