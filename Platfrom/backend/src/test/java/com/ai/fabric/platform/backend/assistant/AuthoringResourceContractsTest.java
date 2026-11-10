@@ -5,6 +5,12 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class AuthoringResourceContractsTest {
+    @Test void sharedEngageGuidanceHasNoIndustrySpecificPaths() {
+        var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
+        AuthoringResourceContracts.populate(mapper, catalogue, "ENGAGE");
+        assertThat(catalogue.path("engageFieldRules").asText()).contains("selectedExperiencePack.fieldPaths")
+            .doesNotContain("dealership", "configuration.dealer", "configuration.app");
+    }
     @Test void engageExamplesPassTheExistingPublicPackValidator() {
         var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
         AuthoringResourceContracts.populate(mapper, catalogue, "ENGAGE");

@@ -58,6 +58,7 @@ const stubs = {
   './BrainExperiencePages': 'export const BrainChannelsPage=()=>null;export const BrainHumanSupportPage=()=>null;',
   './BrainTryPage': 'export const BrainTryPage=()=>null;',
   './BrainActionReviewsPage': 'export const BrainActionReviewsPage=()=>null;',
+  './BrainSecretsPage': 'export const BrainSecretsPage=()=>null;',
 }
 const server = await createServer({ root, configFile: false, cacheDir: cache,
   resolve: { dedupe: ['react', 'react-dom'] },

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -59,6 +60,18 @@ public class AIWorkspaceExperiencePackRegistry {
         else throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace experience pack.");
     }
 
+    /** Pack-owned field identities for configuration authoring, not model instructions. */
+    public AuthoringContract authoringContract(String code, String version) {
+        ExperiencePack pack = resolve(code, version);
+        return new AuthoringContract(pack.code(), pack.version(), pack.configurationSchemaVersion(), Map.of(
+            "assistantLabel", definition(code, version).assistantLabelPath(),
+            "welcomeMessage", "/configuration/copy/welcomeMessage",
+            "starterSuggestions", "/configuration/copy/starterSuggestions",
+            "theme", "/configuration/theme",
+            "toolGroups", "/configuration/toolGroups",
+            "toolRail", "/configuration/toolRail"));
+    }
+
     public List<AIWorkspaceCatalogSummary.ExperiencePackSummary> summaries() {
         return List.of(
             summary(GENERIC_CODE, GENERIC_VERSION),
@@ -81,19 +94,22 @@ public class AIWorkspaceExperiencePackRegistry {
 
     private ExperiencePackDefinition definition(String code, String version) {
         if (DEALERSHIP_CODE.equals(code) && DEALERSHIP_VERSION.equals(version)) {
-            return new ExperiencePackDefinition("Dealership experience", "loomai-dealership-experience-config-v1");
+            return new ExperiencePackDefinition("Dealership experience", "loomai-dealership-experience-config-v1", "/configuration/dealer/assistantLabel");
         }
         if (GENERIC_CODE.equals(code) && GENERIC_VERSION.equals(version)) {
-            return new ExperiencePackDefinition("Generic knowledge and service experience", "loomai-generic-workspace-config-v1");
+            return new ExperiencePackDefinition("Generic knowledge and service experience", "loomai-generic-workspace-config-v1", "/configuration/app/assistantLabel");
         }
         if (SUPPORT_CODE.equals(code) && SUPPORT_VERSION.equals(version)) {
-            return new ExperiencePackDefinition("AI Support Experience", SUPPORT_SCHEMA);
+            return new ExperiencePackDefinition("AI Support Experience", SUPPORT_SCHEMA, "/configuration/app/assistantLabel");
         }
         return null;
     }
 
-    private record ExperiencePackDefinition(String name, String configurationSchemaVersion) {
+    private record ExperiencePackDefinition(String name, String configurationSchemaVersion, String assistantLabelPath) {
     }
+
+    public record AuthoringContract(String code, String version, String configurationSchemaVersion,
+                                    Map<String, String> fieldPaths) { }
 
     public record ExperiencePack(
         String code,

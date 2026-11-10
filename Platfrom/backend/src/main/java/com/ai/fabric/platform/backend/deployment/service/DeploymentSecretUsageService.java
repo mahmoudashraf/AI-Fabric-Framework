@@ -87,6 +87,7 @@ public class DeploymentSecretUsageService {
 
         Map<String, PlatformSecretSummary> secretCatalog = platformSecretService.listSecrets().stream()
             .collect(LinkedHashMap::new, (map, item) -> map.put(item.name(), item), Map::putAll);
+        platformSecretService.listDeploymentSecrets(deploymentId).forEach(secret -> secretCatalog.put(secret.name(), secret));
         Map<String, UsageAccumulator> usages = new LinkedHashMap<>();
         List<DeploymentSecretLiteralRiskSummary> literalRisks = new ArrayList<>();
 

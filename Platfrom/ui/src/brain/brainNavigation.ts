@@ -9,6 +9,7 @@ export const brainSections = [
   { path: 'action-reviews', label: 'Action reviews', group: 'Operations' },
   { path: 'try', label: 'Try it', group: 'Release' },
   { path: 'updates', label: 'Updates', group: 'Release' },
+  { path: 'secrets', label: 'Keys & secrets', group: 'Settings' },
   { path: 'advanced', label: 'Advanced', group: 'Settings' },
 ] as const
 

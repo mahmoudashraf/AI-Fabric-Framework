@@ -10,7 +10,7 @@ export function BrainModelsPage() {
   const { brainId, href } = useBrainWorkspace()
   return <Box sx={{ ...brainPaneSx, flex: 1 }}>
     <BrainPageHeader title="AI models" description="Choose the models that understand requests and generate answers."
-      action={<Link component={RouterLink} to={href('advanced/providers')} fontSize={13}>Provider parameters</Link>} />
+      action={<Stack direction="row" gap={2} flexWrap="wrap"><Link component={RouterLink} to={href('secrets')} fontSize={13}>Keys &amp; secrets</Link><Link component={RouterLink} to={href('advanced/providers')} fontSize={13}>Provider parameters</Link></Stack>} />
     <ProvidersPage brainId={brainId} configurationOnly view="models" />
   </Box>
 }

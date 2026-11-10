@@ -20,6 +20,15 @@ Old `/settings/...` URLs are redirects only. Reuse the existing provider/action
 editors and draft-save contracts; never mount a second copy to add an entry point.
 See `verification-support/brain-settings-navigation/README.md`.
 
+Customer-owned credentials have one canonical home at
+`/smart-brains/:brainId/secrets` (Keys & secrets), with links from AI models and
+Search settings. Reuse the same page for customer-delegated staff; do not expose
+the global Platform Security catalogue to customers. Brain administrator access
+and current operator delegation protect the write API. Stored values are never
+read back or sent to configuration assistance; only scoped references are used.
+Target-specific storage/vector bindings remain with their existing workflows.
+See `verification-support/customer-secrets/README.md`.
+
 Knowledge's All sources / Documents / Live data tabs are filtered views, not
 parallel editors. Keep their source counts and empty-state wording specific;
 unknown or failed reads are not zero. Search settings uses four focused tasks

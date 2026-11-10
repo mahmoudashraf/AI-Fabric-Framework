@@ -264,6 +264,64 @@ class CustomerStaffAccessPostgresTest {
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test void customerSecretsStayOwnedAndDelegatedOperatorLosesAccessOnTheSameCookie() throws Exception {
+        String id = legacyAssignedDraft(), path = "/api/deployments/" + id + "/secrets";
+        Cookie operatorCookie = login(operator), otherCookie = login(otherOwner);
+        var created = body(mvc.perform(post(path).cookie(ownerCookie).contentType("application/json").content("""
+            {"name":"STOCK_API","purpose":"INTEGRATION_CREDENTIAL","value":"test-only-initial-private-value"}
+            """)).andExpect(status().isCreated()).andReturn());
+        String reference = created.path(0).path("name").asText();
+        assertThat(created.toString()).doesNotContain("test-only-initial-private-value", "secretValue");
+        mvc.perform(get(path).cookie(operatorCookie)).andExpect(status().isForbidden());
+        mvc.perform(get(path).cookie(otherCookie)).andExpect(status().isNotFound());
+        mvc.perform(put(path + "/" + reference).cookie(otherCookie).contentType("application/json")
+            .content("{\"value\":\"foreign-attempt\"}")).andExpect(status().isNotFound());
+        var grant = grant(ownerCookie, operator.getEmail());
+        var visible = body(mvc.perform(get(path).cookie(operatorCookie)).andExpect(status().isOk()).andReturn());
+        assertThat(visible.path("secrets").size()).isEqualTo(1);
+        mvc.perform(put(path + "/" + reference).cookie(operatorCookie).contentType("application/json")
+            .content("{\"value\":\"test-only-rotated-private-value\"}")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select secret_value from platform_secrets where name=?", String.class, reference))
+            .isEqualTo("test-only-rotated-private-value");
+        mvc.perform(delete("/api/customer/staff-access/" + grant.path("id").asText()).cookie(ownerCookie)).andExpect(status().isOk());
+        mvc.perform(get(path).cookie(operatorCookie)).andExpect(status().isForbidden());
+        mvc.perform(put(path + "/" + reference).cookie(operatorCookie).contentType("application/json")
+            .content("{\"value\":\"revoked-attempt\"}")).andExpect(status().isForbidden());
+        mvc.perform(delete(path + "/" + reference).cookie(ownerCookie)).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select count(*) from platform_secrets where name=?", Integer.class, reference)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from platform_audit_events where target_id=? and details_json like '%private-value%'", Integer.class, id)).isZero();
+    }
+
+    @Test void customerProviderKeyUsesExistingBindingAndCannotBeDeletedWhileSelected() throws Exception {
+        String id = legacyAssignedDraft(), path = "/api/deployments/" + id + "/secrets";
+        var created = body(mvc.perform(post(path).cookie(ownerCookie).contentType("application/json").content("""
+            {"name":"MY_VECTOR","purpose":"QDRANT_API_KEY","value":"test-only-qdrant-value"}
+            """)).andExpect(status().isCreated()).andReturn());
+        String reference = created.path(0).path("name").asText();
+        assertThat(jdbc.queryForObject("select binding_mode from platform_deployment_provider_secret_bindings where deployment_id=? and secret_purpose='QDRANT_API_KEY'", String.class, id))
+            .isEqualTo("REQUIRE_OVERRIDE");
+        mvc.perform(delete(path + "/" + reference).cookie(ownerCookie)).andExpect(status().isConflict());
+        mvc.perform(post(path).cookie(ownerCookie).contentType("application/json").content("""
+            {"name":"MY_VECTOR","purpose":"QDRANT_API_KEY","value":"duplicate-attempt"}
+            """)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select secret_value from platform_secrets where name=?", String.class, reference))
+            .isEqualTo("test-only-qdrant-value");
+    }
+
+    @Test void bindingFailureRollsBackCustomerKeysAndTheirAuditTogether() throws Exception {
+        String id = legacyAssignedDraft();
+        doThrow(new IllegalStateException("test-only binding audit failure")).when(audit)
+            .record(eq("DEPLOYMENT_OVERRIDE_BOUND"), eq("DEPLOYMENT"), eq(id), anyMap());
+        assertThatThrownBy(() -> mvc.perform(post("/api/deployments/" + id + "/secrets").cookie(ownerCookie)
+            .contentType("application/json").content("""
+                {"name":"MY_VECTOR","purpose":"QDRANT_API_KEY","value":"test-only-private-value"}
+                """)))
+            .hasRootCauseMessage("test-only binding audit failure");
+        assertThat(jdbc.queryForObject("select count(*) from platform_secrets where deployment_id=?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from platform_deployment_provider_secret_bindings where deployment_id=?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from platform_audit_events where target_id=? and action='CUSTOMER_SECRET_CREATED'", Integer.class, id)).isZero();
+    }
+
     private JsonNode grant(Cookie cookie, String email) throws Exception {
         return body(mvc.perform(post("/api/customer/staff-access").cookie(cookie).contentType("application/json")
             .content(json.writeValueAsString(new com.ai.fabric.platform.backend.security.web.CustomerStaffAccessController.Request(email))))

@@ -106,6 +106,10 @@ public class AIWorkspaceInstallationService {
             authenticationProfileRegistry.summaries());
     }
 
+    public AIWorkspaceExperiencePackRegistry.AuthoringContract authoringContract(String code, String version) {
+        return experiencePackRegistry.authoringContract(code, version);
+    }
+
     @Transactional(readOnly = true)
     public List<AIWorkspaceInstallationSummary> list(String customerId) {
         requireCustomerAccess(customerId);

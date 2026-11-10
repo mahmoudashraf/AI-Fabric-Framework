@@ -51,6 +51,14 @@ public class PlatformSecretService {
             .toList();
     }
 
+    public List<PlatformSecretSummary> listDeploymentSecrets(String deploymentId) {
+        return platformSecretRepository.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
+            PlatformSecretScopeType.DEPLOYMENT_OVERRIDE, deploymentId).stream()
+            .filter(secret -> deploymentId.equals(secret.getDeploymentId()) && secret.getTargetProfileId() == null)
+            .map(secret -> toSummary(secret.getName(), new SecretDefinition(secret.getName(), "Customer-supplied deployment credential.", false), secret))
+            .toList();
+    }
+
     public boolean isSecretPresent(String name) {
         return resolveSecret(name) != null;
     }

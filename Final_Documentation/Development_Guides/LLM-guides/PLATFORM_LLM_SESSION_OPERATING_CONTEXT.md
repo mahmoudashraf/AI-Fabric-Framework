@@ -180,6 +180,11 @@ guide-only resources, active-app previews, bounded correction and explicit
 publish/apply boundaries remain intact. Track implementation and hosted proof
 in 010.37 section 19 and its dated page-aware UX evidence, not this policy note.
 
+Experience-specific authoring field identities belong to the selected pack's
+metadata, not hardcoded branches in shared assistant prompts. Supply only the
+selected pack's contract. Customer key management stays outside inference;
+authorized reference names may guide configuration, never stored secret values.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

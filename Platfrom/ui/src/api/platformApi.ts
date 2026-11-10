@@ -4066,6 +4066,21 @@ export type DeploymentProviderSecretBindingCatalogSummary = {
   bindings: DeploymentProviderSecretBindingSummary[]
 }
 
+export type CustomerDeploymentSecret = {
+  name: string
+  label: string
+  purpose: string
+  present: boolean
+  bindingCount: number
+  updatedAt: string | null
+}
+
+export type CustomerDeploymentSecretCatalogue = {
+  deploymentId: string
+  purposes: { id: string; label: string; paired: boolean }[]
+  secrets: CustomerDeploymentSecret[]
+}
+
 export type PlatformAuthSessionSummary = {
   enabled: boolean
   headerName: string
@@ -7245,6 +7260,22 @@ export function fetchDeploymentProviderSecretBindings(deploymentId: string) {
   return request<DeploymentProviderSecretBindingCatalogSummary>(
     `/api/deployments/${deploymentId}/provider-secret-bindings`,
   )
+}
+
+export function fetchCustomerDeploymentSecrets(deploymentId: string) {
+  return request<CustomerDeploymentSecretCatalogue>(`/api/deployments/${encodeURIComponent(deploymentId)}/secrets`)
+}
+
+export function createCustomerDeploymentSecret(deploymentId: string, payload: { name: string; purpose: string; value: string; secondaryValue?: string }) {
+  return request<CustomerDeploymentSecret[]>(`/api/deployments/${encodeURIComponent(deploymentId)}/secrets`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function rotateCustomerDeploymentSecret(deploymentId: string, name: string, value: string) {
+  return request<CustomerDeploymentSecret>(`/api/deployments/${encodeURIComponent(deploymentId)}/secrets/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ value }) })
+}
+
+export function deleteCustomerDeploymentSecret(deploymentId: string, name: string) {
+  return request<void>(`/api/deployments/${encodeURIComponent(deploymentId)}/secrets/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
 export function upsertDeploymentProviderSecretBinding(

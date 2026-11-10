@@ -27,12 +27,12 @@ class DeploymentSecretMaterializationTest {
     private static final String OWNER = "dep-support";
     private static final String TARGET = "support-stage";
     private final ObjectMapper mapper = new ObjectMapper();
+    private final Map<String, PlatformSecretEntity> rows = new HashMap<>();
     private final PlatformSecretService secrets;
     private final RailwayProvisioningPlanService plans = mock(RailwayProvisioningPlanService.class, CALLS_REAL_METHODS);
 
     DeploymentSecretMaterializationTest() {
         var repository = mock(PlatformSecretRepository.class);
-        Map<String, PlatformSecretEntity> rows = new HashMap<>();
         when(repository.findById(anyString())).thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0))));
         when(repository.save(any())).thenAnswer(call -> {
             PlatformSecretEntity row = call.getArgument(0);
@@ -80,6 +80,23 @@ class DeploymentSecretMaterializationTest {
     void deliberateSharedOpenaiFallbackStillMaterializes(String provider) {
         assertThat(materialize(provider, new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"),
             "dep-customer", TARGET)).isEqualTo("shared-openai-test-value");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"coolify", "railway"})
+    void customerIntegrationReferenceMaterializesOnlyForItsBrainAcrossItsTargets(String provider) throws Exception {
+        var row = new PlatformSecretEntity(); row.setName("CUSTOMER_TEST_STOCK_API"); row.setDeploymentId(OWNER);
+        row.setScopeType(com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType.DEPLOYMENT_OVERRIDE);
+        row.setOwnerType(com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType.DEPLOYMENT);
+        row.setSecretValue("customer-key-test-only"); rows.put(row.getName(), row);
+        List<RailwayEnvVarSummary> environment = new ArrayList<>();
+        ReflectionTestUtils.invokeMethod(plans, "addConnectorSecretEnv", environment, (Object) new JsonNode[]{
+            mapper.readTree("{\"headers\":{\"X-API-Key\":\"${CUSTOMER_TEST_STOCK_API}\"}}")});
+        assertThat(environment).containsExactly(new RailwayEnvVarSummary(row.getName(), "${secret:" + row.getName() + "}"));
+        for (String target : List.of("customer-staging", "customer-production")) {
+            assertThat(materialize(provider, environment.getFirst(), OWNER, target)).isEqualTo("customer-key-test-only");
+            assertThatThrownBy(() -> materialize(provider, environment.getFirst(), "dep-other", target))
+                .hasMessageContaining("SECRET_MATERIALIZATION_SCOPE_MISMATCH").hasMessageNotContaining("customer-key-test-only");
+        }
     }
 
     @Test

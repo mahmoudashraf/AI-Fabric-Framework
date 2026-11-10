@@ -22,6 +22,7 @@ import LogoutRounded from '@mui/icons-material/LogoutRounded'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import PsychologyOutlined from '@mui/icons-material/PsychologyOutlined'
+import KeyOutlined from '@mui/icons-material/KeyOutlined'
 import { fetchDeploymentReleases, fetchDeploymentTargetOptions, fetchDeploymentTargetProfiles, fetchDeploymentVersions, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerConsoleTheme, useCustomerColorPreference } from '../theme/CustomerConsoleTheme'
 import { CustomerSupportProvider } from '../components/customer/CustomerSupportContext'
@@ -41,7 +42,7 @@ import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpe
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
   responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
   'human-support': HeadsetMicOutlined, 'action-reviews': FactCheckOutlined, try: PlayArrowOutlined,
-  updates: SystemUpdateAltOutlined, advanced: SettingsOutlined }
+  updates: SystemUpdateAltOutlined, secrets: KeyOutlined, advanced: SettingsOutlined }
 
 type Props = { session: PlatformAuthSessionSummary | null; onSignOut: () => Promise<void>; children: ReactNode }
 
@@ -172,6 +173,10 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
     </Box>
     <Box sx={{ flexShrink: 0 }}>
       <Divider sx={{ mx: 2, my: 1.25 }} />
+      <ListItemButton component={RouterLink} to={href('secrets')} selected={section === 'secrets'}
+        aria-current={section === 'secrets' ? 'page' : undefined} onClick={() => setMenuOpen(false)} sx={{ px: 2.5 }}>
+        <ListItemIcon sx={{ minWidth: 31, color: 'inherit' }}><KeyOutlined sx={{ fontSize: 20 }} /></ListItemIcon><ListItemText primary="Keys & secrets" primaryTypographyProps={{ fontSize: 13 }} />
+      </ListItemButton>
       <ListItemButton component={RouterLink} to={href('advanced/runtime')} selected={section === 'advanced'}
         aria-current={section === 'advanced' && !childLabel ? 'page' : undefined} onClick={() => setMenuOpen(false)} sx={{ px: 2.5 }}>
         <ListItemIcon sx={{ minWidth: 31, color: 'inherit' }}><SettingsOutlined sx={{ fontSize: 20 }} /></ListItemIcon><ListItemText primary="Advanced" primaryTypographyProps={{ fontSize: 13 }} />

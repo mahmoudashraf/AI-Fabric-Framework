@@ -24,10 +24,11 @@ const tasks = {
 } as const
 
 export function BrainKnowledgePage() {
-  const { brainId } = useBrainWorkspace()
+  const { brainId, href } = useBrainWorkspace()
   const location = useLocation()
   if (location.pathname.split('/').slice(4).join('/') === 'search') return <Box sx={{ minWidth: 0, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
-    <BrainPageHeader title="Find the right knowledge" description="Choose your search service, embedding model and customer data boundary." />
+    <BrainPageHeader title="Find the right knowledge" description="Choose your search service, embedding model and customer data boundary."
+      action={<Button component={RouterLink} to={href('secrets')}>Keys &amp; secrets</Button>} />
     <BrainKnowledgeTabs view="search" />
     <ProvidersPage brainId={brainId} configurationOnly view="storage" />
   </Box>

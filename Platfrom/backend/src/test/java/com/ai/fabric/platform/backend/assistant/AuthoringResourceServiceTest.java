@@ -348,6 +348,31 @@ class AuthoringResourceServiceTest {
         verifyNoInteractions(brains, plugins, validation);
     }
 
+    @Test void engageAuthoringReceivesOnlyTheSelectedPacksOwnedFieldContract() throws Exception {
+        var app = engageFixture("DRAFT");
+        var packs = new com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceExperiencePackRegistry(
+            mock(com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAssetCatalogService.class),
+            mock(com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceConfigurationValidator.class));
+        var contract = packs.authoringContract(app.experiencePackCode(), app.experiencePackVersion());
+        when(apps.authoringContract(app.experiencePackCode(), app.experiencePackVersion())).thenReturn(contract);
+        var catalogue = resources.load("ENGAGE_APP", APP, "ENGAGE").catalogue();
+        assertThat(catalogue.path("selectedExperiencePack")).isEqualTo(mapper.valueToTree(contract));
+        assertThat(catalogue.has("experiencePacks")).isFalse();
+        assertThat(catalogue.path("engageFieldRules").asText()).doesNotContain("dealership", "configuration.dealer", "configuration.app");
+        verify(apps, never()).catalog();
+    }
+
+    @Test void customerSecretReferencesGiveNamesNotValuesToTheAssistant() throws Exception {
+        brainFixture();
+        var secret = new com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity();
+        secret.setName("CUSTOMER_TEST_API"); secret.setDeploymentId(BRAIN); secret.setSecretValue("private-value-never-to-model");
+        when(secrets.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
+            com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType.DEPLOYMENT_OVERRIDE, BRAIN)).thenReturn(List.of(secret));
+        var catalogue = resources.load("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS").catalogue();
+        assertThat(catalogue.path("secretReferences")).isEqualTo(mapper.valueToTree(List.of("CUSTOMER_TEST_API")));
+        assertThat(catalogue.toString()).doesNotContain("private-value-never-to-model");
+    }
+
     @Test void engageRefinementPreservesCustomerCustomDomainsAndAllUntouchedIdentityConnectionAndAuthFields() throws Exception {
         var app = engageFixture("DRAFT");
         resources.save("ENGAGE_APP", APP, "ENGAGE", json("""
