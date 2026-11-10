@@ -1,0 +1,11 @@
+{
+  "resourceKind": "PRIVATE_DATA_PLUGIN",
+  "pluginFixture": "http",
+  "task": "DATA_PLUGIN",
+  "query": "Use the supplied fictional API documentation to complete this existing HTTP_JSON Data plugin draft. Preserve dataset/source IDs, installation input field IDs, customer ownership and tenant metadata. Map response records, record ID, account ownership and searchable description using the documented JSON pointers. Keep existing API-key installation binding, use the documented header, and keep the explicit 900-second schedule with no undeclared deletion/tombstone guarantee. Save only the private definition draft; do not version, install, call the API or claim synchronization has run.",
+  "sources": [{
+    "title": "Fictional account records API",
+    "mediaType": "text/plain",
+    "content": "GET /v1/records requires accountId as a trusted query parameter. Authentication is API_KEY in X-Customer-Key, using the existing providerKey installation secret-reference field; never a literal key. One response page only; pagination strategy NONE. HTTP 200 JSON example: {\"records\":[{\"id\":\"record-A\",\"accountId\":\"fictional-account\",\"title\":\"Delivery guide\",\"description\":\"Approved delivery guidance\"}]}. Collection pointer /records; per-record identity /id; ownership /accountId; searchable content /description; title /title. No deletion flags, tombstones or webhook contract are supplied. Use an explicit 900-second periodic schedule. This fictional example is documentation only and no endpoint should be called."
+  }]
+}

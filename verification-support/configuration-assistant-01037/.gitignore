@@ -1,0 +1,11 @@
+results/
+screenshots/
+*.private.json
+*.log
+*.class
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.mp4
+*.webm

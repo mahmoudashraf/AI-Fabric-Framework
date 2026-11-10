@@ -1,0 +1,5 @@
+{
+  "resourceKind": "ENGAGE_APP",
+  "task": "ENGAGE",
+  "query": "For this saved inactive generic-workspace app draft, set the assistant label to Example Guide, use primary colour #2463EB and clarity style, and welcome visitors with 'Welcome. Let us find the right option for you.' Add two starters: 'Help me explore my options' and 'Explain my next step'. Add a default Explore tools group with a Search options prompt, and a contextual This item group with an Explain this item prompt; keep default as the initial group and use the existing supported tool schema. Preserve all app identity, auth, consumer connection, origin and page-attachment settings. Do not activate the app or imply that a backend capability has been installed."
+}

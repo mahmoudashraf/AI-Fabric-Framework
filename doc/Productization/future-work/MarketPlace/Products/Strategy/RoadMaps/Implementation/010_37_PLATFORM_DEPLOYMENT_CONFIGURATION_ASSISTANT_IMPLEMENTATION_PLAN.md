@@ -1,9 +1,9 @@
 # 010.37 LoomAI Configuration Assistant - Detailed Solution And Implementation Plan
 
-- Status: implementation in progress, 2026-11-10; hosted qualification pending.
+- Status: implemented, deployed and qualified on staging/production, 2026-11-10. Supported first-release contracts are complete; accepted model-quality and import limits remain explicit below and in the verification record.
 - Created: 2026-10-13. Expanded: 2026-11-09.
-- Latest Platform inspection: `52f71995410260a743bae67fd2a9cf59b821ee8b`, 2026-11-09. Source inspection is not evidence of an implemented assistant or a deployed framework upgrade.
-- Capability reassessment: `171010aed53d305ba7643ea8b7d076eb1aeba641`, 2026-11-10; released framework 0.8.46, 27 scoped scenarios assessed and 17 offline binary-contract probes passed. See section 18; no hosted assistant qualification is claimed.
+- Initial Platform inspection: `52f71995410260a743bae67fd2a9cf59b821ee8b`, 2026-11-09. This historical source inspection was not deployment evidence.
+- Initial capability reassessment: `171010aed53d305ba7643ea8b7d076eb1aeba641`, 2026-11-10; released framework 0.8.46, 27 scoped scenarios assessed and 17 offline binary-contract probes passed. Section 18 retains that assessment; section 13 records subsequent implementation and hosted proof.
 - Owner: Platform customer and staff authoring experience.
 - Scope: API documentation import, guided configuration, structured proposals and integration with existing editors. This is not a deployment or framework release record.
 - Related: [coding assistant skill](010_35_AI_FABRIC_CODING_ASSISTANT_SKILL_IMPLEMENTATION_PLAN.md), [semantic decisions](010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md), [UI entry points](../../../../../../../../Final_Documentation/Development_Guides/PLATFORM_UI_PROFILES.md).
@@ -15,7 +15,7 @@
 - **First result:** describe an API-backed capability and share its documentation; the assistant updates the authorized draft through the existing save service, then shows the saved diff in the editor. Work on one action at a time while preserving the whole catalogue.
 - **Authority:** owner decision, 2026-11-10: the assistant may save changes to any editable draft within the user's authorized task/resource scope, without per-turn acceptance. Review remains available before explicit user publication. Testing, indexing, publishing and deployment remain separate explicit actions. The inference runtime itself receives no save credentials.
 - **Read first:** [customer walkthrough](#14-detailed-customer-and-developer-walkthrough), [framework assessment](#15-framework-assessment-and-required-product-extensions), [flow/data ownership](#16-end-to-end-contract-and-data-flow) and [first release boundary](#17-first-release-boundary-and-review-decisions).
-- **Implementation status:** local backend/runtime/UI implementation in progress. No hosted assistant qualification is claimed until P6 evidence is recorded.
+- **Implementation status:** shared private runtime, Platform endpoints, full per-action form and all scoped editor integrations are live on both control planes. Actual customer/staff, provider, import, save/undo, privacy and desktop/phone evidence is recorded in [hosted qualification](../../../../../../../../verification-support/configuration-assistant-01037/2026-11-10-hosted-qualification.md). This is not a claim of perfect first-turn model output or qualification of every external customer API.
 
 ## 1. Product Outcome
 
@@ -589,75 +589,75 @@ Each phase has a focused commit group and verification record. Parallelize only 
 
 ### P0 Contracts And Safe Saves
 
-- [ ] Inventory current fields, schema versions, auth strategies and catalogue IDs for each supported editor.
-- [ ] Define safe projections, operation catalogue and the canonical proposal envelope.
-- [ ] Use existing transactional resource saves and current plugin/app revisions; serialize AI then manual editing in the selected editor. No new universal writer-version contract or manual-edit conflict gate.
-- [ ] Expose nonpersisting candidate validation using existing services/compiler.
-- [ ] Define flags, provider setup, content encryption/retention and bounded authoring usage.
+- [x] Inventory current fields, schema versions, auth strategies and catalogue IDs for each supported editor.
+- [x] Define safe projections, operation catalogue and the canonical proposal envelope.
+- [x] Use existing transactional resource saves and current plugin/app revisions; serialize AI then manual editing in the selected editor. No new universal writer-version contract or manual-edit conflict gate.
+- [x] Expose nonpersisting candidate validation using existing services/compiler.
+- [x] Define flags, provider setup, content encryption/retention and bounded authoring usage.
 
 Exit: the AI-first/manual-after flow uses ordinary saves, preserves unrelated configuration and keeps validation free of live side effects.
 
 ### P1 Documentation Intake
 
-- [ ] Qualify/pin maintained OpenAPI and text/PDF parsers.
-- [ ] Implement JSON/YAML/text/example/PDF sources and bounded HTTPS fetching.
-- [ ] Preserve source anchors, formal security, versions and reference diagnostics.
-- [ ] Add operation/source selectors, conflict display and large-input narrowing.
-- [ ] Pass parser, SSRF, isolation, injection, secret-projection and deletion tests before enabling customer URL imports.
+- [x] Qualify/pin maintained OpenAPI and text/PDF parsers.
+- [x] Implement JSON/YAML/text/example/PDF sources and bounded HTTPS fetching.
+- [x] Preserve source anchors, formal security, versions and reference diagnostics.
+- [x] Add operation/source selectors, reference/identity diagnostics and explicit large-input narrowing.
+- [x] Pass parser, SSRF, isolation, injection, secret-projection and deletion tests before enabling customer URL imports. Staging's 26 actual import checks pass; production repeat is tracked in P6.
 
 Exit: realistic API documents can be inspected without executing any API operation.
 
 ### P2 Structured Authoring Gateway
 
-- [ ] Implement scoped sessions, sources, turns, proposals, expiry and bounded work execution.
-- [ ] Add the shared runtime's fixed private authoring capability, reviewed service identity and versioned internal service profile; reuse released structured-generation/provider APIs.
-- [ ] Implement the Platform runtime client and qualify the first selected provider/model. Additional providers are separately qualified, not silently substituted.
-- [ ] Add scoped read/check context and iterative collection of missing answers.
-- [ ] Implement validation, explicitly configured repair and truthful error/usage reporting.
-- [ ] Prove the inference runtime has no mutation credentials and Platform can save authorized draft edits through existing services. Publish/apply/execute/secret-value tools remain absent.
+- [x] Implement scoped sessions, sources, turns, proposals, expiry and bounded work execution.
+- [x] Add the shared runtime's fixed private authoring capability, reviewed service identity and versioned internal service profile; reuse released structured-generation/provider APIs.
+- [x] Implement the Platform runtime client and qualify OpenAI GPT-5.4-mini. Additional providers are separately qualified, not silently substituted.
+- [x] Add scoped read/check context and iterative collection of missing answers, including actual current validation findings.
+- [x] Implement validation, an explicit no-automatic-repair/no-retry policy and truthful error/usage reporting. User follow-up turns can correct visible findings.
+- [x] Prove the inference runtime has no mutation credentials and Platform can save authorized draft edits through existing services. Publish/apply/execute/secret-value tools remain absent.
 
 Exit: a real model returns a sourced valid proposal or useful questions for the selected authorized resource.
 
 ### P3 Actions And Connections
 
-- [ ] Add/qualify the generic chat presentation/host seam without coupling it to Platform schemas, Support cases or business actions.
-- [ ] Complete the per-action form: purpose/access, typed inputs and trusted/internal sources, confirmation, connector request/response mappings and supported presentation. Retain Advanced JSON and preserve the rest of the catalogue. Assistant and manual editing use the same form/serialization, not parallel action systems.
-- [ ] Add the reusable panel to Actions and related connection forms.
-- [ ] Support import, selected operations, grouped binding questions and action/routing proposals.
-- [ ] Add readable saved diffs, Advanced JSON, preserved dependency-aware merging and optional preview-only/editor adoption.
-- [ ] Connect assistant draft editing to existing backend save services and real receipts; allow requested replacement of manual values, preserve unrelated fields and restore manual editing afterward. No per-turn acceptance or manual-conflict gate.
-- [ ] Complete the neutral catalogue hosted flow and explicit mock-API connection test.
+- [x] Add/qualify the generic chat presentation/host seam without coupling it to Platform schemas, Support cases or business actions.
+- [x] Complete the per-action form: purpose/access, typed inputs and trusted/internal sources, confirmation, connector request/response mappings and supported presentation. Retain Advanced JSON and preserve the rest of the catalogue. Assistant and manual editing use the same form/serialization, not parallel action systems.
+- [x] Add the reusable panel to Actions and related connection forms.
+- [x] Support import, selected operations, grouped binding questions and action/routing proposals.
+- [x] Add readable saved diffs, Advanced JSON, preserved dependency-aware merging and optional preview-only/editor adoption.
+- [x] Connect assistant draft editing to existing backend save services and real receipts; allow requested replacement of manual values, preserve unrelated fields and restore manual editing afterward. No per-turn acceptance or manual-conflict gate.
+- [x] Complete the neutral catalogue hosted flow and explicit mock-API connection test. Actual staging/production model drafts load with the released 0.8.46 action contract; only their READ route was exercised against a temporary localhost mock. No external business API or write was executed.
 
 Exit: a customer configures a supported API-backed action without assembling the whole JSON manually. Generation executes no business action.
 
 ### P4 Data Plugins And Knowledge
 
-- [ ] Add the same panel to private Data authoring and relevant Knowledge tasks.
-- [ ] Prepare collection/ID/content/metadata/ownership/pagination/sync mappings from selected API operations and samples.
-- [ ] Support bound S3 policies and secure existing connection selection.
-- [ ] Reuse checks, reusable versions, installation, discovery and indexing-preview controls.
-- [ ] Verify neutral, dealership and support examples with no new plugin types or business databases.
+- [x] Add the same panel to private Data authoring and relevant Knowledge tasks.
+- [x] Prepare collection/ID/content/metadata/ownership/pagination/sync mappings from selected API operations and samples.
+- [x] Support bound S3 policies and secure existing connection selection. The current existing indexing contract accepts TXT/JSON; assistant PDF import does not add PDF indexing.
+- [x] Reuse checks, reusable versions, installation, discovery and indexing-preview controls.
+- [x] Verify neutral, dealership and support examples with no new plugin types or business databases. Neutral HTTP/S3 candidates passed existing checks; existing dealership knowledge guidance and Support specialist/active-Engage previews preserved real configuration. Actual indexing/external API integration stays in its separate explicit workflow, not an inferred assistant success.
 
 Exit: imported material produces a reusable Data definition with a truthful installation/preview result.
 
 ### P5 Other Input Heavy Configuration
 
-- [ ] Add adapters for prompts/behaviour profiles and models/search services.
-- [ ] Add Engage branding, tools, registered renderers and installation guidance with real preview.
-- [ ] Add Human support/review guidance without agent or decision authority.
-- [ ] Add supported specialists/chains/events using actual workers and contracts.
-- [ ] Add Kit step guidance linking existing editors with separate resource saves.
+- [x] Add adapters for prompts/behaviour profiles and models/search services.
+- [x] Add Engage branding, tools, registered renderers and installation guidance with real preview. Hosted Max preview reflects the generated configuration; active production Engage stays preview-only even after a direct apply request.
+- [x] Add Human support/review guidance without agent or decision authority. Missing binding is a real NEEDS_INPUT response, not a fabricated Desk connection.
+- [x] Add supported specialists/chains/events using actual workers and contracts. Existing Support specialists qualified a preview limit change with zero validation errors and an unchanged draft; empty-authority resources ask for input.
+- [x] Add Kit step guidance linking existing editors with separate resource saves.
 
 Exit: each area in section 3 has a working editor integration or precise unsupported-contract finding. Informational mockups alone do not close an area.
 
 ### P6 Hosted Qualification And Delivery
 
-- [ ] Pass focused deterministic and real-provider suites; record results/costs.
-- [ ] Complete customer/staff journeys, conflicts, interrupted-turn handling and deletion.
-- [ ] Deploy backend/UI and verify unchanged ordinary manual authoring.
-- [ ] Enable staff canary, selected customers, then standard customer entry points.
-- [ ] Capture screenshots/video, generated configuration, save and validation receipts.
-- [ ] Publish guidance for imports, privacy, secure bindings, unsupported APIs and explicit testing/releases.
+- [x] Pass focused deterministic and real-provider suites; record results/costs, including retained semantic failures and successful explicit follow-ups.
+- [x] Complete customer/staff journeys, requested replacement of manual values, interrupted-turn handling and deletion.
+- [x] Deploy backend/UI and verify unchanged ordinary manual authoring.
+- [x] Enable staff/customer canaries and standard authorized customer entry points.
+- [x] Capture screenshots, generated configuration, save and validation receipts.
+- [x] Publish guidance for imports, privacy, secure bindings, unsupported APIs and explicit testing/releases.
 
 Exit: supported integrations work through customer UI without developer intervention for routine configuration.
 
@@ -714,6 +714,52 @@ If a requested capability needs one of these, preserve the useful supported prop
 - Remaining before completion: qualified dedicated service boot, actual-provider generation/save quality, complete UI build/browser checks, rollout, customer/staff hosted evidence and external usage guidance. Local fixture results are not live-provider proof.
 - Subsequent local integration: 151 Platform assistant tests pass, including actual resource-service adapters; 106 parser/fetcher cases are included. The UI full build, 68 model/scope checks and 16 browser scenario groups pass. The dedicated runtime profile boots with PostgreSQL internal state and no business/vector/indexing services. Later advisory-metadata and form refinements require their own final rerun before delivery.
 - Prepared one isolated `loomai_authoring_v1` schema on each existing Platform PostgreSQL service and one private, not-yet-started authoring app per host. Credentials remain private; authoring is not enabled on the live control planes. These are shared internal service resources, not per-customer infrastructure.
+
+### 2026-11-10 Hosted Qualification Closeout
+
+- The previous checkpoint above is historical. Both private authoring services
+  are now healthy at runtime source `1db306265558042b3566a485b84014345c075f22`,
+  digest `sha256:532927ca9a685a924736c76eec1e9339b082453313c90e8b5f5d4b8957cd3ced`.
+  Existing allocation/schema/accounting identities survived the upgrade; no
+  budget reset or customer business database was introduced.
+- Platform source `5d94e3e59f1c3e64d739f4f0d75ed22a75617bba` and Console source
+  `669250d6224373b8deed777264357ee6196b189d` are deployed on both control planes
+  with authoring and public-document import enabled. Six native core/UI/private
+  authoring containers were verified against their expected immutable images
+  and are healthy. Existing customer-serving runtime images were not changed.
+- Latest focused Platform suite: 182 tests, zero failures/errors/skips. Final
+  runtime CI `42743386211`: 748 tests, zero failures/errors/skips, image published.
+  Document storage regression `42740706173` passed after the React harness fix.
+- Actual importer qualification: 26/26 staging and 26/26 production. Both used
+  isolated configuration-only fixtures, no model calls or operation execution.
+- Genuine customer model turns saved multiple actions/routes, behaviour profiles,
+  model selection, private Data definitions and Engage presentation. The real
+  action form reflects saves and resumes manual editing; UI undo restored the
+  previous manual label and retained unknown fields. Publication remained false.
+- Final UI verification distinguished two actual saved-invalid Data attempts from
+  the later valid correction, showed changed fields rather than full unchanged
+  objects, and retained raw Advanced evidence. Production's 390px composer stayed
+  within the viewport and unobstructed; phone undo restored the original label.
+  The floating Support launcher returns when authoring closes, with Support state
+  untouched. Forty focused UI tests, 18 assistant groups and 13 real-Support
+  fixture groups passed; the final immutable UI build passed CI.
+- Preserved failures include an invalid early action presentation hint, an
+  earlier request answered instead of the current request, and a Data correction
+  that failed to remove old mapping fields. Exact catalogue guidance/latest-query
+  clarity and a subsequent explicit user removal turn qualified useful results.
+  There is no hidden retry, normalization, semantic text matcher or claim of
+  perfect first-turn quality. Valid Data definitions were checked, not indexed.
+- Full receipts and failed attempts remain private; reproducible sources and
+  public evidence are in `verification-support/configuration-assistant-01037/`.
+- Final hosted ledger: 23 staging and 5 production attempts, 168,965 total tokens,
+  USD0.160050000 actual cost. These are attempt totals, not 28 semantic passes.
+  Each shared service has a finite initial USD5/100-attempt/2M-token allocation
+  expiring 10 December 2026; renew through normal audited accounting, never reset
+  it on restart. Initial local-provider qualification is recorded separately.
+- Disposable assistant sessions and the test app/consumer were removed; three
+  private definitions and the configuration-only Brain fixtures were archived.
+  No fixture infrastructure was provisioned. Test sign-in/browser state and
+  temporary viewport overrides were cleaned up. Raw evidence remains private.
 
 ## 14. Detailed Customer And Developer Walkthrough
 
@@ -1113,14 +1159,16 @@ changes without per-turn acceptance; review/edit/undo remain available before
 publication. Do not duplicate save/publish/apply or give mutation credentials to
 the inference service. Active Engage editing retains its explicit lifecycle.
 
-### 18.3 Verification Boundary
+### 18.3 Historical Feasibility Verification Boundary
 
 The Java 21 probe passed **17 offline checks against the 20 packaged 0.8.46
 framework libraries**: single/multiple definitions, dynamic fields, missing-input
 output, explicit validation/repair/failure behavior, strict-parser feasibility,
 native history, context trust, OpenAI output modes, multiple-intent DTO and
 specialist JSON schema arrays. Mocked provider content is deliberate and labelled.
-No real inference or hosted authoring was performed. P2/P3/P6 must still prove
-the selected model and complete user journey; the assistant remains planned.
+At that assessment checkpoint no real inference or hosted authoring had been
+performed. Later implementation and live evidence are recorded in section 13
+and `verification-support/configuration-assistant-01037/`; do not interpret this
+historical assessment as current deployment status.
 
-**Current outcome of this document:** detailed design and source-backed feasibility assessment only. Assistant endpoints, runtime capability, template, UI panel and authoring journeys remain to be implemented and verified. No framework release was made or requested by this analysis.
+**Outcome of the original assessment:** proceed using released framework contracts, with new Platform/runtime/UI authoring integration. No framework release was made or requested by the assessment.

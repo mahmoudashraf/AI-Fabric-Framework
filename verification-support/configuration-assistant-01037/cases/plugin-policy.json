@@ -1,0 +1,5 @@
+{
+  "resourceKind": "PRIVATE_DATA_PLUGIN",
+  "task": "DATA_PLUGIN",
+  "query": "In this existing private S3 document Data plugin draft, allow text/plain and text/markdown with .txt and .md extensions and set each document source maximum to 2097152 bytes. Keep source and dataset identities, binding reference, ownership, tenant metadata, existing limits and explicit initial indexing approval unchanged. Do not create a version, install, connect storage or index."
+}

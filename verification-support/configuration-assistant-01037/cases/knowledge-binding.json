@@ -1,0 +1,4 @@
+{
+  "task": "KNOWLEDGE",
+  "query": "I want to index my approved support policies from S3-compatible storage. Tell me which current source and storage bindings exist. If none is bound, ask me to select an existing storage connection using the knowledge setup UI, rather than inventing a bucket, secret or source handle. Do not index files or provision storage."
+}

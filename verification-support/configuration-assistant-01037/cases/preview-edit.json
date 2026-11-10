@@ -1,0 +1,6 @@
+{
+  "task": "ACTIONS",
+  "query": "Change only the description of existing_lookup to: Retrieves a current record by its supplied identity. Keep its parameters, every other action and all routes unchanged.",
+  "previewOnly": true,
+  "proposal": "apply"
+}

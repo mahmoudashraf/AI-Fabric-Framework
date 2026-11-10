@@ -1,0 +1,6 @@
+{
+  "task": "ACTIONS",
+  "query": "The current task is the two imported API operations, not the earlier existing_lookup label change. Correct or complete search_records and register_interest from the selected fictional API. search_records is READ and its resultPresentationHint is LIST; register_interest is WRITE_ONLY, requires final user confirmation and its resultPresentationHint is STATUS. Keep the documented HTTP routes and success status arrays. Preserve existing_lookup (including its current manually refined label), keep_sibling, their fields, the protected connector settings and unrelated configuration. Save only this draft. Do not execute, publish, provision or claim an API test passed.",
+  "sources": [{ "title": "Fictional catalogue API - current task", "mediaType": "application/yaml", "contentFile": "neutral-api.yaml" }],
+  "proveIdempotency": true
+}

@@ -1,0 +1,6 @@
+{
+  "resourceKind": "PRIVATE_DATA_PLUGIN",
+  "pluginFixture": "http",
+  "task": "DATA_PLUGIN",
+  "query": "The last attempt did not fix the validation issue: an empty object merges and does not delete its existing entries. Explicitly REMOVE the five unwanted fields tenantId, customerId, deploymentId, datasetId and knowledgeSourceHandleRef from the dataset HTTP source mapping.metadataFields object, using separate REMOVE changes for their exact existing object-field paths. Do not remove their trusted entity metadata declarations, the dataset, or any valid documented source mappings. Keep all other settings unchanged. Save only the private draft and report the actual validator result. Do not execute, install, version or index."
+}

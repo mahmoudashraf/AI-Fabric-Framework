@@ -1,0 +1,4 @@
+{
+  "task": "MODELS",
+  "query": "Set the draft OpenAI LLM model override to gpt-5.4-mini. Keep the provider OpenAI and preserve embedding, vector storage, credential references and all other settings. Do not claim provider connectivity or change runtime infrastructure."
+}

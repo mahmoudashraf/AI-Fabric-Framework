@@ -1,0 +1,4 @@
+{
+  "task": "HUMAN_SUPPORT",
+  "query": "Help me prepare human handover with a required email and an optional name, and a five-minute queue timeout. Preserve an existing installed Desk binding if present. If no binding exists, explain the missing connection and ask for it instead of inventing an agent, provider or channel binding. Do not claim the live handover service is installed or enabled."
+}

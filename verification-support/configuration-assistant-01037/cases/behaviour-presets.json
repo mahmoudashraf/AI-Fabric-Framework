@@ -1,0 +1,4 @@
+{
+  "task": "BEHAVIOUR",
+  "query": "Set my draft response profiles to Warm tone, Advisory answer breadth, Brief answer length and Contextual next steps. Use the exact registered profile IDs, revision and instructions supplied by the catalogue. Preserve my existing general system prompt and unrelated configuration. This is a draft change, not a runtime update."
+}

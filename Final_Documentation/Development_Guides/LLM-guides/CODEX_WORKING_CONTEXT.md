@@ -14174,3 +14174,63 @@ test is being called hosted acceptance. UI extraction remains last.
 - Pending: dedicated service boot/provisioning, actual-provider quality,
   complete UI integration/browser checks, hosted rollout/qualification and
   guides. Do not claim P0-P6 complete or deployed. See canonical010.37 section13.
+
+### Configuration Assistant - 10 November 2026, Hosted Closeout
+
+- Supersedes the in-progress checkpoint above. 010.37's supported P0-P6 contract
+  is implemented, committed and qualified on staging/production. Canonical plan
+  and `verification-support/configuration-assistant-01037/` record exact proof,
+  retained failed attempts and accepted limits. External guide:
+  `Final_Documentation/External_User_Guides/CONFIGURE_SMART_BRAINS_WITH_AI_ASSISTANT.md`.
+- Serving backend source: `5d94e3e59f1c3e64d739f4f0d75ed22a75617bba`, digest
+  `sha256:50677bf2da478b73a9c1dbbb27af08df25bb44c326bb96124e6db4056abf3565`.
+  Console source: `669250d6224373b8deed777264357ee6196b189d`, digest
+  `sha256:ba6390957c0c8ae9a7268cedbca02205e8814115ea37f19353003942b0483c8b`.
+  Both hosts' exact native containers are healthy; later docs commits are not
+  serving-image upgrades.
+- Dedicated private authoring source: `1db306265558042b3566a485b84014345c075f22`,
+  digest `sha256:532927ca9a685a924736c76eec1e9339b082453313c90e8b5f5d4b8957cd3ced`.
+  One shared minimal inference profile per host, not per customer/Brain. It uses
+  `loomai_authoring_v1` on each existing Platform PG; active allocation and store
+  identity survived upgrade. No customer business/vector/index/action service
+  is loaded. No framework changes or release: AI Fabric remains 0.8.46. Existing
+  Northfield/Support/ProdUS serving-runtime images were untouched.
+- Real GPT-5.4-mini customer turns saved actions/routes, behaviour, model, Data
+  definitions and Engage settings. Untouched generated catalogues passed the
+  released action loader and one localhost READ mock each. No external business
+  API/write was invoked. Support specialist and active Engage previews preserved
+  exact real resource hashes; direct apply to active Engage stays PREVIEW with
+  a lifecycle notice. Missing authority returns questions, not invented bindings.
+- Actual normal customer UI saved/refined/undid fields; unknown values survived.
+  Final 1440x960 and 390x844 checks passed, no document overflow or covered
+  composer. Minimized Support launcher hides only while authoring is open and
+  returns on dismissal, preserving Support state. Real invalid Data findings
+  are visible independently of SAVED/model prose; raw details remain Advanced.
+- Tests: 182 focused Platform; runtime CI42743386211 passed748/zero skips;
+  final UI CI42746886520 passed; 40 UI unit/route tests,18 assistant browser
+  groups,13 actual-Support fixture groups; full UI builds. Imports26 staging +26
+  production. Unrelated initial quota CI retained its Docker/Testcontainers
+  error; no claim of a green framework/platform-wide release matrix.
+- Important retained semantic failures: early invalid hint/profile shapes,
+  earlier-intent response, and an empty-object merge that did not remove invalid
+  mappings. Exact catalogue/current findings/latest-user clarity and explicit
+  follow-up qualified useful results. No text matching, narrative rewriting,
+  automatic repair or hidden retry. Supported bound-S3 indexing remains TXT/JSON;
+  assistant PDF import is not new indexing support.
+- Final hosted ledger: staging23 attempts/127477 tokens/USD0.122037750;
+  production5/41488/USD0.038012250. Total28 attempts,168965 tokens,USD0.160050000,
+  not28 semantic passes. Separate earlier local20-call evidence is not included.
+  Initial internal allowance per host is USD5/100 attempts/2M tokens, expiry
+  2026-12-10T01:45:27Z. Renew using normal audited accounting; never initialize,
+  activate anew or erase history on restart. Manual editors survive disablement.
+- Own12 customer sessions and3 staff sessions deleted; importer session cleanup
+  is separately recorded. Deleted the draft Engage app/consumer; archived3
+  uninstalled private definitions and4 configuration-only Brains including the
+  import fixtures. No fixture infrastructure existed. Raw receipts/snapshots
+  retained privately. Browser fixture accounts signed out, CLI auth session
+  revoked/tokens cleared, temporary production tab closed and viewport reset.
+- Private service keys, internal PG identity, ledger/readback helpers and raw
+  evidence: `~/.codex/private/loomai-authoring-01037/`. The customer-session file
+  is now deliberately revoked; obtain a fresh normal sign-in for later tests.
+  Never publish these files. Root dirty `.gitignore` and unrelated old untracked
+  work were preserved; only this task's verification directory is added.

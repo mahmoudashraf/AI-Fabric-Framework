@@ -61,6 +61,23 @@ change, not a published release.
 Failures and missing information stay visible. The assistant does not substitute
 canned configuration, silently retry generation or claim tests passed.
 
+**Saved is not the same as valid or live.** A draft may be saved with validation
+findings so you can correct it in another turn or in the normal form. Review the
+actual check result, not only the model's explanation. The saved diff and receipt
+show what Platform really changed; the model's wording can be imperfect. A
+successful configuration check does not prove that an external API is reachable.
+
+For example, if an imported API did not document an ownership field, ask the
+assistant to remove the invented mapping and keep the trusted ownership metadata.
+Omitting a field from an object update preserves it; removing an existing field
+requires an explicit removal. The assistant can prepare that change without
+deleting and recreating the whole Data plugin.
+
+The current bound-S3 document plugin supports TXT and JSON indexing. Uploading a
+PDF or Markdown API guide into this assistant does not add those formats to your
+customer's indexing pipeline. Existing storage binding, discovery, approval and
+indexing controls remain the authority.
+
 ## Privacy And Limits
 
 Your request, selected sanitized documents and scoped configuration are sent to
@@ -73,6 +90,15 @@ and expire after seven days of inactivity. A session supports ten documents,
 2 MiB per import, 200,000 source characters and thirty turns. Select fewer
 operations if a request exceeds the bounded model context. Scanned PDFs need
 text extraction before upload; OCR is not provided.
+
+At the turn limit, finish in the normal editor or delete the temporary assistant
+session and start another. Deleting that session does not undo saved draft work.
+
+The first qualified model is OpenAI GPT-5.4-mini through LoomAI's shared private
+authoring service. It does not run inside every customer deployment, and this
+feature does not change your deployed chat model. Other providers are not silently
+substituted when this service is unavailable. Its internal usage allowance is
+finite; an unavailable allowance leaves the manual editors usable.
 
 Remove a source or delete the session to remove its temporary authoring state.
 Removing a source clears the assistant conversation; legitimate saved draft

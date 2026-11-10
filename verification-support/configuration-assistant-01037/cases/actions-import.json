@@ -1,0 +1,6 @@
+{
+  "task": "ACTIONS",
+  "query": "Create two draft actions from the supplied fictional API: search_records as a READ action, and register_interest as a WRITE_ONLY action requiring final user confirmation. Include their HTTP route mappings and documented success status arrays. These operations are public in this fictional specification; do not add upstream authentication or credentials. Keep the existing connector base URL and inbound protection unchanged; I will bind a real upstream later. Preserve both existing actions and every unrelated field. This request is configuration only: do not call the API, publish, provision or claim a connection test passed.",
+  "sources": [{ "title": "Fictional catalogue API", "mediaType": "application/yaml", "contentFile": "neutral-api.yaml" }],
+  "proveIdempotency": true
+}

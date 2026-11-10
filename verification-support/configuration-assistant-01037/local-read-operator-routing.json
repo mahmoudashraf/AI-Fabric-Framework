@@ -1,0 +1,13 @@
+{
+  "connector": {
+    "upstream": { "base-url": "http://127.0.0.1:1", "auth": { "type": "NONE" } },
+    "inbound-auth": {
+      "allow-unauthenticated": false,
+      "api-key": { "enabled": true, "header": "X-AIFABRIC-API-KEY", "value": "fictional-loopback-key" }
+    },
+    "http": { "connect-timeout-ms": 1000, "timeout-ms": 3000, "retry": { "enabled": false } },
+    "idempotency": { "enabled": false }
+  },
+  "authz": { "enabled": false },
+  "actions": {}
+}

@@ -1,0 +1,6 @@
+{
+  "resourceKind": "PRIVATE_DATA_PLUGIN",
+  "pluginFixture": "http",
+  "task": "DATA_PLUGIN",
+  "query": "Please correct the current validation findings in this existing HTTP_JSON Data plugin draft. Keep all dataset/source IDs, input IDs, trusted entity metadata declarations and existing documented API mappings. Upstream records only contain id, accountId, title and description as documented. Remove invented empty metadata mappings; tenantId, customerId, deploymentId, datasetId and knowledgeSourceHandleRef are injected by the server, not upstream JSON fields. Use absolute JSON Pointers for the actual source fields. Preserve the explicit 900-second schedule and NONE pagination; do not invent tombstone or webhook support. Save and report the actual check result only. Do not version, install, execute or index."
+}

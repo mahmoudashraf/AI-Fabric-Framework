@@ -117,6 +117,25 @@ user meaning through phrase matching. Wider advice is not web access, sampling
 temperature, authority to invent business facts, or an action permission.
 Other audited narrative/fallback defects and public web search remain deferred.
 
+## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
+
+An explicit configuration request authorizes the assistant to save changes to
+the caller's selected editable draft through existing resource services. It may
+replace requested manual values, including unsaved values; pause that editor
+while AI works, then reload the saved result for manual refinement. Preserve
+unrelated configuration. Do not add mandatory per-turn acceptance, a universal
+writer-version framework or a manual-edit protection gate against the requested
+AI change. Existing ownership, credential and resource revision contracts remain.
+
+Preview/explanation is nonmutating; an active Engage app stays preview-only
+until its normal explicit edit lifecycle. Actual saved receipts and validation
+findings, not model prose, determine state. Invalid drafts may remain editable
+with visible findings. The shared inference service has no save credentials or
+business tools. Publish, apply, index, provision, assign, review decisions and
+business execution remain separate explicit operations. No semantic matcher,
+silent model retry or canned configuration repair is allowed. See 010.37 and
+its verification evidence for the supported contracts and limits.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

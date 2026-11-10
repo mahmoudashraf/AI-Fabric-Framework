@@ -1,0 +1,5 @@
+{
+  "resourceKind": "PRIVATE_DATA_PLUGIN",
+  "task": "DATA_PLUGIN",
+  "query": "Correct my earlier unsupported Markdown request. Use only the currently supported bound-S3 indexing formats: text/plain and application/json with .txt and .json. Remove .md and text/markdown. Keep the maximum source size 2097152, source/dataset IDs, binding, ownership metadata, explicit initial indexing approval and all unrelated configuration unchanged. Save the draft and report its actual check result, without creating a version, installing or indexing."
+}
