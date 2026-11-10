@@ -1235,11 +1235,12 @@ historical assessment as current deployment status.
 
 **Outcome of the original assessment:** proceed using released framework contracts, with new Platform/runtime/UI authoring integration. No framework release was made or requested by the assessment.
 
-## 19. Next Enhancement: Page-Aware, Document-First Assistance
+## 19. Page-Aware, Document-First Assistance
 
-**Status (10 November 2026): proposed after the bounded validation-feedback loop;
-not implemented by this assessment.** This improves how customers start a task,
-not the assistant's authority or the underlying save/release mechanism.
+**Status (10 November 2026): implemented, committed and qualified on staging and
+production.** Backend source `a6fff57ff31a3444d967d597420bd88664e29aaa`, Console
+source `ee76af6775f4195465f95e5cfc684a43c3e5425d`. This improves how customers
+start a task, not the assistant's authority or underlying save/release mechanism.
 
 ### 19.1 Existing Foundation And Remaining Gap
 
@@ -1249,10 +1250,10 @@ and selected documentation/operations. File, pasted text and policy-enabled
 public documentation URL import already exist. Customers should not have to
 restate these technical instructions in their own message.
 
-The missing experience is page-specific introductory guidance and a clear,
-document-first command that works without a mandatory free-text prompt. The
-current generic conversation still expects a typed request after source import.
-Completing the feedback loop alone does not close this usability gap.
+Before this enhancement, the missing experience was page-specific introductory
+guidance and a clear document-first command without a mandatory free-text prompt.
+The earlier generic conversation expected a typed request after source import.
+Completing the feedback loop alone did not close that usability gap.
 
 ### 19.2 Customer Flow
 
@@ -1308,3 +1309,39 @@ limits; the welcome must not promise unavailable editing capabilities.
   selected operations. Check useful multi-action/routes output or a focused
   missing-information question, retained unrelated configuration, visible
   corrections, cancellation and no paid call merely from navigation.
+
+### 19.4 Implementation Contract
+
+The existing turn endpoint accepts optional `command: PREPARE` and typed
+`editorContext` containing the registered section and optional selected
+definition IDs. For preparation, `query` is an optional focus hint rather than
+a required technical prompt. Platform resolves the registered intent for the
+session's authorized task and preserves the hint. Ordinary messages retain
+their original query and existing behaviour.
+
+Sections distinguish actions, connections, knowledge, documents, live data,
+storage, search, behaviour, instructions, models, human support, action reviews,
+specialists, Kit guidance, private Data plugins and Engage. The context is
+captured per turn and included as model guidance in the existing catalogue.
+It neither extends the adapter's allowed paths nor grants rights to the named
+definitions. A section/task mismatch is an execution-identity error before
+inference, not a new semantic validator.
+
+The command and context participate in the existing idempotency identity.
+Generated proposals use the same bounded feedback, final save, preview,
+cancellation, actual usage accounting and undo paths. No new database/schema,
+framework/runtime release, service or business-execution permission is added.
+Reusable-source metadata identifies the originating resource so the UI can
+offer same-Brain documents without silently selecting unrelated material.
+
+Verification and hosted status are recorded separately in
+`verification-support/configuration-assistant-01037/2026-11-10-page-aware-ux.md`.
+Local checks passed: 256 focused backend tests, 57 UI unit tests, 42 browser
+scenario groups, 13 Support compatibility groups and the production UI build.
+Both hosts passed normal customer UI document-only preparation, short follow-up,
+actual Undo, explicit document reuse, pasted/public-URL import and responsive
+layout. Production also confirmed the refreshed three-action editor list.
+All four new live turns passed in one attempt each; do not claim the model had
+to correct a live failure. No navigation/import inference, framework release or
+customer-runtime update was required. Temporary sessions were deleted, the two
+configuration-only fixtures archived and test accounts signed out.

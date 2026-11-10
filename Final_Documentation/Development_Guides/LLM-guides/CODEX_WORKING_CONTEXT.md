@@ -14306,3 +14306,50 @@ test is being called hosted acceptance. UI extraction remains last.
   identified. Do not start this new UX merely because the loop is now closed.
   Owner's phone video gallery/tunnel intentionally remain running; recording
   predates the loop. Unrelated root.gitignore/untracked work preserved.
+
+### Configuration Assistant - 10 November 2026, Page-Aware UX Hosted Closeout
+
+- CURRENT: 010.37 section19 is implemented and qualified on staging/production,
+  superseding the preceding proposed-next-UX status. Backend source
+  a6fff57ff31a3444d967d597420bd88664e29aaa; Console
+  ee76af6775f4195465f95e5cfc684a43c3e5425d. Native healthy exact OCI digests:
+  backend f8be8a48f92aaa7e51b182651edbf69c667ec09215f2ac4a03628687ff8311b7,
+  UI ede86407033c7c41b94d4fc97d834b837938d84976e9bfd3bf01c1c26ad8d889.
+  Core CI42777341009 and42778787205 passed. Later documentation commits are
+  not serving-image upgrades.
+- Page/task product guidance and explicit PREPARE commands take documentation
+  plus an optional hint; no technical message is required. Typed per-turn
+  editorContext refreshes same-task views and selected definition focus. It is
+  guidance, not new allowed paths/authority. Plain queries remain unchanged.
+  Welcome/navigation/open/import/reuse do not invoke paid generation. Existing
+  source import, scoped session/controller, corrections, save/preview/undo and
+  publication boundaries remain. No new database/schema/service or framework
+  release; AI Fabric stays0.8.46. Private authoring and customer runtimes untouched.
+- UI has visible document chips, explicit same-resource reuse/reselection,
+  concise command/hint transcript, draft-only notice, compact Turn options and
+  ordinary clarification/follow-up mode. Live-data knowledge/connections now
+  correctly maps to KNOWLEDGE/LIVE_DATA; outbound action connections stay
+  CONNECTIONS. Source review is explicit, not a forced post-import modal.
+- Checks:256 focused backend,57UI units,42browser groups,13actual-Support
+  fixture groups, full UI build and diff check PASS. Independent read-only
+  backend/UI review found no significant bugs. No broad release-matrix claim.
+- Real normal-customer UI runs page-aware-staging-1794297683603 and
+  page-aware-production-1794297947480 PASS: no-hint API file ->3READ actions
+  and routes/zero errors, short rename, actual UI Undo, same-Brain document
+  reuse, pasted text, real public documentation URL, model/search guidance,
+  390px no overflow/zero page errors. Production additionally waited for the
+  actual refreshed Connected(3) editor before screenshot. The staging saved
+  screenshot caught the brief refresh phase, not an empty final draft.
+- All four paid turns used one attempt each. Increment4attempts/36071tokens/
+  USD0.036642000. Final ledgers:stage28/172438/USD0.166033500;
+  prod15/127701/USD0.124043250. Original allocation/store/limits/expiry preserved;
+  no initialize/activate/reset/top-up. No hidden navigation/import inference.
+- Four sessions deleted/404, two configuration-only Brains archived, fixture
+  browsers signed out. No publish/provision/index/assignment/business calls.
+  The fresh non-deployed draft's entity/authz warnings remained visible.
+  Main evidence:verification-support/configuration-assistant-01037/
+  2026-11-10-page-aware-ux.md. Raw runs/deployment receipts/screenshots private
+  under ~/.codex/private/loomai-feedback-loop-20261110/; readbacks under
+  ~/.codex/private/loomai-authoring-01037/read-only-evidence-546da00/.
+  Agent-owned test processes exited. Phone-video gallery/tunnel intentionally
+  unchanged; the earlier recording predates this UX. Unrelated dirty work kept.

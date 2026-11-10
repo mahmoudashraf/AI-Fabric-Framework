@@ -161,6 +161,25 @@ loop. Implementation and hosted status must be proven separately; this owner
 decision is not a deployment receipt. Track the extension in 010.37 and its
 dated feedback-loop verification record.
 
+### Page-Aware Configuration Assistance (Owner Decision, 2026-11-10)
+
+Supported editors use the same configuration assistant with registered page
+guidance and explicit preparation commands. A customer may supply documentation
+and an optional short hint; do not require technical prompts, schema syntax or
+manual repair instructions. Typed task/editor context, selected definitions,
+current configuration and existing catalogues guide the model, not text-based
+intent matching. Context is captured per turn; it does not broaden write paths
+or resource authority. Offer explicit same-resource document reuse, never silent
+attachment from another Brain or workspace.
+
+Navigation, assistant opening and documentation import alone must not trigger
+paid generation or configuration saves. The preparation command authorizes the
+normal draft operation, with visible validation, review and undo. Missing facts
+are focused questions, not invented credentials. Ordinary short follow-ups,
+guide-only resources, active-app previews, bounded correction and explicit
+publish/apply boundaries remain intact. Track implementation and hosted proof
+in 010.37 section 19 and its dated page-aware UX evidence, not this policy note.
+
 ## 1. What We Are Building
 
 We are building two related but different things:

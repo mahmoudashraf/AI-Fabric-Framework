@@ -8,8 +8,10 @@ directory. A healthy deployment is not evidence that every model answer is corre
 ## Current Delivery
 
 Implemented and qualified on staging and production on 10 November 2026. The
-latest [bounded validation-feedback qualification](2026-11-10-validation-feedback-loop.md)
-records current image identities and the explicit correction-policy extension.
+latest [page-aware UX qualification](2026-11-10-page-aware-ux.md) records current
+backend/Console images, document-only preparation and ordinary follow-ups.
+The [bounded validation-feedback qualification](2026-11-10-validation-feedback-loop.md)
+records the correction-policy extension and retained private inference image.
 The earlier [hosted qualification](2026-11-10-hosted-qualification.md) records the
 original customer/staff journeys, costs, cleanup and accepted limitations.
 Do not infer a later deployment from a source commit. The canonical plan is

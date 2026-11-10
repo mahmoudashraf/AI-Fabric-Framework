@@ -4,15 +4,19 @@ Use **Build with AI** inside an existing configuration page. The assistant works
 on that selected Smart Brain, private Data plugin or Engage app. It does not
 create another runtime for your conversation.
 
+Page-aware preparation is available on staging and production Console. Share
+documentation and choose the page's **Prepare** command; a message is optional.
+The assistant may still ask for essential missing information.
+
 ## A Typical Setup
 
 1. Open your Smart Brain's **AI capabilities** page and choose **Build with AI**.
 2. Add an OpenAPI/Swagger JSON or YAML file, documentation, a request/response
    example or a text PDF. Public HTTPS documentation URLs are available when
    the environment enables them. Imported references are never executed.
-3. Review the sanitized source and select the relevant API operations.
-4. Describe the outcome, for example: "Let customers check an order and request
-   a callback after confirmation. Keep the other actions."
+3. Review the selected documentation. Optionally choose specific API operations.
+4. Choose **Prepare actions**. You do not need to write a message. Add a short
+   focus hint if needed, for example: "Only order tracking and callbacks."
 5. Answer any questions about missing API details or supported connection
    references. Store credentials in the normal secure connection form, not in
    the assistant.
@@ -57,7 +61,8 @@ correction limit still come from the configured service.
 
 When available, **Let AI fix validation errors** lets the assistant use the
 actual configuration findings to correct its candidate within the same turn.
-The initial setting comes from the service's declared default. Choose **Max
+The initial setting comes from the service's declared default. Open **Turn
+options**, then choose **Max
 corrections** before sending: one or two, up to the service's allowed limit.
 Two corrections means at most three attempts, including the original attempt.
 Turn the toggle off for a single attempt with no automatic correction.
@@ -96,10 +101,10 @@ Inspect the actual validation outcome and saved diff before publishing.
 
 ## Review, Cancel And Undo
 
-Normal configuration requests authorize draft saves, including replacement of
+Preparation commands and normal configuration requests authorize draft saves, including replacement of
 manual values in the requested scope. Manual editing pauses while AI works and
 resumes from the saved result. Use **Preview only** or **Explain only** when you
-do not want a draft save. Cancel suppresses late results; a provider request
+do not want a draft save; these switches are under **Turn options**. Cancel suppresses late results; a provider request
 already sent may still consume usage. Undo restores the selected saved draft
 change, not a published release.
 
@@ -152,11 +157,25 @@ in the selected session and follow that session's lifecycle.
 
 Manual forms and Advanced JSON remain available if the assistant is unavailable.
 
-## Proposed Next UX (Not Implemented)
+## Page-Aware Assistance
 
-The configuration-assistant implementation plan, section 19, proposes page-aware
-welcome guidance and document-first commands such as **Prepare actions**, with
-an optional focus hint. This is a proposed next enhancement, not an implemented
-workflow. Today, import and review your documents, select any relevant
-operations, then type and send a request. Opening a page or importing a document
-alone does not start generation or save configuration.
+The assistant introduces the task for the page you opened. Its preparation
+command uses the selected resource, current draft, supported configuration,
+selected documentation and any optional hint. You do not have to explain JSON,
+route formats or validation rules. Model and search-settings pages supply
+different focus even though they share a model-settings adapter.
+
+Add documentation by file, pasted text or an enabled public URL. Related pages
+offer explicit reuse of documents from the same resource; review what is
+selected before starting. Adding or reusing documentation is not a model call.
+Neither navigation nor opening the assistant starts paid generation or saves
+the draft. The preparation command is your explicit request to configure it.
+
+If essential information is missing, answer the assistant's question in the
+message box and send it normally. Short follow-ups are supported; you do not
+need to re-upload selected material or repeat the original setup instructions.
+For later changes, type the outcome you want or use the page's preparation
+command again. Review the actual saved changes and validation before publishing.
+
+Kit guidance remains guide-only. Preview-only and active-app limits still
+apply, and unsupported functionality is not made available by a page command.
