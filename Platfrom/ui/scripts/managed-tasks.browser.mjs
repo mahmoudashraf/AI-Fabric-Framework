@@ -14,7 +14,17 @@ const task = { code: 'assess-request', name: 'Assess a request', description: 'R
   instructions: 'Use the supplied request. Return your recommendation and explain any missing information.',
   inputSchema: { type: 'object', properties: { message: { type: 'string', minLength: 2 } }, required: ['message'], additionalProperties: false },
   outputMode: 'JSON', outputSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
-  vectorSpaces: [], readActions: [], deadlineSeconds: 45, maxOutputTokens: 1200 }
+  vectorSpaces: [], readActions: [], writeActions: [], confirmationMode: 'CALLER', deadlineSeconds: 45, maxOutputTokens: 1200 }
+const resources = {
+  reviewAvailable: true,
+  knowledgeCollections: [{ id: 'document', name: 'Approved guide' }],
+  actions: [{ id: 'read_account', name: 'Read account', accessMode: 'READ', confirmationRequired: false },
+    { id: 'update_account', name: 'Update account', accessMode: 'WRITE', confirmationRequired: false },
+    { id: 'send_message', name: 'Send message', accessMode: 'WRITE', confirmationRequired: true }],
+  specialists: [{ ref: 'service-specialist', name: 'Service specialist', description: 'Existing service expertise',
+    inputSchema: task.inputSchema, outputSchema: task.outputSchema, outputMode: 'JSON', vectorSpaces: ['document'],
+    readActions: ['read_account'], writeActions: ['send_message'], deadlineSeconds: 90, maxOutputTokens: 2000 }],
+}
 const install = { id: 'install', deploymentId: 'brain', pluginId: 'plugin', pluginVersionId: 'plugin-v1', pluginVersion: '1.0.0',
   pluginDisplayName: 'Support tools', status: 'ENABLED', entitlement: { entitledForCompilation: true } }
 const provenance = { marketplaceManaged: true, marketplaceInstallId: 'install', marketplacePluginId: 'plugin', marketplacePluginVersion: '1.0.0' }
@@ -32,8 +42,17 @@ function fixture(options = {}) {
   if (options.pendingTaskConfig) Object.assign(saved.behaviorConfig.managedTasks.tasks[0], {
     instructions: 'DRAFT_ONLY_INSTRUCTIONS', inputSchema: { type: 'object', properties: { draftOnly: { type: 'boolean' } }, required: ['draftOnly'] },
   })
+  if (options.unknownResources) Object.assign(saved.behaviorConfig.managedTasks.tasks[0], {
+    vectorSpaces: ['missing-space'], readActions: ['missing-read'], writeActions: ['missing-write'],
+  })
+  if (options.specialistRef) saved.behaviorConfig.managedTasks.tasks[0] = {
+    code: task.code, name: task.name, description: task.description, deadlineSeconds: 45, specialistRef: options.specialistRef,
+  }
+  if (options.executedWrite || options.unknownWrite) saved.behaviorConfig.managedTasks.tasks[0].writeActions = ['update_account']
+  if (options.humanReview) Object.assign(saved.behaviorConfig.managedTasks.tasks[0], { writeActions: ['update_account'], confirmationMode: 'HUMAN_REVIEW' })
+  if (options.twoTasks) saved.behaviorConfig.managedTasks.tasks.push({ ...structuredClone(task), code: 'other-task', name: 'Other task' })
   return { saved, options, failSave: false, changed: false, failExecute: false, canonicalFailure: false,
-    appliedVersion: 'v1', appliedHash: 'tasks-hash', metadataReads: 0 }
+    appliedVersion: 'v1', appliedHash: 'tasks-hash', metadataReads: 0, resources: { ...structuredClone(resources), reviewAvailable: !options.noReview } }
 }
 function workspace(state) {
   return { access: { canEdit: !state.options.readonly, canOperate: !state.options.noOperate, canAdmin: true },
@@ -43,11 +62,24 @@ function workspace(state) {
       latestPublishedVersionId: state.options.latestPublishedVersionId ?? 'v1' }, latestVersion: { id: state.options.latestPublishedVersionId ?? 'v1' } }
 }
 function result(state) {
-  return { runId: 'run-fixture', taskCode: 'assess-request', status: state.canonicalFailure ? 'FAILED' : 'SUCCEEDED',
+  const pending = state.options.pendingProposal
+  return { runId: 'run-fixture', taskCode: 'assess-request', status: state.options.resultStatus ?? (pending ? 'CONFIRMATION_REQUIRED' : state.canonicalFailure ? 'FAILED' : 'SUCCEEDED'),
     configurationVersion: 'v1', taskConfigurationHash: 'tasks-hash', outputSchemaVersion: '1',
     output: state.canonicalFailure ? null : { answer: 'Route to the integration team; the API authorisation details are missing.' },
     failure: state.canonicalFailure ? { code: 'TASK_OUTPUT_INVALID', message: 'The generated output did not match the task schema.' } : null,
-    evidence: [{ evidenceId: 'guide-1', source: 'Approved guide', vectorSpace: 'document' }], sideEffectsExecuted: false,
+    evidence: [{ evidenceId: 'guide-1', source: 'Approved guide', vectorSpace: 'document' }],
+    sideEffectsExecuted: Boolean(state.options.executedWrite),
+    sideEffectsStatus: state.options.unknownWrite ? 'OUTCOME_UNKNOWN' : state.options.executedWrite ? 'EXECUTED' : 'NONE',
+    actionExecutions: state.options.executedWrite || state.options.unknownWrite ? [{ executionId: 'write-1', actionName: 'update_account',
+      status: state.options.unknownWrite ? 'OUTCOME_UNKNOWN' : 'SUCCEEDED', outcome: { receipt: 'actual-write-receipt' },
+      startedAt: '2026-11-10T12:00:00Z', ...(state.options.executedWrite ? { completedAt: '2026-11-10T12:00:01Z' } : {}) }] : [],
+    actionProposal: pending ? { receiptId: 'proposal-1', actionName: 'send_message', confirmationMessage: 'Send this service message?',
+      status: state.options.proposalStatus ?? 'PROPOSED', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + (state.options.expired ? -60000 : state.options.proposalLifetimeMs ?? 600000)).toISOString() } : null,
+    ...(state.options.resultExpiryMs !== undefined ? { expiresAt: new Date(Date.now() + state.options.resultExpiryMs).toISOString() } : {}),
+    review: state.options.resultStatus === 'REVIEW_REQUIRED' ? { taskId: 'review-existing-1', policyId: { name: 'existing-policy', version: '1' },
+      type: 'ACTION_CONFIRMATION', title: 'Review service message', summary: 'Actual pending review from the review service.',
+      status: 'PENDING', allowedDecisions: ['APPROVE', 'REJECT'], createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString(), version: 0 } : null,
+    inputRequirement: state.options.resultStatus === 'INPUT_REQUIRED' ? { message: 'Which account should receive the message?' } : null,
     startedAt: '2026-11-10T12:00:00Z', completedAt: '2026-11-10T12:00:01Z' }
 }
 function handle(state, method, url, body) {
@@ -55,9 +87,15 @@ function handle(state, method, url, body) {
   const send = (body, status = 200) => ({ body, status })
   if (path === '/api/deployments/brain/draft') return send(state.saved)
   if (path === '/api/deployments/brain/workspace') return send(workspace(state))
-  if (path === '/api/deployment-provider/target-profiles' || path === '/api/deployments/brain/target-profiles') return send([{ id: 'target', name: 'Customer staging', environmentName: 'staging', active: true, defaultForRuntime: true }])
+  if (path === '/api/deployment-provider/target-profiles' || path === '/api/deployments/brain/target-profiles') return send([
+    { id: 'target', name: 'Customer staging', environmentName: 'staging', active: true, defaultForRuntime: true },
+    ...(state.options.twoTargets ? [{ id: 'target2', name: 'Customer production', environmentName: 'production', active: true }] : []),
+  ])
   if (path === '/api/support/workspace') return send({ message: 'Support disabled in this isolated local fixture.' }, 503)
-  if (path === '/api/deployments/brain/releases') return send(state.options.noRelease ? [] : [{ id: 'release', deploymentVersionId: 'v1', targetProfileId: 'target', createdAt: '2026-11-10', status: 'APPLIED_VERIFIED', provisioningStatus: 'ACTIVE' }])
+  if (path === '/api/deployments/brain/releases') return send(state.options.noRelease ? [] : [
+    { id: 'release', deploymentVersionId: 'v1', targetProfileId: 'target', createdAt: '2026-11-10', status: 'APPLIED_VERIFIED', provisioningStatus: 'ACTIVE' },
+    ...(state.options.twoTargets ? [{ id: 'release2', deploymentVersionId: 'v1', targetProfileId: 'target2', createdAt: '2026-11-10', status: 'APPLIED_VERIFIED', provisioningStatus: 'ACTIVE' }] : []),
+  ])
   if (path === '/api/deployments/brain/versions') return send([{ id: 'v1', versionLabel: 'v1', publishedAt: '2026-11-10' }])
   if (path === '/api/deployment-drafts/draft' && method === 'PUT') {
     if (state.failSave) { state.failSave = false; return send({ message: 'Draft save rejected.', errorCode: 'CONFLICT' }, 409) }
@@ -66,15 +104,35 @@ function handle(state, method, url, body) {
     return send(state.saved)
   }
   if (path === '/api/deployments/brain/tasks/applied') {
-    assert.equal(url.searchParams.get('targetProfileId'), 'target')
+    assert.ok(['target', ...(state.options.twoTargets ? ['target2'] : [])].includes(url.searchParams.get('targetProfileId')))
     state.metadataReads++
     if (state.options.metadataError) return send({ message: 'Applied configuration unavailable.' }, 503)
     return send({ configurationVersion: state.appliedVersion, taskConfigurationHash: state.appliedHash, runtimeBaseUrl: 'https://runtime.example.test', tasks: state.options.missingTask ? [] : [task] })
   }
+  if (path === '/api/deployments/brain/tasks/resources') {
+    assert.equal(url.search, '')
+    return state.options.resourceError ? send({ message: 'Resource catalogue unavailable.' }, 503) : send(state.resources)
+  }
+  if (path === '/api/deployments/brain/tasks/assess-request/action-proposals/proposal-1/decisions' && method === 'POST') {
+    assert.equal(url.searchParams.get('targetProfileId'), 'target')
+    assert.equal(url.searchParams.get('expectedVersion'), state.appliedVersion)
+    assert.ok(['CONFIRM', 'REJECT'].includes(body.decision)); assert.deepEqual(Object.keys(body), ['decision'])
+    if (state.options.decisionDenied) return send({ message: 'Action decision denied.' }, 403)
+    if (state.options.decisionStaleDenial) return send({ message: 'Action decision is stale.' }, 409)
+    const status = body.decision === 'REJECT' ? 'REJECTED' : 'decisionStatus' in state.options ? state.options.decisionStatus : 'SUCCEEDED'
+    return send({ taskCode: 'assess-request', configurationVersion: 'v1', taskConfigurationHash: 'tasks-hash',
+      status: state.options.decisionResponseStatus ?? status ?? 'FAILED',
+      failure: state.options.decisionResponseFailure ?? null, actionExecutions: state.options.decisionExecutions ?? [],
+      ...state.options.decisionIdentity,
+      decision: state.options.noDecision ? null : { receiptId: 'proposal-1', status,
+        ...(state.options.decisionFailure ? { failure: state.options.decisionFailure }
+          : body.decision === 'CONFIRM' ? { outcome: { receipt: 'confirmed-write-receipt' } } : {}) } }, state.options.decisionHttpStatus ?? 200)
+  }
   if (path === '/api/deployments/brain/tasks/assess-request/execute' && method === 'POST') {
     assert.equal(url.searchParams.get('targetProfileId'), 'target')
+    assert.equal(url.searchParams.get('expectedVersion'), state.appliedVersion)
     if (state.failExecute) return send({ message: 'Execution access denied.' }, 403)
-    return send(result(state), state.canonicalFailure ? 502 : 200)
+    return send(result(state), state.options.executionHttpStatus ?? (state.canonicalFailure ? 502 : 200))
   }
   if (path === '/api/deployments/brain/marketplace-installs') return send([install])
   if (path === '/api/marketplace/plugins/plugin/versions/1.0.0') return send(manifest)
@@ -125,8 +183,10 @@ await server.listen()
 const base = server.resolvedUrls.local[0].replace(/\/$/, '')
 let browser, passed = 0
 async function run(name, verify, options = {}) {
+  if (process.env.MANAGED_TASKS_BROWSER_FILTER && !name.includes(process.env.MANAGED_TASKS_BROWSER_FILTER)) return
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1440, height: 1000 } })
   const page = await context.newPage()
+  if (options.clock) await page.clock.install()
   page.setDefaultTimeout(20000)
   const state = fixture(options), calls = [], errors = [], unexpected = []
   page.on('pageerror', error => errors.push(error.message))
@@ -156,6 +216,7 @@ async function run(name, verify, options = {}) {
 const saves = calls => calls.filter(call => call.method === 'PUT')
 const executions = calls => calls.filter(call => call.path.endsWith('/execute'))
 const appliedReads = calls => calls.filter(call => call.path.endsWith('/applied'))
+const decisions = calls => calls.filter(call => call.path.endsWith('/decisions'))
 async function fillTask(page) {
   await page.getByRole('textbox', { name: 'Task name', exact: false }).fill('Summarise request')
   await page.getByRole('textbox', { name: 'Task code', exact: false }).fill('summarise-request')
@@ -246,10 +307,12 @@ try {
   await run('task removal is confirmed and only saved through the shared draft', async ({ page, state, calls }) => {
     await page.getByRole('button', { name: 'Remove task', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.locator('[role="dialog"]').waitFor({ state: 'detached' })
     assert.equal(saves(calls).length, 0)
     await page.getByRole('button', { name: 'Remove task', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Remove task', exact: true }).click()
     await page.getByText('No tasks yet. Add one to define what your service needs.', { exact: true }).waitFor()
+    await page.locator('[role="dialog"]').waitFor({ state: 'detached' })
     assert.equal(saves(calls).length, 0)
     await page.getByRole('switch', { name: 'Enable Managed Tasks' }).uncheck()
     await page.getByRole('button', { name: 'Save draft', exact: true }).click()
@@ -333,19 +396,295 @@ try {
     assert.equal(executions(calls).length, 0)
     if (mode === 'noRelease') assert.equal(appliedReads(calls).length, 0)
   }, { [mode]: true })
-  await run('resource choices reuse installed source and READ authority', async ({ page, calls }) => {
+  await run('resource API supplies existing knowledge READ and WRITE policies', async ({ page, calls }) => {
     await page.getByRole('tab', { name: 'Resources', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Read account · Support tools' }).waitFor()
+    await page.getByRole('checkbox', { name: 'Read account', exact: true }).waitFor()
     assert.equal(await page.getByText('manual_read', { exact: true }).count(), 0)
-    assert.equal(await page.getByText('update_account', { exact: true }).count(), 0)
     assert.equal(await page.getByText('unrelated', { exact: true }).count(), 0)
-    await page.getByRole('checkbox', { name: 'Read account · Support tools' }).check()
+    await page.getByRole('checkbox', { name: 'Read account', exact: true }).check()
+    await page.getByRole('checkbox', { name: 'Approved guide', exact: true }).check()
+    await page.getByRole('checkbox', { name: 'Update account · No confirmation required', exact: true }).check()
+    await page.getByRole('checkbox', { name: 'Send message · Confirmation required', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Save draft', exact: true }).click()
     await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
     assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].readActions, ['read_account'])
-    assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].vectorSpaces, [])
+    assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].vectorSpaces, ['document'])
+    assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].writeActions, ['update_account'])
+    assert.ok(calls.some(call => call.path.endsWith('/tasks/resources') && call.search === ''))
+    assert.equal(calls.some(call => call.path.includes('marketplace')), false)
     assert.equal(executions(calls).length, 0)
   })
+  for (const resourceError of [false, true]) await run('unavailable resources stay visible removable and preserved ' + resourceError, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    if (resourceError) await page.getByText(/Resource catalogue unavailable.*Saved selections/).waitFor()
+    const missingRead = page.getByRole('checkbox', { name: 'missing-read (not in saved catalogue)', exact: true })
+    await missingRead.waitFor()
+    assert.equal(await missingRead.isChecked(), true)
+    assert.equal(await missingRead.isEnabled(), true)
+    await missingRead.click()
+    assert.equal(await missingRead.count(), 0)
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    const saved = saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0]
+    assert.deepEqual(saved.readActions, []); assert.deepEqual(saved.writeActions, ['missing-write']); assert.deepEqual(saved.vectorSpaces, ['missing-space'])
+    assert.equal(executions(calls).length, 0)
+  }, { resourceError, unknownResources: true })
+  await run('specialist inherits read-only contracts resources and preserves manual buffer until saved', async ({ page, calls }) => {
+    await page.getByRole('textbox', { name: 'Instructions', exact: false }).fill('Manual instructions retained while switching.')
+    await page.getByRole('textbox', { name: 'Task name', exact: false }).fill('My specialist Task')
+    await page.getByRole('combobox', { name: 'Existing specialist (optional)' }).click()
+    await page.getByRole('option', { name: 'Service specialist', exact: true }).click()
+    const inherited = page.getByRole('region', { name: 'Inherited specialist configuration' })
+    await inherited.waitFor()
+    assert.deepEqual(JSON.parse(await inherited.locator('pre').innerText()).inputSchema, task.inputSchema)
+    assert.equal(await page.getByRole('textbox', { name: 'Instructions', exact: false }).count(), 0)
+    assert.equal(await page.getByRole('region', { name: 'Input fields', exact: true }).count(), 0)
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    const write = page.getByRole('checkbox', { name: 'Send message · Confirmation required', exact: true })
+    assert.equal(await write.isChecked(), true); assert.equal(await write.isDisabled(), true)
+    await page.getByRole('tab', { name: 'Outcome', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Existing specialist (optional)' }).click()
+    await page.getByRole('option', { name: 'Task-authored instructions and contracts', exact: true }).click()
+    assert.equal(await page.getByRole('textbox', { name: 'Instructions', exact: false }).inputValue(), 'Manual instructions retained while switching.')
+    await page.getByRole('combobox', { name: 'Existing specialist (optional)' }).click()
+    await page.getByRole('option', { name: 'Service specialist', exact: true }).click()
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0], {
+      code: task.code, name: 'My specialist Task', description: task.description, deadlineSeconds: 45, specialistRef: 'service-specialist', confirmationMode: 'CALLER',
+    })
+    assert.equal(executions(calls).length, 0)
+  })
+  for (const specialistRef of ['service-specialist', 'missing-specialist']) await run('load reference-only Task ' + specialistRef, async ({ page, calls }) => {
+    if (specialistRef === 'service-specialist') await page.getByRole('region', { name: 'Inherited specialist configuration' }).waitFor()
+    else {
+      await page.getByText(/Specialist context is unavailable/).waitFor()
+      assert.equal(await page.getByRole('combobox', { name: 'Existing specialist (optional)' }).innerText(), 'missing-specialist (unavailable)')
+    }
+    await page.getByRole('textbox', { name: 'Purpose', exact: false }).fill('New Task-owned purpose')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    assert.equal(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].specialistRef, specialistRef)
+    assert.equal('inputSchema' in saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0], false)
+    assert.equal(executions(calls).length, 0)
+  }, { specialistRef })
+  for (const unknownWrite of [false, true]) await run('no-confirm write receipts survive AI failure ' + unknownWrite, async ({ page, state, calls }) => {
+    state.canonicalFailure = true
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByText(/Run task may execute selected write actions immediately/).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    const outcomes = page.getByRole('region', { name: 'Action outcomes' })
+    await outcomes.getByText(unknownWrite ? 'Side effects: OUTCOME_UNKNOWN' : 'Side effects: EXECUTED', { exact: true }).waitFor()
+    await outcomes.getByText(unknownWrite ? 'update_account: OUTCOME_UNKNOWN' : 'update_account: SUCCEEDED', { exact: true }).waitFor()
+    assert.ok((await outcomes.innerText()).includes('actual-write-receipt'))
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.equal(executions(calls).length, 1); assert.equal(decisions(calls).length, 0)
+  }, { executedWrite: !unknownWrite, unknownWrite })
+  for (const decision of ['CONFIRM', 'REJECT']) await run('pending proposal requires explicit ' + decision, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('region', { name: 'Task result' }).getByText('CONFIRMATION_REQUIRED', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+    assert.equal(decisions(calls).length, 0)
+    await page.getByRole('button', { name: decision === 'CONFIRM' ? 'Confirm action' : 'Reject action', exact: true }).click()
+    const receipt = page.getByRole('region', { name: 'Action decision result' })
+    await receipt.getByText('Decision status: ' + (decision === 'CONFIRM' ? 'SUCCEEDED' : 'REJECTED'), { exact: true }).waitFor()
+    assert.equal(decisions(calls).length, 1); assert.deepEqual(decisions(calls)[0].body, { decision })
+    assert.equal(executions(calls).length, 1)
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    if (decision === 'CONFIRM') assert.ok((await receipt.innerText()).includes('confirmed-write-receipt'))
+  }, { pendingProposal: true, executionHttpStatus: 409 })
+  for (const mode of ['appliedVersion', 'appliedHash', 'permission', 'draftTask', 'missingTask']) await run('decision boundary rejects changed ' + mode, async ({ page, state, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+    if (mode === 'appliedVersion') state.appliedVersion = 'v2'
+    if (mode === 'appliedHash') state.appliedHash = 'changed'
+    if (mode === 'permission') state.options.noOperate = true
+    if (mode === 'draftTask') state.saved.behaviorConfig.managedTasks.tasks[0].description = 'changed'
+    if (mode === 'missingTask') state.options.missingTask = true
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).click()
+    await page.getByText(/No decision was sent. Run again only after reviewing/).waitFor()
+    assert.equal(decisions(calls).length, 0); assert.equal(executions(calls).length, 1)
+    assert.equal(await page.getByRole('region', { name: 'Task result' }).count(), 0)
+  }, { pendingProposal: true })
+  for (const mode of ['denied', 'identity', 'unknown']) await run('decision receipt handles ' + mode, async ({ page, state, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+    if (mode === 'denied') state.options.decisionDenied = true
+    if (mode === 'identity') state.options.decisionIdentity = { taskConfigurationHash: 'foreign' }
+    if (mode === 'unknown') state.options.decisionStatus = 'OUTCOME_UNKNOWN'
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).click()
+    if (mode === 'unknown') await page.getByRole('region', { name: 'Action decision result' }).getByText('Decision status: OUTCOME_UNKNOWN', { exact: true }).waitFor()
+    else await page.getByText(mode === 'denied' ? /Action decision denied/ : /action decision response did not match/).waitFor()
+    assert.equal(decisions(calls).length, 1); assert.equal(executions(calls).length, 1)
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+  }, { pendingProposal: true })
+  for (const status of ['FAILED', null]) await run('safe action failure receipt ' + status, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).click()
+    const receipt = page.getByRole('region', { name: 'Action decision result' })
+    await receipt.getByText('ACCESS_DENIED: Current action policy denied the decision.', { exact: true }).waitFor()
+    await receipt.getByText('Decision status: ' + (status ?? 'FAILED'), { exact: true }).waitFor()
+    assert.equal(decisions(calls).length, 1)
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+  }, { pendingProposal: true, decisionStatus: status, decisionFailure: { reason: 'ACCESS_DENIED', publicMessage: 'Current action policy denied the decision.', retryable: true } })
+  for (const unknown of [false, true]) await run('decision transport preserves non-2xx receipts ' + unknown, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).click()
+    const receipt = page.getByRole('region', { name: 'Action decision result' })
+    await receipt.getByText('Decision status: ' + (unknown ? 'OUTCOME_UNKNOWN' : 'FAILED'), { exact: true }).waitFor()
+    await receipt.getByText('send_message: SUCCEEDED', { exact: true }).waitFor()
+    if (!unknown) await receipt.getByText('Receipt status: SUCCEEDED', { exact: true }).waitFor()
+    assert.ok((await receipt.innerText()).includes('actual-decision-write'))
+    await receipt.getByText('TASK_DECISION_FAILED: Stopped waiting for coordinator completion.', { exact: true }).waitFor()
+    if (unknown) {
+      await receipt.getByText('No decision receipt was returned. Do not assume the action was rejected or had no effect.', { exact: true }).waitFor()
+      await receipt.getByText(/The action outcome is unknown. Check the connected system/).waitFor()
+    }
+    await page.getByText('Run side effects (before decision): NONE', { exact: true }).waitFor()
+    assert.equal(await page.getByText('Side effects: NONE', { exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Reject action', exact: true }).count(), 0)
+    assert.equal(decisions(calls).length, 1); assert.equal(executions(calls).length, 1)
+    await receipt.scrollIntoViewIfNeeded()
+  }, { pendingProposal: true, decisionHttpStatus: unknown ? 504 : 409, decisionStatus: unknown ? 'FAILED' : 'SUCCEEDED', noDecision: unknown,
+    decisionResponseStatus: unknown ? 'OUTCOME_UNKNOWN' : 'FAILED',
+    decisionResponseFailure: { code: 'TASK_DECISION_FAILED', message: 'Stopped waiting for coordinator completion.' },
+    decisionExecutions: [{ executionId: 'actual-decision-write', actionName: 'send_message', status: 'SUCCEEDED',
+      outcome: { message: 'Actual business write completed.' }, startedAt: '2026-11-10T00:00:00Z', completedAt: '2026-11-10T00:00:01Z' }],
+    viewport: unknown ? { width: 390, height: 844 } : undefined })
+  await run('decision transport rejects ordinary stale denial', async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).click()
+    await page.getByText(/Action decision is stale/).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Action decision result' }).count(), 0)
+    assert.equal(decisions(calls).length, 1); assert.equal(executions(calls).length, 1)
+  }, { pendingProposal: true, decisionStaleDenial: true })
+  for (const resultExpiry of [false, true]) await run('decision transport expiry updates without new inference ' + resultExpiry, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+    await page.clock.fastForward(6000)
+    await page.getByText('This proposal has expired. No decision was sent.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Reject action', exact: true }).count(), 0)
+    assert.equal(decisions(calls).length, 0); assert.equal(executions(calls).length, 1)
+  }, { pendingProposal: true, clock: true, ...(resultExpiry ? { resultExpiryMs: 5000 } : { proposalLifetimeMs: 5000 }) })
+  for (const mode of ['expired', 'rejected']) await run('terminal proposals expose no decisions ' + mode, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('region', { name: 'Task result' }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Reject action', exact: true }).count(), 0)
+    assert.equal(decisions(calls).length, 0)
+  }, { pendingProposal: true, expired: mode === 'expired', proposalStatus: mode === 'rejected' ? 'REJECTED' : 'PROPOSED' })
+  for (const mode of ['config', 'task', 'refresh', 'target']) await run('pending proposals clear on ' + mode, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+    if (mode === 'refresh') await page.getByRole('button', { name: 'Refresh applied tasks', exact: true }).click()
+    if (mode === 'task') await page.getByRole('button', { name: 'Other task other-task', exact: true }).click()
+    if (mode === 'target') {
+      await page.getByRole('button', { name: 'View Production', exact: true }).click()
+      await page.waitForURL('**targetProfileId=target2**')
+    }
+    if (mode === 'config') {
+      await page.getByRole('tab', { name: 'Outcome', exact: true }).click()
+      await page.getByRole('textbox', { name: 'Purpose', exact: false }).fill('Changed')
+      await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    }
+    await page.getByRole('region', { name: 'Task result' }).waitFor({ state: 'detached' })
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(decisions(calls).length, 0)
+  }, { pendingProposal: true, twoTasks: true, twoTargets: true })
+  await run('Task confirmation handling changes no existing action flags', async ({ page, state, calls }) => {
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Update account · No confirmation required', exact: true }).waitFor()
+    assert.equal(await page.getByRole('combobox', { name: 'Confirmation handling' }).count(), 0)
+    await page.getByRole('checkbox', { name: 'Update account · No confirmation required', exact: true }).check()
+    await page.getByRole('combobox', { name: 'Confirmation handling' }).click()
+    await page.getByRole('option', { name: 'Human reviewers', exact: true }).click()
+    await page.getByText(/Writes without confirmation still execute directly/).waitFor()
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    const config = saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0]
+    assert.equal(config.confirmationMode, 'HUMAN_REVIEW'); assert.deepEqual(config.writeActions, ['update_account'])
+    assert.deepEqual(state.resources.actions, resources.actions)
+    assert.deepEqual(Object.keys(saves(calls)[0].body), ['behaviorConfig'])
+  })
+  await run('Human reviewers choice follows actual review availability', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Update account · No confirmation required', exact: true }).check()
+    await page.getByRole('combobox', { name: 'Confirmation handling' }).click()
+    await page.getByRole('option', { name: 'Your backend', exact: true }).waitFor()
+    assert.equal(await page.getByRole('option', { name: 'Human reviewers', exact: true }).count(), 0)
+    await page.keyboard.press('Escape')
+  }, { noReview: true })
+  await run('Unavailable saved human review handling is retained until deliberately changed', async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    await page.getByText('Human review is unavailable in the current resource catalogue. Your saved selection is retained.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('combobox', { name: 'Confirmation handling' }).innerText(), 'Human reviewers (unavailable)')
+    await page.getByRole('tab', { name: 'Outcome', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Purpose', exact: false }).fill('Preserve review selection')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    assert.equal(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0].confirmationMode, 'HUMAN_REVIEW')
+  }, { noReview: true, humanReview: true })
+  await run('Specialist reference retains Task-owned confirmation handling', async ({ page, calls }) => {
+    await page.getByRole('region', { name: 'Inherited specialist configuration' }).waitFor()
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Confirmation handling' }).click()
+    await page.getByRole('option', { name: 'Human reviewers', exact: true }).click()
+    assert.equal(await page.getByRole('checkbox', { name: 'Send message · Confirmation required', exact: true }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; apply an update to use it', { exact: true }).waitFor()
+    assert.deepEqual(saves(calls)[0].body.behaviorConfig.managedTasks.tasks[0], {
+      code: task.code, name: task.name, description: task.description, deadlineSeconds: 45, specialistRef: 'service-specialist', confirmationMode: 'HUMAN_REVIEW',
+    })
+  }, { specialistRef: 'service-specialist' })
+  await run('Human review setting does not add a gate to no-confirm writes', async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('region', { name: 'Task result' }).getByText('SUCCEEDED', { exact: true }).waitFor()
+    await page.getByRole('region', { name: 'Action outcomes' }).getByText('Side effects: EXECUTED', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Pending human review' }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(executions(calls).length, 1); assert.equal(decisions(calls).length, 0)
+  }, { humanReview: true, executedWrite: true })
+  for (const status of ['REVIEW_REQUIRED', 'INPUT_REQUIRED']) await run('Actual pending state ' + status, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    await page.getByRole('region', { name: 'Task result' }).getByText(status, { exact: true }).waitFor()
+    if (status === 'REVIEW_REQUIRED') {
+      const review = page.getByRole('region', { name: 'Pending human review' })
+      await review.getByText('Review service message', { exact: true }).waitFor()
+      assert.ok((await review.innerText()).includes('review-existing-1'))
+      assert.ok((await review.getByRole('link', { name: 'Open Action reviews' }).getAttribute('href')).includes('/action-reviews?targetProfileId=target'))
+    } else await page.getByText('Missing input: Which account should receive the message?', { exact: true }).waitFor()
+    await page.getByRole('region', { name: 'Action outcomes' }).getByText('Side effects: NONE', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Reject action', exact: true }).count(), 0)
+    assert.equal(executions(calls).length, 1); assert.equal(decisions(calls).length, 0)
+  }, { resultStatus: status, pendingProposal: true, executionHttpStatus: 409 })
   await run('read-only access has no editor writes or inference authority', async ({ page, calls }) => {
     assert.equal(await page.getByRole('button', { name: 'Add task', exact: true }).isDisabled(), true)
     assert.equal(await page.getByRole('textbox', { name: 'Task name', exact: false }).isDisabled(), true)
@@ -400,6 +739,26 @@ try {
     await page.getByRole('button', { name: 'Run task', exact: true }).waitFor({ state: 'visible' })
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Run task' && !button.disabled))
   }, { theme, viewport: { width: 390, height: 844 } })
+  for (const theme of ['light', 'dark']) await run('mobile write confirmation and human review ' + theme, async ({ page, calls }) => {
+    await page.getByRole('tab', { name: 'Resources', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Confirmation handling' }).waitFor()
+    assert.equal(await page.getByRole('combobox', { name: 'Confirmation handling' }).innerText(), 'Human reviewers')
+    await page.getByRole('tab', { name: 'Try', exact: true }).click()
+    await page.getByText('Applied version: v1', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run task', exact: true }).click()
+    if (theme === 'light') {
+      await page.getByRole('button', { name: 'Confirm action', exact: true }).waitFor()
+      await page.getByRole('button', { name: 'Reject action', exact: true }).click()
+      await page.getByRole('region', { name: 'Action decision result' }).getByText('Decision status: REJECTED', { exact: true }).waitFor()
+      await page.getByRole('region', { name: 'Action decision result' }).scrollIntoViewIfNeeded()
+      assert.equal(decisions(calls).length, 1)
+    } else {
+      await page.getByRole('region', { name: 'Pending human review' }).scrollIntoViewIfNeeded()
+      assert.equal(await page.getByRole('button', { name: 'Confirm action', exact: true }).count(), 0)
+      assert.equal(decisions(calls).length, 0)
+    }
+    assert.equal(executions(calls).length, 1)
+  }, { theme, humanReview: true, pendingProposal: true, resultStatus: theme === 'dark' ? 'REVIEW_REQUIRED' : undefined, viewport: { width: 390, height: 844 } })
   console.log(JSON.stringify({ passed, output, realInferenceCalls: 0, realDraftWrites: 0 }))
   await browser.close(); browser = null
   if (process.argv.includes('--serve')) {

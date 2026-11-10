@@ -33,13 +33,23 @@ public final class ManagedTaskController {
     @PostMapping("/{taskCode}/execute")
     public ResponseEntity<ManagedTaskResponse> execute(@PathVariable String taskCode,
         @RequestBody ManagedTaskRequest body, HttpServletRequest request) {
-        return tasks.execute(taskCode, body, auth.resolveVerifiedPrivateContext(request, "managed tasks"));
+        var caller = auth.resolveVerifiedPrivateContext(request, "managed tasks");
+        tasks.requireAppliedVersion(request.getHeader("If-Match"), caller, taskCode, "execute");
+        return tasks.execute(taskCode, body, caller);
+    }
+
+    @PostMapping("/{taskCode}/action-proposals/{receiptId}/decisions")
+    public ResponseEntity<ManagedTaskDecisionResponse> decide(@PathVariable String taskCode, @PathVariable String receiptId,
+        @RequestBody ManagedTaskDecisionRequest body, HttpServletRequest request) {
+        var caller = auth.resolveVerifiedPrivateContext(request, "managed task decision");
+        tasks.requireAppliedVersion(request.getHeader("If-Match"), caller, taskCode, "confirm");
+        return tasks.decide(taskCode, receiptId, body, caller);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<Error> malformed() {
         return ResponseEntity.badRequest().header("Cache-Control", "no-store")
-            .body(new Error("TASK_REQUEST_INVALID", "Provide input and an optional correlationId only."));
+            .body(new Error("TASK_REQUEST_INVALID", "Provide the documented task input or action-decision body only."));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -49,6 +59,7 @@ public final class ManagedTaskController {
             case 401 -> "TASK_AUTHENTICATION_REQUIRED";
             case 403 -> "TASK_ACCESS_DENIED";
             case 404 -> "TASK_NOT_FOUND";
+            case 412 -> "TASK_VERSION_MISMATCH";
             case 413 -> "TASK_INPUT_LIMIT";
             case 503 -> "TASKS_NOT_READY";
             default -> "TASK_INPUT_INVALID";

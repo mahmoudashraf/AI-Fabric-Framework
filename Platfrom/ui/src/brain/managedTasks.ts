@@ -4,10 +4,12 @@ import { parseExactObject, stringifyExactJson } from '../lib/losslessJson'
 export type ManagedTask = {
   code: string; name: string; description: string; instructions: string
   inputSchema: JsonObject; outputMode: 'JSON' | 'TEXT'; outputSchema?: JsonObject
-  vectorSpaces: string[]; readActions: string[]; deadlineSeconds: number; maxOutputTokens: number
+  vectorSpaces: string[]; readActions: string[]; writeActions?: string[]; specialistRef?: string
+  confirmationMode?: 'CALLER' | 'HUMAN_REVIEW'
+  deadlineSeconds: number; maxOutputTokens: number
 }
 export type TaskEditor = Omit<ManagedTask, 'inputSchema' | 'outputSchema'> & {
-  key: string; inputSchemaText: string; outputSchemaText: string
+  key: string; inputSchemaText: string; outputSchemaText: string; writeActions: string[]; confirmationMode: 'CALLER' | 'HUMAN_REVIEW'
 }
 export type TasksEditor = { enabled: boolean; tasks: TaskEditor[] }
 export const fieldTypes = ['string', 'number', 'integer', 'boolean', 'object', 'array'] as const
@@ -20,7 +22,7 @@ export const taskCodeValid = (code: string) => /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 export function newTask(): TaskEditor {
   return { key: crypto.randomUUID(), code: '', name: '', description: '', instructions: '',
     inputSchemaText: stringifyExactJson(objectSchema(), 2), outputMode: 'JSON',
-    outputSchemaText: stringifyExactJson(answerSchema(), 2), vectorSpaces: [], readActions: [],
+    outputSchemaText: stringifyExactJson(answerSchema(), 2), vectorSpaces: [], readActions: [], writeActions: [], confirmationMode: 'CALLER',
     deadlineSeconds: 45, maxOutputTokens: 1200 }
 }
 
@@ -33,21 +35,28 @@ export function readTasksEditor(behavior: unknown): TasksEditor {
   }
   const tasks = config.tasks.map(value => {
     if (!isJsonObject(value)) throw new Error('Each task must be an object. Repair it in Advanced configuration first.')
-    for (const field of ['code', 'name', 'description', 'instructions']) {
+    if (value.specialistRef !== undefined && typeof value.specialistRef !== 'string') throw new Error('Task specialist reference must be text.')
+    if (value.confirmationMode !== undefined && value.confirmationMode !== 'CALLER' && value.confirmationMode !== 'HUMAN_REVIEW') throw new Error('Task confirmation handling must be CALLER or HUMAN_REVIEW.')
+    const referenceMode = typeof value.specialistRef === 'string' && Boolean(value.specialistRef.trim())
+    for (const field of ['code', 'name', 'description', ...(!referenceMode ? ['instructions'] : [])]) {
       if (typeof value[field] !== 'string') throw new Error(`Task ${field} must be text. Repair it in Advanced configuration first.`)
     }
-    for (const field of ['vectorSpaces', 'readActions']) {
+    for (const field of [...(!referenceMode ? ['vectorSpaces', 'readActions'] : []), ...(value.writeActions !== undefined ? ['writeActions'] : [])]) {
       if (!Array.isArray(value[field]) || value[field].some(item => typeof item !== 'string')) throw new Error(`Task ${field} must be a list of names.`)
     }
-    if (!['JSON', 'TEXT'].includes(String(value.outputMode)) || typeof value.deadlineSeconds !== 'number' || typeof value.maxOutputTokens !== 'number') {
+    if (typeof value.deadlineSeconds !== 'number' || !referenceMode && (!['JSON', 'TEXT'].includes(String(value.outputMode)) || typeof value.maxOutputTokens !== 'number')) {
       throw new Error('Task output mode and execution limits are invalid. Repair them in Advanced configuration first.')
     }
     return { key: crypto.randomUUID(), code: value.code as string, name: value.name as string,
-      description: value.description as string, instructions: value.instructions as string,
-      outputMode: value.outputMode as 'JSON' | 'TEXT', vectorSpaces: [...value.vectorSpaces as string[]],
-      readActions: [...value.readActions as string[]], deadlineSeconds: value.deadlineSeconds as number,
-      maxOutputTokens: value.maxOutputTokens as number,
-      inputSchemaText: stringifyExactJson(value.inputSchema ?? null, 2),
+      description: value.description as string, instructions: referenceMode ? '' : value.instructions as string,
+      ...(typeof value.specialistRef === 'string' ? { specialistRef: value.specialistRef } : {}),
+      confirmationMode: value.confirmationMode as TaskEditor['confirmationMode'] ?? 'CALLER',
+      outputMode: referenceMode ? 'JSON' as const : value.outputMode as 'JSON' | 'TEXT',
+      vectorSpaces: referenceMode ? [] : [...value.vectorSpaces as string[]],
+      readActions: referenceMode ? [] : [...value.readActions as string[]],
+      writeActions: referenceMode ? [] : [...(value.writeActions as string[] ?? [])], deadlineSeconds: value.deadlineSeconds as number,
+      maxOutputTokens: referenceMode ? 1200 : value.maxOutputTokens as number,
+      inputSchemaText: stringifyExactJson(value.inputSchema ?? (referenceMode ? objectSchema() : null), 2),
       outputSchemaText: stringifyExactJson(value.outputSchema ?? answerSchema(), 2) }
   })
   return { enabled: config.enabled, tasks }
@@ -83,8 +92,9 @@ export function taskErrors(task: TaskEditor, tasks: TaskEditor[]): string[] {
   if (tasks.some(other => other.key !== task.key && other.code === task.code)) errors.push('Code must be unique in this Brain.')
   if (!task.name.trim() || task.name.length > 120) errors.push('Name is required, up to 120 characters.')
   if (!task.description.trim() || task.description.length > 500) errors.push('Description is required, up to 500 characters.')
-  if (!task.instructions.trim() || task.instructions.length > 8000) errors.push('Instructions are required, up to 8,000 characters.')
   if (!Number.isInteger(task.deadlineSeconds) || task.deadlineSeconds < 5 || task.deadlineSeconds > 120) errors.push('Deadline must be a whole number from 5 to 120 seconds.')
+  if (task.specialistRef?.trim()) return errors
+  if (!task.instructions.trim() || task.instructions.length > 8000) errors.push('Instructions are required, up to 8,000 characters.')
   if (!Number.isInteger(task.maxOutputTokens) || task.maxOutputTokens < 128 || task.maxOutputTokens > 4096) errors.push('Output limit must be a whole number from 128 to 4,096 tokens.')
   for (const [label, source] of [['Input schema', task.inputSchemaText], ...(task.outputMode === 'JSON' ? [['Output schema', task.outputSchemaText]] : [])]) {
     try { parseTaskSchema(source, label) } catch (error) { errors.push(error instanceof Error ? error.message : `${label} is invalid.`) }
@@ -104,11 +114,12 @@ export function taskBehaviorPatch(behavior: unknown, editor: TasksEditor): JsonO
   if (errors.length) throw new Error(errors[0])
   if (behavior != null && !isJsonObject(behavior)) throw new Error('Behaviour configuration must be an object.')
   return { ...(behavior ?? {}) as JsonObject, managedTasks: { enabled: editor.enabled, tasks: editor.tasks.map(task => ({
-    code: task.code, name: task.name, description: task.description, instructions: task.instructions,
+    code: task.code, name: task.name, description: task.description, deadlineSeconds: task.deadlineSeconds, confirmationMode: task.confirmationMode,
+    ...(task.specialistRef?.trim() ? { specialistRef: task.specialistRef } : { instructions: task.instructions,
     inputSchema: parseTaskSchema(task.inputSchemaText, 'Input schema'), outputMode: task.outputMode,
     ...(task.outputMode === 'JSON' ? { outputSchema: parseTaskSchema(task.outputSchemaText, 'Output schema') } : {}),
-    vectorSpaces: task.vectorSpaces, readActions: task.readActions,
-    deadlineSeconds: task.deadlineSeconds, maxOutputTokens: task.maxOutputTokens,
+    vectorSpaces: task.vectorSpaces, readActions: task.readActions, writeActions: task.writeActions,
+    maxOutputTokens: task.maxOutputTokens }),
   })) } }
 }
 

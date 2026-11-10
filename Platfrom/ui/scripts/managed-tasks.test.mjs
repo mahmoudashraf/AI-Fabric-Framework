@@ -18,7 +18,8 @@ test('task defaults are explicit, blank and resource-free', () => {
   assert.equal(task.deadlineSeconds, 45); assert.equal(task.maxOutputTokens, 1200)
   assert.deepEqual(JSON.parse(task.inputSchemaText), { type: 'object', properties: {} })
   assert.deepEqual(JSON.parse(task.outputSchemaText), { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] })
-  assert.deepEqual(task.vectorSpaces, []); assert.deepEqual(task.readActions, [])
+  assert.deepEqual(task.vectorSpaces, []); assert.deepEqual(task.readActions, []); assert.deepEqual(task.writeActions, [])
+  assert.equal(task.confirmationMode, 'CALLER')
   assert.deepEqual(m.tasksErrors({ enabled: true, tasks: [valid()] }), [])
   assert.match(m.tasksErrors({ enabled: true, tasks: [] })[0], /at least one/)
 })
@@ -62,6 +63,45 @@ test('TEXT ignores the editor output schema; switching does not mutate its buffe
   const next = m.taskBehaviorPatch({}, { enabled: true, tasks: [task] })
   assert.equal('outputSchema' in next.managedTasks.tasks[0], false)
   assert.equal(task.outputSchemaText, '{incomplete')
+})
+
+test('write selections default empty and unknown resource references round-trip unchanged', () => {
+  const task = { ...valid(), vectorSpaces: ['missing-space'], readActions: ['missing-read'], writeActions: ['missing-write'] }
+  const config = m.taskBehaviorPatch({}, { enabled: true, tasks: [task] })
+  const reloaded = m.readTasksEditor(config).tasks[0]
+  for (const field of ['vectorSpaces', 'readActions', 'writeActions']) assert.deepEqual(reloaded[field], task[field])
+  delete config.managedTasks.tasks[0].writeActions
+  assert.deepEqual(m.readTasksEditor(config).tasks[0].writeActions, [])
+  config.managedTasks.tasks[0].writeActions = 'bad'
+  assert.throws(() => m.readTasksEditor(config), /writeActions/)
+})
+
+test('specialist reference persists only Task identity, deadline and reference, not shadow settings', () => {
+  const task = { ...valid(), specialistRef: 'existing-specialist', instructions: '', inputSchemaText: '{invalid',
+    outputSchemaText: '{invalid', maxOutputTokens: 0, vectorSpaces: ['shadow'], writeActions: ['shadow-write'] }
+  assert.deepEqual(m.taskErrors(task, [task]), [])
+  const behavior = { other: { manual: true } }
+  const config = m.taskBehaviorPatch(behavior, { enabled: true, tasks: [task] })
+  assert.deepEqual(config.managedTasks.tasks[0], { code: task.code, name: task.name, description: task.description,
+    deadlineSeconds: 45, specialistRef: 'existing-specialist', confirmationMode: 'CALLER' })
+  assert.deepEqual(config.other, behavior.other)
+  const editor = m.readTasksEditor(config)
+  assert.equal(editor.tasks[0].specialistRef, 'existing-specialist')
+  assert.deepEqual(m.taskBehaviorPatch(config, editor), config)
+  assert.ok(m.taskErrors({ ...task, deadlineSeconds: 0 }, [task]).length)
+  assert.ok(m.taskErrors({ ...task, specialistRef: ' ' }, [task]).length)
+  assert.throws(() => m.readTasksEditor({ managedTasks: { enabled: true, tasks: [{ ...config.managedTasks.tasks[0], specialistRef: 1 }] } }), /reference/)
+})
+
+test('confirmation handling defaults to caller and remains Task-owned with a specialist reference', () => {
+  const task = { ...valid(), specialistRef: 'service-specialist', confirmationMode: 'HUMAN_REVIEW' }
+  const config = m.taskBehaviorPatch({}, { enabled: true, tasks: [task] })
+  assert.equal(config.managedTasks.tasks[0].confirmationMode, 'HUMAN_REVIEW')
+  assert.equal(m.readTasksEditor(config).tasks[0].confirmationMode, 'HUMAN_REVIEW')
+  delete config.managedTasks.tasks[0].confirmationMode
+  assert.equal(m.readTasksEditor(config).tasks[0].confirmationMode, 'CALLER')
+  config.managedTasks.tasks[0].confirmationMode = 'NEW_POLICY'
+  assert.throws(() => m.readTasksEditor(config), /confirmation handling/)
 })
 
 test('same-revision task edits are detected exactly without rejecting unrelated behavior changes', () => {
@@ -151,7 +191,126 @@ test('API metadata is a scoped read and requires no inference request', async ()
     globalThis.__managedTaskMetadata = (...args) => args
     const [path] = api.fetchAppliedManagedTasks('brain /', 'target +')
     assert.equal(path, '/api/deployments/brain%20%2F/tasks/applied?targetProfileId=target+%2B')
+    assert.equal(api.fetchManagedTaskResources('brain /')[0], '/api/deployments/brain%20%2F/tasks/resources')
   } finally { globalThis.__managedTaskMetadata = previous }
+})
+
+test('non-2xx Task receipts retain completed or unknown writes and pending confirmation without retry', async () => {
+  const original = globalThis.fetch
+  try {
+    for (const sideEffectsStatus of ['EXECUTED', 'OUTCOME_UNKNOWN', 'NONE']) {
+      let calls = 0
+      const response = { runId: 'run', taskCode: 'task', configurationVersion: 'v1', taskConfigurationHash: 'hash',
+        status: sideEffectsStatus === 'NONE' ? 'CONFIRMATION_REQUIRED' : 'FAILED', output: null, failure: null,
+        sideEffectsExecuted: sideEffectsStatus === 'EXECUTED', sideEffectsStatus, evidence: [],
+        actionExecutions: [{ executionId: 'write-1', actionName: 'update', status: sideEffectsStatus, startedAt: 'now' }],
+        actionProposal: { receiptId: 'proposal', actionName: 'update', confirmationMessage: 'Update?', status: 'PROPOSED', createdAt: 'now', expiresAt: 'later' } }
+      globalThis.fetch = async () => { calls++; return new Response(JSON.stringify(response), { status: 502 }) }
+      assert.deepEqual(await api.executeManagedTask('brain', 'task', 'target', { input: {} }, 45), response)
+      assert.equal(calls, 1)
+    }
+  } finally { globalThis.fetch = original }
+})
+
+test('review and input pending states retain actual safe context even on non-2xx without inventing writes', async () => {
+  const original = globalThis.fetch
+  try {
+    for (const status of ['REVIEW_REQUIRED', 'INPUT_REQUIRED', 'SUCCEEDED']) {
+      const response = { runId: 'run', taskCode: 'task', configurationVersion: 'v1', taskConfigurationHash: 'hash',
+        status, output: null, failure: null, sideEffectsExecuted: false, sideEffectsStatus: 'NONE', evidence: [],
+        ...(status === 'REVIEW_REQUIRED' ? { review: { taskId: 'review-1', title: 'Review actual write', status: 'PENDING' } }
+          : status === 'INPUT_REQUIRED' ? { inputRequirement: { message: 'Which account should be updated?' } } : { actionExecutions: [] }) }
+      globalThis.fetch = async () => new Response(JSON.stringify(response), { status: 409 })
+      const value = await api.executeManagedTask('brain', 'task', 'target', { input: {} }, 45)
+      assert.deepEqual(value, response); assert.equal(value.sideEffectsExecuted, false)
+    }
+  } finally { globalThis.fetch = original }
+})
+
+test('explicit decisions use exact target and receipt and validate response identity', async () => {
+  const previous = globalThis.fetch
+  const context = { configurationVersion: 'v1', taskConfigurationHash: 'hash', deadlineSeconds: 120 }
+  const response = { taskCode: 'task', configurationVersion: 'v1', taskConfigurationHash: 'hash', status: 'REJECTED',
+    decision: { receiptId: 'receipt /', status: 'REJECTED' }, actionExecutions: [], failure: null }
+  try {
+    for (const decision of ['CONFIRM', 'REJECT']) {
+      let calls = 0
+      globalThis.fetch = async (path, init) => {
+        calls++
+        assert.equal(path, 'https://platform.fixture/api/deployments/brain/tasks/task/action-proposals/receipt%20%2F/decisions?targetProfileId=target+%2B&expectedVersion=v1')
+        assert.equal(init.method, 'POST'); assert.deepEqual(JSON.parse(init.body), { decision })
+        assert.equal(init.credentials, 'omit'); assert.equal(init.headers.Authorization, 'Bearer fixture-session')
+        assert.equal(init.redirect, 'error')
+        return new Response(JSON.stringify(response))
+      }
+      assert.deepEqual(await api.decideManagedTaskProposal('brain', 'task', 'target +', 'receipt /', decision, context), response)
+      assert.equal(calls, 1)
+    }
+    for (const patch of [{ taskCode: 'foreign' }, { configurationVersion: 'v2' }, { taskConfigurationHash: 'stale' },
+      { decision: { receiptId: 'foreign', status: 'SUCCEEDED' } }, { decision: null }, { decision: { receiptId: 'receipt /', status: null } }]) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ ...response, ...patch }), { status: 409 })
+      await assert.rejects(() => api.decideManagedTaskProposal('brain', 'task', 'target', 'receipt /', 'CONFIRM', context), /did not match.*outcome is unknown/)
+    }
+    const denied = { ...response, decision: { receiptId: 'receipt /', status: null,
+      failure: { reason: 'ACCESS_DENIED', publicMessage: 'Current policy denied this decision.', retryable: false } } }
+    globalThis.fetch = async () => new Response(JSON.stringify(denied), { status: 409 })
+    assert.deepEqual(await api.decideManagedTaskProposal('brain', 'task', 'target', 'receipt /', 'CONFIRM', context), denied)
+    for (const status of [403, 409]) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Stale or denied decision.', errorCode: 'STALE_DECISION' }), { status })
+      await assert.rejects(() => api.decideManagedTaskProposal('brain', 'task', 'target', 'receipt /', 'CONFIRM', context), error =>
+        error.status === status && error.errorCode === 'STALE_DECISION' && /Stale or denied/.test(error.message))
+    }
+  } finally { globalThis.fetch = previous }
+})
+
+test('non-2xx decision envelopes retain actual receipts and explicit null-decision uncertainty', async () => {
+  const previous = globalThis.fetch
+  const context = { configurationVersion: 'v1', taskConfigurationHash: 'hash', deadlineSeconds: 120 }
+  const receipt = { executionId: 'write-1', actionName: 'send', status: 'SUCCEEDED', outcome: { receipt: 'actual-write' },
+    startedAt: '2026-11-10T00:00:00Z', completedAt: '2026-11-10T00:00:01Z' }
+  try {
+    for (const [httpStatus, status, decision, failure] of [
+      [409, 'FAILED', { receiptId: 'proposal', status: 'FAILED' }, { code: 'COORDINATOR_FAILED', message: 'Coordinator failed after a write.' }],
+      [409, 'FAILED', { receiptId: 'proposal', status: 'SUCCEEDED' }, { code: 'COORDINATOR_FAILED', message: 'Coordinator failed after a completed decision.' }],
+      [504, 'OUTCOME_UNKNOWN', null, { code: 'TASK_DEADLINE_EXCEEDED', message: 'Stopped waiting for the decision.' }],
+      [504, 'OUTCOME_UNKNOWN', null, null],
+      [409, 'FAILED', null, { code: 'COORDINATOR_FAILED', message: 'Decision unavailable.' }],
+    ]) {
+      let calls = 0
+      const response = { taskCode: 'task', configurationVersion: 'v1', taskConfigurationHash: 'hash', status, decision, actionExecutions: [receipt], failure }
+      globalThis.fetch = async () => { calls++; return new Response(JSON.stringify(response), { status: httpStatus }) }
+      assert.deepEqual(await api.decideManagedTaskProposal('brain', 'task', 'target', 'proposal', 'CONFIRM', context), response)
+      assert.equal(calls, 1)
+    }
+    const unknown = { taskCode: 'task', configurationVersion: 'v1', taskConfigurationHash: 'hash', status: 'OUTCOME_UNKNOWN',
+      decision: null, actionExecutions: [receipt], failure: null }
+    for (const patch of [{ taskCode: 'foreign' }, { configurationVersion: 'stale' }, { taskConfigurationHash: 'stale' },
+      { status: 'REJECTED' }, { status: 'SUCCEEDED' }, { decision: { receiptId: 'foreign', status: 'SUCCEEDED' } }]) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ ...unknown, ...patch }), { status: 504 })
+      await assert.rejects(() => api.decideManagedTaskProposal('brain', 'task', 'target', 'proposal', 'CONFIRM', context), /did not match.*outcome is unknown/)
+    }
+  } finally { globalThis.fetch = previous }
+})
+
+test('decision wait uses the applied deadline plus overhead and times out without retry', async () => {
+  const previous = globalThis.fetch, previousSetTimeout = globalThis.setTimeout, previousClearTimeout = globalThis.clearTimeout
+  try {
+    let timeout, delay, calls = 0, cleared = 0
+    globalThis.setTimeout = (callback, milliseconds) => { timeout = callback; delay = milliseconds; return 123 }
+    globalThis.clearTimeout = id => { assert.equal(id, 123); cleared++ }
+    globalThis.fetch = async (_url, init) => {
+      calls++
+      return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }))
+    }
+    const waiting = api.decideManagedTaskProposal('brain', 'task', 'target', 'proposal', 'CONFIRM', {
+      configurationVersion: 'v1', taskConfigurationHash: 'hash', deadlineSeconds: 120,
+    })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(delay, 135000)
+    timeout()
+    await assert.rejects(() => waiting, /decision request timed out.*outcome is unknown.*no automatic retry/)
+    assert.equal(calls, 1); assert.equal(cleared, 1)
+  } finally { globalThis.fetch = previous; globalThis.setTimeout = previousSetTimeout; globalThis.clearTimeout = previousClearTimeout }
 })
 
 test('canonical runtime failure remains a typed result while Platform errors throw', async () => {

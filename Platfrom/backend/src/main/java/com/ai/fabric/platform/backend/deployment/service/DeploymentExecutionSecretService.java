@@ -66,9 +66,12 @@ public class DeploymentExecutionSecretService {
             names.add(smartBrainFingerprintSecretName(deployment.getId()));
             names.add(smartBrainDeliverySigningSecretName(deployment.getId()));
         }
-        if (contains(behavior.path("executionExtensions"), "HUMAN_REVIEW")) {
+        boolean reviews = contains(behavior.path("executionExtensions"), "HUMAN_REVIEW");
+        if (reviews || com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.requiresReceipts(behavior, readJson(version.getActionsConfigJson()))) {
             names.add(actionReceiptEncryptionSecretName(deployment.getId()));
             names.add(actionReceiptFingerprintSecretName(deployment.getId()));
+        }
+        if (reviews) {
             names.add(reviewEncryptionSecretName(deployment.getId()));
             names.add(reviewFingerprintSecretName(deployment.getId()));
         }

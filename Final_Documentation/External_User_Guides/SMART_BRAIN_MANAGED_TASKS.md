@@ -10,10 +10,13 @@ Open **Smart Brain -> Tasks**. Add a task with a stable code, name, purpose and
 instructions. Define its input fields and choose JSON or text output. JSON Schema
 and the deadline/output limits are available in Advanced.
 
-Optional Resources select knowledge collections and READ actions declared by
-enabled, owned plugin installations. A task can use input alone: vectors and
-knowledge collections are not required. Task execution cannot use write actions,
-handover, human review or arbitrary remote specialist targets in this release.
+Optional Resources select existing Brain knowledge collections and permitted READ
+or WRITE actions. A task can use input alone: vectors and knowledge collections
+are not required. The governed-write extension also lets you use an eligible
+configured assistance specialist with non-interactive JSON input and output.
+That selection inherits its instructions, schemas and resources; it does not
+create a copy or support arbitrary specialist IDs, chains or remote targets.
+Action and specialist selections do not create new connections or credentials.
 
 Save to the existing shared draft, then use **Updates** to publish and apply.
 Saving is not deployment. Removing a draft task also does not remove it from an
@@ -44,6 +47,15 @@ Console uses its existing customer/delegated-staff authorization and the exact
 selected target's private runtime authority. It does not send browser-owned
 credentials directly to a provider or choose a different environment if the
 selected one is unavailable.
+
+For an applied Task that supports writes, **Try** distinguishes the AI's result
+from actual action receipts. Actions not requiring confirmation can run as soon
+as the model selects them and the registered action authorizes them. Test with
+an appropriate environment and receiver. For a confirmation-required action,
+review the proposal and choose **Confirm action** or **Reject action**; a Task
+configured for human review sends that proposal to the existing review workflow
+instead. Neither running a Task nor enabling review adds confirmation to an
+action whose policy does not require it.
 
 ## Call From Your Backend
 
@@ -104,6 +116,38 @@ asynchronous job that can be fetched later.
 Private callers with `task:<task-code>:read` can inspect the input/output contract
 through `GET /api/tasks/v1/tasks`. Only explicitly granted tasks are listed.
 
+## Governed Write Results
+
+The execute endpoint is unchanged. On a compatible runtime, an authorized
+no-confirmation write returns its actual status in `actionExecutions`; a
+registered action outcome projector may include safe result fields. A successful
+write receipt and a failed AI output can appear together. A timeout or
+`sideEffectsStatus: "OUTCOME_UNKNOWN"` is not proof that nothing changed.
+Check the connected system before deciding what to do next.
+
+A pending confirmation returns HTTP 202 with `status: "CONFIRMATION_REQUIRED"`
+and an `actionProposal` containing its receipt ID and expiry. Use the same
+private identity with the separate `task:<task-code>:confirm` grant:
+
+```http
+POST /api/tasks/v1/tasks/assess-request/action-proposals/<receipt-id>/decisions
+Content-Type: application/json
+If-Match: "ver-example"
+```
+
+```json
+{"decision":"CONFIRM"}
+```
+
+Use `REJECT` to decline. The optional `If-Match` value is the quoted configuration
+version from the original response. It rejects a changed version before
+execution; Console always sets that precondition. The decision uses the
+original proposal parameters, not a second LLM call. Confirmation requires the
+Brain's existing durable action receipts. For `REVIEW_REQUIRED`, use the
+configured review workflow, not the Task decision endpoint. For
+`INPUT_REQUIRED`, the response reports the missing information; the synchronous
+Task does not create a conversation or automatically resume.
+
 ## Bounds And Current Scope
 
 - Up to 16 tasks per Brain; all share its existing runtime and selected model.
@@ -121,8 +165,8 @@ through `GET /api/tasks/v1/tasks`. Only explicitly granted tasks are listed.
   and outputs also have byte/execution bounds; provider limits may be lower.
 - Calls are synchronous. Stopping the browser's wait is not proof of server
   cancellation, and a network timeout must not cause an automatic retry.
-- No conversation is created, no business write is executed, and this initial
-  task endpoint does not persist a run history or require a new database.
+- No conversation or Task run history is created. Confirmation and human review
+  reuse existing Brain AI state; no separate Task database is introduced.
 
 Structured output guarantees the checked shape on success, not factual
 certainty or identical reasoning across requests. Express unknown information
@@ -139,9 +183,11 @@ event-operation APIs keep their own separate contracts.
 
 ## Availability
 
-This guide describes the implemented first-release contract. A deployment needs
-a runtime image advertising `managed-intelligence-tasks`, followed by normal
-publish/apply and verification. An older runtime image does not acquire Tasks
-merely because the new editor is visible. Current qualification is recorded in
+The original read-only contract needs a runtime image advertising
+`managed-intelligence-tasks`. The governed-write and specialist-reference
+extension additionally requires `managed-task-governed-actions` and normal
+publish/apply and verification. That extension is implemented locally against
+the 0.8.47 release candidate; it is not live-qualified or deployed.
+Current qualification is recorded in
 `010_68_MANAGED_TASKS_IMPLEMENTATION_RECORD.md`; this document alone is not a
 production deployment receipt.

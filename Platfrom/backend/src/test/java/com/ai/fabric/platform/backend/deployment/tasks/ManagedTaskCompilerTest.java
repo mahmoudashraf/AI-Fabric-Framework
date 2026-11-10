@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.tasks;
 
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -86,6 +87,87 @@ class ManagedTaskCompilerTest {
         JsonNode bundle = compiler.compileBehavior(source, new SpecialistAssistanceCompiler.Authority(Map.of(), Set.of("approved-guide", "unrelated")))
             .at("/managedTasks/compiled");
         assertThat(bundle.at("/tasks/0/requiredScopes").toString()).contains("vector:approved-guide").doesNotContain("unrelated");
+    }
+
+    @Test
+    void writeTaskUsesExistingActionPolicyWithoutRequiringVectorsOrInventingConfirmation() throws Exception {
+        ObjectNode source = behavior(mapper);
+        ((ObjectNode) source.at("/managedTasks/tasks/0")).putArray("writeActions").add("update_preference");
+        var authority = new SpecialistAssistanceCompiler.Authority(Map.of(), Set.of(), Map.of("update_preference", Set.of("preferences:write")));
+        assertThatThrownBy(() -> compiler.compileBehavior(source, null)).hasMessageContaining("WRITE");
+        var compiled = compiler.compileBehavior(source, authority);
+        var bundle = compiled.at("/managedTasks/compiled");
+        var specialist = resource(bundle, "Specialist");
+        assertThat(specialist.at("/spec/execution/writePolicy").asText()).isEqualTo("ACTION_POLICY");
+        assertThat(specialist.at("/spec/grounding/requirement").asText()).isEqualTo("NONE");
+        assertThat(specialist.at("/spec/capabilities/actions/proposableWrites").toString()).isEqualTo("[\"update_preference\"]");
+        assertThat(bundle.at("/tasks/0/requiredScopes").toString()).contains("preferences:write", "action:update_preference");
+        assertThat(bundle.toString()).doesNotContain("confirmationRequired");
+        assertThat(new DeploymentBehaviorCatalogService(mapper).releaseRequirements(source).capabilities())
+            .contains(ManagedTaskCompiler.EXTENDED_CAPABILITY);
+        assertThat(ManagedTaskCompiler.requiresReceipts(compiled, mapper.readTree("{\"actions\":[{\"name\":\"update_preference\",\"confirmationRequired\":false}]}"))).isFalse();
+        assertThat(ManagedTaskCompiler.requiresReceipts(compiled, mapper.readTree("{\"actions\":[{\"name\":\"update_preference\",\"confirmationRequired\":true}]}"))).isTrue();
+        Files.writeString(Path.of("target/managed-tasks-write-fixture.json"), compiler.serialized(bundle));
+    }
+
+    @Test
+    void taskCannotRelabelReadAuthorityAsWriteOrSelectUnknownCapabilities() throws Exception {
+        ObjectNode source = behavior(mapper);
+        ((ObjectNode) source.at("/managedTasks/tasks/0")).putArray("writeActions").add("get_account");
+        assertThatThrownBy(() -> compiler.compileBehavior(source, new SpecialistAssistanceCompiler.Authority(Map.of("get_account", Set.of()), Set.of())))
+            .hasMessageContaining("WRITE");
+        ((ObjectNode) source.at("/managedTasks/tasks/0")).putArray("readActions").add("get_account");
+        assertThatThrownBy(() -> compiler.compileBehavior(source, new SpecialistAssistanceCompiler.Authority(Map.of("get_account", Set.of()), Set.of(), Map.of("get_account", Set.of()))))
+            .hasMessageContaining("both READ and WRITE");
+    }
+
+    @Test
+    void referenceReusesPublishedSpecialistSchemasAndScopesWithoutDuplicatingResources() throws Exception {
+        ObjectNode source = SpecialistAssistanceFixtures.behavior(mapper);
+        ((ObjectNode) source.path("specialistAssistance")).withArray("resolutions").removeAll();
+        source.set("managedTasks", mapper.readTree("""
+            {"enabled":true,"tasks":[{"code":"check-account","name":"Check account","description":"Run the configured account specialist.",
+             "specialistRef":"assist-area-account@1","deadlineSeconds":45}]}
+            """));
+        source = new SpecialistAssistanceCompiler(mapper).compileBehavior(source, SpecialistAssistanceFixtures.authority());
+        var result = compiler.compileBehavior(source, SpecialistAssistanceFixtures.authority());
+        var bundle = result.at("/managedTasks/compiled");
+        assertThat(bundle.path("resources")).isEmpty();
+        assertThat(bundle.at("/tasks/0/inputBinding").asText()).isEqualTo("DIRECT");
+        assertThat(bundle.at("/tasks/0/inputSchema/properties/question/type").asText()).isEqualTo("string");
+        assertThat(bundle.at("/tasks/0/outputSchema/properties/summary/type").asText()).isEqualTo("string");
+        assertThat(bundle.at("/tasks/0/requiredScopes").toString()).contains("action:get_account_status", "account:read").doesNotContain("vector:product-guide");
+        assertThat(bundle.at("/tasks/0/referenceBundleHash")).isEqualTo(source.at("/specialistAssistance/contentHash"));
+        assertThatThrownBy(() -> {
+            var changed = result.deepCopy();
+            ((ObjectNode) changed.at("/managedTasks/tasks/0")).put("instructions", "Override specialist instructions");
+            compiler.compileBehavior(changed, SpecialistAssistanceFixtures.authority());
+        }).hasMessageContaining("owns its instructions");
+        Files.writeString(Path.of("target/managed-tasks-reference-fixture.json"), compiler.serialized(bundle));
+        Files.writeString(Path.of("target/managed-tasks-reference-assistance-fixture.json"), compiler.serialized(source.at("/specialistAssistance/compiled")));
+    }
+
+    @Test
+    void referenceCannotPointToArbitraryRuntimeSpecialistsOrChains() throws Exception {
+        ObjectNode source = SpecialistAssistanceFixtures.behavior(mapper);
+        source.set("managedTasks", mapper.readTree("""
+            {"enabled":true,"tasks":[{"code":"check-account","name":"Check account","description":"Run the specialist.",
+             "specialistRef":"assist-chain-investigate@1","deadlineSeconds":45}]}
+            """));
+        var compiled = new SpecialistAssistanceCompiler(mapper).compileBehavior(source, SpecialistAssistanceFixtures.authority());
+        assertThatThrownBy(() -> compiler.compileBehavior(compiled, SpecialistAssistanceFixtures.authority())).hasMessageContaining("configured specialist");
+        ((ObjectNode) compiled.at("/managedTasks/tasks/0")).put("specialistRef", "foreign-runtime@1");
+        assertThatThrownBy(() -> compiler.compileBehavior(compiled, SpecialistAssistanceFixtures.authority())).hasMessageContaining("configured specialist");
+    }
+
+    @Test
+    void humanReviewIsAnExplicitExistingBrainCapabilityNotAMandatoryWriteGate() throws Exception {
+        ObjectNode source = behavior(mapper);
+        var task = (ObjectNode) source.at("/managedTasks/tasks/0");
+        task.put("confirmationMode", "HUMAN_REVIEW");
+        assertThatThrownBy(() -> compiler.compileBehavior(source, null)).hasMessageContaining("Enable Human review");
+        source.withArray("executionExtensions").add("HUMAN_REVIEW");
+        assertThat(compiler.compileBehavior(source, null).at("/managedTasks/compiled/tasks/0/confirmationMode").asText()).isEqualTo("HUMAN_REVIEW");
     }
 
     @Test

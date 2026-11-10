@@ -30,12 +30,38 @@ public class SpecialistAssistanceAuthorityService {
     }
 
     public SpecialistAssistanceCompiler.Authority resolve(String deploymentId, JsonNode actions, JsonNode knowledge) {
+        return resolve(deploymentId, actions, knowledge, false);
+    }
+
+    public SpecialistAssistanceCompiler.Authority resolveTasks(String deploymentId, JsonNode actions, JsonNode knowledge) {
+        return resolve(deploymentId, actions, knowledge, true);
+    }
+
+    private SpecialistAssistanceCompiler.Authority resolve(String deploymentId, JsonNode actions, JsonNode knowledge,
+                                                          boolean taskResources) {
         Map<String, Set<String>> reads = new LinkedHashMap<>();
+        Map<String, Set<String>> writes = new LinkedHashMap<>();
         Set<String> spaces = new LinkedHashSet<>();
         for (JsonNode action : actions.path("actions")) {
             if (SpecialistAssistanceCompiler.ACTION.equals(action.path("name").asText())) {
                 throw invalid("consult_specialist is a reserved native runtime action, not a connector action.");
             }
+            if (taskResources && action.path("enabled").asBoolean(true) && !action.path("marketplaceManaged").asBoolean(false)) {
+                Map<String, Set<String>> destination = switch (action.path("accessMode").asText()) {
+                    case "READ" -> reads;
+                    case "WRITE_ONLY", "READ_WRITE" -> writes;
+                    default -> null;
+                };
+                if (destination != null && !action.path("name").asText().isBlank()) {
+                    Set<String> scopes = new LinkedHashSet<>();
+                    addScopes(scopes, action.path("requiredScopes"));
+                    destination.put(action.path("name").asText(), Set.copyOf(scopes));
+                }
+            }
+        }
+        if (taskResources) for (JsonNode source : knowledge.path("sources")) {
+            if (source.path("enabled").asBoolean(true) && !source.path("marketplaceManaged").asBoolean(false)
+                && !source.path("entityType").asText().isBlank()) spaces.add(source.path("entityType").asText());
         }
         for (DeploymentMarketplacePluginInstallEntity install : installs.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)) {
             if (!deploymentId.equals(install.getDeploymentId()) || !("ENABLED".equalsIgnoreCase(install.getStatus())
@@ -48,17 +74,22 @@ public class SpecialistAssistanceAuthorityService {
             catch (Exception ex) { throw invalid("Cannot read the installed plugin manifest."); }
             JsonNode contributions = manifest.path("contributions");
             for (JsonNode action : actions.path("actions")) {
-                if (!belongsTo(action, install, version.getVersion()) || !"READ".equals(action.path("accessMode").asText())) continue;
+                if (!action.path("enabled").asBoolean(true) || !belongsTo(action, install, version.getVersion())) continue;
+                boolean read = "READ".equals(action.path("accessMode").asText());
+                boolean write = taskResources && Set.of("WRITE_ONLY", "READ_WRITE").contains(action.path("accessMode").asText());
+                if (!read && !write) continue;
                 String name = action.path("name").asText();
                 for (JsonNode declared : contributions.path("actions")) {
                     String declaredName = declared.path("actionId").asText(declared.path("id").asText());
                     boolean declaredRead = declared.path("readOnly").asBoolean(false)
                         || "READ".equals(declared.path("accessMode").asText());
-                    if (!name.equals(declaredName) || !declaredRead) continue;
+                    boolean declaredWrite = Set.of("WRITE_ONLY", "READ_WRITE").contains(declared.path("accessMode").asText())
+                        || (declared.path("readOnly").isBoolean() && !declared.path("readOnly").booleanValue());
+                    if (!name.equals(declaredName) || (read ? !declaredRead : !declaredWrite || declaredRead)) continue;
                     Set<String> requiredScopes = new LinkedHashSet<>();
                     addScopes(requiredScopes, declared.path("requiredScopes"));
                     addScopes(requiredScopes, action.path("requiredScopes"));
-                    reads.put(name, Set.copyOf(requiredScopes));
+                    (read ? reads : writes).put(name, Set.copyOf(requiredScopes));
                 }
             }
             for (JsonNode source : knowledge.path("sources")) {
@@ -81,7 +112,7 @@ public class SpecialistAssistanceAuthorityService {
                 }
             }
         }
-        return new SpecialistAssistanceCompiler.Authority(reads, spaces);
+        return new SpecialistAssistanceCompiler.Authority(reads, spaces, writes);
     }
 
     private boolean belongsTo(JsonNode node, DeploymentMarketplacePluginInstallEntity install, String version) {

@@ -380,12 +380,19 @@ public final class SpecialistAssistanceCompiler {
         try { return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(serialized(node).getBytes(StandardCharsets.UTF_8))); }
         catch (Exception ex) { throw new IllegalStateException("Cannot hash specialist assistance.", ex); }
     }
-    public record Authority(Map<String, Set<String>> readActionScopes, Set<String> vectorSpaces) {
+    public record Authority(Map<String, Set<String>> readActionScopes, Set<String> vectorSpaces,
+                            Map<String, Set<String>> writeActionScopes) {
         public Authority {
             Map<String, Set<String>> copy = new LinkedHashMap<>();
             readActionScopes.forEach((key, value) -> copy.put(key, Set.copyOf(value)));
             readActionScopes = Map.copyOf(copy);
             vectorSpaces = Set.copyOf(vectorSpaces);
+            Map<String, Set<String>> writes = new LinkedHashMap<>();
+            writeActionScopes.forEach((key, value) -> writes.put(key, Set.copyOf(value)));
+            writeActionScopes = Map.copyOf(writes);
+        }
+        public Authority(Map<String, Set<String>> readActionScopes, Set<String> vectorSpaces) {
+            this(readActionScopes, vectorSpaces, Map.of());
         }
     }
 }

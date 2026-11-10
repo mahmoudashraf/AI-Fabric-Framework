@@ -29,7 +29,8 @@ public final class ManagedTasksBundle {
     static final int MAX_INPUT_BYTES = 65_536;
     static final int MAX_OUTPUT_BYTES = 65_536;
     private static final Set<String> TASK_FIELDS = Set.of("code", "name", "description", "specialistRef",
-        "requiredScopes", "inputSchema", "outputMode", "outputSchema", "deadlineSeconds");
+        "requiredScopes", "inputSchema", "outputMode", "outputSchema", "deadlineSeconds", "inputBinding",
+        "referenceBundleHash", "vectorSpaces", "readActions", "writeActions", "confirmationMode");
     private final JsonNode resources;
     private final JsonNode catalogue;
     private final Map<String, Task> tasks;
@@ -54,7 +55,7 @@ public final class ManagedTasksBundle {
             JsonNode content = strict.readTree(bytes);
             requireFields(content, Set.of("contractVersion", "resources", "tasks"));
             if (!CONTRACT.equals(content.path("contractVersion").asText())
-                || !content.path("resources").isArray() || content.path("resources").isEmpty()
+                || !content.path("resources").isArray()
                 || content.path("resources").size() > 64 || !content.path("tasks").isArray()
                 || content.path("tasks").isEmpty() || content.path("tasks").size() > 16) throw invalid();
             resources = content.path("resources").deepCopy();
@@ -90,12 +91,35 @@ public final class ManagedTasksBundle {
                 JsonNode output = item.path("outputSchema");
                 if (!input.isObject() || !"object".equals(input.path("type").asText()) || !output.isObject()
                     || !"object".equals(output.path("type").asText())) throw invalid();
+                String binding = item.path("inputBinding").asText("WRAPPED");
+                String confirmation = item.path("confirmationMode").asText("CALLER");
+                if (!Set.of("CALLER", "HUMAN_REVIEW").contains(confirmation)) throw invalid();
+                if (!Set.of("WRAPPED", "DIRECT").contains(binding)) throw invalid();
+                String referenceHash = item.path("referenceBundleHash").asText(null);
+                if ("DIRECT".equals(binding) && (referenceHash == null || !referenceHash.matches("sha256:[0-9a-f]{64}"))) throw invalid();
+                if ("WRAPPED".equals(binding) && referenceHash != null) throw invalid();
+                JsonNode spec = "WRAPPED".equals(binding) ? resource("Specialist", specialist).path("spec") : null;
+                Set<String> vectors = identifiers(spec == null ? item.path("vectorSpaces") : spec.at("/capabilities/retrieval/vectorSpaces"));
+                Set<String> reads = identifiers(spec == null ? item.path("readActions") : spec.at("/capabilities/actions/requestableReads"));
+                Set<String> writes = identifiers(spec == null ? item.path("writeActions") : spec.at("/capabilities/actions/proposableWrites"));
+                if (!java.util.Collections.disjoint(reads, writes)) throw invalid();
+                for (String vector : vectors) if (!scopes.contains("vector:" + vector)) throw invalid();
+                for (String action : java.util.stream.Stream.concat(reads.stream(), writes.stream()).toList())
+                    if (!scopes.contains("action:" + action)) throw invalid();
+                for (String field : List.of("vectorSpaces", "readActions", "writeActions")) {
+                    if (spec != null && item.has(field) && !identifiers(item.path(field)).equals(switch (field) {
+                        case "vectorSpaces" -> vectors;
+                        case "readActions" -> reads;
+                        default -> writes;
+                    })) throw invalid();
+                }
                 var task = new Task(code, name, description, specialist, Set.copyOf(scopes), mode, deadline,
+                    binding, referenceHash, confirmation, vectors, reads, writes,
                     schema(code + "-input", input, SpecialistSchemaDirection.INPUT),
                     schema(code + "-output", output, SpecialistSchemaDirection.OUTPUT));
                 schemas.validateDefinition(task.inputSchema(), "managed-task-input");
                 schemas.validateDefinition(task.outputSchema(), "managed-task-output");
-                verifyManifest(task);
+                if ("WRAPPED".equals(binding)) verifyManifest(task);
                 if (parsed.putIfAbsent(code, task) != null) throw invalid();
             }
             tasks = java.util.Collections.unmodifiableMap(parsed);
@@ -108,9 +132,8 @@ public final class ManagedTasksBundle {
     private void verifyManifest(Task task) {
         JsonNode specialist = resource("Specialist", task.specialistRef());
         var spec = specialist.path("spec");
-        if (!"DISABLED".equals(spec.at("/execution/writePolicy").asText())
+        if (!(task.writeActions().isEmpty() ? "DISABLED" : "ACTION_POLICY").equals(spec.at("/execution/writePolicy").asText())
             || !spec.at("/capabilities/actions/proposableWrites").isArray()
-            || !spec.at("/capabilities/actions/proposableWrites").isEmpty()
             || !"DISABLED".equals(spec.at("/conversation/binding").asText())
             || !"NON_INTERACTIVE".equals(spec.at("/conversation/interactionCapability").asText())
             || spec.at("/conversation/recordValidatedTurns").asBoolean()
@@ -131,6 +154,12 @@ public final class ManagedTasksBundle {
             if (!task.requiredScopes().contains("vector:" + vector.asText())) throw invalid();
         for (var action : spec.at("/capabilities/actions/requestableReads"))
             if (!task.requiredScopes().contains("action:" + action.asText())) throw invalid();
+        for (var action : spec.at("/capabilities/actions/proposableWrites"))
+            if (!task.requiredScopes().contains("action:" + action.asText())) throw invalid();
+        Set<String> visible = identifiers(spec.at("/capabilities/actions/visible"), 32);
+        var selected = new HashSet<>(task.readActions());
+        selected.addAll(task.writeActions());
+        if (!visible.equals(selected)) throw invalid();
     }
 
     private static JsonNode relocated(JsonNode schema) {
@@ -165,6 +194,20 @@ public final class ManagedTasksBundle {
         object.fieldNames().forEachRemaining(field -> { if (!allowed.contains(field)) throw invalid(); });
     }
 
+    private static Set<String> identifiers(JsonNode values) {
+        return identifiers(values, 16);
+    }
+
+    private static Set<String> identifiers(JsonNode values, int maximum) {
+        if (!values.isArray() || values.size() > maximum) throw invalid();
+        Set<String> identifiers = new HashSet<>();
+        for (JsonNode value : values) {
+            if (!value.isTextual() || value.textValue().isBlank() || value.textValue().length() > 120
+                || !identifiers.add(value.textValue())) throw invalid();
+        }
+        return Set.copyOf(identifiers);
+    }
+
     private static String text(JsonNode object, String key, int max) {
         JsonNode value = object.path(key);
         if (!value.isTextual() || value.textValue().isBlank() || value.textValue().length() > max) throw invalid();
@@ -185,7 +228,8 @@ public final class ManagedTasksBundle {
     void validateOutput(Task task, JsonNode output) { schemas.validate(task.outputSchema(), output); }
 
     public record Task(String code, String name, String description, String specialistRef, Set<String> requiredScopes,
-                       String outputMode, int deadlineSeconds, SpecialistSchemaDefinition inputSchema,
+                       String outputMode, int deadlineSeconds, String inputBinding, String referenceBundleHash, String confirmationMode,
+                       Set<String> vectorSpaces, Set<String> readActions, Set<String> writeActions, SpecialistSchemaDefinition inputSchema,
                        SpecialistSchemaDefinition outputSchema) {
         String request() { return name + ": " + description; }
     }

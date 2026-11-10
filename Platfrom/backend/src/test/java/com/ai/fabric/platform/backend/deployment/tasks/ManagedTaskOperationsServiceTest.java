@@ -133,6 +133,52 @@ class ManagedTaskOperationsServiceTest {
         verifyNoInteractions(http, authority);
     }
 
+    @Test void explicitDecisionUsesSeparateGrantAndExactAppliedTargetWithoutRetry() throws Exception {
+        respond(200, result("ver-stage", compiled.at("/managedTasks/contentHash").asText()));
+        var decided = service.decide("dep-one", "stage", "assess-request", "action-receipt-1", mapper.readTree("{\"decision\":\"CONFIRM\"}"), "ver-stage");
+        assertThat(decided.status()).isEqualTo(200);
+        verify(authority).issuePlatformProxyHeaders("dep-one", "stage", "rel-stage", "target-proof", List.of("task:assess-request:confirm"), Duration.ofMinutes(5));
+        var sent = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(1)).send(sent.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(sent.getValue().uri().toString()).isEqualTo("https://stage.example/api/tasks/v1/tasks/assess-request/action-proposals/action-receipt-1/decisions");
+        assertThat(sent.getValue().headers().firstValue("If-Match")).contains("\"ver-stage\"");
+        verify(audit).record(eq("MANAGED_TASK_PROPOSAL_DECIDED"), eq("DEPLOYMENT"), eq("dep-one"), anyMap());
+    }
+
+    @Test void humanReviewAndUnknownDecisionFieldsCannotBecomeImplicitConfirmations() throws Exception {
+        for (String body : List.of("{\"decision\":\"CONFIRM\",\"parameters\":{}}", "{\"decision\":\"APPROVE\"}", "{\"decision\":true}"))
+            assertThatThrownBy(() -> service.decide("dep-one", "stage", "assess-request", "action-receipt-1", mapper.readTree(body), "ver-stage"))
+                .isInstanceOf(ResponseStatusException.class);
+        var behavior = ManagedTaskCompilerTest.behavior(mapper);
+        behavior.withArray("executionExtensions").add("HUMAN_REVIEW");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) behavior.at("/managedTasks/tasks/0")).put("confirmationMode", "HUMAN_REVIEW");
+        compiled = new ManagedTaskCompiler(mapper).compileBehavior(behavior, null);
+        context.version().setBehaviorConfigJson(compiled.toString());
+        assertThatThrownBy(() -> service.decide("dep-one", "stage", "assess-request", "action-receipt-1", mapper.readTree("{\"decision\":\"CONFIRM\"}"), "ver-stage"))
+            .hasMessageContaining("human review");
+        verifyNoInteractions(http, authority);
+    }
+
+    @Test void staleConsoleVersionDoesNotCallTheRuntimeForEitherCommand() throws Exception {
+        assertThatThrownBy(() -> service.execute("dep-one", "stage", "assess-request", input(), "stale"))
+            .hasMessageContaining("applied version changed");
+        assertThatThrownBy(() -> service.decide("dep-one", "stage", "assess-request", "action-receipt-1",
+            mapper.readTree("{\"decision\":\"CONFIRM\"}"), "stale")).hasMessageContaining("applied version changed");
+        verifyNoInteractions(http, authority);
+    }
+
+    @Test void failedSynthesisReceiptsRemainVisibleAndMustMatchTheSelectedVersion() throws Exception {
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode) result("ver-stage", compiled.at("/managedTasks/contentHash").asText());
+        body.put("status", "FAILED").put("sideEffectsExecuted", true).put("sideEffectsStatus", "EXECUTED");
+        body.putArray("actionExecutions").addObject().put("actionName", "save_preference").put("status", "EXECUTED");
+        respond(502, body);
+        assertThat(service.execute("dep-one", "stage", "assess-request", input()).body().path("actionExecutions")).hasSize(1);
+        verify(http, times(1)).send(any(), any(HttpResponse.BodyHandler.class));
+        body.put("configurationVersion", "different-version");
+        respond(502, body);
+        assertThatThrownBy(() -> service.execute("dep-one", "stage", "assess-request", input())).hasMessageContaining("does not match");
+    }
+
     JsonNode input() { return mapper.createObjectNode().set("input", mapper.createObjectNode().put("request", "Assess this")); }
     JsonNode result(String version, String hash) {
         return mapper.createObjectNode().put("taskCode", "assess-request").put("configurationVersion", version)

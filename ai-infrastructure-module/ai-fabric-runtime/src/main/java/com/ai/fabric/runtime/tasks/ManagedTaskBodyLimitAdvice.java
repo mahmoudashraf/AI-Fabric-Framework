@@ -16,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice(assignableTypes = ManagedTaskController.class)
 public final class ManagedTaskBodyLimitAdvice extends RequestBodyAdviceAdapter {
     @Override public boolean supports(MethodParameter parameter, Type type, Class<? extends HttpMessageConverter<?>> converter) {
-        return type == ManagedTaskRequest.class;
+        return type == ManagedTaskRequest.class || type == ManagedTaskDecisionRequest.class;
     }
     @Override public HttpInputMessage beforeBodyRead(HttpInputMessage input, MethodParameter parameter, Type type,
         Class<? extends HttpMessageConverter<?>> converter) throws IOException {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.46",
+  "aiFabricVersion": "0.8.47",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -27,6 +27,7 @@
   ],
   "capabilities": [
     "managed-intelligence-tasks",
+    "managed-task-governed-actions",
     "ai-fabric-chat-session",
     "ai-fabric-core",
     "ai-fabric-execution",
@@ -64,6 +65,7 @@
   ],
   "endpointClasses": [
     "managed-task-execute",
+    "managed-task-decision",
     "chat-query",
     "canonical-conversation-message",
     "owner-handover-control",

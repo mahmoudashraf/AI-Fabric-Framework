@@ -417,22 +417,28 @@ public class RailwayProvisioningPlanService {
         }
         if (specialistAssistanceEnabled || managedTasksEnabled) {
             LinkedHashSet<String> spaces = new LinkedHashSet<>(List.of("document"));
-            LinkedHashSet<String> reads = new LinkedHashSet<>();
+            LinkedHashSet<String> allowedActions = new LinkedHashSet<>();
             for (JsonNode area : behaviorConfig.path("specialistAssistance").path("areas")) {
                 if (!specialistAssistanceEnabled) break;
                 area.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
-                area.path("readActions").forEach(value -> reads.add(value.asText()));
+                area.path("readActions").forEach(value -> allowedActions.add(value.asText()));
             }
             for (JsonNode task : behaviorConfig.path("managedTasks").path("tasks")) {
                 if (!managedTasksEnabled) break;
                 task.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
-                task.path("readActions").forEach(value -> reads.add(value.asText()));
+                task.path("readActions").forEach(value -> allowedActions.add(value.asText()));
+            }
+            if (managedTasksEnabled) for (JsonNode task : behaviorConfig.at("/managedTasks/compiled/tasks")) {
+                task.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
+                task.path("readActions").forEach(value -> allowedActions.add(value.asText()));
+                task.path("writeActions").forEach(value -> allowedActions.add(value.asText()));
             }
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_REGISTERED_VECTOR_SPACES", String.join(",", spaces)));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", String.join(",", reads)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", String.join(",", allowedActions)));
         }
         boolean deploymentKnowledgeSpecialistEnabled = !"SMART_BRAIN".equals(deploymentBehaviorType);
         boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
+        boolean taskReceipts = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.requiresReceipts(behaviorConfig, actionsConfig);
         boolean conversationHandoverEnabled = contains(
             behaviorConfig.path("executionExtensions"),
             "CONVERSATION_HANDOVER"
@@ -501,7 +507,7 @@ public class RailwayProvisioningPlanService {
         }
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_RECEIPTS_ENABLED",
-            Boolean.toString(humanReviewEnabled)
+            Boolean.toString(humanReviewEnabled || taskReceipts)
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_REVIEWS_ENABLED",
@@ -530,7 +536,7 @@ public class RailwayProvisioningPlanService {
                 }
             }
         }
-        if (humanReviewEnabled) {
+        if (humanReviewEnabled || taskReceipts) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_EXECUTION_RECEIPTS_TTL",
                 "PT25H"
@@ -543,6 +549,8 @@ public class RailwayProvisioningPlanService {
                 "AI_ACTION_RECEIPT_FINGERPRINT_SECRET",
                 "${secret:" + DeploymentExecutionSecretService.actionReceiptFingerprintSecretName(deployment.getId()) + "}"
             ));
+        }
+        if (humanReviewEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_REVIEW_ENCRYPTION_SECRET",
                 "${secret:" + DeploymentExecutionSecretService.reviewEncryptionSecretName(deployment.getId()) + "}"

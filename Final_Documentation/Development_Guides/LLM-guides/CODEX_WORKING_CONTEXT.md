@@ -14573,3 +14573,25 @@ test is being called hosted acceptance. UI extraction remains last.
   rawreceipts:~/.codex/private/loomai-managed-tasks-01068/ andmanaged-tasks-ui-20261110-*.
   ExistingBrains neednormalUpdates/apply ofTask-capableruntime to useTasks.
   Root.gitignore/unrelatedwork andexistinggallery/firewallaccess preserved.
+
+## 010.68 Governed Task Writes: Local Checkpoint (2026-11-10)
+
+- Product changes are local on `Platform-V11`. Framework candidate 0.8.47 is
+  in `~/.codex/worktrees/managed-task-governed-writes`, based on released
+  0.8.46. Candidate artifacts were installed into the local Maven cache only.
+  No tag, push, publication, hosted rollout or current-runtime change.
+- Reuse selected Brain knowledge, READ/WRITE actions, and eligible existing
+  assistance specialists. No duplicate infrastructure or public chat changes.
+  Registered no-confirmation writes run directly. Other writes use existing
+  proposals and separate explicit decisions, or configured human review.
+  Console binds writes to the applied version before dispatch and shows actual
+  receipts separately from AI output; timeouts can leave the outcome unknown.
+- Local qualification: framework release reactor 2,331 tests; Platform 239;
+  runtime 121; Console 23 Node tests, 64 browser scenarios, four mobile
+  rechecks, and build. Real-provider and hosted qualification still open.
+- Next: verify with a disposable staging receiver and a real provider, including
+  confirmation, rejection/replay, human review and legacy read/chat. Publish
+  through the normal framework release process and verify the immutable
+  runtime artifact before applying it. Do not change existing customer targets
+  just to qualify the candidate. See the 010.68 implementation record and
+  `External_User_Guides/SMART_BRAIN_MANAGED_TASKS.md`.

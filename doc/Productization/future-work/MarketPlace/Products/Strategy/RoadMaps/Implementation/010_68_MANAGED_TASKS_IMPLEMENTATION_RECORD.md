@@ -2,10 +2,10 @@
 
 Date: 2026-11-10
 
-Status: synchronous slice implemented, deployed and live-qualified on staging
-and production under the owner's "deploy and verify heavy live" request.
-Qualification limits and semantic findings remain explicit below. This is not
-an assertion of perfect model reasoning or qualification of every integration.
+Status: original synchronous read-only slice deployed and live-qualified on
+staging and production. The governed-write and specialist-reference extension
+is implemented locally against the unpublished 0.8.47 candidate. It has not
+changed any hosted runtime. Qualification limits remain explicit below.
 
 Owner authorized starting Managed Tasks after the assessment and clarification
 that structured output is not a promise of deterministic reasoning.
@@ -20,6 +20,83 @@ This first slice is **synchronous**, with JSON or text output. No asynchronous
 Task jobs, external-agent continuation, arbitrary code hosting, per-task model
 override, new database or framework release is included. The assessment's
 asynchronous `/runs` example remains a proposed later contract, not a live API.
+
+## Approved Extension: Existing Resources And Governed Writes
+
+Owner decision after initial qualification, 2026-11-10. The currently hosted
+Task endpoint remains read-only; this section records the locally implemented
+extension and the remaining release gate.
+
+Keep the separate Task HTTP contract as a thin adapter over existing framework
+execution. Preserve working chat endpoints and their default behaviour. Task
+configuration selects existing Brain resources or a configured specialist;
+connections, credentials, plugin definitions and retrieval services are not
+duplicated. Selection cannot broaden caller or deployment authority. Do not add
+a separate orchestration engine, database or operational service for Tasks.
+
+Write execution must preserve the registered action's existing policy:
+
+- An authorized WRITE action with `confirmationRequired=false` may execute
+  directly and return its actual result/receipt. Being invoked by a Task or
+  specialist must not introduce mandatory confirmation or human approval.
+- An action requiring confirmation must retain its existing confirmation flow.
+  A published resource selection, Task execute grant or model decision is not
+  confirmation of specific action parameters.
+- Human review remains required only where configured. Return pending review,
+  confirmation or missing-input outcomes honestly, not as completed writes or
+  generic model failures. Final execution results must come from the governed
+  action machinery, not model prose.
+- Retain tenant/ownership checks, action scopes, trusted targets, declared
+  execution limits and actual failure/accounting evidence. Do not automatically
+  replay a write after a timeout or output-generation failure.
+
+The released 0.8.46 specialist path supports write proposals only through
+`CONFIRMATION_RECEIPT_REQUIRED`. The candidate adds an opt-in `ACTION_POLICY`
+that uses the registered action's policy; the gateway derives the opt-in from
+the published specialist, not request JSON. It also adds a guarded coordinator
+decision and a completion hook after actual handler dispatch. Existing chat,
+specialist write defaults and unguarded coordinator calls are unchanged.
+
+Local evidence:
+
+- [x] Platform compiler, resource ownership, private bridge, receipt secrets
+  and apply preflight: 239 tests, no failures/errors/skips.
+- [x] Runtime private assertion and body validation, specialist registration,
+  governed dispatch through the real framework handler, outcome projection,
+  pending decisions, review routing, budgets and handover regressions: 121 tests,
+  no failures/errors/skips. Intent/result fixtures do not prove live inference
+  quality. Framework coordinator tests exercise actual confirmation and replay.
+- [x] Framework 0.8.47 candidate: 30-module non-integration release reactor,
+  2,331 tests, no failures/errors/skips. Built/installed locally only.
+- [x] Console: 23 Node tests, 64 browser fixture scenarios, a four-scenario
+  mobile recheck after tab spacing adjustment, and production bundle build.
+  Browser verification used no hosted APIs or real inference.
+- [x] Stale Console versions are rejected by Platform and by the runtime's
+  `If-Match` check before dispatch. Receipts report safe projections and actual
+  statuses, even when output generation fails; unknown is not treated as no
+  effect. Confirmed actions reuse the Brain's PostgreSQL AI-state store; direct
+  writes alone do not require it.
+- [ ] Before release: verify a real-provider staging Task with a disposable
+  receiver, direct write, confirmation/rejection and replay, configured review,
+  and legacy read-only Task/chat. Then qualify the published framework artifact
+  and immutable runtime build. Do not upgrade existing customer runtimes as a
+  side effect of local qualification.
+
+### Release Qualification
+
+The opt-in `ManagedTaskGovernedRealApiIT` used OpenAI GPT-4o-mini and an
+in-process disposable receiver. It passed direct execution with a real
+receipt, no dispatch before explicit confirmation, confirmation replay
+without duplicate execution, rejection, and actual reviewer approval.
+The fixture used test-only in-memory receipt/review repositories; this is
+not a hosted JDBC or external receiver claim.
+
+Framework 0.8.47 also makes proposal preflight non-executing. If the
+registered action policy waives confirmation while a proposal is being
+checked, preflight denies instead of dispatching. The final 98 focused
+framework tests and the real-provider canary passed on the rebuilt artifact.
+The immutable framework tag points to `965b2773`. Maven Central publishing
+run: [42923095229](https://github.com/Loom-AI-Labs/ai-fabric-framework/actions/runs/42923095229).
 
 ## Progress
 
@@ -375,9 +452,12 @@ Runtime:
 ```text
 GET  /api/tasks/v1/tasks
 POST /api/tasks/v1/tasks/{taskCode}/execute
+POST /api/tasks/v1/tasks/{taskCode}/action-proposals/{receiptId}/decisions  (extension)
 ```
 
 Private verified identity and task-specific read/execute grants are required.
+Decisions additionally require the separate confirm grant and a matching
+proposal identity. Console writes include the expected applied version.
 Request content grants no identity, configuration or source authority. Output is
 validated against the published task schema; semantic uncertainty remains visible.
 
@@ -385,7 +465,9 @@ Console:
 
 ```text
 GET  /api/deployments/{id}/tasks/applied?targetProfileId=...
+GET  /api/deployments/{id}/tasks/resources
 POST /api/deployments/{id}/tasks/{taskCode}/execute?targetProfileId=...
+POST /api/deployments/{id}/tasks/{taskCode}/action-proposals/{receiptId}/decisions?targetProfileId=...&expectedVersion=...
 /smart-brains/:brainId/tasks
 ```
 

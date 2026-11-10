@@ -613,6 +613,14 @@ public class DeploymentBehaviorCatalogService {
             capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CAPABILITY);
             capabilities.add("ai-fabric-execution");
             endpointClasses.add("managed-task-execute");
+            for (JsonNode task : behaviorConfig.at("/managedTasks/tasks")) {
+                if (!task.path("writeActions").isEmpty() || com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.referencesSpecialist(task)
+                    || "HUMAN_REVIEW".equals(task.path("confirmationMode").asText())) {
+                    capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.EXTENDED_CAPABILITY);
+                    endpointClasses.add("managed-task-decision");
+                    break;
+                }
+            }
         }
         for (String extensionCode : executionExtensions) {
             ExecutionExtensionContract extension = requireExecutionExtension(extensionCode);

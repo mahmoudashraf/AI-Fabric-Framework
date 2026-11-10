@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, FormControlLabel, IconButton, List, ListItemButton, ListItemText, MenuItem,
   Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material'
@@ -9,13 +9,15 @@ import DeleteOutline from '@mui/icons-material/DeleteOutline'
 import PlayArrowOutlined from '@mui/icons-material/PlayArrowOutlined'
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined'
 import ContentCopyOutlined from '@mui/icons-material/ContentCopyOutlined'
-import { fetchDeploymentDraft, fetchDeploymentMarketplaceInstalls, fetchDeploymentWorkspace,
-  fetchMarketplacePluginVersion, updateDeploymentDraft, type DeploymentDraftResponse } from '../api/platformApi'
-import { executeManagedTask, fetchAppliedManagedTasks, type ManagedTaskResult } from '../api/managedTasksApi'
+import CheckOutlined from '@mui/icons-material/CheckOutlined'
+import CloseOutlined from '@mui/icons-material/CloseOutlined'
+import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
+import { fetchDeploymentDraft, fetchDeploymentWorkspace, updateDeploymentDraft, type DeploymentDraftResponse } from '../api/platformApi'
+import { decideManagedTaskProposal, executeManagedTask, fetchAppliedManagedTasks, fetchManagedTaskResources,
+  taskResultMatchesContext, type ManagedTaskDecision, type ManagedTaskResult } from '../api/managedTasksApi'
 import { isJsonObject, type JsonObject } from '../actions/actionDefinitionModel'
 import { parseExactObject, stringifyExactJson } from '../lib/losslessJson'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
-import { specialistAuthority, type SpecialistAuthority } from '../components/customer/specialistAssistanceForm'
 import { useBrainEditor, useBrainWorkspace } from './BrainWorkspaceContext'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
 import { editSchemaField, fieldTypes, managedTasksConfigIdentity, newTask, parseTaskSchema, readTasksEditor, TASK_LIMIT,
@@ -44,25 +46,17 @@ export function BrainTasksPage() {
   const canEdit = workspace?.access.canEdit === true && import.meta.env.VITE_SMART_BRAIN_REVIEW !== 'true'
   const canOperate = workspace?.access.canOperate === true && import.meta.env.VITE_SMART_BRAIN_REVIEW !== 'true'
   const draft = useQuery({ queryKey: ['deployment-draft', brainId], queryFn: () => fetchDeploymentDraft(brainId), retry: false })
-  const installs = useQuery({ queryKey: ['deployment-marketplace-installs', brainId],
-    queryFn: () => fetchDeploymentMarketplaceInstalls(brainId), enabled: view === 'resources' && Boolean(loaded), retry: false })
-  const installed = (installs.data ?? []).filter(install => ['ENABLED', 'BOOTSTRAPPED'].includes(install.status.toUpperCase()) && install.entitlement?.entitledForCompilation)
-  const versions = useQueries({ queries: installed.map(install => ({
-    queryKey: ['managed-task-resource-version', brainId, install.pluginVersionId],
-    queryFn: () => fetchMarketplacePluginVersion(install.pluginId, install.pluginVersion, workspace?.deployment.binding?.customerId),
-    enabled: view === 'resources', retry: false,
-  })) })
-  const resourceLoading = installs.isPending || versions.some(query => query.isPending)
-  let resourceError = installs.error?.message ?? versions.find(query => query.isError)?.error?.message ?? null
-  let authority: SpecialistAuthority = { sources: [], readTools: [] }
-  if (loaded && installs.data && !resourceLoading && !resourceError) {
-    try { authority = specialistAuthority(brainId, loaded, installs.data, versions.flatMap(query => query.data ? [query.data] : [])) }
-    catch (error) { resourceError = (error as Error).message }
-  }
+  const resources = useQuery({ queryKey: ['managed-task-resources', brainId, draft.dataUpdatedAt],
+    queryFn: ({ signal }) => fetchManagedTaskResources(brainId, signal), enabled: Boolean(loaded), retry: false })
+  const resourceLoading = resources.isPending
+  const resourceError = resources.error?.message ?? null
+  const catalogue = !resourceError ? resources.data : undefined
   let routeCode = ''
   try { routeCode = decodeURIComponent(location.pathname.split('/')[4] ?? '') } catch { routeCode = 'invalid-route' }
   const selected = editor.tasks.find(task => task.key === selectedKey)
     ?? editor.tasks.find(task => task.code === routeCode) ?? (!routeCode ? editor.tasks[0] : undefined)
+  const referenceMode = Boolean(selected?.specialistRef?.trim())
+  const specialist = catalogue?.specialists.find(item => item.ref === selected?.specialistRef)
 
   function adopt(value: DeploymentDraftResponse, selectedCode = selected?.code) {
     try {
@@ -104,21 +98,28 @@ export function BrainTasksPage() {
     finally { setDiscarding(false) }
   }
   const [result, setResult] = useState<{ scope: string; value: ManagedTaskResult } | null>(null)
+  const [decisionResult, setDecisionResult] = useState<{ scope: string; value: ManagedTaskDecision } | null>(null)
+  const [decisionAttempt, setDecisionAttempt] = useState<string | null>(null)
   const [input, setInput] = useState('{}')
   const [correlationId, setCorrelationId] = useState('')
   const [copied, setCopied] = useState(false)
   const controller = useRef<AbortController | null>(null)
-  const scope = `${brainId}:${targetProfileId}:${release?.id}:${selected?.key ?? ''}`
-  const activeScope = useRef(scope)
-  activeScope.current = scope
-  useEffect(() => { setInput('{}'); setCorrelationId(''); setCopied(false); setResult(null) }, [scope])
-  useEffect(() => () => controller.current?.abort(), [])
   const runtimeView = view === 'try' || view === 'use'
   const applied = useQuery({ queryKey: ['managed-tasks-applied', brainId, targetProfileId, release?.id],
     queryFn: ({ signal }) => fetchAppliedManagedTasks(brainId, targetProfileId, signal),
     enabled: runtimeView && Boolean(targetProfileId && release), retry: false,
     refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: 0 })
   const appliedTask = applied.data?.tasks.find(task => task.code === selected?.code)
+  const scope = JSON.stringify([brainId, targetProfileId, release?.id, selected?.key, tasksIdentity(editor),
+    managedTasksConfigIdentity(draft.data?.behaviorConfig), applied.data?.configurationVersion, applied.data?.taskConfigurationHash])
+  const activeScope = useRef(scope)
+  activeScope.current = scope
+  useEffect(() => {
+    controller.current?.abort()
+    setInput('{}'); setCorrelationId(''); setCopied(false); setResult(null); setDecisionResult(null); setDecisionAttempt(null)
+    execute.reset(); decide.reset()
+  }, [scope])
+  useEffect(() => () => controller.current?.abort(), [])
   const gate = taskTestBlock({ dirty, targetProfileId,
     releaseVersionId: release?.deploymentVersionId, hasAppliedTask: Boolean(appliedTask) })
   const pendingPublishedChanges = Boolean(workspace && release && (workspace.lifecycle.savedDraftMatchesLatestPublished === false
@@ -144,16 +145,61 @@ export function BrainTasksPage() {
         hasAppliedTask: currentApplied.tasks.some(task => task.code === appliedTask.code) })
       if (block || !currentWorkspace.access.canOperate || currentApplied.configurationVersion !== release?.deploymentVersionId
         || currentApplied.configurationVersion !== applied.data.configurationVersion
-        || currentApplied.taskConfigurationHash !== applied.data.taskConfigurationHash) throw new Error(block ?? 'The applied configuration or your access changed. Refresh the applied tasks before running again.')
+        || currentApplied.taskConfigurationHash !== applied.data.taskConfigurationHash || activeScope.current !== requestScope) throw new Error(block ?? 'The applied configuration or your access changed. Refresh the applied tasks before running again.')
       const value = await executeManagedTask(brainId, appliedTask.code, targetProfileId,
         { input: parsedInput, ...(correlationId.trim() ? { correlationId: correlationId.trim() } : {}) },
-        appliedTask.deadlineSeconds, controller.current.signal)
+        appliedTask.deadlineSeconds, controller.current.signal, currentApplied.configurationVersion)
+      if (!taskResultMatchesContext(value, appliedTask.code, currentApplied.configurationVersion, currentApplied.taskConfigurationHash)) {
+        throw new Error('The task response did not match the applied configuration. The action outcome is unknown; no automatic retry was sent.')
+      }
       return { scope: requestScope, value }
     },
     onSuccess: value => { if (value.scope === activeScope.current) setResult(value) },
   })
+  const currentResult = result?.scope === scope ? result.value : null
+  const currentDecisionResponse = decisionResult?.scope === scope ? decisionResult.value : null
+  const currentDecision = currentDecisionResponse?.decision
+  const proposal = currentResult?.actionProposal
+  const proposalExpiry = proposal ? Math.min(Date.parse(proposal.expiresAt),
+    currentResult?.expiresAt === undefined ? Infinity : Date.parse(currentResult.expiresAt)) : NaN
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!proposal) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [proposal])
+  const proposalExpired = proposalExpiry <= Math.max(now, Date.now())
+  const proposalAvailable = Boolean(currentResult?.status === 'CONFIRMATION_REQUIRED' && proposal?.receiptId
+    && proposal.status === 'PROPOSED' && proposalExpiry > Math.max(now, Date.now()) && !decisionAttempt)
+  const decide = useMutation({
+    retry: false,
+    mutationFn: async (decision: 'CONFIRM' | 'REJECT') => {
+      if (!canOperate || gate || !currentResult || !proposal || !proposalAvailable || !applied.data || !loaded) throw new Error('A current pending action proposal and operation permission are required.')
+      const requestScope = scope
+      setDecisionAttempt(proposal.receiptId)
+      controller.current = new AbortController()
+      const current = await fetchDeploymentDraft(brainId)
+      const currentWorkspace = await fetchDeploymentWorkspace(brainId)
+      const currentApplied = await fetchAppliedManagedTasks(brainId, targetProfileId, controller.current.signal)
+      const currentTask = currentApplied.tasks.find(task => task.code === currentResult.taskCode)
+      if (activeScope.current !== requestScope || !currentWorkspace.access.canOperate
+        || current.id !== loaded.id || current.revisionNumber !== loaded.revisionNumber
+        || managedTasksConfigIdentity(current.behaviorConfig) !== managedTasksConfigIdentity(loaded.behaviorConfig)
+        || !currentTask
+        || currentApplied.configurationVersion !== release?.deploymentVersionId
+        || !taskResultMatchesContext(currentResult, selected?.code ?? '', currentApplied.configurationVersion, currentApplied.taskConfigurationHash)
+        || !(proposalExpiry > Date.now())) {
+        setResult(null)
+        throw new Error('The action proposal, applied configuration or your access changed. No decision was sent. Run again only after reviewing current action outcomes.')
+      }
+      const value = await decideManagedTaskProposal(brainId, currentResult.taskCode, targetProfileId, proposal.receiptId,
+        decision, { ...currentApplied, deadlineSeconds: currentTask.deadlineSeconds }, controller.current.signal)
+      return { scope: requestScope, value }
+    },
+    onSuccess: value => { if (value.scope === activeScope.current) setDecisionResult(value) },
+  })
   const errors = useMemo(() => tasksErrors(editor), [editor])
-  const busy = save.isPending || discarding || execute.isPending
+  const busy = save.isPending || discarding || execute.isPending || decide.isPending
   const locked = !canEdit || !loaded || busy
   useBrainEditor({ dirty, busy,
     canSave: canEdit && dirty && errors.length === 0 && !conflicting && !loadError,
@@ -165,13 +211,12 @@ export function BrainTasksPage() {
   function change(next: TasksEditor) {
     if (locked) return
     localEdits.current = tasksIdentity(next) !== baseline
-    setEditor(next); save.reset(); setResult(null); setDiscardError(null)
+    setEditor(next); save.reset(); setResult(null); setDecisionResult(null); setDiscardError(null)
   }
   function patch(patch: Partial<TaskEditor>) {
     if (selected) { setSelectedKey(selected.key); change({ ...editor, tasks: editor.tasks.map(task => task.key === selected.key ? { ...task, ...patch } : task) }) }
   }
   const resourceDisabled = locked || resourceLoading || Boolean(resourceError)
-  const currentResult = result?.scope === scope ? result.value : null
   const example = taskRuntimeExample(applied.data?.runtimeBaseUrl ?? null, appliedTask?.code ?? selected?.code ?? '<task-code>', parsedInput ?? {})
 
   return <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0 }}>
@@ -185,8 +230,8 @@ export function BrainTasksPage() {
     {conflicting && <Alert severity="warning" sx={{ mb: 1 }}>Your local edits are retained. Discard loads the newer saved draft.</Alert>}
     {loaded && !loadError && <>
       <Stack direction="row" alignItems="center" gap={2} flexWrap="wrap" sx={{ pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-        <FormControlLabel control={<Switch inputProps={{ role: 'switch' }} checked={editor.enabled} disabled={locked} onChange={(_, enabled) => change({ ...editor, enabled })} />} label="Enable Managed Tasks" />
-        <Typography variant="caption" color="text.secondary">{editor.tasks.length} / {TASK_LIMIT} tasks · Uses this Brain's AI model · Read-only resources</Typography>
+        <FormControlLabel control={<Switch inputProps={{ role: 'switch', 'aria-label': 'Enable Managed Tasks' }} checked={editor.enabled} disabled={locked} onChange={(_, enabled) => change({ ...editor, enabled })} />} label="Enable Managed Tasks" />
+        <Typography variant="caption" color="text.secondary">{editor.tasks.length} / {TASK_LIMIT} tasks · Uses this Brain's AI model · Existing action policies</Typography>
       </Stack>
       {editor.enabled && editor.tasks.length === 0 && <Alert severity="info" sx={{ mt: 1 }}>Add at least one task before saving Managed Tasks as enabled.</Alert>}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: '235px minmax(0, 1fr)' }, flex: 1, minHeight: 0 }}>
@@ -207,7 +252,10 @@ export function BrainTasksPage() {
               <Typography component="h2" variant="subtitle1" fontWeight={650} sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{selected.name || 'New task'}</Typography>
               <Tooltip title="Remove task from draft"><span><IconButton aria-label="Remove task" disabled={locked} onClick={() => setRemove(true)}><DeleteOutline fontSize="small" /></IconButton></span></Tooltip>
             </Stack>
-            <Tabs value={view} onChange={(_, value) => { setView(value); execute.reset(); setCopied(false) }} variant="scrollable" scrollButtons="auto" aria-label="Task sections" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Tabs value={view} onChange={(_, value) => { setView(value); execute.reset(); setCopied(false) }} variant="scrollable" scrollButtons="auto" aria-label="Task sections" sx={{
+              mb: 2, borderBottom: 1, borderColor: 'divider', flexShrink: 0,
+              '& .MuiTab-root': { minWidth: { xs: 0, sm: 90 }, px: { xs: 0.75, sm: 2 } },
+            }}>
               <Tab value="outcome" label="Outcome" disabled={busy} /><Tab value="resources" label="Resources" disabled={busy} /><Tab value="try" label="Try" disabled={busy} /><Tab value="use" label="Use in your app" disabled={busy} />
             </Tabs>
             <Box sx={{ ...brainPaneSx, flex: 1, pt: 1, pb: 2 }}>
@@ -218,6 +266,23 @@ export function BrainTasksPage() {
                   <TextField required label="Task code" size="small" value={selected.code} disabled={locked} inputProps={{ maxLength: 40 }} onChange={e => patch({ code: e.target.value })} placeholder="assess-request" helperText="Start with a lowercase letter; use lowercase letters, numbers and single hyphens. Used in your API URL." />
                 </Box>
                 <TextField required label="Purpose" size="small" value={selected.description} disabled={locked} inputProps={{ maxLength: 500 }} onChange={e => patch({ description: e.target.value })} multiline minRows={2} helperText="What should this task help your service decide or produce?" />
+                <TextField select label="Existing specialist (optional)" size="small" value={selected.specialistRef ?? ''} disabled={locked}
+                  onChange={e => patch({ specialistRef: e.target.value })}>
+                  <MenuItem value="">Task-authored instructions and contracts</MenuItem>
+                  {catalogue?.specialists.map(item => <MenuItem key={item.ref} value={item.ref} disabled={resourceDisabled}>{item.name}</MenuItem>)}
+                  {referenceMode && !specialist && <MenuItem value={selected.specialistRef}>{selected.specialistRef} (unavailable)</MenuItem>}
+                </TextField>
+                {resourceError && <Alert severity="error">{resourceError} Saved resource references are retained.</Alert>}
+                {referenceMode ? <>
+                  <Typography variant="body2" color="text.secondary">Instructions, input, output and resources are inherited from the existing specialist. Task identity and deadline remain separate.</Typography>
+                  {specialist ? <Box component="section" aria-label="Inherited specialist configuration" sx={{ overflowWrap: 'anywhere' }}>
+                    <Typography variant="subtitle2">{specialist.name}</Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>{specialist.description}</Typography>
+                    <Box component="pre" sx={jsonSx}>{stringifyExactJson({ inputSchema: specialist.inputSchema, outputSchema: specialist.outputSchema,
+                      outputMode: specialist.outputMode, vectorSpaces: specialist.vectorSpaces, readActions: specialist.readActions,
+                      writeActions: specialist.writeActions, maxOutputTokens: specialist.maxOutputTokens }, 2)}</Box>
+                  </Box> : <Alert severity="warning">{resourceLoading ? 'Loading specialist context.' : 'Specialist context is unavailable.'} The reference is retained; select another specialist or return to Task-authored configuration to remove it.</Alert>}
+                </> : <>
                 <TextField required label="Instructions" value={selected.instructions} disabled={locked} multiline minRows={4} maxRows={10} inputProps={{ maxLength: 8000 }} onChange={e => patch({ instructions: e.target.value })} helperText="Describe the outcome, how to use the input, and what to do when information is missing. Instructions are saved on this Brain." />
                 <TaskSchemaEditor key={`input-${selected.key}`} label="Input" value={selected.inputSchemaText} disabled={locked} onChange={inputSchemaText => patch({ inputSchemaText })} />
                 <TextField select label="Return an answer as" size="small" value={selected.outputMode} disabled={locked} onChange={e => patch({ outputMode: e.target.value as 'JSON' | 'TEXT' })} sx={{ maxWidth: 320 }}>
@@ -225,24 +290,42 @@ export function BrainTasksPage() {
                 </TextField>
                 {selected.outputMode === 'JSON' ? <TaskSchemaEditor key={`output-${selected.key}`} label="Output" value={selected.outputSchemaText} disabled={locked} onChange={outputSchemaText => patch({ outputSchemaText })} />
                   : <Typography variant="body2" color="text.secondary">The runtime returns a text answer using its internal answer schema. Your JSON output schema is retained while editing if you switch back, but is not sent in TEXT mode.</Typography>}
+                </>}
                 <Box component="details" sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
                   <Typography component="summary" variant="body2" fontWeight={600} sx={{ cursor: 'pointer' }}>Advanced execution limits</Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} sx={{ mt: 2 }}>
                     <TextField label="Deadline (seconds)" required type="number" size="small" value={selected.deadlineSeconds} disabled={locked} inputProps={{ min: 5, max: 120, step: 1 }} onChange={e => patch({ deadlineSeconds: Number(e.target.value) })} helperText="5–120 seconds" />
-                    <TextField label="Maximum output tokens" required type="number" size="small" value={selected.maxOutputTokens} disabled={locked} inputProps={{ min: 128, max: 4096, step: 1 }} onChange={e => patch({ maxOutputTokens: Number(e.target.value) })} helperText="128–4,096 tokens" />
+                    {!referenceMode && <TextField label="Maximum output tokens" required type="number" size="small" value={selected.maxOutputTokens} disabled={locked} inputProps={{ min: 128, max: 4096, step: 1 }} onChange={e => patch({ maxOutputTokens: Number(e.target.value) })} helperText="128–4,096 tokens" />}
                   </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Uses the Brain's model and structured-output policy. No separate task model, internet search or automatic extra retry.</Typography>
                 </Box>
                 {taskErrors(selected, editor.tasks).length > 0 && <Alert severity="warning"><Typography variant="body2" fontWeight={600}>Before saving</Typography>{taskErrors(selected, editor.tasks).map(error => <Typography variant="body2" key={error}>{error}</Typography>)}</Alert>}
               </Stack>}
               {view === 'resources' && <Stack gap={3}>
-                <Typography variant="body2" color="text.secondary">Allow only the existing Brain resources this task needs. Both lists are optional. No write actions are available.</Typography>
+                <Typography variant="body2" color="text.secondary">{referenceMode ? 'Resources are inherited from the selected specialist and cannot be changed on this Task.' : 'Select existing Brain knowledge and actions. Only the existing action policy applies; no new credentials are created.'}</Typography>
                 {resourceLoading && <CircularProgress size={20} aria-label="Loading task resources" />}
                 {resourceError && <Alert severity="error">{resourceError} Saved selections are retained; no resource authority was inferred.</Alert>}
-                {!resourceLoading && !resourceError && <>
-                  <ResourceSelection label="Knowledge sources" values={selected.vectorSpaces} options={authority.sources.map(source => ({ code: source.id, label: `${source.label} · ${source.plugin}` }))} disabled={resourceDisabled} onChange={vectorSpaces => patch({ vectorSpaces })} />
-                  <ResourceSelection label="Read actions" values={selected.readActions} options={authority.readTools.map(action => ({ code: action.id, label: `${action.label} · ${action.plugin}` }))} disabled={resourceDisabled} onChange={readActions => patch({ readActions })} />
-                </>}
+                {referenceMode && !specialist && <Alert severity="warning">Inherited resources are unavailable. The specialist reference is retained.</Alert>}
+                <ResourceSelection label="Knowledge sources" values={referenceMode ? specialist?.vectorSpaces ?? [] : selected.vectorSpaces}
+                  options={catalogue?.knowledgeCollections.map(source => ({ code: source.id, label: source.name })) ?? []}
+                  available={Boolean(catalogue)} disabled={locked || referenceMode} onChange={vectorSpaces => patch({ vectorSpaces })} />
+                <ResourceSelection label="Read actions" values={referenceMode ? specialist?.readActions ?? [] : selected.readActions}
+                  options={catalogue?.actions.filter(action => action.accessMode === 'READ').map(action => ({ code: action.id, label: action.name })) ?? []}
+                  available={Boolean(catalogue)} disabled={locked || referenceMode} onChange={readActions => patch({ readActions })} />
+                <ResourceSelection label="Write actions" values={referenceMode ? specialist?.writeActions ?? [] : selected.writeActions}
+                  options={catalogue?.actions.filter(action => action.accessMode === 'WRITE').map(action => ({ code: action.id,
+                    label: `${action.name} · ${action.confirmationRequired ? 'Confirmation required' : 'No confirmation required'}` })) ?? []}
+                  available={Boolean(catalogue)} disabled={locked || referenceMode} onChange={writeActions => patch({ writeActions })} />
+                {(referenceMode ? specialist?.writeActions.length : selected.writeActions.length) ? <Box>
+                  <TextField select label="Confirmation handling" size="small" value={selected.confirmationMode} disabled={locked}
+                    onChange={e => patch({ confirmationMode: e.target.value as TaskEditor['confirmationMode'] })} sx={{ minWidth: 220, maxWidth: '100%' }}>
+                    <MenuItem value="CALLER">Your backend</MenuItem>
+                    {catalogue?.reviewAvailable ? <MenuItem value="HUMAN_REVIEW">Human reviewers</MenuItem>
+                      : selected.confirmationMode === 'HUMAN_REVIEW' && <MenuItem value="HUMAN_REVIEW" disabled>Human reviewers (unavailable)</MenuItem>}
+                  </TextField>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Applies only to actions already requiring confirmation. Writes without confirmation still execute directly. Existing action confirmation settings and human review policy are unchanged.</Typography>
+                  {selected.confirmationMode === 'HUMAN_REVIEW' && !catalogue?.reviewAvailable && <Alert severity="warning" sx={{ mt: 1 }}>Human review is unavailable in the current resource catalogue. Your saved selection is retained.</Alert>}
+                </Box> : null}
                 <Button component={RouterLink} to={href('capabilities')} sx={{ alignSelf: 'flex-start' }}>Manage Brain capabilities</Button>
               </Stack>}
               {runtimeView && <Stack gap={2}>
@@ -252,24 +335,74 @@ export function BrainTasksPage() {
                 {!canOperate && view === 'try' && <Alert severity="info">Running a task requires permission to operate this Brain.</Alert>}
                 {targetProfileId && release && <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
                   <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{applied.data ? `Applied version: ${applied.data.configurationVersion}` : 'Applied tasks'}</Typography>
-                  <Tooltip title="Refresh applied tasks"><span><IconButton aria-label="Refresh applied tasks" disabled={applied.isFetching || execute.isPending} onClick={() => void applied.refetch()}><RefreshOutlined fontSize="small" /></IconButton></span></Tooltip>
+                  <Tooltip title="Refresh applied tasks"><span><IconButton aria-label="Refresh applied tasks" disabled={applied.isFetching || busy} onClick={() => { setResult(null); setDecisionResult(null); void applied.refetch() }}><RefreshOutlined fontSize="small" /></IconButton></span></Tooltip>
                 </Stack>}
                 {applied.isFetching && <CircularProgress size={20} aria-label="Loading applied tasks" />}
                 {applied.isError && <Alert severity="error">{applied.error.message}</Alert>}
                 {view === 'try' ? <>
-                  <TextField label="Task input JSON" multiline minRows={5} maxRows={14} value={input} disabled={execute.isPending} onChange={e => { setInput(e.target.value); execute.reset(); setResult(null) }} error={Boolean(inputError)} helperText={inputError ?? 'An object matching the applied input schema. No request is sent until you select Run task.'} inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }} />
+                  <TextField label="Task input JSON" multiline minRows={5} maxRows={14} value={input} disabled={busy} onChange={e => { setInput(e.target.value); execute.reset(); decide.reset(); setResult(null); setDecisionResult(null); setDecisionAttempt(null) }} error={Boolean(inputError)} helperText={inputError ?? 'An object matching the applied input schema. No request is sent until you select Run task.'} inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }} />
                   {appliedTask && <Box component="details"><Typography component="summary" variant="body2" sx={{ cursor: 'pointer' }}>Applied input schema</Typography><Box component="pre" sx={{ ...jsonSx, mt: 1 }}>{stringifyExactJson(appliedTask.inputSchema, 2)}</Box></Box>}
-                  <TextField label="Correlation ID (optional)" size="small" value={correlationId} disabled={execute.isPending} inputProps={{ maxLength: 160 }} onChange={e => setCorrelationId(e.target.value)} helperText="A reference for tracing this request; not an idempotency guarantee." />
+                  <TextField label="Correlation ID (optional)" size="small" value={correlationId} disabled={busy} inputProps={{ maxLength: 160 }} onChange={e => setCorrelationId(e.target.value)} helperText="A reference for tracing this request; not an idempotency guarantee." />
+                  <Alert severity="warning">Run task may execute selected write actions immediately when their existing policy does not require confirmation. A failed or timed-out AI response does not mean that no action ran. Review actual outcomes before running again.</Alert>
                   <Stack direction="row" gap={1}>
-                    <Button variant="contained" startIcon={execute.isPending ? <CircularProgress size={16} /> : <PlayArrowOutlined />} disabled={!canOperate || Boolean(gate) || !appliedTask || applied.isFetching || applied.isError || Boolean(inputError) || execute.isPending} onClick={() => { setResult(null); execute.mutate() }}>{execute.isPending ? 'Running task...' : 'Run task'}</Button>
+                    <Button variant="contained" startIcon={execute.isPending ? <CircularProgress size={16} /> : <PlayArrowOutlined />} disabled={!canOperate || Boolean(gate) || !appliedTask || applied.isFetching || applied.isError || Boolean(inputError) || busy} onClick={() => { setResult(null); setDecisionResult(null); setDecisionAttempt(null); decide.reset(); execute.mutate() }}>{execute.isPending ? 'Running task...' : 'Run task'}</Button>
                     {execute.isPending && <Button onClick={() => controller.current?.abort()}>Stop waiting</Button>}
                   </Stack>
                   {execute.isError && <Alert severity="error">{execute.error.message}</Alert>}
-                  {currentResult && <Box component="section" aria-label="Task result" sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                  {decide.isError && <Alert severity="warning">{decide.error.message} No automatic retry was sent. A decision request failure may leave the action outcome unknown.</Alert>}
+                  {currentResult && <Box component="section" aria-label="Task result" sx={{ pt: 2, borderTop: 1, borderColor: 'divider', overflowWrap: 'anywhere' }}>
                     <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center"><Typography component="h3" variant="subtitle2">Result</Typography><Chip size="small" variant="outlined" color={currentResult.status === 'SUCCEEDED' && !currentResult.failure ? 'success' : 'warning'} label={currentResult.status} /></Stack>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', my: 1 }}>Run {currentResult.runId} · Version {currentResult.configurationVersion}</Typography>
                     {currentResult.failure && <Alert severity="warning" sx={{ mb: 1 }}>{currentResult.failure.code}: {currentResult.failure.message}</Alert>}
+                    {currentResult.status === 'INPUT_REQUIRED' && <Alert severity="info" sx={{ mb: 1 }}>Missing input: {currentResult.inputRequirement?.message ?? 'Additional input is required before this task can continue.'}</Alert>}
+                    {currentResult.status === 'REVIEW_REQUIRED' && <Box component="section" aria-label="Pending human review" sx={{ mb: 2 }}>
+                      <Alert severity="info">Awaiting human review through the existing review policy.</Alert>
+                      {currentResult.review && <Box sx={{ mt: 1 }}>
+                        <Typography variant="subtitle2">{currentResult.review.title}</Typography>
+                        <Typography variant="body2">{currentResult.review.summary}</Typography>
+                        <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>Review {currentResult.review.taskId} · {currentResult.review.status} · Created {currentResult.review.createdAt} · Expires {currentResult.review.expiresAt}</Typography>
+                      </Box>}
+                      <Button component={RouterLink} to={href('action-reviews')} startIcon={<FactCheckOutlined />} sx={{ mt: 1 }}>Open Action reviews</Button>
+                    </Box>}
+                    <Typography component="h4" variant="subtitle2" sx={{ mb: 1 }}>AI-generated output</Typography>
                     <Box component="pre" sx={jsonSx}>{typeof currentResult.output === 'string' ? currentResult.output : stringifyExactJson(currentResult.output, 2)}</Box>
+                    <Box component="section" aria-label="Action outcomes" sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                      <Typography component="h4" variant="subtitle2">Action outcomes</Typography>
+                      <Typography variant="body2">{decisionAttempt ? 'Run side effects (before decision)' : 'Side effects'}: {currentResult.sideEffectsStatus ?? (currentResult.sideEffectsExecuted ? 'EXECUTED' : 'NONE')}</Typography>
+                      {currentResult.sideEffectsStatus === 'OUTCOME_UNKNOWN' && <Alert severity="warning">The write outcome is unknown. Check the connected system before running again; no automatic retry was sent.</Alert>}
+                      {currentResult.actionExecutions?.map(action => <Box key={action.executionId} sx={{ mt: 1 }}>
+                        <Typography variant="body2">{action.actionName}: {action.status}</Typography>
+                        <Typography variant="caption" color="text.secondary">{action.executionId} · {action.startedAt}{action.completedAt ? ` · ${action.completedAt}` : ''}</Typography>
+                        {action.outcome !== undefined && <Box component="pre" sx={jsonSx}>{stringifyExactJson(action.outcome, 2)}</Box>}
+                      </Box>)}
+                      {proposal && <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2">{proposal.actionName} · {currentDecisionResponse ? currentDecision?.status ?? currentDecisionResponse.status : proposal.status}</Typography>
+                        <Typography variant="body2">{proposal.confirmationMessage}</Typography>
+                        <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{proposal.receiptId} · Created {proposal.createdAt} · Expires {Number.isFinite(proposalExpiry) ? new Date(proposalExpiry).toISOString() : proposal.expiresAt}</Typography>
+                        {!currentDecisionResponse && proposalExpired && <Alert severity="warning">This proposal has expired. {decisionAttempt ? 'A decision was submitted; expiry does not establish its outcome.' : 'No decision was sent.'}</Alert>}
+                        {canOperate && proposalAvailable && !gate && !applied.isFetching && !applied.isError && <Stack direction="row" gap={1} sx={{ mt: 1 }}>
+                          <Button variant="contained" startIcon={<CheckOutlined />} disabled={busy} onClick={() => decide.mutate('CONFIRM')}>Confirm action</Button>
+                          <Button variant="outlined" startIcon={<CloseOutlined />} disabled={busy} onClick={() => decide.mutate('REJECT')}>Reject action</Button>
+                        </Stack>}
+                        {decide.isPending && <CircularProgress size={20} aria-label="Submitting action decision" sx={{ mt: 1 }} />}
+                        {currentDecisionResponse && <Box component="section" aria-label="Action decision result" sx={{ mt: 1 }}>
+                          <Typography variant="body2">Decision status: {currentDecisionResponse.status}</Typography>
+                          {currentDecision?.status && currentDecision.status !== currentDecisionResponse.status && <Typography variant="body2">Receipt status: {currentDecision.status}</Typography>}
+                          {currentDecisionResponse.status === 'OUTCOME_UNKNOWN' || currentDecision?.status === 'OUTCOME_UNKNOWN'
+                            ? <Alert severity="warning">The action outcome is unknown. Check the connected system before running again; no automatic retry was sent.</Alert> : null}
+                          {!currentDecision && <Alert severity="warning">No decision receipt was returned. Do not assume the action was rejected or had no effect.</Alert>}
+                          {currentDecisionResponse.failure && <Alert severity="warning">{currentDecisionResponse.failure.code}: {currentDecisionResponse.failure.message}</Alert>}
+                          {currentDecision?.failure && <Alert severity="warning">{currentDecision.failure.reason}: {currentDecision.failure.publicMessage}</Alert>}
+                          {currentDecision?.outcome !== undefined && <Box component="pre" sx={jsonSx}>{stringifyExactJson(currentDecision.outcome, 2)}</Box>}
+                          {currentDecisionResponse.actionExecutions.map(action => <Box key={action.executionId} sx={{ mt: 1 }}>
+                            <Typography variant="body2">{action.actionName}: {action.status}</Typography>
+                            <Typography variant="caption" color="text.secondary">{action.executionId} · {action.startedAt}{action.completedAt ? ` · ${action.completedAt}` : ''}</Typography>
+                            {action.outcome !== undefined && <Box component="pre" sx={jsonSx}>{stringifyExactJson(action.outcome, 2)}</Box>}
+                          </Box>)}
+                          <Box component="details" sx={{ mt: 1 }}><Typography component="summary" variant="body2" sx={{ cursor: 'pointer' }}>Full decision response</Typography><Box component="pre" sx={{ ...jsonSx, mt: 1 }}>{stringifyExactJson(currentDecisionResponse, 2)}</Box></Box>
+                        </Box>}
+                      </Box>}
+                    </Box>
                     <Box component="details" sx={{ mt: 2 }}><Typography component="summary" variant="body2" sx={{ cursor: 'pointer' }}>Full response and evidence</Typography><Box component="pre" sx={{ ...jsonSx, mt: 1 }}>{stringifyExactJson(currentResult, 2)}</Box></Box>
                   </Box>}
                 </> : <>
@@ -279,7 +412,7 @@ export function BrainTasksPage() {
                   <Button variant="outlined" startIcon={<ContentCopyOutlined />} sx={{ alignSelf: 'flex-start' }} disabled={!appliedTask || Boolean(gate)} onClick={async () => {
                     try { await navigator.clipboard.writeText(example); setCopied(true) } catch { setCopied(false) }
                   }}>{copied ? 'Copied' : 'Copy request'}</Button>
-                  <Typography variant="body2" color="text.secondary">Synchronous response: run ID, task code, status, version/hash, output, failure and evidence. No background jobs, event callbacks or business writes in this release. JSON shape is validated; AI conclusions still need your application's judgement.</Typography>
+                  <Typography variant="body2" color="text.secondary">Synchronous response: run ID, task code, status, version/hash, output, failure, evidence and action receipts. Existing action policy governs writes and confirmation. No background jobs or event callbacks. JSON shape is validated; AI conclusions still need your application's judgement.</Typography>
                 </>}
               </Stack>}
             </Box>
@@ -298,13 +431,14 @@ export function BrainTasksPage() {
   </Box>
 }
 
-function ResourceSelection({ label, options, values, disabled, onChange }: {
-  label: string; options: { code: string; label: string }[]; values: string[]; disabled: boolean; onChange: (value: string[]) => void
+function ResourceSelection({ label, options, values, available, disabled, onChange }: {
+  label: string; options: { code: string; label: string }[]; values: string[]; available: boolean; disabled: boolean; onChange: (value: string[]) => void
 }) {
   const missing = values.filter(value => !options.some(option => option.code === value))
   return <Box component="section">
     <Typography component="h3" variant="subtitle2" sx={{ mb: 1 }}>{label} <Typography component="span" variant="caption" color="text.secondary">(optional)</Typography></Typography>
-    {!options.length && <Typography variant="body2" color="text.secondary">None configured on this Brain. A task can run without {label.toLowerCase()}.</Typography>}
+    {!available ? <Typography variant="body2" color="text.secondary">Catalogue unavailable. Saved selections are shown below.</Typography>
+      : !options.length && <Typography variant="body2" color="text.secondary">None configured on this Brain. A task can run without {label.toLowerCase()}.</Typography>}
     <Stack>{[...options, ...missing.map(code => ({ code, label: `${code} (not in saved catalogue)` }))].map(option => <FormControlLabel key={option.code}
       control={<Checkbox size="small" checked={values.includes(option.code)} disabled={disabled || missing.includes(option.code) && !values.includes(option.code)}
         onChange={(_, checked) => onChange(checked ? [...values, option.code] : values.filter(value => value !== option.code))} />}

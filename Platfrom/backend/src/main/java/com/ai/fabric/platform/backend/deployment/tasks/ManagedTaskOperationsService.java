@@ -52,30 +52,63 @@ public class ManagedTaskOperationsService {
         var catalogue = summary.putArray("tasks");
         for (JsonNode task : tasks.path("compiled").path("tasks")) {
             ObjectNode entry = catalogue.addObject();
-            for (String field : List.of("code", "name", "description", "inputSchema", "outputMode", "outputSchema", "deadlineSeconds")) entry.set(field, task.path(field).deepCopy());
+            for (String field : List.of("code", "name", "description", "inputSchema", "outputMode", "outputSchema", "deadlineSeconds",
+                "writeActions", "confirmationMode")) if (task.has(field)) entry.set(field, task.path(field).deepCopy());
         }
         return summary;
     }
 
     public Response execute(String deploymentId, String targetProfileId, String taskCode, JsonNode body) {
+        return execute(deploymentId, targetProfileId, taskCode, body, null);
+    }
+
+    public Response execute(String deploymentId, String targetProfileId, String taskCode, JsonNode body, String expectedVersion) {
         var context = context(deploymentId, targetProfileId, true);
         JsonNode config = taskConfig(context);
-        JsonNode task = null;
-        for (JsonNode candidate : config.path("compiled").path("tasks")) {
-            if (candidate.path("code").asText().equals(taskCode)) task = candidate;
-        }
-        if (task == null) throw new ResponseStatusException(NOT_FOUND, "Apply this task to the selected environment before testing it.");
+        JsonNode task = task(config, taskCode);
+        if (expectedVersion != null || !task.path("writeActions").isEmpty()) requireVersion(context, expectedVersion);
         if (body == null || !body.isObject() || !body.path("input").isObject()) throw new ResponseStatusException(BAD_REQUEST, "Task input must be a JSON object.");
         body.fieldNames().forEachRemaining(field -> {
             if (!Set.of("input", "correlationId").contains(field)) throw new ResponseStatusException(BAD_REQUEST, "Unsupported task request field.");
         });
         if (body.has("correlationId") && (!body.path("correlationId").isTextual() || body.path("correlationId").asText().length() > 160))
             throw new ResponseStatusException(BAD_REQUEST, "correlationId must be text of at most 160 characters.");
+        return invoke(deploymentId, context, config, task, body, "execute", "execute", "MANAGED_TASK_EXECUTED");
+    }
+
+    public Response decide(String deploymentId, String targetProfileId, String taskCode, String receiptId, JsonNode body, String expectedVersion) {
+        var context = context(deploymentId, targetProfileId, true);
+        requireVersion(context, expectedVersion);
+        JsonNode config = taskConfig(context);
+        JsonNode task = task(config, taskCode);
+        if (receiptId == null || !receiptId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}"))
+            throw new ResponseStatusException(BAD_REQUEST, "Select an actual action proposal receipt.");
+        if (body == null || !body.isObject() || body.size() != 1 || !body.path("decision").isTextual()
+            || !Set.of("CONFIRM", "REJECT").contains(body.path("decision").asText()))
+            throw new ResponseStatusException(BAD_REQUEST, "Choose CONFIRM or REJECT for the existing proposal.");
+        if ("HUMAN_REVIEW".equals(task.path("confirmationMode").asText()))
+            throw new ResponseStatusException(FORBIDDEN, "This task sends confirmation-required actions to the existing human review workflow.");
+        return invoke(deploymentId, context, config, task, body, "action-proposals/" + receiptId + "/decisions", "confirm", "MANAGED_TASK_PROPOSAL_DECIDED");
+    }
+
+    private void requireVersion(DeploymentTargetContextService.Context context, String expectedVersion) {
+        if (!context.version().getId().equals(expectedVersion))
+            throw new ResponseStatusException(CONFLICT, "The applied version changed. Refresh the task before sending this request.");
+    }
+
+    private JsonNode task(JsonNode config, String code) {
+        for (JsonNode candidate : config.path("compiled").path("tasks")) if (candidate.path("code").asText().equals(code)) return candidate;
+        throw new ResponseStatusException(NOT_FOUND, "Apply this task to the selected environment before testing it.");
+    }
+
+    private Response invoke(String deploymentId, DeploymentTargetContextService.Context context, JsonNode config, JsonNode task,
+                            JsonNode body, String suffix, String operation, String auditEvent) {
+        String taskCode = task.path("code").asText();
         String json;
         try { json = mapper.writeValueAsString(body); }
         catch (Exception failure) { throw new ResponseStatusException(BAD_REQUEST, "Task input is invalid."); }
         if (json.length() > 30000) throw new ResponseStatusException(BAD_REQUEST, "Task input exceeds 30000 characters.");
-        String grant = "task:" + taskCode + ":execute";
+        String grant = "task:" + taskCode + ":" + operation;
         var headers = authority.issuePlatformProxyHeaders(deploymentId, context.target().getId(), context.release().getId(),
             context.release().getRuntimeAuthorityFingerprint(), List.of(grant), Duration.ofMinutes(5));
         String runtime = context.runtimeBaseUrl();
@@ -84,11 +117,12 @@ public class ManagedTaskOperationsService {
             URI base = URI.create(runtime);
             if (!Set.of("http", "https").contains(base.getScheme()) || base.getHost() == null || base.getUserInfo() != null
                 || base.getQuery() != null || base.getFragment() != null) throw new IllegalArgumentException();
-            uri = URI.create(runtime.replaceAll("/+$", "") + "/api/tasks/v1/tasks/" + taskCode + "/execute");
+            uri = URI.create(runtime.replaceAll("/+$", "") + "/api/tasks/v1/tasks/" + taskCode + "/" + suffix);
         } catch (Exception failure) { throw new ResponseStatusException(CONFLICT, "Selected runtime endpoint is invalid."); }
         try {
             var builder = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(task.path("deadlineSeconds").asInt() + 5L))
                 .header("Content-Type", "application/json").header("Accept", "application/json")
+                .header("If-Match", "\"" + context.version().getId() + "\"")
                 .POST(HttpRequest.BodyPublishers.ofString(json));
             headers.forEach(builder::header);
             var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
@@ -97,12 +131,12 @@ public class ManagedTaskOperationsService {
             if (bytes.length > 131072) throw new ResponseStatusException(BAD_GATEWAY, "Runtime task response exceeds the allowed size.");
             JsonNode result = mapper.readTree(new String(bytes, StandardCharsets.UTF_8));
             if (result == null || !result.isObject()) throw new ResponseStatusException(BAD_GATEWAY, "Runtime returned an invalid task response.");
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+            if (result.has("taskCode") || response.statusCode() >= 200 && response.statusCode() < 300) {
                 if (!taskCode.equals(result.path("taskCode").asText()) || !context.version().getId().equals(result.path("configurationVersion").asText())
                     || !config.path("contentHash").asText().equals(result.path("taskConfigurationHash").asText())) {
                     throw new ResponseStatusException(CONFLICT, "Runtime task configuration does not match the selected applied version. Reapply and verify that environment.");
                 }
-                audit.record("MANAGED_TASK_EXECUTED", "DEPLOYMENT", deploymentId, Map.of("taskCode", taskCode,
+                audit.record(auditEvent, "DEPLOYMENT", deploymentId, Map.of("taskCode", taskCode,
                     "versionId", context.version().getId(), "targetProfileId", context.target().getId(), "status", result.path("status").asText()));
             }
             return new Response(response.statusCode(), result);

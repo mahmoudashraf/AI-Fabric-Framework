@@ -83,6 +83,37 @@ class SpecialistAssistanceAuthorityServiceTest {
         assertThat(authority.readActionScopes()).isEmpty();
     }
 
+    @Test
+    void tasksReuseInstalledWritesAndOwnedLocalResourcesWithoutChangingAssistanceAuthority() throws Exception {
+        when(installs.findByDeploymentIdOrderByUpdatedAtDesc("dep-1")).thenReturn(List.of(install("ENABLED")));
+        when(versions.findById("version-1")).thenReturn(Optional.of(version()));
+        JsonNode actions = actions();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) actions.path("actions")).addObject()
+            .put("name", "save_preference").put("accessMode", "WRITE_ONLY").put("confirmationRequired", false)
+            .putArray("requiredScopes").add("preference:write");
+        JsonNode sources = sources();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) sources.path("sources")).addObject()
+            .put("id", "own-guide").put("entityType", "customer-guide").put("enabled", true);
+        var tasks = service.resolveTasks("dep-1", actions, sources);
+        assertThat(tasks.writeActionScopes()).containsOnlyKeys("close_account", "save_preference");
+        assertThat(tasks.writeActionScopes().get("save_preference")).containsExactly("preference:write");
+        assertThat(tasks.vectorSpaces()).containsExactlyInAnyOrder("product-guide", "customer-guide");
+        var assistance = service.resolve("dep-1", actions, sources);
+        assertThat(assistance.writeActionScopes()).isEmpty();
+        assertThat(assistance.vectorSpaces()).containsExactly("product-guide");
+        assertThat(actions.at("/actions/2/confirmationRequired").asBoolean()).isFalse();
+    }
+
+    @Test
+    void tasksCannotAcquireWritesFromDisabledForeignOrReadDeclaredInstalls() throws Exception {
+        when(installs.findByDeploymentIdOrderByUpdatedAtDesc("dep-1")).thenReturn(List.of(install("ENABLED")));
+        when(versions.findById("version-1")).thenReturn(Optional.of(version()));
+        JsonNode actions = actions();
+        ((ObjectNode) actions.path("actions").get(0)).put("accessMode", "WRITE_ONLY");
+        ((ObjectNode) actions.path("actions").get(1)).put("marketplaceInstallId", "foreign");
+        assertThat(service.resolveTasks("dep-1", actions, sources()).writeActionScopes()).isEmpty();
+    }
+
     private DeploymentMarketplacePluginInstallEntity install(String status) {
         var install = new DeploymentMarketplacePluginInstallEntity();
         install.setId("install-1"); install.setDeploymentId("dep-1"); install.setPluginId("plugin-1");

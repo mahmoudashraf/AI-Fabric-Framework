@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.Set;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = {"ai.execution.reviews.enabled", "app.human-review.proposals.enabled"}, havingValue = "true")
 @EnableConfigurationProperties(ReviewProposalProperties.class)
+@Import(RuntimeActionOutcomeConfiguration.class)
 public class ReviewProposalConfiguration {
     public static final SpecialistId SPECIALIST_ID = SpecialistId.of("application-action-review", "1");
     public static final String SPECIALIST_SCOPE = "specialist:application-action-review@1";
@@ -72,24 +74,4 @@ public class ReviewProposalConfiguration {
         );
     }
 
-    @Bean
-    ActionOutcomeProjectorRegistry applicationReviewOutcomeProjectors(
-        ReviewProposalProperties properties, List<ActionOutcomeProjector> existing
-    ) {
-        List<ActionOutcomeProjector> projectors = new ArrayList<>(existing);
-        for (String action : properties.allowedActions()) {
-            if (existing.stream().anyMatch(projector -> action.equals(AIActionNames.normalize(projector.actionName())))) continue;
-            // Never expose raw external handler maps, contact details or internal targets.
-            projectors.add(new ActionOutcomeProjector() {
-                public String actionName() { return action; }
-                public ActionOutcomeView project(ActionResult result) {
-                    boolean completed = result != null && result.isSuccess();
-                    return new ActionOutcomeView(action,
-                        completed ? "The application action completed." : "The application action did not complete.",
-                        Map.of("completed", completed));
-                }
-            });
-        }
-        return new ActionOutcomeProjectorRegistry(projectors);
-    }
 }

@@ -95,7 +95,7 @@ public class DeploymentConfigCompiler {
                     ? specialistAuthority.resolve(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
             behaviorNode = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).compileBehavior(behaviorNode,
                 com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorNode) && specialistAuthority != null
-                    ? specialistAuthority.resolve(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
+                    ? specialistAuthority.resolveTasks(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
             JsonNode effectiveRoutingNode = compileRoutingConfig(
                 actionsNode,
                 routingNode,

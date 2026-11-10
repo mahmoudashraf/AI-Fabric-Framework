@@ -45,13 +45,13 @@ public class ManagedTaskConfiguration {
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
         }
         @Override public boolean canRead(Type type, Class<?> context, MediaType media) {
-            return type == ManagedTaskRequest.class && super.canRead(type, context, media);
+            return (type == ManagedTaskRequest.class || type == ManagedTaskDecisionRequest.class) && super.canRead(type, context, media);
         }
         @Override public boolean canRead(Class<?> type, MediaType media) {
-            return type == ManagedTaskRequest.class && super.canRead(type, media);
+            return (type == ManagedTaskRequest.class || type == ManagedTaskDecisionRequest.class) && super.canRead(type, media);
         }
         @Override public boolean canWrite(Class<?> type, MediaType media) {
-            return (type == ManagedTaskResponse.class || type == ManagedTaskService.TaskCatalogue.class || type == ManagedTaskController.Error.class)
+            return (type == ManagedTaskResponse.class || type == ManagedTaskDecisionResponse.class || type == ManagedTaskService.TaskCatalogue.class || type == ManagedTaskController.Error.class)
                 && super.canWrite(type, media);
         }
     }

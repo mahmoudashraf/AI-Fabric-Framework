@@ -16,10 +16,14 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 final class ManagedTaskFixtures {
     static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
     static ObjectNode fixture() {
-        try (var input = new ClassPathResource("tasks/compiler-generated-managed-tasks.json").getInputStream()) {
+        return fixture("compiler-generated-managed-tasks.json");
+    }
+    static ObjectNode fixture(String name) {
+        try (var input = new ClassPathResource("tasks/" + name).getInputStream()) {
             return (ObjectNode) MAPPER.readTree(input);
         } catch (Exception failure) { throw new IllegalStateException(failure); }
     }
+    static ObjectNode writeFixture() { return fixture("managed-tasks-write-fixture.json"); }
     static ManagedTasksBundle bundle(JsonNode content) {
         try {
             byte[] bytes = MAPPER.writeValueAsBytes(content);
