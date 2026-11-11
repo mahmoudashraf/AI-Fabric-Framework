@@ -2,10 +2,11 @@
 
 Date: 2026-11-10
 
-Status: original synchronous read-only slice deployed and live-qualified on
-staging and production. The governed-write and specialist-reference extension
-is implemented locally against the unpublished 0.8.47 candidate. It has not
-changed any hosted runtime. Qualification limits remain explicit below.
+Status: the governed-write and specialist-reference extension is live in the
+staging and production Platform backend and Console. AI Fabric 0.8.47 was
+published to Maven Central, verified on a staging runtime and promoted as a
+production runtime source artifact. Existing Brains retain their applied
+versions until explicitly updated. Qualification limits remain below.
 
 Owner authorized starting Managed Tasks after the assessment and clarification
 that structured output is not a promise of deterministic reasoning.
@@ -23,9 +24,9 @@ asynchronous `/runs` example remains a proposed later contract, not a live API.
 
 ## Approved Extension: Existing Resources And Governed Writes
 
-Owner decision after initial qualification, 2026-11-10. The currently hosted
-Task endpoint remains read-only; this section records the locally implemented
-extension and the remaining release gate.
+Owner decision after initial qualification, 2026-11-10. This section records
+the extension contract. Brains still using older runtime images retain their
+existing read-only Task behavior.
 
 Keep the separate Task HTTP contract as a thin adapter over existing framework
 execution. Preserve working chat endpoints and their default behaviour. Task
@@ -76,11 +77,10 @@ Local evidence:
   statuses, even when output generation fails; unknown is not treated as no
   effect. Confirmed actions reuse the Brain's PostgreSQL AI-state store; direct
   writes alone do not require it.
-- [ ] Before release: verify a real-provider staging Task with a disposable
-  receiver, direct write, confirmation/rejection and replay, configured review,
-  and legacy read-only Task/chat. Then qualify the published framework artifact
-  and immutable runtime build. Do not upgrade existing customer runtimes as a
-  side effect of local qualification.
+- [x] Real provider with a disposable local receiver: direct write, explicit
+  confirmation, rejection, replay and configured human review. Staging runtime:
+  legacy read-only Task, existing specialist reuse and stale-version rejection.
+  No real customer write receiver or production business action was used.
 
 ### Release Qualification
 
@@ -96,7 +96,42 @@ registered action policy waives confirmation while a proposal is being
 checked, preflight denies instead of dispatching. The final 98 focused
 framework tests and the real-provider canary passed on the rebuilt artifact.
 The immutable framework tag points to `965b2773`. Maven Central publishing
-run: [42923095229](https://github.com/Loom-AI-Labs/ai-fabric-framework/actions/runs/42923095229).
+run [42923095229](https://github.com/Loom-AI-Labs/ai-fabric-framework/actions/runs/42923095229)
+passed. A fresh Maven cache resolved the published BOM and binaries from
+Central, passed the minimal consumer build, and repeated the real-provider
+write canary using the published framework. The full local runtime suite
+passed 803 tests. Core source and Javadoc JARs also resolved from Central.
+
+### 0.8.47 Live Rollout
+
+- Platform commit `0370985e9`; [Core image CI](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42925905672)
+  and [runtime verification/image CI](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/42925905751)
+  passed. The exact backend and Console image digests were verified healthy
+  on both hosts.
+- Staging `dsa-a901f567`, `rel-7e2d84c4`, `ver-e03857f6` reached
+  `APPLIED_VERIFIED` / `PASSED`. A specialist-reference Task and the legacy
+  read-only Task both returned `SUCCEEDED`; stale version returned HTTP 409
+  before dispatch. Neither Task produced a business write.
+- Production artifact `dsa-e3d0bf27`, digest
+  `sha256:ce351484c79ecba16643948378a8e6f4ab4190605000d1e626f81341da651789`,
+  is promoted to production and returned by compatible-artifact discovery
+  for the 0.8.47 fixture version. Production sign-in and the Task route passed
+  authenticated browser checks. No existing Brain or Engage assignment
+  was migrated. The configuration-only production fixture was deleted.
+- Both disposable fixture deletion receipts succeeded: staging
+  `del-179b9c63`, production `del-b0868eb5`. Staging normal deletion hit
+  the existing storage-retirement guard, and customer retirement was
+  denied. Operator cleanup verified exact fixture ownership, removed only
+  its runtime and database with their volumes, and confirmed absence of all
+  three native fixture resources and both volumes before normal
+  reconciliation. No shared networks, images or databases were removed.
+  Northfield `rel-a679937f` and Support `rel-1f5533c5` remain applied and
+  unchanged.
+- The framework-wide CI retains the same 14 Incident Room failures as 0.8.46.
+  Provider Registry and vector-container contracts passed after the skill
+  metadata correction `49a93e22`; the release tag was not moved. Hosted quota
+  CI failed to initialize Docker, and the same test selection passed all 232
+  cases locally with Docker. These jobs are not reported as green.
 
 ## Progress
 

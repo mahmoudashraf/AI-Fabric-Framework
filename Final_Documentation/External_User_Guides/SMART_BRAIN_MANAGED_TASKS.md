@@ -186,8 +186,9 @@ event-operation APIs keep their own separate contracts.
 The original read-only contract needs a runtime image advertising
 `managed-intelligence-tasks`. The governed-write and specialist-reference
 extension additionally requires `managed-task-governed-actions` and normal
-publish/apply and verification. That extension is implemented locally against
-the 0.8.47 release candidate; it is not live-qualified or deployed.
+publish/apply and verification. The Console and Platform support this extension
+in production. The 0.8.47 runtime is available through normal **Updates**;
+an existing Brain must apply a compatible image before it can run the extension.
 Current qualification is recorded in
 `010_68_MANAGED_TASKS_IMPLEMENTATION_RECORD.md`; this document alone is not a
 production deployment receipt.

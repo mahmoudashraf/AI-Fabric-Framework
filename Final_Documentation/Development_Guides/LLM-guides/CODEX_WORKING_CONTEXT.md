@@ -14595,3 +14595,19 @@ test is being called hosted acceptance. UI extraction remains last.
   runtime artifact before applying it. Do not change existing customer targets
   just to qualify the candidate. See the 010.68 implementation record and
   `External_User_Guides/SMART_BRAIN_MANAGED_TASKS.md`.
+
+## 010.68 Governed Task Writes: Live Rollout (2026-11-11)
+
+- Framework 0.8.47 published at immutable `965b2773`, Central run 42923095229
+  passed. Fresh-cache consumer and real OpenAI fixture passed. Proposal
+  preflight now cannot dispatch a handler if its confirmation policy changes.
+- Platform `0370985e9` backend/Console healthy on staging and production.
+  Core CI 42925905672, runtime CI 42925905751 passed. Full local runtime:
+  803 passed. The prior Incident Room failures remain; quota CI's runner
+  Docker issue reproduced, equivalent local Docker selection 232 passed.
+- Staging fixture `rel-7e2d84c4` / `ver-e03857f6` verified and ran an
+  existing-specialist Task plus legacy read-only Task. Production runtime
+  artifact `dsa-e3d0bf27` is promoted and selectable. Production authenticated
+  browser proof passed; no existing Brain or Engage assignment was upgraded.
+- Exact receipts, test limits and cleanup evidence: 010.68 implementation
+  record and private `loomai-managed-tasks-01068/governed-047`.
