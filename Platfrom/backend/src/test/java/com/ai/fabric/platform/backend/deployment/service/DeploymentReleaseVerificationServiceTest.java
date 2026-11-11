@@ -62,6 +62,71 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void releaseExpectsOnlyEnabledActionsAndStillRejectsUnexpectedActiveReadback(boolean unexpectedEnabledAction) throws Exception {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        var version = version();
+        var configured = (ObjectNode) objectMapper.readTree(version.getActionsConfigJson());
+        var disabled = configured.withArray("actions").addObject().put("name", "schema_example").put("enabled", false)
+            .put("accessMode", "WRITE_ONLY").put("resultPresentationHint", "STATUS")
+            .put("builtInModuleId", "disabled-module").put("builtInCardId", "disabled-card");
+        disabled.putObject("provenance").put("sourceType", "ACTION_CATALOG");
+        disabled.putArray("postPolicies").addObject().put("type", "WEBHOOK").put("targetRef", "global-target");
+        configured.putArray("webhookTargets").addObject().put("id", "global-target").put("url", "https://receiver.example/events");
+        version.setActionsConfigJson(configured.toString());
+        var artifacts = artifactBundle();
+        Object expectations = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version, release(), artifacts, null);
+
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNames"))
+            .isEqualTo(Set.of("list_products", "view_cart"));
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNamesWithProvenance"))
+            .isEqualTo(Set.of("list_products", "view_cart"));
+        for (String field : List.of("expectedActionNamesWithPresentationHints", "expectedActionNamesWithBuiltInModuleMappings",
+            "expectedActionNamesWithBuiltInCardMappings")) {
+            assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, field)).isEqualTo(Set.of("list_products"));
+        }
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNamesWithPostActionWebhookPolicies")).isEmpty();
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(expectations, "expectedPostActionWebhookPoliciesCount")).isZero();
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedConfirmationInterceptorNames"))
+            .isEqualTo(Set.of("offer_cart_retention"));
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedWebhookTargetIds")).isEqualTo(Set.of("global-target"));
+        assertThat(version.getActionsConfigJson()).isEqualTo(configured.toString());
+
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        registerRuntimeHandlers(server, artifacts); server.start();
+        try {
+            var headers = Map.of(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER, "trusted-backend-secret",
+                RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER, "Bearer rpa1.fixture");
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            Object overviewProbe = ReflectionTestUtils.invokeMethod(service, "probeJson", base, "/api/admin/overview", headers);
+            Object actionsProbe = ReflectionTestUtils.invokeMethod(service, "probeJson", base, "/api/admin/actions/overview", headers);
+            ObjectNode overview = ReflectionTestUtils.invokeMethod(overviewProbe, "body");
+            ObjectNode actions = ReflectionTestUtils.invokeMethod(actionsProbe, "body");
+            for (ObjectNode body : List.of(overview, actions)) {
+                body.put("webhookTargetsCount", 1).putArray("webhookTargetIds").add("global-target");
+            }
+            if (unexpectedEnabledAction) {
+                overview.put("actionsCount", 3); actions.put("count", 3);
+                actions.withArray("actions").addObject().put("name", "schema_example").put("enabled", true)
+                    .put("resultPresentationHint", "STATUS").put("builtInModuleId", "disabled-module")
+                    .put("builtInCardId", "disabled-card").putObject("provenance").put("sourceType", "ACTION_CATALOG");
+            }
+            var checks = objectMapper.createArrayNode();
+            ReflectionTestUtils.invokeMethod(service, "validateRuntimeOverview", checks, overviewProbe, expectations);
+            ReflectionTestUtils.invokeMethod(service, "validateRuntimeActions", checks, actionsProbe, expectations);
+            var focused = StreamSupport.stream(checks.spliterator(), false)
+                .filter(check -> Set.of("runtime_config_matches_expected", "runtime_actions_match_expected",
+                    "runtime_action_metadata_matches_expected").contains(check.path("name").asText())).toList();
+            assertThat(focused).hasSize(3);
+            for (JsonNode check : focused) {
+                assertThat(check.path("status").asText()).as(check.path("name").asText())
+                    .isEqualTo(unexpectedEnabledAction ? "FAILED" : "PASSED");
+            }
+        } finally { server.stop(0); }
+    }
+
     @Test
     void taskReleaseReadbackRequiresExactPublishedCatalogueAndRegisteredReadiness() throws Exception {
         var compiler = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper);

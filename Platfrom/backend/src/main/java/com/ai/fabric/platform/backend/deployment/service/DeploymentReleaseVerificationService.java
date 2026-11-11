@@ -1313,9 +1313,12 @@ public class DeploymentReleaseVerificationService {
         JsonNode routingConfig = compileRoutingExpectations(deployment, version);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
-        JsonNode actions = actionsConfig.path("actions");
-        if (actions.isArray()) {
-            for (JsonNode action : actions) {
+        ArrayNode actions = objectMapper.createArrayNode();
+        JsonNode configuredActions = actionsConfig.path("actions");
+        if (configuredActions.isArray()) {
+            for (JsonNode action : configuredActions) {
+                if (!action.path("enabled").asBoolean(true)) continue;
+                actions.add(action);
                 String name = action.path("name").asText("").trim();
                 if (hasText(name)) {
                     expectedActionNames.add(name);
@@ -1382,17 +1385,17 @@ public class DeploymentReleaseVerificationService {
         boolean expectedShellGreetingConfigured = hasText(shellConfig.path("greeting").path("message").asText(""))
             || hasText(shellConfig.path("greeting").path("title").asText(""));
         Set<String> expectedActionNamesWithPresentationHints = new LinkedHashSet<>(
-            expectedActionNamesWithPresentationHints(actionsConfig.path("actions"))
+            expectedActionNamesWithPresentationHints(actions)
         );
         expectedActionNamesWithPresentationHints.addAll(expectedServerOwnedRuntimeActionNames);
         expectedActionNamesWithPresentationHints.remove(SpecialistAssistanceCompiler.ACTION);
-        Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
-        Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
+        Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actions, "builtInModuleId");
+        Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actions, "builtInCardId");
         Set<String> expectedActionNamesWithProvenance = new LinkedHashSet<>(expectedActionNames);
         expectedActionNamesWithProvenance.remove(SpecialistAssistanceCompiler.ACTION);
-        Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
+        Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actions, "postPolicies");
         Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
-        int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
+        int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actions);
         LinkedHashSet<String> expectedRuntimeMigrationIds = new LinkedHashSet<>(
             deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig).migrationIds()
         );
