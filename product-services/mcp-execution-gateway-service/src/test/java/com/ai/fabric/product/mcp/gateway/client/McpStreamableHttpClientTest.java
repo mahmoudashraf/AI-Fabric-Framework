@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -15,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,8 +28,7 @@ class McpStreamableHttpClientTest {
     void initializeAppliesConfiguredReadTimeout() throws Exception {
         HttpServer server = slowMcpServer(Duration.ofMillis(1_500));
         try {
-            McpStreamableHttpClient client = new McpStreamableHttpClient(
-                RestClient.builder(),
+            McpStreamableHttpClient client = new McpTestClients(
                 objectMapper,
                 properties(Duration.ofMillis(100), Duration.ofMillis(100))
             );
@@ -53,8 +50,7 @@ class McpStreamableHttpClientTest {
     void initializeFailsExplicitlyOnRedirect() throws Exception {
         HttpServer server = redirectingMcpServer();
         try {
-            McpStreamableHttpClient client = new McpStreamableHttpClient(
-                RestClient.builder(),
+            McpStreamableHttpClient client = new McpTestClients(
                 objectMapper,
                 properties(Duration.ofMillis(500), Duration.ofMillis(500))
             );
@@ -62,7 +58,7 @@ class McpStreamableHttpClientTest {
             assertThatThrownBy(() -> client.initialize(endpoint(server), null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
                     assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY);
-                    assertThat(exception).hasMessageContaining("MCP server returned HTTP 302 redirect to /password");
+                    assertThat(exception).hasMessageContaining("MCP server request failed");
                 });
         } finally {
             server.stop(0);
@@ -73,8 +69,7 @@ class McpStreamableHttpClientTest {
     void rejectsBlockedAndMalformedOutboundHeadersBeforeSendingRequest() throws Exception {
         HttpServer server = slowMcpServer(Duration.ZERO);
         try {
-            McpStreamableHttpClient client = new McpStreamableHttpClient(
-                RestClient.builder(),
+            McpStreamableHttpClient client = new McpTestClients(
                 objectMapper,
                 properties(Duration.ofMillis(500), Duration.ofMillis(500))
             );
@@ -112,8 +107,7 @@ class McpStreamableHttpClientTest {
         AtomicReference<JsonNode> toolsListRequest = new AtomicReference<>();
         HttpServer server = toolsListMcpServer(toolsListRequest);
         try {
-            McpStreamableHttpClient client = new McpStreamableHttpClient(
-                RestClient.builder(),
+            McpStreamableHttpClient client = new McpTestClients(
                 objectMapper,
                 properties(Duration.ofMillis(500), Duration.ofMillis(500))
             );
@@ -200,16 +194,19 @@ class McpStreamableHttpClientTest {
     }
 
     private HttpServer toolsListMcpServer(AtomicReference<JsonNode> toolsListRequest) throws IOException {
-        AtomicInteger requests = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/mcp", exchange -> {
             try {
                 JsonNode request = objectMapper.readTree(exchange.getRequestBody());
-                boolean initialize = requests.getAndIncrement() == 0;
+                if (!request.has("id")) {
+                    exchange.sendResponseHeaders(202, -1);
+                    return;
+                }
+                boolean initialize = "initialize".equals(request.path("method").asText());
                 if (!initialize) {
                     toolsListRequest.set(request);
                 }
-                byte[] response = (initialize ? """
+                String responseBody = (initialize ? """
                     {
                       "jsonrpc": "2.0",
                       "id": 1,
@@ -225,7 +222,10 @@ class McpStreamableHttpClientTest {
                       "id": 2,
                       "result": {"tools": [{"name": "search_catalog", "inputSchema": {"type": "object"}}]}
                     }
-                    """).getBytes(StandardCharsets.UTF_8);
+                    """);
+                com.fasterxml.jackson.databind.node.ObjectNode correlated = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(responseBody);
+                correlated.set("id", request.path("id"));
+                byte[] response = objectMapper.writeValueAsBytes(correlated);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, response.length);
                 exchange.getResponseBody().write(response);

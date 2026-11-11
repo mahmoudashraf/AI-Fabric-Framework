@@ -38,8 +38,10 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,6 +100,7 @@ public class McpGatewayExecutionService {
     private final McpGatewayProperties properties;
     private final Environment environment;
     private final RestClient tokenRestClient;
+    private final McpNativeSchemaValidator nativeSchemas = new McpNativeSchemaValidator();
 
     public McpGatewayExecutionService(McpStreamableHttpClient mcpClient,
                                       ObjectMapper objectMapper,
@@ -133,22 +136,20 @@ public class McpGatewayExecutionService {
             URI endpoint = resolveEndpoint(serverRef, null, trace, server, server);
             Map<String, String> headers = resolveAuthHeaders(trace, server.path("auth"));
             McpStreamableHttpClient.McpRequestOptions options =
-                McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
-            McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-            JsonNode listArguments = resolveToolsListArguments(trace, server);
-            JsonNode result = listArguments.isEmpty()
-                ? mcpClient.toolsList(session, options)
-                : mcpClient.toolsList(session, listArguments, options);
-            List<McpToolSummary> tools = summarizeTools(result, request.allowedTools());
-            return new DiscoveryResponse(
-                true,
-                "MCP tools/list completed.",
-                serverRef,
-                endpoint.toString(),
-                session.protocolVersion(),
-                tools,
-                null
-            );
+                requestOptions(headers, server);
+            try (McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options)) {
+                JsonNode result = listAllTools(session, resolveToolsListArguments(trace, server), options);
+                List<McpToolSummary> tools = summarizeTools(result, request.allowedTools());
+                return new DiscoveryResponse(
+                    true,
+                    "MCP tools/list completed.",
+                    serverRef,
+                    endpoint.toString(),
+                    session.protocolVersion(),
+                    tools,
+                    null
+                );
+            }
         } catch (RuntimeException ex) {
             return new DiscoveryResponse(
                 false,
@@ -157,7 +158,7 @@ public class McpGatewayExecutionService {
                 null,
                 properties.protocolVersion(),
                 List.of(),
-                "MCP_DISCOVERY_FAILED"
+                ex instanceof McpCatalogueException ? "MCP_DISCOVERY_INCOMPLETE" : protocolErrorCode(ex, "MCP_DISCOVERY_FAILED")
             );
         }
     }
@@ -225,6 +226,9 @@ public class McpGatewayExecutionService {
             if (!present) {
                 status = "TOOL_MISSING";
                 blockingDrift = true;
+            } else if (requiresTaskExecution(actual.execution())) {
+                status = "TASK_EXECUTION_REQUIRED";
+                blockingDrift = true;
             } else if (!schemaMatches) {
                 status = "SCHEMA_DRIFT";
                 if (schemaDriftBlocks(policy)) {
@@ -263,15 +267,18 @@ public class McpGatewayExecutionService {
             URI endpoint = resolveEndpoint(serverRef, request, trace, server, server);
             Map<String, String> headers = resolveAuthHeaders(trace, server.path("auth"));
             McpStreamableHttpClient.McpRequestOptions options =
-                McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
-            McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-            JsonNode result = mcpClient.toolsCall(
-                session,
-                request.toolName(),
-                objectMapper.valueToTree(request.arguments() == null ? Map.of() : request.arguments()),
-                options
-            );
-            return new ToolsResultResponse(true, "MCP tools/call completed.", serverRef, request.toolName(), result, null);
+                requestOptions(headers, server);
+            try (McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options)) {
+                JsonNode result = mcpClient.toolsCall(
+                    session,
+                    request.toolName(),
+                    objectMapper.valueToTree(request.arguments() == null ? Map.of() : request.arguments()),
+                    options
+                );
+                boolean failed = result.path("isError").asBoolean(false);
+                return new ToolsResultResponse(!failed, failed ? "MCP tool reported an error." : "MCP tools/call completed.",
+                    serverRef, request.toolName(), result, failed ? "MCP_TOOL_ERROR" : null);
+            }
         } catch (RuntimeException ex) {
             return new ToolsResultResponse(
                 false,
@@ -279,18 +286,21 @@ public class McpGatewayExecutionService {
                 request == null ? null : request.serverRef(),
                 request == null ? null : request.toolName(),
                 null,
-                "MCP_EXECUTION_FAILED"
+                protocolErrorCode(ex, "MCP_EXECUTION_FAILED")
             );
         }
     }
 
     public ActionExecuteResponse executeAction(ActionExecuteRequest request) {
+        boolean writeAction = false;
+        boolean toolCallStarted = false;
         try {
             JsonNode trace = objectMapper.valueToTree(request.trace() == null ? Map.of() : request.trace());
             JsonNode actionConfig = firstObject(
                 objectMapper.valueToTree(request.actionConfig() == null ? Map.of() : request.actionConfig()),
                 trace.path("actionConfig")
             );
+            writeAction = Set.of("WRITE_ONLY", "READ_WRITE").contains(normalizedEnum(text(actionConfig, "accessMode")));
             JsonNode mcp = findMcpExecution(trace, actionConfig);
             if (!mcp.isObject()) {
                 return failure("INVALID_MCP_ACTION_CONFIG", "MCP action config requires execution.mcp.");
@@ -307,37 +317,85 @@ public class McpGatewayExecutionService {
             URI endpoint = resolveEndpoint(serverRef, request, trace, mcp, serverBinding);
             JsonNode arguments = renderArguments(request, trace, mcp.path("argumentTemplate"));
             validateRequiredAnyArguments(mcp, arguments);
-            validateArgumentsAgainstActionParams(actionConfig, arguments);
+            if (actionConfig.has("inputSchema")) {
+                nativeSchemas.validate(actionConfig.get("inputSchema"), arguments, "input");
+            } else {
+                validateArgumentsAgainstActionParams(actionConfig, arguments);
+            }
+            if (requiresTaskExecution(mcp)) {
+                return failure("MCP_TASK_EXECUTION_REQUIRED", "MCP tool requires asynchronous task execution, which is not enabled.");
+            }
+            if (actionConfig.has("outputSchema")) {
+                nativeSchemas.compile(actionConfig.get("outputSchema"));
+            }
             Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
-                McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
+                requestOptions(headers, serverBinding);
             ToolVerificationResult drift = null;
             JsonNode result;
             if (usesDirectJsonRpcToolCall(mcp, serverBinding)) {
+                toolCallStarted = true;
                 result = mcpClient.toolsCall(endpoint, toolName, arguments, options);
             } else {
-                McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-                drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp, serverBinding, trace);
-                if (drift != null && (!drift.present() || !drift.schemaMatches()) && schemaDriftBlocks(drift.schemaDriftPolicy())) {
-                    return failure(
-                        "MCP_SCHEMA_DRIFT",
-                        "MCP tool schema verification failed for " + toolName + "."
-                    );
+                try (McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options)) {
+                    drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp, serverBinding, trace);
+                    if (drift != null && "TASK_EXECUTION_REQUIRED".equals(drift.status())) {
+                        return failure("MCP_TASK_EXECUTION_REQUIRED", "MCP tool requires asynchronous task execution, which is not enabled.");
+                    }
+                    if (drift != null && (!drift.present() || !drift.schemaMatches()) && schemaDriftBlocks(drift.schemaDriftPolicy())) {
+                        return failure(
+                            "MCP_SCHEMA_DRIFT",
+                            "MCP tool schema verification failed for " + toolName + "."
+                        );
+                    }
+                    toolCallStarted = true;
+                    result = mcpClient.toolsCall(session, toolName, arguments, options);
                 }
-                result = mcpClient.toolsCall(session, toolName, arguments, options);
+            }
+            if (!result.path("isError").asBoolean(false) && actionConfig.has("outputSchema")) {
+                nativeSchemas.validate(actionConfig.get("outputSchema"), result.path("structuredContent"), "output");
             }
             return normalizeResult(serverRef, toolName, actionConfig, mcp, result, drift);
+        } catch (McpNativeSchemaValidator.ContractException ex) {
+            if (writeAction && toolCallStarted && !"output".equals(ex.contract())) {
+                return unknownWriteOutcome();
+            }
+            return failure(switch (ex.contract()) {
+                case "input" -> "INVALID_MCP_ACTION_ARGUMENTS";
+                case "output" -> "MCP_TOOL_OUTPUT_SCHEMA_MISMATCH";
+                default -> "INVALID_MCP_ACTION_CONFIG";
+            }, ex.getMessage() + (writeAction && toolCallStarted ?
+                " The operation may have completed. Check the target system before retrying; the gateway did not retry." : ""));
         } catch (McpAuthGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
         } catch (McpArgumentGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
+        } catch (McpStreamableHttpClient.RequestConfigurationException ex) {
+            return failure("INVALID_MCP_ACTION_CONFIG", safeReason(ex, "MCP request configuration is invalid."));
+        } catch (McpStreamableHttpClient.UpstreamAuthException ex) {
+            return failure(ex.errorCode(), safeReason(ex, "MCP upstream access was denied."));
         } catch (IllegalArgumentException ex) {
+            if (writeAction && toolCallStarted) {
+                return unknownWriteOutcome();
+            }
             return failure("INVALID_MCP_ACTION_CONFIG", ex.getMessage());
         } catch (ResponseStatusException ex) {
-            return failure("MCP_EXECUTION_FAILED", safeReason(ex, "MCP execution failed."));
+            if (writeAction && toolCallStarted) {
+                return unknownWriteOutcome();
+            }
+            return failure(protocolErrorCode(ex, "MCP_EXECUTION_FAILED"), safeReason(ex, "MCP execution failed."));
         } catch (Exception ex) {
+            if (writeAction && toolCallStarted) {
+                return unknownWriteOutcome();
+            }
             return failure("MCP_EXECUTION_FAILED", "MCP execution failed.");
         }
+    }
+
+    private ActionExecuteResponse unknownWriteOutcome() {
+        return failure("MCP_EXECUTION_OUTCOME_UNKNOWN",
+            "The write operation may have completed, but its outcome could not be confirmed. "
+                + "Check the target system before retrying; the gateway did not retry.");
     }
 
     private List<McpToolSummary> summarizeTools(JsonNode result, List<String> allowedTools) {
@@ -365,7 +423,9 @@ public class McpGatewayExecutionService {
                 text(tool, "description"),
                 inputSchema.isMissingNode() ? objectMapper.createObjectNode() : inputSchema.deepCopy(),
                 outputSchema.isMissingNode() ? objectMapper.createObjectNode() : outputSchema.deepCopy(),
-                schemaHash(name, inputSchema, outputSchema)
+                schemaHash(name, inputSchema, outputSchema),
+                tool.path("annotations").isMissingNode() ? objectMapper.createObjectNode() : tool.path("annotations").deepCopy(),
+                tool.path("execution").isMissingNode() ? objectMapper.createObjectNode() : tool.path("execution").deepCopy()
             ));
         }
         return List.copyOf(out);
@@ -386,7 +446,11 @@ public class McpGatewayExecutionService {
     }
 
     private JsonNode canonicalSchema(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
+        return canonicalSchema(node, false, false);
+    }
+
+    private JsonNode canonicalSchema(JsonNode node, boolean propertyMap, boolean literal) {
+        if (node == null || node.isMissingNode()) {
             return objectMapper.createObjectNode();
         }
         if (node.isObject()) {
@@ -394,15 +458,22 @@ public class McpGatewayExecutionService {
             List<String> names = new ArrayList<>();
             node.fieldNames().forEachRemaining(names::add);
             names.stream()
-                .filter(name -> !CANONICAL_HASH_IGNORED_FIELDS.contains(name))
+                .filter(name -> propertyMap || literal || !CANONICAL_HASH_IGNORED_FIELDS.contains(name))
                 .sorted()
-                .forEach(name -> out.set(name, canonicalSchema(sortableArray(name, node.path(name)))));
+                .forEach(name -> {
+                    boolean childLiteral = literal || (!propertyMap && Set.of("const", "enum").contains(name));
+                    boolean childMap = !literal && !propertyMap && Set.of(
+                        "properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"
+                    ).contains(name);
+                    JsonNode child = propertyMap || literal ? node.path(name) : sortableArray(name, node.path(name));
+                    out.set(name, canonicalSchema(child, childMap, childLiteral));
+                });
             return out;
         }
         if (node.isArray()) {
             ArrayNode out = objectMapper.createArrayNode();
             for (JsonNode child : node) {
-                out.add(canonicalSchema(child));
+                out.add(canonicalSchema(child, false, literal));
             }
             return out;
         }
@@ -433,9 +504,7 @@ public class McpGatewayExecutionService {
             return null;
         }
         JsonNode listArguments = resolveToolsListArguments(trace, mcp, serverBinding);
-        JsonNode toolsResult = listArguments.isEmpty()
-            ? mcpClient.toolsList(session, options)
-            : mcpClient.toolsList(session, listArguments, options);
+        JsonNode toolsResult = listAllTools(session, listArguments, options);
         List<McpToolSummary> tools = summarizeTools(toolsResult, List.of(toolName));
         McpToolSummary actual = tools.stream()
             .filter(tool -> toolName.equals(tool.name()))
@@ -451,8 +520,67 @@ public class McpGatewayExecutionService {
             expectedHash.trim(),
             actual == null ? null : actual.schemaHash(),
             policy,
-            present ? schemaMatches ? "OK" : "SCHEMA_DRIFT" : "TOOL_MISSING"
+            present ? requiresTaskExecution(actual.execution()) ? "TASK_EXECUTION_REQUIRED"
+                : schemaMatches ? "OK" : "SCHEMA_DRIFT" : "TOOL_MISSING"
         );
+    }
+
+    private McpStreamableHttpClient.McpRequestOptions requestOptions(Map<String, String> headers, JsonNode server) {
+        return new McpStreamableHttpClient.McpRequestOptions(properties.protocolVersion(), headers, text(server, "transport"));
+    }
+
+    private boolean requiresTaskExecution(JsonNode execution) {
+        return "required".equals(execution.path("taskSupport").asText());
+    }
+
+    private JsonNode listAllTools(McpStreamableHttpClient.McpSession session, JsonNode arguments,
+                                   McpStreamableHttpClient.McpRequestOptions options) {
+        long deadline = System.nanoTime() + properties.discoveryTimeout().toNanos();
+        Set<String> cursors = new HashSet<>();
+        Set<String> names = new HashSet<>();
+        ObjectNode catalogue = objectMapper.createObjectNode();
+        ArrayNode tools = catalogue.putArray("tools");
+        String cursor = null;
+        long bytes = 0;
+        for (int page = 0; page < properties.maxDiscoveryPages(); page++) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                throw new McpCatalogueException("MCP tools/list exceeded the discovery deadline; catalogue is incomplete.");
+            }
+            JsonNode result = mcpClient.toolsList(session, cursor, arguments, options, Duration.ofNanos(remaining));
+            if (System.nanoTime() > deadline || result == null || !result.path("tools").isArray()) {
+                throw new McpCatalogueException("MCP tools/list did not return a complete valid catalogue.");
+            }
+            bytes += result.toString().getBytes(StandardCharsets.UTF_8).length;
+            if (bytes > properties.maxCatalogueBytes()) {
+                throw new McpCatalogueException("MCP tools/list exceeded the catalogue byte limit; catalogue is incomplete.");
+            }
+            for (JsonNode tool : result.path("tools")) {
+                String name = text(tool, "name");
+                if (!StringUtils.hasText(name) || !names.add(name)) {
+                    throw new McpCatalogueException("MCP tools/list contains missing or duplicate tool identities; catalogue is incomplete.");
+                }
+                if (tools.size() >= properties.maxTools()) {
+                    throw new McpCatalogueException("MCP tools/list exceeded the tool limit; catalogue is incomplete.");
+                }
+                tools.add(tool.deepCopy());
+            }
+            JsonNode next = result.path("nextCursor");
+            if (next.isMissingNode() || next.isNull()) {
+                return catalogue;
+            }
+            if (!next.isTextual() || next.asText().isEmpty() || !cursors.add(next.asText())) {
+                throw new McpCatalogueException("MCP tools/list returned an invalid or repeated cursor; catalogue is incomplete.");
+            }
+            cursor = next.asText();
+        }
+        throw new McpCatalogueException("MCP tools/list exceeded the page limit; catalogue is incomplete.");
+    }
+
+    private static final class McpCatalogueException extends IllegalArgumentException {
+        private McpCatalogueException(String message) {
+            super(message);
+        }
     }
 
     private void validateRequiredAnyArguments(JsonNode mcp, JsonNode arguments) {
@@ -1359,6 +1487,29 @@ public class McpGatewayExecutionService {
             }
             return Map.of(headerName.trim(), secretValue.trim());
         }
+        if ("MULTIPLE_HEADERS_SECRET_REFS".equals(mode)) {
+            JsonNode configured = auth.path("headers");
+            if (!configured.isArray() || configured.isEmpty() || configured.size() > properties.maxAuthHeaders()) {
+                throw new IllegalArgumentException("MCP multiple-header auth requires a bounded nonempty headers array.");
+            }
+            Map<String, String> headers = new LinkedHashMap<>();
+            Set<String> names = new HashSet<>();
+            for (JsonNode entry : configured) {
+                String name = text(entry, "headerName");
+                if (!"Authorization".equalsIgnoreCase(name)) {
+                    validateApiKeyHeader(name);
+                }
+                if (!names.add(name.toUpperCase(Locale.ROOT))) {
+                    throw new IllegalArgumentException("MCP multiple-header auth contains duplicate header names.");
+                }
+                String value = resolveSecretValue(trace, text(entry, "secretRef"));
+                if (!StringUtils.hasText(value)) {
+                    throw new IllegalArgumentException("MCP multiple-header auth secret is not available.");
+                }
+                headers.put(name, value.trim());
+            }
+            return Map.copyOf(headers);
+        }
         if ("OAUTH2_CLIENT_CREDENTIALS".equals(mode)) {
             String accessToken = fetchClientCredentialsToken(trace, auth, false);
             return Map.of(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
@@ -1484,6 +1635,7 @@ public class McpGatewayExecutionService {
         boolean jsonRequest = shopifyAgenticCheckout || "JSON".equals(normalizedEnum(text(auth, "tokenRequestFormat", "requestFormat")));
         String scope = text(auth, "scope", "scopes");
         String audience = text(auth, "audience");
+        String resource = text(auth, "resource");
         try {
             JsonNode response;
             if (jsonRequest) {
@@ -1496,6 +1648,9 @@ public class McpGatewayExecutionService {
                 }
                 if (StringUtils.hasText(audience)) {
                     payload.put("audience", audience.trim());
+                }
+                if (StringUtils.hasText(resource)) {
+                    payload.put("resource", resource.trim());
                 }
                 response = tokenRestClient.post()
                     .uri(tokenUri)
@@ -1514,6 +1669,9 @@ public class McpGatewayExecutionService {
                 }
                 if (StringUtils.hasText(audience)) {
                     form.add("audience", audience.trim());
+                }
+                if (StringUtils.hasText(resource)) {
+                    form.add("resource", resource.trim());
                 }
                 response = tokenRestClient.post()
                     .uri(tokenUri)
@@ -1832,6 +1990,10 @@ public class McpGatewayExecutionService {
             return statusException.getReason();
         }
         return StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : fallback;
+    }
+
+    private String protocolErrorCode(RuntimeException failure, String fallback) {
+        return failure instanceof McpStreamableHttpClient.UpstreamAuthException auth ? auth.errorCode() : fallback;
     }
 
     private ActionExecuteResponse failure(String errorCode, String message) {

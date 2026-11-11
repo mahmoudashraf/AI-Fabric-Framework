@@ -79,7 +79,9 @@ public final class McpGatewayContracts {
         String description,
         JsonNode inputSchema,
         JsonNode outputSchema,
-        String schemaHash
+        String schemaHash,
+        JsonNode annotations,
+        JsonNode execution
     ) {
     }
 

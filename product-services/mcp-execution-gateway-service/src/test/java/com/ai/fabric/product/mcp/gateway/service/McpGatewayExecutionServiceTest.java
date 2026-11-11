@@ -112,7 +112,7 @@ class McpGatewayExecutionServiceTest {
             objectMapper.createObjectNode()
         );
         when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
-        when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
+        when(client.toolsList(eq(session), any(), any(), any(), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
                 {
@@ -136,7 +136,7 @@ class McpGatewayExecutionServiceTest {
             Map.of(),
             java.util.List.of()
         ));
-        when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
+        when(client.toolsList(eq(session), any(), any(), any(), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
                 {
@@ -166,7 +166,7 @@ class McpGatewayExecutionServiceTest {
         assertThat(second.ready()).isTrue();
         assertThat(first.tools()).hasSize(1);
         assertThat(second.tools()).hasSize(1);
-        assertThat(first.tools().getFirst().schemaHash()).isEqualTo(second.tools().getFirst().schemaHash());
+        assertThat(first.tools().get(0).schemaHash()).isEqualTo(second.tools().get(0).schemaHash());
     }
 
     @Test
@@ -191,7 +191,7 @@ class McpGatewayExecutionServiceTest {
         );
         ArgumentCaptor<JsonNode> listArguments = ArgumentCaptor.forClass(JsonNode.class);
         when(client.initialize(eq(URI.create("https://example.com/ucp/mcp")), any())).thenReturn(session);
-        when(client.toolsList(eq(session), listArguments.capture(), any())).thenReturn(objectMapper.readTree("""
+        when(client.toolsList(eq(session), any(), listArguments.capture(), any(), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
                 {"name": "search_catalog", "inputSchema": {"type": "object"}}
@@ -932,7 +932,7 @@ class McpGatewayExecutionServiceTest {
             objectMapper.createObjectNode()
         );
         when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
-        when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
+        when(client.toolsList(eq(session), any(), any(), any(), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
                 {
@@ -972,7 +972,7 @@ class McpGatewayExecutionServiceTest {
             objectMapper.createObjectNode()
         );
         when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
-        when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
+        when(client.toolsList(eq(session), any(), any(), any(), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
                 {
@@ -999,14 +999,14 @@ class McpGatewayExecutionServiceTest {
             Map.of(),
             List.of(new ExpectedTool(
                 "inventory.search",
-                discovery.tools().getFirst().schemaHash(),
+                discovery.tools().get(0).schemaHash(),
                 "BLOCK_RELEASE"
             ))
         ));
 
         assertThat(response.ready()).isTrue();
         assertThat(response.tools()).hasSize(1);
-        assertThat(response.tools().getFirst().status()).isEqualTo("OK");
+        assertThat(response.tools().get(0).status()).isEqualTo("OK");
     }
 
     @Test

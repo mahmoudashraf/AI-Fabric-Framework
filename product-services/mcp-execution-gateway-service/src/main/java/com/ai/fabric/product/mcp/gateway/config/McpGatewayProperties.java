@@ -1,6 +1,7 @@
 package com.ai.fabric.product.mcp.gateway.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -18,9 +19,26 @@ public record McpGatewayProperties(
     boolean environmentSecretResolutionEnabled,
     String environmentSecretRefPrefix,
     Duration connectTimeout,
-    Duration readTimeout
+    Duration readTimeout,
+    int maxResponseBytes,
+    int maxTools,
+    int maxDiscoveryPages,
+    int maxCatalogueBytes,
+    Duration discoveryTimeout,
+    int maxAuthHeaders
 ) {
 
+    public McpGatewayProperties(String serviceRef, String environmentScope, String internalApiKey,
+                                String internalApiKeyHeader, String protocolVersion,
+                                List<String> apiKeyHeaderAllowlist, List<String> profileRefAllowlist,
+                                boolean environmentSecretResolutionEnabled, String environmentSecretRefPrefix,
+                                Duration connectTimeout, Duration readTimeout) {
+        this(serviceRef, environmentScope, internalApiKey, internalApiKeyHeader, protocolVersion,
+            apiKeyHeaderAllowlist, profileRefAllowlist, environmentSecretResolutionEnabled,
+            environmentSecretRefPrefix, connectTimeout, readTimeout, 0, 0, 0, 0, null, 0);
+    }
+
+    @ConstructorBinding
     public McpGatewayProperties {
         serviceRef = normalize(serviceRef, "mcp-execution-gateway-local");
         environmentScope = normalize(environmentScope, "local");
@@ -40,6 +58,12 @@ public record McpGatewayProperties(
         environmentSecretRefPrefix = normalize(environmentSecretRefPrefix, "MCP_SECRET_");
         connectTimeout = validDuration(connectTimeout, Duration.ofSeconds(5));
         readTimeout = validDuration(readTimeout, Duration.ofSeconds(30));
+        maxResponseBytes = maxResponseBytes > 0 ? maxResponseBytes : 2 * 1024 * 1024;
+        maxTools = maxTools > 0 ? maxTools : 500;
+        maxDiscoveryPages = maxDiscoveryPages > 0 ? maxDiscoveryPages : 100;
+        maxCatalogueBytes = maxCatalogueBytes > 0 ? maxCatalogueBytes : 8 * 1024 * 1024;
+        discoveryTimeout = validDuration(discoveryTimeout, Duration.ofSeconds(60));
+        maxAuthHeaders = maxAuthHeaders > 0 ? maxAuthHeaders : 8;
     }
 
     public boolean internalApiKeyConfigured() {

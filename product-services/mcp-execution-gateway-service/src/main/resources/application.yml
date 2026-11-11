@@ -30,7 +30,15 @@ mcp:
     environment-secret-ref-prefix: ${MCP_GATEWAY_ENVIRONMENT_SECRET_REF_PREFIX:MCP_SECRET_}
     connect-timeout: ${MCP_GATEWAY_CONNECT_TIMEOUT:PT5S}
     read-timeout: ${MCP_GATEWAY_READ_TIMEOUT:PT30S}
+    max-response-bytes: ${MCP_GATEWAY_MAX_RESPONSE_BYTES:2097152}
+    max-tools: ${MCP_GATEWAY_MAX_TOOLS:500}
+    max-discovery-pages: ${MCP_GATEWAY_MAX_DISCOVERY_PAGES:100}
+    max-catalogue-bytes: ${MCP_GATEWAY_MAX_CATALOGUE_BYTES:8388608}
+    discovery-timeout: ${MCP_GATEWAY_DISCOVERY_TIMEOUT:PT60S}
+    max-auth-headers: ${MCP_GATEWAY_MAX_AUTH_HEADERS:8}
 
 logging:
   level:
     com.ai.fabric.product.mcp.gateway: INFO
+    # The SDK can include raw server messages in INFO/WARN logs. Keep payloads out of operational logs.
+    io.modelcontextprotocol: ERROR
