@@ -68,6 +68,17 @@ class DeploymentSetupCheckServiceTest {
         assertThat(result.services()).allMatch(item -> "NOT_TESTED".equals(item.status()));
         verifyNoInteractions(http); verify(access).requireDeploymentAccess(deployment);
     }
+    @Test void savedMcpMetadataEvidenceJoinsExistingSummaryWithoutExecutingTools() {
+        var mcp = mock(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(checks, "mcpReadiness", mcp);
+        when(mcp.inspect(eq("dep-one"), any())).thenReturn(java.util.List.of(new SetupCheckContracts.ServiceResult(
+            "mcp-one", "Public documentation", "VERIFIED", "Saved tool metadata is current; business tools were not executed.",
+            java.time.Instant.now(), java.util.List.of("search_docs"), null)));
+        var result = checks.inspect("dep-one");
+        assertThat(result.verifiedCount()).isEqualTo(1);
+        verify(mcp).inspect(eq("dep-one"), any());
+        verifyNoMoreInteractions(mcp); verifyNoInteractions(http);
+    }
     @Test void sharedActionsUseOneSafeGetNotBusinessEndpoints() {
         actions("CUSTOMER_ONE_KEY", "/health");
         var result = checks.run("dep-one", ALL);

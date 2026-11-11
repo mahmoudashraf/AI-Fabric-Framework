@@ -175,7 +175,7 @@ public class MarketplaceMcpDiscoveryService {
         );
     }
 
-    private ObjectNode buildManifest(MarketplaceMcpImportDraftRequest request, MarketplaceMcpDiscoverySummary discovery) {
+    ObjectNode buildManifest(MarketplaceMcpImportDraftRequest request, MarketplaceMcpDiscoverySummary discovery) {
         ObjectNode manifest = objectMapper.createObjectNode();
         manifest.put("schemaVersion", 1);
         manifest.put("pluginId", normalizeId(request.pluginId(), "pluginId"));
@@ -201,7 +201,7 @@ public class MarketplaceMcpDiscoveryService {
         discovery.tools().forEach(tool -> allowedTools.add(tool.name()));
         ObjectNode verification = server.putObject("verification");
         verification.put("mode", "INITIALIZE_AND_TOOLS_LIST");
-        verification.put("schemaDriftPolicy", "WARN_ONLY");
+        verification.put("schemaDriftPolicy", "BLOCK_RELEASE");
 
         ArrayNode actions = contributions.putArray("actions");
         for (MarketplaceMcpDiscoverySummary.McpToolSummary tool : discovery.tools()) {
@@ -209,7 +209,13 @@ public class MarketplaceMcpDiscoveryService {
             action.put("actionId", actionIdForTool(tool.name()));
             action.put("displayName", firstNonBlank(tool.title(), tool.name()));
             action.put("adapterType", "mcp-tool");
-            action.put("readOnly", true);
+            action.put("accessMode", "READ_WRITE");
+            action.put("requiresConfirmation", true);
+            action.put("anonymousAllowed", false);
+            action.put("groundingEligible", false);
+            action.put("readActionResolutionEligible", false);
+            action.set("inputSchema", tool.inputSchema());
+            if (tool.outputSchema() != null && !tool.outputSchema().isNull()) action.set("outputSchema", tool.outputSchema());
             action.put("description", firstNonBlank(tool.description(), "Discovered MCP tool " + tool.name() + "."));
             ObjectNode execution = action.putObject("execution");
             execution.put("adapterType", "mcp-tool");
@@ -217,7 +223,7 @@ public class MarketplaceMcpDiscoveryService {
             mcp.put("serverRef", discovery.serverRef());
             mcp.put("toolName", tool.name());
             mcp.put("toolSchemaHash", tool.schemaHash());
-            mcp.put("schemaDriftPolicy", "WARN_ONLY");
+            mcp.put("schemaDriftPolicy", "BLOCK_RELEASE");
         }
         return manifest;
     }

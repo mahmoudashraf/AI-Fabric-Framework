@@ -119,6 +119,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final ObjectMapper objectMapper;
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
+    @Autowired
+    private com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness mcpReadiness;
     private DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService;
     private CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private DeploymentAiStateStorageBindingService aiStateStorageBindings;
@@ -2262,9 +2264,29 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private void ensureManagedProductDependencies(DeploymentTargetProfileEntity profile,
                                                   DeploymentVersionEntity version,
                                                   ProvisioningProgressTracker progressTracker) {
-        if (!hasMcpToolActions(readJson(version.getActionsConfigJson()))) {
+        JsonNode actionsConfig = readJson(version.getActionsConfigJson());
+        if (!hasMcpToolActions(actionsConfig)) {
             return;
         }
+        boolean managed = false;
+        boolean legacy = false;
+        for (JsonNode action : actionsConfig.path("actions")) {
+            if (!"mcp-tool".equalsIgnoreCase(action.path("adapterType").asText())
+                && !action.path("execution").path("mcp").isObject()) continue;
+            if (action.path("execution").path("mcp").path("connectionId").isTextual()) managed = true;
+            else legacy = true;
+        }
+        if (managed) {
+            JsonNode effective = readJson(version.getManifestJson()).path("actionsConfig");
+            if (mcpReadiness == null || !effective.isObject()) throw new ResponseStatusException(
+                HttpStatus.CONFLICT, "Managed MCP connections require their published action artifact and metadata verifier.");
+            tracked(progressTracker, "verify_mcp_connections", "Verify bound MCP authorization and tool schemas without executing business tools.", () -> {
+                mcpReadiness.verify(version.getDeploymentId(), profile.getId(), effective);
+                return true;
+            });
+        }
+        // Brokered actions use Platform's existing gateway, not a runtime-owned service.
+        if (!legacy) return;
         if (platformManagedProductProvisioningService == null) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,

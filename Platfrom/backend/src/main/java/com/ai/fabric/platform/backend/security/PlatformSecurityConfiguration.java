@@ -130,6 +130,9 @@ public class PlatformSecurityConfiguration {
             deskActivation, customerIdentities, deskClient, targetProfiles, objectMapper), AnonymousAuthenticationFilter.class);
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/platform/auth/customer-recovery").permitAll();
+            // These integrations validate single-use OAuth state or exact runtime-target authority themselves.
+            authorize.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/mcp/oauth/callback", "/api/mcp/oauth/client-metadata").permitAll();
+            authorize.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/mcp/runtime/*/*/actions/execute").permitAll();
             authorize.requestMatchers("/internal/v1/deployment-lifecycle/**")
                 .hasAuthority(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter.AUTHORITY);
             authorize.requestMatchers(

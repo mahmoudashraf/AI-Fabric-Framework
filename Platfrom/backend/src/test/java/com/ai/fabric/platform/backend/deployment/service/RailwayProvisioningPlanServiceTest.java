@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -2572,6 +2573,22 @@ class RailwayProvisioningPlanServiceTest {
                 "SHOPIFY_BRIDGE_SHARED_SECRET",
                 "${secret:MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY}"
             );
+    }
+
+    @Test
+    void mixedMcpConfigurationCannotInjectManagedConnectionKeysIntoRuntime() throws Exception {
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            mock(DeploymentArtifactService.class), new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class), new ObjectMapper());
+        var config = new ObjectMapper().readTree("""
+            {"mcpServers":[
+              {"serverRef":"legacy","auth":{"secretRef":"MCP_SECRET_LEGACY"}},
+              {"serverRef":"managed","connectionId":"owned","auth":{"secretRef":"MCP_SECRET_OWNED"}}
+            ]}
+            """);
+        Set<String> refs = ReflectionTestUtils.invokeMethod(service, "collectMcpSecretRefs", config);
+        assertThat(refs).containsExactly("MCP_SECRET_LEGACY");
     }
 
     @Test

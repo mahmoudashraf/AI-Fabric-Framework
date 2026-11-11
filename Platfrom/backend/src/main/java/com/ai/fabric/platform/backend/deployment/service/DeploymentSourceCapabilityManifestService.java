@@ -232,6 +232,12 @@ public class DeploymentSourceCapabilityManifestService {
         );
     }
 
+    public void requireManagedMcpSupport(JsonNode manifest) {
+        // Older runtimes cannot execute owned connection handles without receiving upstream credentials.
+        requireContains(manifest.path("capabilities"),
+            List.of(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.RUNTIME_CAPABILITY), "capabilities");
+    }
+
     public void requireExternalHttpIntegrationSupport(JsonNode manifest) {
         if (manifest == null || !manifest.isObject() || manifest.isEmpty()) {
             throw new ResponseStatusException(

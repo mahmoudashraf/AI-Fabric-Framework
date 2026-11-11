@@ -686,7 +686,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addDocumentKnowledgeEnv(runtimeEnv, deployment, marketplaceDatasetConfig, targetProfileId);
         addRuntimeConnectorAuthEnv(runtimeEnv, deployment, securityConfig);
-        addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
+        addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig, targetProfileId);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeOrchestrationModeOverrides(runtimeEnv, providerConfig);
@@ -2022,10 +2022,25 @@ public class RailwayProvisioningPlanService {
 
     private void addRuntimeMcpGatewayEnv(List<RailwayEnvVarSummary> runtimeEnv,
                                          DeploymentEntity deployment,
-                                         JsonNode actionsConfig) {
+                                         JsonNode actionsConfig, String targetProfileId) {
         if (!hasMcpToolActions(actionsConfig)) {
             return;
         }
+        boolean managed = false;
+        boolean legacy = false;
+        for (JsonNode action : actionsConfig.path("actions")) {
+            if (!"mcp-tool".equals(action.path("adapterType").asText()) && !action.path("execution").path("mcp").isObject()) continue;
+            if (action.path("execution").path("mcp").path("connectionId").isTextual()
+                && !action.path("execution").path("mcp").path("connectionId").asText().isBlank()) managed = true;
+            else legacy = true;
+        }
+        if (managed) {
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MCP_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MCP_PLATFORM_BASE_URL", deliveryProperties.publicBaseUrl()));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MCP_DEPLOYMENT_ID", deployment.getId()));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MCP_TARGET_PROFILE_ID", targetProfileId));
+        }
+        if (!legacy) return;
         if (platformManagedProductServiceRepository == null) {
             throw new IllegalStateException("MCP tool actions require the managed MCP execution gateway service repository.");
         }
@@ -2099,6 +2114,9 @@ public class RailwayProvisioningPlanService {
             return;
         }
         if (node.isObject()) {
+            // Managed connection credentials belong only to the Platform broker,
+            // including when the same Brain also contains legacy MCP actions.
+            if (node.path("connectionId").isTextual() && !node.path("connectionId").asText().isBlank()) return;
             node.elements().forEachRemaining(child -> collectMcpSecretRefs(child, secretRefs));
             return;
         }

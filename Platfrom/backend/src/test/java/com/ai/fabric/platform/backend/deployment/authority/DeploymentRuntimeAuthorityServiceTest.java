@@ -99,6 +99,33 @@ class DeploymentRuntimeAuthorityServiceTest {
         assertThat(env.runtime()).containsKeys("AI_EXECUTION_ASYNC_ENCRYPTION_SECRET", "AI_EXECUTION_ASYNC_FINGERPRINT_SECRET");
     }
 
+    @Test void ownedMcpConnectionsGetSeparateTargetKeysWithoutUpstreamCredentials() {
+        version.setActionsConfigJson("{\"actions\":[{\"name\":\"docs\",\"adapterType\":\"mcp-tool\",\"execution\":{\"mcp\":{\"connectionId\":\"mcp-1\"}}}]}");
+        var staging = freeze("staging"); var production = freeze("production");
+        assertThat(staging.binding().secrets()).containsKey(MCP_EXECUTION_API_KEY);
+        assertThat(key(staging, MCP_EXECUTION_API_KEY)).isNotEqualTo(key(production, MCP_EXECUTION_API_KEY));
+        var plan = service.candidateEnvironmentPlan("dep-1", "staging", "version-1", staging.snapshotId(), staging.fingerprint());
+        assertThat(plan.runtime()).containsEntry("LOOMAI_MCP_EXECUTION_API_KEY",
+            "${secret:" + staging.binding().secrets().get(MCP_EXECUTION_API_KEY).reference() + "}");
+        assertThat(plan.connector()).doesNotContainKey("LOOMAI_MCP_EXECUTION_API_KEY");
+    }
+
+    @Test void legacyMcpDoesNotAcquireAnUnneededPlatformExecutionKey() {
+        version.setActionsConfigJson("{\"actions\":[{\"name\":\"legacy\",\"execution\":{\"mcp\":{\"serverRef\":\"legacy\"}}}]}");
+        assertThat(freeze("staging").binding().secrets()).doesNotContainKey(MCP_EXECUTION_API_KEY);
+    }
+
+    @Test void mcpCallerMustPresentTheExactCurrentTargetKey() {
+        version.setActionsConfigJson("{\"actions\":[{\"execution\":{\"mcp\":{\"connectionId\":\"mcp-1\"}}}]}");
+        var staged = release("staging", "release-mcp");
+        var current = releases.findById(staged.releaseId()).orElseThrow();
+        assertThat(service.authenticateMcpRuntime(deployment, version, current, key(staged, MCP_EXECUTION_API_KEY))).isEqualTo(staged);
+        assertThatThrownBy(() -> service.authenticateMcpRuntime(deployment, version, current, "foreign-key"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("authenticated MCP runtime");
+        assertThatThrownBy(() -> service.authenticateMcpRuntime(deployment, version, current, ""))
+            .isInstanceOf(ResponseStatusException.class);
+    }
+
     @Test void lifecycleIssuingRequiresAnActualPersistedCommandClaimNotAnAmbientOperator() {
         var frozen = release("staging", "release-lifecycle");
         var release = releases.findById(frozen.releaseId()).orElseThrow();

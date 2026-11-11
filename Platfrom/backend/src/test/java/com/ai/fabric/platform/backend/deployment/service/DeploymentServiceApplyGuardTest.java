@@ -324,6 +324,18 @@ class DeploymentServiceApplyGuardTest {
     }
 
     @Test
+    void olderRuntimeCannotApplyAPlatformManagedMcpConnection() throws Exception {
+        prepareTokenApply();
+        version.setActionsConfigJson("{\"actions\":[{\"name\":\"docs\",\"adapterType\":\"mcp-tool\",\"execution\":{\"mcp\":{\"connectionId\":\"owned\"}}}]}");
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("managed-mcp-connections");
+        verifyNoInteractions(deploymentReleaseExecutionService, deploymentOperationApprovalService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void standaloneCanonicalArtifactRejectionPrecedesApprovalConsumptionAndReleasePersistence() throws Exception {
         prepareTokenApply();
         version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");

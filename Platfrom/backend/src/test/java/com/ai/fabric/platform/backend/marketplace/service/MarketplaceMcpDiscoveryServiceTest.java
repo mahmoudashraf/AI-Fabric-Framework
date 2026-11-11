@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.marketplace.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpDiscoveryRequest;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpDiscoverySummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpImportDraftRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
@@ -36,6 +37,28 @@ import static org.mockito.Mockito.when;
 class MarketplaceMcpDiscoveryServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test void importedToolDoesNotAcquireReadOrAnonymousAuthorityAndRetainsNativeSchema() throws Exception {
+        var service = new MarketplaceMcpDiscoveryService(properties(), mock(PlatformManagedProductServiceService.class),
+            mock(PlatformSecretService.class), mock(MarketplacePluginRepository.class), mock(MarketplacePluginVersionRepository.class),
+            mock(MarketplaceManifestService.class), mock(PlatformAuditService.class), objectMapper);
+        var input = objectMapper.readTree("{\"type\":\"object\",\"properties\":{\"value\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"value\"]}");
+        var output = objectMapper.readTree("{\"type\":\"object\"}");
+        var discovery = new MarketplaceMcpDiscoverySummary(true, "Ready", "server-1", "https://example.test/mcp", "2025-11-25",
+            List.of(new MarketplaceMcpDiscoverySummary.McpToolSummary("tool.one", "One", "An unverified business tool.", input, output, "hash-1")), null);
+        var request = new MarketplaceMcpImportDraftRequest("mcp-example", "mcp-example", "Example", "Example tools", "1.0.0", "server-1",
+            Map.of("auth", Map.of("mode", "NONE")), Map.of(), List.of(), null, null, null);
+        JsonNode manifest = service.buildManifest(request, discovery);
+        JsonNode action = manifest.path("contributions").path("actions").get(0);
+        assertThat(action.has("readOnly")).isFalse();
+        assertThat(action.path("accessMode").asText()).isEqualTo("READ_WRITE");
+        assertThat(action.path("requiresConfirmation").asBoolean()).isTrue();
+        assertThat(action.path("anonymousAllowed").asBoolean(true)).isFalse();
+        assertThat(action.path("groundingEligible").asBoolean(true)).isFalse();
+        assertThat(action.get("inputSchema")).isEqualTo(input);
+        assertThat(action.get("outputSchema")).isEqualTo(output);
+        assertThat(action.at("/execution/mcp/schemaDriftPolicy").asText()).isEqualTo("BLOCK_RELEASE");
+    }
 
     @Test
     void mcpDiscoveryAndImportArePlatformAdminOnly() throws Exception {

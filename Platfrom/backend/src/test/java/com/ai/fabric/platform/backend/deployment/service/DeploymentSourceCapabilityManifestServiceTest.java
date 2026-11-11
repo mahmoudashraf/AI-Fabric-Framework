@@ -22,6 +22,21 @@ class DeploymentSourceCapabilityManifestServiceTest {
         new DeploymentSourceCapabilityManifestService(objectMapper);
 
     @Test
+    void managedMcpRequiresItsActualRuntimeBridgeWithoutRestrictingLegacyActions() throws Exception {
+        var capability = com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.RUNTIME_CAPABILITY;
+        var old = objectMapper.createObjectNode().putArray("capabilities").add("ai-fabric-core");
+        var manifest = objectMapper.createObjectNode().set("capabilities", old);
+        assertThatThrownBy(() -> service.requireManagedMcpSupport(manifest)).hasMessageContaining(capability);
+        old.add(capability); service.requireManagedMcpSupport(manifest);
+        assertThat(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(objectMapper.readTree(
+            "{\"actions\":[{\"adapterType\":\"mcp-tool\",\"execution\":{\"mcp\":{\"toolName\":\"legacy\"}}}]}"))).isFalse();
+        assertThat(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(objectMapper.readTree(
+            "{\"actions\":[{\"execution\":{\"mcp\":{\"connectionId\":\"owned\"}}}]}"))).isTrue();
+        assertThat(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(objectMapper.readTree(
+            "{\"actions\":[{\"enabled\":false,\"execution\":{\"mcp\":{\"connectionId\":\"owned\"}}}]}"))).isFalse();
+    }
+
+    @Test
     void conversationalSpecialistAssistanceRequiresItsRealRuntimeMarkerNotAFabricatedPackagedBundle() {
         var config = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper);
         var requirements = new DeploymentBehaviorCatalogService(objectMapper).releaseRequirements(config);

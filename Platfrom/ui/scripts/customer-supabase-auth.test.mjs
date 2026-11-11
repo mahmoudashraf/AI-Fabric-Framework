@@ -77,6 +77,22 @@ test('an expired customer SDK session must not fall back to a staff credential',
   setPlatformAccessTokenProvider(null)
 })
 
+test('only MCP authorization can bind a browser cookie while retaining customer authentication', async () => {
+  const path = '/api/deployments/dep-1/mcp-connections/mcp-1/authorize?targetProfileId=staging'
+  setPlatformAccessTokenProvider(async () => 'customer-token')
+  try {
+    assert.deepEqual(await platformCredentials(path, 'staff-key', 'browser-bound'), {
+      credentials: 'include', headers: { Authorization: 'Bearer customer-token' },
+    })
+    assert.equal((await platformCredentials(path, 'staff-key')).credentials, 'omit')
+    for (const other of ['/api/deployments', '/api/deployments/dep-1/mcp-connections/mcp-1/discover', 'https://foreign.test/api/authorize']) {
+      await assert.rejects(platformCredentials(other, 'staff-key', 'browser-bound'))
+    }
+    setPlatformAccessTokenProvider(async () => null)
+    await assert.rejects(platformCredentials(path, 'staff-key', 'browser-bound'), /Customer session expired/)
+  } finally { setPlatformAccessTokenProvider(null) }
+})
+
 test('an already-cancelled Platform command never resolves credentials or dispatches', async () => {
   const originalFetch = globalThis.fetch
   let credentials = 0, dispatched = 0

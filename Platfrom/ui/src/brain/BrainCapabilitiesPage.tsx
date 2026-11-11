@@ -6,6 +6,7 @@ import ExtensionRoundedIcon from '@mui/icons-material/ExtensionRounded'
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined'
+import CableRoundedIcon from '@mui/icons-material/CableRounded'
 import {
   Alert, Box, Button, Chip, Divider, IconButton, InputAdornment, Link, List, ListItemButton,
   ListItemText, Pagination, Stack, Tab, Tabs, TextField, Tooltip, Typography, Checkbox, FormControlLabel,
@@ -21,6 +22,7 @@ import { ActionsPage, type ActionTechnicalView } from '../pages/ActionsPage'
 import { MarketplacePage } from '../pages/MarketplacePage'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
 import { useBrainWorkspace } from './BrainWorkspaceContext'
+import { McpConnections } from '../mcp/McpConnections'
 
 type RecordValue = Record<string, unknown>
 type Capability = {
@@ -100,12 +102,13 @@ const pageSx = {
 } as const
 
 export function BrainCapabilitiesPage() {
-  const { brainId, href } = useBrainWorkspace()
+  const { brainId, targetProfileId, href } = useBrainWorkspace()
   const location = useLocation()
   const match = useMatch('/smart-brains/:brainId/capabilities/*')
   const detailKey = match?.params['*'] ?? ''
   const available = detailKey === 'add'
   const params = new URLSearchParams(location.search)
+  const mcpView = params.get('view') === 'mcp' || params.has('mcp')
   const technical = params.get('view') === 'technical'
   const connection = params.get('view') === 'connection'
   const selectedPluginId = params.get('pluginId') ?? ''
@@ -162,6 +165,9 @@ export function BrainCapabilitiesPage() {
   const libraryHref = `/library/plugins?${libraryParams}`
   const creatorHref = `/library/plugins/new/data?${libraryParams}`
 
+  if (mcpView) return <McpConnections key={`${brainId}:${targetProfileId}`} brainId={brainId} targetProfileId={targetProfileId}
+    canManage={workspaceQuery.data?.access.canAdmin === true} canImport={workspaceQuery.data?.access.canEdit === true} actionsConfig={draftQuery.data?.actionsConfig} href={href} />
+
   if (setup && selectedPlugin || connection && selected?.install) {
     const pluginId = setup ? selectedPlugin!.id : selected!.install!.pluginId
     const label = setup ? selectedPlugin!.displayName : selected!.install!.pluginDisplayName
@@ -178,6 +184,7 @@ export function BrainCapabilitiesPage() {
 
   return <Box sx={pageSx}>
     <BrainPageHeader title={dataSourcesOnly ? 'Add knowledge' : 'What your AI can do'} action={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+      {!dataSourcesOnly ? <Button component={RouterLink} to={link('capabilities', { view: 'mcp', mcp: 'connect' })} startIcon={<CableRoundedIcon />} disabled={!workspaceQuery.data?.access.canAdmin}>Connect MCP</Button> : null}
       {available ? <>
         <Button component={RouterLink} to={libraryHref} startIcon={<ExtensionRoundedIcon />}>My plugins</Button>
         <Button component={RouterLink} to={creatorHref} variant="outlined" startIcon={<AddRoundedIcon />}>Create a data plugin</Button>
@@ -192,6 +199,7 @@ export function BrainCapabilitiesPage() {
         <Tabs value={available ? 'available' : 'connected'} aria-label="Capability views" sx={{ flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
           <Tab component={RouterLink} to={href('capabilities')} label={`Connected (${rows.length})`} value="connected" />
           <Tab component={RouterLink} to={href('capabilities/add')} label="Available" value="available" />
+          {!dataSourcesOnly ? <Tab component={RouterLink} to={link('capabilities', { view: 'mcp' })} label="MCP connections" value="mcp" /> : null}
         </Tabs>
         {dataSourcesOnly && <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5 }}>Data sources <Link component={RouterLink} to={href('capabilities/add')} sx={{ ml: 1 }}>All capabilities</Link></Typography>}
         {available ? <Tabs value={catalogueView} onChange={(_, value) => { setCatalogueView(value); setPage(1) }} aria-label="Plugin sources" sx={{ mt: 1 }}>
@@ -268,6 +276,11 @@ export function BrainCapabilitiesPage() {
 
 function CapabilitySettings({ row, href, connectionHref, technicalHref }: { row: Capability; href: (section?: string) => string; connectionHref: string; technicalHref: string }) {
   const inputs = row.action ? capabilityInputs(row.action) : []
+  const mcp = row.action?.adapterType === 'mcp-tool' ? record(record(row.action.execution).mcp) : null
+  const [mcpPath, mcpQuery] = href('capabilities').split('?')
+  const mcpParams = new URLSearchParams(mcpQuery)
+  mcpParams.set('view', 'mcp')
+  if (text(mcp?.connectionId)) mcpParams.set('mcp', text(mcp?.connectionId))
   return <Stack spacing={2.5} sx={{ pb: 2 }}>
     <Box><Typography variant="subtitle2">What happens</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{row.purpose}</Typography></Box>
     {row.action ? <>
@@ -279,7 +292,8 @@ function CapabilitySettings({ row, href, connectionHref, technicalHref }: { row:
         <Link component={RouterLink} to={technicalHref} fontSize={13}>Edit action access &amp; requirements</Link></Box>
     </> : null}
     <Divider />
-    <Box><Typography variant="subtitle2">Connected destination</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{row.install?.pluginDisplayName ?? 'Configured action route'}</Typography>
+    <Box><Typography variant="subtitle2">Connected destination</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{mcp ? `MCP tool: ${text(mcp.toolName) || 'Not declared'}` : row.install?.pluginDisplayName ?? 'Configured action route'}</Typography>
+      {mcp ? <><Typography variant="caption" color="text.secondary" display="block">Connection {text(mcp.serverRef) || text(mcp.connectionId) || 'Not declared'}</Typography><Button component={RouterLink} to={`${mcpPath}?${mcpParams}`} size="small" sx={{ px: 0, mt: .5 }}>View MCP connection</Button></> : null}
       {row.install ? <Button component={RouterLink} to={connectionHref} size="small" sx={{ px: 0, mt: .5 }}>View connection</Button> : null}
       {row.kind === 'knowledge' || Boolean(row.install?.contributions.knowledgeSourceIds.length) ? <Link component={RouterLink} to={href('knowledge')} sx={{ display: 'block', mt: 1 }}>Open knowledge sources</Link> : null}
       {row.install?.contributions.conversationChannel ? <Link component={RouterLink} to={href('human-support')} sx={{ display: 'block', mt: 1 }}>Open human support</Link> : null}

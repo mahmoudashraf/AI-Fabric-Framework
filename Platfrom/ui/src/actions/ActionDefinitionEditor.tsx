@@ -10,6 +10,9 @@ import {
 } from '@mui/material'
 import { ConfigurationDetails } from '../components/ConfigurationSurface'
 import { parseExactObject, stringifyExactJson } from '../lib/losslessJson'
+import { useOptionalBrainWorkspace } from '../brain/BrainWorkspaceContext'
+import { McpActionDestination } from '../mcp/McpActionDestination'
+import { mcpActionDestination, mcpLocalSettings, replaceMcpLocalSettings } from '../mcp/actionConfiguration'
 import {
   ACTION_ACCESS_MODES, ACTION_PARAM_SOURCES, ACTION_PARAM_TYPES, ACTION_RENAME_MESSAGE, ACTION_RESULT_HINTS,
   actionNameError, actionRemovalBlock, appendActionDefinition, appendActionParameter,
@@ -60,6 +63,7 @@ const parameterJsonHelp: Record<ActionParameterJsonField, string> = {
 }
 
 export function ActionDefinitionEditor({ editorValue, onChange, disabled = false, initialActionName, routedActionNames = [], onEditRoute }: Props) {
+  const brain = useOptionalBrainWorkspace()
   const catalogue = useMemo(() => {
     try { return { ...readActionCatalogue(editorValue), error: null } }
     catch (error) { return { actions: [], root: {}, error: error instanceof Error ? error.message : 'Invalid actions JSON.' } }
@@ -78,6 +82,7 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
     ? selection.index : namedIndex >= 0 ? namedIndex : Math.min(selection.index, catalogue.actions.length - 1)
   const candidate = catalogue.actions[index]
   const action = isJsonObject(candidate) ? candidate : null
+  const mcp = mcpActionDestination(action)
   const name = action ? text(action, 'name') : ''
   const params = useMemo(() => {
     try { return { values: action ? readActionParams(action) : [], error: null } }
@@ -149,7 +154,7 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
           <TextField size="small" label="Category" value={text(action, 'category')} disabled={disabled}
             placeholder="e.g. orders" onChange={event => patch({ category: event.target.value })} />
         </Box>
-        {onEditRoute && name ? <Button startIcon={<RouteRounded />} sx={{ alignSelf: 'flex-start' }}
+        {mcp ? <McpActionDestination action={action} destination={mcp} capabilitiesHref={brain?.href('capabilities')} /> : onEditRoute && name ? <Button startIcon={<RouteRounded />} sx={{ alignSelf: 'flex-start' }}
           onClick={() => onEditRoute(name)}>HTTP route for {name}</Button> : null}
 
         <ConfigurationDetails label="Result presentation">
@@ -184,21 +189,23 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
 
         <ConfigurationDetails label={`Input parameters (${params.values.length})`}>
           <Stack spacing={2}>
+            {mcp ? <Typography variant="body2" color="text.secondary">Parameter names, types and requirements come from the read-only native schema. Local descriptions, missing-input collection, typed defaults and trusted resolvers remain configurable.</Typography> : null}
             {params.error ? <Alert severity="error">{params.error}</Alert> : <>
               {params.values.length === 0 ? <Alert severity="info">No input parameters.</Alert> : null}
               {params.values.map((param, paramIndex) => <Box key={paramIndex} sx={{ borderBottom: 1, borderColor: 'divider', pb: 2 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
                   <Typography variant="subtitle2">Parameter {paramIndex + 1}</Typography>
-                  <Tooltip title={`Remove parameter ${paramIndex + 1}`}><span><IconButton size="small" aria-label={`Remove parameter ${paramIndex + 1}`}
+                  {!mcp ? <Tooltip title={`Remove parameter ${paramIndex + 1}`}><span><IconButton size="small" aria-label={`Remove parameter ${paramIndex + 1}`}
                     disabled={disabled} onClick={() => mutate(() => removeActionParameter(editorValue, index, paramIndex))}><DeleteOutlineRounded fontSize="small" /></IconButton></span></Tooltip>
+                    : null}
                 </Stack>
                 {!isJsonObject(param) ? <Alert severity="error">This parameter is not a JSON object. Repair it in Advanced action JSON.</Alert> : <Stack spacing={1.5}>
                   <Box sx={fields}>
-                    <TextField size="small" label="Parameter name" required disabled={disabled} value={text(param, 'name')}
+                    <TextField size="small" label="Parameter name" required disabled={disabled} InputProps={{ readOnly: Boolean(mcp) }} value={text(param, 'name')}
                       error={!text(param, 'name').trim() || params.values.some((other, otherIndex) => otherIndex !== paramIndex && isJsonObject(other) && other.name === param.name)}
-                      helperText="Required; unique in this action. Example: orderReference."
+                      helperText={mcp ? 'Exact imported name. Refresh the source tools to change its schema.' : 'Required; unique in this action. Example: orderReference.'}
                       onChange={event => patchParam(paramIndex, { name: event.target.value })} />
-                    <TextField select size="small" label="Type" required disabled={disabled} value={text(param, 'type')}
+                    <TextField select size="small" label="Type" required disabled={disabled || Boolean(mcp)} value={text(param, 'type')}
                       error={!ACTION_PARAM_TYPES.some(type => type === param.type)}
                       onChange={event => patchParam(paramIndex, { type: event.target.value })}>
                       {!ACTION_PARAM_TYPES.some(type => type === param.type) ? <MenuItem value={text(param, 'type')}>{text(param, 'type') || 'Select type'}</MenuItem> : null}
@@ -215,36 +222,36 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
                     </TextField>
                   </Box>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <FormControlLabel control={<Checkbox checked={param.required === true} disabled={disabled}
+                    <FormControlLabel control={<Checkbox checked={param.required === true} disabled={disabled || Boolean(mcp)}
                       onChange={event => patchParam(paramIndex, { required: event.target.checked })} />} label="Required" />
                     <FormControlLabel control={<Checkbox checked={param.askUser !== false} disabled={disabled}
                       onChange={event => patchParam(paramIndex, { askUser: event.target.checked })} />} label="Ask user for missing value" />
                   </Stack>
                   {param.visibility === 'INTERNAL' || param.askUser === false ? <Alert severity="info">Missing values need trusted runtime context when Ask user is off. Source does not change resolver or evidence rules.</Alert> : null}
-                  <ConfigurationDetails label="Defaults & validation">
+                  <ConfigurationDetails label={mcp ? 'Local default & sensitivity' : 'Defaults & validation'}>
                     <Stack spacing={2}>
                       {parameterJsonControl(param, paramIndex, 'defaultValue')}
-                      {parameterJsonControl(param, paramIndex, 'allowedValues')}
-                      <Box sx={fields}>
+                      {!mcp ? parameterJsonControl(param, paramIndex, 'allowedValues') : null}
+                      {!mcp ? <Box sx={fields}>
                         <ParameterIntegerField label="Minimum (min)" value={param.min} disabled={disabled} onChange={value => patchParam(paramIndex, { min: value })} />
                         <ParameterIntegerField label="Maximum (max)" value={param.max} disabled={disabled} onChange={value => patchParam(paramIndex, { max: value })} />
-                      </Box>
+                      </Box> : null}
                       <FormControlLabel control={<Checkbox checked={param.sensitive === true} disabled={disabled}
                         onChange={event => patchParam(paramIndex, { sensitive: event.target.checked })} />} label="Sensitive value" />
                     </Stack>
                   </ConfigurationDetails>
-                  <ConfigurationDetails label="Trusted input & nested schema">
+                  <ConfigurationDetails label={mcp ? 'Trusted input' : 'Trusted input & nested schema'}>
                     <Stack spacing={2}>
                       {parameterJsonControl(param, paramIndex, 'resolveFrom')}
-                      {param.type === 'ARRAY' || param.items !== undefined ? parameterJsonControl(param, paramIndex, 'items') : null}
-                      {param.type === 'OBJECT' || param.properties !== undefined ? parameterJsonControl(param, paramIndex, 'properties') : null}
-                      {param.type === 'OBJECT' || param.requiredProperties !== undefined ? parameterJsonControl(param, paramIndex, 'requiredProperties') : null}
+                      {!mcp && (param.type === 'ARRAY' || param.items !== undefined) ? parameterJsonControl(param, paramIndex, 'items') : null}
+                      {!mcp && (param.type === 'OBJECT' || param.properties !== undefined) ? parameterJsonControl(param, paramIndex, 'properties') : null}
+                      {!mcp && (param.type === 'OBJECT' || param.requiredProperties !== undefined) ? parameterJsonControl(param, paramIndex, 'requiredProperties') : null}
                     </Stack>
                   </ConfigurationDetails>
                 </Stack>}
               </Box>)}
-              <Button startIcon={<AddRounded />} variant="outlined" disabled={disabled} sx={{ alignSelf: 'flex-start' }}
-                onClick={() => mutate(() => appendActionParameter(editorValue, index))}>Add parameter</Button>
+              {!mcp ? <Button startIcon={<AddRounded />} variant="outlined" disabled={disabled} sx={{ alignSelf: 'flex-start' }}
+                onClick={() => mutate(() => appendActionParameter(editorValue, index))}>Add parameter</Button> : null}
             </>}
           </Stack>
         </ConfigurationDetails>
@@ -270,7 +277,7 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
         <Divider />
         <Button startIcon={<CodeRounded />} variant="text" disabled={disabled} sx={{ alignSelf: 'flex-start' }} onClick={() => {
           setJsonError(null)
-          setJsonEdit({ source: editorValue, index, value: stringifyExactJson(action, 2) })
+          setJsonEdit({ source: editorValue, index, value: stringifyExactJson(mcp ? mcpLocalSettings(action) : action, 2) })
         }}>Advanced action JSON</Button>
       </>}
     </>}
@@ -300,11 +307,11 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
     </Dialog>
 
     <Dialog open={jsonEdit !== null} onClose={() => setJsonEdit(null)} fullWidth maxWidth="md" aria-labelledby="action-json-title">
-      <DialogTitle id="action-json-title">{jsonEdit?.field ? parameterJsonLabels[jsonEdit.field] : 'Advanced action JSON'}</DialogTitle>
+      <DialogTitle id="action-json-title">{jsonEdit?.field ? parameterJsonLabels[jsonEdit.field] : mcp ? 'Advanced local action JSON' : 'Advanced action JSON'}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
-        <TextField fullWidth multiline minRows={jsonEdit?.field ? 6 : 16} maxRows={24} label={jsonEdit?.field ? `${parameterJsonLabels[jsonEdit.field]} JSON` : 'Action definition JSON'} value={jsonEdit?.value ?? ''}
+        <TextField fullWidth multiline minRows={jsonEdit?.field ? 6 : 16} maxRows={24} label={jsonEdit?.field ? `${parameterJsonLabels[jsonEdit.field]} JSON` : mcp ? 'Local action settings JSON' : 'Action definition JSON'} value={jsonEdit?.value ?? ''}
           disabled={disabled || jsonStale} onChange={event => { setJsonEdit(current => current ? { ...current, value: event.target.value } : null); setJsonError(null) }}
-          helperText={jsonEdit?.field ? parameterJsonHelp[jsonEdit.field] : 'Parameters use defaultValue, allowedValues and resolveFrom. Nested schemas use items, properties and requiredProperties.'}
+          helperText={jsonEdit?.field ? parameterJsonHelp[jsonEdit.field] : mcp ? 'Local settings only. Typed defaultValue and resolveFrom are configurable; imported parameter contracts, native schemas and connection settings are read-only.' : 'Parameters use defaultValue, allowedValues and resolveFrom. Nested schemas use items, properties and requiredProperties.'}
           InputProps={{ sx: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 } }} />
         {jsonError ? <Alert severity="error">{jsonError}</Alert> : null}
         {jsonStale ? <Alert severity="warning">The current buffer changed. Close and reopen Advanced action JSON before editing.</Alert> : null}
@@ -314,7 +321,9 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
         try {
           onChange(jsonEdit.field && jsonEdit.paramIndex !== undefined
             ? patchActionParameter(editorValue, jsonEdit.index, jsonEdit.paramIndex, { [jsonEdit.field]: parseActionParameterJson(jsonEdit.field, jsonEdit.value) })
-            : replaceActionDefinition(editorValue, jsonEdit.index, parseExactObject(jsonEdit.value, 'Action definition')))
+            : mcpActionDestination(isJsonObject(catalogue.actions[jsonEdit.index]) ? catalogue.actions[jsonEdit.index] as JsonObject : null)
+              ? replaceMcpLocalSettings(editorValue, jsonEdit.index, parseExactObject(jsonEdit.value, 'Local action settings'))
+              : replaceActionDefinition(editorValue, jsonEdit.index, parseExactObject(jsonEdit.value, 'Action definition')))
           setJsonEdit(null)
           setError(null)
         } catch (error) { setJsonError(error instanceof Error ? error.message : 'Invalid action JSON.') }

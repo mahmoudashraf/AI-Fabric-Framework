@@ -4609,13 +4609,20 @@ export function setPlatformAccessTokenProvider(provider: (() => Promise<string |
   platformAccessTokenProvider = provider
 }
 
-export async function platformCredentials(path: string, apiKey: string, policy: 'default' | 'local' | 'none' = 'default'): Promise<{ credentials: RequestCredentials; headers: Record<string, string> }> {
+type PlatformCredentialPolicy = 'default' | 'local' | 'none' | 'browser-bound'
+
+export async function platformCredentials(path: string, apiKey: string, policy: PlatformCredentialPolicy = 'default'): Promise<{ credentials: RequestCredentials; headers: Record<string, string> }> {
   if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('://')) throw new Error('Only first-party Platform API paths are accepted.')
-  const token = policy === 'default' ? await platformAccessTokenProvider?.() : null
-  if (policy === 'default' && platformAccessTokenProvider && !token) throw new Error('Customer session expired. Please sign in again.')
+  const browserBound = policy === 'browser-bound'
+  if (browserBound && !/^\/api\/deployments\/[^/?]+\/mcp-connections\/[^/?]+\/authorize(?:\?[^#]*)?$/.test(path)) {
+    throw new Error('Browser-bound credentials are limited to MCP connection authorization.')
+  }
+  const customerAuthentication = policy === 'default' || browserBound
+  const token = customerAuthentication ? await platformAccessTokenProvider?.() : null
+  if (customerAuthentication && platformAccessTokenProvider && !token) throw new Error('Customer session expired. Please sign in again.')
   if (policy === 'none') return { credentials: 'omit', headers: {} }
-  if (token) return { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } }
-  return { credentials: 'include', headers: policy === 'default' && apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {} }
+  if (token) return { credentials: browserBound ? 'include' : 'omit', headers: { Authorization: `Bearer ${token}` } }
+  return { credentials: 'include', headers: customerAuthentication && apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {} }
 }
 
 export class PlatformApiError extends Error {
@@ -4648,8 +4655,10 @@ export function clearStoredPlatformApiKey() {
   platformApiKey = ''
 }
 
-async function request<T>(path: string, init?: RequestInit, policy: 'default' | 'local' | 'none' = 'default', decode?: (source: string) => unknown): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, policy: PlatformCredentialPolicy = 'default', decode?: (source: string) => unknown, options?: { timeoutMs?: number }): Promise<T> {
   init?.signal?.throwIfAborted()
+  const timeoutMs = options?.timeoutMs ?? requestTimeoutMs
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 90_000) throw new Error('Platform request timeout must be between 1 and 90000 milliseconds.')
   const apiKey = getStoredPlatformApiKey()
   const credential = await platformCredentials(path, apiKey, policy)
   // Account switches may cancel a command while its credentials are resolving.
@@ -4659,7 +4668,7 @@ async function request<T>(path: string, init?: RequestInit, policy: 'default' | 
     ...credential.headers,
   }
   const timeoutController = new AbortController()
-  const timeoutHandle = globalThis.setTimeout(() => timeoutController.abort(), requestTimeoutMs)
+  const timeoutHandle = globalThis.setTimeout(() => timeoutController.abort(), timeoutMs)
   if (init?.signal) {
     init.signal.addEventListener('abort', () => timeoutController.abort(), { once: true })
   }

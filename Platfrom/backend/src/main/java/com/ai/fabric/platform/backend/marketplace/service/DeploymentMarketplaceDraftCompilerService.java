@@ -1292,6 +1292,9 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (actionEntry.path("params").isArray()) {
             compiled.set("params", actionEntry.path("params").deepCopy());
         }
+        for (String schemaField : List.of("inputSchema", "outputSchema")) {
+            if (actionEntry.path(schemaField).isObject()) compiled.set(schemaField, actionEntry.path(schemaField).deepCopy());
+        }
         if (actionEntry.path("requiredParameters").isArray()) {
             compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
         }

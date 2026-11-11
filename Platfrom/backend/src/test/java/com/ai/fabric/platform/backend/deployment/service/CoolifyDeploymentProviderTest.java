@@ -67,6 +67,23 @@ class CoolifyDeploymentProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void brokeredMcpApplyVerifiesMetadataWithoutReprovisioningSharedGateway() throws Exception {
+        var provider = provider();
+        var readiness = mock(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.class);
+        var provisioning = mock(PlatformManagedProductProvisioningService.class);
+        ReflectionTestUtils.setField(provider, "mcpReadiness", readiness);
+        provider.setPlatformManagedProductProvisioningService(provisioning);
+        var config = objectMapper.readTree("{\"actions\":[{\"name\":\"search\",\"adapterType\":\"mcp-tool\",\"execution\":{\"mcp\":{\"connectionId\":\"mcp-owned\"}}}]}");
+        var version = new DeploymentVersionEntity(); version.setDeploymentId("dep-owned");
+        version.setActionsConfigJson(config.toString());
+        version.setManifestJson(objectMapper.createObjectNode().set("actionsConfig", config).toString());
+        var profile = new DeploymentTargetProfileEntity(); profile.setId("target-owned");
+        ReflectionTestUtils.invokeMethod(provider, "ensureManagedProductDependencies", profile, version, mock(ProvisioningProgressTracker.class));
+        verify(readiness).verify("dep-owned", "target-owned", config);
+        verifyNoInteractions(provisioning);
+    }
+
+    @Test
     void explicitEmptyAffinityClearsRolePinWithoutFallingBackToGenericPin() throws Exception {
         var defaults = objectMapper.readTree("{\"limitsCpuSet\":\"3\",\"runtimeLimitsCpuSet\":\"\"}");
         CoolifyApplicationRuntimeSettings runtime = ReflectionTestUtils.invokeMethod(

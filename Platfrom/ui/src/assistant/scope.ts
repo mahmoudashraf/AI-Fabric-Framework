@@ -26,6 +26,8 @@ export function brainAssistantScope(pathname: string, search: string, brainId: s
   const path = pathname.slice(root.length).replace(/^\//, '').replace(/\/$/, '')
   const params = new URLSearchParams(search)
   const parts = path.split('/')
+  // MCP's explicit Help configure attaches the selected owned snapshot to the same assistant.
+  if (parts[0] === 'capabilities' && (params.get('view') === 'mcp' || params.has('mcp'))) return null
   let section = sections[path]
   let selectedId = ''
   if (path === 'capabilities' && params.get('view') === 'connection') section = 'CONNECTIONS'
@@ -53,5 +55,8 @@ export function operation(value: unknown): { id: string; label: string; pointer:
   if (!value || typeof value !== 'object') return null
   const row = value as Record<string, unknown>
   if (typeof row.id !== 'string' || !row.id) return null
+  if (row.kind === 'MCP_TOOL') return { id: row.id,
+    label: ['MCP', row.toolName, row.summary].filter(value => typeof value === 'string' && value).join(' \u00b7 '),
+    pointer: typeof row.sourcePointer === 'string' ? row.sourcePointer : '' }
   return { id: row.id, label: [row.method, row.path, row.summary || row.id].filter(value => typeof value === 'string' && value).join(' '), pointer: typeof row.sourcePointer === 'string' ? row.sourcePointer : '' }
 }

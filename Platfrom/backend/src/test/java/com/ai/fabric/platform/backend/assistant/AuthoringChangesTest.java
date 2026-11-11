@@ -8,6 +8,15 @@ import static org.assertj.core.api.Assertions.*;
 class AuthoringChangesTest {
     final ObjectMapper mapper = new ObjectMapper();
     final AuthoringChanges changes = new AuthoringChanges(mapper);
+    @Test void mcpServersMergeByExactServerRefAndPreserveOtherConnections() throws Exception {
+        var current = mapper.readTree("{\"actionsConfig\":{\"mcpServers\":[{\"serverRef\":\"one\",\"endpointUrl\":\"https://one.example/mcp\"},{\"serverRef\":\"two\",\"endpointUrl\":\"https://two.example/mcp\"}]}}");
+        var patch = mapper.readTree("[{\"path\":\"/actionsConfig/mcpServers\",\"operation\":\"UPSERT\",\"key\":\"one\",\"value\":{\"serverRef\":\"one\",\"displayName\":\"First connection\"}}]");
+        var saved = changes.apply(current, patch, List.of("/actionsConfig"));
+        assertThat(saved.candidate().at("/actionsConfig/mcpServers")).hasSize(2);
+        assertThat(saved.candidate().at("/actionsConfig/mcpServers/0/endpointUrl").asText()).isEqualTo("https://one.example/mcp");
+        assertThat(saved.candidate().at("/actionsConfig/mcpServers/1")).isEqualTo(current.at("/actionsConfig/mcpServers/1"));
+        assertThat(changes.undo(saved.candidate(), saved.diff(), List.of("/actionsConfig")).candidate()).isEqualTo(current);
+    }
     @Test void requestedAiValuesReplaceManualValuesWithoutLosingOtherSettings() throws Exception {
         var current = mapper.readTree("{\"promptConfig\":{\"systemPrompt\":\"Manual wording\",\"customSetting\":123},\"actionsConfig\":{\"actions\":[]}}");
         var patch = mapper.readTree("[{\"path\":\"/promptConfig/systemPrompt\",\"operation\":\"SET\",\"value\":\"Requested AI wording\"}]");

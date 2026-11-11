@@ -21,6 +21,7 @@ import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Service;
@@ -519,6 +520,16 @@ public class DeploymentRuntimeAuthorityService {
 
     private Set<RuntimeAuthorityPurpose> requiredPurposes(DeploymentEntity deployment, DeploymentVersionEntity version) {
         var result = EnumSet.of(TRUSTED_BACKEND_API_KEY, PRIVATE_ASSERTION_SIGNING_KEY, PUBLIC_TOKEN_SIGNING_KEY);
+        if (version.getActionsConfigJson() != null) {
+            try {
+                for (JsonNode action : mapper.readTree(version.getActionsConfigJson()).path("actions")) {
+                    if (action.path("execution").path("mcp").path("connectionId").isTextual()
+                        && !action.path("execution").path("mcp").path("connectionId").asText().isBlank()) {
+                        result.add(MCP_EXECUTION_API_KEY);
+                    }
+                }
+            } catch (Exception invalid) { throw conflict("Published MCP action configuration is invalid."); }
+        }
         var legacyNames = executionSecrets.requiredSecretNames(deployment, version);
         for (var purpose : RuntimeAuthorityPurpose.values()) {
             String legacyName = purpose.legacyName(deployment.getId());
@@ -538,6 +549,25 @@ public class DeploymentRuntimeAuthorityService {
         }
         if (result.contains(CONVERSATION_HANDOVER_ENCRYPTION)) result.add(CONVERSATION_HANDOVER_CALLBACK_SIGNING);
         return result;
+    }
+
+    /** The key proves one registered runtime target, never a browser-selected tenant. */
+    @Transactional(readOnly = true, noRollbackFor = ResponseStatusException.class)
+    public Snapshot authenticateMcpRuntime(DeploymentEntity deployment, DeploymentVersionEntity version,
+                                           DeploymentReleaseEntity release, String suppliedKey) {
+        if (suppliedKey == null || suppliedKey.isBlank() || suppliedKey.length() > 512) {
+            throw new ResponseStatusException(UNAUTHORIZED, "An authenticated MCP runtime is required.");
+        }
+        var frozen = requirePersistedReleaseUnchanged(deployment, version, release, false);
+        var revision = frozen.binding().secrets().get(MCP_EXECUTION_API_KEY);
+        if (revision == null) throw new ResponseStatusException(FORBIDDEN, "This release has no MCP execution binding.");
+        var authority = workerAuthority(deployment.getId(), release.getTargetProfileId());
+        var secret = checkedSecret(authority, MCP_EXECUTION_API_KEY, revision, integrity(authority), workerSecrets(authority));
+        if (!MessageDigest.isEqual(secret.getSecretValue().getBytes(StandardCharsets.UTF_8),
+            suppliedKey.getBytes(StandardCharsets.UTF_8))) {
+            throw new ResponseStatusException(UNAUTHORIZED, "An authenticated MCP runtime is required.");
+        }
+        return frozen;
     }
 
     private RuntimeAuthorityBinding binding(DeploymentEntity deployment, DeploymentVersionEntity version,

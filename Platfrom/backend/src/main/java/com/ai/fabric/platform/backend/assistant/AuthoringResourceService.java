@@ -158,6 +158,7 @@ public class AuthoringResourceService {
         Snapshot current = load(kind, id, task);
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
         var result = changes.apply(current.configuration(), requestedChanges, current.allowedPaths());
+        if ("DEPLOYMENT_DRAFT".equals(kind)) McpAuthoringPolicy.requirePreserved(current.configuration(), result.candidate());
         return persist(kind, id, current, requestedChanges, result);
     }
 

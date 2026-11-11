@@ -224,7 +224,7 @@ public class AuthoringChanges {
         return false;
     }
     private String identity(String field) {
-        return switch (field) { case "actions", "params" -> "name"; case "knowledgeSources" -> "sourceKey"; case "datasets" -> "datasetId"; default -> "id"; };
+        return switch (field) { case "actions", "params" -> "name"; case "mcpServers" -> "serverRef"; case "knowledgeSources" -> "sourceKey"; case "datasets" -> "datasetId"; default -> "id"; };
     }
     private List<String> child(List<String> path, String key) { var next = new ArrayList<>(path); next.add(key); return next; }
     private boolean credential(List<String> path, String key, JsonNode value, JsonNode parentNode) {

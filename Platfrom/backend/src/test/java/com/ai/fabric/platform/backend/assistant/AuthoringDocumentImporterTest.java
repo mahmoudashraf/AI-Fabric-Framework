@@ -44,6 +44,28 @@ class AuthoringDocumentImporterTest {
     private final ObjectMapper json = new ObjectMapper();
     private final AuthoringDocumentImporter importer = new AuthoringDocumentImporter(json);
 
+    @Test void mcpCataloguePreservesExactToolSchemasWithoutInventingHttpRoutes() {
+        String source = """
+            {"tools":[{"name":"lookup.record","title":"Lookup record","description":"Get an authorized record.",
+              "inputSchema":{"type":"object","properties":{"filter":{"oneOf":[{"type":"string"},{"type":"null"}]}}},
+              "outputSchema":{"type":"object"}}]}
+            """;
+        var result = importer.importDocument("src-mcp", "MCP capabilities", "application/vnd.loomai.mcp+json", source.getBytes(StandardCharsets.UTF_8));
+        assertThat(result.operations()).hasSize(1);
+        assertThat(result.operations().get(0).path("kind").asText()).isEqualTo("MCP_TOOL");
+        assertThat(result.operations().get(0).path("toolName").asText()).isEqualTo("lookup.record");
+        assertThat(result.operations().get(0).at("/inputSchema/properties/filter/oneOf")).hasSize(2);
+        assertThat(result.operations().get(0).has("method")).isFalse();
+        assertThat(result.operations().get(0).has("path")).isFalse();
+        assertThat(result.operations().get(0).path("outputSchema").path("type").asText()).isEqualTo("object");
+    }
+
+    @Test void mcpCatalogueRejectsDuplicateToolsInsteadOfReplacingSelectionIdentity() {
+        String source = "{\"tools\":[{\"name\":\"same\",\"inputSchema\":{}},{\"name\":\"same\",\"inputSchema\":{}}]}";
+        assertThatThrownBy(() -> importer.importDocument("src-mcp", "MCP capabilities", "application/vnd.loomai.mcp+json", source.getBytes(StandardCharsets.UTF_8)))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unique names");
+    }
+
     @ParameterizedTest
     @CsvSource({"3.0.3,false", "3.0.3,true", "3.1.0,false", "3.1.0,true"})
     void parsesOpenApiWithInheritedParametersSecurityAndLocalSchemas(String version, boolean yaml) throws Exception {

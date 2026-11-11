@@ -102,6 +102,37 @@ public final class AuthoringDocumentImporter {
             warnings.add("Prose/examples only; no formal API operations inferred or executed.");
             return result(sourceId, title, type, lineAnchors(text), json.createArrayNode(), warnings);
         }
+        if ("application/vnd.loomai.mcp+json".equals(type)) {
+            JsonNode input;
+            try {
+                preflight(text, json); input = json.readTree(text); checkNodes(input, new int[1]);
+            } catch (IOException | RuntimeException invalid) {
+                throw new IllegalArgumentException("Malformed MCP catalogue or parser resource limit exceeded.");
+            }
+            JsonNode safe = new AuthoringDocumentCredentials().redact(input, warnings);
+            if (!safe.isObject() || !safe.path("tools").isArray() || safe.path("tools").size() > MAX_OPERATIONS) {
+                throw new IllegalArgumentException("An MCP source requires a bounded tools catalogue.");
+            }
+            ArrayNode operations = json.createArrayNode();
+            Set<String> names = new java.util.HashSet<>();
+            for (int i = 0; i < safe.path("tools").size(); i++) {
+                JsonNode tool = safe.path("tools").get(i);
+                String name = tool.path("name").asText();
+                if (name.isBlank() || name.length() > 256 || !names.add(name) || !tool.path("inputSchema").isObject()) {
+                    throw new IllegalArgumentException("MCP tools require exact unique names and input schemas.");
+                }
+                ObjectNode operation = operations.addObject();
+                operation.put("id", sourceId + "#tool:" + name);
+                operation.put("kind", "MCP_TOOL"); operation.put("toolName", name);
+                operation.put("summary", tool.path("title").asText(name));
+                operation.put("description", tool.path("description").asText(""));
+                operation.put("sourcePointer", "#/tools/" + i);
+                operation.set("inputSchema", tool.get("inputSchema"));
+                if (tool.path("outputSchema").isObject()) operation.set("outputSchema", tool.get("outputSchema"));
+            }
+            warnings.add("MCP catalogue metadata only. Tools were not executed; hints do not grant permissions.");
+            return result(sourceId, title, type, serialize(operations), operations, warnings);
+        }
         boolean isYaml = YAML_TYPES.contains(type);
         if (!supportedMediaType(type)) {
             throw new IllegalArgumentException("Unsupported document media type; upload JSON, YAML, text, Markdown or text PDF.");

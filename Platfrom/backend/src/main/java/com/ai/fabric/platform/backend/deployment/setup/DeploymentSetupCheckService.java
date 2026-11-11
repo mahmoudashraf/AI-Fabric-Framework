@@ -40,6 +40,8 @@ public class DeploymentSetupCheckService {
     private final DeploymentProviderSecretResolutionService providerSecrets;
     private final SetupProbeHttpClient http;
     private final ObjectMapper mapper;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness mcpReadiness;
     private final Semaphore running = new Semaphore(2);
     private final Map<String, Map<String, Cached>> cache = Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override protected boolean removeEldestEntry(Map.Entry<String, Map<String, Cached>> entry) { return size() > 256; }
@@ -99,6 +101,7 @@ public class DeploymentSetupCheckService {
             results.add(result);
         }
         if (mode != null) synchronized (cache) { cache.put(deploymentId, next); }
+        if (mcpReadiness != null) results.addAll(mcpReadiness.inspect(deploymentId, json(draft.getActionsConfigJson())));
         return new Summary(deploymentId, draft.getId(), draft.getRevisionNumber(),
                 results.stream().map(ServiceResult::checkedAt).filter(Objects::nonNull).max(Instant::compareTo).orElse(null),
                 List.copyOf(results), count(results, "VERIFIED"), count(results, "FAILED"), count(results, "NOT_TESTED"));
