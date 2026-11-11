@@ -288,18 +288,19 @@ public class DeploymentDraftValidationService {
 
     private ActionValidationSummary validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
         Set<String> actionNames = new HashSet<>();
+        Set<String> actionsRequiringRoutes = new HashSet<>();
         Set<String> confirmableActionNames = new HashSet<>();
         Set<String> webhookTargetIds = validateWebhookTargets(actionsNode.path("webhookTargets"), issues);
         List<InlineActionRoute> inlineRoutes = new ArrayList<>();
         JsonNode actions = actionsNode.path("actions");
         if (!actions.isArray()) {
             issues.add(error("actions", "ACTIONS_ARRAY_REQUIRED", "$.actions", "actions must be an array."));
-            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
+            return new ActionValidationSummary(actionNames, actionsRequiringRoutes, List.of(), webhookTargetIds);
         }
 
         if (actions.isEmpty()) {
             issues.add(warning("actions", "NO_ACTIONS_CONFIGURED", "$.actions", "No actions are currently configured."));
-            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
+            return new ActionValidationSummary(actionNames, actionsRequiringRoutes, List.of(), webhookTargetIds);
         }
 
         for (int index = 0; index < actions.size(); index++) {
@@ -315,6 +316,13 @@ public class DeploymentDraftValidationService {
                 issues.add(error("actions", "ACTION_NAME_REQUIRED", basePath + ".name", "Action name is required."));
             } else if (!actionNames.add(name)) {
                 issues.add(error("actions", "DUPLICATE_ACTION_NAME", basePath + ".name", "Duplicate action name: " + name));
+            }
+            JsonNode execution = action.path("execution");
+            boolean mcpAction = "mcp-tool".equalsIgnoreCase(action.path("adapterType").asText())
+                || "mcp-tool".equalsIgnoreCase(execution.path("adapterType").asText())
+                || execution.path("mcp").isObject();
+            if (!name.isEmpty() && !mcpAction) {
+                actionsRequiringRoutes.add(name);
             }
 
             String description = action.path("description").asText("").trim();
@@ -350,7 +358,7 @@ public class DeploymentDraftValidationService {
 
         validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
 
-        return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes), webhookTargetIds);
+        return new ActionValidationSummary(actionNames, actionsRequiringRoutes, List.copyOf(inlineRoutes), webhookTargetIds);
     }
 
     private Set<String> validateWebhookTargets(JsonNode webhookTargets, List<DraftValidationIssue> issues) {
@@ -1355,7 +1363,8 @@ public class DeploymentDraftValidationService {
             inlineRoutesByAction.put(inlineRoute.actionName(), inlineRoute.route());
         }
 
-        if (explicitRoutes.isEmpty() && actionValidation.inlineRoutes().isEmpty()) {
+        if (explicitRoutes.isEmpty() && actionValidation.inlineRoutes().isEmpty()
+            && (actionNames.isEmpty() || !actionValidation.actionsRequiringRoutes().isEmpty())) {
             issues.add(warning("routing", "NO_ROUTES_CONFIGURED", "$.actions", "No action routes are configured yet."));
         }
 
@@ -1385,7 +1394,7 @@ public class DeploymentDraftValidationService {
             validateRoute(inlineRoute.path(), inlineRoute.route(), connector, httpDataSources, issues);
         }
 
-        for (String actionName : actionNames) {
+        for (String actionName : actionValidation.actionsRequiringRoutes()) {
             if (!explicitRoutes.has(actionName) && !actionsWithInlineRoutes.contains(actionName)) {
                 issues.add(warning("routing", "ACTION_WITHOUT_ROUTE", "$.actions", "No route is configured yet for action: " + actionName));
             }
@@ -3230,6 +3239,7 @@ public class DeploymentDraftValidationService {
     }
 
     private record ActionValidationSummary(Set<String> actionNames,
+                                           Set<String> actionsRequiringRoutes,
                                            List<InlineActionRoute> inlineRoutes,
                                            Set<String> webhookTargetIds) {
     }

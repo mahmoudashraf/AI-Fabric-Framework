@@ -114,7 +114,7 @@ public class McpConnectionService {
         String id = "mcps-" + UUID.randomUUID();
         var snapshot = new Snapshot(id, connectionId, connection.getRevision(), Instant.now(), complete,
             discovery.path("protocolVersion").asText(null), tools,
-            complete ? "Tool discovery completed. No business tools were executed." : "Discovery is incomplete; tools cannot be imported.");
+            discoveryMessage(connection, discovery, complete));
         String json = json(snapshot);
         if (json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > properties.getMaxSnapshotBytes())
             throw bad("MCP catalogue exceeds the configured snapshot size limit.");
@@ -124,6 +124,21 @@ public class McpConnectionService {
         connection.setLastDiscoveryId(id); connection.setUpdatedAt(Instant.now()); connections.save(connection);
         record("MCP_TOOLS_DISCOVERED", connection, Map.of("snapshotId", id, "complete", complete, "toolCount", tools.size()));
         return snapshot;
+    }
+
+    private String discoveryMessage(McpConnectionEntity connection, JsonNode discovery, boolean complete) {
+        if (complete) return "Tool discovery completed. No business tools were executed.";
+        String message = "Discovery is incomplete; tools cannot be imported.";
+        if ("BUSINESS".equals(connection.getConnectionModel())) {
+            message += switch (discovery.path("errorCode").asText("")) {
+                case "MCP_UPSTREAM_AUTH_REQUIRED" -> " The company connection owner should reconnect or update the business authorization before discovering tools again.";
+                case "MCP_UPSTREAM_ACCESS_DENIED" -> " The company connection owner should check the business connection permissions and reconnect before discovering tools again.";
+                default -> "";
+            };
+        }
+        if (Set.of("API_KEY_HEADER_SECRET", "MULTIPLE_HEADERS").contains(auth(connection).mode()))
+            message += " Check the chosen header names against the gateway's approved header list.";
+        return message;
     }
 
     @Transactional(readOnly = true)

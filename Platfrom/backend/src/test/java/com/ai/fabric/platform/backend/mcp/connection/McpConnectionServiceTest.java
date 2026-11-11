@@ -123,6 +123,54 @@ class McpConnectionServiceTest {
         verifyNoInteractions(drafts, oauth, secrets);
     }
 
+    @Test void incompleteTypedAuthorizationFailuresGuideTheCompanyOwnerWithoutExposingUpstreamProse() throws Exception {
+        var connection = business();
+        when(secrets.resolve("dep-one", "target-stage", "CUSTOMER_OWN_KEY")).thenReturn("fixture-private-key");
+        for (String code : List.of("MCP_UPSTREAM_AUTH_REQUIRED", "MCP_UPSTREAM_ACCESS_DENIED")) {
+            when(gateway.discover(anyString(), any(), anyMap())).thenReturn(mapper.createObjectNode()
+                .put("ready", false).put("errorCode", code).put("message", "Visitor must log in at https://upstream.example/private-token")
+                .set("tools", mapper.createArrayNode()));
+            var snapshot = service.discover("dep-one", connection.id());
+            assertThat(snapshot.complete()).isFalse();
+            assertThat(snapshot.message()).startsWith("Discovery is incomplete; tools cannot be imported.")
+                .contains("company connection owner", "business", "reconnect")
+                .doesNotContain("Visitor", "log in", "https://", "private-token", "header");
+            assertThat(service.getSnapshot("dep-one", connection.id(), snapshot.id()).message()).isEqualTo(snapshot.message());
+        }
+        verifyNoInteractions(drafts);
+    }
+
+    @Test void incompleteHeaderConnectionsOfferNeutralAdviceWithoutInferringTheFailureCause() {
+        when(secrets.resolve("dep-one", "target-stage", "CUSTOMER_OWN_KEY")).thenReturn("fixture-private-key");
+        for (String mode : List.of("API_KEY_HEADER_SECRET", "MULTIPLE_HEADERS")) {
+            var auth = "MULTIPLE_HEADERS".equals(mode)
+                ? new AuthSettings(mode, null, null, List.of(new HeaderCredential("X-API-Key", "CUSTOMER_OWN_KEY")), null)
+                : new AuthSettings(mode, "CUSTOMER_OWN_KEY", "X-API-Key", null, null);
+            var connection = service.create("dep-one", new SaveConnection(null, "Company", "https://tools.example/mcp", "target-stage", "BUSINESS", "AUTO", auth));
+            when(gateway.discover(anyString(), any(), anyMap())).thenReturn(mapper.createObjectNode()
+                .put("ready", false).put("errorCode", "MCP_DISCOVERY_FAILED")
+                .put("message", "MCP_UPSTREAM_AUTH_REQUIRED: rejected secret at https://upstream.example")
+                .set("tools", mapper.createArrayNode()));
+            var snapshot = service.discover("dep-one", connection.id());
+            assertThat(snapshot.complete()).isFalse();
+            assertThat(snapshot.message()).isEqualTo("Discovery is incomplete; tools cannot be imported. Check the chosen header names against the gateway's approved header list.");
+        }
+        verifyNoInteractions(drafts, oauth);
+    }
+
+    @Test void incompleteUnknownFailureKeepsGenericGuidanceAndIgnoresMessageText() {
+        var connection = business();
+        when(secrets.resolve("dep-one", "target-stage", "CUSTOMER_OWN_KEY")).thenReturn("fixture-private-key");
+        when(gateway.discover(anyString(), any(), anyMap())).thenReturn(mapper.createObjectNode()
+            .put("ready", false).put("errorCode", "MCP_UPSTREAM_AUTH_REQUIRED_EXTRA")
+            .put("message", "MCP_UPSTREAM_ACCESS_DENIED: visitor login needed; secret=private-token")
+            .set("tools", mapper.createArrayNode()));
+        var snapshot = service.discover("dep-one", connection.id());
+        assertThat(snapshot.complete()).isFalse();
+        assertThat(snapshot.message()).isEqualTo("Discovery is incomplete; tools cannot be imported.");
+        verifyNoInteractions(drafts, oauth);
+    }
+
     @Test void defaultMechanicalImportIsConservativeAndPreservesNativeSchemaAndUnrelatedDraft() {
         var connection = service.create("dep-one", publicRequest(null));
         var snapshot = service.discover("dep-one", connection.id());

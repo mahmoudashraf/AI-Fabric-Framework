@@ -449,6 +449,49 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAllMcpActionsWithoutHttpRouteWarnings() {
+        var draft = executorOverrideDraft(null);
+        draft.setActionsConfigJson("""
+            {"actions":[
+              {"name":"search_guides","description":"Search public guides","adapterType":"mcp-tool",
+               "inputSchema":{"type":"object"},"execution":{"adapterType":"mcp-tool",
+                 "mcp":{"connectionId":"mcp-public","serverRef":"public-guides","toolName":"search_guides","toolSchemaHash":"guides-hash"}}},
+              {"name":"get_subscription","description":"Read a subscription","adapterType":"mcp-tool"},
+              {"name":"cancel_subscription","description":"Cancel a subscription","execution":{"adapterType":"mcp-tool"}},
+              {"name":"schema_example","description":"Read the schema example",
+               "execution":{"mcp":{"connectionId":"mcp-company","serverRef":"company","toolName":"schema_example","toolSchemaHash":"example-hash"}}}
+            ]}
+            """);
+
+        assertThat(service.validate(draft).issues()).extracting("code")
+            .doesNotContain("ACTION_WITHOUT_ROUTE", "NO_ROUTES_CONFIGURED", "DRAFT_PARSE_FAILED");
+    }
+
+    @Test
+    void validateMixedMcpAndHttpActionsStillWarnsForMissingHttpRoute() {
+        var draft = executorOverrideDraft(null);
+        draft.setActionsConfigJson("""
+            {"actions":[
+              {"name":"search_guides","description":"Search public guides","adapterType":"mcp-tool",
+               "execution":{"mcp":{"connectionId":"mcp-public","serverRef":"public-guides","toolName":"search_guides","toolSchemaHash":"guides-hash"}}},
+              {"name":"list_products","description":"List products over HTTP"}
+            ]}
+            """);
+
+        var response = service.validate(draft);
+        assertThat(response.issues()).extracting("code").contains("ACTION_WITHOUT_ROUTE", "NO_ROUTES_CONFIGURED");
+        assertThat(response.issues().stream().filter(issue -> "ACTION_WITHOUT_ROUTE".equals(issue.code())))
+            .extracting("message").containsExactly("No route is configured yet for action: list_products");
+    }
+
+    @Test
+    void validateEmptyDraftKeepsExistingActionAndRouteWarnings() {
+        assertThat(service.validate(executorOverrideDraft(null)).issues()).extracting("code")
+            .contains("NO_ACTIONS_CONFIGURED", "NO_ROUTES_CONFIGURED")
+            .doesNotContain("ACTION_WITHOUT_ROUTE");
+    }
+
+    @Test
     void validateAcceptsInlineActionRouteWithoutExplicitRoutingEntry() {
         DraftValidationResponse response = service.validate(draft(
             """
