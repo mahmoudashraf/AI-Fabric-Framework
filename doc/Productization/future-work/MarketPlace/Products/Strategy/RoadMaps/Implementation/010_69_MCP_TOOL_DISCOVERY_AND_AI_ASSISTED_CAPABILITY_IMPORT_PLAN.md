@@ -378,7 +378,7 @@ Only optional AI enrichment uses bounded batches, current authoring deadlines an
 - [x] Add the small owned connection/business-OAuth-attempt records and necessary existing binding fields, with scoped APIs, encryption and audit. Public records need no credentials/grants. Do not add a personal-account grant directory or app connection lifecycle.
 - [x] Implement public/no-auth discovery and execution without a credential dependency. Qualify business-owner OAuth metadata discovery, preregistration, advertised client metadata/DCR, PKCE callback, refresh/rotation, step-up, reconnect and revocation separately. Local provider-contract tests cover registration variants; hosted proof covers DCR/PKCE and token lifecycle, not a universal third-party-provider claim.
 - [x] Qualify static bearer, approved API-key/multiple-header credentials and machine client credentials separately; no identity fallback. The hosted fixture does not require both headers; delivery/enforcement cases are covered by isolated transport tests.
-- [ ] Require explicit customer consent for runtime use of the selected connection; prevent staff/discovery credentials from being silently shared. Establish per-target runtime caller/resolver authorization through the existing binding mechanism.
+- [x] Require explicit customer consent for runtime use of the selected connection; prevent staff/discovery credentials from being silently shared. Establish per-target runtime caller/resolver authorization through the existing binding mechanism. Hosted target enable/revoke and nine real-runtime authority/ownership checks passed.
 
 Acceptance: a public server connects without any key/login/grant and a non-Shopify business-OAuth service connects without manual token pasting. Cancelled business consent grants nothing; refresh/revoke/reconnect and two-customer isolation pass. App visitors have no separate upstream login or account-connect flow.
 
@@ -396,8 +396,8 @@ Acceptance: multiple pages, SSE progress before a result, nullable/union inputs 
 - [x] Probe released 0.8.47 against native-schema planning, connection/auth-required dispatch and no-write-retry expectations.
 - [x] Propose/review only proven gaps, then implement native action-schema metadata, scoped credential resolution/auth-required projection and explicit retry policy as needed. Candidate 0.8.48 is qualified locally; publication and deployed-runtime proof remain separate unchecked gates below.
 - [x] Preserve HTTP actions, no-vector READ, confirmation/review, no-confirmation WRITE and existing Managed Tasks. Focused regressions and real-provider native scenarios passed; hosted application qualification is still required.
-- [ ] Add target-specific gateway/broker provisioning/readback and trusted-subject propagation; do not reuse Shopify-only identity assumptions.
-- [ ] Qualify one existing app-identity ingress and the selected business integration's subject/account/ownership contract. Close only proven binding gaps; no new generic SSO service or per-visitor OAuth directory.
+- [x] Add target-specific gateway/broker provisioning/readback and trusted-subject propagation; do not reuse Shopify-only identity assumptions. Both immutable-runtime targets passed normal apply/readback; cross-target keys were rejected.
+- [x] Qualify one existing app-identity ingress and the selected business integration's subject/account/ownership contract. Close only proven binding gaps; no new generic SSO service or per-visitor OAuth directory. Real Supabase/broker users completed the own-subscription write and foreign-object denial without another MCP login.
 - [x] For an actual framework release, follow the framework safety checklist, fresh-cache consumer and real-provider fixtures; record any unrelated failure honestly. Released 0.8.48 passed the clean Central-only consumer; Incident Room's unrelated policy failures remain recorded, not waived into a green full-matrix claim.
 
 Acceptance: imported actions execute through a qualified released runtime, schemas reach planner/gateway unchanged, uncertain writes are not replayed, and a trusted signed-in user cannot change another user's business object.
@@ -407,7 +407,7 @@ Acceptance: imported actions execute through a qualified released runtime, schem
 - [x] Add **Connect MCP** with explicit public/business connection presentation, conditional business-auth fields, scopes and nonsecret health. Public setup skips credentials; no personal-account selector or visitor consent flow.
 - [x] Add tool selection, compatibility reasons, confirmation-for-all default/optional overrides, zero-inference import, draft diff/undo and explicit refresh. No mandatory custom form per tool.
 - [x] Extend existing action forms with MCP destination/complex-schema inputs, without an irrelevant HTTP-route control.
-- [ ] Extend consolidated setup checks and apply verification with real metadata/auth evidence grouped by connection revision. Page view performs no credentialed calls.
+- [x] Extend consolidated setup checks and apply verification with real metadata/auth evidence grouped by connection revision. Page view performs no credentialed calls. Actual metadata checks and both normal 27-pass/zero-failure release rechecks passed; the disabled-tool expectation mismatch was fixed, not bypassed.
 - [ ] Keep normal Engage/custom-app/Managed Task access using the Brain's configured connection and existing caller permissions. Missing upstream consent is an actionable owner setup/reconnect issue, not a visitor signup requirement.
 - [ ] Keep app users in the business conversation: fluid configured READ, ordinary write confirmation where required, actual result and existing human handover. MCP setup stays in the owner's Brain configuration, not in the visitor's support chat.
 
@@ -465,11 +465,11 @@ Run optional enrichment with the real configured model separately; prove the cor
 
 - [x] Mechanical import works without AI.
 - [ ] Public/no-auth discovery, import and permitted anonymous READ work with no credentials, grants or upstream login.
-- [ ] Business-authorized credentials and business-owner OAuth with refresh/reconnect/revoke are qualified; end users need no separate MCP login.
-- [ ] Customer-owned connections and customer/target isolation are proved; no unnecessary visitor account or grant-management system.
+- [x] Business-authorized credentials and business-owner OAuth with refresh/reconnect/revoke are qualified; end users need no separate MCP login.
+- [x] Customer-owned connections and customer/target isolation are proved; no unnecessary visitor account or grant-management system.
 - [ ] Conversation-driven public/private business journeys pass, including verified app identity, own-subscription cancellation and same-business end-user isolation. No autonomous-agent subsystem was added.
-- [ ] Raw schemas survive discovery, planning and execution.
-- [ ] Scoped gateway/broker access and nonreplayed writes are proved.
+- [x] Raw schemas survive discovery, planning and execution. Local/native real-provider cases, public official-provider read and hosted business READ/WRITE passed; the separate no-vector information-routing gap remains open below.
+- [x] Scoped gateway/broker access and nonreplayed writes are proved. Hosted authority checks passed 9/9; controlled transport receiver tests proved single dispatch after uncertain writes.
 - [ ] Required UI/protocol/apply journeys pass on the actual released runtime.
 - [x] Optional assistant adds help without auth/business execution authority.
 - [x] Personal-account connections remain deferred: no visitor upstream grants, connection UI/APIs or grant store were added.
@@ -534,3 +534,31 @@ References inform this planned design; they are not proof of current LoomAI supp
 - Framework **0.8.48** was published from `9413d3b38d807a8e23d754021b50eb39c03df634`. Corrected fresh reactor: **2,373 passed**; real-provider native-schema cases **5/5**, eight turns; reference server **6/6** plus packaged/authenticated discovery. A separate empty-cache, Central-only external consumer passed **6/6**, packaged and booted, resolving only framework 0.8.48 / NetworkNT 3.0.0. Known Incident Room 14 policy failures remain separate and unchanged.
 - The initial private-runtime image CI ran 814 tests with two obsolete 0.8.47 readback expectations. Test-only commit `3ff037b73eb0ab9b8fe58f90b99193b65497a5be` updates these and checks the managed-MCP capability; both local suites passed 8/8. Its full CI/image run is pending at this checkpoint.
 - Disposable Brain `dep-3623c3f2` published version `ver-50cab2c9`, explicitly reporting framework 0.8.48. It uses no-vector READs, configured verified Supabase identity and imported public/private/cancel tools; cancellation requires confirmation. No runtime apply, successful chat mutation or activated Engage app is claimed yet.
+
+### 2026-11-11: Both Targets Verified; Business Journey Passed
+
+- Runtime CI `43073267779` passed all **814 runtime tests** and published source `3ff037b73eb0ab9b8fe58f90b99193b65497a5be`, digest `sha256:36138150f2c7ebf0ec8d87990b4406ce1fea84c95f908e3a179e60352174876d`. Registered normal runtime artifact `dsa-ac5fa3fd`; staging `rel-42fc159e` and production `rel-4c472bac` use the same version/artifact. Production connection reuse was explicitly enabled. No vectors, business data or upstream credentials were copied between targets.
+- Both applies passed live MCP authorization/schema checks and reached healthy runtimes. Initial post-apply checks exposed a Platform mismatch: the runtime correctly excluded the disabled schema example, while the verifier expected all four source definitions. Fix `ca33555693b135ed15e70eff9c5fa66453917e99` compares enabled action names/per-action metadata only, preserving global confirmation/webhook/routing contracts. Its suite passed **44/44**, including rejection of an unexpectedly active disabled tool.
+- That backend image is healthy on both control planes, digest `sha256:07c6ed49f2cc79fbda2d7cfdb7c1883ac330fe1a7a577ae44b6db75491469869`. Normal release rechecks passed **27 checks, zero failures, seven legitimate skips** each. No tool was enabled, published version rewritten or verification result overridden.
+- Actual runtime authority/ownership probes passed **9/9** against both live targets. Missing/wrong/cross-target keys, foreign Console Bearer, altered customer scope and expired-context fields were denied; two real Supabase/broker identities read only their own objects despite spoofed actor arguments. The explicit foreign-object call reached the business receiver and returned `SUBSCRIPTION_ACCESS_DENIED`, with zero additional writes. Scope/expiry perturbations are not claimed as natural JWT-expiry tests.
+- Normal stage chat passed the separate **eight-turn business journey**: own READ; cancellation proposal/rejection with zero writes; a new proposal/confirmation with exactly one write and real receiver receipt; second-user own READ; foreign-object proposal/confirmation rejected with zero writes. A normal production chat read the resulting `CANCELLATION_SCHEDULED` state. No visitor MCP login was introduced.
+- The disposable Engage hostname passed normal Verify domain and HTTPS; all **16 readiness checks** passed. The app activated on staging, and actual desktop/basic-phone bootstrap reached the recorded runtime for session/auth/shell/history with no browser errors or overflow, zero inference and zero writes. It was then explicitly switched through the existing consumer-binding API to the verified production release, keeping the same app identity/URL and passing readiness again. Actual production desktop/basic-phone bootstrap also passed, with observed HTTP 200 requests to the recorded production runtime, no overflow/browser errors and zero AI queries/sign-ins/writes. This is not a full browser AI-conversation pass.
+
+### Open Gate: Generic No-Vector Information Routing
+
+The implementation is **not fully closed**. Two natural public INFORMATION questions failed before any MCP call, with `Retrieval requires a configured vectorSpace allowlist in this mode.` The same released runtime successfully planned and executed a normal private INFORMATION read, so this is not an upstream authentication, native-schema or trusted-identity failure.
+
+Root cause: extraction unconditionally requires a vector for INFORMATION/requiresRetrieval, even when eligible READ tools can provide the evidence; information handling then checks indexed-RAG permission before READ planning. `vectorSpaceSelectionRequired=false` and READ `ragCooperationMode=NONE` do not clear the original retrieval decision. The first extraction repair invented a source name; this is retained as a failure, not concealed by a fabricated allowlist, text matcher, search-all or altered test result.
+
+Owner approval was requested for this bounded generic framework correction before any new source/release work:
+
+1. Let trusted, authorized READ planning provide evidence before the RAG-specific rejection. Keep the final authorization/allowlist/budget gate immediately before actual indexed retrieval.
+2. Make missing-vector validation consistent with the effective READ-resolution path across extraction strategies, without granting unauthorized tools or vector access.
+3. Clarify managed prompts: live READ evidence is not indexed vector retrieval; never invent a source to satisfy a field check.
+4. Prove no-vector public/private INFORMATION with zero RAG calls, denied actual RAG without permission, disabled/private tool exclusion, trusted fields and existing indexed-RAG/confirmation/write regressions. Use a real provider and the framework release checklist for any approved release.
+
+No second framework patch has been implemented or published at this checkpoint. Existing configuration can disable indexed retrieval without disabling authorized READs, but it does not correct premature rejection when a model still requests retrieval; do not present that setting as a complete framework fix.
+
+Remaining closure: approved routing correction if authorized, full public/browser conversation qualification on its actual released runtime, final owned fixture/canary/second-user cleanup, and completion evidence. Preserve the current canary records for that proof; do not delete existing customer accounts or shared services.
+
+Separate presentation finding for review: business confirmation plain text currently includes the machine action name and trusted actor argument; the plain write answer is generic despite its real structured receipt. This is not a foreign-object authorization bypass and is not silently folded into the requested routing patch.

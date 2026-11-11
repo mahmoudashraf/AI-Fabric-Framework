@@ -138,3 +138,93 @@ services, published releases and legacy bindings are not cleanup targets.
   empty-cache, Central-only external consumer passed **6/6**, package and boot,
   resolving only framework 0.8.48 and NetworkNT 3.0.0. This is public-artifact
   consumption evidence, not yet hosted-runtime execution evidence.
+
+## Active-Catalogue Verification Finding
+
+- The first staging apply reached healthy runtime/connector and passed MCP
+  authorization/schema verification. Post-apply verification reported three
+  failures: Platform expected all four source definitions while the released
+  runtime correctly exposed only the three enabled actions. The intentionally
+  disabled native-schema example was the only differing action.
+- Fix `ca33555693b135ed15e70eff9c5fa66453917e99` derives active names and
+  per-action metadata/policy expectations from enabled definitions, preserving
+  global confirmation rules, webhook targets and routing contracts.
+- Focused release-verification suite passed **44/44**, including both the valid
+  disabled-tool case and failure when that disabled tool appears active.
+  No tool was enabled, release rewritten or verification result overridden.
+- Backend rollout/recheck and the actual chat/Engage journey are still pending
+  at this checkpoint. Both normal target applies refer to the same immutable
+  runtime image and version; no data or vectors are copied.
+
+## Released Runtime And Live Business Journey
+
+- Final backend `ca33555693b135ed15e70eff9c5fa66453917e99` is healthy on
+  staging/production at digest
+  `sha256:07c6ed49f2cc79fbda2d7cfdb7c1883ac330fe1a7a577ae44b6db75491469869`.
+  Normal rechecks passed on both existing targets: **27 passed, 0 failed,
+  7 legitimately skipped** each. No verification result was overridden.
+- Canary version `ver-50cab2c9` and artifact `dsa-ac5fa3fd` use runtime source
+  `3ff037b73eb0ab9b8fe58f90b99193b65497a5be`, digest
+  `sha256:36138150f2c7ebf0ec8d87990b4406ce1fea84c95f908e3a179e60352174876d`,
+  framework 0.8.48. Staging release `rel-42fc159e` and production release
+  `rel-4c472bac` are both `APPLIED_VERIFIED`. Production reused the connection
+  only after an explicit target binding; no credentials/data/vectors were copied.
+- Direct hosted authority checks passed **9/9**, using both live targets and
+  real provider/broker identities. Missing/wrong key, cross-target key,
+  foreign Console Bearer and deliberately altered scope/expiry were denied.
+  Spoofed actor arguments were overwritten; each real user read their own
+  subscription. The additional foreign-object request reached the business
+  receiver, returned `SUBSCRIPTION_ACCESS_DENIED` and made zero further writes;
+  the prior one legitimate cancellation and all object states were unchanged.
+  Three newly issued login sessions were closed after each probe run.
+  Scope/expiry perturbations are not claimed as natural JWT-expiry tests.
+- Separate normal-chat business run passed eight turns: own subscription READ,
+  propose/reject with zero writes, propose/confirm with exactly one receiver
+  write and real receipt, second-user own READ, and confirmed foreign-object
+  request denied with zero writes. Customers used ordinary verified app identity,
+  not an additional MCP login. Cancellation state changed only for its owner.
+- A normal signed-in production chat then read the actual updated
+  `CANCELLATION_SCHEDULED` state through the production MCP binding, with one
+  business read and zero writes. This is conversational production evidence,
+  not just a direct private-service test.
+- The managed Engage hostname passed normal Verify domain and HTTPS health
+  returned 200. All 16 app readiness checks passed. The disposable app is active
+  on the verified staging assignment; full browser conversation proof remains
+  separate from API chat evidence.
+- Actual Engage desktop/basic-phone bootstrap passed on staging: observed
+  manifest/ready event selected the recorded release and runtime, and session,
+  auth-context, shell and conversation requests returned 200. No overflow or
+  browser errors; zero AI queries/writes. This does not claim the blocked
+  anonymous public-information conversation has passed in-browser.
+- The same app was explicitly rebound through the existing customer API to
+  production release `rel-4c472bac`, with all 16 readiness checks still passing.
+  Actual production desktop/basic-phone bootstrap reached the recorded
+  production runtime, HTTP 200, with no overflow/browser errors and zero AI
+  queries/sign-ins/writes. The full browser AI journey remains open below.
+- End-of-cycle host load averages were 0.80 staging / 1.07 production (one
+  minute). Available memory was about 2.8 GiB / 7.5 GiB respectively; staging
+  retained about 4.1 GiB of swap use. No serving-workload change, capacity
+  bypass or firewall modification was made for this check.
+
+## Newly Proven Generic Routing Gap
+
+- Two natural public INFORMATION queries were rejected before any MCP read:
+  `Retrieval requires a configured vectorSpace allowlist in this mode.`
+  This is not an MCP auth/schema failure: a normal private INFORMATION lookup
+  succeeded via the same bridge, and direct authorized reads passed above.
+- In PRODUCTION_CHAT/executor, `retrievalAllowlistRequired=true` is distinct
+  from the explicitly false `vectorSpaceSelectionRequired`. Extraction still
+  unconditionally requests a vector when INFORMATION has requiresRetrieval,
+  and IntentHandling checks indexed-RAG permission before authorized READ
+  planning. The first extraction repair invented a source name; no source,
+  allowlist, fallback or semantic matcher was added to hide this result.
+- Recommended framework correction: permit eligible READ planning before the
+  RAG-specific gate, defer missing-vector validation only for that trusted
+  READ-resolution path, and clarify live READ versus indexed-search prompts.
+  Actual RAG must keep its existing authorization, allowlist and budget checks.
+- Framework changes are awaiting owner approval. No second framework release,
+  relaxed retrieval allowlist or invented vector space has been applied.
+  Public conversation/full-browser closure and final canary cleanup remain open.
+- Business confirmation prose exposes the machine action name and its trusted
+  actor argument; the successful write's plain answer is generic. Record this
+  presentation finding for review rather than claiming polished per-tool cards.

@@ -14785,3 +14785,43 @@ test is being called hosted acceptance. UI extraction remains last.
   owns stage/prod normal apply and receiver-count proof; agents prepare only
   the narrow browser/authority checks. Remove this canary, its fixture and the
   separately created second Supabase user after qualification.
+
+### 010.69 Live Business Proof And Framework Review Gate (2026-11-11)
+
+- Supersedes the preceding runtime-pending checkpoint. Runtime image 3ff037b73,
+  digest 36138150f2c7ebf0ec8d87990b4406ce1fea84c95f908e3a179e60352174876d,
+  is normally applied to stage rel-42fc159e and production rel-4c472bac through
+  artifact dsa-ac5fa3fd / version ver-50cab2c9. Both APPLIED_VERIFIED: normal
+  recheck 27 pass, 0 fail, 7 legitimate skips. Source/image/framework readback
+  matched. No upstream credentials, vectors or business data were copied.
+- Backend ca33555693b135ed15e70eff9c5fa66453917e99 is healthy on both hosts,
+  digest 07c6ed49f2cc79fbda2d7cfdb7c1883ac330fe1a7a577ae44b6db75491469869.
+  Its 44/44 verifier tests correct only the expected-enabled-action comparison;
+  initial live failures counted a disabled schema example. Unexpected active
+  tools still fail. UI 611e64ed and gateway 41e43e61 remain unchanged/healthy.
+- Actual business chat passed eight stage turns: real verified own READ,
+  confirmation rejection/no write, confirmation/one receiver write, second-user
+  own READ and foreign-object confirmation denied/no write. A normal production
+  chat read the real updated cancellation state. Runtime security 9/9 passed,
+  including two live target keys and both real end-user identities. No visitor
+  MCP login. Natural JWT expiry is not claimed by the context-expiry probe.
+- Engage app awi_pub_117f51b6b4a93e9d76b8025778bc9d05 passed domain/HTTPS and
+  all 16 readiness checks, activated, passed actual stage desktop/phone
+  bootstrap, then normally switched to the verified production release at the
+  same mcp-01069.apps.loomai.pro URL. Actual production desktop/basic-phone
+  bootstrap also passed with observed HTTP 200 to the correct runtime, no
+  overflow/browser errors and zero AI queries/sign-ins/writes. Full browser AI
+  conversation remains unqualified until the public routing issue is fixed.
+- NOT CLOSED: two public INFORMATION queries hit a generic framework gate
+  before authorized READ planning: extraction demands a vector, then
+  IntentHandling rejects indexed retrieval before the live READ plan can help.
+  Do not fabricate vector names, turn off retrieval authorization, force ACTION
+  through phrase matching or mark the public journey passed. A bounded generic
+  ordering/validation/prompt correction was requested for owner review; no new
+  framework edits/release are approved or started at this checkpoint.
+- Main private state/helpers/evidence remain ~/.codex/private/loomai-mcp-01069/.
+  Current canary/fixture/second-user remain deliberately owned for the blocked
+  proof, not orphan cleanup targets. Once approved and qualified, remove these
+  exact resources, preserving the first identity/existing customers/shared
+  services and the reusable runtime artifact. Source tests and full app-chat
+  proof remain distinct. See plan 010.69 and the verification README.

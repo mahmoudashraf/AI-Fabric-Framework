@@ -4,6 +4,14 @@ MCP is an optional connection method for existing services. Your ordinary API ac
 
 Release and live qualification evidence is recorded in implementation plan 010.69. A saved connection, discovery receipt or draft import is not evidence that a live action has executed successfully.
 
+Qualification note for framework 0.8.48: public discovery/import, company
+authorization and conversational private reads/confirmed writes are qualified.
+Some no-vector INFORMATION questions are rejected by an indexed-search guard
+before an authorized READ tool can be planned. The focused framework correction
+is awaiting review; do not invent vector-space names or relax search permissions
+to conceal that result. See the verification record for the still-open public
+conversation and full-browser qualification.
+
 ## Supported Connections
 
 - **Public - no authentication:** documentation and other public tools. No upstream account, key or OAuth login is needed. Configure the selected action's permissions separately before permitting anonymous visitors.
