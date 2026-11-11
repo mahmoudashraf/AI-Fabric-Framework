@@ -1345,3 +1345,19 @@ All four new live turns passed in one attempt each; do not claim the model had
 to correct a live failure. No navigation/import inference, framework release or
 customer-runtime update was required. Temporary sessions were deleted, the two
 configuration-only fixtures archived and test accounts signed out.
+
+### 2026-11-11: Optional MCP Catalogue Assistance (010.69)
+
+MCP connect, authorization, discovery and selected-tool import are mechanical,
+not assistant operations. The existing page-aware assistant can receive owned,
+nonsecret catalogue metadata and improve the requested capability descriptions.
+Connection identity uses the existing `serverRef` merge contract. It cannot
+substitute endpoints, native schemas, credentials, permissions or consent, and
+does not gain business-execution authority.
+
+Hosted qualification used one actual GPT-5.4-mini turn (9,000 input / 220 output
+tokens): only the requested name/description changed; native contracts and
+authority stayed unchanged. Actual UI Undo restored the exact prior draft.
+This was not rerun merely for the later framework-only READ ordering patch.
+See 010.69 and `verification-support/mcp-public-business/README.md` for the
+actual source, released-runtime, provider and customer-journey evidence/limits.

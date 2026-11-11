@@ -1,8 +1,9 @@
 # 010.69 Public And Business-Authorized MCP Capabilities For Customer AI Experiences
 
-- Status: implementation in progress; source baseline validated, hosted qualification not yet complete.
+- Status: implemented and deployed; supported public/business journeys qualified on released 0.8.49 and owned fixtures removed. Declared quality, presentation and operational limits are recorded below; this is not an all-CI-green or perfect-model claim.
 - Created and revised: 2026-11-11.
-- Platform source inspected: `ceda2468ba108f08d72f94ed728d2f9bbb42e51a`.
+- Initial Platform source inspected: `ceda2468ba108f08d72f94ed728d2f9bbb42e51a`.
+- Qualified release: framework 0.8.49 / `abecb067483811e414cd94716001715d6c8926ab`; Platform/runtime `fbb7622b6e3bac681bbef84a03daa3e256aec4c2`. Current UI/gateway and full evidence are in section 13.
 - Framework baseline: released `ai-fabric-framework-v0.8.47`, commit `965b2773ca4128e2b139de5bcac5f40c37fba1e6`.
 - Related: [010.37 Assistant](010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md), [009.1 MCP architecture](009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md), [009.2 gateway extraction](009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md), [010.64 Brain workspace](010_64_SMART_BRAIN_OUTCOME_LED_WORKSPACE_AND_NAVIGATION_REDESIGN_PLAN.md).
 - Authority: owner authorized implementation and live verification on 2026-11-11. Personal-account connections remain deferred. Proven framework gaps still require the bounded review/release process in section 3.3; do not infer qualification from source changes alone.
@@ -394,11 +395,11 @@ Acceptance: multiple pages, SSE progress before a result, nullable/union inputs 
 ### Phase 3: Framework And Runtime
 
 - [x] Probe released 0.8.47 against native-schema planning, connection/auth-required dispatch and no-write-retry expectations.
-- [x] Propose/review only proven gaps, then implement native action-schema metadata, scoped credential resolution/auth-required projection and explicit retry policy as needed. Candidate 0.8.48 is qualified locally; publication and deployed-runtime proof remain separate unchecked gates below.
-- [x] Preserve HTTP actions, no-vector READ, confirmation/review, no-confirmation WRITE and existing Managed Tasks. Focused regressions and real-provider native scenarios passed; hosted application qualification is still required.
-- [x] Add target-specific gateway/broker provisioning/readback and trusted-subject propagation; do not reuse Shopify-only identity assumptions. Both immutable-runtime targets passed normal apply/readback; cross-target keys were rejected.
+- [x] Propose/review only proven gaps, then implement native action-schema metadata, scoped credential resolution/auth-required projection and explicit retry policy as needed. Published 0.8.48 and approved 0.8.49 corrections passed public-consumer and actual runtime qualification.
+- [x] Preserve HTTP actions, no-vector READ, confirmation/review, no-confirmation WRITE and existing Managed Tasks. Focused regressions and real-provider native cases passed; hosted public/business chat and Engage proof is recorded below. Combined MCP Task/Desk workflows are not separately claimed as new live tests.
+- [x] Add target-specific gateway/broker provisioning/readback and trusted-subject propagation; do not reuse Shopify-only identity assumptions. Both immutable-runtime targets passed normal apply/readback; the live staging execution key was rejected for the production target. No reverse-direction live-key probe is claimed.
 - [x] Qualify one existing app-identity ingress and the selected business integration's subject/account/ownership contract. Close only proven binding gaps; no new generic SSO service or per-visitor OAuth directory. Real Supabase/broker users completed the own-subscription write and foreign-object denial without another MCP login.
-- [x] For an actual framework release, follow the framework safety checklist, fresh-cache consumer and real-provider fixtures; record any unrelated failure honestly. Released 0.8.48 passed the clean Central-only consumer; Incident Room's unrelated policy failures remain recorded, not waived into a green full-matrix claim.
+- [x] For an actual framework release, follow the framework safety checklist, fresh-cache consumer and real-provider fixtures; record any unrelated failure honestly. Both published patches passed fresh Central-only consumers. 0.8.49's real provider, reactor, packaged and vector-container checks passed; the same 14 Incident Room failures remain explicit, not waived into a green full-CI claim.
 
 Acceptance: imported actions execute through a qualified released runtime, schemas reach planner/gateway unchanged, uncertain writes are not replayed, and a trusted signed-in user cannot change another user's business object.
 
@@ -408,8 +409,8 @@ Acceptance: imported actions execute through a qualified released runtime, schem
 - [x] Add tool selection, compatibility reasons, confirmation-for-all default/optional overrides, zero-inference import, draft diff/undo and explicit refresh. No mandatory custom form per tool.
 - [x] Extend existing action forms with MCP destination/complex-schema inputs, without an irrelevant HTTP-route control.
 - [x] Extend consolidated setup checks and apply verification with real metadata/auth evidence grouped by connection revision. Page view performs no credentialed calls. Actual metadata checks and both normal 27-pass/zero-failure release rechecks passed; the disabled-tool expectation mismatch was fixed, not bypassed.
-- [ ] Keep normal Engage/custom-app/Managed Task access using the Brain's configured connection and existing caller permissions. Missing upstream consent is an actionable owner setup/reconnect issue, not a visitor signup requirement.
-- [ ] Keep app users in the business conversation: fluid configured READ, ordinary write confirmation where required, actual result and existing human handover. MCP setup stays in the owner's Brain configuration, not in the visitor's support chat.
+- [x] Keep normal Engage/custom-app/Managed Task access using the Brain's configured connection and existing caller permissions. Engage and normal chat API were qualified live; Task/handover reuse has regression coverage, not a fresh combined live-product claim. Missing upstream consent remains an owner reconnect issue, not visitor MCP signup.
+- [x] Keep app users in the business conversation: configured READ, write confirmation/rejection and real receiver receipt passed; existing handover regressions passed. Setup stays in the owner's Brain. Default technical result/confirmation presentation and automatic sign-in prompting have declared follow-ups, not hidden fixes.
 
 Acceptance: with the assistant disabled/provider down, a customer connects/imports/edits/applies a tool; an authorized app user invokes it through that Brain without a new upstream account.
 
@@ -417,9 +418,9 @@ Acceptance: with the assistant disabled/provider down, a customer connects/impor
 
 - [x] Attach owned catalogue metadata to current assistant sources; add MCP labels and `serverRef` merge identity.
 - [x] Provide page-aware help without mandatory prompts or endpoint/schema/permission/credential substitution. One real provider turn saved only name/description; UI Undo restored the exact action configuration.
-- [ ] Pass the verification matrix below, including staging and production-target journeys and product regressions.
+- [x] Qualify the required matrix paths at their recorded layer, including both target journeys and product regressions. Keep two production automatic-sign-in prompt misses and unrelated CI limits visible; do not claim every model response or every existing product was freshly live-tested.
 - [x] Document the two supported models, transport/auth/schema, business provider registration, reconnect/revoke and explicit incompatibilities. Label personal-account connections deferred/out of scope, with no implementation tasks or completion dependencies.
-- [ ] Clean owned fixtures and update 010.37/working context with actual source, test and deployment evidence.
+- [x] Clean owned fixtures and update 010.37/working context with actual source, test and deployment evidence. Attached disposable storage required explicit operator disposal before normal record-deletion retry; no automatic retirement claim.
 
 All five phases constitute completion; do not label partial static-token import as broad support.
 
@@ -464,16 +465,16 @@ Run optional enrichment with the real configured model separately; prove the cor
 ## 11. Completion Checklist
 
 - [x] Mechanical import works without AI.
-- [ ] Public/no-auth discovery, import and permitted anonymous READ work with no credentials, grants or upstream login.
+- [x] Public/no-auth discovery, import and permitted anonymous READ work with no credentials, grants or upstream login.
 - [x] Business-authorized credentials and business-owner OAuth with refresh/reconnect/revoke are qualified; end users need no separate MCP login.
 - [x] Customer-owned connections and customer/target isolation are proved; no unnecessary visitor account or grant-management system.
-- [ ] Conversation-driven public/private business journeys pass, including verified app identity, own-subscription cancellation and same-business end-user isolation. No autonomous-agent subsystem was added.
-- [x] Raw schemas survive discovery, planning and execution. Local/native real-provider cases, public official-provider read and hosted business READ/WRITE passed; the separate no-vector information-routing gap remains open below.
+- [x] Conversation-driven public/private business journeys pass, including verified app identity, own-subscription cancellation and same-business end-user isolation. No autonomous-agent subsystem was added. Automatic sign-in prompting is not guaranteed; explicit sign-in passed in production.
+- [x] Raw schemas survive discovery, planning and execution. Local/native real-provider cases, public official-provider read and hosted business READ/WRITE passed. The no-vector INFO gate was fixed in approved 0.8.49 and proven against the exact live reproduction.
 - [x] Scoped gateway/broker access and nonreplayed writes are proved. Hosted authority checks passed 9/9; controlled transport receiver tests proved single dispatch after uncertain writes.
-- [ ] Required UI/protocol/apply journeys pass on the actual released runtime.
+- [x] Required UI/protocol/apply journeys pass on the actual released runtime, with auth-entry modes and semantic misses explicitly distinguished in evidence.
 - [x] Optional assistant adds help without auth/business execution authority.
 - [x] Personal-account connections remain deferred: no visitor upstream grants, connection UI/APIs or grant store were added.
-- [ ] Customer guide, evidence and owned-fixture cleanup are complete.
+- [x] Customer guide, evidence and owned-fixture cleanup are complete; exact operator storage disposal and retained failure audit are documented.
 
 ## 12. Primary References
 
@@ -544,9 +545,9 @@ References inform this planned design; they are not proof of current LoomAI supp
 - Normal stage chat passed the separate **eight-turn business journey**: own READ; cancellation proposal/rejection with zero writes; a new proposal/confirmation with exactly one write and real receiver receipt; second-user own READ; foreign-object proposal/confirmation rejected with zero writes. A normal production chat read the resulting `CANCELLATION_SCHEDULED` state. No visitor MCP login was introduced.
 - The disposable Engage hostname passed normal Verify domain and HTTPS; all **16 readiness checks** passed. The app activated on staging, and actual desktop/basic-phone bootstrap reached the recorded runtime for session/auth/shell/history with no browser errors or overflow, zero inference and zero writes. It was then explicitly switched through the existing consumer-binding API to the verified production release, keeping the same app identity/URL and passing readiness again. Actual production desktop/basic-phone bootstrap also passed, with observed HTTP 200 requests to the recorded production runtime, no overflow/browser errors and zero AI queries/sign-ins/writes. This is not a full browser AI-conversation pass.
 
-### Open Gate: Generic No-Vector Information Routing
+### Historical Gate: Generic No-Vector Information Routing
 
-The implementation is **not fully closed**. Two natural public INFORMATION questions failed before any MCP call, with `Retrieval requires a configured vectorSpace allowlist in this mode.` The same released runtime successfully planned and executed a normal private INFORMATION read, so this is not an upstream authentication, native-schema or trusted-identity failure.
+The implementation was **not fully closed at this checkpoint**. Two natural public INFORMATION questions failed before any MCP call, with `Retrieval requires a configured vectorSpace allowlist in this mode.` The same released runtime successfully planned and executed a normal private INFORMATION read, so this was not an upstream authentication, native-schema or trusted-identity failure. The subsequent approved 0.8.49 correction and closure evidence follow below.
 
 Root cause: extraction unconditionally requires a vector for INFORMATION/requiresRetrieval, even when eligible READ tools can provide the evidence; information handling then checks indexed-RAG permission before READ planning. `vectorSpaceSelectionRequired=false` and READ `ragCooperationMode=NONE` do not clear the original retrieval decision. The first extraction repair invented a source name; this is retained as a failure, not concealed by a fabricated allowlist, text matcher, search-all or altered test result.
 
@@ -575,3 +576,75 @@ Separate presentation finding for review: business confirmation plain text curre
   the framework patch and focused real-provider regressions are qualified.
   Publish only after review; immutable public consumption, runtime CI, normal
   stage/prod apply, complete browser chat proof and owned cleanup remain gates.
+
+### 2026-11-11: Released 0.8.49 And Final Supported-Path Qualification
+
+- **Current source:** both backends fbb7622b6, both UIs unchanged at 611e64ed,
+  both gateways unchanged at 41e43e61. Public framework 0.8.49 is source
+  abecb067 / immutable tag ai-fabric-framework-v0.8.49; Central publication
+  43090421221 succeeded. Runtime image CI 43093161948 passed 814 tests and
+  published digest d24fd7c0370ef740679d3d803fcbd08135b9deba5191205b10c0b79767fe3b96.
+  Backend image CI 43093161980 succeeded, digest
+  2f14cc0283878deafed25efb90a82e17a2f495bc6901861a04ac3c878f8ec058.
+- Approved generic correction lets qualified READ planning precede RAG-only
+  rejection, carries trusted context through extraction and defers missing
+  vector validation only for that path. Final actual indexed-search permission,
+  allowlist and budget checks remain. No keyword routing, forced intent,
+  invented vector, automatic fanout or new fallback was added.
+- Framework local reactor 2,394; focused routing 190; guards 7; vector unit 18
+  and real container 8 passed. Actual Java 21/OpenAI native 7/7 (ten turns) and
+  OpenAI/ONNX-384/Lucene core 11/11 passed. Normal core runner clamps minimum
+  20 to its actual 11-case chunk; no threshold override. Earlier Java-selector,
+  invalid-dimension setup and coverage-question attempts remain documented.
+- New empty-cache Central-only consumer passed 6/6, packaged and booted on
+  Java 21. All four packaged framework JARs matched the actual public-cache
+  bytes. Private runtime 814 and ordinary REST connector 102 passed locally;
+  counts overlap and are not summed. Broad framework CI 43090314922 retained
+  exactly the known 14 Incident Room failures, not an all-CI-green claim.
+- Same disposable Brain dep-3623c3f2 published ver-d5ab80c3 and used artifact
+  dsa-c02ede18: stage rel-aacd3c66 and production rel-b014f654 both reached
+  APPLIED_VERIFIED, fresh rechecks each 27 passed / 0 failed / 7 legitimate
+  skips. Same infrastructure/app identity and explicit authorized bindings;
+  no business-data, credential or vector copying. Existing customer Brains
+  were not automatically upgraded.
+- Full nine-turn staging chat passed the exact original public INFO query
+  with one public READ, private reads, reject/no write, confirm/exactly one
+  real synthetic cancellation, second-user own read and foreign-object denial.
+  Production public INFO and private read of that external cancellation state
+  passed. Actual customer/broker identities were used, no visitor MCP login.
+- Same Engage app passed all 16 readiness checks and normal target switching.
+  Staging browser passed public -> typed protected challenge -> real sign-in
+  -> private read; production browser passed public -> actual Sign in button
+  -> real sign-in -> private read. Desktop/basic phone passed with no browser
+  errors or state changes. **Two production automatic-challenge expectations
+  failed:** one acknowledgement, one public-only answer admitting no private
+  status. Both remain failures in evidence; explicit sign-in success does not
+  relabel them. No hidden retry, matcher or additional framework patch.
+- Final authority probes passed 9/9, 46 requests, zero extra writes. Scope
+  clarification: the actual staging execution key was tested, including its
+  rejection for a verified production target; not live keys in both directions.
+  Two real end users and a real other Console customer were used. Altered
+  expiry is not a natural JWT-expiration test. All new local sessions closed.
+- **Cleanup complete:** normal deletion del-b64d0d44 initially hit attached-
+  storage retirement protection. Storage-free connectors were removed normally;
+  explicit operator disposal removed only the two test runtimes, two AI-state
+  databases and four verified owned volumes. No global prune/network deletion,
+  SQL mutation or guard weakening. Normal retry created del-ac4c1582 and
+  SUCCEEDED; old failure remains in audit. Exact fixture/mount/source and only
+  the second synthetic Supabase identity were removed. Read-only DB/native
+  checks prove Brain, app, consumer, MCP/child rows, all seven native resources,
+  all containers and four volumes absent. First owner and shared services kept.
+- Final Console/API HTTP 200 and both backends healthy. Host point samples:
+  staging load1m 3.01 / available RAM 3,533 MiB; production 1.66 / 8,598 MiB.
+  These are not load tests or capacity/admission guarantees.
+- Evidence: verification-support/mcp-public-business/README.md; private raw
+  receipts under ~/.codex/private/loomai-mcp-01069/. 010.37, customer guide and
+  working context updated. No pending verification worker or canary resource.
+
+**Declared follow-ups, not silently implemented:** automatic sign-in prompt
+selection quality; clearer MCP confirmation/result cards (currently technical
+IDs/hash diagnostics can appear); optional future automated owned-storage
+retirement; unrelated Incident Room baseline. The first acknowledgement's raw
+model-versus-normalizer cause was not fully traced and is not asserted from its
+receipt alone. Personal-account OAuth, local executable servers and asynchronous
+MCP tasks remain outside this plan's approved scope.

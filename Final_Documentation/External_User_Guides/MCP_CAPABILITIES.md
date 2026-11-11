@@ -4,13 +4,17 @@ MCP is an optional connection method for existing services. Your ordinary API ac
 
 Release and live qualification evidence is recorded in implementation plan 010.69. A saved connection, discovery receipt or draft import is not evidence that a live action has executed successfully.
 
-Qualification note for framework 0.8.48: public discovery/import, company
-authorization and conversational private reads/confirmed writes are qualified.
-Some no-vector INFORMATION questions are rejected by an indexed-search guard
-before an authorized READ tool can be planned. The focused framework correction
-is awaiting review; do not invent vector-space names or relax search permissions
-to conceal that result. See the verification record for the still-open public
-conversation and full-browser qualification.
+The qualified framework version is **0.8.49**. Public discovery/import,
+company authorization, no-vector INFORMATION reads, signed-in private reads
+and confirmed business writes were verified through released runtimes. Use the
+normal Updates flow and a compatible runtime image for an older Brain; do not
+invent vector-space names or relax search permissions.
+
+Engage's normal **Sign in** control and private lookup were verified in
+production. Automatic sign-in prompting depends on the model selecting a
+protected capability: two production questions did not trigger it, without
+private execution or disclosure. Users can sign in explicitly. The verification
+record keeps those quality misses separate from passing authentication tests.
 
 ## Supported Connections
 

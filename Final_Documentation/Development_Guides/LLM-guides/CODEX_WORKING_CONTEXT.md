@@ -14846,3 +14846,69 @@ test is being called hosted acceptance. UI extraction remains last.
   anonymous lookup -> protected sign-in -> private read browser harness; it
   must wait for main's verified 0.8.49 staging assignment. Public runtime proof,
   production upgrade and exact owned cleanup still remain.
+
+### 010.69 Candidate Qualified; Immutable Publication Running (2026-11-11)
+
+- Framework source abecb067483811e414cd94716001715d6c8926ab / immutable tag
+  ai-fabric-framework-v0.8.49 is pushed. Main reviewed the bounded diff and
+  authorized publication after actual Java 21 OpenAI native 7/7 (ten turns)
+  and corrected OpenAI/ONNX-384/Lucene core matrix 11/11 passed. The core
+  runner's existing minimum-20 clamp to its actual 11 cases is recorded; no
+  threshold was overridden. Earlier Java-selector and invalid-dimension test
+  setup runs remain retained, not represented as qualifying successes.
+- Final local reactor 2,394; focused routing 190; guards 7; vector unit 18 and
+  actual container contracts 8; minimal/agentic/MCP packaged consumers passed.
+  Known Incident Room baseline remains outside this patch. Full framework CI
+  is separate, not claimed green from these results.
+- Central release workflow 43090421221 is running. No Central availability or
+  hosted 0.8.49 success is claimed yet. Private candidate fbb7622b6e3bac681bbef84a03daa3e256aec4c2
+  remains local/unpushed until public artifacts are available. Runtime 814,
+  ordinary REST 102 and Platform compiler/verifier 75 tests passed locally.
+- Continue Central-only fresh consumption, push private candidate, CI images,
+  same Brain stage/prod upgrade, full public/business/browser/security proof,
+  then exact owned canary/fixture/second-identity cleanup. No further scope.
+
+### 010.69 Functional Implementation And Hosted Qualification Complete (2026-11-11)
+
+- Supersedes earlier pending MCP entries. Framework 0.8.49 / abecb067483811e414cd94716001715d6c8926ab
+  published successfully (43090421221). Generic READ-before-RAG/missing-vector
+  correction keeps final RAG trust gates; no lexical routing/fanout/fallback.
+  Actual Java21 native7/7 ten turns, core11/11 (existing min20 clamp recorded),
+  reactor2394, guards7, vector containers8 and fresh Central-only consumer6/6
+  plus package/boot passed. Four packaged framework JARs matched public bytes.
+- Both backends NOW fbb7622b6e3bac681bbef84a03daa3e256aec4c2 / OCI2f14cc02...;
+  UI611e64ed and gateway41e43e61 unchanged/healthy. RuntimeCI43093161948 passed
+  814 tests and published OCId24fd7c0...; artifact dsa-c02ede18 is retained.
+  Only disposable MCP Brain was upgraded, not existing customer deployments.
+- Same test Brain ver-d5ab80c3 reached stage rel-aacd3c66 / prod rel-b014f654
+  APPLIED_VERIFIED; each fresh27PASS/0FAIL/7NA, app16/16 and same identity.
+  Exact original public INFO query passed with one READ in BOTH environments.
+  Nine-turn stage business chat: reject0writes, confirm1cancellation, second
+  own READ and foreign object denied. Prod read actual external updated state.
+- Full browser stage typed-auth challenge/sign-in/private READ passed. Prod
+  explicit Sign in button/private READ passed; desktop/basic phone/no errors.
+  TWO prod automatic-auth-prompt expectations FAILED (acknowledgement and
+  public-only no-private-evidence answer). Retained, not relabelled/retried until
+  success. No private execution/disclosure/mutation. First raw-model versus
+  normalization cause untraced. Quality follow-up needs review, not another
+  hidden matcher or assumed authorization fix.
+- Final security9/9,46requests,0extra writes; actual stage key rejected for
+  verified prod target. Clarifies earlier overstatement: not live keys in both
+  directions. Real two end users/other Console customer; scope/expiry tampering
+  is not natural JWT-expiry proof. New local sessions signed out.
+- Cleanup COMPLETE: app/consumer removed, connections disconnected/key deleted.
+  Initial del-b64d0d44 correctly blocked attached storage; operator disposed
+  only exact 2runtimes+2AIstateDBs+4owned volumes, no global prune/SQL/guard bypass.
+  Normal retry NEW del-ac4c1582 SUCCEEDED; old failure retained in audit.
+  Brain/app/consumer/MCP child DBcounts0; 6targetresources+fixture+allcontainers/
+  4volumes/source mounts absent. ONLY second test Supabase identity deleted;
+  original owner200/auth works. No canary app URL remains live. Artifact/shared
+  services/existing customers preserved. No agents or needed commands running.
+- Console/API200; both backends healthy. Point samples stage3.01load/3533MiB
+  available, prod1.66/8598MiB, not capacity qualification. IncidentRoom same14
+  broad-CI failures remain; ProdUS intentionally stopped. Generic technical MCP
+  confirmation/result display and operator-only storage disposal are documented
+  follow-ups, not new changes. Personal-account MCP stays deferred.
+- Plan01069, 01037, MCP customer guide and verification README are updated.
+  Private raw proofs ~/.codex/private/loomai-mcp-01069/, final-cleanup-evidence.
+  Future work must use NEW owned fixtures; do not assume retired IDs are live.
