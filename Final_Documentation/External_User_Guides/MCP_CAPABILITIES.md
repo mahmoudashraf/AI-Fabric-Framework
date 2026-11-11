@@ -23,6 +23,10 @@ Personal-account connections, such as each visitor connecting their own external
 
 The import receipt shows the saved changes and offers **Undo this import** while that action configuration is still unchanged. Later edits are not overwritten by Undo. Refreshing a catalogue identifies new, changed and no-longer-returned tools; it does not remove or replace live capabilities automatically.
 
+For company OAuth, configure the approved scopes required by your provider before connecting. Do not copy another service's scopes or assume an empty scope list authorizes its default permissions. A grant unexpectedly broader than the requested scopes is rejected; correct the connection settings and reconnect. Your customers still use their normal app sign-in, not this integration-team authorization screen.
+
+Custom credential header names must be approved by the managed gateway. Common examples are `X-API-KEY`, `X-MCP-API-KEY` and `X-LOOM-MCP-KEY`; your integration team must arrange approval for other names. Discovery and setup checks remain the authority on actual connectivity. A saved connection alone is not a successful credential test.
+
 Updates offers compatible runtime images for managed MCP connections. An older image without the managed connection bridge is not a valid deployment target for these actions. Legacy MCP and ordinary HTTP actions keep their existing compatibility paths.
 
 Imported tools are ordinary action bindings. Their upstream names and native schemas remain source metadata; refresh and review them when the provider changes its contract. Existing HTTP actions retain their normal routing editor. Optional **Help configure** uses selected nonsecret catalogue metadata and cannot connect another account or execute business tools.
@@ -37,6 +41,8 @@ For a request such as cancelling a subscription:
 4. LoomAI calls using the company connection and returns the actual business-system result.
 
 The website's login cookie is not automatically shared with an embedded or standalone Engage origin. Qualify the identity handoff during integration setup. A typed email, an arbitrary customer ID in chat or the LLM's choice is not proof of account ownership. Do not forward a website/Console login token as an MCP credential for a different resource.
+
+Configure any identity-bearing tool arguments in the existing action parameter settings to resolve from trusted runtime context, rather than asking the customer to type an account/user ID. Mechanical schema import does not guess which business fields represent identity. Your MCP service must enforce object ownership using the agreed trusted integration contract; sign-in alone does not authorize an arbitrary subscription or order.
 
 An ordinary app session may need renewal. A company integration needing OAuth renewal is an administrator reconnect issue, not a request for every visitor to connect an external account. A cancellation confirmation, when configured, is separate from authentication.
 
@@ -58,3 +64,9 @@ Credential refresh is connection maintenance and does not require republishing. 
 - **Personal consent required by the provider:** that connection model is outside the current supported scope. Use an authorized company-service integration or the existing API action route where available; do not substitute an owner's personal token.
 
 MCP tool calls may send their selected arguments to the external provider. Review the provider and business-data disclosure before enabling a capability, even if it is public and read-only.
+
+## Current Boundaries
+
+The owner-facing connection flow supports remote public HTTPS endpoints, selected tools and bounded JSON/SSE transport. It does not install local executables, run arbitrary server code or import every MCP resource/prompt automatically. Tools requiring asynchronous MCP tasks are visibly incompatible with synchronous actions. Catalogue bounds are 500 tools, 100 pages, 60 seconds and 8 MiB of metadata; incomplete discovery cannot be imported as a complete result.
+
+Native input/output schemas are retained rather than rewritten as HTTP routes. Required nullable values remain distinct from omitted arguments. Tool hints are metadata, not permissions. Changing saved connection settings requires refreshing/importing and applying the reviewed definition before existing action bindings can use the new revision; token refresh alone does not change that definition revision.

@@ -51,6 +51,18 @@ callback should be advertised until separately implemented and qualified. See
 `External_User_Guides/SMART_BRAIN_MANAGED_TASKS.md` and the 010.68 execution record
 for current verification/deployment status.
 
+MCP connections have one home in Smart Brain -> AI capabilities, at
+`/smart-brains/:brainId/capabilities?view=mcp`. Reuse the Brain header's selected
+target and the existing action editor; do not add a global connection selector
+or a parallel action editor. Public setup skips credentials. Business-owner
+authorization belongs to the integration team, never each app visitor.
+Discovery/import is mechanical and uses no inference; optional Help configure
+attaches owned, nonsecret catalogue metadata to the existing assistant.
+Import shows actual saved changes and guarded Undo. Target reuse is an explicit
+connection switch, not credential copying or deployment. Native schemas remain
+visible without irrelevant HTTP-route controls. See
+`External_User_Guides/MCP_CAPABILITIES.md` and plan 010.69 for qualified scope.
+
 Knowledge's All sources / Documents / Live data tabs are filtered views, not
 parallel editors. Keep their source counts and empty-state wording specific;
 unknown or failed reads are not zero. Search settings uses four focused tasks

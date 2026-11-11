@@ -14611,3 +14611,177 @@ test is being called hosted acceptance. UI extraction remains last.
   browser proof passed; no existing Brain or Engage assignment was upgraded.
 - Exact receipts, test limits and cleanup evidence: 010.68 implementation
   record and private `loomai-managed-tasks-01068/governed-047`.
+
+## 010.69 MCP Assistant Import: Proposed Plan (2026-11-11)
+
+- Source-validated plan created at
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_69_MCP_TOOL_DISCOVERY_AND_AI_ASSISTED_CAPABILITY_IMPORT_PLAN.md`.
+- Reuse existing MCP gateway, ordinary actions, scoped keys and 010.37 assistant;
+  no new plugin type/database or framework release expected for its first slice.
+- Verified gaps include unconditional READ classification in the admin importer,
+  missing parameter translation, single-page listing/drift checks, first-SSE-event
+  handling, assistant serverRef merge identity and missing customer setup UX.
+- Plan only: no MCP implementation, tests rerun, credentialed discovery,
+  model spending, deployment or external business-tool execution in this work.
+
+### 010.69 Owner Scope Revision: Broad Remote MCP (2026-11-11)
+
+- Supersedes the narrow/static-token and assistant-first assumptions above.
+  Core Connect MCP -> discover -> import is mechanical and requires no LLM.
+  Existing configuration assistant is optional post-import help.
+- Generic OAuth metadata/registration, PKCE, refresh/rotation, reconnect/revoke,
+  shared/per-user grants and scoped runtime/broker auth are completion scope.
+  Grant/attempt/connection records use the existing Platform database, not a new
+  database service; new OAuth data requires explicit encrypted envelopes.
+- Source review found customer CUSTOMER_* keys do not match released connector
+  MCP_SECRET_* forwarding, simplified params cannot represent broad raw schemas,
+  and write retry depends on generated idempotency keys. A bounded framework
+  contract/release may therefore be needed after compatibility proof and review.
+- The current secret entity/service does not establish application encryption;
+  the plan no longer describes that storage as already encrypted.
+- Updated plan only; no implementation, live auth, model calls or deployment.
+
+### 010.69 Simplicity Clarification (2026-11-11)
+
+- Normal MCP setup is one customer-owned upstream connection per service/Brain,
+  not a cross-customer shared account and not an upstream account per visitor.
+- Generic customer/admin OAuth, refresh/reconnect/revoke remain required.
+  Per-user upstream grants and Engage connection prompts are an optional
+  provider-driven extension, not a completion gate; no grant directory/UI now.
+- Plan persistence simplified to owned connection plus bounded OAuth attempt,
+  reusing existing secret/runtime-binding metadata. Broker means an internal
+  credential-resolution helper, not another deployed service. Plan only.
+
+### 010.69 Cross-Product MCP Review (2026-11-11)
+
+- Compared current official OpenAI Responses, Claude Messages MCP and n8n MCP
+  Client Tool/OAuth docs with the MCP spec; source links and distinctions are
+  recorded in plan sections1.1/1.2. Common shape is server+credentials+tool
+  allowlist/policy; LoomAI draft/action projection is our host integration.
+- No AI or handwritten schema copy required. Default newly unverified tools to
+  visible confirmation-for-all, existing READ_WRITE and no grounding; explicit
+  owner policy may mark trusted READ or allow no-confirmation. Avoid a required
+  per-tool classification wizard or duplicate account-sharing consent.
+- Plan qualifies a maintained client's remote HTTP+SSE adapter alongside
+  Streamable HTTP, plus multiple-header credentials. Native server schemas stay
+  read-only; refresh adopts reviewed changes. Target caller isolation remains
+  required, but a new generalized broker/introspection service is not prescribed.
+- Documentation only; no code, runtime, live external MCP or inference changes.
+
+### 010.69 Business-To-Customer Direction And Existing Sign-In (2026-11-11)
+
+- Owner confirmed the primary product is business-provided AI experiences for
+  end users, not autonomous agents. Plan now leads with conversation-driven
+  dealership/support/commerce/account outcomes through existing Brain, Engage
+  and Desk. MCP is an integration route, not another orchestration product.
+- Added required signed-in subscription-cancellation qualification: reuse a
+  configured verified app identity, the business-owned MCP connection and the
+  integration's server-side subject/account/object-ownership enforcement.
+  Existing sign-in, upstream integration consent and action confirmation are
+  separate. No automatic cross-origin session reuse or JWT/token passthrough.
+- Runtime external-JWT validation and Supabase Engage projection exist; generic
+  customer billing-account mapping/cancellation are not proved by those paths.
+  Qualify the real handoff and two users' object isolation, without adding a
+  general SSO service, per-visitor provider grants or an autonomous scheduler.
+- Verified READ may be seamless; initial confirmation-for-all is an import
+  default, not a permanent browsing UX. Owner-configured no-confirmation writes
+  remain supported. Personal upstream OAuth remains optional/provider-driven.
+- Documentation only; no implementation, tests rerun, inference or deployment.
+
+### 010.69 Final Connection Scope: Public And Business Only (2026-11-11)
+
+- Owner selected exactly two MCP connection models: public/no authentication
+  and business-authorized. Updated the existing plan, not a second document.
+- Public sources skip keys, OAuth attempts/grants and upstream login; their
+  tools still require explicit action/anonymous policy. Business sources use
+  the company's configured credentials or business-owner OAuth, with verified
+  app-user context and receiver ownership checks for private operations.
+- Personal-account connections are deferred entirely, superseding earlier
+  optional-extension wording. Removed their implementation journey and proposed
+  app APIs; no per-visitor grant store, linking UI or personal OAuth callbacks.
+  Business-owner OAuth consent/refresh/reconnect is still in scope and must not
+  be confused with each visitor connecting a personal external account.
+- Both models now appear in the setup flow, storage/API contracts, runtime
+  branches, phases and acceptance checklist. Existing API actions remain valid;
+  companies do not need to wrap existing APIs in MCP. No autonomous subsystem.
+- Documentation only; no implementation, tests rerun, inference or deployment.
+
+### 010.69 Implementation In Progress (2026-11-11)
+
+- Owner authorized full implementation/live verification. Public/no-auth and
+  business-authorized only; personal-account connections remain deferred.
+- Added owned connection/OAuth/snapshot/import records, existing Brain capability
+  screens, target-authenticated runtime bridge, native-schema preservation and
+  optional existing-assistant catalogue import. Main owns integration/rollout;
+  focused gateway/backend/UI/framework tasks run independently where useful.
+- Main Platform regression suite passed 307 tests; runtime bridge passed 7 and
+  customer auth passed 21. Further backend OAuth/full-application and final
+  framework tests are in progress. Counts from overlapping runs are not added.
+- Gateway actual Microsoft Learn no-auth discovery/search passed with negotiated
+  2025-06-18 and native schemas. Shared production gateway remains unchanged;
+  existing stopped ProdUS receiver uses older JSON HTTP negotiation which must
+  remain compatible. Published hashes/releases were not modified.
+- Separate MCP envelope keys/origins are privately configured for next backend
+  deployment. Disposable customer draft dep-3623c3f2 and external synthetic
+  receiver iikigv83im4jcduy74weqtt1 are qualification-only, pending live proof and
+  cleanup. No customer business database was created.
+- Current deployed Platform/runtime/framework are still the prior release at
+  this checkpoint. Do not claim 010.69 live from source/local test results.
+  See plan section 13 for evidence and remaining gates; private operational
+  records are under ~/.codex/private/loomai-mcp-01069/ (never commit them).
+
+### 010.69 Hosted Control Planes And Gateway (2026-11-11)
+
+- Backend/UI `611e64ed62675c690921ac36ccd7b7abb846ed91` are healthy on staging
+  and production; migration 241 succeeded on both. Existing runtime deployments
+  have not been upgraded by this control-plane rollout.
+- Gateway `41e43e6186a7b8c4dbf955662cb954c0517ff981` is healthy on both hosts.
+  Native JSON/SSE, connection-time DNS/TLS protection, nonreplayed writes and
+  all ten supplied ProdUS pin comparisons passed local qualification. Actual
+  Microsoft Learn metadata discovery passed from both hosted gateways with
+  no upstream credentials, three tools and negotiated 2025-06-18. ProdUS stays
+  intentionally stopped; no fresh ProdUS business execution is claimed.
+- Final integrated Platform suite passed 408 tests; gateway 162 on each Java
+  baseline; runtime candidate focused identity/chat/Tasks/bridge suite 87;
+  UI focused 80 and customer auth 21. Counts overlap and are not summed.
+  Production read-only browser qualification passed desktop/basic phone and
+  light/dark, with no MCP writes, draft changes or browser errors.
+- Framework 0.8.48 remains unpublished. Initial reactor/container/packaged and
+  real OpenAI native-schema checks passed, but a real reference-server consumer
+  exposed a networknt dependency collision. The bounded candidate correction
+  must pass before release. Do not publish an image against locally installed
+  prerelease artifacts or claim released-runtime proof yet.
+- Hosted business OAuth/API and browser import/Undo checks are next, followed
+  by the actual public/private subscription journey and production-target apply.
+  Personal-account MCP remains deferred. Cleanup is limited to this task's
+  canary/fixture/second user; preserve existing accounts and unrelated changes.
+- Current receipts and limits: `verification-support/mcp-public-business/README.md`
+  and plan 010.69 section 13. Private operational state stays under
+  `~/.codex/private/loomai-mcp-01069/`.
+
+### 010.69 Published Framework And Final Runtime Qualification (2026-11-11)
+
+- This supersedes the preceding unpublished-framework checkpoint, not its
+  historical evidence. Framework 0.8.48 publication succeeded from
+  `9413d3b38d807a8e23d754021b50eb39c03df634`; an empty-cache Central-only
+  consumer passed 6/6, package and boot with NetworkNT 3.0.0. Corrected reactor
+  2,373 passed; real OpenAI native cases 5/5, eight turns. Incident Room's 14
+  unrelated policy failures remain documented, not a full-CI green claim.
+- Backend `1e3e7441f03de75fdc8f3ea787be12aef6f6de8e` is healthy on both
+  control planes at digest
+  `sha256:b4bf068e3b6d0e6f1c9f460264b9045fc21b6a1248fcf7e5546dec43c0b5ef11`.
+  UI remains healthy at 611e64ed; gateway remains healthy at 41e43e61.
+- Hosted owned-connection API 13/13 and safety harness 4/4 passed, including
+  business DCR/PKCE, cancellation, natural expiry/refresh/rotation/revoke and
+  real cross-customer isolation. Actual browser consent/import/native schema/
+  diff/Undo/target-reuse and optional real assistant enrichment also passed.
+  Their own API-only records/keys were cleaned. No personal visitor OAuth.
+- Private runtime CI for `3ff037b73eb0ab9b8fe58f90b99193b65497a5be` passed
+  all 814 runtime tests, zero failures/errors/skips. This test-only commit
+  corrects two old readback expectations; the preceding run failed only those
+  expectations. Immutable image build is now in progress.
+- Canary dep-3623c3f2 published ver-50cab2c9 at framework 0.8.48. No runtime
+  apply or actual cancellation success is claimed at this checkpoint. Main
+  owns stage/prod normal apply and receiver-count proof; agents prepare only
+  the narrow browser/authority checks. Remove this canary, its fixture and the
+  separately created second Supabase user after qualification.
