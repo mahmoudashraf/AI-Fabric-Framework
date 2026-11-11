@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.48",
+  "aiFabricVersion": "0.8.49",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",

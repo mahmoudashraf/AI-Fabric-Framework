@@ -14825,3 +14825,24 @@ test is being called hosted acceptance. UI extraction remains last.
   exact resources, preserving the first identity/existing customers/shared
   services and the reusable runtime artifact. Source tests and full app-chat
   proof remain distinct. See plan 010.69 and the verification README.
+
+### 010.69 Routing Patch Approved; 0.8.49 Preparation (2026-11-11)
+
+- Owner explicitly approved the bounded generic READ-before-RAG ordering,
+  missing-vector validation and prompt fix, followed by verified publication.
+  This supersedes only the preceding pending-review statement. No approval for
+  unrelated confirmation/presentation changes was inferred.
+- Framework agent works in the existing clean managed-task-governed-writes
+  worktree on candidate 0.8.49; main reviews before publication. Preserve the
+  final indexed-search trust gate and all READ/action permissions; no semantic
+  matcher, invented source, automatic fanout or fallback policy weakening.
+- Main prepared private parent/runtime manifest/readback-test and backend
+  default-version updates to 0.8.49, not yet committed/pushed/deployed. Existing
+  live source remains ca3355569 backend, 3ff037b73 runtime/framework 0.8.48.
+  Backend compiler/capability/release-verification tests passed 75/75.
+- Same canary and Engage identity must be upgraded through ordinary versions
+  and target apply. Private journey helper archives prior version/artifact/
+  target IDs, rather than overwriting history. UI agent prepared the full
+  anonymous lookup -> protected sign-in -> private read browser harness; it
+  must wait for main's verified 0.8.49 staging assignment. Public runtime proof,
+  production upgrade and exact owned cleanup still remain.

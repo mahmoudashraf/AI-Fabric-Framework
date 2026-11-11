@@ -562,3 +562,16 @@ No second framework patch has been implemented or published at this checkpoint. 
 Remaining closure: approved routing correction if authorized, full public/browser conversation qualification on its actual released runtime, final owned fixture/canary/second-user cleanup, and completion evidence. Preserve the current canary records for that proof; do not delete existing customer accounts or shared services.
 
 Separate presentation finding for review: business confirmation plain text currently includes the machine action name and trusted actor argument; the plain write answer is generic despite its real structured receipt. This is not a foreign-object authorization bypass and is not silently folded into the requested routing patch.
+
+### 2026-11-11: Bounded Routing Correction Approved
+
+- Owner approved the generic READ-before-RAG ordering, missing-vector validation
+  and prompt correction, with a verified framework patch. This supersedes the
+  preceding pending-approval gate only; it is not evidence of a finished fix.
+- Framework work targets 0.8.49. Preserve indexed-retrieval authorization,
+  allowlists and budgets, READ permissions, trusted identity and write policy.
+  No lexical routing, invented vector, automatic fanout or presentation change.
+- Main prepares the existing canary's ordinary version/image upgrade while
+  the framework patch and focused real-provider regressions are qualified.
+  Publish only after review; immutable public consumption, runtime CI, normal
+  stage/prod apply, complete browser chat proof and owned cleanup remain gates.

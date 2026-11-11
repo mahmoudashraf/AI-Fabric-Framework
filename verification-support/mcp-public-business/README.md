@@ -228,3 +228,32 @@ services, published releases and legacy bindings are not cleanup targets.
 - Business confirmation prose exposes the machine action name and its trusted
   actor argument; the successful write's plain answer is generic. Record this
   presentation finding for review rather than claiming polished per-tool cards.
+
+## Approved 0.8.49 Candidate Qualification
+
+- Owner approved the bounded routing/validation/prompt correction and a verified
+  framework patch. The presentation finding above is not included.
+- Final local reactor passed **2,394 tests**, zero failures/errors/skips;
+  focused routing/extraction checks passed **190/190**, release guards **7/7**.
+  Local consumers compiled, agentic consumer **5/5**, MCP reference **6/6** and
+  packaged reference checks passed. These are candidate, not Central proofs.
+- Private runtime against candidate 0.8.49 passed **814 fresh tests**; its
+  ordinary REST connector passed **102/102** separately. One stale runtime
+  XML report was excluded from the count, not counted as a fresh test.
+  Platform compiler/capability/release-verifier checks passed **75/75**.
+- Real OpenAI native qualification passed **7/7**, ten logical turns, using
+  `gpt-5.4-mini-2026-03-17`. The original cancellation-information question
+  was classified INFORMATION and made one native READ with zero RAG for both
+  retrieval-disabled and required-but-empty-vector-allowlist configurations.
+  Required nullable/trusted fields, confirmed/rejected writes and explicitly
+  no-confirmation writes also passed.
+- Initial new-fixture questions named a setup-guide tool and the model
+  validly chose direct ACTION, so they did not prove the intended INFO path.
+  Those failing coverage runs remain recorded. The fixture was aligned with
+  production's progressive extraction and the exact original question plus
+  matching fictional guide content; INFO assertions were not weakened and no
+  model response or intent was forced.
+- Existing OpenAI core provider matrix is in progress with its normal 85%
+  threshold and minimum considered-test requirement. No threshold was lowered.
+  Publication, clean public consumption, runtime CI, hosted 0.8.49 upgrade,
+  full browser chat and cleanup remain pending at this checkpoint.
