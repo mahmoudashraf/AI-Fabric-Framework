@@ -14966,3 +14966,31 @@ test is being called hosted acceptance. UI extraction remains last.
   private raw files in ~/.codex/private/loomai-framework-0.8.50/ and
   ~/.codex/private/loomai-mcp-read-auth-20261112/. Agent Dirac finished production
   browser proof and is closed. No further AI queries or release work is running.
+
+### Owner Manual Brain And Engage Lab (2026-11-12)
+
+- Owner requested an explanation of the retained model misses and a detailed
+  manual guide for creating a fresh Brain with AI assistance, then Engage.
+  New guide: External_User_Guides/SMART_BRAIN_ASSISTANT_AND_ENGAGE_MANUAL_TEST_GUIDE.md
+  and matching Word document. No new Brain/Kit/Engage app was created for the
+  owner; this is a procedure for their own account, not a completed live journey.
+- A separate fictional Harbor Office HTTP API and embed-test page are retained
+  for the owner's test at https://assistant-lab-20261112.46.224.145.148.sslip.io.
+  Staging Coolify app rykkh8j0it6erfguiw65ipjk, name assistant-lab-20261112,
+  node22-alpine / 128MiB / 0.25CPU; no database. This intentionally retained
+  manual lab is NOT a leftover from the removed 0.8.50 release canary.
+- Source is outside Platform: /Users/mahmoudashraf/Downloads/Projects/loomai-assistant-lab.
+  API document /openapi.json, website /demo, read-only counters /lab/status.
+  Five operations: catalogue/detail/delivery READ, confirmed fictional enquiry
+  WRITE and receipt READ. Company X-Lab-Key protects writes/receipts and the
+  safe GET /v1/connection-check. No real visitor-account authentication claim.
+- Local5/5 test groups, hosted11/11 checks and desktop/basic-phone2/2 browser
+  checks passed. One operator synthetic enquiry was created; compare counter
+  deltas, not a presumed zero. No customer business data, real email, purchase,
+  stock reservation, inference or framework/Platform runtime source change.
+- Enquiries are in memory, expire after24h and are lost on restart. The endpoint
+  accepts only example.com/.test contacts. Keep service until owner finishes;
+  then remove only this exact app and /opt/loomai-qualification/assistant-lab-20261112.
+  Credential and operator receipts remain private in
+  ~/.codex/private/loomai-assistant-lab-20261112/; private auth handoff has its
+  scoped key entry. Never paste it in AI assistance or commit it.
