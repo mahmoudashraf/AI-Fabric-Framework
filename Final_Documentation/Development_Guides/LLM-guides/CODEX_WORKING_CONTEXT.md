@@ -14994,3 +14994,34 @@ test is being called hosted acceptance. UI extraction remains last.
   Credential and operator receipts remain private in
   ~/.codex/private/loomai-assistant-lab-20261112/; private auth handoff has its
   scoped key entry. Never paste it in AI assistance or commit it.
+
+### Retained Planner Misses Investigated (2026-11-12)
+
+- User requested investigation only. No behavior/config/release/deployment edit
+  or new provider/business call. Existing Harbor manual lab remains untouched.
+- Two stage signed-in failures have authenticated=true, no auth-required READs,
+  zero history/active targets and zero handler calls. Model chose correct private
+  action but REQUEST_AUTHENTICATION. Default prompt already forbids this with
+  authRequiredfalse. The new50 branch rejects and immediately breaks, bypassing
+  configured iterative feedback; no direct answer/evidence -> visible error.
+  Static sign-in description and hidden trusted-binding schema are competing
+  cues, not proven internal model causation. Same prod version/artifact/policy,
+  but different extraction directAnswer means inputs not byte-identical.
+- Public READ was eligible and explicitly described cancellation guidance.
+  Model chose USE_RAG_ONLY; catalogue says retrievalEnabledtrue (permission),
+  but vectors empty and cooperationNONE -> shouldUseRagfalse. No rejection or
+  second iteration; generation-only honestly reported missing evidence. This
+  is separate from the native ANSWER_FROM_CONTEXT acknowledgement failure.
+- Recommended, NOT implemented: remove separate model-auth decision and derive
+  auth from model READ selection/server state; clarify hidden runtime-input
+  responsibility. Expose actual indexed-route availability, not permission
+  alone; align permissible planner paths with policy/sources. Do not force a
+  READ, reinterpret invalid choices, enable fanout or add an unapproved retry.
+- Local6/6 control-flow probes used actual50 classes/default rendered prompts
+  but supplied decisions/handlers, not real inference or original wire payloads.
+  Focused Java21 tests30/30 passed, source clean. Semantic gaps require natural
+  post-login and public/mixed source-path qualification, not mocked-only proof.
+- Full findings: verification-support/mcp-public-business/README.md, retained
+  planner investigation section. Private probe artifacts:
+  ~/.codex/private/loomai-planner-investigation-20261112/. Agent Ohm finished
+  source-only auth audit and is closed. No worker/needed command remains running.

@@ -541,3 +541,115 @@ do not add keyword rules, auto-execute a rejected choice, or retry until green.
 
 Raw new receipts are private under `~/.codex/private/loomai-framework-0.8.50/`
 and `~/.codex/private/loomai-mcp-read-auth-20261112/`; no credentials are committed.
+
+## Retained Planner Misses Investigation (2026-11-12)
+
+Investigation only: no framework/runtime/Platform behavior, configuration,
+release or deployment was changed. No new provider calls or business-tool calls.
+The separately retained Harbor Office manual lab was not used or changed.
+
+### Authenticated Natural Question
+
+Both failed staging receipts are the same natural subscription question, one
+normal Engage and one native-debug request. Both have authenticated=true,
+authenticationRequiredReadActionNames=[], historyMessages=0/historyCharacters=0
+and no active targets. The model selected the correct private READ action name
+but the wrong decision, REQUEST_AUTHENTICATION, with empty public parameters.
+This is not stale anonymous history, a lost login, a hidden missing user-entered
+ID or an attempted private API call. Actual receiver calls remained zero.
+
+The default pack and optimized user overlay were selected, not the support
+overlay. Trusted catalogue construction supplies authenticationRequired=false
+and executableNow=true for the signed-in request, and the system prompt already
+explicitly forbids requesting authentication in that state. Nevertheless, the
+new 0.8.50 REQUEST_AUTHENTICATION option is accepted by decision parsing. The
+authenticated protected-selection helper returns no challenge; the following
+AUTHENTICATION_ACTION_NOT_ELIGIBLE branch immediately breaks. It does not enter
+the ordinary bounded iterative action-proposal feedback path. With no READ
+evidence, RAG disabled for this planner, and no extracted direct answer, the
+information handler reaches MODEL_DIRECT_ANSWER_MISSING.
+
+The static action description says sign-in is required. The optimized prompt
+also conditions private selection on schema evidence of trusted context, while
+the actual public input schema hides the internal actorId mapping and exposes
+empty properties/required fields. These are demonstrable competing/incomplete
+cues. They are not proof of the model's internal reason for choosing auth.
+Production's successful natural request used the same published version and
+artifact and equivalent recorded policy/auth flags, but extraction supplied a
+candidate direct answer there; model inputs were not byte-identical. Do not
+claim a deterministic infrastructure difference or a proven description-only
+cause. A successful production sample does not erase either staging failure.
+
+**Smallest recommended correction, not implemented:** have the model select the
+needed READ, then derive authentication from trusted server state. Remove
+REQUEST_AUTHENTICATION from model choices, not from the framework's typed host
+authentication outcome. Existing selectedProtectedRead already challenges an
+anonymous EXECUTE_READ_ACTIONS selection before parameter resolution/invocation;
+the independent execution guard remains. Clarify that hidden runtime parameters
+are supplied/checked by the server; do not expose identity values or require the
+model to prove an intentionally hidden binding. This is simpler than adding an
+authentication-specific correction loop or overriding an invalid model answer.
+
+### Public Policy Question
+
+The public cancellation-guide READ was enabled, anonymous, grounding eligible
+and allowlisted. Its description explicitly mentioned subscription guidance and
+cancellation timing; its only public input was a query string. It was present
+in the actual eligible-action diagnostics. No parameter, ownership, upstream
+credential or execution rejection occurred: rejectedActionProposalsCount=0 and
+zero tool calls. The model selected USE_RAG_ONLY with needsMoreSteps=false.
+
+The catalogue reported retrievalEnabled=true because that field represents
+capability permission, not actual source availability. The same prompt had an
+empty authorized vectorSpaces list and rag cooperation mode NONE. The generic
+prompts still advertised USE_RAG_ONLY and recommended RAG for broad knowledge
+where READ is not a better fit; they do not explicitly constrain the choice to
+an executable indexed path for this turn. The server's shouldUseRag correctly
+returns false for NONE, so the model-selected RAG path did not run. No proposal
+was rejected or feedback given, and planning stopped after one iteration even
+though maxIterations=2. Extraction's generation=true then led to generation-only
+with no evidence. The model honestly reported missing approved facts. It did
+not answer from the public tool because that tool had never been called.
+
+**Smallest recommended correction, not implemented:** distinguish permitted
+retrieval from a currently usable indexed route in the planner catalogue and
+guidance, incorporating cooperation policy and authorized source availability.
+Do not advertise an executable RAG route when that route is disabled/unavailable.
+Keep the model choosing the relevant READ/source; do not force a particular
+action, enable search-all or widen permissions. Merely enabling RAG cooperation
+does not create missing authorized sources and is not a complete fix. If a
+remaining invalid plan gets correction feedback, it must use an explicit bounded
+policy and preserve the original decision; no silent retry/reinterpretation.
+
+The separate native public-guide failure selected ANSWER_FROM_CONTEXT with an
+actual model-authored acknowledgement. It is related source-selection quality,
+but not the same decision/control path as this hosted USE_RAG_ONLY miss. Do not
+merge those two failed receipts or claim that making the catalogue clearer has
+already fixed either semantic outcome.
+
+### Verification And Coverage Gap
+
+- Six offline reproductions passed against the existing 0.8.50 core classes and
+  actual default classpath prompt resolver. Only model decisions and business
+  handlers were supplied locally; no real inference, network or original
+  provider-request replay is claimed. Rendered prompts are reconstructed from
+  matching recorded contracts, not captured historical provider wire payloads.
+- Reproduced signed-in invalid-auth stopping after one call; anonymous ordinary
+  private READ selection causing a challenge with zero handler calls; signed-in
+  ordinary private READ executing once with trusted identity; public unavailable
+  RAG producing no evidence; enabled cooperation still not inventing sources;
+  and explicit public READ yielding one locally supplied evidence result.
+- Existing focused suites reran on Java21: ReadActionAuthenticationPlanningTest9,
+  ReadActionPlannerContractTest19 and policy-tolerance2, total30 passed/0 failed/
+  0 skipped. These tests do not establish model semantic quality. Signed-in
+  tests supply a correct model choice; the native real signed-in case uses
+  explicit tool instructions. Add the natural anonymous -> login -> identical
+  natural question to real-provider qualification for the proposed correction.
+- Add source-route cases for READ-only/no vectors, indexed retrieval available
+  and unavailable, and mixed READ/indexed questions. Preserve disabled/foreign
+  actions, trusted identity, write confirmation and actual vector permissions.
+  A setup/schema test cannot replace these semantic and execution checks.
+- Raw offline evidence stays outside the repositories in
+  `~/.codex/private/loomai-planner-investigation-20261112/`. Source remains
+  framework aaaa5913 / 0.8.50; no new framework patch is approved or published by
+  this investigation.
