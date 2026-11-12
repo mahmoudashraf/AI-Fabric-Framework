@@ -1,9 +1,9 @@
 # 010.69 Public And Business-Authorized MCP Capabilities For Customer AI Experiences
 
-- Status: implemented and deployed; supported public/business journeys qualified on released 0.8.49 and owned fixtures removed. Declared quality, presentation and operational limits are recorded below; this is not an all-CI-green or perfect-model claim.
-- Created and revised: 2026-11-11.
+- Status: implemented and deployed; the approved 0.8.50 READ-authentication/answer-contract follow-up is released and verified on both targets. Production's exact-original sign-in/read browser journey passed; staging model-selection failures remain explicit. See the latest section 13 checkpoint for cleanup and qualification limits, not an all-CI-green claim.
+- Created: 2026-11-11. Revised: 2026-11-12.
 - Initial Platform source inspected: `ceda2468ba108f08d72f94ed728d2f9bbb42e51a`.
-- Qualified release: framework 0.8.49 / `abecb067483811e414cd94716001715d6c8926ab`; Platform/runtime `fbb7622b6e3bac681bbef84a03daa3e256aec4c2`. Current UI/gateway and full evidence are in section 13.
+- Latest qualified release: framework 0.8.50 / `aaaa5913b2e3879a18756e446e3d51929b535b02`; backend `b334440c04ce85ddd1e335caae89d1ca89a87e98`, runtime `b3197404d692265d815a94fcbb67e66dd6d1962d`. UI/gateway are unchanged. Earlier 0.8.49 proof remains historical evidence in section 13.
 - Framework baseline: released `ai-fabric-framework-v0.8.47`, commit `965b2773ca4128e2b139de5bcac5f40c37fba1e6`.
 - Related: [010.37 Assistant](010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md), [009.1 MCP architecture](009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md), [009.2 gateway extraction](009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md), [010.64 Brain workspace](010_64_SMART_BRAIN_OUTCOME_LED_WORKSPACE_AND_NAVIGATION_REDESIGN_PLAN.md).
 - Authority: owner authorized implementation and live verification on 2026-11-11. Personal-account connections remain deferred. Proven framework gaps still require the bounded review/release process in section 3.3; do not infer qualification from source changes alone.
@@ -648,3 +648,66 @@ retirement; unrelated Incident Room baseline. The first acknowledgement's raw
 model-versus-normalizer cause was not fully traced and is not asserted from its
 receipt alone. Personal-account OAuth, local executable servers and asynchronous
 MCP tasks remain outside this plan's approved scope.
+
+### 2026-11-12: Released 0.8.50 READ Authentication And Answer Contract
+
+- Owner approved the bounded fix and extensive chat-query debugging. A missing
+  final direct answer now returns `MODEL_DIRECT_ANSWER_MISSING`, not invented
+  successful `Okay.` text. Actual model-authored text remains unchanged.
+- Enabled, allowlisted protected READs may be visible to INFORMATION planning.
+  Selection returns the existing typed app-authentication requirement before
+  parameter resolution or handler invocation. Planning visibility never grants
+  anonymous execution, another user's identity or vector-search permission.
+- Safe intent-decision/answer-source diagnostics were added. No phrase routing,
+  hidden response replacement, automatic fanout or new retry loop was added.
+  Full HTTP/metadata capture and genuine native SDK `features.debug=true`
+  inspector were qualified. The saved generic Engage pack still forces its
+  inspector off; there is no new backend query-debug field or global public
+  debug enablement.
+- Framework reactor2,413, focused77, guards7, vector containers8 plus18 unit,
+  empty-cache Central-only consumer15 and packaged/booted Java21 consumption
+  passed. Runtime CI43131305652 passed accounting78+103 and runtime814 with
+  zero failures/errors/skips. Ordinary connector102 and Platform compiler/
+  manifest/verifier75 passed locally. Test totals overlap; do not sum them.
+- Native real OpenAI qualification finished9/10: one public question selected
+  acknowledgement/context instead of READ evidence. General indexed matrix
+  passed11/11. Central43128536259 succeeded with two runner-Docker-unavailable
+  lease tests skipped; both executed locally. Broad CI43128510006 retains the
+  same14 Incident Room failures, not a green full-workflow claim.
+- Both backends now use b334440c0. New disposable Brain dep-f52626dc published
+  ver-b213721b using artifact dsa-67fc22ca, runtime digest
+  `sha256:0d45bc52742744a9f4dc13c61b136d35cb3fb18c207fb95a1e8dce57304c5d62`.
+  Stage rel-4f64c49f and production rel-d46f38a1 reached APPLIED_VERIFIED/ACTIVE;
+  fresh post-apply checks each passed27/failed0/not-applicable7. Existing
+  customer Brains were not automatically upgraded. No business/vector copying.
+- The first hosted public-guide question failed source-use quality: USE_RAG_ONLY
+  with no available vector source, zero tool calls and an honest missing-evidence
+  answer. Explicit continuation did not repeat/rephrase it. Nine subsequent
+  auth/read/write/foreign turns passed: private anonymous INFORMATION caused
+  sign-in with no handler call; real own READ, reject0writes, confirm1write,
+  second-user own READ and actual foreign-object denial passed.
+- Frozen natural/verbose questions ran once in each browser mode. Staging normal
+  Engage and native debug: automatic sign-in4/4, signed-in reads2/4; both natural
+  signed-in attempts incorrectly selected REQUEST_AUTHENTICATION despite trusted
+  authenticated=true. The server rejected the choice without execution and
+  returned the explicit missing-answer error. Production normal Engage passed
+  all4queries: automatic sign-in2/2, signed-in own-subscription reads2/2. Full12
+  browser responses, real dialogs and inspector screenshots retained. No browser
+  errors, repeated/rephrased cases or extra mutations; local sessions closed.
+- These are separate model-selection quality findings, not concealed successes.
+  Production success does not erase staging failures. Further framework changes
+  require owner review. A simpler candidate is model READ selection with
+  server-derived auth state, removing authentication as a separate model choice;
+  this is not implemented. Do not silently turn a rejected decision into a call.
+- Exact new-fixture cleanup completed: normal deletion del-d16f3a62 hit the
+  attached-storage safeguard; operator disposal removed only the verified owned
+  runtime/AI-state services and four volumes. Normal retry del-9da33ff6 SUCCEEDED.
+  Final read-only proof passed eleven database counts0, customer/API/native
+  absence, fixture/source removal and second-identity deletion. Original owner,
+  shared services/artifact/image and audit history retained. First absence probe
+  observed asynchronous fixture deletion still pending; that receipt is kept,
+  followed by native404/container absence and final successful proof. No replay
+  of model queries or deletion, SQL write, global prune or guard weakening.
+  No verification worker or disposable resource remains. Full evidence:
+  `verification-support/mcp-public-business/README.md`; raw receipts remain in
+  private `loomai-framework-0.8.50` and `loomai-mcp-read-auth-20261112` directories.

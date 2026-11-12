@@ -4,17 +4,23 @@ MCP is an optional connection method for existing services. Your ordinary API ac
 
 Release and live qualification evidence is recorded in implementation plan 010.69. A saved connection, discovery receipt or draft import is not evidence that a live action has executed successfully.
 
-The qualified framework version is **0.8.49**. Public discovery/import,
-company authorization, no-vector INFORMATION reads, signed-in private reads
-and confirmed business writes were verified through released runtimes. Use the
-normal Updates flow and a compatible runtime image for an older Brain; do not
-invent vector-space names or relax search permissions.
+The latest released framework is **0.8.50**. Public discovery/import, company
+authorization, no-vector INFORMATION reads, signed-in private reads and
+confirmed business writes have released-runtime evidence. The follow-up also
+makes protected READ capabilities visible for planning before sign-in, without
+permitting anonymous execution. Use the normal Updates flow and a compatible
+runtime image for an older Brain; existing Brains are not automatically
+upgraded. Do not invent vector-space names or relax search permissions.
 
-Engage's normal **Sign in** control and private lookup were verified in
-production. Automatic sign-in prompting depends on the model selecting a
-protected capability: two production questions did not trigger it, without
-private execution or disclosure. Users can sign in explicitly. The verification
-record keeps those quality misses separate from passing authentication tests.
+Automatic sign-in now passes the two original failed questions in staging's
+normal Engage app and native widget, and in production's normal Engage app.
+Both production questions also read the correct subscription after sign-in.
+Model-selection quality is still imperfect: staging's natural signed-in
+question incorrectly requested authentication again in both modes, and a public
+question did not select its available READ source. These remain explicit quality
+failures, not successful private lookups. If a final direct answer is absent,
+the framework returns an explicit error instead of inventing a successful
+acknowledgement. See the verification record for exact environment coverage.
 
 ## Supported Connections
 

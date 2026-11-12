@@ -7,7 +7,7 @@ sign-in prompting has two documented production semantic misses; explicit
 sign-in and signed-in reads passed. Cleanup completion is recorded at the end.
 Private credentials, tokens, cookies and raw logs are not part of this directory.
 
-## Deployed Source
+## 0.8.49 Deployed Baseline
 
 - Platform backend: `fbb7622b6e3bac681bbef84a03daa3e256aec4c2`, healthy on
   staging and production, digest
@@ -428,3 +428,116 @@ services, published releases and legacy bindings are not cleanup targets.
 - No new framework work is pending in this implementation. Automatic prompting,
   technical result presentation, operator-only storage disposal and unrelated
   Incident Room CI remain declared limits. Personal-account MCP remains deferred.
+
+## 0.8.50 Auth And Answer-Contract Follow-up (2026-11-12)
+
+This scoped follow-up supersedes the earlier automatic-prompt status, not its
+historical failed receipts. It is not an all-green semantic-quality claim.
+
+### Source And Verification
+
+- Framework `aaaa5913b2e3879a18756e446e3d51929b535b02`, immutable 0.8.50,
+  Central publication `43128536259` succeeded. Local Java21 release reactor
+  2,413/2,413, focused source/prompts77/77, guards7, actual vector containers8
+  plus18 units passed. The publisher's final reactor had two skipped PostgreSQL
+  lease tests because its old Docker client API was unavailable on that runner;
+  both executed locally. Do not describe that publisher run as zero skips.
+- Real OpenAI `gpt-5.4-mini`: native initial8/9, final9/10; final12 orchestration
+  turns plus one real supplied-INFORMATION planner call. Private auth/nullable
+  reads and confirmed/rejected/no-confirmation writes passed. One public-guide
+  case still chose model-authored acknowledgement/ANSWER_FROM_CONTEXT instead
+  of a READ; no assertion or model decision was rewritten. Core general/indexed
+  matrix11/11 passed (normal85%/min20, existing11-case clamp).
+- Empty-cache Central-only consumer15/15, package/Java21 boot and source/Javadoc
+  availability passed. Four packaged framework JARs matched public-cache bytes.
+  Minimal, agentic5/5 and selected MCP reference-server6/6 consumers passed.
+- Both backends are `b334440c04ce85ddd1e335caae89d1ca89a87e98`, digest
+  `sha256:b01df499f7166a4eba6adc456b8be680e8b62ff005e1f75da9a94b1c7ddf67a7`.
+  UI and gateway remain unchanged from the earlier qualified sources.
+- Runtime source `b3197404d692265d815a94fcbb67e66dd6d1962d`, CI`43131305652`,
+  artifact `dsa-67fc22ca`, digest
+  `sha256:0d45bc52742744a9f4dc13c61b136d35cb3fb18c207fb95a1e8dce57304c5d62`.
+  CI accounting78+103 and runtime814 passed without failures/errors/skips.
+  Ordinary connector102 and Platform compiler/manifest/verifier75 passed locally.
+  First runtime CI`43130850584` failed a pre-existing test-only capture race;
+  synchronization now waits for the captured body as well as request arrival.
+  No production transport, ledger, limits or assertions were weakened.
+- Broad framework CI`43128510006` has exactly the same14 Incident Room failing
+  test names as the previous baseline, no additions/removals. Registry, reactor,
+  integration compilation and vector-container gates passed; the entire workflow
+  is not green. Later example gates were not reached after the baseline failure.
+
+### Live Checks And Diagnostics
+
+- Fresh Brain `dep-f52626dc`, version `ver-b213721b`, stage `rel-4f64c49f` reached
+  APPLIED_VERIFIED/ACTIVE, post-apply27 passed/0 failed/7 not applicable. The
+  normal managed-host Verify action qualified its new Engage address; initial
+  activation409 correctly blocked a pending hostname. Activation then succeeded.
+- First live public-guide query failed source-use quality: model USE_RAG_ONLY,
+  empty vector catalogue/cooperationNONE, zero tool calls, then an honest
+  missing-evidence answer. This is distinct from the framework fixture's
+  acknowledgement and is retained in `chat-runs/1794446222425-d313a95a`.
+- Explicit continuation did not repeat that question. Nine auth/write/foreign
+  turns passed: real anonymous INFORMATION with retrieval/generation false and
+  missing direct answer -> model REQUEST_AUTHENTICATION -> typed host sign-in,
+  zero protected calls; real sign-in/own read; rejection0writes; confirmation1;
+  second-user own read and actual foreign-object denial. Status explicitly
+  retains the prior public-quality failure, not a full-journey green result.
+- Normal Engage and genuine native SDK, each exact original natural/verbose
+  question: automatic-auth dialogs4/4 passed; verbose signed-in reads2/2 passed.
+  Natural signed-in reads FAILED2/2: authenticated=true, no auth-required READs,
+  but model REQUEST_AUTHENTICATION. Server rejected that invalid choice and
+  returned a visible missing-answer error with zero tool calls. It did not
+  silently convert the decision into execution or a successful `Okay.`.
+- Full eight browser query responses, real auth/dialog/debug screenshots and
+  all API response metadata were retained. Browser/capture errors0, no extra
+  mutations, local sign-outs confirmed. Native `features.debug=true` exercised
+  the actual published SDK inspector. Saved generic Engage still defaults its
+  inspector off; no unsupported backend query-debug field or global public
+  debug setting was invented. Safe `intentDecisions`, `answerSource`, READ
+  planner/rejection diagnostics and request timings are available for tracing.
+- Production `rel-d46f38a1` uses the same immutable version/artifact and reached
+  APPLIED_VERIFIED/ACTIVE. Post-apply `vrf-8e57a85b` passed27/failed0/not-applicable7;
+  staging post-apply is `vrf-b66b2f25`, same counts. Normal production app binding
+  passed all16 readiness checks. Production's normal saved Engage browser
+  passed4/4 exact-original queries: automatic-auth dialogs2/2 and signed-in
+  owned reads2/2, with real broker identity. Native debug was qualified on
+  staging, not repeated on production. All12 browser HTTP responses retained;
+  total automatic dialogs6/6 and signed-in reads4/6, with both staging natural
+  failures preserved. Production browser errors0, no extra mutations, both
+  local sessions signed out. Evidence: `engage-browser-runs/production-1794447259120-9e2b4da4`.
+  Exact new-fixture cleanup completed as detailed below.
+
+### Exact Follow-up Cleanup
+
+- Normal hard-delete `del-d16f3a62` removed the storage-free connectors but
+  stopped at the existing attached-storage safeguard. Exact operator disposal
+  removed only this canary's two runtimes, two AI-state databases and four
+  verified owned volumes. No global prune/network deletion, SQL write or
+  safety-check bypass. The normal retry created `del-9da33ff6` and SUCCEEDED;
+  the original failed operation remains in audit.
+- App/consumer, both MCP connections and owned key, fixture app/mount/source
+  and only the tagged second Supabase identity were removed. Initial final
+  observation saw the fixture's asynchronous deletion still pending; retained
+  as `initial-cleanup-observation.private.json`. Native404/container absence
+  then confirmed completion, without another delete or any repeated AI query.
+- Final read-only proof PASS: eleven exact database counts0, customer lists
+  clear, all six target services plus fixture absent, all owned containers and
+  four volumes absent, second identity404/original owner200. Both backends,
+  published artifact and exact reusable runtime image retained. Shared networks
+  and historical audit records are deliberately preserved.
+- Evidence: `final-cleanup-evidence.private.json` and
+  `operator-retirement.private.json` in the new private sidecar. No verification
+  agent, paid query or disposable canary remains running.
+
+The signed-in invalid-auth choice and public-source selection require review
+before further framework changes. The simplest candidate is to let the model
+select a READ while the server derives authentication from that selection and
+trusted session state, instead of asking the model to select authentication as
+a separate operation. The existing protected-selection branch already supports
+that derivation. This is a proposal, not an implemented second patch. Explicit
+trusted-auth guidance or allowed bounded validation feedback are alternatives;
+do not add keyword rules, auto-execute a rejected choice, or retry until green.
+
+Raw new receipts are private under `~/.codex/private/loomai-framework-0.8.50/`
+and `~/.codex/private/loomai-mcp-read-auth-20261112/`; no credentials are committed.

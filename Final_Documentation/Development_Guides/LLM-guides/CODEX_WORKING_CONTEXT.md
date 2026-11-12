@@ -14912,3 +14912,57 @@ test is being called hosted acceptance. UI extraction remains last.
 - Plan01069, 01037, MCP customer guide and verification README are updated.
   Private raw proofs ~/.codex/private/loomai-mcp-01069/, final-cleanup-evidence.
   Future work must use NEW owned fixtures; do not assume retired IDs are live.
+
+### 010.69 Released Follow-up: Final Verification (2026-11-12)
+
+- Approved correction is published as framework0.8.50, source aaaa5913b2e3879a18756e446e3d51929b535b02.
+  Both backends are b334440c04ce85ddd1e335caae89d1ca89a87e98; runtime image
+  b3197404d692265d815a94fcbb67e66dd6d1962d / artifact dsa-67fc22ca /
+  sha256:0d45bc52742744a9f4dc13c61b136d35cb3fb18c207fb95a1e8dce57304c5d62.
+  UI611e64ed and gateway41e43e61 are unchanged. No existing customer Brain
+  was automatically upgraded; normal Updates remains required.
+- New disposable dep-f52626dc used ver-b213721b on stage rel-4f64c49f and
+  production rel-d46f38a1. Both APPLIED_VERIFIED/ACTIVE, post-apply27 passed/
+  0 failed/7 not applicable; production app binding readiness16/16 passed.
+- Framework reactor2413, focused77, actual vector containers8, fresh Central
+  consumer15, local accounting181 and CI runtime814 passed. Native real
+  OpenAI9/10 retains its public-source-selection failure; general indexed11/11
+  passed. Central43128536259 succeeded but skipped2 Docker-unavailable lease
+  tests (both ran locally). Broad CI43128510006 retains exactly14 existing
+  Incident Room failures. Do not call the full framework workflow green.
+- Hosted public-guide failure remains: USE_RAG_ONLY/no available vectors,
+  no tools, honest missing-evidence answer. Nine subsequent auth/write/foreign
+  turns passed without repeating that question; actual receiver checks prove
+  reject0writes, confirm1write and foreign-object denial.
+- Exact-original natural/verbose browser questions: staging normal Engage and
+  native debug automatic-auth4/4; signed-in reads2/4 (both natural attempts
+  incorrectly selected REQUEST_AUTHENTICATION while already authenticated).
+  Production normal Engage passed4/4 queries: automatic-auth2/2 and own reads2/2.
+  Total automatic-auth6/6, signed-in4/6; do not erase stage failures with prod
+  success. Full12responses retained, zero browser errors/anonymous protected
+  calls/extra mutations, local sessions signed out. No model-retry/rewording.
+- Genuine native SDK debug inspector enabled with features.debug=true on stage;
+  full raw HTTP/metadata retained in both normal and debug modes. Saved generic
+  Engage still forces inspector off. No invented query flag/global public debug.
+  Missing final authored answer now returns MODEL_DIRECT_ANSWER_MISSING instead
+  of invented successful Okay. Actual model-authored responses remain unchanged.
+- Remaining quality findings need review, not another unapproved patch. Simpler
+  candidate: let the model select READ and derive authentication solely from
+  trusted server state, removing the separate model REQUEST_AUTHENTICATION choice.
+  Existing selected-protected-READ logic supports deriving the auth requirement.
+  This is a proposal only; no hidden retry, matcher or auto-execution of an
+  invalid model choice. Personal-account MCP and technical result-card redesign
+  remain deferred. Saved-app inspector configuration is also not implemented.
+- Exact new-canary cleanup completed: normal del-d16f3a62 hit attached-storage
+  protection; operator disposal removed only verified owned services/four volumes.
+  Normal retry NEW del-9da33ff6 SUCCEEDED. Final read-only proof PASS: eleven
+  exact database counts0, customer lists clear, six target services plus fixture/
+  source/containers/volumes absent, only second identity deleted. First absence
+  probe observed asynchronous fixture deletion still pending; that failed receipt
+  is retained before later native404 and successful proof. Original owner/shared
+  services/artifact/image/audit retained. No SQL writes, prune, network deletion
+  or weakened safeguard. No verification worker or disposable canary remains.
+- Evidence: verification-support/mcp-public-business/README.md and 010.69;
+  private raw files in ~/.codex/private/loomai-framework-0.8.50/ and
+  ~/.codex/private/loomai-mcp-read-auth-20261112/. Agent Dirac finished production
+  browser proof and is closed. No further AI queries or release work is running.
