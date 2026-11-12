@@ -131,8 +131,9 @@ class GuardedNativeTransportTest {
         var future = java.util.concurrent.CompletableFuture.supplyAsync(() -> chatModel.call(new Prompt("fixture")));
         try {
             long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-            while (sends.get() == 0 && System.nanoTime() < until) Thread.sleep(5);
+            while ((sends.get() == 0 || requests.isEmpty()) && System.nanoTime() < until) Thread.sleep(5);
             assertEquals(1, sends.get());
+            assertFalse(requests.isEmpty(), "The synthetic receiver must capture the request body before inspection.");
             assertEquals(chat(model, 400_000, 1000), ledger.read("approval", scope).accountedUsage());
             var body = json.readTree(requests.element());
             assertEquals(model, body.path("model").textValue());
@@ -240,8 +241,9 @@ class GuardedNativeTransportTest {
         var future = java.util.concurrent.CompletableFuture.supplyAsync(() -> model.call(new Prompt("fixture")));
         try {
             long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-            while (sends.get() == 0 && System.nanoTime() < until) Thread.sleep(5);
+            while ((sends.get() == 0 || requests.isEmpty()) && System.nanoTime() < until) Thread.sleep(5);
             assertEquals(1, sends.get());
+            assertFalse(requests.isEmpty(), "The synthetic receiver must capture the request body before inspection.");
             assertEquals(chat(128_000, cap), ledger.read("approval", scope).accountedUsage());
             var body = json.readTree(requests.element());
             assertEquals(cap, body.path("max_completion_tokens").intValue());
