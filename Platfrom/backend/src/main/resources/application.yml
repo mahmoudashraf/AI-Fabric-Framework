@@ -67,7 +67,7 @@ platform:
       reader-permissions-boundary-arn: ${LOOMAI_DOCUMENT_STORAGE_READER_PERMISSIONS_BOUNDARY_ARN:}
       max-object-bytes: 1048576
   ai-fabric:
-    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.49}
+    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.50}
     executor-rag-similarity-threshold: ${PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD:0.5}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
