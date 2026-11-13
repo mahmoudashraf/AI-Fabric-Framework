@@ -1,5 +1,9 @@
 # Follow-Up Evidence And Measurement Quality
 
+This is the initial-cycle record. The later owner-approved Console policy-source
+access rollout is now complete; see
+[the verified access record](2026-11-13-console-policy-access.md) for current state.
+
 ## Scope
 
 Continue the owner's requested quality work using the existing model, runtime
@@ -84,7 +88,8 @@ source through normal draft publication and staging-first apply. It must retain
 all source filters, `PUBLIC_APPROVED`, source/tenant handles, credentials and
 business permissions. The publication command was rejected by approval review
 before executing because it changes a persistent access policy. No draft edit,
-publication or apply occurred. A dedicated owner approval question is pending.
+publication or apply occurred in this initial cycle. The owner approval question
+was pending at that checkpoint; the later approved rollout is recorded above.
 Do not treat the prepared helper as authorization to execute it or bypass the
 rejection through another command. Future plugin/template source definitions
 also need this explicit decision when authoring Console-testable sources;
@@ -101,7 +106,7 @@ Desktop/mobile screenshots were inspected; the basic viewport check passed.
 This is not full accessibility, every mobile interaction or sign-in qualification.
 The public policy path therefore works; the access finding is Console-specific.
 
-## Final State
+## Initial Cycle Final State
 
 Thirteen actual chat queries: twelve private preview turns, including the
 recovered fourth completion, plus one public workspace turn. No automatic model
@@ -116,6 +121,8 @@ runtime release, app identity or database changed.
 Private evidence and resumable helpers are preserved at
 `~/.codex/private/loomai-followup-20261113/`; the initial temporary directory
 also remains. `closeout.private.json` records actual identity/configuration
-preservation. `policy-preview-rollout.mjs` is prepared but **unexecuted and
-approval-gated**. Richer policy uploads, accepted template defaults and the
+preservation. At this initial checkpoint `policy-preview-rollout.mjs` was
+prepared but unexecuted and approval-gated. The subsequent approval and verified
+rollout are recorded separately; do not use this historical checkpoint as current
+deployment state. Richer policy uploads, accepted template defaults and the
 remaining normal model-quality miss are not closed by this diagnostic fix.

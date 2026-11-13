@@ -15272,3 +15272,35 @@ test is being called hosted acceptance. UI extraction remains last.
   bind / actualConsole+public checks. Do not skip failing document-management
   prerequisite or claim staging fully qualified yet. State/helpers above remain
   authoritative. New proof: 2026-11-13-console-policy-access.md under01063 evidence.
+
+### 010.63 Console Policy Access Verified Complete (2026-11-13, 13:34 UTC)
+
+- Owner-approved bounded access change COMPLETE. Northfield ver-fcd3ee7b/v15:
+  stage rel-3618a1fb and prod rel-712024cd APPLIED_VERIFIED/PASSED. Normal same-
+  consumer binding, all3originalinstallations ACTIVE (stage/prod standalone and
+  prod embedded). Draftdrf-91912e48. Supersedes prior in-progress snapshots.
+- BOTH control-plane backends nativehealthy on bc7fc16ffe5c7655effa3d4a4fc96b86d10bf89b,
+  OCI015cb0a9.... Backend-only CI43430949751 PASS, UI skipped. Document audience
+  mapping recognizes Console transport without granting an audience. Existing
+  proxy-only/unknownmode/audience/owner/target/scope checks retained. Backend159 /
+  existing runtime source-registry23 PASS. No framework/runtime production edit.
+- Four actual chat queries: normalConsole+anonymouspublic on EACH environment.
+  Console appliedprompts/nooverride, sourceeligible1/attempted1/succeeded1,3docs;
+  all4answers correctlicence/30minutes andsourcequalifications. Both publicUI
+  screenshots desktop/mobile inspected,0pageErrors/0businesswrites/0replays.
+  Documentlist prerequisite400 fixed, NOT bypassed; no AI query was sent by
+  its failed preflight. Basicviewport only, not allmobile/accessibility/auth/HITL.
+- Runtime/connector/AIstateDB identities preserved bothtargets, exact unchanged
+  0.8.52runtimeimagefdba4734.../source008981816/artifactdsa-f8ef9102 natively
+  matched. reindexRequiredFALSE; no index/vectorcopy/S3/IAM/newinfra operation.
+  UI remains008981816. Existing embedded status/binding checked, not another
+  actual embedded UI query. Unauthenticated Console401 afterfinalrollout.
+- Nine other savedsections unchanged, including authoredprompts/security/models/
+  actions/behavior. Only approved sourceauthmode addition; generatedcatalogue
+  reflects it normally. No candidateguidance/default/template/plugin publication.
+- Final privateproof ~/.codex/private/loomai-followup-20261113/
+  policy-preview-complete.private.json; authoritative rolloutstate besideit,
+  NOT older tmpcopy. Do not replay publish/apply; allintentguards consumed.
+  Publicproof2026-11-13-console-policy-access.md and01063executionrecord updated.
+  Parentquality/S3uploader/defaultadoption remainseparate. No agents or needed
+  exec/browser processes running. Preserve unrelateddirt/manual lab/phonevideos.

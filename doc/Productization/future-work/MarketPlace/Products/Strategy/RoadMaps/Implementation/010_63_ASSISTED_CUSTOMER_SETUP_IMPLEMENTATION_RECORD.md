@@ -508,3 +508,31 @@ See [follow-up qualification and approval checkpoint](../../../../../../../../ve
 The richer six-file S3 pack, final template-default adoption and normal remaining
 model-quality limitations remain open. No additional framework change is proposed
 for the Console source-mode configuration.
+
+## 13 November 2026 - Approved Console Policy Access Complete
+
+The owner approved the scoped source-mode addition. Northfield `ver-fcd3ee7b`
+is verified on staging `rel-3618a1fb` and production `rel-712024cd`, with the
+same Brain, apps, runtime/connector/AI-state database identities and qualified
+0.8.52 image. Staging qualified before production. No reindexing was required
+or invoked, no vector copying occurred, and no framework release was made.
+
+Staging exposed a bounded Platform contract mismatch: document management
+rejected the valid Console transport mode. Source `bc7fc16ff` recognizes it
+without granting another customer document audience. Backend tests 159/159,
+existing runtime source-access tests 23/23 and backend-only image CI43430949751
+passed. Both backends are healthy on that exact image; UI/runtime images did
+not change.
+
+Four actual queries, one normal Console and one anonymous public query per
+environment, returned the correct approved-policy facts. Public source citations
+and inspected desktop/mobile screenshots passed with zero page errors. The
+document-management prerequisite now succeeds rather than being skipped.
+Unauthenticated Console access remains401. All nine other saved draft sections
+are unchanged; the single approved source-mode addition and generated catalogue
+reflection are the only configuration differences.
+
+See [verified access evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-console-policy-access.md).
+This closes that access gap only. It does not adopt the experimental follow-up
+prompts, replace the richer S3 policy pack, publish template defaults or globally
+change plugin source modes. Remaining ordinary model-quality misses stay visible.

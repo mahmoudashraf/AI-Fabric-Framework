@@ -47,19 +47,57 @@ under restricted local process permissions. The same offline tests passed with
 process access; the failed XML and passing XML remain separate private evidence.
 This was not repaired by changing a test expectation or runtime behavior.
 
-## Rollout Checkpoint
+## Verified Rollout
 
-Staging `rel-3618a1fb` is `APPLIED_VERIFIED/PASSED` on the existing 0.8.52
-artifact `dsa-f8ef9102`. Its original Engage consumer is bound normally.
-One actual Console query, using the applied prompts without an override, returned
-the correct driving-licence and 30-minute policy facts. The trace confirms the
-policy source is eligible, searched and successful, returning three documents.
+Completed 13 November 2026, 13:34 UTC. Staging `rel-3618a1fb` and production
+`rel-712024cd` are both `APPLIED_VERIFIED/PASSED` on `ver-fcd3ee7b`. The same
+existing Engage consumers are bound through the normal API. Staging qualified
+before the production apply was requested.
 
-The public UI check stopped at its read-only document-list prerequisite before
-opening the browser or sending a model query. Finish that previously unexecuted
-check after deploying the backend contract correction. Production remains on
-`rel-0139e718` until staging qualifies. No duplicate runtime, inventory database,
-vector copy, source upload or new image for the customer runtime is required.
+Backend source `bc7fc16ffe5c7655effa3d4a4fc96b86d10bf89b` is native-verified
+healthy on both control planes, digest
+`sha256:015cb0a97a77c7f73f8037da3a04e695c8db1810b191c6bb695086bfdf3de035`.
+[Backend-only image CI](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/43430949751)
+passed; the UI image job was skipped. Staging's authenticated API also passed
+before deploying the backend to production. No database migration was added.
+
+Four actual chat queries were submitted once: one ordinary Console query and
+one anonymous public-workspace query per environment. Both Console queries used
+the applied prompts without a preview override. Their actual traces show the
+approved policy source eligible, attempted and successful, returning three
+documents. All four answers correctly stated a valid driving licence and a
+30-minute test drive, with the source's advance-booking, accompaniment and
+availability/checks qualifications. Public answers cited their target's existing
+active test-drive document. No business action executed, inference was not
+replayed, and no synthetic response was used for acceptance.
+
+The initial staging public check stopped at its read-only document-list
+prerequisite before browser launch or a model query. It was not bypassed: after
+the backend correction, the same document-management prerequisite succeeded and
+the previously unexecuted public UI case ran normally. Both public workspaces'
+desktop/mobile screenshots were inspected, with zero page errors and basic
+viewport checks passing. These checks are not a new full sign-in, handover,
+write-action, accessibility or all-mobile-interaction qualification.
+
+## Preservation And Boundaries
+
+Both environments retain their original runtime, connector and AI-state database
+identities. Native image inspection matches the exact already-qualified 0.8.52
+runtime image, digest
+`sha256:fdba473452bf2e1ca681ea0bb30e6291e3b3844c59d22849a9704597cbd62910`,
+source `0089818162f8805bc58578dc20149dec9a93d237`, artifact `dsa-f8ef9102`.
+No framework release, runtime rebuild, duplicate infrastructure or customer
+inventory database was needed. The version declares `reindexRequired=false`;
+no indexing, vector copy, document upload, S3/IAM or model-setting change occurred.
+
+The original staging and production standalone apps and production embedded
+installation remain `ACTIVE` on their respective new releases. Public policy
+behavior was exercised through standalone apps; the embedded installation's
+identity, status and assignment were checked, not a second embedded UI journey.
+Unauthenticated Console access still returns HTTP 401. All nine other saved
+configuration sections, including authored prompts, security, provider, actions
+and behavior, match the pre-change draft. The approved source addition is the
+only authored configuration difference; its prior modes and all filters remain.
 
 The publication helper initially expected full configuration in the summary
 response. Publication had succeeded; the actual saved version was inspected and
@@ -68,7 +106,10 @@ accounts for the compiler-generated source catalogue update. Neither helper
 finding is a reason for a framework release.
 
 Private evidence: `~/.codex/private/loomai-followup-20261113/`.
-The authoritative rollout state is `policy-preview-rollout.private.json` there,
-not the older temporary directory's copy. Parent optimisation work, richer S3
-policies, accepted template defaults and measured model-quality limits remain
-separate workstreams.
+`policy-preview-complete.private.json` is the final completion proof; the rollout
+state and per-environment Console/public/qualification records are beside it.
+Do not replace that state with the older temporary directory's copy or replay
+publication/apply. This closes the approved Console policy-access gap, not all
+parent optimisation work. Richer S3 policies, accepted template defaults and
+measured model-quality limits remain separate workstreams. No global source-mode
+rewrite or plugin/template version was published.
