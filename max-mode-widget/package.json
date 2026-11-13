@@ -34,6 +34,7 @@
     "smoke:request-context": "node scripts/request-context-smoke.mjs",
     "smoke:semantic-boundary": "node scripts/semantic-boundary-smoke.mjs",
     "smoke:compound-result": "node scripts/compound-result-smoke.mjs",
+    "smoke:chat-narrative": "node scripts/chat-response-narrative.test.mjs",
     "smoke:suggestions": "node scripts/ai-behaviour-next-steps.test.mjs && node scripts/chat-suggestion-race.test.mjs && node scripts/suggestion-lifecycle-smoke.mjs",
     "smoke:authentication-requirement": "node scripts/authentication-requirement-smoke.mjs",
     "smoke:credential-broker": "node scripts/credential-broker-smoke.mjs",
@@ -47,7 +48,7 @@
     "smoke:private-adapter": "node scripts/private-adapter-browser-smoke.mjs",
     "smoke:viewport": "node scripts/viewport-smoke.mjs",
     "smoke:accessibility": "node scripts/accessibility-browser-smoke.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context && npm run smoke:semantic-boundary && npm run smoke:compound-result && npm run smoke:authentication-requirement && npm run smoke:credential-broker && npm run smoke:conversation-restoration && npm run smoke:confirmation-replay && npm run smoke:private-adapter && npm run smoke:pending-status && npm run smoke:viewport && npm run smoke:accessibility"
+    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context && npm run smoke:semantic-boundary && npm run smoke:compound-result && npm run smoke:chat-narrative && npm run smoke:authentication-requirement && npm run smoke:credential-broker && npm run smoke:conversation-restoration && npm run smoke:confirmation-replay && npm run smoke:private-adapter && npm run smoke:pending-status && npm run smoke:viewport && npm run smoke:accessibility"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

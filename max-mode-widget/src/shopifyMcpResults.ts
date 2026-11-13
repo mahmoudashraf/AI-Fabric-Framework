@@ -103,15 +103,3 @@ export const normalizeShopifyMcpCatalogResult = (value: unknown) => {
     returnedResults: products.length,
   };
 };
-
-export const summarizeShopifyMcpCatalogResult = (value: unknown): string | null => {
-  const normalized = normalizeShopifyMcpCatalogResult(value);
-  if (!normalized) return null;
-  const names = normalized.products
-    .map((product: any) => product.title)
-    .filter(Boolean)
-    .slice(0, 3);
-  if (!names.length) return null;
-  const suffix = normalized.products.length > names.length ? ` and ${normalized.products.length - names.length} more` : "";
-  return `I found ${normalized.products.length} matching product${normalized.products.length === 1 ? "" : "s"}: ${names.join(", ")}${suffix}.`;
-};

@@ -14,7 +14,6 @@ import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
 import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
-import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction, normalizeRuntimeDocument } from "@/chatResult";
 import { extractWorkspaceAuthenticationRequirement, dispatchWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 import { getWidgetConfig } from "@/config";
@@ -201,24 +200,19 @@ export function useChatFlow({
           return;
         }
 
-        let messageContent: unknown = "";
+        const messageContent = extractChatResultMessage(data, "");
         let result: ChatResult | undefined;
         let resultType: ResultType | undefined;
         let messageDocs: Document[] | undefined;
 
         const authenticationRequirement = extractWorkspaceAuthenticationRequirement(data);
         const customerAccountConnect = extractCustomerAccountConnectAction(data);
-        const canonicalResult = canonicalChatResult(data);
+        const canonicalResult = canonicalChatResult(data, messageContent);
 
         if (canonicalResult?.sanitizedPayload) {
-          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
           result = canonicalResult;
           resultType = canonicalResult.type;
           const resultData = result.sanitizedPayload.data || (data.result?.data ?? {});
-          messageContent =
-            summarizeShopifyMcpCatalogResult(resultData) ||
-            summarizeShopifyMcpCatalogResult(data.result?.data) ||
-            messageContent;
 
           // Strip empty smart suggestions
           if (result.smartSuggestion) {
@@ -249,8 +243,6 @@ export function useChatFlow({
               });
             messageDocs = [...(messageDocs || []), ...normalizedSugDocs];
           }
-        } else {
-          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
         }
 
         emitEvent("message:received", {

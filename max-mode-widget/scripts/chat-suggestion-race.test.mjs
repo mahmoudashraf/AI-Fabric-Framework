@@ -27,7 +27,6 @@ const { useChatFlow } = load('../src/hooks/useChatFlow.ts', {
   '@/config': config,
   '@/utils': { hasShopifyRequestContext: () => false, normalizeMessageContent: value => value,
     withRequestContext: (payload, context) => ({ ...payload, context }) },
-  '@/shopifyMcpResults': { summarizeShopifyMcpCatalogResult: () => undefined },
   '@/chatResult': canonical,
   '@/authenticationRequirement': { extractWorkspaceAuthenticationRequirement: () => undefined,
     dispatchWorkspaceAuthenticationRequirement: noop },

@@ -181,13 +181,14 @@ export function extractChatResultMessage(payload: any, fallback: string): string
   ) ?? fallback;
 }
 
-export function canonicalChatResult(payload: any): ChatResult | undefined {
+export function canonicalChatResult(payload: any, missingMessage?: string): ChatResult | undefined {
   if (!payload || typeof payload !== "object") {
     return undefined;
   }
   const resultType = (firstText(payload.type) || "INFORMATION_PROVIDED") as ResultType;
   const success = typeof payload.success === "boolean" ? payload.success : true;
-  const answer = extractChatResultMessage(payload, success ? "I processed your query successfully." : "I could not process that request.");
+  const answer = extractChatResultMessage(payload, missingMessage
+    ?? (success ? "I processed your query successfully." : "I could not process that request."));
   const ragResponse = payload.ragResponse && typeof payload.ragResponse === "object" ? payload.ragResponse : undefined;
   const actions = Array.isArray(payload.actions) ? payload.actions : [];
   const data: Record<string, any> = {};

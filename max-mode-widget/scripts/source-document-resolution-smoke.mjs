@@ -187,13 +187,13 @@ const { useChatFlow } = loadSource('../src/hooks/useChatFlow.ts', {
     normalizeMessageContent: (content) => content,
     withRequestContext: (payload) => payload,
   },
-  '@/shopifyMcpResults': { summarizeShopifyMcpCatalogResult: () => undefined },
   '@/chatResult': chatResult,
   '@/authenticationRequirement': {
     extractWorkspaceAuthenticationRequirement: () => undefined,
     dispatchWorkspaceAuthenticationRequirement: () => {},
   },
   '@/requestSemantics': loadSource('../src/requestSemantics.ts'),
+  '../workspaceHost': { updateWorkspaceHost: () => {} },
 })
 
 async function assertHookDocuments(payload) {
