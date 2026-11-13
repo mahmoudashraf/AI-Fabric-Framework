@@ -4,23 +4,25 @@ MCP is an optional connection method for existing services. Your ordinary API ac
 
 Release and live qualification evidence is recorded in implementation plan 010.69. A saved connection, discovery receipt or draft import is not evidence that a live action has executed successfully.
 
-The latest released framework is **0.8.50**. Public discovery/import, company
+The latest released framework is **0.8.51**. Public discovery/import, company
 authorization, no-vector INFORMATION reads, signed-in private reads and
-confirmed business writes have released-runtime evidence. The follow-up also
-makes protected READ capabilities visible for planning before sign-in, without
-permitting anonymous execution. Use the normal Updates flow and a compatible
-runtime image for an older Brain; existing Brains are not automatically
-upgraded. Do not invent vector-space names or relax search permissions.
+confirmed business writes have released-runtime evidence. For a protected READ,
+the AI selects the needed capability; the server checks the actual session and
+requests sign-in before resolving inputs or invoking the private service.
+Authentication is not a separate model choice. Hidden identity inputs remain
+server-bound, not information the customer must type into chat.
 
-Automatic sign-in now passes the two original failed questions in staging's
-normal Engage app and native widget, and in production's normal Engage app.
-Both production questions also read the correct subscription after sign-in.
-Model-selection quality is still imperfect: staging's natural signed-in
-question incorrectly requested authentication again in both modes, and a public
-question did not select its available READ source. These remain explicit quality
-failures, not successful private lookups. If a final direct answer is absent,
-the framework returns an explicit error instead of inventing a successful
-acknowledgement. See the verification record for exact environment coverage.
+The READ planner distinguishes retrieval permission from an available indexed
+route. Public documentation-search tools remain READ capabilities even without
+vector sources. This guides selection; it does not force a tool or search every
+source after an imperfect model choice. If a final direct answer is absent, the
+framework returns an explicit error instead of inventing a successful reply.
+
+Use the normal Updates flow and a compatible runtime image for an older Brain;
+existing Brains are not automatically upgraded. Do not invent vector-space
+names or relax search permissions. Qualification is sampled, not a guarantee
+that every model decision is correct. See the dated verification record for
+exact deployed versions, environments, UI modes and retained limitations.
 
 ## Supported Connections
 

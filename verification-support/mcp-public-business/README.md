@@ -653,3 +653,127 @@ already fixed either semantic outcome.
   `~/.codex/private/loomai-planner-investigation-20261112/`. Source remains
   framework aaaa5913 / 0.8.50; no new framework patch is approved or published by
   this investigation.
+
+## 0.8.51 Approved Planner Corrections (2026-11-13)
+
+This supersedes the investigation's recommendation-only status, not its retained
+failed 0.8.50 observations. Hosted qualification and exact owned cleanup are
+complete. Critical checks passed; the unrelated full-CI limitation is retained.
+
+- Immutable framework source/tag: `8c07da07f25ab11adaddc989cd50fb22086b949f`,
+  `ai-fabric-framework-v0.8.51`. Separate documentation-only follow-up
+  `f3201c99923f362332dbdf786fce31778c4e4ea8` updates the coding-assistant skill's
+  release declaration; the tag is not moved. Platform adoption source is
+  `71b9e0216b58b144574e8dbec9ab0bcdb9437f80`, not yet a live-version claim.
+- Model READ-planner decisions no longer include REQUEST_AUTHENTICATION. The
+  existing typed host challenge is derived from an authorized model-selected
+  protected READ and trusted anonymous state before parameter resolution or
+  invocation. Signed-in reads retain independent execution authorization and
+  server-bound hidden identity. Writes and confirmation are unchanged.
+- The knowledge catalogue retains retrieval permission and adds actual indexed
+  route availability, unavailable reasons and available decisions. Cooperation
+  policy and authorized source availability guide the model. Default, optimized,
+  support and commerce prompts clarify both this distinction and hidden inputs.
+  No text matcher, forced READ/source, search-all, answer replacement or new
+  retry/recovery policy was introduced. Existing RAG cooperation behavior and
+  downstream permission checks remain; this is not universal model correctness.
+- Full Java21 release-profile reactor: **2,415/2,415**, zero errors/failures/skips.
+  Integration suites compile. Reviewed final default bundle: **14/14**.
+  Seven release guards and the separate six-file skill validator pass.
+- Real OpenAI GPT-5.4-mini native suite: **10/10 scenarios**, 14 orchestration
+  turns and one direct planner call. Both exact original natural/verbose
+  questions challenge anonymous callers without invoking a private handler and
+  execute owned trusted reads when signed in. Public policy READs, null/collection
+  schema inputs, confirmation, rejection and declared no-confirmation writes pass.
+  No failed model case was replayed. An earlier Maven attempt stopped before
+  inference because the new test-support JAR had only been compiled; installing
+  that local test-support module resolved the setup failure.
+- Real OpenAI/ONNX/Lucene matrix: **11/11 considered tests**, no failed/skipped/
+  aborted tests. The existing minimum-20 setting is clamped to this chunk's11;
+  do not describe this as 20 cases or all-provider qualification.
+- Vector gate: **18 local + 8 Docker-backed** contracts pass. Minimal consumer
+  compiles; standalone agentic consumer **5/5** passes. MCP consumer and its
+  support module pass **16+13** tests. Totals overlap; do not sum them.
+- Platform runtime **814/814**, ordinary connector **102/102**, and compiler/
+  capability/release-verifier **75/75** pass without failure/error/skip.
+- Initial broad CI `43341686985` stopped at a stale skill release declaration,
+  before Maven/vector jobs. Fixed only its two version references, validated and
+  pushed; replacement CI `43342155941` passes that gate and its vector-container
+  job. Its Maven job reaches the real-app suite and retains the same 14 Incident
+  Room failures; later app/smoke steps are not executed. This is not a green
+  full-workflow claim. The initial metadata failure is not concealed as the
+  Incident Room baseline. The MCP consumer was tested separately locally.
+- Central workflow `43341728379` succeeded. Public BOM/core/default JARs and
+  source/Javadoc attachments return200. An empty-cache Central-only consumer
+  passed5 tests, packaged and booted on Java21; bundled execution/core/default
+  JARs match the public artifact hashes, with no local reactor cache. Its private
+  checker initially assumed four JARs from another consumer; corrected to the
+  actual exact three-module inventory, not a lowered arbitrary minimum.
+  Central's two PostgreSQL lease cases were skipped on its runner Docker API;
+  both executed in the local release reactor. No all-tests-executed CI claim.
+- Runtime CI `43343980611` passed accounting78+103 and runtime814, zero failures/
+  errors/skips, and published the image at
+  `sha256:41a1622d8aef396bb6d2df6c0a2ba728c40804c25402ed6b3236130bf964a6c5`.
+  Backend CI `43343980601` passed; unrelated UI image skipped. Both backends are
+  native-verified healthy at source71b9e0216, image digest
+  `sha256:c9d486c99da973525f24800af16951c97ecb9de2cde586be2e2a5ef092eae8f1`.
+  Existing customer runtimes were not mass-upgraded.
+- New Brain `dep-0256ff0e`, published `ver-637197c4`, artifact `dsa-23c901ef`.
+  Packaged runtime manifest matched committed source after correcting a private
+  helper's archive path to `META-INF/loomai/runtime-capabilities.json`. Failed
+  helper receipt retained; stopped extraction containers removed. No product or
+  framework change was needed. Staging `rel-5102d853` is APPLIED_VERIFIED/ACTIVE;
+  fresh manual recheck `vrf-c817675b` passed27/failed0/not-applicable7. App domain
+  verified; all16 readiness checks passed and explicit activation succeeded.
+- Live staging API journey **10/10**: anonymous public READ, private challenge
+  with zero private execution, actual signed-in own READ, rejection0writes,
+  confirmation1write, second-user own READ and real foreign-object receiver
+  denial with no extra mutation. No failed model query was replayed.
+- Staging normal saved Engage captured5 requests: both original natural/verbose
+  questions opened sign-in automatically and executed real owned reads after
+  login. The public query also used its real READ and answered correctly, but the
+  checker rejected the serializer's empty authentication object `{}` by JS
+  truthiness. Original FAILED report and screenshot are retained. A separate
+  assessment of that same HTTP/counters/screenshot qualifies the public case;
+  zero extra requests/inferences or app changes. Future checks require an empty
+  optional DTO and no open auth dialog. This was not another model/source miss.
+- Separate genuine native SDK debug mode passed3 cases/5 responses with zero
+  browser errors: public tool guidance and both original pre/post-login pairs.
+  Actual inspector/host sign-in/broker were exercised, not an invented query
+  debug field; saved generic Engage's inspector policy is unchanged.
+- The SAME version/artifact production `rel-ef713d3e` reached
+  APPLIED_VERIFIED/ACTIVE. Fresh `vrf-fbeb7415` passed27/failed0/not-applicable7;
+  app assignment/readiness passed all16 checks. Normal saved Engage and genuine
+  native debug each passed3 cases/5 responses with zero browser errors. Both
+  original questions opened real sign-in and read the correct owned record
+  afterward; public guidance used its public tool without a sign-in request.
+- Overall hosted run: **30 queries**, comprising10 API journey turns and20
+  browser requests across staging/production and normal/native modes. No model
+  failure was rephrased or replayed. Final real receiver counts: public READ5,
+  owned READ10, confirmed cancellation1, denied foreign mutation1. Normal
+  Engage's second user saw ACTIVE/sub-b; native owner's sub-a correctly showed
+  CANCELLATION_SCHEDULED after the explicit confirmed API test. Answers reviewed
+  against these actual records, not merely HTTP status. This sampled result
+  does not guarantee universal model correctness or other-provider quality.
+- **Cleanup complete:** normal `del-1ba7db05` retained its attached-storage
+  safeguard and removed the two storage-free connectors. Exact operator
+  retirement verified/removed only two test runtimes, two AI-state databases
+  and their four volumes. Normal retry `del-0b3ea8e4` SUCCEEDED. Seven new native
+  services total, fixture source/mount, app, consumer, both MCP connections,
+  owned credential and only the second synthetic identity were removed.
+  No SQL write, global prune, shared-network deletion or weakened guard.
+- Final read-only proof passed: eleven exact database counts0; actual native
+  services/containers/volumes/source absent; original owner, source artifact,
+  images and both shared backends retained. The first absence probe observed
+  asynchronous fixture removal still pending; that FAILED observation remains,
+  followed by native404/container absence and the final successful proof.
+  Console/customer-config and retained manual lab health return200. An initial
+  extra health probe used the wrong config URI and got401; corrected to the
+  actual public customer-config contract, without changing auth rules.
+- Both agents are closed. All browser/local verification sessions ended; no
+  disposable resource or required command remains running. Future Brain updates
+  use normal versioning with the compatible published image; existing customer
+  releases were not automatically changed. No migration/reindex/vector copying.
+- Private evidence is under `~/.codex/private/loomai-framework-0.8.51/` and the
+  fresh `~/.codex/private/loomai-mcp-planner-20261113/` sidecar. The owner-retained
+  manual API lab is not a disposable resource and must not be removed.

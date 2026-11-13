@@ -711,3 +711,38 @@ MCP tasks remain outside this plan's approved scope.
   No verification worker or disposable resource remains. Full evidence:
   `verification-support/mcp-public-business/README.md`; raw receipts remain in
   private `loomai-framework-0.8.50` and `loomai-mcp-read-auth-20261112` directories.
+
+### 2026-11-13: Released And Qualified 0.8.51 Planner Corrections
+
+- Approved generic fixes implemented: model READ selection with server-owned
+  authentication, explicit available indexed routes alongside retrieval
+  permission, and clear server ownership of hidden trusted action inputs.
+  Default/optimized/support/commerce prompts aligned. No text matcher, forced
+  source/action, search-all, answer replacement or new retry/recovery policy.
+- Framework tag/source `ai-fabric-framework-v0.8.51` / `8c07da07`; skill metadata
+  aligned in documentation-only `f3201c99`, with the tag preserved. Central
+  publication succeeded and an empty-cache public consumer packaged/booted with
+  exact published JAR hashes. Critical deterministic and real-provider checks
+  pass. Broad CI retains the same14 Incident Room failures; not a full-green
+  checklist or all-provider claim. Full counts/evidence are in the verification
+  record rather than duplicated here.
+- Platform/runtime adoption `71b9e0216` deployed to both healthy control planes.
+  Qualified fresh Brain `dep-0256ff0e`, version `ver-637197c4`, artifact
+  `dsa-23c901ef`; staging `rel-5102d853` and production `rel-ef713d3e` each
+  APPLIED_VERIFIED/ACTIVE, with fresh27pass/0fail/7not-applicable rechecks.
+  Both app assignments passed16 readiness checks. Existing Brains not auto-upgraded.
+- Hosted30-query proof covers public READs, actual sign-in/owned reads for both
+  original questions in normal Engage and genuine debug mode on both targets,
+  confirmation/rejection, two identities and actual foreign-object denial.
+  No failed model query was replayed. One staging browser assertion incorrectly
+  rejected an empty optional auth object; original failure retained and the SAME
+  captured response/screenshot qualified without another inference. Other
+  qualification-helper corrections are documented, not hidden as product fixes.
+- All disposable resources and the second identity removed. Normal deletion's
+  attached-storage safeguard was respected, exact owned operator retirement
+  completed, and normal retry `del-0b3ea8e4` SUCCEEDED. Final DB/native/identity
+  absence proof passed; owner, shared services/image/artifact and manual API lab
+  retained. No business database, vector copy or framework cleanup redesign.
+- No remaining work for these approved corrections. Universal semantic accuracy,
+  unrelated Incident Room repair and existing deferred MCP/UI items remain
+  outside this patch. See `verification-support/mcp-public-business/README.md`.

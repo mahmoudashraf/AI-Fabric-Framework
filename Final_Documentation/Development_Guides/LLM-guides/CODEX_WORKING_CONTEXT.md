@@ -15025,3 +15025,62 @@ test is being called hosted acceptance. UI extraction remains last.
   planner investigation section. Private probe artifacts:
   ~/.codex/private/loomai-planner-investigation-20261112/. Agent Ohm finished
   source-only auth audit and is closed. No worker/needed command remains running.
+
+### Planner Corrections Completed (2026-11-13)
+
+- Approved generic corrections released as NEW0.8.51, immutable framework
+  source/tag8c07da07 / ai-fabric-framework-v0.8.51. Documentation-only f3201c99
+  aligns the coding-assistant skill version; no retag or second runtime patch.
+  Model selects READs; server owns authentication and hidden trusted inputs.
+  Catalogue distinguishes retrieval permission from available indexed routes.
+  Default/optimized/support/commerce prompts aligned. No new retry, semantic
+  matcher, forced action/source, search-all, answer replacement or auth weakening.
+- Main adoption source71b9e0216 is committed/pushed. BOTH backends are native-
+  verified healthy at that source, digest
+  sha256:c9d486c99da973525f24800af16951c97ecb9de2cde586be2e2a5ef092eae8f1.
+  RuntimeCI43343980611 PASSED accounting78+103/runtime814 and published digest
+  sha256:41a1622d8aef396bb6d2df6c0a2ba728c40804c25402ed6b3236130bf964a6c5.
+  BackendCI43343980601 PASSED; UI/gateway unchanged. Control-plane default51;
+  existing customer runtimes NOT mass-upgraded. Normal Updates + compatible
+  artifactdsa-23c901ef is the upgrade path. No migration/reindex/vector copying.
+- Full local reactor2415, final default-bundle14, real OpenAI native10scenarios/
+  15entrycalls, OpenAI/ONNX/Lucene matrix11, vector18local+8containers, consumer5,
+  MCPconsumer16+support13, runtime814, connector102, backend75 passed. Counts
+  overlap. Integration suites compile; guards7 and skill validator pass.
+  Central43341728379 SUCCEEDED, public artifacts200, empty-cache public consumer
+  packaged/booted with exact published JAR hashes. Central skipped2 Docker-API
+  lease cases that executed locally. BroadCI43342155941 passes guards/vector
+  job but retains EXACT same14IncidentRoom failures as50; later smoke steps not
+  run. Initial stale skill-metadata CI43341686985 is retained/corrected, not
+  disguised as that baseline. No full-green/all-provider/perfect-model claim.
+- Fresh Braindep-0256ff0e/versionver-637197c4 used SAME artifact on staging
+  rel-5102d853 and productionrel-ef713d3e: both APPLIED_VERIFIED/ACTIVE; fresh
+  rechecks vrf-c817675b/vrf-fbeb7415 passed27/failed0/not-applicable7 each.
+  App domain, assignment, all16 readiness checks and activation verified.
+- Hosted30queries: API journey10, normal/native UI20 across both environments.
+  Both original natural/verbose questions open real sign-in and execute owned
+  READs afterward; public guides use actual public tools without login. Real
+  confirmation/rejection, second identity and receiver foreign-object denial
+  pass. Final receiver publicREAD5/privateREAD10/confirmedWrite1/deniedForeign1.
+  Actual answers match ACTIVE/sub-b for normal second user and scheduled-
+  cancellation/sub-a for native owner. No model failure replay/rewording.
+- Staging normal browser's original FAILED report is preserved: its public
+  query was correct, but checker rejected an empty optional auth object by JS
+  truthiness. SAME retained HTTP/counters/screenshot qualified without another
+  request. Fixed future checker only; genuine native debug5responses/3cases
+  passed on both targets. Private helper archive-path/consumer-inventory issues
+  were corrected against actual artifacts, not by changing product/library code.
+- CLEANUP COMPLETE: initialdel-1ba7db05 respected attached-storage protection;
+  exact operator retirement removed4owned services/4volumes, normal retry
+  del-0b3ea8e4 SUCCEEDED. All7new native services, fixture source, app/consumer,
+  MCP rows/key and only second identity removed. Final eleven DB counts0 and
+  native/identity absence proof PASS; first async-removal observation retained.
+  Owner, shared services/image/artifact kept. Retained manual API lab
+  rykkh8j0it6erfguiw65ipjk and its /health, Console and public customer-config
+  return200. Never delete this owner lab as a disposable canary.
+- No remaining required work for these approved corrections. Both agents closed;
+  needed verification/browser/local sessions ended. Full record:
+  verification-support/mcp-public-business/README.md and 010.69 final entry.
+  Private evidence: ~/.codex/private/loomai-framework-0.8.51/ and
+  ~/.codex/private/loomai-mcp-planner-20261113/. Existing unrelated/deferred
+  framework/UI items remain outside this patch and need their own review.
