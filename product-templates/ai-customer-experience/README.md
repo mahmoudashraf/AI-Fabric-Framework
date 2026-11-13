@@ -1,5 +1,11 @@
 # AI Customer Experience Quality Defaults
 
+Status: **published and selected on staging and production, 13 November 2026**.
+The normal AI Customer Experience Kit setup inherits these defaults. An actual
+customer UI run verified fresh Kit/Brain creation, both Engage channels, response
+controls and branded preview, then removed the configuration-only fixture.
+See `verification-support/ai-behaviour-01063/2026-11-13-generic-kit-default-adoption.md`.
+
 This source-only builder prepares `mkp-template-document-knowledge-assistant`
 1.4.0 from the reviewed published 1.3.0 template. Publication and public-starter
 selection are separate explicit operations; source tests alone are not live proof.
@@ -42,6 +48,13 @@ Its existing16 tests and the new9 generic tests pass, including change scope,
 catalogue identity, breadth/model/threshold preservation, larger budgets,
 malformed inputs and CLI wrapper handling. Test catalogue instructions are
 synthetic and never publication inputs.
+
+The selected new starter is `public-knowledge-quality-20261113`. It uses the
+current published generic DATA1.3.0 dependency and already-qualified0.8.52 runtime.
+The older selected starter referenced TEMPLATE1.2.0/DATA1.2.0 and runtime0.8.41;
+these historical pins were not reused for new setup. No new framework release,
+runtime image or customer infrastructure was created. Existing customer resources
+and the dealership/Support starter selections remain unchanged.
 
 For adoption, publish through the normal catalogue workflow, create a new public
 starter using the current generic dependency pins and already-qualified current

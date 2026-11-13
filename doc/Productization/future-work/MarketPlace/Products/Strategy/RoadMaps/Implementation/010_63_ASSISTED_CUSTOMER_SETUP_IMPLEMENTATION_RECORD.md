@@ -639,3 +639,39 @@ deferred integrations, web search and ordinary model-quality work remain separat
 
 See [policy activation and retained limits](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-policy-pack-activation.md)
 and the existing [default adoption evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-template-default-adoption.md).
+
+## 13 November 2026 - Generic AI Customer Experience Defaults Adopted
+
+The owner approved transferring four quality areas to AI Customer Experience:
+Consultative tone/Balanced length, Contextual next steps, bounded iterative READ
+planning with retrieval cooperation, and larger evidence/context budgets.
+
+Generic TEMPLATE1.4.0 is published on both control planes from the current generic
+1.3.0 baseline. New starter `public-knowledge-quality-20261113` is selected in both
+native backend configurations. The earlier generic starter used older template,
+DATA and runtime pins; the successor uses the current generic DATA1.3.0 dependency
+and already-qualified0.8.52 runtime, with no framework change or new image build.
+Models, provider output-token limits, search threshold, Grounded breadth, funding,
+permissions, source approval and write confirmation remain unaltered. No broader
+answer profile, fanout/recovery policy, dealer data or credentials were imported.
+
+The source builder shares exact-ID catalogue profile resolution with the dealer
+builder; all three previously published dealer outputs remain identical. Nine
+new generic tests plus16 dealer tests pass. Only the generic public starter
+selection changed; dealership and Support starter selections remain intact.
+
+A real customer created exactly one fresh Kit through the current UI, with both
+Engage channels. Saved readback and Responses controls prove inheritance, with
+Grounded shown as Your information only and Contextual as When useful. Branded
+Engage preview renders. No runtime, active domain or AI query was created; this
+is configuration qualification, not a fresh generic answer-quality benchmark.
+Normal Kit setup performs public enrollment before catalogue choices load;
+catalogue GET remains read-only. The temporary apps, consumer, Brain and Kit were
+removed through normal customer APIs; deletion `del-3d5ba08e` SUCCEEDED.
+
+Final integrity proves unchanged existing Northfield draft/releases, three ACTIVE
+apps, six healthy serving services, policy sources still ACTIVE at version2 and
+unauthenticated draft access401. Both backends reused their existing1a1a1e19b
+image for configuration reload. No existing customer deployment was upgraded.
+
+See [generic default adoption evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-generic-kit-default-adoption.md).

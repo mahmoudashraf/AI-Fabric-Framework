@@ -22,6 +22,7 @@ const manifest = () => ({ schemaVersion: 1, pluginType: 'TEMPLATE', pluginId: 'm
   } } })
 
 test('fixture changes only the reviewed generic template family', () => {
+  assert.equal(defaults.status, 'PUBLISHED_BOOTSTRAP_DEFAULTS_20261113')
   assert.deepEqual(defaults.template, { pluginId: 'mkp-template-document-knowledge-assistant', currentVersion: '1.3.0', candidateVersion: '1.4.0' })
   assert.deepEqual(defaults.aiBehaviour.selections, { tone: 'consultative', answerLength: 'balanced', nextSteps: 'contextual' })
   assert.ok(!Object.hasOwn(defaults, 'requiredDataPlugin'))

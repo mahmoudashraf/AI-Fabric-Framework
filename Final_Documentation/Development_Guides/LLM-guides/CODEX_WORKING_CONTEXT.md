@@ -15472,3 +15472,49 @@ test is being called hosted acceptance. UI extraction remains last.
   cooperation/evidencebudgets. Qualifygenericsource/providerthreshold/cost/breadth
   beforeadoption; nevercopydealerdata/identitypermissions. GeneralKitunchanged.
   Preserveunrelateddirt/manualAPIlab/oldvideos. Noagents/neededrunsleftatcloseout.
+
+### AI Customer Experience Defaults Live (2026-11-13, 23:24 UTC)
+
+- Ownerexplicitlyapprovedfourgenericdefaultareas afterthepriorassessmentonly:
+  Consultative/Balanced, Contextualnextsteps, READITERATIVE2 withRAG_IF_ACTIONS_
+  INSUFFICIENT, evidence8docs/8000chars; READplanner12000chars/peraction8000/items10.
+  PreserveGroundedbreadth, model/inheritedthreshold/output-tokenlimit2048,
+  funding/permissions/approval/confirmation andothermode/recovery/fanoutsettings.
+- Source6a72a38eb pushed: newproduct-templates/ai-customer-experience builder,
+  fixture/tests andsharedexactIDcatalogueresolver. New9+existingdealer16=25PASS.
+  All3publisheddealerbuilderoutputs checkedidenticalagainstprivatearchivedactual
+  candidates. NO dealerpublication/rollout ornewFW/codeimagebuild.
+- GenericTEMPLATE1.4.0publishedstagemkv-618ca102/prodmkv-a7e0b188; exactsamehash
+  ddd6f1862fed4a1d0fb3b09677e7cff0f8dce89d9047ccfa23d7d09243446bbc. Derivedcurrent
+  publishedgeneric1.3, notNorthfielddraft. Newpublic-knowledge-quality-20261113
+  selectedbothCPs, dealerquality20261113/supportprofile20261108preserved.
+- OldgenericstarterstillpinnedTEMPLATE1.2/DATA1.2/runtime0.8.41. Successor uses
+  currentgenericDATA1.3 +alreadyqualified0.8.52samefdba4734digest (stagedsa-3fa10e49,
+  proddsa-f8ef9102). No newartifact/permission/S3/vector operation. Originaloffer
+  funding/workspaceprofiles/storagechoices/bindings retained; currentactualtarget
+  fingerprints refreshednormally. Existinggrants/drafts/releasesnotmigrated.
+- OnlyCPonboardingselectionreloaded, same1a1a1e19b/81fe7169image nativehealthy.
+  Stagexax8qobxvae9x0srm9buog8k qualifiedbeforeproddrszr0l0azh1nbq6uzu7j5vm.
+  No UI/runtime/framework sourcechanges. Genericbuilderfixtures nowPUBLISHED.
+- ActualcustomerUI KitcreateONCE: kit-4ccc229f-46f4-4855-8eb7-4bdeed99ccc7,
+  dep-d65a97e0, bothEngageconfigsDRAFT. All4defaults/API+Responsescontrols+branded
+  previewPASS,0pageErrors/0AIqueries/0infrastructure. Modelactualgpt-4o-mini,
+  thresholdinherited(no0.4override), Grounded=Yourinformationonly, Contextual=When
+  useful. Previewsynthetic, notnewAIqualitybenchmark; ordinarysemanticlimitsremain.
+- Qualificationadapterfirstqueriedcatalogue BEFORE Kitsetupenrollmentandgot0
+  genericchoices; signin alone doesnotenroll. CorrectactualKitentryPOSTenrollment
+  ranandchoicesloadednormally; no grantwrite/GETmutation/fix. LateradapterusedAPI
+  technicallabelsinsteadofUIlabels; finish-views.mjs verifiesactualpresetinputvalues
+  andcapturedcustomerlabels. No productbugorqueryretryhidden. No duplicatecreation.
+- Cleanupdel-3d5ba08e SUCCEEDED:2draftapps/consumer/Brain/Kitgone,0infra. Final23:22
+  integrityPASS: originalNorthfielddraftwholeidentity/timestamp/sectionsunchanged,
+  rel3618a1fb/712024cdAPPLIED_VERIFIED,3appsACTIVE,6nativehealthy,3policysources/env
+  ACTIVEv2, unauthdraft401. FixtureKit/Brainlistsmatchbefore. Load1/5/15snapshot
+  stage1.66/2.01/2.09 prod0.87/0.61/0.51, NOTcapacitybenchmark.
+- Authoritativeprivate ~/.codex/private/loomai-generic-defaults-20261113/:
+  preflight/baseline/candidates/publish/offer/selectnativeproofs, kit-create-response,
+  fresh-draft/installs, fresh-kit-proof,cleanup,final-integrity.private.json.
+  Usefinish-viewsproof, NOTearlierfailedadaptercapture. Allwriteintentsconsumed;
+  DO NOTreplaypublish/select/create/deletion. Public2026-11-13-generic-kit-default-
+  adoption.md and01063recordupdated. Noagents/neededruns/ownerinputpending.
+  Keepunrelateddirt/manualAPIlab/phonevideos; firewalluntouched.
