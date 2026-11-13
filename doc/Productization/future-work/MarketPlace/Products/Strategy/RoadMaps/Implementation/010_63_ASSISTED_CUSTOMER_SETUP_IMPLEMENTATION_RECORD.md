@@ -599,3 +599,43 @@ in Required for production. No S3/IAM change, new source-indexing run or richer
 policy answer test has happened. That owner-access dependency is the only
 remaining step preventing completion of the requested policy activation stream.
 See [publication and setup evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-template-default-adoption.md).
+
+## 13 November 2026 - Both Requested Policy And Default Items Complete
+
+This supersedes the preceding AWS access dependency. The owner approved and
+completed the existing operator sign-in; local and official AWS identities matched
+the bucket owner. All six original policy objects were backed up. Exactly three
+approved files per environment were conditionally replaced and passed downloaded
+byte/checksum/encryption verification. No IAM grant, new identity or runtime-reader
+change was required. Staging was qualified before production was changed.
+
+Both environments independently used the existing refresh/preview/index workflow.
+The same three registered sources now have candidate/active version 2; all six
+superseded version-1 index manifests are DELETED by normal reconciliation. There
+was no vector copy, collection wipe, new source registration or infrastructure.
+
+Sixteen actual public UI query turns were inspected against the new policy
+evidence and live stock READ data. Both compound orders and second-option
+follow-up worked without an internal-domain question. The local/quoted delivery,
+insurance, cleared-payment, duration-versus-notice and missing warranty-fact
+boundaries were represented. All sixteen had HTTP 200/success, current version-2
+evidence, zero captured page errors and zero successful business writes.
+
+Production is qualified with limitations, not a perfect semantic score: it
+correctly refused an age-20/licence-11-month test drive and stated the correct
+minimums, but wrongly said the licence-duration requirement was met. Its warranty
+summary omitted the available 90-day duration. Staging's handover answer had an
+ambiguous leading Yes followed immediately by the correct cleared-payment rule.
+All misses remain recorded; no answer rewriting, greener retry, text matching or
+new framework/prompt correction was introduced.
+
+Final readback confirmed unchanged draft sections/identity/timestamp, existing
+verified releases/runtime addresses, all three ACTIVE app assignments and six
+healthy serving services. Unauthenticated draft access remains401. The fresh
+configuration-only Kit fixture from the earlier default adoption is already
+cleaned up; no new runtime/bootstrap proof is implied by these existing-app tests.
+The builder's 16 tests pass again. The two requested items are complete; unrelated
+deferred integrations, web search and ordinary model-quality work remain separate.
+
+See [policy activation and retained limits](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-policy-pack-activation.md)
+and the existing [default adoption evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-template-default-adoption.md).

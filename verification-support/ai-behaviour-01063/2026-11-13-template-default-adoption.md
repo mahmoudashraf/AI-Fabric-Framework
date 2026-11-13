@@ -6,7 +6,8 @@ Date: 13 November 2026.
 
 Reusable dealership defaults are published and selected for new customer setup
 on both control planes. Existing Northfield configuration and live resources are
-unchanged. The separate richer S3 policy activation is **not complete**.
+unchanged. The separate richer S3 policy activation was subsequently completed
+on both environments; see [activation and answer evidence](2026-11-13-policy-pack-activation.md).
 
 Published TEMPLATE revisions:
 
@@ -81,19 +82,18 @@ No customer credentials, canary storage, live bindings or funding were bundled.
   all three ACTIVE installations remain. Six runtime/connector/AI-state services
   are natively healthy. Unauthenticated draft access remains401.
 
-## Policy Activation Still Pending
+## Separate Policy Activation Completed Subsequently
 
 The richer fictional policy pack exists at
 `product-demos/autotrader-dealership-demo/backend/deployment/customer-storage-policy-pack/`.
-The bucket still serves the original three ACTIVE sources per environment.
-No upload, refresh/index, vector transfer or richer-pack answer test occurred.
+The 16:46 UTC bootstrap checkpoint originally recorded that activation as pending
+an expired AWS sign-in. The owner subsequently approved/completed renewal of the
+existing sign-in. All six files were backed up, conditionally replaced and read
+back; staging qualified before production's independent refresh/index workflow.
+The original source IDs now have active version 2 and superseded indexes removed.
 
-The existing `aws-toolkit` session is expired. Required for production holds the
-owner confirmation request for renewing that sign-in, then verifying bucket-owner
-account522783510785. No login, IAM mutation, new persistent uploader or cross-account
-provisioner substitution was performed.
-
-Resume: verify access/owner, back up the exact six existing objects, conditionally
-replace staging's three approved files, refresh/review/index through existing
-source workflows, inspect real policy/compound answers, then independently repeat
-for production. Never copy vectors or silently use the website's seeded policies.
+Sixteen actual UI query turns were reviewed against the new source evidence.
+One production eligibility explanation contains a reasoning error despite the
+correct refusal; other minor summary/wording notes remain visible. See the linked
+activation report rather than treating this bootstrap-only proof as an AI-answer
+benchmark. No vectors were copied or new IAM/runtime changes introduced.

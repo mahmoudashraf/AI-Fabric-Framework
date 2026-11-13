@@ -15373,3 +15373,65 @@ test is being called hosted acceptance. UI extraction remains last.
   thenprod3 independently. No vectorscopy, no websitepolicyfallback, no newFW
   correction without ownerreview. Fullprivateproof/helpers in sameHOMEroot.
   Public2026-11-13-template-default-adoption.md /01063record containlimits.
+
+### 010.63 S3 Activation Resumed (2026-11-13, 22:05 UTC, In Progress)
+
+- AWSblocker RESOLVED: owner approved/completed existing aws-toolkit sign-in in
+  Required for production. LocalSTS and officialAWSMCP both identifyaccount
+  522783510785 / assumedAccountFullAccessRole. No newIAM/key/grant/bucketpolicy.
+  Original6object bytebackups complete. All6exact conditionalPUTs now200 and
+  SHA256GET/HEAD/AES256 verified. Runtime readers/provisioner NOTchanged.
+- OfficialAWSMCP became available after localCLIbackups. Use its tools now,
+  notCLIupload helper. ActualPUTs used MCP-signed URLs plusHTTPSIf-Match/expected
+  owner/checksum headers. Do NOT rerun uploads; journalingguards consumed.
+- Private state ~/.codex/private/loomai-policy-template-20261113/policy-activation/:
+  objects.private.json =6backups+6verifieduploads. Staging-index.private.json:
+  same3sourceIDs ACTIVEcandidate2/active2, oldmanifestsDELETED. Normalrefresh/
+  preview/index/reconcile API, no vectorscopy/newregistration/collectionwipe.
+- Staging actualUI8queries (7main +1expliciteligibility) qualified. Bothcompound
+  orders, secondoptionfollowup, quote40miles,30minuteDURATIONnotnotice, missing
+  battery/claimlimit, handover andage21/licence12months all useful/correctfacts.
+  RetainedminorhandoverleadingYes ambiguity immediatelyfollowedbycorrectwait
+  condition; no rewrite/retry. 0writes/pageErrors; allpolicy evidence sourcev2.
+  staging-qualified.private.json PASS is productiongate, semanticreviewseparate.
+- Productionobjects updated/readback AFTERstagingqualification. Production
+  sourcepreview currently running, NOTyetindexed/qualityqualified atcheckpoint.
+  Continue refresh-index-policies.mjs production preview, inspectsavedpreviews,
+  index-approved-previews, prepare-quality-scope.mjs production, existing quality
+  runner with8scenarios andnewprivateoutputdir. Never replaystagingmodelturns.
+- Only repoedits this resume so far: testadapter permits/suppresses current
+  visit-counter RPC and optionally verifies exactruntime target; reusable8query
+  scenarioJSON. No product/framework/prompt/config/release change. Keepunrelateddirt.
+
+### 010.63 Requested Policies And Defaults Complete (2026-11-13, 22:21 UTC)
+
+- Supersedes activation-pending checkpoints. Both requested items1/2 complete:
+  richerfictional Northfield policies active on BOTH environments; qualified
+  reusabledefaults alreadypublished/selected and freshcustomerKit proofcomplete.
+  Whole01063/deferredrealintegrations are NOT declaredcomplete.
+- SixexactS3PUTs200, rawSHA256GET/HEAD/AES256 verified, originalsbackedupprivate.
+  Existingoperatorauth renewedwithownerapproval inRequiredforproduction; no new
+  IAM/key/grant/readerauth changes. Bothenvs retainoriginal3sourceIDs, nowACTIVE
+  candidate2/active2. All6oldv1manifestsDELETED via normalnew-firstreplacement.
+  No vectorscopy/wipe, newregistration, inventoryDB or infra.
+- EightactualUIqueries/environment (16total),0HTTPerrors/blocked/pageErrors/
+  businesswrites, allcurrentv2approvedpolicy evidence. Manualsemanticreview,
+  realstockREADvalues+screenshots; notlexicalscoring/modelmocks. Bothcompound
+  orders andsecondoptionfollowup workedwithoutinternaldomainquestion.
+- Production QUALIFIED_WITH_LIMITATIONS, NOT8perfectsemanticpasses: correct
+  refusal/correctthresholds forage20/licence11months butwrongclaimlicenceduration
+  met. PARTIAL_FAIL_REASONING_EXPLANATION_CORRECT_REFUSAL retained. Warranty
+  summaryomits90days; staginghandoverleadingYes ambiguousbutbodycorrect. No
+  rewrite/retry/FWpatch/proposednewpromptcorrection. Ordinarylimitsvisible.
+- 22:14finalintegrityPASS:10draftsections+id/updatedAt unchanged, ver-fcd3ee7b,
+  rel-3618a1fb/rel-712024cd stillAPPLIED_VERIFIED, runtimeURLs/assignmentsunchanged,
+  3existingappsACTIVE,6nativeNorthfieldserviceshealthy, unauthdraft401. Load1min
+  staging3.30/prod0.60 snapshotonly, NOTacapacitybenchmark. Builder16PASSagain.
+- Privateauthoritative state ~/.codex/private/loomai-policy-template-20261113/
+  policy-activation/: objects/index/qualityscopes/rawUIreports/manualreviews/
+  qualified/final-integrity.private.json. Do NOTreplayuploads/index/modelturns.
+  Public2026-11-13-policy-pack-activation.md recordsactualscopeandlimits.
+  No productimagebuild/deployneededforthisfinaldata/test/docchange; backends
+  remain1a1a1e19b/81fe7169..., runtime0.8.52/source008981816 unchanged.
+- Exacttaskfilesonlytocommit; retainunrelateddirt/manualAPIlab/phonevideos.
+  Noownerinputpending. Allneededrunscompleted, noagentsactive. Firewalluntouched.

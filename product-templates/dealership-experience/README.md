@@ -5,7 +5,9 @@ new-customer dealership starter selects these defaults. A real customer UI run
 verified fresh Kit/Brain creation, both Engage channels, inherited settings and
 the branded preview, then removed the resource-free test setup. This is bootstrap
 qualification, not a newly provisioned runtime or proof of every live integration.
-The separate richer Northfield S3 policy activation is still pending AWS access.
+The separate richer Northfield S3 policy activation is also complete on both
+environments, with 16 actual UI query turns reviewed and model-quality limits
+retained. See `verification-support/ai-behaviour-01063/2026-11-13-policy-pack-activation.md`.
 
 This source-only builder applies the owner-approved Northfield quality settings
 as bootstrap defaults to exactly three existing TEMPLATE identities:

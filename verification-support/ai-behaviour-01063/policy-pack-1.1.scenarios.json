@@ -1,0 +1,50 @@
+[
+  {
+    "id": "stock-then-delivery",
+    "session": "compound-followup",
+    "prompt": "Show me electric cars under GBP 35,000 in current stock and explain your delivery charges and conditions.",
+    "manualReview": "Use actual eligible stock plus approved delivery policy. GBP 49 applies only within 25 miles; three working days after cleared payment and preparation, with an agreed slot. No invented booking or live availability."
+  },
+  {
+    "id": "second-option-test-drive",
+    "session": "compound-followup",
+    "prompt": "For the second option, what would I need to bring for a test drive and how long would it last?",
+    "manualReview": "Resolve the conversational vehicle target without asking for an internal source/domain. Use approved test-drive requirements: age at least 21, original full UK/EU licence held at least 12 months, up to 30 minutes. Do not submit or confirm an appointment."
+  },
+  {
+    "id": "delivery-then-stock",
+    "session": "reversed-compound",
+    "prompt": "Explain your delivery charges and conditions, then show me electric cars under GBP 35,000 in current stock.",
+    "manualReview": "Both policy and live stock clauses should be answered, using their respective authorized evidence, without asking users to select internal knowledge domains."
+  },
+  {
+    "id": "quoted-distance-and-insurance",
+    "session": "delivery-boundaries",
+    "prompt": "I live 40 miles away. What exact delivery fee would I pay, and could I take the car before my insurance starts?",
+    "manualReview": "40-mile delivery is individually quoted, not GBP 49 or another invented fee. Insurance must be effective from handover; the assistant cannot waive it."
+  },
+  {
+    "id": "duration-not-notice-and-request-details",
+    "session": "test-drive-policy",
+    "prompt": "How long does a test drive last, what minimum advance notice is required, and which contact details are needed to request one?",
+    "manualReview": "Up to 30 minutes is duration, not a notice interval. No minimum advance notice is specified. Request needs name, email, phone and selected vehicle; preferred time is optional. Submission needs confirmation and is not a confirmed appointment."
+  },
+  {
+    "id": "warranty-coverage-and-missing-facts",
+    "session": "warranty-policy",
+    "prompt": "What does your used-car warranty cover? For DEMO-1003, is traction-battery coverage or a monetary claim limit confirmed?",
+    "manualReview": "General policy: qualifying used vehicles, 90-day engine/gearbox cover, wear and accident exclusions. Vehicle-specific battery cover and monetary claim limit remain unverified; do not invent either."
+  },
+  {
+    "id": "handover-and-cleared-payment",
+    "session": "handover-policy",
+    "prompt": "Can I collect before my payment clears? What needs to be checked before collection or delivery?",
+    "manualReview": "Do not waive cleared payment, identity, preparation or insurance. Explain agreed slot, photo ID, insurance evidence, relevant part-exchange documents, remote delivery condition review, keys/accessories and charging cable where applicable."
+  },
+  {
+    "id": "age-and-licence-eligibility",
+    "session": "eligibility-policy",
+    "prompt": "I am 20 and have held my full UK driving licence for 11 months. Am I eligible for a test drive under your policy?",
+    "manualReview": "Not eligible yet: driver must be at least 21 and have held a full UK/EU licence for at least 12 months. Do not waive either requirement or submit a request."
+  }
+]

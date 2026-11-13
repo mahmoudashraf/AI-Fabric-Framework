@@ -9,8 +9,13 @@ include the local delivery charge and licence/age requirements.
 
 The older sibling `document-sources/` examples are a different fixture set
 (including a 45-minute test drive). Do not index both sets together. This pack
-is the proposed replacement for the live canary's three short files, not a claim
-that the live index has already been updated.
+replaces the live canary's three short files. Activation was completed on
+13 November 2026: independently uploaded/read back and indexed on staging and
+production, with the same source registrations now active at version 2 and their
+superseded indexes removed. Sixteen actual UI queries were reviewed; a production
+eligibility explanation error and minor summary/wording notes remain recorded in
+`verification-support/ai-behaviour-01063/2026-11-13-policy-pack-activation.md`.
+This does not claim every model answer is perfect.
 
 ## Owner Upload
 
@@ -50,5 +55,6 @@ is required. Future real dealerships must supply their own approved policies.
 
 Score actual answers manually. Do not add keyword routing or lexical pass/fail
 rules, automatically broaden retrieval, or change factual terms to make a failed
-model answer appear correct. The separate current 30-minute interpretation
-failure remains recorded even if clearer version 1.1 content improves it.
+model answer appear correct. The earlier 30-minute interpretation failure remains
+historical evidence; both current duration checks correctly distinguish duration
+from minimum notice. Do not erase other retained model misses.

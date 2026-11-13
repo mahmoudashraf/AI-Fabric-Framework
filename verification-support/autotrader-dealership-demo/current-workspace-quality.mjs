@@ -78,9 +78,10 @@ try {
       if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) return route.continue()
       // Synthetic quality traffic must not inflate the optional hosted visit counter.
       if (request.method() === 'POST' && url.protocol === 'https:'
-        && url.hostname.endsWith('.supabase.co') && url.pathname === '/functions/v1/ui-visits') {
+        && url.hostname.endsWith('.supabase.co')
+        && ['/functions/v1/ui-visits', '/rest/v1/rpc/record_ui_visit'].includes(url.pathname)) {
         report.suppressedVisitTelemetry++
-        return route.abort('blockedbyclient')
+        return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
       }
       try {
         assert.equal(request.method(), 'POST'); assert.ok(manifest)
@@ -142,6 +143,7 @@ try {
     assert.ok(manifest); assert.equal(manifest.installationId, scope.installationId)
     assert.equal(manifest.assignmentRevision, scope.assignmentRevision)
     assert.equal(manifest.connection.mode, 'public-runtime-anonymous')
+    if (scope.runtimeBaseUrl) assert.equal(manifest.connection.runtimeBaseUrl, scope.runtimeBaseUrl)
     save(`manifest-${sessionName}.private`, manifest)
     report.sessions.push({ name: sessionName, runtime: manifest.connection.runtimeBaseUrl, viewport: '1440x1000' })
     for (const scenario of scenarios.filter(item => item.session === sessionName)) {
