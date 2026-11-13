@@ -3,6 +3,32 @@
 Small, independent proposal delivery for `https://loomai.pro/proposals/<slug>`.
 There are no Platform backend, AI runtime or framework changes.
 
+## Protected Engineer Portfolio
+
+`https://loomai.pro/founder` reuses the same Supabase code/session service with
+its own `founder` grant and a `/founder`-scoped cookie. It is not a Console account
+or a second authentication service. An invitation exchanges its code and redirects
+to the clean URL; visitors can also enter the code manually and lock the page.
+Revocation, expiry, withdrawal and temporary authorization outages are checked
+before serving HTML or each profile image. An outage never exposes the profile.
+
+The existing owner-approved engineer profile and screenshots are built as a
+dedicated page. The build moves its HTML/images out of the public `dist` tree into
+`protected-dist`; only the gateway can serve them. Static smoke checks enforce
+this separation. These are owner portfolio materials in source, not private
+customer proposal documents; this gates website viewing, not access to source
+already published in the repository. Access codes, sessions and operational
+credentials remain private and are never part of the site image or Git.
+
+The page remains AI Product Engineer-focused, with framework/Smart Brain diagrams,
+real assistant screens, learning/stack and professional experience. No founder
+headline was reintroduced. It has no visit tracker, AI widget, external video or
+booking request. Existing proposal layouts and access grants are unchanged.
+
+Local server verification must set `LOOMAI_SITE_DIST_DIR` to the site's `dist`
+directory and `LOOMAI_SITE_PROTECTED_DIR` to its sibling `protected-dist`. The
+production image copies both, but only the former is a public static root.
+
 ## Data and Access
 
 The existing Supabase project holds the private proposal content, protected Word

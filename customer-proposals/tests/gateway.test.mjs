@@ -1,17 +1,22 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createServer } from 'node:http'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { createProposalGateway } from '../../Platfrom/loomai-site/deploy/container/proposals.mjs'
 const key = 'k'.repeat(43), token = 't'.repeat(43), code = 'c'.repeat(43)
 
-async function fixture(t) {
+async function fixture(t, protectedPages = []) {
   let revoked = false
   let logoutUnavailable = false
+  let contentUnavailable = false
   const calls = []
-  const gateway = createProposalGateway({endpoint:'https://project.example/functions/v1/customer-proposals',gatewayKey:key,origin:'https://loomai.pro',fetchImpl:async(url,options)=>{
+  const gateway = createProposalGateway({endpoint:'https://project.example/functions/v1/customer-proposals',gatewayKey:key,origin:'https://loomai.pro',protectedPages,fetchImpl:async(url,options)=>{
     const input = JSON.parse(options.body); calls.push(input)
     if (input.action === 'exchange') return input.code === code ? Response.json({token,maxAge:14400}) : Response.json({error:'ACCESS_DENIED'},{status:401})
     if (input.token !== token || revoked) return Response.json({error:'ACCESS_DENIED'},{status:401})
+    if (input.action === 'content' && contentUnavailable) return Response.json({error:'UNAVAILABLE'},{status:503})
     if (input.action === 'logout') return logoutUnavailable ? Response.json({error:'UNAVAILABLE'},{status:503}) : Response.json({closed:true})
     if (input.action === 'download') return Response.json({base64:Buffer.from('PK-test-document').toString('base64')})
     return Response.json({title:'Private fixture title',sections:[],downloadAvailable:true})
@@ -20,7 +25,7 @@ async function fixture(t) {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
   t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections()}))
   const base = `http://127.0.0.1:${server.address().port}/proposals/example`
-  return {base,calls,revoke:()=>{revoked=true},setLogoutUnavailable:value=>{logoutUnavailable=value},cookie:`__Secure-loomai-proposal-example=${token}`}
+  return {base,calls,revoke:()=>{revoked=true},setLogoutUnavailable:value=>{logoutUnavailable=value},setContentUnavailable:value=>{contentUnavailable=value},cookie:`__Secure-loomai-proposal-example=${token}`}
 }
 test('direct content/download need authorization and never cache', async t=>{
   const {base,calls} = await fixture(t)
@@ -107,4 +112,49 @@ test('temporary logout failure preserves the cookie needed to retry revocation',
   assert.equal(retried.status,204)
   assert.match(retried.headers.get('set-cookie'),/Max-Age=0/)
   assert.equal(calls.filter(x=>x.action==='logout').length,2)
+})
+
+test('protected portfolio HTML and images share current scoped authorization', async t=>{
+  const directory=mkdtempSync(path.join(tmpdir(),'loomai-profile-'))
+  t.after(()=>rmSync(directory,{recursive:true,force:true}))
+  mkdirSync(path.join(directory,'assets'))
+  writeFileSync(path.join(directory,'index.html'),'<h1>Private engineer fixture</h1>')
+  writeFileSync(path.join(directory,'assets','portrait.jpg'),'private-image-fixture')
+  const {base,calls,revoke,setContentUnavailable}=await fixture(t,[{route:'/founder',slug:'founder',directory,assets:{'portrait.jpg':'image/jpeg'}}])
+  const root=`${new URL(base).origin}/founder`
+  const cookie=`__Secure-loomai-proposal-founder=${token}`
+  const locked=await fetch(root)
+  assert.equal(locked.status,200)
+  assert.ok((await locked.text()).includes('Enter your access code'))
+  assert.equal(calls.length,0)
+  assert.equal((await fetch(`${root}/assets/portrait.jpg`)).status,401)
+  assert.equal((await fetch(root,{headers:{Cookie:`__Secure-loomai-proposal-example=${token}`}})).status,200)
+  const invitation=await fetch(`${root}?code=${code}`,{redirect:'manual'})
+  assert.equal(invitation.status,303)
+  assert.equal(invitation.headers.get('location'),'/founder')
+  assert.ok(invitation.headers.get('set-cookie').includes('Path=/founder;'))
+  assert.equal(await invitation.text(),'')
+  const authorized=await fetch(root,{headers:{Cookie:cookie}})
+  assert.equal(await authorized.text(),'<h1>Private engineer fixture</h1>')
+  assert.equal(authorized.headers.get('cache-control'),'private, no-store')
+  assert.match(authorized.headers.get('content-security-policy'),/script-src 'self';/)
+  const image=await fetch(`${root}/assets/portrait.jpg`,{headers:{Cookie:cookie}})
+  assert.equal(await image.text(),'private-image-fixture')
+  assert.equal(image.headers.get('content-type'),'image/jpeg')
+  assert.equal((await fetch(`${root}/index.html`,{headers:{Cookie:cookie}})).status,404)
+  assert.equal((await fetch(`${root}/assets/%2e%2e%2findex.html`,{headers:{Cookie:cookie}})).status,404)
+  assert.equal((await fetch(`${new URL(base).origin}/proposals/founder/content`,{headers:{Cookie:cookie}})).status,404)
+  const manual=await fetch(`${root}/access`,{method:'POST',headers:{Origin:'https://loomai.pro','Content-Type':'application/json'},body:JSON.stringify({code})})
+  assert.equal(manual.status,204)
+  assert.equal((await fetch(`${root}/access`,{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json'},body:JSON.stringify({code})})).status,403)
+  setContentUnavailable(true)
+  const unavailable=await fetch(root,{headers:{Cookie:cookie}})
+  assert.equal(unavailable.status,503)
+  assert.ok(!(await unavailable.text()).includes('Private engineer fixture'))
+  assert.equal((await fetch(`${root}/assets/portrait.jpg`,{headers:{Cookie:cookie}})).status,503)
+  setContentUnavailable(false)
+  revoke()
+  const revoked=await fetch(root,{headers:{Cookie:cookie}})
+  assert.ok(!(await revoked.text()).includes('Private engineer fixture'))
+  assert.equal((await fetch(`${root}/assets/portrait.jpg`,{headers:{Cookie:cookie}})).status,401)
 })

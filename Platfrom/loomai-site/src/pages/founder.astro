@@ -1,0 +1,382 @@
+---
+import {
+  AppWindow, ArrowDown, ArrowRight, ArrowUpRight, Bot, Braces, CodeXml,
+  Database, FileText, GitBranch, Headset, Layers, LockKeyhole, Mail, Moon, Phone, Plug, ScanSearch,
+  ShieldCheck, SlidersHorizontal, Smartphone, Sun, Terminal, Workflow, Zap,
+} from '@lucide/astro'
+import BaseLayout from '../layouts/BaseLayout.astro'
+import '../styles/mahmoud-profile.css'
+import '../styles/mahmoud-profile-print.css'
+
+const name = 'Mahmoud Elgammal'
+const developer = 'https://developer.loomai.pro/'
+const email = 'engmahmoudalgamal@gmail.com'
+const phone = { label: '+44 7729 946319', href: 'tel:+447729946319' }
+const github = 'https://github.com/mahmoudashraf'
+const linkedin = 'https://www.linkedin.com/in/engmahmoudalgammal/'
+const framework = 'https://github.com/Loom-AI-Labs/ai-fabric-framework'
+const maven = 'https://central.sonatype.com/artifact/io.github.loom-ai-labs/ai-fabric-bom'
+const portrait = '/founder/assets/mahmoud-studio.jpg'
+const brain = '/assets/developer/smart-brain.png'
+
+const modules = [
+  { icon: ScanSearch, label: 'Retrieval & evidence', detail: 'RAG and source-aware answers' },
+  { icon: Database, label: 'Indexing & data sync', detail: 'Documents and changing records' },
+  { icon: Zap, label: 'Governed actions', detail: 'Registered reads and writes via connectors' },
+  { icon: Workflow, label: 'Specialists & plans', detail: 'Typed jobs, sequential and parallel steps' },
+  { icon: Headset, label: 'Conversations & handover', detail: 'Session state and transfer to a person' },
+  { icon: ShieldCheck, label: 'PII & governance', detail: 'Redaction, authorization and review boundaries' },
+]
+const capabilities = [
+  { icon: FileText, label: 'Your data', detail: 'Documents and synced records' },
+  { icon: Plug, label: 'Integrations', detail: 'Plugins and your own APIs' },
+  { icon: ScanSearch, label: 'Retrieval', detail: 'Vector search and grounded answers' },
+  { icon: Zap, label: 'Actions', detail: 'Read, write and confirm' },
+  { icon: Bot, label: 'AI models', detail: 'Model and provider selection' },
+  { icon: SlidersHorizontal, label: 'Behaviour', detail: 'Prompts, tone and answer scope' },
+  { icon: Workflow, label: 'Specialist teams', detail: 'Sequential and parallel work' },
+  { icon: Headset, label: 'Human in the loop', detail: 'Conversation handover and action review' },
+]
+const walkthrough = [
+  {
+    key: 'openapi-ready',
+    label: 'Attach API docs',
+    alt: 'LoomAI Actions editor with dealership-api.yaml attached in the configuration assistant and the message box empty',
+    heading: 'Start with the API contract',
+    detail: 'From Actions, attach an OpenAPI file and choose Prepare actions. The current page supplies the task context; a short hint is optional.',
+  },
+  {
+    key: 'saved-actions',
+    label: 'Inspect draft actions',
+    alt: 'LoomAI Console showing three generated dealership action definitions saved in the Smart Brain draft',
+    heading: 'Get editable action definitions',
+    detail: 'The assistant saved three read actions and their routes as an editable draft. The checker reported zero errors and two setup warnings, which stayed visible in the Console.',
+  },
+  {
+    key: 'review-draft',
+    label: 'Review before release',
+    alt: 'LoomAI Updates page showing the recorded draft changes before publication',
+    heading: 'Keep publication separate',
+    detail: 'Review the changes in Updates, edit or undo them, and publish only when ready. This recording ended at review: no live deployment or dealership action was triggered.',
+  },
+]
+const lessons = [
+  { icon: ScanSearch, heading: 'Retrieval and grounding', detail: 'I learned to design the full RAG pipeline: indexing documents and changing records, routing queries to relevant sources, and combining retrieved evidence with live API data.' },
+  { icon: Workflow, heading: 'Agents and tool execution', detail: 'I learned when to use one specialist, a sequence or parallel work, and how to pair typed tool calls with permissions, confirmations and human review.' },
+  { icon: Layers, heading: 'Framework design and evaluation', detail: 'I learned to build reusable interfaces across model providers and vector stores, then test what actually varies: structured output, tool calling, retrieval quality and filtering.' },
+  { icon: AppWindow, heading: 'Developer experience design', detail: 'I learned to turn runtime capabilities into a product developers can configure: start with a template, connect their tools, test in staging and integrate through an API.' },
+  { icon: Plug, heading: 'Full-stack AI integration', detail: 'I learned to connect a React console, a Java runtime and external APIs while keeping customer configuration, credentials and data access separate.' },
+  { icon: GitBranch, heading: 'Release engineering and operations', detail: 'I learned to separate drafts from running versions, promote changes across environments, and use logs, metrics and live checks to diagnose issues across the stack.' },
+]
+const experience = [
+  { date: 'Jun 2023 to present', role: 'Associate Software Engineer', company: 'Goldman Sachs · Privacy Platform Engineering', detail: 'Built privacy workflows with Java, Spring, React and AWS CDK. Rules reduced findings routed to data owners per scan from thousands to tens or hundreds.' },
+  { date: 'Feb 2021 to May 2023', role: 'Software Engineer', company: 'Goldman Sachs · via Andela', detail: 'Built React applications and workflows for privacy engineering teams.' },
+  { date: 'Aug 2020 to Feb 2021', role: 'Senior Java Full-Stack Engineer', company: 'Upland Software', detail: 'Worked on enterprise portfolio management software.' },
+  { date: 'Sep 2015 to Aug 2020', role: 'Software Engineer', company: 'Vodafone', detail: 'Built Java integrations for telecom systems.' },
+]
+---
+
+<BaseLayout
+  title={`${name} | AI Product Engineer`}
+  description="Mahmoud Elgammal, AI Product Engineer in Birmingham. See how I built AI Fabric Framework, LoomAI Smart Brains and a configuration assistant for developers."
+  canonicalPath="/founder"
+  image={portrait}
+  showIntegrationPanel={false}
+  privatePage={true}
+  jsonLd={{
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name,
+    jobTitle: 'AI Product Engineer',
+    url: 'https://loomai.pro/founder',
+    image: 'https://loomai.pro/assets/mo-elgammal.png',
+    sameAs: [github, linkedin],
+  }}
+>
+  <header slot="header" class="profile profile-header">
+    <div class="profile-wrap profile-header-inner">
+      <a class="profile-wordmark" href="#top">{name}</a>
+      <nav aria-label="Portfolio">
+        <a href="#work">My work</a>
+        <a href="#lessons">What I learned</a>
+        <a href="#experience">Experience</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <button type="button" class="profile-theme" data-theme-toggle aria-label="Switch to dark mode">
+        <Moon class="profile-moon" size={18} aria-hidden="true" />
+        <Sun class="profile-sun" size={18} aria-hidden="true" />
+      </button>
+      <button type="button" class="profile-theme" data-profile-lock aria-label="Lock portfolio" title="Lock portfolio"><LockKeyhole size={18} aria-hidden="true" /></button>
+    </div>
+  </header>
+
+  <div class="profile">
+    <section class="profile-hero" id="top" aria-labelledby="profile-name">
+      <img class="profile-portrait" src={portrait} width="2172" height="724" alt="Studio portrait of Mahmoud Elgammal" fetchpriority="high" />
+      <div class="profile-wrap profile-hero-content">
+        <h1 id="profile-name">{name}</h1>
+        <p class="profile-role">AI Product Engineer</p>
+        <p class="profile-intro">I turn AI capabilities into products developers can use.</p>
+        <p class="profile-meta">Birmingham, UK <span aria-hidden="true">·</span> 10+ years in software engineering</p>
+        <address class="profile-contact">
+          <a href={`mailto:${email}`}><Mail size={16} aria-hidden="true" />{email}</a>
+          <a href={linkedin} target="_blank" rel="noopener">LinkedIn <ArrowUpRight size={15} aria-hidden="true" /></a>
+          <a href={phone.href}><Phone size={16} aria-hidden="true" />{phone.label}</a>
+        </address>
+        <div class="profile-actions">
+          <a class="profile-button profile-primary" href={developer}>
+            <span>Try my developer platform <small>{developer}</small></span>
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </a>
+          <a class="profile-button profile-outline" href={github}>View GitHub <ArrowUpRight size={17} aria-hidden="true" /></a>
+        </div>
+      </div>
+    </section>
+
+    <section id="work" class="profile-section profile-featured" aria-labelledby="profile-work-title">
+      <div class="profile-wrap">
+        <p class="profile-kicker">Featured work</p>
+        <h2 id="profile-work-title">From framework to developer product</h2>
+        <ol class="profile-journey">
+          <li>
+            <div class="profile-stage-icon"><CodeXml size={42} aria-hidden="true" /></div>
+            <h3><span>01</span> AI Fabric Framework</h3>
+            <p>Open-source Java and Spring AI building blocks for retrieval, governed actions and specialist orchestration.</p>
+            <a class="profile-link" href="#framework">Explore the framework <ArrowDown size={17} aria-hidden="true" /></a>
+          </li>
+          <li>
+            <div class="profile-stage-icon profile-stage-brain"><img src={brain} alt="" /></div>
+            <h3><span>02</span> LoomAI Smart Brain</h3>
+            <p>A configurable AI backend with its own knowledge, models, integrations, behaviour and review policies.</p>
+            <a class="profile-link" href="#smart-brain">See what a Brain can do <ArrowDown size={17} aria-hidden="true" /></a>
+          </li>
+          <li>
+            <div class="profile-stage-tools">
+              <div class="profile-stage-icon"><Terminal size={42} aria-hidden="true" /></div>
+              <div class="profile-stage-icon"><AppWindow size={42} aria-hidden="true" /></div>
+            </div>
+            <h3><span>03</span> LoomAI for Developers</h3>
+            <p>Start with a template, connect your tools, test in staging and use the Brain in a web app, mobile app or backend.</p>
+            <a class="profile-link" href={developer}>developer.loomai.pro <ArrowUpRight size={17} aria-hidden="true" /></a>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="framework" class="profile-section profile-tint" aria-labelledby="profile-framework-title">
+      <div class="profile-wrap">
+        <div class="profile-section-head">
+          <p class="profile-kicker">01 · Open-source foundation</p>
+          <h2 id="profile-framework-title">AI Fabric Framework</h2>
+          <p>I built a modular AI layer for Java applications that already have users, data and business rules. The same runtime can support a conversation or return a typed result to a backend service. The model interprets and proposes; the application owns identity, permissions and what gets executed.</p>
+          <div class="profile-link-row">
+            <a class="profile-link" href={framework}>Source &amp; releases <ArrowUpRight size={16} aria-hidden="true" /></a>
+            <a class="profile-link" href={maven}>Maven Central <ArrowUpRight size={16} aria-hidden="true" /></a>
+            <span class="profile-subtle">Apache-2.0</span>
+          </div>
+        </div>
+        <figure class="profile-map" aria-label="AI Fabric model adapters, vector stores and capability modules">
+          <div class="profile-fabric-grid">
+            <div class="profile-map-wing">
+              <h3><Bot size={20} aria-hidden="true" /> LLM adapters</h3>
+              <ul class="profile-tags">
+                <li>OpenAI</li><li>Anthropic</li><li>Google Gemini</li><li>Azure OpenAI</li>
+              </ul>
+              <p class="profile-map-note">Cohere adapter available, not enabled by default.</p>
+            </div>
+            <div class="profile-fabric-core">
+              <Layers size={52} stroke-width={1.45} aria-hidden="true" />
+              <strong>AI Fabric Framework</strong>
+              <span>Java 21 · Spring Boot · Spring AI</span>
+            </div>
+            <div class="profile-map-wing profile-vector-wing">
+              <h3><Database size={20} aria-hidden="true" /> Vector stores</h3>
+              <ul class="profile-tags">
+                <li>Lucene</li><li>Milvus</li><li>Qdrant</li><li>Pinecone</li><li>Weaviate</li><li>In-memory</li>
+              </ul>
+              <p class="profile-map-note">Local indexes for demos, external stores when needed.</p>
+            </div>
+          </div>
+          <div class="profile-map-label">Capability modules</div>
+          <ul class="profile-module-grid">
+            {modules.map(({ icon: Icon, label, detail }) => (
+              <li><Icon size={22} aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span></li>
+            ))}
+          </ul>
+          <figcaption>Install only the modules and adapters your application needs. Provider capabilities vary.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="smart-brain" class="profile-section profile-brain" aria-labelledby="profile-brain-title">
+      <div class="profile-wrap">
+        <div class="profile-section-head">
+          <p class="profile-kicker">02 · LoomAI Platform</p>
+          <h2 id="profile-brain-title">The Smart Brain behind the app</h2>
+          <p>I turned the framework into something developers can configure and ship. A Smart Brain combines the AI runtime and the settings that make it useful for a particular application. The same Brain can serve an API client or power a branded LoomAI Engage experience.</p>
+        </div>
+        <figure class="profile-brain-map" aria-label="Smart Brain surrounded by eight configurable capabilities">
+          <ul class="profile-brain-wing">
+            {capabilities.slice(0, 4).map(({ icon: Icon, label, detail }) => (
+              <li><Icon size={22} aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span></li>
+            ))}
+          </ul>
+          <div class="profile-brain-core">
+            <img src={brain} alt="The illuminated Smart Brain illustration from developer.loomai.pro" loading="lazy" decoding="async" />
+            <figcaption>Smart Brain <span>Configured in LoomAI</span></figcaption>
+          </div>
+          <ul class="profile-brain-wing profile-brain-wing-right">
+            {capabilities.slice(4).map(({ icon: Icon, label, detail }) => (
+              <li><Icon size={22} aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span></li>
+            ))}
+          </ul>
+        </figure>
+        <div class="profile-dev-flow">
+          <div>
+            <p class="profile-kicker">03 · Developer experience</p>
+            <h3>Build it in the Console. Use it in your app.</h3>
+            <p>I built the developer entry point around a staged path: choose a template, connect your data and tools, test the Brain, then integrate it.</p>
+          </div>
+          <div class="profile-dev-targets">
+            <span><CodeXml size={17} aria-hidden="true" /> Web</span>
+            <span><Smartphone size={17} aria-hidden="true" /> Mobile</span>
+            <span><Braces size={17} aria-hidden="true" /> Backend</span>
+            <a class="profile-link" href={developer}>Try the developer platform <ArrowUpRight size={17} aria-hidden="true" /></a>
+          </div>
+        </div>
+        <div class="profile-product-examples">
+          <div>
+            <h3>LoomAI Engage</h3>
+            <p>In the dealership demo, shoppers can compare current stock and ask about policies in a branded workspace on the website.</p>
+            <a class="profile-link" href="/demos/dealership-ai/">Try the dealership demo <ArrowUpRight size={16} aria-hidden="true" /></a>
+          </div>
+          <div>
+            <h3>LoomAI Desk</h3>
+            <p>When a conversation needs a person, it can move to a support agent. Teams can also review proposed actions before they run.</p>
+            <a class="profile-link" href="https://console.loomai.pro/">Explore the LoomAI products <ArrowUpRight size={16} aria-hidden="true" /></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="assistant" class="profile-section" aria-labelledby="profile-assistant-title">
+      <div class="profile-wrap">
+        <div class="profile-section-head">
+          <p class="profile-kicker">Product walkthrough · Real Console screens</p>
+          <h2 id="profile-assistant-title">A Smart Brain that helps build Smart Brains</h2>
+          <p>I used our own runtime to build the configuration assistant inside LoomAI. It turns an API document into editable setup in the page you are already working on, without asking you to write a prompt from scratch.</p>
+        </div>
+        <div class="profile-walkthrough" data-walkthrough>
+          <div class="profile-steps" role="group" aria-label="Walkthrough step" hidden>
+            {walkthrough.map(({ key, label }, index) => (
+              <button type="button" data-walkthrough-step={key} aria-controls={`walkthrough-${key}`} aria-pressed="false">
+                <span>{index + 1}</span>{label}
+              </button>
+            ))}
+          </div>
+          {walkthrough.map(({ key, alt, heading, detail }) => (
+            <figure id={`walkthrough-${key}`} class="profile-shot" data-walkthrough-frame={key}>
+              <a class="profile-shot-image" href={`/founder/assets/assistant-${key}.png`} target="_blank" rel="noopener" aria-label={`Open full-size Console screenshot: ${heading}`}>
+                <img src={`/founder/assets/assistant-${key}.png`} alt={alt} width="1600" height="1120" loading="lazy" decoding="async" />
+                <ArrowUpRight class="profile-shot-expand" size={17} aria-hidden="true" />
+              </a>
+              <figcaption><strong>{heading}</strong><p>{detail}</p></figcaption>
+            </figure>
+          ))}
+        </div>
+        <p class="profile-callout"><ShieldCheck size={22} aria-hidden="true" /><span><strong>The assistant edits a draft, not production.</strong> If a draft fails a configuration check, the assistant can use the returned errors to make a bounded correction. The developer still reviews the result and decides whether to publish.</span></p>
+      </div>
+    </section>
+
+    <section id="lessons" class="profile-section profile-tint" aria-labelledby="profile-lessons-title">
+      <div class="profile-wrap">
+        <div class="profile-section-head">
+          <p class="profile-kicker">Knowledge and skills</p>
+          <h2 id="profile-lessons-title">What I learned building AI Fabric and LoomAI</h2>
+          <p>AI Fabric taught me how to engineer a reusable AI runtime. LoomAI taught me how to turn that runtime into a product developers can configure, integrate and operate.</p>
+        </div>
+        <ul class="profile-lesson-grid">
+          {lessons.map(({ icon: Icon, heading, detail }) => (
+            <li><Icon size={24} aria-hidden="true" /><h3>{heading}</h3><p>{detail}</p></li>
+          ))}
+        </ul>
+        <div class="profile-stack">
+          <h3>Stack I built with</h3>
+          <dl>
+            <div><dt>AI runtime</dt><dd>Java 21, Spring Boot, Spring AI, OpenAI, Lucene, Milvus</dd></div>
+            <div><dt>Product &amp; APIs</dt><dd>React, TypeScript, PostgreSQL, HTTP, OpenAPI, MCP</dd></div>
+            <div><dt>Delivery</dt><dd>Docker, Coolify, GitHub Actions, S3, Maven Central</dd></div>
+          </dl>
+        </div>
+        <div class="profile-stack profile-stack-adapt">
+          <h3>AI stack I can adapt to</h3>
+          <p>Python, LlamaIndex, LangGraph, Ragas</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-section profile-hire" aria-labelledby="profile-hire-title">
+      <div class="profile-wrap profile-hire-inner">
+        <div>
+          <p class="profile-kicker">What I bring to a team</p>
+          <h2 id="profile-hire-title">Why hire me as an AI Product Engineer?</h2>
+        </div>
+        <div>
+          <p>I can take an AI feature from the first user problem to a working interface, the underlying runtime and a verified release. I know where to let the model reason, where software must enforce a rule, and how to show users the difference.</p>
+          <a class="profile-link" href={linkedin} target="_blank" rel="noopener">Connect on LinkedIn <ArrowUpRight size={17} aria-hidden="true" /></a>
+        </div>
+      </div>
+    </section>
+
+    <section id="experience" class="profile-section" aria-labelledby="profile-experience-title">
+      <div class="profile-wrap">
+        <div class="profile-section-head">
+          <p class="profile-kicker">Software engineering background</p>
+          <h2 id="profile-experience-title">Professional experience</h2>
+        </div>
+        <ol class="profile-experience">
+          {experience.map(({ date, role, company, detail }) => (
+            <li><span class="profile-date">{date}</span><div><h3>{role}</h3><strong>{company}</strong><p>{detail}</p></div></li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  </div>
+
+  <footer slot="footer" id="contact" class="profile profile-footer">
+    <div class="profile-wrap">
+      <div><strong>{name}</strong><span>AI Product Engineer · Birmingham, UK</span></div>
+      <nav aria-label="Contact and links">
+        <a href={linkedin} target="_blank" rel="noopener">LinkedIn <ArrowUpRight size={15} aria-hidden="true" /></a>
+        <a href={github}>GitHub <ArrowUpRight size={15} aria-hidden="true" /></a>
+        <a href="/">LoomAI <ArrowRight size={15} aria-hidden="true" /></a>
+      </nav>
+    </div>
+  </footer>
+  <script is:inline src="/proposals/assets/profile-access.js" defer></script>
+</BaseLayout>
+
+<script>
+  import { initializeThemeControls } from '../scripts/color-scheme'
+  initializeThemeControls()
+
+  const walkthrough = document.querySelector('[data-walkthrough]')
+  if (walkthrough) {
+    const controls = walkthrough.querySelector<HTMLElement>('.profile-steps')
+    const buttons = walkthrough.querySelectorAll<HTMLButtonElement>('[data-walkthrough-step]')
+    const frames = walkthrough.querySelectorAll<HTMLElement>('[data-walkthrough-frame]')
+    const select = (step: string | undefined) => {
+      buttons.forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.walkthroughStep === step))
+      })
+      frames.forEach(frame => {
+        frame.hidden = frame.dataset.walkthroughFrame !== step
+      })
+    }
+    buttons.forEach(button => button.addEventListener('click', () => select(button.dataset.walkthroughStep)))
+    if (controls && buttons[0]) {
+      select(buttons[0].dataset.walkthroughStep)
+      controls.hidden = false
+    }
+  }
+</script>

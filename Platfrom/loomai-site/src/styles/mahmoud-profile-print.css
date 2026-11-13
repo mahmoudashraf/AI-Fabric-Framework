@@ -1,0 +1,128 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 11mm 12mm 12mm;
+    @bottom-left {
+      content: "Mahmoud Elgammal | AI Product Engineer";
+      font: 8pt "Inter Variable", sans-serif;
+      color: #465653;
+    }
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font: 8pt "Inter Variable", sans-serif;
+      color: #465653;
+    }
+  }
+
+  html:has(.profile) { background: white; color-scheme: light; }
+  body:has(.profile) { background: white; overflow: visible; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  body:has(.profile) .skip-link, .profile-header, .profile-footer { display: none; }
+  html .profile {
+    --profile-paper: #fff;
+    --profile-tint: #eff4f1;
+    --profile-ink: #131a1c;
+    --profile-muted: #465653;
+    --profile-rule: #cbd9d3;
+    --profile-accent: #08695a;
+    --profile-accent-soft: #e1eee8;
+    font-size: 9.5pt;
+    line-height: 1.36;
+  }
+  .profile .profile-wrap { width: calc(100% - 10mm); }
+  .profile .profile-section { padding-block: 5mm; }
+  .profile .profile-section-head { max-width: none; margin-bottom: 3.5mm; }
+  .profile .profile-section-head > p:not(.profile-kicker) { font-size: 9.5pt; margin-top: 1.5mm; }
+  .profile .profile-kicker { font-size: 7.3pt; margin-bottom: 1mm; }
+  .profile h2 { font-size: 19pt; line-height: 1.13; }
+  .profile h3 { font-size: 10.5pt; line-height: 1.2; }
+  .profile .profile-link { font-size: 8.5pt; }
+  .profile .profile-link svg { width: 10pt; height: 10pt; }
+  .profile .profile-link-row { margin-top: 1.7mm; }
+  .profile :is(.profile-hero, .profile-journey, .profile-fabric-grid, .profile-module-grid, .profile-brain-map, .profile-shot, .profile-experience li) { break-inside: avoid; }
+  .profile #smart-brain, .profile #lessons { break-before: page; }
+
+  .profile .profile-hero { display: grid; min-height: 55mm; border-radius: 2mm; overflow: hidden; }
+  .profile .profile-portrait { position: absolute; height: 100%; z-index: -1; object-position: 62% 18%; }
+  .profile .profile-hero-content { padding-block: 4mm; }
+  .profile .profile-hero h1 { font-size: 26pt; max-width: 65%; }
+  .profile .profile-role { font-size: 14pt; }
+  .profile .profile-intro { font-size: 10pt; max-width: 57%; margin-top: 2mm !important; }
+  .profile .profile-meta { font-size: 8pt; max-width: 62%; margin-top: 1mm !important; }
+  .profile .profile-contact { font-size: 8pt; gap: 1mm 2.5mm; margin-top: 2mm; }
+  .profile .profile-contact svg { width: 10pt; height: 10pt; }
+  .profile .profile-actions { margin-top: 2.75mm; gap: 2mm; }
+  .profile .profile-button { min-height: 0; font-size: 8pt; padding: 1.5mm 2mm; }
+  .profile .profile-button small { margin-top: .5mm; font-size: 7.5pt; }
+
+  .profile .profile-journey { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm !important; }
+  .profile .profile-journey li { display: flex; border: 0; padding: 0; }
+  .profile .profile-journey li::after { display: none; }
+  .profile .profile-stage-icon { width: 10mm; height: 10mm; margin-bottom: 1.5mm; }
+  .profile .profile-stage-icon svg { width: 6mm; height: 6mm; }
+  .profile .profile-stage-brain { width: 18mm; }
+  .profile .profile-stage-brain img { height: 9mm; }
+  .profile .profile-journey p { margin-block: 1mm 1.5mm; }
+  .profile .profile-map { padding-top: 2.5mm; }
+  .profile .profile-fabric-grid { grid-template-columns: minmax(0, 1fr) minmax(0, .94fr) minmax(0, 1fr); gap: 3mm; }
+  .profile .profile-fabric-core { grid-column: auto; grid-row: auto; min-height: 24mm; padding: 2mm; }
+  .profile .profile-fabric-core svg { height: 8mm; width: 8mm; margin-bottom: .75mm; }
+  .profile .profile-fabric-core strong { font-size: 10pt; }
+  .profile .profile-fabric-core span { font-size: 7.25pt; }
+  .profile .profile-map-wing { padding: 2.5mm; }
+  .profile .profile-map-wing::after { display: block; width: 3mm; }
+  .profile .profile-map-wing svg { width: 4mm; height: 4mm; }
+  .profile .profile-tags { gap: .8mm; margin-top: 1.5mm !important; }
+  .profile .profile-tags li { font-size: 7.6pt; padding: .5mm 1mm; }
+  .profile .profile-map-note, .profile .profile-map figcaption { font-size: 7.5pt; }
+  .profile .profile-map-note { margin-top: 1.5mm; }
+  .profile .profile-map-label { margin: 0 0 1mm; }
+  .profile .profile-map-label::before { display: block; height: 3mm; margin-bottom: 1mm; }
+  .profile .profile-module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .profile .profile-module-grid li { padding: 1.75mm; gap: 1.25mm; border-right: 0; }
+  .profile .profile-module-grid li:not(:nth-child(3n)) { border-right: 1px solid var(--profile-rule); }
+  .profile .profile-module-grid svg, .profile .profile-brain-wing svg { width: 4mm; height: 4mm; }
+  .profile .profile-module-grid strong, .profile .profile-brain-wing strong { font-size: 8.5pt; }
+  .profile .profile-module-grid small, .profile .profile-brain-wing small { font-size: 7.5pt; margin-top: .5mm; }
+  .profile .profile-map figcaption { padding: 1.75mm 0; }
+
+  .profile .profile-brain { border-radius: 2mm; }
+  .profile .profile-brain-map { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 3mm; }
+  .profile .profile-brain-core { grid-column: auto; grid-row: auto; }
+  .profile .profile-brain-core img { max-height: 40mm; }
+  .profile .profile-brain-core figcaption { font-size: 10pt; }
+  .profile .profile-brain-core figcaption span { font-size: 7.5pt; }
+  .profile .profile-brain-wing { gap: 1mm; }
+  .profile .profile-brain-wing li { min-height: 9mm; padding: 1mm 1.5mm; gap: 1.25mm; }
+  .profile .profile-brain-wing li::after { display: block; width: 3mm; }
+  .profile .profile-dev-flow, .profile .profile-product-examples { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm; padding-top: 2.5mm; }
+  .profile .profile-dev-targets span { font-size: 7.5pt; }
+  .profile .profile-product-examples p { font-size: 8.5pt; margin-block: .75mm 1mm; }
+
+  .profile #assistant { padding-bottom: 2mm; }
+  .profile .profile-steps, .profile .profile-shot-expand { display: none; }
+  .profile .profile-walkthrough { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3mm; align-items: start; }
+  .profile .profile-shot[data-walkthrough-frame][hidden] { display: block !important; }
+  .profile .profile-shot + .profile-shot { margin-top: 0; }
+  .profile .profile-shot figcaption { display: block; border: 0; padding: 1.25mm 0 0; font-size: 7.8pt; }
+  .profile .profile-shot figcaption p { margin-top: .75mm; }
+  .profile .profile-callout { font-size: 8.5pt; margin-top: 2.75mm; }
+  .profile .profile-callout svg { width: 4mm; height: 4mm; }
+
+  .profile #lessons, .profile #experience, .profile .profile-hire { padding-block: 3.5mm; }
+  .profile .profile-lesson-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 3.5mm; }
+  .profile .profile-lesson-grid li { display: grid; grid-template-columns: 3.5mm minmax(0, 1fr); align-content: start; align-items: start; gap: 1mm 1.2mm; padding-block: 2mm; }
+  .profile .profile-lesson-grid svg { width: 3.5mm; height: 3.5mm; margin: .25mm 0 0; }
+  .profile .profile-lesson-grid h3 { font-size: 9.2pt; margin: 0; }
+  .profile .profile-lesson-grid p { grid-column: 1 / -1; }
+  .profile .profile-lesson-grid p, .profile .profile-experience p { font-size: 8.8pt; }
+  .profile .profile-stack { margin-top: 2mm; padding-top: 2mm; }
+  .profile .profile-stack dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3mm; margin-top: 1mm; }
+  .profile .profile-stack dt, .profile .profile-stack dd, .profile .profile-stack-adapt p { font-size: 8.4pt; }
+  .profile .profile-hire-inner { grid-template-columns: 1fr 1.2fr; gap: 4mm; }
+  .profile .profile-hire-inner .profile-link { margin-top: 1.5mm; }
+  .profile #experience .profile-section-head { margin-bottom: 2mm; }
+  .profile .profile-experience { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4mm; }
+  .profile .profile-experience li { grid-template-columns: minmax(0, 1fr); gap: .5mm; padding-block: 1.5mm; }
+  .profile .profile-experience li p { margin-top: .5mm; }
+  .profile .profile-experience li strong, .profile .profile-date { font-size: 8.5pt; }
+}

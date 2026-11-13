@@ -16,6 +16,8 @@ type Props = {
   image?: string
   type?: 'website' | 'article'
   noIndex?: boolean
+  showIntegrationPanel?: boolean
+  privatePage?: boolean
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>
 }
 
@@ -26,6 +28,8 @@ const {
   image = '/assets/loom-woven-hero.png',
   type = 'website',
   noIndex = false,
+  showIntegrationPanel = true,
+  privatePage = false,
   jsonLd,
 } = Astro.props
 
@@ -51,11 +55,11 @@ const defaultJsonLd = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f8faff" />
-    <script is:inline defer src="/assets/loomai-ui-visits.js" referrerpolicy="no-referrer"></script>
-    <script is:inline set:html={themeBootstrap} />
+    {!privatePage && <script is:inline defer src="/assets/loomai-ui-visits.js" referrerpolicy="no-referrer"></script>}
+    {!privatePage && <script is:inline set:html={themeBootstrap} />}
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
-    {noIndex && <meta name="robots" content="noindex, nofollow" />}
+    {(noIndex || privatePage) && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonicalUrl} />
     <link rel="alternate" type="application/rss+xml" title="Loom AI Labs research" href="/research/feed.xml" />
 
@@ -71,16 +75,16 @@ const defaultJsonLd = {
     <meta name="twitter:image" content={imageUrl} />
     <title>{pageTitle}</title>
 
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(defaultJsonLd)} />
-    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {!privatePage && <script is:inline type="application/ld+json" set:html={JSON.stringify(defaultJsonLd)} />}
+    {!privatePage && jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <SiteHeader />
+    <slot name="header"><SiteHeader /></slot>
     <main id="main-content">
       <slot />
     </main>
-    <SiteFooter />
-    <IntegrationCallPanel />
+    <slot name="footer"><SiteFooter /></slot>
+    {showIntegrationPanel && <IntegrationCallPanel />}
   </body>
 </html>

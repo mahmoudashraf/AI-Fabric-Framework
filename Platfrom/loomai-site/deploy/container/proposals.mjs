@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 
 const cookieToken = /^[A-Za-z0-9_-]{32,128}$/
-const assets = new Map([['client.js','text/javascript; charset=utf-8'],['presentation.js','text/javascript; charset=utf-8'],['partnership.js','text/javascript; charset=utf-8'],['styles.css','text/css; charset=utf-8'],['presentation.css','text/css; charset=utf-8'],['integration.css','text/css; charset=utf-8'],['partnership.css','text/css; charset=utf-8']])
+const assets = new Map([['client.js','text/javascript; charset=utf-8'],['presentation.js','text/javascript; charset=utf-8'],['partnership.js','text/javascript; charset=utf-8'],['profile-access.js','text/javascript; charset=utf-8'],['profile-access.css','text/css; charset=utf-8'],['styles.css','text/css; charset=utf-8'],['presentation.css','text/css; charset=utf-8'],['integration.css','text/css; charset=utf-8'],['partnership.css','text/css; charset=utf-8']])
 const protectedHeaders = {
   'Cache-Control': 'private, no-store',
   'Referrer-Policy': 'no-referrer',
@@ -42,7 +43,13 @@ export function createProposalGateway({
   gatewayKey = process.env.CUSTOMER_PROPOSALS_GATEWAY_KEY,
   origin = process.env.CUSTOMER_PROPOSALS_ORIGIN || 'https://loomai.pro',
   fetchImpl = fetch,
+  protectedPages = [],
 } = {}) {
+  const pages = protectedPages.map(page => {
+    if (!/^\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(page.route)
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(page.slug)) throw new Error('INVALID_PROTECTED_PAGE')
+    return page
+  })
   let configured = false
   try {
     const target = new URL(endpoint)
@@ -52,7 +59,8 @@ export function createProposalGateway({
   } catch { /* Missing configuration leaves only the access shell available. */ }
   const attempts = new Map()
   const cookieName = slug => `__Secure-loomai-proposal-${slug}`
-  const cookieValue = (slug, token, maxAge = 0) => `${cookieName(slug)}=${token}; Path=/proposals/${slug}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`
+  const routeFor = slug => pages.find(page => page.slug === slug)?.route || `/proposals/${slug}`
+  const cookieValue = (slug, token, maxAge = 0) => `${cookieName(slug)}=${token}; Path=${routeFor(slug)}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`
   const tokenFor = (request, slug) => {
     const matches = (request.headers.cookie || '').split(';').map(value => value.trim()).filter(value => value.startsWith(cookieName(slug) + '='))
     if (matches.length !== 1) return ''
@@ -87,8 +95,9 @@ export function createProposalGateway({
   }
 
   return async (request, response, url) => {
+    const page = pages.find(page => url.pathname === page.route || url.pathname.startsWith(page.route + '/'))
     // Match before static routing, including malformed or encoded proposal paths.
-    if (!/^\/proposals(?:\/|$)/i.test(url.pathname) && !/^\/proposals(?:%|\\)/i.test(url.pathname)) return false
+    if (!page && !/^\/proposals(?:\/|$)/i.test(url.pathname) && !/^\/proposals(?:%|\\)/i.test(url.pathname)) return false
     try {
       if (/^\/proposals\/assets\//.test(url.pathname)) {
         const name = url.pathname.slice('/proposals/assets/'.length)
@@ -98,23 +107,46 @@ export function createProposalGateway({
         response.end(request.method === 'HEAD' ? undefined : bytes)
         return true
       }
-      const match = /^\/proposals\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/(access|content|download|logout))?\/?$/.exec(url.pathname)
+      const suffix = page ? url.pathname.slice(page.route.length).replace(/\/$/, '') : null
+      const assetName = suffix?.startsWith('/assets/') ? suffix.slice('/assets/'.length) : null
+      const match = page
+        ? (['', '/access', '/logout'].includes(suffix) || Object.hasOwn(page.assets, assetName || '')
+          ? [url.pathname, page.slug, assetName ? 'asset' : suffix.slice(1) || undefined] : null)
+        : /^\/proposals\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/(access|content|download|logout))?\/?$/.exec(url.pathname)
       if (!match || match[1].length > 64) { json(response,404,{error:'NOT_FOUND'}); return true }
       const [, slug, action] = match
+      if (!page && pages.some(page => page.slug === slug)) {
+        if (!action && ['GET','HEAD'].includes(request.method)) {
+          response.writeHead(303,{...protectedHeaders,Location:routeFor(slug) + url.search}); response.end()
+        } else json(response,404,{error:'NOT_FOUND'})
+        return true
+      }
       if (!action && ['GET','HEAD'].includes(request.method)) {
         if (url.searchParams.has('code')) {
           let result = { status: 503, data: { error: 'UNAVAILABLE' } }
           if (configured && request.method === 'GET' && !request.headers['sec-purpose']?.includes('prefetch')) result = await exchange(request, slug, url.searchParams.get('code'))
           const success = result.status === 200
           response.writeHead(303, { ...protectedHeaders,
-            Location: `/proposals/${slug}${success ? '' : `?access=${result.status === 503 ? 'unavailable' : result.status === 429 ? 'limited' : 'invalid'}`}`,
+            Location: `${routeFor(slug)}${success ? '' : `?access=${result.status === 503 ? 'unavailable' : result.status === 429 ? 'limited' : 'invalid'}`}`,
             ...(success ? { 'Set-Cookie': cookieValue(slug, result.data.token, result.data.maxAge) } : {}),
           })
           response.end()
           return true
         }
-        response.writeHead(200, { ...protectedHeaders, 'Content-Type': 'text/html; charset=utf-8' })
-        response.end(request.method === 'HEAD' ? undefined : readFileSync(new URL('./proposal-ui/index.html', import.meta.url)))
+        let file = new URL('./proposal-ui/index.html', import.meta.url)
+        let status = 200
+        if (page) {
+          file = new URL('./proposal-ui/profile-access.html', import.meta.url)
+          const token = tokenFor(request,slug)
+          if (configured && token) {
+            const authorization = await call('content',slug,{token})
+            if (authorization.status === 200) file = path.join(page.directory,'index.html')
+            else if (authorization.status === 503 || authorization.status === 429) status = authorization.status
+          } else if (!configured) status = 503
+        }
+        const bytes = readFileSync(file)
+        response.writeHead(status, { ...protectedHeaders, 'Content-Type': 'text/html; charset=utf-8' })
+        response.end(request.method === 'HEAD' ? undefined : bytes)
         return true
       }
       const method = action === 'access' || action === 'logout' ? 'POST' : 'GET'
@@ -135,12 +167,16 @@ export function createProposalGateway({
       }
       const token = tokenFor(request,slug)
       if (!token) { json(response,401,{error:'ACCESS_DENIED'}); return true }
-      const result = await call(action,slug,{token})
+      const result = await call(action === 'asset' ? 'content' : action,slug,{token})
       if (action === 'logout') {
         json(response,result.status === 200 ? 204 : result.status,result.status === 200 ? null : result.data,
           result.status === 200 ? { 'Set-Cookie': cookieValue(slug,'',0) } : {})
       } else if (result.status !== 200) json(response,result.status,result.data)
-      else if (action === 'download') {
+      else if (action === 'asset') {
+        const bytes = readFileSync(path.join(page.directory,'assets',assetName))
+        response.writeHead(200,{...protectedHeaders,'Content-Type':page.assets[assetName]})
+        response.end(request.method === 'HEAD' ? undefined : bytes)
+      } else if (action === 'download') {
         if (typeof result.data.base64 !== 'string' || result.data.base64.length > 3000000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(result.data.base64)) throw new Error('UNAVAILABLE')
         response.writeHead(200, { ...protectedHeaders,
           'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

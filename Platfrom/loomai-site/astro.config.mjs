@@ -5,6 +5,7 @@ export default defineConfig({
   output: 'static',
   build: {
     format: 'directory',
+    inlineStylesheets: 'never',
   },
   compressHTML: true,
   prefetch: {
@@ -13,6 +14,7 @@ export default defineConfig({
   },
   vite: {
     build: {
+      assetsInlineLimit: 0,
       cssMinify: 'lightningcss',
     },
   },

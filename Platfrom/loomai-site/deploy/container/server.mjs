@@ -239,12 +239,24 @@ function serveFile(request, response, targetPath, statusCode = 200) {
   createReadStream(targetPath).pipe(response)
 }
 
-const proposalGateway = createProposalGateway()
+const proposalGateway = createProposalGateway({protectedPages:[{
+  route:'/founder', slug:'founder',
+  directory:process.env.LOOMAI_SITE_PROTECTED_DIR
+    ? path.join(path.resolve(process.env.LOOMAI_SITE_PROTECTED_DIR),'founder')
+    : path.join(__dirname,'protected-dist','founder'),
+  assets:{'mahmoud-studio.jpg':'image/jpeg','assistant-openapi-ready.png':'image/png','assistant-saved-actions.png':'image/png','assistant-review-draft.png':'image/png'},
+}]})
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', 'http://127.0.0.1')
   const headOnly = request.method === 'HEAD'
 
   if (await proposalGateway(request, response, requestUrl)) return
+
+  if (requestUrl.pathname.replace(/\/$/,'') === '/mahmoud-elgammal') {
+    response.writeHead(303,{Location:'/founder' + requestUrl.search,'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow',...securityHeaders(false)})
+    response.end()
+    return
+  }
 
   if (!['GET', 'HEAD'].includes(request.method || 'GET')) {
     response.writeHead(405, { Allow: 'GET, HEAD', ...securityHeaders(false) })

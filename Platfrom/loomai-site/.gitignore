@@ -1,5 +1,6 @@
 .astro/
 dist/
+protected-dist/
 node_modules/
 test-results/
 public/vendor/max-mode-widget.iife.js

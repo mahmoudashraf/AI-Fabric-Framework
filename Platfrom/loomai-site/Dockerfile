@@ -18,6 +18,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY --from=build /workspace/Platfrom/loomai-site/dist ./dist
+COPY --from=build /workspace/Platfrom/loomai-site/protected-dist ./protected-dist
 COPY --from=build /workspace/Platfrom/loomai-site/deploy/container/ ./
 
 RUN addgroup -S loomsite \

@@ -1,0 +1,12 @@
+@font-face{font-family:Inter;src:url('/assets/proposals/inter-latin.woff2') format('woff2');font-weight:100 900;font-display:swap}
+:root{font-family:Inter,system-ui,sans-serif;color:#edf5f2;background:#101715;letter-spacing:0;color-scheme:dark}
+*{box-sizing:border-box}body{min-height:100dvh;margin:0;display:grid;place-items:center;padding:32px 24px}
+.access-panel{width:min(100%,440px)}.wordmark{font-size:20px;font-weight:750;color:inherit;text-decoration:none}
+.lock-mark{display:block;margin-top:54px;color:#97e5ce}.eyebrow{text-transform:uppercase;color:#8cd9c4;font-size:12px;font-weight:700;margin:24px 0 12px}
+h1{font-size:36px;line-height:1.15;margin:0;max-width:380px}.intro{color:#afc1ba;font-size:16px;line-height:1.6;margin:18px 0 28px}
+label{display:block;font-size:14px;font-weight:650;margin-bottom:8px}input{width:100%;height:48px;border:1px solid #51665d;border-radius:6px;background:#18231f;color:inherit;padding:10px 12px;font:inherit}
+input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #8cd9c4;outline-offset:4px}
+[data-access-feedback]{min-height:22px;color:#ffd1a6;font-size:14px;line-height:1.4;margin:10px 0}
+button{width:100%;height:48px;border:0;border-radius:6px;background:#97e5ce;color:#10231b;font:inherit;font-weight:750;display:flex;align-items:center;justify-content:space-between;padding:0 16px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.back-link{display:inline-block;margin-top:28px;color:#b9cec4;font-size:14px;text-underline-offset:4px}
+@media(max-width:480px){body{padding:28px 24px}.lock-mark{margin-top:40px}h1{font-size:32px}}

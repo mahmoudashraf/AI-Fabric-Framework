@@ -43,6 +43,14 @@ const noIndexRoutes = [
 const routes = [...indexedRoutes, ...noIndexRoutes]
 
 const errors = []
+const protectedProfile = path.join(root, 'protected-dist', 'founder')
+if (!existsSync(path.join(protectedProfile, 'index.html'))) errors.push('Protected founder page was not emitted')
+for (const relative of ['founder/index.html', 'founder.html', 'mahmoud-elgammal/index.html', 'assets/profile/mahmoud-studio.jpg', 'assets/profile/assistant-openapi-ready.png', 'assets/profile/assistant-saved-actions.png', 'assets/profile/assistant-review-draft.png']) {
+  if (existsSync(path.join(dist, relative))) errors.push(`Private profile is reachable through static output: ${relative}`)
+}
+for (const name of ['mahmoud-studio.jpg', 'assistant-openapi-ready.png', 'assistant-saved-actions.png', 'assistant-review-draft.png']) {
+  if (!existsSync(path.join(protectedProfile, 'assets', name))) errors.push(`Protected profile image missing: ${name}`)
+}
 const htmlFiles = []
 
 for (const route of routes) {
