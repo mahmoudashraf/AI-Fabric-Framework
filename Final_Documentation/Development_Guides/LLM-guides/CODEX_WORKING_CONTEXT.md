@@ -15222,3 +15222,53 @@ test is being called hosted acceptance. UI extraction remains last.
   plan executionrecord updated. S3uploader and acceptedtemplate defaults open.
   No agents or needed test/browser sessions running; preserve unrelated dirt,
   retained manual lab and already-shared phone videos. Platform-Updates notified.
+
+### 010.63 Console Policy Access Approval And Apply (2026-11-13, In Progress)
+
+- Owner explicitly approved the scoped PLATFORM_PROXY_SESSION addition, then
+  resumed after an interruption. Supersedes the approval-pending note above.
+  Published ONLY ONCE as ver-fcd3ee7b/v15 from drf-e620ed89; current editable
+  draft is drf-91912e48. Persisted version proof confirms eight other sections
+  unchanged plus authored prompts unchanged. The generated system catalogue and
+  its managed expansion naturally include the approved source mode now.
+- Prepared helper expected configuration fields on the summary publication
+  response. Publication had succeeded; read-only persisted-version inspection
+  recovered its receipt without another publication. A second proof comparison
+  initially omitted the generated catalogue update; corrected comparison
+  verifies that exact structured-data change. Neither is a runtime/framework bug.
+- Stage rel-3618a1fb is applying normally on existing artifactdsa-f8ef9102 /
+  framework52/source008981816. At12:56UTC runtime healthy, waiting connector.
+  Production still rel-0139e718. No binding switched yet. Unauthenticated
+  Console auth-context remains401; no model query for that denial check.
+- Authoritative state/evidence:
+  ~/.codex/private/loomai-followup-20261113/policy-preview-rollout.private.json.
+  New scripts under /private/tmp/loomai-followup-20261113/ read/write that HOME
+  evidence root: wait-policy-release, verify-console-policy-mode,
+  verify-public-policy-mode, qualify-policy-environment and recovery helper.
+  Do NOT replay publish or replace home state with the older tmp copy.
+- Next: observe stage APPLIED_VERIFIED/PASSED, normal bind, one actual Console
+  policy query + one actual public UI query, manual answers/screenshots review,
+  record stage qualification, then normal production apply/bind and same checks.
+  No experimental prompt adoption, source filter widening, new framework/image,
+  IAM/S3 change or global plugin/template auth-mode rewrite is authorized here.
+
+### 010.63 Console Mode Platform Mapping (2026-11-13, 13:06 UTC)
+
+- Stage rel-3618a1fb now APPLIED_VERIFIED/PASSED and existing consumer bound.
+  Actual Console query PASS using applied prompts/no override: eligible1 /
+  attempted1 / succeeded1, three policy documents, correct licence/30minutes.
+- Public UI helper failed BEFORE browser/query: document-list prerequisite400.
+  Root: DeploymentDocumentKnowledgeOperationsService customer-audience switch
+  rejects PLATFORM_PROXY_SESSION although runtime/manifest support it. Bounded
+  backend correction recognizes transport without granting an audience. All
+  existing audience/owner/target/scope guards remain; proxy-only and unknown
+  modes still deny. No framework/runtime change. Production config remainsold.
+- Backend focused159/159 PASS (document47/POC41/target25/authority46); runtime
+  source-registry23/23 PASS. Restricted-process Mockito initialization attempt
+  failed before assertions; retained separately, unchanged offline rerun passed
+  with required process access. Not a product fix or semantic/model retry.
+- Next commit/build/deploy backend-only correction, finish previously unexecuted
+  stage public check, inspect screenshots, qualify stage, then production apply /
+  bind / actualConsole+public checks. Do not skip failing document-management
+  prerequisite or claim staging fully qualified yet. State/helpers above remain
+  authoritative. New proof: 2026-11-13-console-policy-access.md under01063 evidence.

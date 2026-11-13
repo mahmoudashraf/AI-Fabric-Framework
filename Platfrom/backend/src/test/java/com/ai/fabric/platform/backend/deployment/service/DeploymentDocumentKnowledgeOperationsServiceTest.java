@@ -62,7 +62,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         var version = documentVersion();
         version.setKnowledgeSourceConfigJson("""
             {"sources":[{"datasetRef":"document-knowledge","authModes":[
-              "PUBLIC_RUNTIME_ANONYMOUS","PUBLIC_RUNTIME_AUTHENTICATED","PRIVATE_RUNTIME_BACKEND_MEDIATED"]}]}
+              "PUBLIC_RUNTIME_ANONYMOUS","PUBLIC_RUNTIME_AUTHENTICATED","PRIVATE_RUNTIME_BACKEND_MEDIATED","PLATFORM_PROXY_SESSION"]}]}
             """);
         when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
         doReturn(runtimeResponse(202, "{}")).when(httpClient).send(any(), any());
@@ -111,6 +111,49 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         org.mockito.Mockito.verifyNoInteractions(sourceAccess);
         verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of("documents:read"), Duration.ofMinutes(5));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PUBLIC_RUNTIME_ANONYMOUS", "PUBLIC_RUNTIME_AUTHENTICATED", "PRIVATE_RUNTIME_BACKEND_MEDIATED"})
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void consoleTransportPreservesTheExistingDocumentAudience(String sourceMode) throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("{\"sources\":[{\"datasetRef\":\"document-knowledge\",\"authModes\":[\""
+            + sourceMode + "\",\"PLATFORM_PROXY_SESSION\"]}]}");
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(version));
+        doReturn(runtimeResponse(200, "[]")).when(httpClient).send(any(), any());
+
+        assertThat(service().list(target).statusCode()).isEqualTo(200);
+
+        DocumentAudience expected = "PUBLIC_RUNTIME_ANONYMOUS".equals(sourceMode)
+            ? DocumentAudience.PUBLIC : DocumentAudience.AUTHENTICATED;
+        DocumentAudience other = expected == DocumentAudience.PUBLIC ? DocumentAudience.AUTHENTICATED : DocumentAudience.PUBLIC;
+        verify(offerBoundary).requireOperationalRead(any(), eq("target-1"), eq("rel-1"), eq(expected));
+        verify(offerBoundary, never()).requireOperationalRead(any(), any(), any(), eq(other));
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess);
+        verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
+            List.of("documents:read"), Duration.ofMinutes(5));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void consoleTransportAloneCannotAuthorizeDocumentReadsOrMutations(boolean mutate) throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":["PLATFORM_PROXY_SESSION"]}]}
+            """);
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", mutate)).thenReturn(context(version));
+
+        assertThatThrownBy(() -> {
+            if (mutate) service().index(target, "source-1", "console-only-1");
+            else service().list(target);
+        }).hasMessageContaining("audience evidence is required");
+
+        org.mockito.Mockito.verifyNoInteractions(sourceAccess, offerBoundary, runtimeAuthority);
+        verify(httpClient, never()).send(any(), any());
     }
 
     @Test
@@ -188,7 +231,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"null", "[]", "{}", "\"PUBLIC_RUNTIME_ANONYMOUS\"", "[\"UNKNOWN\"]",
-        "[\"PUBLIC_RUNTIME_ANONYMOUS\",\"UNKNOWN\"]", "[null]", "[\"\"]"})
+        "[\"PUBLIC_RUNTIME_ANONYMOUS\",\"UNKNOWN\"]", "[\"PUBLIC_RUNTIME_ANONYMOUS\",\"PLATFORM_PROXY_SESSION\",\"UNKNOWN\"]", "[null]", "[\"\"]"})
     void invalidOrMissingSourceModesFailBeforePrerequisiteOrRuntimeCalls(String modes) throws Exception {
         configureDocumentDeployment();
         var version = documentVersion();

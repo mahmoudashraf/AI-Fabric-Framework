@@ -223,6 +223,9 @@ public class DeploymentDocumentKnowledgeOperationsService {
                     case "PUBLIC_RUNTIME_ANONYMOUS" -> audiences.add(DocumentAudience.PUBLIC);
                     case "PUBLIC_RUNTIME_AUTHENTICATED", "PRIVATE_RUNTIME_BACKEND_MEDIATED" ->
                         audiences.add(DocumentAudience.AUTHENTICATED);
+                    case "PLATFORM_PROXY_SESSION" -> {
+                        // Console transport does not grant a customer document audience.
+                    }
                     default -> throw new ResponseStatusException(BAD_REQUEST, "Document source authModes contains an unsupported mode.");
                 }
             }
