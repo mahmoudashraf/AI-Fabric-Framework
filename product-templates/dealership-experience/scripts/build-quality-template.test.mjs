@@ -77,10 +77,10 @@ function expectedBehaviour(input = catalogue) {
   return result
 }
 
-test('fixture is limited to the three reviewed IDs, versions and candidate status', () => {
+test('fixture is limited to the three reviewed IDs, versions and recorded publication status', () => {
   assert.equal(defaults.schemaVersion, 'loomai-dealership-bootstrap-quality-v1')
   assert.equal(defaults.revision, 1)
-  assert.equal(defaults.status, 'CANDIDATE_PENDING_MAIN_QUALIFICATION_AND_PUBLICATION')
+  assert.equal(defaults.status, 'PUBLISHED_BOOTSTRAP_DEFAULTS_20261113')
   assert.deepEqual(defaults.templates.map(item => [item.pluginId, item.currentVersion, item.candidateVersion]), versions)
   assert.deepEqual(defaults.aiBehaviour, { schemaVersion: 'loomai-ai-behaviour-v1', revision: 1,
     selections: { tone: 'consultative', answerBreadth: 'advisory', answerLength: 'balanced', nextSteps: 'contextual' } })

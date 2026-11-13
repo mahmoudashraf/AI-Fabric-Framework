@@ -536,3 +536,66 @@ See [verified access evidence](../../../../../../../../verification-support/ai-b
 This closes that access gap only. It does not adopt the experimental follow-up
 prompts, replace the richer S3 policy pack, publish template defaults or globally
 change plugin source modes. Remaining ordinary model-quality misses stay visible.
+
+## 13 November 2026 - Policy Pack And Bootstrap Defaults In Progress
+
+Owner requested full implementation of the remaining approved-policy activation
+and qualified dealership-template defaults. The richer fictional Northfield pack
+is prepared, but the existing `aws-toolkit` owner-account session has expired.
+Required for production is requesting renewal of that existing sign-in. No S3
+object or IAM permission has changed. The hosted-storage provisioner belongs to
+a different AWS account and must not be substituted for this bucket's uploader.
+
+The source builder now explicitly selects `gpt-5.4-mini-2026-03-17`, threshold
+0.4, eight evidence documents/8,000 context characters, and the qualified
+Consultative/Advisory/Balanced/Contextual profile. It preserves unrelated fields
+and changes only the reviewed required dealership DATA reference to 1.2.0. All
+16 builder tests pass. No experimental follow-up prompt is adopted.
+
+Live submission exposed a Platform manifest gap: templates rejected the existing
+threshold and managed-behaviour configuration. The bounded correction reuses
+deployment validation; it does not change runtime reasoning or add authority.
+The focused backend suite passes 173/173. Its first wider run retained an outdated
+assertion advertising four retired inbox permissions; correcting that assertion
+required no production permission change. Sources are `4d857ff5d` and `1a1a1e19b`.
+Backend-only image CI43462333219 is pending; storage CI43462333188 passed.
+
+New-install discovery filters retired self-enrolled public starter revisions,
+but direct access to historical grants/resources and private invitations remains
+unchanged. GET discovery never enrolls, revokes or edits customer configuration.
+Current public configuration uses `public-dealership-profile-20261105`, not
+Northfield's older starter; generic/support selections must be preserved.
+
+The versioned DATA source addition is published on the staging control plane
+only. It adds Console transport to the existing policy source and compatibility
+list; all existing audience/filter/approval/storage rules remain. The current
+0.8.52 runtime artifact was registered/promoted as metadata on staging, without
+building or provisioning infrastructure. Template publication, public default
+selection, fresh Kit inheritance and S3 activation remain unqualified at this
+checkpoint. Northfield's current drafts/releases/apps remain unchanged.
+
+## 13 November 2026 - Bootstrap Defaults Published And Customer Setup Verified
+
+This supersedes the in-progress publication status above. Both backends are
+native-verified healthy on `1a1a1e19b`; backend image CI43462333219 and storage
+CI43462333188 passed. The existing0.8.52 runtime image/framework are unchanged.
+
+All three TEMPLATE successors and DATA1.2.0 are published on both control planes.
+The selected new dealership starter is `public-dealership-quality-20261113`;
+generic/support starters remain unchanged. Existing resource access still uses
+normal grants, drafts and upgrades, not permanent bootstrap pins.
+
+An actual customer created a new Kit through Console, with both Engage channels.
+The saved Brain inherited the exact qualified model, retrieval and managed
+profiles. The Brain editor and branded Engage preview display them correctly.
+This was configuration-only, with zero inference or infrastructure effects;
+it is not a new live-runtime or richer-policy quality claim. The temporary Kit,
+Brain, consumer and two draft apps were deleted normally, with a SUCCEEDED
+receipt. Existing Northfield draft sections, releases/apps and six serving
+services remain unchanged and healthy; unauthenticated draft access remains401.
+
+The richer S3 pack **still requires the existing AWS sign-in renewal** requested
+in Required for production. No S3/IAM change, new source-indexing run or richer
+policy answer test has happened. That owner-access dependency is the only
+remaining step preventing completion of the requested policy activation stream.
+See [publication and setup evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-template-default-adoption.md).

@@ -1,6 +1,11 @@
-# Dealership Quality Bootstrap Candidates
+# Dealership Quality Bootstrap Defaults
 
-Status: **candidate only, pending Main's live qualification and publication**.
+Status: **published on staging and production, 13 November 2026**. The normal
+new-customer dealership starter selects these defaults. A real customer UI run
+verified fresh Kit/Brain creation, both Engage channels, inherited settings and
+the branded preview, then removed the resource-free test setup. This is bootstrap
+qualification, not a newly provisioned runtime or proof of every live integration.
+The separate richer Northfield S3 policy activation is still pending AWS access.
 
 This source-only builder applies the owner-approved Northfield quality settings
 as bootstrap defaults to exactly three existing TEMPLATE identities:
@@ -9,9 +14,10 @@ as bootstrap defaults to exactly three existing TEMPLATE identities:
 - `mkp-template-dealership-external-systems-v1`: `1.4.0` -> `1.5.0`.
 - `mkp-template-dealership-external-systems-managed-inbox-v1`: `1.10.0` -> `1.11.0`.
 
-These are reviewed baseline versions, not a claim about the current live
-catalogue. Main must verify each current version before publication. A mismatch
-stops the builder; it does not choose a different version automatically.
+These are the reviewed historical baselines and their published successors.
+The builder reproduces that exact revision from saved approved input; it does
+not automatically bump an already-updated live version. A baseline mismatch
+stops the builder rather than choosing another version.
 
 ## Inputs And Output
 
@@ -76,9 +82,10 @@ replacement, DATA reference/rekey preservation and CLI behaviour.
 **synthetic TEST ONLY instructions** and is not a publication input. These checks
 are not live model-quality, server compilation, runtime or customer-journey proof.
 
-Main must review candidate diffs, run existing manifest/profile validation, prove
-the live template setup/quality journey and then publish through normal versioning.
-No candidate is registered as the recommended production default by these files.
+These files alone never register or select a production default. Publication and
+selection were separately completed through the existing APIs and control-plane
+configuration, using the registered 0.8.52 runtime artifact. See
+`verification-support/ai-behaviour-01063/2026-11-13-template-default-adoption.md`.
 
 After qualified publication, new deployments can start from the template defaults.
 Existing deployments may adopt them by an **explicit template upgrade/reset** into

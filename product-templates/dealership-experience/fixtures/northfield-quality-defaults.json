@@ -1,7 +1,7 @@
 {
   "schemaVersion": "loomai-dealership-bootstrap-quality-v1",
   "revision": 1,
-  "status": "CANDIDATE_PENDING_MAIN_QUALIFICATION_AND_PUBLICATION",
+  "status": "PUBLISHED_BOOTSTRAP_DEFAULTS_20261113",
   "templates": [
     {
       "pluginId": "mkp-template-simulated-dealership-experience-v1",

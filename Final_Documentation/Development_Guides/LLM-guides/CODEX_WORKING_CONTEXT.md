@@ -15304,3 +15304,72 @@ test is being called hosted acceptance. UI extraction remains last.
   Publicproof2026-11-13-console-policy-access.md and01063executionrecord updated.
   Parentquality/S3uploader/defaultadoption remainseparate. No agents or needed
   exec/browser processes running. Preserve unrelateddirt/manual lab/phonevideos.
+
+### 010.63 Policies And Template Defaults (2026-11-13, 16:27 UTC, In Progress)
+
+- Owner requested remaining items1/2 fully: activate richer approved policies,
+  publish qualified reusable dealership defaults and verify fresh Kit inheritance.
+- Source commits4d857ff5d/1a1a1e19b pushed Platform-V11. Builder16 PASS; backend173
+  PASS. Live template submission exposed missing threshold/aiBehaviour fields in
+  template allowlist; bounded Platform fix reuses existing draft validation. One
+  stale test expected retired inbox permission rows; corrected only the test.
+  No framework/runtime/UI source change. ImageCI43462333219 still building;
+  storageCI43462333188 PASS. Do not deploy the earlier4d857 image unnecessarily.
+- Catalogue discovery hides retired PUBLIC_SELF_SERVICE starters only, based on
+  current onboarding configuration. Historical direct grants and private invites
+  remain usable. Current configured dealer starter is public-dealership-profile-
+  20261105 (not Northfield's older v2); preserve generic/support selections.
+- Private state/helpers ~/.codex/private/loomai-policy-template-20261113/. Staging
+  DATA1.2.0 mkv-24517bf7 published; ONLY adds PLATFORM_PROXY_SESSION to existing
+  policy source/matching compatibility. Templates not yet submitted successfully.
+  First simulated1.15 submission400: unsupported ragSimilarityThreshold. Saved
+  failure and intent; helper allows one recorded retry AFTER validator deployment.
+  Do not discard audit intents or blindly replay submission/publication.
+- Exact existing0.8.52 runtime image registered/promoted in stageCP as
+  dsa-3fa10e49 (metadata only), matches prodartifactdsa-f8ef9102. No new runtime,
+  vector/business database or app provisioned. No Northfield draft/release change.
+- Existing signup fixture customer cus-6ac3c336-3d42-4a3e-8fcd-8a08215f6a0a is
+  empty (0Kits/0Brains); API and actual customer UI sign-in PASS. Browser auth
+  state is private. Two earlier UI login attempts used a label missing the
+  required-field asterisk; selector corrected, no UI fix or inference involved.
+- Richer6S3objects still blocked on existing aws-toolkit expired session. Required
+  for production chat01a14123-a0af-7bb1-9df5-b1c981bd3a4a collecting owner approval
+  for existing aws login. No approval yet, no login/IAM/PutObject performed. Bucket
+  account522783510785; managed provisioner account316658062476 is unrelated.
+- Builder agent closed. No agents pending. Main continues backend rollout,
+  normal catalogue/offer publication and fresh customer Kit proof; policies after
+  authorized AWS renewal. Platform-Updates notified. Keep unrelated dirt and lab.
+
+### 010.63 Defaults Complete; Policy Activation Awaiting Access (2026-11-13, 16:46 UTC)
+
+- Supersedes publication/build/setup status above. Both CP backends healthy on
+  1a1a1e19b3ec54f7e7befb556cb117f4331c10a7 / OCI81fe7169.... ImageCI43462333219
+  and storageCI43462333188 PASS. Latest backend173 / builder16 PASS. No framework,
+  runtime or UI release; existing runtime remains qualified0.8.52/source008981816.
+- Templates published BOTH planes: simulator1.15.0, external1.5.0, external+
+  human-support1.11.0; DATAknowledge1.2.0 adds scopedConsole transport only.
+  Exact manifests equal reviewedbuilderoutput. Staging managed variant was1.3.0;
+  new1.11 derives reviewedPRODUCTION1.10 input, recorded cross-environment source.
+- Newstarter public-dealership-quality-20261113 published normally on BOTH planes
+  with exactpluginpins/current52artifact/actualtargethashes; selected in native
+  onboarding config. Existing generic/support starters preserved, old grants not
+  revoked. Original publicdealerprofile20261105 is no longer newinstall default.
+- Actualcustomer UI Kit create ONCE: kit3074a5f8... / dep-3c263d72, bothEngage
+  channels created; newmodel/threshold/budgets/profiles inherited. Responses UI
+  and branded preview PASS, screenshots inspected,0pageErrors/0AIqueries. Normal
+  visible supportminimize used when dock coveredContinue. Configuration-only:
+  no provisionedruntime, activateddomain, sourceindex or newAIqualitybenchmark.
+- Fixturecleanup COMPLETE via actualcustomer APIs:2draftapps/consumer/Brain/Kit
+  removed, del-4725f1f1 SUCCEEDED,0infra. Existingemptyfixtureaccount retained.
+  Native6Northfield services healthy;3existingappsACTIVE;10draftsections+id/time
+  unchanged; verifiedNfversion15/releaseIDs unchanged; unauthdraft401.
+- Policy1 still OPEN: same3originalACTIVEsources/environment. No S3Put/index/
+  policyrefresh, IAMnewuploader or awslogin performed. Required for production
+  collecting explicit confirmation to renew EXISTING aws-toolkit session; no
+  reply at last cursorfc744d3a-a30b-48c4-9cf1-1265f24bc0fe:3. Expectaccount522783510785,
+  NOT managedstorageprovisioner316658062476. Avoid duplicateapproval question.
+- Resume sourceactivation only after authorized AWS renewal: backup6objects,
+  conditionalstage3Put, normalpreview/approval/index, realqualitymanualreview,
+  thenprod3 independently. No vectorscopy, no websitepolicyfallback, no newFW
+  correction without ownerreview. Fullprivateproof/helpers in sameHOMEroot.
+  Public2026-11-13-template-default-adoption.md /01063record containlimits.
