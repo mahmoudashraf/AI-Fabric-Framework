@@ -15084,3 +15084,47 @@ test is being called hosted acceptance. UI extraction remains last.
   Private evidence: ~/.codex/private/loomai-framework-0.8.51/ and
   ~/.codex/private/loomai-mcp-planner-20261113/. Existing unrelated/deferred
   framework/UI items remain outside this patch and need their own review.
+
+### 010.63 Policy, Answer Integrity And Defaults (2026-11-13)
+
+- Owner requested the three optimisation workstreams. NOT fully closed. Fresh
+  Northfield dep-3c4dbe4f remains versionver-689ff79c/framework0.8.46, stage
+  rel-a16e6198/prodrel-a679937f; same app/consumer assignments. Control-plane
+  default51 is NOT a customer-runtime upgrade. No policy/object/vector change.
+- Source7d468d5f6 committed/pushed: widget preserves supplied query narrative
+  instead of substituting Shopify product counts; cards unchanged; absent query
+  narration stays absent. Both CPbackends and UIs native-verified healthy on7d.
+  CI43363826271 PASS; backendOCI26b96864.../UIOCIf7fcc946..., hostedwidget
+  f9dc5c5a96c7c9bf SHA/integrity verified. Local TS/build/narrative10cases,
+  suggestions/race/lifecycle/source/compound/action/confirmation/auth checks PASS.
+- Hosted2realREAD stock queries + separate3case UI contract replay per app PASS;
+  desktop/mobile/screenshots/page-errors0. First stage checker wrongly selected
+  document DOM rather than shadow root. Failed proof and real response retained;
+  corrected checks reused it without another model query. Replay is NOT a live
+  Shopify integration or model-quality proof. No write/resource/runtime mutation.
+- Actual12queries total:4stagepolicy+3defaultsper target+2UIstock. Old3short
+  policies activev1/290,298,327bytes. Policy fees/eligibility incompleteness and
+  40-mile unsupported denial retained. Stage defaults follow-up confused range
+  with mileage: ANSWER_FROM_CONTEXT,0actions/0RAGdocs,RAG_NO_CONTEXT,history2.
+  StageUI stock again borrowed E1town for sparseE2. Production mileage correct;
+  both explicit E2-sparse queries preserve unknowns. No retries/semantic rewrite.
+- Required for production found NO qualified uploader; prepared exact6object
+  HTTPS-only PutObject policy for owner review. Its latest owner question asks
+  existing private uploader file or explicit separate uploader approval/admin
+  sign-in. Current managed-storage principal GetObjectDenied is NOT Put proof.
+  Do not broaden provisioner/readers/createIAM or overwrite unbacked objects.
+- Framework51 source audit confirms3generic answer fallback paths plus an
+  unconfigured second RAG generation call. Explicit bounded patch approval was
+  requested in Main and is still pending; frameworkworktree f3201c99 CLEAN.
+  Preserve executed-write success/receipt, surface narration failure separately,
+  no replay; relationship deferred. Do not claim this patch fixes all LLM misses.
+- New product-templates/dealership-experience offline candidate builder:3exact
+  manifests, real behaviour catalogue and native compose round-trip qualified;
+  Node13/13 + existing backend29/29 PASS. Candidates1.15.0/1.5.0/1.11.0 NOT
+  published/activated; global defaults unchanged. Complete source/failure-path
+  and fresh setup qualification before default adoption, no100percent model gate.
+- Plan/proof:01063 implementation record and
+  verification-support/ai-behaviour-01063/2026-11-13-policy-fallback-defaults.md
+  plus2026-11-13-widget-hosted-proof.json. Raw evidence/helpers private in
+  ~/.codex/private/loomai-optimisation-20261113/. Both agents closed; needed
+  exec/browser sessions ended. Preserve unrelated dirt and retained manual lab.

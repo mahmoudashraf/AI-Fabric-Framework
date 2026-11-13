@@ -1,0 +1,34 @@
+{
+  "verifiedAt": "2026-11-13T04:24:48Z",
+  "scope": "WIDGET_NARRATIVE_PRESERVATION_ONLY",
+  "status": "PASS",
+  "sourceCommit": "7d468d5f6e5ff829c58f260492f8745e7e9b6582",
+  "imageBuildRun": "https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/43363826271",
+  "backendDigest": "sha256:26b9686416f6b70af5ca3db2e58542e7c5891e41e5880287edd30e1e841eec1a",
+  "uiDigest": "sha256:f7fcc9468da9dcb843b7f80753beca5bbb4d7b9e030b0917b40e3c90ae3a7780",
+  "workspaceAssetSha256": "f9dc5c5a96c7c9bfcbb6ab378539bed33d107e558dd8349b1bc4872576841018",
+  "nativeVerified": ["staging-backend", "staging-ui", "production-backend", "production-ui"],
+  "deploymentJobs": {
+    "stagingBackend": "gblb16ibc4decsd5co6g5i68",
+    "stagingUi": "z147o8whye0tdksktc3xs265",
+    "productionBackend": "q7ksc9wwdxzga8zxmbjmib2t",
+    "productionUi": "mvgdx06lfw4otibndstbnygo"
+  },
+  "hostedContractReplayCases": [
+    "authored-answer-with-uncertainty-and-product-card",
+    "data-only-response-without-fabricated-narration",
+    "explicit-failed-generation-answer-with-structured-card"
+  ],
+  "hostedContractReplayTargets": ["northfield-staging", "northfield-console-live"],
+  "desktopAndMobileInspected": true,
+  "capturedPageErrors": 0,
+  "realUiStockQueries": 2,
+  "additionalContractReplayModelCalls": 0,
+  "initialShadowSelectorFailureRetained": true,
+  "businessWrites": 0,
+  "customerConfigurationChanged": false,
+  "frameworkChanged": false,
+  "policyObjectsUploaded": false,
+  "templateVersionsPublished": false,
+  "fullOptimisationClosure": false
+}

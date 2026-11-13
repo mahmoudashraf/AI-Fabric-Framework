@@ -208,7 +208,15 @@ Revisit only after tone, answer breadth, current-source handling and next-step i
 
 **Verdict:** named tone and answer-breadth presets are the product controls. Prompt/configuration details stay advanced. Phrase-based closer rewriting is removed, not retained as an option. Public research waits for evidence from these optimizations.
 
-### 4.9 Similar defects raised for owner review; not fixed here
+### 4.9 Audited Answer-Integrity Findings
+
+**13 November follow-up:** the owner requested the policy, answer-integrity and
+template-default workstreams. The widget query-path correction is committed as
+`7d468d5f6`; the three generic framework corrections have been proposed for
+explicit review and are not yet implemented/released. Relationship behavior
+remains deferred. The audit below is historical evidence, not current deployment
+status. See the [new qualification record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-policy-fallback-defaults.md)
+for actual tests, policy access and held template candidates.
 
 Read-only source audit, also checked against the immutable `0.8.45` tag where noted. These are source findings, not a claim that live failure injection reproduced them:
 

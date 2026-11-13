@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "loomai-dealership-bootstrap-quality-v1",
+  "revision": 1,
+  "status": "CANDIDATE_PENDING_MAIN_QUALIFICATION_AND_PUBLICATION",
+  "templates": [
+    {
+      "pluginId": "mkp-template-simulated-dealership-experience-v1",
+      "currentVersion": "1.14.0",
+      "candidateVersion": "1.15.0"
+    },
+    {
+      "pluginId": "mkp-template-dealership-external-systems-v1",
+      "currentVersion": "1.4.0",
+      "candidateVersion": "1.5.0"
+    },
+    {
+      "pluginId": "mkp-template-dealership-external-systems-managed-inbox-v1",
+      "currentVersion": "1.10.0",
+      "candidateVersion": "1.11.0"
+    }
+  ],
+  "aiBehaviour": {
+    "schemaVersion": "loomai-ai-behaviour-v1",
+    "revision": 1,
+    "selections": {
+      "tone": "consultative",
+      "answerBreadth": "advisory",
+      "answerLength": "balanced",
+      "nextSteps": "contextual"
+    }
+  },
+  "providerConfig": {
+    "orchestrationModeOverrides": {
+      "executor": {
+        "knowledgeBaseOverviewEnabled": true,
+        "rag": {
+          "fanoutEnabled": true,
+          "maxSpaces": 2
+        },
+        "semanticRecovery": {
+          "missingVectorSpace": "BOUNDED_ALLOWED_FAN_OUT"
+        },
+        "readActionResolution": {
+          "planningMode": "ITERATIVE",
+          "maxIterations": 2,
+          "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "maxPlannerContextChars": 12000,
+          "maxActionEvidenceCharsPerAction": 8000,
+          "maxActionEvidenceItems": 10
+        }
+      }
+    }
+  },
+  "promptConfig": {
+    "ragMaxDocumentsUsedForContext": 8,
+    "ragMaxContextChars": 8000
+  }
+}

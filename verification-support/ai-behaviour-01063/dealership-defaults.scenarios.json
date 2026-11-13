@@ -1,0 +1,17 @@
+[
+  {
+    "id": "defaults-stock",
+    "session": "dealership-defaults",
+    "prompt": "Find electric cars under GBP 35,000 and give me a short comparison."
+  },
+  {
+    "id": "defaults-advice-follow-up",
+    "session": "dealership-defaults",
+    "prompt": "Of those, which has lower mileage? I also drive on the motorway every week. What should I consider? Separate confirmed vehicle facts from general advice."
+  },
+  {
+    "id": "defaults-sparse-evidence",
+    "session": "dealership-defaults",
+    "prompt": "What seats, electric range, equipment and showroom location can you actually confirm for the 2025 Aster E2 from its own record?"
+  }
+]

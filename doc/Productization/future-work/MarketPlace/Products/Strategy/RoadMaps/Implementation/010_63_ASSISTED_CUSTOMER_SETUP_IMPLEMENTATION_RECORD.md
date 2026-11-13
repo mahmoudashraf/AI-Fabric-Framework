@@ -432,3 +432,43 @@ reconciliation and policy-quality verification. Inventory completion is not full
 policy or perfect-answer acceptance.
 
 See [full evidence record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-09-dealership-evidence-completeness.md).
+
+## 13 November 2026 - Policies, Answer Integrity And Defaults
+
+The owner requested all three remaining optimisation workstreams. They are not
+all closed. See the [current qualification record](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-policy-fallback-defaults.md).
+
+- Fresh policy previews and four actual staging queries confirm that the richer
+  approved fictional Northfield pack is still not active. Required for production
+  has no qualified current uploader and has presented the exact six-object
+  upload grant for owner review. No IAM/bucket permission or source object changed.
+- Widget answer preservation is committed/pushed as `7d468d5f6`. Local narrative,
+  structured-card, suggestion, source, confirmation, authentication and compound
+  checks, TypeScript and build passed. Core image CI `43363826271` passed. Hosted
+  rollout and contract checks are recorded separately below when complete.
+- Source audit confirms three generic framework fallback paths and an
+  unconfigured second RAG generation call. A bounded correction was proposed
+  for explicit owner approval; no framework source/release changed in this cycle.
+  A successful write must not be relabelled failed or replayed because narration
+  fails. Relationship behavior stays deferred.
+- Six actual defaults queries were observed once: stock, mileage/advice follow-up
+  and sparse E2 on both environments. Staging confused range with mileage;
+  production supplied correct odometer values. Both retained missing E2 facts.
+  These imperfections are recorded, not hidden by a hard semantic validator or
+  answer rewrite. This is not a demand for perfect model output; final template
+  adoption waits for the complete source/failure-behavior qualification.
+- Source-only template candidates preserve all unrelated manifest fields and
+  select managed instructions from the existing profile catalogue. Thirteen
+  builder test groups, 29 existing backend tests and actual native profile
+  composition passed. No template version/default was published or activated.
+
+Widget hosted closeout: both backends and both Console UIs are native-verified
+healthy on `7d468d5f6`. The actual hosted asset is `f9dc5c5a96c7c9bf`. One real
+stock query per app and separate authored/missing/error narration UI contract
+replays passed, with inspected desktop/mobile screenshots and no captured page
+errors. The first staging checker used a non-shadow-aware selector; its failed
+report and original real response remain retained, and subsequent UI checks
+replayed that response without new inference. Staging's actual stock answer
+again borrowed the E1 town for E2; it is a retained model-quality miss, not
+rewritten by this correction. No customer runtime/app assignment was upgraded.
+See the [bounded hosted proof](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-widget-hosted-proof.json).

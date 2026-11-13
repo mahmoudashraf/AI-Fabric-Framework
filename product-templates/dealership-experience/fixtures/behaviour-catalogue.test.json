@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "loomai-ai-behaviour-v1",
+  "revision": 1,
+  "testOnly": true,
+  "defaults": {
+    "tone": "professional",
+    "answerBreadth": "grounded",
+    "answerLength": "balanced",
+    "nextSteps": "off"
+  },
+  "groups": [
+    {
+      "key": "tone",
+      "options": [
+        { "id": "consultative", "instructions": "TEST ONLY - catalogue-provided consultative instructions." },
+        { "id": "professional", "instructions": "TEST ONLY - unselected professional instructions." }
+      ]
+    },
+    {
+      "key": "answerBreadth",
+      "options": [
+        { "id": "advisory", "instructions": "TEST ONLY - catalogue-provided advisory instructions." },
+        { "id": "grounded", "instructions": "TEST ONLY - unselected grounded instructions." }
+      ]
+    },
+    {
+      "key": "answerLength",
+      "options": [
+        { "id": "balanced", "instructions": "TEST ONLY - catalogue-provided balanced instructions." }
+      ]
+    },
+    {
+      "key": "nextSteps",
+      "options": [
+        { "id": "contextual", "instructions": "TEST ONLY - catalogue-provided contextual instructions." },
+        { "id": "off", "instructions": "TEST ONLY - unselected off instructions." }
+      ]
+    }
+  ]
+}
