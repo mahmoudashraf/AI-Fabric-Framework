@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveManagedBehaviour } from '../../shared/managed-behaviour.mjs'
 
 const defaults = JSON.parse(readFileSync(new URL('../fixtures/northfield-quality-defaults.json', import.meta.url), 'utf8'))
 const groupKeys = ['tone', 'answerBreadth', 'answerLength', 'nextSteps']
@@ -15,35 +16,6 @@ function record(value, path) {
 
 function optionalRecord(parent, key, path) {
   return Object.hasOwn(parent, key) ? record(parent[key], path) : {}
-}
-
-function managedBehaviour(catalogue) {
-  record(catalogue, 'Behaviour catalogue')
-  const selection = defaults.aiBehaviour
-  if (catalogue.schemaVersion !== selection.schemaVersion || catalogue.revision !== selection.revision) {
-    throw new Error('Unsupported behaviour catalogue schema or revision.')
-  }
-  if (!Array.isArray(catalogue.groups)) throw new Error('Behaviour catalogue groups must be an array.')
-  const result = { schemaVersion: selection.schemaVersion, revision: selection.revision }
-  for (const key of groupKeys) {
-    const groups = catalogue.groups.filter(group => group?.key === key)
-    if (groups.length !== 1 || !Array.isArray(groups[0].options)) {
-      throw new Error(`Behaviour catalogue requires one ${key} group with options.`)
-    }
-    const choices = groups[0].options.filter(option => option?.id === selection.selections[key])
-    if (choices.length !== 1 || typeof choices[0].instructions !== 'string' || !choices[0].instructions.trim()) {
-      throw new Error(`Behaviour catalogue requires one ${key} selection with instructions.`)
-    }
-    if (Object.hasOwn(choices[0], 'revision') && choices[0].revision !== selection.revision) {
-      throw new Error('Unsupported behaviour catalogue option revision.')
-    }
-    result[key] = {
-      presetId: selection.selections[key],
-      revision: selection.revision,
-      instructions: choices[0].instructions,
-    }
-  }
-  return result
 }
 
 function validateExistingBehaviour(promptConfig) {
@@ -109,7 +81,7 @@ export function buildDealershipQualityTemplate(manifest, catalogue) {
   const executor = optionalRecord(modes, 'executor', 'Template executor overrides')
   const prompt = optionalRecord(template, 'promptConfig', 'Template promptConfig')
   validateExistingBehaviour(prompt)
-  const selectedBehaviour = managedBehaviour(catalogue)
+  const selectedBehaviour = resolveManagedBehaviour(catalogue, defaults.aiBehaviour)
   const requiredDataPlugin = upgradedRequiredDataPlugin(template)
   const candidate = structuredClone(manifest)
   const candidateTemplate = candidate.contributions.template

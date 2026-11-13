@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "loomai-customer-experience-quality-v1",
+  "revision": 1,
+  "status": "CANDIDATE_NOT_PUBLISHED",
+  "template": {
+    "pluginId": "mkp-template-document-knowledge-assistant",
+    "currentVersion": "1.3.0",
+    "candidateVersion": "1.4.0"
+  },
+  "aiBehaviour": {
+    "schemaVersion": "loomai-ai-behaviour-v1",
+    "revision": 1,
+    "selections": {
+      "tone": "consultative",
+      "answerLength": "balanced",
+      "nextSteps": "contextual"
+    }
+  },
+  "readActionResolution": {
+    "planningMode": "ITERATIVE",
+    "maxIterations": 2,
+    "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+  },
+  "evidenceBudgets": {
+    "prompt": {
+      "ragMaxDocumentsUsedForContext": 8,
+      "ragMaxContextChars": 8000
+    },
+    "readActionResolution": {
+      "maxPlannerContextChars": 12000,
+      "maxActionEvidenceCharsPerAction": 8000,
+      "maxActionEvidenceItems": 10
+    }
+  }
+}
