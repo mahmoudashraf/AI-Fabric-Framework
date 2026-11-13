@@ -102,11 +102,13 @@ const experience = [
         <a href="#experience">Experience</a>
         <a href="#contact">Contact</a>
       </nav>
-      <button type="button" class="profile-theme" data-theme-toggle aria-label="Switch to dark mode">
-        <Moon class="profile-moon" size={18} aria-hidden="true" />
-        <Sun class="profile-sun" size={18} aria-hidden="true" />
-      </button>
-      <button type="button" class="profile-theme" data-profile-lock aria-label="Lock portfolio" title="Lock portfolio"><LockKeyhole size={18} aria-hidden="true" /></button>
+      <div class="profile-controls">
+        <button type="button" class="profile-theme" data-theme-toggle aria-label="Switch to dark mode">
+          <Moon class="profile-moon" size={18} aria-hidden="true" />
+          <Sun class="profile-sun" size={18} aria-hidden="true" />
+        </button>
+        <button type="button" class="profile-theme" data-profile-lock aria-label="Lock portfolio" title="Lock portfolio"><LockKeyhole size={18} aria-hidden="true" /></button>
+      </div>
     </div>
   </header>
 

@@ -31,6 +31,7 @@
 .profile-header nav { display: flex; gap: 1.65rem; margin-left: auto; }
 .profile-header nav a, .profile-footer nav a { text-decoration: none; font-size: .875rem; font-weight: 650; }
 .profile-header nav a:hover, .profile-footer nav a:hover { color: var(--profile-accent); text-decoration: underline; }
+.profile-controls { display: flex; align-items: center; gap: .5rem; }
 .profile-theme {
   width: 2.35rem; height: 2.35rem; flex: none; display: grid; place-items: center;
   border: 1px solid var(--profile-rule); border-radius: .375rem; background: transparent; cursor: pointer;
@@ -222,7 +223,7 @@
   .profile-header-inner { display: grid; grid-template-columns: 1fr auto; gap: .3rem .65rem; padding-block: .4rem .6rem; }
   .profile-header nav { grid-row: 2; grid-column: 1 / -1; flex-wrap: wrap; gap: .25rem .75rem; margin-left: 0; }
   .profile-header nav a { font-size: .78rem; }
-  .profile-theme { grid-row: 1; grid-column: 2; }
+  .profile-controls { grid-row: 1; grid-column: 2; }
   .profile-hero { display: block; min-height: 0; }
   .profile-portrait { position: relative; height: 11.5rem; z-index: 0; object-position: 83% 25%; }
   .profile-hero-content { padding-block: 1rem 1.35rem; }
