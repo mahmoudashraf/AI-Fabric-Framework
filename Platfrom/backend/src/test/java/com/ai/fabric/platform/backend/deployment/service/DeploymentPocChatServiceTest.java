@@ -475,6 +475,55 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void queryPreservesAnswersAndCanonicalSourceReferencesWithoutOptionalScores() throws Exception {
+        String payload = """
+            {
+              "success": true,
+              "type": "INFORMATION_PROVIDED",
+              "answer": "The comparison is incomplete; one requested field is unknown.",
+              "conversationId": "chat-optional-source-scores",
+              "sources": [
+                {"sourceId":"stock","documentId":"record-a","vectorSpace":"item"},
+                {"sourceId":"stock","documentId":"record-b","vectorSpace":"item","score":null,"similarity":null},
+                {"sourceId":"stock","documentId":"record-c","vectorSpace":"item","score":0.0,"similarity":0.9},
+                {"id":"record-d","source":"index","metadata":{"vectorSpace":"guide"},"similarity":0.83},
+                {"id":"record-e","source":"index","metadata":{"vectorSpace":"guide"},"score":0.93,"similarity":0.2},
+                {"id":"record-f","source":"index","metadata":{"vectorSpace":"guide"},"score":"unknown"}
+              ]
+            }
+            """;
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicInteger queries = new AtomicInteger();
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                queries.incrementAndGet();
+                writeJson(exchange, 200, payload);
+            });
+            server.start();
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123", new DeploymentPocChatQueryRequest("Compare these records.", null, null, null, null, null)
+            );
+
+            assertThat(queries.get()).isEqualTo(1);
+            assertThat(response.success()).isTrue();
+            assertThat(response.result()).isEqualTo(objectMapper.readTree(payload));
+            assertThat(response.message()).isEqualTo("The comparison is incomplete; one requested field is unknown.");
+            assertThat(response.traceSummary().documentCount()).isEqualTo(6);
+            assertThat(response.traceSummary().vectorSpaces()).containsExactly("item", "guide");
+            assertThat(response.traceSummary().documents()).extracting(document -> document.id())
+                .containsExactly("record-a", "record-b", "record-c", "record-d", "record-e", "record-f");
+            assertThat(response.traceSummary().documents()).extracting(document -> document.score())
+                .containsExactly(null, null, 0.0, 0.83, 0.93, null);
+            assertThat(response.traceSummary().documents().get(0).source()).isEqualTo("stock");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void deploymentKnowledgeQueryUsesOnlyPrivateExactSpecialistScopes()
         throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();

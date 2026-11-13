@@ -1177,18 +1177,21 @@ public class DeploymentPocChatService {
             if (!document.isObject()) {
                 continue;
             }
-            String id = textOrNull(document, "id");
+            String id = firstNonBlank(textOrNull(document, "id"), textOrNull(document, "documentId"));
             String title = textOrNull(document, "title");
-            String source = textOrNull(document, "source");
+            String source = firstNonBlank(textOrNull(document, "source"), textOrNull(document, "sourceId"));
             String url = textOrNull(document, "url");
             JsonNode metadata = document.path("metadata");
-            String vectorSpace = textOrNull(metadata, "vectorSpace");
+            String vectorSpace = firstNonBlank(textOrNull(metadata, "vectorSpace"), textOrNull(document, "vectorSpace"));
             if (StringUtils.hasText(vectorSpace)) {
                 vectorSpaces.add(vectorSpace);
             }
-            Double score = document.path("score").isNumber()
-                ? document.path("score").asDouble()
-                : (document.path("similarity").isNumber() ? document.path("similarity").asDouble() : null);
+            Double score = null;
+            if (document.path("score").isNumber()) {
+                score = document.path("score").asDouble();
+            } else if (document.path("similarity").isNumber()) {
+                score = document.path("similarity").asDouble();
+            }
 
             String key = String.join("|",
                 nullSafe(id),
