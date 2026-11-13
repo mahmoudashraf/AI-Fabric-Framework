@@ -27,6 +27,12 @@ export type ResultType =
   | "COMPOUND_HANDLED"
   | "ERROR";
 
+export interface PostActionGenerationFailureStatus {
+  used: false;
+  skippedReason: "generation_failed" | "empty_generation_response";
+  errorCode: "GENERATION_FAILED";
+}
+
 export interface SanitizedPayload {
   type: ResultType;
   success: boolean;
@@ -35,6 +41,10 @@ export interface SanitizedPayload {
   safeSummary?: string;
   answer?: string;
   errorCode?: string;
+  /** Response-only safe status; canonical history does not currently restore it. */
+  metadata?: {
+    postActionGeneration?: PostActionGenerationFailureStatus;
+  };
   sanitization?: {
     risk: string;
     detectedTypes: string[];

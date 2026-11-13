@@ -115,7 +115,14 @@ Profile instructions and technical configuration belong in Advanced. Exact
 configuration identity may identify Custom settings; never interpret prompt or
 user meaning through phrase matching. Wider advice is not web access, sampling
 temperature, authority to invent business facts, or an action permission.
-Other audited narrative/fallback defects and public web search remain deferred.
+The owner separately approved the bounded generic-generation correction on
+13 November: no raw-evidence/canned answer substitution after generation
+failure, no generic post-action phrase suppression and no unconfigured second
+text-only generation attempt. Successful writes retain their actual receipt
+when narration fails and must not be replayed. Track actual 0.8.52 publication
+and adoption in 010.63's generation-integrity record; approval/source is not
+deployment evidence. Relationship-specific behavior and public web search
+remain deferred.
 
 ## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
 

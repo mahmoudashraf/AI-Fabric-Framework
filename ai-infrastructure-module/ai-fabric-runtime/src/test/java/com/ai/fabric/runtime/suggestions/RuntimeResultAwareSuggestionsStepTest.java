@@ -82,6 +82,23 @@ class RuntimeResultAwareSuggestionsStepTest {
     @AfterEach void clearInterruptFlag() { Thread.interrupted(); }
 
     @Test
+    void failedNarrationDoesNotStartAnotherGenerationForSuggestionsOrChangeTheReceipt() {
+        var receipt = Map.of("success", true, "data", Map.of("receiptId", "created-1"));
+        var result = result(OrchestrationResultType.ACTION_EXECUTED, Map.of("actionResult", receipt));
+        result.setMetadata(Map.of("postActionGeneration", Map.of("used", false,
+            "skippedReason", "generation_failed", "errorCode", "GENERATION_FAILED")));
+
+        var completed = step.process(context(result));
+
+        assertThat(completed.getIntentResult()).isSameAs(result);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getData()).containsEntry("actionResult", receipt);
+        assertThat(result.getNextSteps()).isEmpty();
+        assertDiagnostic(result, "SKIPPED_INCOMPLETE_RESULT", 0);
+        verifyNoInteractions(core);
+    }
+
+    @Test
     void managedCustomGuidanceReachesTheFinalResultGenerationPass() throws Exception {
         String guidance = "Offer one practical next step in the customer's language; do not suggest reformatting.";
         var configured = configuredPrompts("loomai-ai-behaviour-v1", "custom", guidance);

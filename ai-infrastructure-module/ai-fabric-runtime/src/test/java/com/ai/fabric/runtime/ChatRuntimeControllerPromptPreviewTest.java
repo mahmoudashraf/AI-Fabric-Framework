@@ -15,6 +15,9 @@ import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import ai.fabric.core.AICoreService;
+import ai.fabric.config.ResponseSanitizationProperties;
+import ai.fabric.security.ResponseSanitizer;
+import ai.fabric.privacy.pii.PIIDetectionService;
 import ai.fabric.dto.AIGenerationInputPart;
 import ai.fabric.dto.RAGResponse;
 import ai.fabric.intent.action.ActionResult;
@@ -27,8 +30,11 @@ import ai.fabric.intent.orchestration.OrchestrationResultType;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -53,6 +59,40 @@ class ChatRuntimeControllerPromptPreviewTest {
 
     private static final List<String> BASE_QUERY_SCOPES = List.of("chat:query");
     private static final List<String> QUERY_WITH_PROMPT_PREVIEW_SCOPES = List.of("chat:query", "chat:prompt-preview");
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Request created.", ""})
+    void successfulWriteAndFailedNarrationRemainSeparateInNormalCanonicalResponse(String handlerMessage) {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        var receipt = Map.<String, Object>of("success", true, "data", Map.of("receiptId", "write-1"));
+        var status = Map.<String, Object>of("used", false, "skippedReason", "generation_failed", "errorCode", "GENERATION_FAILED");
+        var result = OrchestrationResult.builder().type(OrchestrationResultType.ACTION_EXECUTED).success(true)
+            .message(handlerMessage)
+            .data(Map.of("action", "create_request", "actionExecutionId", "execution-1", "actionResult", receipt,
+                "postActionGeneration", status))
+            .metadata(Map.of("postActionGeneration", status)).build();
+        var beans = new StaticListableBeanFactory();
+        result.setSanitizedPayload(new ResponseSanitizer(beans.getBeanProvider(PIIDetectionService.class),
+            new ResponseSanitizationProperties()).sanitize(result, "user"));
+        when(orchestrator.orchestrate(any(String.class), any(OrchestrationContext.class))).thenReturn(result);
+        var controller = controllerFor(orchestrator);
+        var servlet = new MockHttpServletRequest(); addVerifiedAuthHeaders(servlet, "user", "session", BASE_QUERY_SCOPES);
+        var request = new ChatQueryRequest(); request.setQuery("Create my request");
+
+        var response = controller.query(request, servlet).getBody();
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getType()).isEqualTo("ACTION_EXECUTED");
+        assertThat(response.getAnswer()).isEqualTo(handlerMessage.isEmpty() ? null : handlerMessage);
+        assertThat(response.getFallbackReason()).isNull();
+        assertThat(response.getMetadata()).containsEntry("postActionGeneration", status);
+        assertThat(response.getActions()).singleElement().satisfies(value -> {
+            assertThat(((Map<?, ?>) value).get("actionResult")).isEqualTo(receipt);
+            assertThat(((Map<?, ?>) value).get("actionExecutionId")).isEqualTo("execution-1");
+            assertThat(((Map<?, ?>) value).containsKey("errorCode")).isFalse();
+        });
+        verify(orchestrator).orchestrate(any(String.class), any(OrchestrationContext.class));
+    }
 
     @Test
     void providerBudgetDenialDoesNotEnterOrchestration() {

@@ -1,5 +1,5 @@
 import { getWidgetConfig } from "@/config";
-import type { ChatResult, CustomerAccountConnectAction, Document, ResultType } from "@/types";
+import type { ChatResult, CustomerAccountConnectAction, Document, PostActionGenerationFailureStatus, ResultType } from "@/types";
 
 const CUSTOMER_ACCOUNT_AUTH_ERROR_CODES = new Set([
   "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
@@ -178,7 +178,18 @@ export function extractChatResultMessage(payload: any, fallback: string): string
     readPath(payload, "safeSummary"),
     readPath(payload, "answer"),
     readPath(payload, "response"),
-  ) ?? fallback;
+  ) ?? (postActionGenerationFailure(payload) ? "" : fallback);
+}
+
+function postActionGenerationFailure(payload: any): PostActionGenerationFailureStatus | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const status = objectValue(objectValue(payload.metadata).postActionGeneration);
+  if (payload.type !== "ACTION_EXECUTED" || payload.success !== true || status.used !== false
+    || status.errorCode !== "GENERATION_FAILED"
+    || (status.skippedReason !== "generation_failed" && status.skippedReason !== "empty_generation_response")) {
+    return undefined;
+  }
+  return { used: false, skippedReason: status.skippedReason, errorCode: "GENERATION_FAILED" };
 }
 
 export function canonicalChatResult(payload: any, missingMessage?: string): ChatResult | undefined {
@@ -187,6 +198,7 @@ export function canonicalChatResult(payload: any, missingMessage?: string): Chat
   }
   const resultType = (firstText(payload.type) || "INFORMATION_PROVIDED") as ResultType;
   const success = typeof payload.success === "boolean" ? payload.success : true;
+  const generationFailure = postActionGenerationFailure(payload);
   const answer = extractChatResultMessage(payload, missingMessage
     ?? (success ? "I processed your query successfully." : "I could not process that request."));
   const ragResponse = payload.ragResponse && typeof payload.ragResponse === "object" ? payload.ragResponse : undefined;
@@ -241,6 +253,7 @@ export function canonicalChatResult(payload: any, missingMessage?: string): Chat
       safeSummary: answer,
       answer,
       errorCode: firstErrorCode(payload),
+      ...(generationFailure ? { metadata: { postActionGeneration: generationFailure } } : {}),
       data,
     },
   };

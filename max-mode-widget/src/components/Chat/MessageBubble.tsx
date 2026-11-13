@@ -131,6 +131,12 @@ export function MessageBubble({
   const primaryActionName = extractActionName(sanitizedResultData);
   const additionalActionResults = extractActionResultCandidates(sanitizedResultData);
   const isHumanMessage = message.participantRole === "human";
+  const generationStatus = message.result?.sanitizedPayload.metadata?.postActionGeneration;
+  const actionExplanationUnavailable = message.type === "ai" && !isHumanMessage
+    && message.resultType === "ACTION_EXECUTED" && message.success === true && message.result?.success === true
+    && message.result.sanitizedPayload.type === "ACTION_EXECUTED" && message.result.sanitizedPayload.success === true
+    && generationStatus?.used === false && generationStatus.errorCode === "GENERATION_FAILED"
+    && (generationStatus.skippedReason === "generation_failed" || generationStatus.skippedReason === "empty_generation_response");
   const enhancedStyle = isEnhancedWorkspaceStyle(getWidgetConfig().theme?.stylePreset);
   const SourcesContainer = enhancedStyle ? 'details' : 'div';
   const SourcesHeading = enhancedStyle ? 'summary' : 'div';
@@ -531,6 +537,14 @@ export function MessageBubble({
                 isPresentationResultAttached={isPresentationResultAttached}
               />
             )}
+
+          {actionExplanationUnavailable && (
+            <div role="status" data-mxw-generation-status
+              className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Action completed. The AI explanation is unavailable.</span>
+            </div>
+          )}
 
           {/* Clarification Required - interactive form */}
           {message.resultType === "CLARIFICATION_REQUIRED" && (() => {

@@ -281,6 +281,8 @@ public final class RuntimeResultAwareSuggestionsStep implements PipelineStep {
             || result.getType() == null || !COMPLETED_TYPES.contains(result.getType())
             || StringUtils.hasText(result.getErrorCode()) || result.getActionProposalCandidate() != null
             || Boolean.TRUE.equals(map(result.getMetadata()).get("terminalAction"))) return false;
+        Map<?, ?> narration = map(map(result.getMetadata()).get("postActionGeneration"));
+        if (Boolean.FALSE.equals(narration.get("used")) && "GENERATION_FAILED".equals(narration.get("errorCode"))) return false;
         List<OrchestrationResult> children = result.getChildren();
         return children == null || (children.size() <= MAX_CHILDREN
             && children.stream().allMatch(child -> completed(child, depth + 1)));

@@ -46,6 +46,7 @@ import ai.fabric.intent.action.ActionResult;
 import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import ai.fabric.intent.orchestration.OrchestrationResult;
+import ai.fabric.intent.orchestration.OrchestrationResultType;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
 import ai.fabric.intent.orchestration.control.OrchestrationControlException;
 import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
@@ -416,7 +417,13 @@ public class ChatRuntimeController {
             data.get("answer"),
             result == null ? null : result.getMessage()
         );
-        if (!StringUtils.hasText(answer)) {
+        Map<String, Object> postGeneration = result == null || result.getMetadata() == null ? Map.of()
+            : firstMap(result.getMetadata().get("postActionGeneration"));
+        boolean completedWithoutNarration = result != null && result.isSuccess()
+            && result.getType() == OrchestrationResultType.ACTION_EXECUTED
+            && Boolean.FALSE.equals(postGeneration.get("used"))
+            && "GENERATION_FAILED".equals(postGeneration.get("errorCode"));
+        if (!StringUtils.hasText(answer) && !completedWithoutNarration) {
             answer = result != null && result.isSuccess()
                 ? "I processed your request."
                 : "I could not process that request.";
