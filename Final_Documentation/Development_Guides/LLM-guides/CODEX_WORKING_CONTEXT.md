@@ -15128,3 +15128,62 @@ test is being called hosted acceptance. UI extraction remains last.
   plus2026-11-13-widget-hosted-proof.json. Raw evidence/helpers private in
   ~/.codex/private/loomai-optimisation-20261113/. Both agents closed; needed
   exec/browser sessions ended. Preserve unrelated dirt and retained manual lab.
+
+### 010.63 Approved Generic Generation Patch 0.8.52 (2026-11-13, Rollout In Progress)
+
+- Supersedes the pending-approval note above: owner approved the bounded patch.
+  Framework3bfcd272/tag0.8.52 published; Central43384836398 PASS. Fresh empty-
+  cache Central-only consumer5/5, packaged JAR provenance/bytes and Java21 boot
+  PASS. Generic READ/RAG/after-action answer substitution and generic lexical
+  suppression removed; unconfigured second text-only generation removed.
+  Actual write success/receipt retained on narration failure; never replay.
+  Relationship behavior remains deferred; no prompt/source/security change.
+- Final framework reports2471/0fail/0error/0skip; core1096 rerun PASS, native
+  OpenAI10/10 across15entrycalls, matrix11/11 available, Docker vectors8/8.
+  Broad43384836176 repeats EXACT14IncidentRoom failure methods from51;
+  guards/reactor/vector job pass, later broad smokes not run. Not all-green.
+- Main008981816 committed/pushed. Runtime CI43387413438 PASS incl817/817,
+  core images43387413548 PASS. RuntimeOCIfdba4734..., backend1bd76ce4...,
+  UI98d28353.... Stagebackend52 nativehealthy; stageUI rollout in progress.
+  No production CP/customer-runtime change yet at this checkpoint.
+- Exact published prompt expansion normalized to editable inputs equals current
+  Northfield draft; preserve Consultative/Advisory/Balanced/Contextual and all
+  sources/actions/credentials/apps. Normal same-Brain upgrade is next, stage
+  before prod. No vector copying/S3/IAM/template activation. Policy uploader
+  still outstanding; candidates remain unpublished.
+- Public proof: verification-support/ai-behaviour-01063/
+  2026-11-13-generation-integrity-052.md. Current private scripts/state:
+  ~/.codex/private/loomai-framework-0.8.52/ (rollout.private.json). Both agents
+  closed. Existing unrelated work and retained manual API lab remain untouched.
+
+### 010.63 Generation Patch 0.8.52 Hosted Closeout (2026-11-13)
+
+- BOUNDED PATCH COMPLETE, not all01063 optimisation work. Framework3bfcd272
+  is also on remote main. Published52/consumer/CI receipts above remain valid.
+  Both CPbackends/UIs nativehealthy on008981816; new Northfield version
+  ver-0458c7ed, artifactdsa-f8ef9102, runtimeOCIfdba4734.... SAME Brain/apps:
+  stage rel-6c13942c and prod rel-0139e718 APPLIED_VERIFIED/PASSED, normal
+  existing-consumer bindings. Native runtime+connector/coreCentral-byte match
+  PASS both targets. All10draftsections, workspace/pack/origins/AIstate DB and
+  runtime/connector app identities unchanged. Original3policies still active.
+- Eight real questions observed, no rephrasing/replay or business writes.
+  Stage4 useful answers; follow-up broadens alternatives, indexed called live
+  imprecisely. PROD mileage follow-up FAIL: uses216/287range as mileage,
+  ANSWER_FROM_CONTEXT/0newREAD/0docs. Other stock/sparse/policy answers useful.
+  This KNOWN normal-planning miss is NOT fixed by removing failure fallbacks;
+  retain it, no lexical correction or claim of perfect template qualification.
+- Hosted2UI narration-status replay cases per target PASS; receipt/message/
+  warning, exactlyone query each, desktop/mobile/screenshots/pageErrors0.
+  Simulated responses, NOT live provider failure or real write acceptance.
+  History/compound warning display remains unqualified, relationship deferred.
+- Original stage quality report FAILED only on2Supabaseui-visits background
+  requests; all4queries captured. Kept intact, separate adjudication, NO model
+  replay. Future runner explicitly suppresses optional visit telemetry so tests
+  do not inflate analytics. Production runner passed with2suppressed/0blocked/
+  0pageErrors/4captured; semantic mileage failure retained separately.
+- Live source stays008981816; follow-up changes are verification/docs only.
+  No S3/IAM/source/prompt/security change, new business DB or vector copying.
+  Policy uploader, semantic comparison guidance and template-default adoption
+  remain open. Latest proof2026-11-13-generation-integrity-052.md; private52
+  rollout/adjudication/native/preservation evidence. Both agents closed and
+  needed local test/browser processes ended; unrelated work/manual lab kept.

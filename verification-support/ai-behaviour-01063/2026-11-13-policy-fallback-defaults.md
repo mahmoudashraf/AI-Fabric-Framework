@@ -3,6 +3,12 @@
 Status: in progress, 13 November 2026. This is a new qualification cycle, not a
 replacement for the earlier failed observations or historical release records.
 
+Follow-up: the owner approved the bounded generic-generation correction, now
+released as AI Fabric 0.8.52. Its publication, adoption and current hosted proof
+are recorded in [Generation integrity](2026-11-13-generation-integrity-052.md).
+The baseline observations below remain unchanged. Policy upload and final
+template-default qualification remain separate open work.
+
 ## Scope And Order
 
 1. Establish the actual approved policy evidence and source permissions.

@@ -24,7 +24,7 @@ const report = { startedAt: new Date().toISOString(), appUrl: scope.appUrl, depl
   status: 'RUNNING', settingsChanged: false, runtimeOrFrameworkCodeChanged: false,
   hostContract: manualHost ? 'MANUAL_HOST_PUBLISHED_ASSETS_LIVE_RUNTIME_NOT_PLATFORM_ASSIGNMENT_ACCEPTANCE' : 'LIVE_PLATFORM_INSTALLATION',
   semanticVerdicts: 'Pending human review against current source evidence, not legacy lexical assertions',
-  sessions: [], results: [], blocked: [], errors: [], successfulWriteActions: [] }
+  sessions: [], results: [], blocked: [], errors: [], successfulWriteActions: [], suppressedVisitTelemetry: 0 }
 const save = (name, value) => writeFileSync(`${root}/${name}.json`, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
 const { chromium } = createRequire(new URL('../../Platfrom/ui/package.json', import.meta.url))('playwright')
 const browser = await chromium.launch()
@@ -76,6 +76,12 @@ try {
         return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><title>Manual live-runtime quality test</title></head><body><main id="main-content"></main></body></html>' })
       }
       if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) return route.continue()
+      // Synthetic quality traffic must not inflate the optional hosted visit counter.
+      if (request.method() === 'POST' && url.protocol === 'https:'
+        && url.hostname.endsWith('.supabase.co') && url.pathname === '/functions/v1/ui-visits') {
+        report.suppressedVisitTelemetry++
+        return route.abort('blockedbyclient')
+      }
       try {
         assert.equal(request.method(), 'POST'); assert.ok(manifest)
         assert.equal(url.origin, new URL(manifest.connection.runtimeBaseUrl).origin)
