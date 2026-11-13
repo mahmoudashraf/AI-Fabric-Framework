@@ -15187,3 +15187,38 @@ test is being called hosted acceptance. UI extraction remains last.
   remain open. Latest proof2026-11-13-generation-integrity-052.md; private52
   rollout/adjudication/native/preservation evidence. Both agents closed and
   needed local test/browser processes ended; unrelated work/manual lab kept.
+
+### 010.63 Follow-Up Quality And Console Diagnostics (2026-11-13)
+
+- Current control-plane BACKENDS are now ef03ec84ec1410ba99ec25dbfb7fe10d2048c1a1,
+  OCIac178ac3..., nativehealthy both hosts. CI43407319736 PASS, backend-only;
+  staging authenticated GET200 before production. UI/runtime remain008981816,
+  framework52. SAME Northfieldver0458/rel6c13942c stage/rel0139e718 prod and apps.
+- Real preview bug fixed: canonical source refs may omit optional score;
+  numeric ternary unboxednull AFTER completed inference, surfaced as401.
+  Recovered canonical fourth answer, NO query replay. Preserve null/zero/scores
+  and canonical documentId/sourceId/vectorSpace. POC41/41 PASS. No auth bypass,
+  semantic ranking/routing change or new framework release.
+- Twelve private preview queries total (4initial+8previouslyunexecuted), plus
+  one actual public policy query. Generic guidance candidate NOT adopted: useful
+  mileage/range/knownrange/sparse cases but original comparison partial and
+  baseline also correct in this small sample. Not a proven quality improvement;
+  no perfect-model gate or phrase-specific correction. All10draftsections and
+  draftdrf-e620ed89 verified unchanged. Candidates/defaults remain held.
+- Policy private-preview source SKIPPED/ineligible: explicitauthModes omit
+  PLATFORM_PROXY_SESSION; runtime correctly enforces list. Proposed config-only
+  addition retains all3existingmodes/filters/approvedpublication/scopes/IDs.
+  APPROVAL REVIEW REJECTED publication command BEFORE execution. Owner question
+  pending in Main. No draft/save/publish/apply occurred. Prepared private helper
+  is NOT permission to execute/bypass. Do not globally addmode to every source.
+- Actual public anonymous Engage samequestion PASS: validlicence/30minutes,
+  exactactive testdrive source cited,1query/0writes/0pageErrors, desktop/mobile
+  screenshots inspected, noanalytics suppressionneeded. Console-only access
+  finding, NOT broken publicpolicy retrieval. No fullmobile/auth qualification.
+- Private evidence/helpers copied fromtmp to
+  ~/.codex/private/loomai-followup-20261113/; closeout.private.json finalproof.
+  policy-preview-rollout.mjs UNEXECUTED/APPROVALGATED. Public proof
+  verification-support/ai-behaviour-01063/2026-11-13-follow-up-field-evidence.md;
+  plan executionrecord updated. S3uploader and acceptedtemplate defaults open.
+  No agents or needed test/browser sessions running; preserve unrelated dirt,
+  retained manual lab and already-shared phone videos. Platform-Updates notified.

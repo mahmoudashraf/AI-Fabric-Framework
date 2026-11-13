@@ -472,3 +472,39 @@ replayed that response without new inference. Staging's actual stock answer
 again borrowed the E1 town for E2; it is a retained model-quality miss, not
 rewritten by this correction. No customer runtime/app assignment was upgraded.
 See the [bounded hosted proof](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-widget-hosted-proof.json).
+
+## 13 November 2026 - Generation Integrity And Follow-Up Qualification
+
+The approved generic generation correction is published and adopted at AI Fabric
+0.8.52. Both existing Northfield environments are verified on `ver-0458c7ed`
+with the same Brain/apps. This removes the unapproved answer substitutions and
+second generation call; it does not guarantee semantically perfect follow-ups.
+Broad framework CI still repeats the documented unrelated Incident Room failures.
+See [generation-integrity evidence](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-generation-integrity-052.md).
+
+Further investigation confirmed a material mileage/range mix-up after an empty
+retrieval. Twelve private prompt-preview turns were retained, not retried until
+passing. Several follow-ups and sparse-field answers were useful, but the small
+sample does not show a clear improvement over baseline and one comparison is
+still incomplete. The generic prompt candidate remains unapplied; it is not a
+qualified universal template default. No lexical correction or source fan-out
+override was introduced.
+
+A real Console preview diagnostic bug was fixed separately: an absent optional
+source score caused null unboxing after the runtime had already completed.
+Source `ef03ec84e`, 41 focused tests and backend image CI `43407319736` passed.
+Both backends are healthy on that exact image; UI and runtime images are unchanged.
+
+The policy preview also exposed an explicit source-mode omission: the source
+allows public/private runtime identities but not Console's verified proxy mode.
+Adding that mode requires the separately requested owner approval; publishing
+was blocked before execution. A fresh public Engage query answered correctly
+from the same approved test-drive document, with inspected desktop/mobile
+screenshots and no page errors. This is a Console-only access configuration
+finding, not proof that public policy retrieval is broken. All ten saved draft
+sections and both app assignments remain unchanged.
+
+See [follow-up qualification and approval checkpoint](../../../../../../../../verification-support/ai-behaviour-01063/2026-11-13-follow-up-field-evidence.md).
+The richer six-file S3 pack, final template-default adoption and normal remaining
+model-quality limitations remain open. No additional framework change is proposed
+for the Console source-mode configuration.
